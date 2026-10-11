@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
@@ -26,7 +27,7 @@ func testStore(t *testing.T) *Store {
 	if err = store.Migrate(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Pool.Exec(ctx, "TRUNCATE cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,draft_sessions,draft_versions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
+	if _, err = store.Pool.Exec(ctx, "TRUNCATE match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,draft_sessions,draft_versions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
 		t.Fatal(err)
 	}
 	f, err := problems.LoadFixtures("../../../../../fixtures/problems")
@@ -164,13 +165,20 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	completion.AttemptID = fresh.AttemptID
 	completion.Score.Passed = 7
 	completion.Verdict = execution.WrongAnswer
+	for i := 0; i < 20; i++ {
+		status := execution.WrongAnswer
+		if i < 7 {
+			status = execution.Accepted
+		}
+		completion.HiddenCases = append(completion.HiddenCases, execution.HiddenCaseResult{Index: i, Status: status})
+	}
 	completion.SafeDiagnostics = []execution.Diagnostic{{Message: "secret"}}
 	completion.PublicCaseResults = []execution.PublicCaseResult{{Status: "secret"}}
 	if err = store.Complete(ctx, fresh, completion); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = store.Submission(ctx, "alice", second.ID)
-	if got.State != "completed" || got.Score.Passed != 7 || len(got.Diagnostics) != 0 || len(got.PublicCases) != 0 {
+	if got.State != "completed" || got.Score.Passed != 7 || len(got.HiddenCases) != 20 || got.HiddenCases[0].Status != execution.Accepted || got.HiddenCases[7].Status != execution.WrongAnswer || len(got.Diagnostics) != 0 || len(got.PublicCases) != 0 {
 		t.Fatal("completion redaction", got)
 	}
 	if _, err = store.Admit(ctx, "alice", "quota", cmd, "f"); errorCode(err) != "quota_exceeded" {
@@ -286,5 +294,74 @@ func TestGlobalBackpressureAndCustomValidation(t *testing.T) {
 	cmd.CustomCases = nil
 	if _, err := store.Admit(ctx, "alice", "pressure", cmd, "p"); errorCode(err) != "queue_saturated" {
 		t.Fatal(err)
+	}
+}
+
+func TestTypedCustomCasesRejectBeforeEnqueue(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	for _, test := range []struct{ slug, args, expected string }{
+		{"run-widths", `[]`, ""},
+		{"split-load", `[[1,2],3]`, ""},
+		{"split-load", `[[1,-2],1]`, ""},
+		{"split-load", `[[],1]`, ""},
+		{"split-load", `[[2147483647,1],1]`, ""},
+		{"run-widths", `[[true]]`, ""},
+		{"run-widths", `[[2147483648]]`, ""},
+		{"run-widths", `[[1.5]]`, ""},
+		{"run-widths", `[[1]]`, `true`},
+		{"level-spreads", `[[1,null,null,2]]`, ""},
+		{"level-spreads", `[[null,1]]`, ""},
+		{"segment-sums", `[[1,null]]`, ""},
+	} {
+		p, err := store.Problem(ctx, test.slug, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w, err := store.CreateWorkspace(ctx, "alice", p.ID, "python")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var args []json.RawMessage
+		if err := json.Unmarshal([]byte(test.args), &args); err != nil {
+			t.Fatal(err)
+		}
+		c := problems.Case{Args: args}
+		if test.expected != "" {
+			c.Expected = json.RawMessage(test.expected)
+		}
+		cmd := judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "source", CustomCases: []problems.Case{c}}
+		if _, err := store.Admit(ctx, "alice", ID(), cmd, ID()); errorCode(err) != "invalid_input" {
+			t.Fatal(test, err)
+		}
+	}
+	var submissions, jobs int
+	if err := store.Pool.QueryRow(ctx, "SELECT (SELECT count(*) FROM submissions),(SELECT count(*) FROM execution_jobs)").Scan(&submissions, &jobs); err != nil {
+		t.Fatal(err)
+	}
+	if submissions != 0 || jobs != 0 {
+		t.Fatal("invalid cases reached queue", submissions, jobs)
+	}
+	p, _ := store.Problem(ctx, "run-widths", false)
+	w, _ := store.CreateWorkspace(ctx, "alice", p.ID, "python")
+	cmd := judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "source", CustomCases: []problems.Case{}}
+	if _, err := store.Admit(ctx, "alice", "empty", cmd, "empty"); errorCode(err) != "invalid_input" {
+		t.Fatal("empty suite", err)
+	}
+	cmd.CustomCases = []problems.Case{{Args: []json.RawMessage{json.RawMessage("[2,2,1]")}, Expected: json.RawMessage("[2,1]")}}
+	admitted, err := store.Admit(ctx, "alice", "valid", cmd, "valid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []byte
+	if err := store.Pool.QueryRow(ctx, "SELECT cases FROM submissions WHERE id=$1", admitted.ID).Scan(&cases); err != nil {
+		t.Fatal(err)
+	}
+	var stored []problems.Case
+	if err := json.Unmarshal(cases, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || string(stored[0].Args[0]) != "[2, 2, 1]" || string(stored[0].Expected) != "[2, 1]" {
+		t.Fatal("admitted payload changed", string(cases))
 	}
 }

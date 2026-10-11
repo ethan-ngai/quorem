@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "4a245182-503c-5c99-89b1-922a6dbb7a9d",
+    "id": "7e6af288-c26f-5ab1-beed-1fc6538d31d2",
     "slug": "mirror-letters",
-    "version": "1",
+    "version": "2",
     "title": "Mirror Letters",
     "difficulty": "easy",
     "tags": ["strings", "two pointers"],
@@ -10,14 +10,26 @@
     "examples": [
       {
         "args": [""],
-        "expected": ""
+        "expected": "",
+        "explanation": "An empty string stays empty."
       },
       {
         "args": ["a-bC!"],
-        "expected": "C-ba!"
+        "expected": "C-ba!",
+        "explanation": "Reverse a, b, C; preserve the hyphen and exclamation mark."
       }
     ],
-    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "constraints": [
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "text",
+          "projection": "length"
+        },
+        "min": 0,
+        "max": 10000
+      }
+    ],
     "signature": {
       "className": "Solution",
       "methodName": "mirrorLetters",

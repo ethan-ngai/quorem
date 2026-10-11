@@ -65,3 +65,44 @@ func TestCodecBoundsAndCanonicalTrees(t *testing.T) {
 		t.Fatal("trailing value accepted")
 	}
 }
+
+func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
+	sig := Signature{Parameters: []Parameter{{Name: "enabled", Type: "bool"}, {Name: "weights", Type: "list<list<float>>"}, {Name: "head", Type: "optional<ListNode>"}}, ReturnType: "TreeNode"}
+	valid := Case{Args: []json.RawMessage{json.RawMessage("true"), json.RawMessage("[[1.25],[]]"), json.RawMessage("null")}, Expected: json.RawMessage("[1,null,2]")}
+	if err := ValidateCustomCases(sig, []Case{valid}); err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]Case{
+		"arity":           {Args: []json.RawMessage{json.RawMessage("true")}},
+		"bool coercion":   {Args: []json.RawMessage{json.RawMessage("1"), json.RawMessage("[]"), json.RawMessage("null")}},
+		"nested scalar":   {Args: []json.RawMessage{json.RawMessage("true"), json.RawMessage("[[false]]"), json.RawMessage("null")}},
+		"nonfinite float": {Args: []json.RawMessage{json.RawMessage("true"), json.RawMessage("[[1e400]]"), json.RawMessage("null")}},
+		"linked gap":      {Args: []json.RawMessage{json.RawMessage("true"), json.RawMessage("[]"), json.RawMessage("[1,null]")}},
+		"orphan output":   {Args: valid.Args, Expected: json.RawMessage("[1,null,null,2]")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := ValidateCustomCases(sig, []Case{c}); err == nil {
+				t.Fatal("malformed custom case accepted")
+			}
+		})
+	}
+	if err := ValidateCustomCases(sig, []Case{}); err == nil {
+		t.Fatal("empty custom suite accepted")
+	}
+	if err := ValidateCustomCases(sig, make([]Case, 21)); err == nil {
+		t.Fatal("21 cases accepted")
+	}
+	largeString, _ := json.Marshal(string(make([]byte, 65536)))
+	if err := ValidateCustomCases(Signature{Parameters: []Parameter{{Name: "text", Type: "str"}}, ReturnType: "str"}, []Case{{Args: []json.RawMessage{largeString}}}); err == nil {
+		t.Fatal("oversized custom suite accepted")
+	}
+	for _, typ := range []string{"optional<Graph>", "list<Graph>"} {
+		input := "null"
+		if typ == "list<Graph>" {
+			input = "[]"
+		}
+		if _, err := Normalize(typ, json.RawMessage(input)); err == nil {
+			t.Fatal("unknown nested codec accepted", typ)
+		}
+	}
+}

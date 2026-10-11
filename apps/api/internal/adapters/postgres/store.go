@@ -15,7 +15,10 @@ import (
 	"sort"
 )
 
-type Store struct{ Pool *pgxpool.Pool }
+type Store struct {
+	Pool      *pgxpool.Pool
+	inviteKey []byte
+}
 type Error struct {
 	Code    string
 	Message string
@@ -43,7 +46,12 @@ func Open(ctx context.Context, url string) (*Store, error) {
 		p.Close()
 		return nil, err
 	}
-	return &Store{p}, nil
+	key, err := loadInviteKey()
+	if err != nil {
+		p.Close()
+		return nil, err
+	}
+	return &Store{Pool: p, inviteKey: key}, nil
 }
 func (s *Store) Migrate(ctx context.Context, dir string) error {
 	tx, err := s.Pool.Begin(ctx)

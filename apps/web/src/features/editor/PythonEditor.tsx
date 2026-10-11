@@ -1,18 +1,9 @@
 /** @file PythonEditor.tsx @description Owns the stable CodeMirror document and optional intelligence extensions. @module editor */
 import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { python } from "@codemirror/lang-python";
-import {
-  bracketMatching,
-  HighlightStyle,
-  foldGutter,
-  foldKeymap,
-  indentUnit,
-  syntaxHighlighting,
-} from "@codemirror/language";
+import { bracketMatching, foldGutter, foldKeymap, indentUnit } from "@codemirror/language";
 import { lintKeymap } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
-import { tags } from "@lezer/highlight";
 import { Compartment, EditorState, Facet, type Extension } from "@codemirror/state";
 import {
   EditorView,
@@ -23,6 +14,8 @@ import {
   highlightActiveLineGutter,
 } from "@codemirror/view";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { editorColorTheme, type EditorScheme } from "./editorPalette";
+import { highlightedPython, pythonSupport, pythonIdentifierAccents } from "./pythonHighlighting";
 
 /** Theme accepted by the shared workspace token set. */
 export type EditorTheme = "light" | "dark";
@@ -47,6 +40,7 @@ type PythonEditorProps = {
   documentUri: string;
   initialSource: string;
   theme: EditorTheme;
+  colorScheme: EditorScheme;
   fontSize: number;
   tabSize: 2 | 4;
   wrap: boolean;
@@ -72,8 +66,13 @@ const baseExtensions: Extension[] = [
   bracketMatching(),
   rectangularSelection(),
   closeBrackets(),
-  autocompletion(),
-  python(),
+  autocompletion({
+    // Adjacent identical labels merge local suggestions with richer server documentation.
+    compareCompletions: (a, b) => a.label.localeCompare(b.label),
+  }),
+  highlightedPython,
+  pythonSupport,
+  pythonIdentifierAccents,
   history(),
   workspaceKeymap,
   EditorView.contentAttributes.of({
@@ -83,68 +82,6 @@ const baseExtensions: Extension[] = [
     autocomplete: "off",
   }),
 ];
-
-/** Builds only visual extensions so a theme change keeps the document intact. */
-function editorTheme(theme: EditorTheme): Extension {
-  return [
-    EditorView.theme(
-      {
-        "&": {
-          height: "100%",
-          color: "var(--color-text)",
-          backgroundColor: "var(--color-field)",
-          fontFamily: "var(--font-code)",
-        },
-        ".cm-scroller": { overflow: "auto", fontFamily: "inherit" },
-        ".cm-content": { caretColor: "var(--color-primary)" },
-        ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--color-primary)" },
-        ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
-          backgroundColor: "var(--color-editor-selection) !important",
-        },
-        ".cm-activeLine": { backgroundColor: "var(--color-editor-active-line)" },
-        ".cm-gutters": {
-          color: "var(--color-text-disabled)",
-          backgroundColor: "var(--color-field)",
-          borderRight: "1px solid var(--color-border)",
-        },
-        ".cm-activeLineGutter": { color: "var(--color-text-secondary)" },
-        ".cm-tooltip": {
-          color: "var(--color-text)",
-          backgroundColor: "var(--color-overlay)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "var(--radius-md)",
-        },
-        ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
-          backgroundColor: "var(--color-brand-secondary)",
-          color: "var(--color-text)",
-        },
-        ".cm-diagnostic-error": { borderLeftColor: "var(--color-error)" },
-        ".cm-diagnostic-warning": { borderLeftColor: "var(--color-warning)" },
-      },
-      { dark: theme === "dark" },
-    ),
-    syntaxHighlighting(
-      HighlightStyle.define([
-        { tag: tags.keyword, color: "var(--color-editor-keyword)" },
-        { tag: [tags.string, tags.special(tags.string)], color: "var(--color-editor-string)" },
-        { tag: [tags.number, tags.bool, tags.null], color: "var(--color-editor-number)" },
-        {
-          tag: [
-            tags.function(tags.variableName),
-            tags.definition(tags.function(tags.variableName)),
-          ],
-          color: "var(--color-editor-function)",
-        },
-        { tag: tags.comment, color: "var(--color-editor-comment)", fontStyle: "italic" },
-        {
-          tag: [tags.typeName, tags.className, tags.namespace],
-          color: "var(--color-editor-function)",
-        },
-        { tag: [tags.operator, tags.punctuation], color: "var(--color-text-secondary)" },
-      ]),
-    ),
-  ];
-}
 
 /** Reconfigures editor display preferences without resetting history. */
 function editorPreferences(fontSize: number, tabSize: 2 | 4, wrap: boolean) {
@@ -167,6 +104,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
     documentUri,
     initialSource,
     theme,
+    colorScheme,
     fontSize,
     tabSize,
     wrap,
@@ -217,7 +155,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
           EditorView.updateListener.of((update) => {
             if (update.docChanged) callbackRef.current(update.state.doc.toString());
           }),
-          themeSlot.current.of(editorTheme(theme)),
+          themeSlot.current.of(editorColorTheme(colorScheme, theme)),
           preferencesSlot.current.of(editorPreferences(fontSize, tabSize, wrap)),
           intelligenceSlot.current.of(intelligenceExtensions),
           editorDocumentUri.of(documentUri),
@@ -234,8 +172,8 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    view.dispatch({ effects: themeSlot.current.reconfigure(editorTheme(theme)) });
-  }, [theme]);
+    view.dispatch({ effects: themeSlot.current.reconfigure(editorColorTheme(colorScheme, theme)) });
+  }, [theme, colorScheme]);
 
   useEffect(() => {
     const view = viewRef.current;

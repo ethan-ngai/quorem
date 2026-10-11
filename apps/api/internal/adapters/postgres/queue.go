@@ -114,6 +114,17 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 		return err
 	}
 	defer tx.Rollback(ctx)
+	var matchID string
+	if err = tx.QueryRow(ctx, "SELECT COALESCE(match_id::text,'') FROM submissions WHERE id=$1", j.SubmissionID).Scan(&matchID); err != nil {
+		return err
+	}
+	var match matchRecord
+	if matchID != "" {
+		match, err = lockMatch(ctx, tx, matchID)
+		if err != nil {
+			return err
+		}
+	}
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740020)"); err != nil {
 		return err
 	}
@@ -126,6 +137,12 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	}
 	if err != nil {
 		return err
+	}
+	// Freeze an elapsed finalization window before a late verdict can resolve uncertainty.
+	if matchID != "" {
+		if err = s.reconcileMatch(ctx, tx, &match); err != nil {
+			return err
+		}
 	}
 	state := "completed"
 	result := judging.Submission{}
@@ -150,7 +167,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 			if c.Score == nil || c.Score.Total != 20 || c.Score.Passed < 0 || c.Score.Passed > 20 {
 				return errors.New("incomplete hidden score")
 			}
+			if err = validateHiddenCases(c); err != nil {
+				return err
+			}
 			result.Score = c.Score
+			result.HiddenCases = c.HiddenCases
 			result.Diagnostics = nil
 		} else {
 			result.PublicCases = c.PublicCaseResults
@@ -166,6 +187,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	payload, _ := json.Marshal(map[string]string{"submissionId": j.SubmissionID, "state": state})
 	if _, err = tx.Exec(ctx, "INSERT INTO outbox_events(id,aggregate_id,type,payload) VALUES($1,$2,'submission.updated',$3)", ID(), j.SubmissionID, payload); err != nil {
 		return err
+	}
+	if matchID != "" {
+		if err = s.reconcileMatch(ctx, tx, &match); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }
@@ -185,4 +211,31 @@ func (s *Store) ExpiredAttempts(ctx context.Context) ([]string, error) {
 		attempts = append(attempts, attempt)
 	}
 	return attempts, rows.Err()
+}
+
+func validateHiddenCases(c execution.Completion) error {
+	// Older in-flight runners may complete without per-case statuses.
+	if c.HiddenCases == nil {
+		return nil
+	}
+	if c.Score == nil || len(c.HiddenCases) != c.Score.Total {
+		return errors.New("incomplete hidden cases")
+	}
+	passed := 0
+	for i, result := range c.HiddenCases {
+		if result.Index != i {
+			return errors.New("invalid hidden case index")
+		}
+		switch result.Status {
+		case execution.Accepted:
+			passed++
+		case execution.WrongAnswer, execution.TimeLimit:
+		default:
+			return errors.New("invalid hidden case status")
+		}
+	}
+	if passed != c.Score.Passed {
+		return errors.New("inconsistent hidden score")
+	}
+	return nil
 }

@@ -52,7 +52,23 @@ func main() {
 	if *seed {
 		return
 	}
-	server := &http.Server{Addr: addr, Handler: (&httpapi.Server{Store: store, Local: true}).Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	api := &httpapi.Server{Store: store, Local: true}
+	api.StartRealtime(ctx)
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			if e := store.ReconcileMatches(ctx); e != nil && ctx.Err() == nil {
+				log.Print("Match reconciliation unavailable")
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	server := &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)

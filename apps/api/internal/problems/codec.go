@@ -10,7 +10,7 @@ import (
 )
 
 func ValidateCase(sig Signature, c Case, expectedRequired bool) error {
-	if len(c.Args) != len(sig.Parameters) {
+	if c.Args == nil || len(c.Args) != len(sig.Parameters) {
 		return fmt.Errorf("wrong argument count")
 	}
 	for i, p := range sig.Parameters {
@@ -27,7 +27,42 @@ func ValidateCase(sig Signature, c Case, expectedRequired bool) error {
 	}
 	return nil
 }
+func ValidateCustomCases(sig Signature, cases []Case) error {
+	if len(cases) < 1 || len(cases) > 20 {
+		return fmt.Errorf("custom cases must contain 1 to 20 cases")
+	}
+	encoded, err := json.Marshal(cases)
+	if err != nil || len(encoded) > 65536 {
+		return fmt.Errorf("custom cases exceed 64 KiB")
+	}
+	for i, c := range cases {
+		if err := ValidateCase(sig, c, false); err != nil {
+			return fmt.Errorf("case %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+func validType(typ string, depth int) bool {
+	if depth > 100 {
+		return false
+	}
+	switch typ {
+	case "int", "float", "bool", "str", "ListNode", "TreeNode":
+		return true
+	}
+	for _, wrapper := range []string{"optional<", "list<"} {
+		if strings.HasPrefix(typ, wrapper) && strings.HasSuffix(typ, ">") {
+			return validType(typ[len(wrapper):len(typ)-1], depth+1)
+		}
+	}
+	return false
+}
+
 func Normalize(typ string, data json.RawMessage) (json.RawMessage, error) {
+	if !validType(typ, 0) {
+		return nil, fmt.Errorf("unknown or excessively nested type")
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var v any

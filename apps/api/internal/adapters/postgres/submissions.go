@@ -9,6 +9,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
+	"time"
 )
 
 func Hash(data []byte) string { h := sha256.Sum256(data); return hex.EncodeToString(h[:]) }
@@ -19,7 +20,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	defer tx.Rollback(ctx)
 	var locked string
-	if err = tx.QueryRow(ctx, "SELECT id FROM users WHERE id=$1 FOR UPDATE", owner).Scan(&locked); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT id FROM users WHERE id=$1 FOR NO KEY UPDATE", owner).Scan(&locked); err != nil {
 		return judging.Submission{}, err
 	}
 	var prior, hash string
@@ -36,12 +37,37 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		return judging.Submission{}, err
 	}
 	var fixtureData []byte
-	err = tx.QueryRow(ctx, "SELECT p.fixture FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData)
+	var matchID string
+	var matchSequence *int64
+	var admissionTime any
+	err = tx.QueryRow(ctx, "SELECT p.fixture,COALESCE(w.match_id::text,'') FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData, &matchID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Workspace not found")
 	}
 	if err != nil {
 		return judging.Submission{}, err
+	}
+	if matchID != "" {
+		m, e := lockMatch(ctx, tx, matchID)
+		if e != nil {
+			return judging.Submission{}, e
+		}
+		// clock_timestamp is sampled only after acquiring the aggregate lock.
+		var admitted time.Time
+		if e = tx.QueryRow(ctx, "SELECT clock_timestamp()").Scan(&admitted); e != nil {
+			return judging.Submission{}, e
+		}
+		if m.state != "active" || m.deadline == nil || !admitted.Before(*m.deadline) {
+			return judging.Submission{}, failure("invalid_transition", 409, "Match admission is closed")
+		}
+		admissionTime = admitted
+		if c.Kind == "submit" {
+			var sequence int64
+			if e = tx.QueryRow(ctx, "UPDATE matches SET admission_sequence=admission_sequence+1 WHERE id=$1 RETURNING admission_sequence", matchID).Scan(&sequence); e != nil {
+				return judging.Submission{}, e
+			}
+			matchSequence = &sequence
+		}
 	}
 	var f problems.Fixture
 	if err = json.Unmarshal(fixtureData, &f); err != nil {
@@ -49,17 +75,20 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	cases := f.HiddenCases
 	if c.Kind == "run" {
-		cases = f.Problem.Examples
-		if len(c.CustomCases) > 0 {
-			cases = c.CustomCases
-		}
-		for _, test := range cases {
-			if err = problems.ValidateCase(f.Problem.Signature, test, false); err != nil {
+		cases = f.Problem.SampleCases()
+		if c.CustomCases != nil {
+			if err = problems.ValidateProblemCustomCases(f.Problem, c.CustomCases); err != nil {
 				return judging.Submission{}, failure("invalid_input", 400, err.Error())
 			}
+			cases = c.CustomCases
 		}
-	} else if len(c.CustomCases) > 0 {
+	} else if c.CustomCases != nil {
 		return judging.Submission{}, failure("invalid_input", 400, "Submit cannot choose cases")
+	}
+	for _, test := range cases {
+		if err = problems.ValidateProblemCase(f.Problem, test, false); err != nil {
+			return judging.Submission{}, failure("invalid_input", 400, err.Error())
+		}
 	}
 	var busy bool
 	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM submissions WHERE owner_id=$1 AND state IN ('queued','running'))", owner).Scan(&busy); err != nil {
@@ -90,7 +119,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	id := ID()
 	encoded, _ := json.Marshal(cases)
-	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,$4,$5,$6,'queued',$7)", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()))", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime); err != nil {
 		return judging.Submission{}, err
 	}
 	if _, err = tx.Exec(ctx, "INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", ID(), id); err != nil {
@@ -101,6 +130,15 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	if _, err = tx.Exec(ctx, "UPDATE users SET admission_tokens=$2-1,tokens_updated_at=clock_timestamp() WHERE id=$1", owner, tokens); err != nil {
 		return judging.Submission{}, err
+	}
+	if matchID != "" && c.Kind == "submit" {
+		m, e := lockMatch(ctx, tx, matchID)
+		if e != nil {
+			return judging.Submission{}, e
+		}
+		if e = s.reconcileMatch(ctx, tx, &m); e != nil {
+			return judging.Submission{}, e
+		}
 	}
 	result, err := s.submission(ctx, tx, owner, id)
 	if err != nil {
@@ -127,6 +165,7 @@ func (s *Store) submission(ctx context.Context, q querier, owner, id string) (ju
 			v.Verdict = result.Verdict
 			v.Score = result.Score
 			v.PublicCases = result.PublicCases
+			v.HiddenCases = result.HiddenCases
 			v.Diagnostics = result.Diagnostics
 			v.InfrastructureError = result.InfrastructureError
 		}
@@ -164,13 +203,16 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 			return judging.Submission{}, e
 		}
 	}
-	var state string
-	err = tx.QueryRow(ctx, "SELECT state FROM submissions WHERE id::text=$1 AND owner_id=$2 FOR UPDATE", id, owner).Scan(&state)
+	var state, matchID, kind string
+	err = tx.QueryRow(ctx, "SELECT state,COALESCE(match_id::text,''),kind FROM submissions WHERE id::text=$1 AND owner_id=$2 FOR UPDATE", id, owner).Scan(&state, &matchID, &kind)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Submission not found")
 	}
 	if err != nil {
 		return judging.Submission{}, err
+	}
+	if matchID != "" && kind == "submit" {
+		return judging.Submission{}, failure("invalid_transition", 409, "Match submissions cannot be cancelled")
 	}
 	if state == "queued" {
 		if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE submission_id::text=$1", id); err != nil {

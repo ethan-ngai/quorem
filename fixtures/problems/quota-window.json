@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "3f01edc1-d158-5ff6-a7b9-8b3de1a4c969",
+    "id": "d83802b1-ad72-5082-a220-4ff8e2aa572a",
     "slug": "quota-window",
-    "version": "1",
+    "version": "2",
     "title": "Quota Window",
     "difficulty": "hard",
     "tags": ["strings", "sliding window"],
@@ -10,14 +10,35 @@
     "examples": [
       {
         "args": ["AXBCAYBC", "ABC"],
-        "expected": "BCA"
+        "expected": "BCA",
+        "explanation": "BCA is the earliest shortest substring containing A, B, and C."
       },
       {
         "args": ["aaabb", "aab"],
-        "expected": "aab"
+        "expected": "aab",
+        "explanation": "aab supplies two a characters and one b."
       }
     ],
-    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "constraints": [
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "text",
+          "projection": "length"
+        },
+        "min": 0,
+        "max": 10000
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "quota",
+          "projection": "length"
+        },
+        "min": 0,
+        "max": 10000
+      }
+    ],
     "signature": {
       "className": "Solution",
       "methodName": "quotaWindow",

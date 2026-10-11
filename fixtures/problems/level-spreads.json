@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "27b0548e-bcb0-59c0-8de7-2c18016255ea",
+    "id": "3f4f998a-7911-5097-91ea-70651bcb363b",
     "slug": "level-spreads",
-    "version": "2",
+    "version": "3",
     "title": "Level Spreads",
     "difficulty": "medium",
     "tags": ["binary trees", "breadth first search"],
@@ -10,18 +10,44 @@
     "examples": [
       {
         "args": [[5, 2, 9, 1, 4, null, 7]],
-        "expected": [0, 7, 6]
+        "expected": [0, 7, 6],
+        "explanation": "The level ranges are 5–5, 2–9, and 1–7."
       },
       {
         "args": [[-2, -5, 4]],
-        "expected": [0, 9]
+        "expected": [0, 9],
+        "explanation": "The root has spread 0; children span -5 to 4."
       },
       {
         "args": [null],
-        "expected": []
+        "expected": [],
+        "explanation": "An empty tree has no levels."
       }
     ],
-    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "constraints": [
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "root",
+          "projection": "nodeCount"
+        },
+        "min": 0,
+        "max": 10000
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "root",
+          "projection": "nodeValues"
+        },
+        "min": -2147483648,
+        "max": 2147483647
+      },
+      {
+        "kind": "prose",
+        "text": "Each level difference fits a signed 32-bit integer."
+      }
+    ],
     "signature": {
       "className": "Solution",
       "methodName": "levelSpreads",

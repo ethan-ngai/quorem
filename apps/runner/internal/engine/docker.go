@@ -88,17 +88,20 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		if status != "accepted" && status != "executed" && result.Verdict == "" {
 			result.Verdict = execution.Verdict(status)
 		}
+		if spec.Kind == "submit" {
+			hiddenStatus := execution.WrongAnswer
+			if status == "accepted" || status == "time_limit" {
+				hiddenStatus = execution.Verdict(status)
+			}
+			result.HiddenCases = append(result.HiddenCases, execution.HiddenCaseResult{Index: i, Status: hiddenStatus})
+		}
 		if spec.Kind == "run" {
 			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
 			if f.Line > 0 {
 				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
 			}
-			if f.Stdout != "" {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: f.Stdout})
-			}
-			if f.Stderr != "" {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: f.Stderr})
-			}
+			public.Stdout = f.Stdout
+			public.Stderr = f.Stderr
 			result.PublicCaseResults = append(result.PublicCaseResults, public)
 		}
 	}

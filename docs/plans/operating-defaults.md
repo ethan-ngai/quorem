@@ -30,7 +30,7 @@ Worker concurrency starts at two local slots; public pool sized by benchmark/cos
 - Invite: random 256-bit token, hash at rest, 24-hour expiry, exactly two seats; one active match per user. Host cannot change settings after a guest is ready without clearing readiness.
 - Match finalization: two minutes from first entry into finalizing, never extended by retries/restarts. Pending work admitted before the deadline can affect the result; new submissions cannot.
 - Auth session: seven-day maximum, secure HTTP-only cookie, server-side revocation. Application JWT: five-minute lifetime; refresh from valid session; enforce issuer/audience/algorithm/expiry. Logout prevents new JWTs; already-issued JWT revocation is bounded by five minutes unless subject/session is explicitly disabled.
-- Language sessions: one active editor language session per owner, 30-minute idle expiry, 2 MiB maximum live document/workspace payload, bounded memory/process resources. Refresh/reconnect recreates the public workspace. Backend engine defaults must be benchmarked; deny cross-owner filesystem/cache sharing.
+- Language sessions: one active editor language session per owner, 30-minute idle expiry, 2 MiB maximum live document/workspace payload, 512 MiB container memory, 384 MiB Node heap, 32 process/task limit, one CPU. The lower 192 MiB heap repeatedly purged Python type caches and sometimes terminated cold global-completion sessions. Refresh/reconnect recreates the public workspace. Backend engine defaults must be benchmarked; deny cross-owner filesystem/cache sharing.
 
 ## Latency/load targets
 
