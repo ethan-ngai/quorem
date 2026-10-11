@@ -8,7 +8,7 @@
     "./schema": "./src/generated.ts"
   },
   "scripts": {
-    "generate": "openapi-typescript openapi/api.json -o src/generated.ts",
+    "generate": "node scripts/generate.mjs",
     "check": "node scripts/check.mjs"
   },
   "dependencies": {

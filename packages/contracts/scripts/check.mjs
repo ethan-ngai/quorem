@@ -1,11 +1,9 @@
 /** @file check.mjs @description Validate fixtures and generated contract drift. @module contracts */
-import { readFileSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+import { generateContracts } from "./generate.mjs";
 
 const api = JSON.parse(readFileSync("openapi/api.json", "utf8"));
 const schemas = JSON.parse(
@@ -43,16 +41,9 @@ assert.deepEqual(eventSchema.$defs, schemas, "Event schemas must match OpenAPI")
 const validateEvent = ajv.compile(eventSchema);
 assert(validateEvent(event), JSON.stringify(validateEvent.errors));
 assert(!validateEvent({ ...event, payload: { ...event.payload, source: "private" } }));
-const temp = mkdtempSync(join(tmpdir(), "quorem-contracts-"));
-try {
-  const generated = join(temp, "generated.ts");
-  execFileSync("openapi-typescript", ["openapi/api.json", "-o", generated], { stdio: "pipe" });
-  assert.equal(
-    readFileSync("src/generated.ts", "utf8"),
-    readFileSync(generated, "utf8"),
-    "Run vp run contracts:generate",
-  );
-} finally {
-  rmSync(temp, { recursive: true, force: true });
-}
+assert.equal(
+  readFileSync("src/generated.ts", "utf8"),
+  await generateContracts(),
+  "Run vp run contracts:generate",
+);
 console.log("Contract fixtures, redaction, decimal sequences and generation verified.");

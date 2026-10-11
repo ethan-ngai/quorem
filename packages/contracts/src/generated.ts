@@ -3,6 +3,7 @@
  * Do not make direct changes to the file.
  */
 
+export type WireValue = null | number | boolean | string | WireValue[];
 export interface paths {
     "/v1/problems/{slug}": {
         parameters: {
@@ -274,7 +275,7 @@ export interface components {
         SubmissionState: "queued" | "running" | "completed" | "cancelled" | "failed";
         /** @enum {string} */
         Verdict: "accepted" | "wrong_answer" | "syntax_error" | "runtime_error" | "time_limit" | "memory_limit" | "output_limit" | "invalid_output";
-        WireValue: null | number | boolean | string | components["schemas"]["WireValue"][];
+        WireValue: WireValue;
         ErrorResponse: {
             error: {
                 /** @enum {string} */
