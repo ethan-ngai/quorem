@@ -78,6 +78,10 @@ func targetType(sig Signature, t *ConstraintTarget) (string, error) {
 		if typ == "str" || strings.HasPrefix(typ, "list<") {
 			return "scalar", nil
 		}
+	case "sum":
+		if typ == "list<int>" || typ == "list<float>" {
+			return "scalar", nil
+		}
 	case "elements":
 		if typ == "list<int>" || typ == "list<float>" {
 			return "sequence", nil
@@ -204,6 +208,13 @@ func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
 			}
 		}
 	}
+	if t.Projection == "sum" {
+		total := float64(0)
+		for _, value := range result {
+			total += value
+		}
+		return []float64{total}
+	}
 	if t.Projection == "nodeCount" {
 		return []float64{float64(len(result))}
 	}
@@ -220,14 +231,14 @@ func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
 		switch rule.Kind {
 		case "range":
 			for _, v := range project(p.Signature, c, rule.Target) {
-				if rule.Min != nil && v < *rule.Min || rule.Max != nil && v > *rule.Max {
+				if math.IsNaN(v) || math.IsInf(v, 0) || rule.Min != nil && v < *rule.Min || rule.Max != nil && v > *rule.Max {
 					return fmt.Errorf("argument %s: %s outside allowed range", rule.Target.Parameter, rule.Target.Projection)
 				}
 			}
 		case "comparison":
 			a, b := project(p.Signature, c, rule.Left)[0], project(p.Signature, c, rule.Right)[0]
 			valid := map[string]bool{"eq": a == b, "le": a <= b, "lt": a < b, "ge": a >= b, "gt": a > b}[rule.Operator]
-			if !valid {
+			if !valid || math.IsNaN(a) || math.IsNaN(b) || math.IsInf(a, 0) || math.IsInf(b, 0) {
 				return fmt.Errorf("arguments %s and %s: comparison %s failed", rule.Left.Parameter, rule.Right.Parameter, rule.Operator)
 			}
 		case "property":

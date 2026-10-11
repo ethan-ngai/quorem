@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "faae7541-1ce0-5104-b013-bb27643893e4",
+    "id": "130d41b5-9a4b-5471-b7b9-27669601af66",
     "slug": "split-load",
-    "version": "2",
+    "version": "3",
     "title": "Split Load",
     "difficulty": "hard",
     "tags": ["arrays", "binary search"],
@@ -60,8 +60,10 @@
         "operator": "le"
       },
       {
-        "kind": "prose",
-        "text": "The total of loads fits a signed 32-bit integer."
+        "kind": "range",
+        "target": { "parameter": "loads", "projection": "sum" },
+        "min": 0,
+        "max": 2147483647
       }
     ],
     "signature": {

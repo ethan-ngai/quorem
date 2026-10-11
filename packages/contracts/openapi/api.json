@@ -1784,7 +1784,7 @@
           },
           "projection": {
             "type": "string",
-            "enum": ["value", "length", "elements", "nodeCount", "nodeValues"]
+            "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues"]
           }
         },
         "required": ["parameter", "projection"],

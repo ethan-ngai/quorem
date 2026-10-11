@@ -140,3 +140,28 @@ func TestStructuredFixtures(t *testing.T) {
 		}
 	}
 }
+
+func TestSumProjection(t *testing.T) {
+	p := metadataProblem()
+	max := float64(2147483647)
+	p.Constraints = []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "loads", Projection: "sum"}, Max: &max}}
+	for _, test := range []struct {
+		loads string
+		valid bool
+	}{{`[2147483647]`, true}, {`[2147483647,1]`, false}, {`[]`, true}, {`[3,-3]`, true}} {
+		err := ValidateProblemCase(p, Case{Args: []json.RawMessage{json.RawMessage(test.loads), json.RawMessage(`1`)}}, false)
+		if (err == nil) != test.valid {
+			t.Fatalf("%s: %v", test.loads, err)
+		}
+	}
+	p.Signature.Parameters[0].Type = "list<float>"
+	for _, loads := range []string{`[1e308,1e308]`, `[1e308,1e308,-1e308,-1e308]`} {
+		if ValidateProblemCase(p, Case{Args: []json.RawMessage{json.RawMessage(loads), json.RawMessage(`1`)}}, false) == nil {
+			t.Fatal("nonfinite sum accepted")
+		}
+	}
+	p.Signature.Parameters[0].Type = "str"
+	if ValidateConstraints(p.Signature, p.Constraints) == nil {
+		t.Fatal("string sum accepted")
+	}
+}

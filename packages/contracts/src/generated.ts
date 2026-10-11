@@ -563,7 +563,7 @@ export interface components {
         ConstraintTarget: {
             parameter: string;
             /** @enum {string} */
-            projection: "value" | "length" | "elements" | "nodeCount" | "nodeValues";
+            projection: "value" | "length" | "elements" | "sum" | "nodeCount" | "nodeValues";
         };
         Constraint: ({
             /** @constant */
