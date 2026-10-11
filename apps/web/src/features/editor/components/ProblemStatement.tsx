@@ -66,11 +66,17 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
                 <div className="example-content">
                   <div className="example-data">
                     <div>
-                      <span>Input</span>
+                      <span className="value-label">
+                        <Icon name="input" />
+                        Input
+                      </span>
                       <code>{exampleInput(problem, example.args)}</code>
                     </div>
                     <div>
-                      <span>Output</span>
+                      <span className="value-label">
+                        <Icon name="output" />
+                        Output
+                      </span>
                       <code>{JSON.stringify(example.expected)}</code>
                     </div>
                   </div>

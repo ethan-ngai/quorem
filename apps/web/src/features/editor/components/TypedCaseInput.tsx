@@ -1,3 +1,4 @@
+import { Icon } from "./Icon";
 import { useState } from "react";
 import type { InputPresetConfig } from "@quorem/contracts";
 import { innerType } from "../customCases";
@@ -8,6 +9,7 @@ export function TypedCaseInput({
   name,
   type,
   input,
+  purpose = "input",
   value,
   onChange,
 }: {
@@ -15,6 +17,7 @@ export function TypedCaseInput({
   name: string;
   type: string;
   input?: InputPresetConfig;
+  purpose?: "input" | "expected";
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -66,7 +69,8 @@ export function TypedCaseInput({
   return (
     <div className="typed-case-field">
       <div className="typed-case-label">
-        <label htmlFor={id}>
+        <label htmlFor={id} className="value-label">
+          <Icon name={purpose === "expected" ? "target" : "input"} />
           {name} <span>{type}</span>
         </label>
         {optional && (

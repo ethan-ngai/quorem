@@ -360,7 +360,8 @@ kbd {
   margin: 0 0 16px;
   white-space: pre-line;
 }
-.problem-copy code {
+.problem-copy code,
+.constraint-list code {
   padding: 2px 4px;
   background: var(--color-overlay);
   font-family: var(--font-code);
@@ -1179,15 +1180,14 @@ kbd {
 }
 .example-data > div {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: 60px minmax(0, 1fr);
   align-items: baseline;
   gap: 8px;
 }
 .example-data > div > span {
   color: var(--color-text-secondary);
 }
-.example-data code,
-.constraint-list code {
+.example-data code {
   display: inline-block;
   justify-self: start;
   width: fit-content;
@@ -1484,6 +1484,9 @@ kbd {
   gap: 18px;
 }
 .result-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   padding: 0;
   background: none;
@@ -1604,4 +1607,18 @@ kbd {
 }
 .statement-math {
   max-width: 100%;
+}
+
+.value-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.value-label svg,
+.result-tabs svg,
+.add-case svg,
+.add-expected svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
 }

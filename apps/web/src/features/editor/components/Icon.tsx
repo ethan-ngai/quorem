@@ -2,6 +2,15 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
+  samples: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 15l2 2 5-5",
+  custom:
+    "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6m-10 7 5-5 2 2-5 5-3 1Z",
+  input: "M14 3h6v18h-6M3 12h12m-4-4 4 4-4 4",
+  output: "M10 3H4v18h6m-1-9h12m-4-4 4 4-4 4",
+  target:
+    "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-4 0a5 5 0 1 1-10 0 5 5 0 0 1 10 0Zm-3 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
+  plus: "M12 5v14M5 12h14",
   settings: "M4 7h16M4 17h16M8 4v6M16 14v6",
   chevron: "m8 10 4 4 4-4",
   eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",

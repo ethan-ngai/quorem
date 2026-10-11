@@ -709,6 +709,7 @@ export function WorkspacePage({
                           }
                         }}
                       >
+                        <Icon name={tab === "samples" ? "samples" : "custom"} />
                         {tab === "samples" ? "Sample cases" : "Custom cases"}
                       </button>
                     );

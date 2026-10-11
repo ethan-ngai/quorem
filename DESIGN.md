@@ -140,3 +140,5 @@ Python highlighting follows the installed Lezer grammar: function definitions an
 Editor intelligence popovers use the small text token; documentation scrolls within 260px or 40vh and stays within viewport width. Local keyword/name completion remains available while remote analysis initializes.
 
 Descriptions, explanations and prose constraints support inline code, bold, italics and KaTeX math. Structured constraints render machine references as text-fitting monospace code and quantities/operators as inline mathematics at the surrounding type scale. Code-editor ligatures remain disabled.
+
+Use semantic icons alongside labels for sample/custom collections and input/output/expected values. Compact destructive actions use red trash icons with accessible names and tooltips. Collection focus belongs to the outer control only. Constraint inline code shares description code padding and tone.

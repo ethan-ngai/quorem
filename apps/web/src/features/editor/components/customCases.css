@@ -84,6 +84,7 @@
 .typed-collection input:focus-visible,
 .typed-collection textarea:focus-visible {
   outline: none;
+  box-shadow: none;
 }
 .collection-delimiter,
 .typed-null {
@@ -96,7 +97,9 @@
 .remove-expected {
   position: absolute;
   inset: 0 0 auto auto;
-  font-size: 11px;
+  width: 26px;
+  height: 26px;
+  top: -4px;
 }
 .add-expected {
   justify-self: start;
@@ -137,4 +140,14 @@
 }
 .case-result-summary:has(.case-browser) > .result-complete {
   height: 100%;
+}
+
+.destructive-icon,
+.destructive-icon:hover {
+  color: var(--color-error);
+}
+.add-case {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

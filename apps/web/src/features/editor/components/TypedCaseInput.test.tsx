@@ -85,7 +85,7 @@ describe("typed case controls", () => {
           onDraftsChange={() => {}}
         />,
       );
-    expect(render(false)).toContain("+ Add expected output");
+    expect(render(false)).toContain("Add expected output");
     expect(render(false)).not.toContain('type="checkbox"');
     expect(render(true)).toContain("Remove expected output");
     expect(render(true)).toContain('value="10 * 3"');

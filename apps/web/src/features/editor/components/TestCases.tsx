@@ -8,6 +8,7 @@ import {
   type RunSnapshot,
 } from "../customCases";
 import { bindArguments } from "../argumentBinding";
+import { Icon } from "./Icon";
 import { TypedCaseInput } from "./TypedCaseInput";
 import "./customCases.css";
 
@@ -19,13 +20,19 @@ function CaseOutput({ result }: { result: PublicCaseResult }) {
       </span>
       {result.actual !== undefined && (
         <div className="case-detail">
-          <span>Output</span>
+          <span className="value-label">
+            <Icon name="output" />
+            Output
+          </span>
           <code>{JSON.stringify(result.actual)}</code>
         </div>
       )}
       {result.expected !== undefined && (
         <div className="case-detail">
-          <span>Expected output from run</span>
+          <span className="value-label">
+            <Icon name="target" />
+            Expected output from run
+          </span>
           <code>{JSON.stringify(result.expected)}</code>
         </div>
       )}
@@ -117,7 +124,7 @@ export function TestCases({
               setSelectedCustomId(added.id);
             }}
           >
-            + Add case
+            <Icon name="plus" /> Add case
           </button>
         )}
       </div>
@@ -127,7 +134,8 @@ export function TestCases({
             <div className="custom-case-heading">
               <span>Case {customIndex + 1}</span>
               <button
-                className="quiet-button"
+                className="icon-button destructive-icon"
+                title="Remove case"
                 disabled={drafts.length === 1}
                 aria-label={`Remove custom case ${customIndex + 1}`}
                 onClick={() => {
@@ -136,7 +144,7 @@ export function TestCases({
                   setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
                 }}
               >
-                Remove
+                <Icon name="trash" />
               </button>
             </div>
             {problem.signature.parameters.map(({ name, type, input }, index) => (
@@ -158,14 +166,17 @@ export function TestCases({
               <div className="expected-field">
                 <button
                   type="button"
-                  className="quiet-button remove-expected"
+                  className="icon-button destructive-icon remove-expected"
+                  aria-label="Remove expected output"
+                  title="Remove expected output"
                   onClick={() => updateDraft({ expectedEnabled: false })}
                 >
-                  Remove expected output
+                  <Icon name="trash" />
                 </button>
                 <TypedCaseInput
                   id={`custom-${draft.id}-expected`}
                   name="Expected output"
+                  purpose="expected"
                   type={problem.signature.returnType}
                   value={draft.expected}
                   onChange={(expected) => updateDraft({ expected })}
@@ -177,7 +188,7 @@ export function TestCases({
                 className="quiet-button add-expected"
                 onClick={() => updateDraft({ expectedEnabled: true })}
               >
-                + Add expected output
+                <Icon name="target" /> Add expected output
               </button>
             )}
           </>
@@ -185,12 +196,18 @@ export function TestCases({
           <>
             {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
               <div className="case-detail" key={index}>
-                <span>{name}</span>
+                <span className="value-label">
+                  <Icon name="input" />
+                  {name}
+                </span>
                 <code>{JSON.stringify(value)}</code>
               </div>
             ))}
             <div className="case-detail">
-              <span>Expected output</span>
+              <span className="value-label">
+                <Icon name="target" />
+                Expected output
+              </span>
               <code>{JSON.stringify(example.expected)}</code>
             </div>
           </>
