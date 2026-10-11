@@ -20,8 +20,8 @@ export function TestCases({
   const activeIndex = Math.min(selectedIndex, Math.max(0, problem.examples.length - 1));
   const example = problem.examples[activeIndex];
   return (
-    <div className="test-cases-content">
-      <div className="case-selectors" aria-label="Select test case">
+    <div className="case-browser">
+      <div className="case-rail" aria-label="Select test case">
         {problem.examples.map((_example, index) => (
           <button
             key={index}
@@ -36,7 +36,7 @@ export function TestCases({
           </button>
         ))}
         <button
-          className="case-selector custom-case-selector"
+          className="case-selector"
           aria-pressed={customMode}
           onClick={() => onCustomModeChange(true)}
         >
@@ -44,7 +44,7 @@ export function TestCases({
         </button>
       </div>
       {customMode ? (
-        <div className="custom-input">
+        <div className="case-details custom-input">
           <label htmlFor="custom-cases">Custom cases</label>
           <textarea
             id="custom-cases"
@@ -72,7 +72,9 @@ export function TestCases({
           </div>
         </div>
       ) : (
-        <p className="result-message">No public examples available.</p>
+        <div className="case-details">
+          <p className="result-message">No public examples available.</p>
+        </div>
       )}
     </div>
   );

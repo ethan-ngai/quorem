@@ -27,8 +27,8 @@ function RunCaseResults({ cases }: { cases: PublicCaseResult[] }) {
   const activeIndex = Math.min(selectedIndex, Math.max(0, cases.length - 1));
   const selected = cases[activeIndex];
   return (
-    <>
-      <div className="case-selectors" aria-label="Select run result">
+    <div className="case-browser">
+      <div className="case-rail" aria-label="Select run result">
         {cases.map((result, index) => (
           <button
             key={result.index}
@@ -73,7 +73,7 @@ function RunCaseResults({ cases }: { cases: PublicCaseResult[] }) {
           <Diagnostics items={selected.diagnostics} />
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -119,17 +119,19 @@ export function ResultContent({
     (submission.kind === "run" ? "Executed" : "Completed");
   return (
     <div className="result-complete">
-      <div
-        className={`verdict-line ${submission.verdict === "accepted" ? "verdict-success" : "verdict-neutral"}`}
-      >
-        <strong>{verdict}</strong>
-        {submission.score && (
-          <span className="score-count">
-            {submission.score.passed}/{submission.score.total} passed
-          </span>
-        )}
+      <div className="result-summary">
+        <div
+          className={`verdict-line ${submission.verdict === "accepted" ? "verdict-success" : "verdict-neutral"}`}
+        >
+          <strong>{verdict}</strong>
+          {submission.score && (
+            <span className="score-count">
+              {submission.score.passed}/{submission.score.total} passed
+            </span>
+          )}
+        </div>
+        <Diagnostics items={submission.diagnostics} />
       </div>
-      <Diagnostics items={submission.diagnostics} />
       {submission.kind === "run" && submission.publicCases?.length ? (
         <RunCaseResults key={submission.id} cases={submission.publicCases} />
       ) : null}
