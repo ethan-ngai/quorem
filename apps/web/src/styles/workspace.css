@@ -2116,9 +2116,6 @@ kbd {
 .workspace-tooltip .shortcut-keys {
   zoom: 0.5;
 }
-.shortcut-tiles[data-enabled="false"] {
-  opacity: 0.5;
-}
 .settings-section .settings-action {
   padding: 14px 0;
   min-height: 44px;

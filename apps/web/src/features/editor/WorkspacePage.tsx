@@ -117,9 +117,6 @@ export function WorkspacePage({
   const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
   const [actionError, setActionError] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [shortcutsEnabled, setShortcutsEnabled] = useState(() =>
-    readPreference("quorem.shortcuts.v1", true),
-  );
   const [editorScheme, setEditorScheme] = useState(readEditorScheme);
   const [fontSize, setFontSize] = useState(() => readPreference("quorem.code-font-size.v1", 15));
   const [tabSize, setTabSize] = useState<2 | 4>(() =>
@@ -236,7 +233,6 @@ export function WorkspacePage({
     writePreference("quorem.pane-ratio.v1", paneRatio);
   }, [paneRatio]);
   useEffect(() => writePreference("quorem.results-height.v1", resultsHeight), [resultsHeight]);
-  useEffect(() => writePreference("quorem.shortcuts.v1", shortcutsEnabled), [shortcutsEnabled]);
   useEffect(() => writePreference("quorem.code-font-size.v1", fontSize), [fontSize]);
   useEffect(() => writePreference(editorSchemeStorageKey, editorScheme), [editorScheme]);
   useEffect(() => writePreference("quorem.tab-size.v1", tabSize), [tabSize]);
@@ -378,7 +374,7 @@ export function WorkspacePage({
   }, [execution.submit]);
 
   const hotkeyOptions = {
-    enabled: shortcutsEnabled && !settingsOpen,
+    enabled: !settingsOpen,
     ignoreInputs: false,
     requireReset: true,
   };
@@ -578,8 +574,6 @@ export function WorkspacePage({
             onTabSizeChange={setTabSize}
             wrap={wrap}
             onWrapChange={setWrap}
-            shortcuts={shortcutsEnabled}
-            onShortcutsChange={setShortcutsEnabled}
             onHistory={() => setHistoryOpen(true)}
             onClearRecovery={() => {
               void clearOwnerRecovery(identity);

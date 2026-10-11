@@ -25,8 +25,6 @@ type SettingsProps = {
   onTabSizeChange: (size: 2 | 4) => void;
   wrap: boolean;
   onWrapChange: (wrap: boolean) => void;
-  shortcuts: boolean;
-  onShortcutsChange: (enabled: boolean) => void;
   onHistory: () => void;
   onClearRecovery: () => void;
 };
@@ -245,17 +243,7 @@ export function WorkspaceSettings(props: SettingsProps) {
               )}
               {section === "shortcuts" && (
                 <>
-                  <Setting
-                    label="Keyboard shortcuts"
-                    description="Run, submit, and save from the editor."
-                  >
-                    <Toggle
-                      label="Keyboard shortcuts"
-                      checked={props.shortcuts}
-                      onChange={props.onShortcutsChange}
-                    />
-                  </Setting>
-                  <div className="shortcut-tiles" data-enabled={props.shortcuts}>
+                  <div className="shortcut-tiles">
                     {Object.values(workspaceShortcuts).map((shortcut) => (
                       <div className="shortcut-tile" key={shortcut.label}>
                         <Icon name={shortcut.icon} />
