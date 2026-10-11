@@ -12,14 +12,14 @@ import type {
 } from "@quorem/contracts";
 
 /** Creates a same-origin client so local requests pass through Vite's API proxy. */
-const api = (identity: DevelopmentIdentity) =>
+export const api = (identity: DevelopmentIdentity) =>
   createApiClient({
     baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
     identity,
   });
 
 /** Turns typed API error responses into messages suitable for the workspace. */
-function requireData<T>(data: T | undefined, error: unknown): T {
+export function requireData<T>(data: T | undefined, error: unknown): T {
   if (data !== undefined) return data;
   const message =
     typeof error === "object" && error !== null && "error" in error
@@ -119,4 +119,12 @@ export async function cancelSubmission(identity: DevelopmentIdentity, id: string
     },
   });
   return requireData(data as Submission | undefined, error);
+}
+
+/** Loads an authorized immutable version, including a started match problem. */
+export async function fetchProblemVersion(identity: DevelopmentIdentity, id: string) {
+  const { data, error } = await api(identity).GET("/v1/problem-versions/{id}", {
+    params: { path: { id } },
+  });
+  return requireData(data as ProblemVersion | undefined, error);
 }

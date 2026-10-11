@@ -1,0 +1,142 @@
+/** @file pythonHighlighting.ts @description Python parser-context tags and visible lexical identifier accents. @module editor */
+import { globalCompletion, localCompletionSource, pythonLanguage } from "@codemirror/lang-python";
+import type { CompletionSource } from "@codemirror/autocomplete";
+import { syntaxTree } from "@codemirror/language";
+import { Decoration, ViewPlugin, type DecorationSet, type EditorView } from "@codemirror/view";
+import { Tag, styleTags, tags } from "@lezer/highlight";
+
+export const parameterTag = Tag.define(tags.variableName);
+
+// VariableName rules share one node property; preserve the grammar's original call/definition paths.
+export const highlightedPython = pythonLanguage.configure({
+  props: [
+    styleTags({
+      VariableName: tags.variableName,
+      "CallExpression/VariableName": tags.function(tags.variableName),
+      "FunctionDefinition/VariableName": tags.function(tags.definition(tags.variableName)),
+      "ClassDefinition/VariableName": tags.definition(tags.className),
+      "ParamList/VariableName": parameterTag,
+      "Decorator/VariableName": tags.annotation,
+    }),
+  ],
+});
+/** Let the server supply symbol kinds; conflicting local kinds prevent completion deduplication. */
+function fallbackCompletion(source: CompletionSource): CompletionSource {
+  return async (context) => {
+    const result = await source(context);
+    return (
+      result && {
+        ...result,
+        options: result.options.map((option) => ({
+          ...option,
+          type: option.type === "keyword" ? option.type : undefined,
+        })),
+      }
+    );
+  };
+}
+export const pythonSupport = [
+  pythonLanguage.data.of({ autocomplete: fallbackCompletion(localCompletionSource) }),
+  pythonLanguage.data.of({ autocomplete: fallbackCompletion(globalCompletion) }),
+];
+
+const builtins = new Set([
+  "abs",
+  "all",
+  "any",
+  "bool",
+  "bytes",
+  "callable",
+  "chr",
+  "dict",
+  "divmod",
+  "enumerate",
+  "filter",
+  "float",
+  "format",
+  "frozenset",
+  "getattr",
+  "hasattr",
+  "hash",
+  "hex",
+  "id",
+  "input",
+  "int",
+  "isinstance",
+  "issubclass",
+  "iter",
+  "len",
+  "list",
+  "map",
+  "max",
+  "min",
+  "next",
+  "object",
+  "open",
+  "ord",
+  "pow",
+  "print",
+  "range",
+  "repr",
+  "reversed",
+  "round",
+  "set",
+  "slice",
+  "sorted",
+  "str",
+  "sum",
+  "super",
+  "tuple",
+  "type",
+  "zip",
+  "Exception",
+  "ValueError",
+  "TypeError",
+  "IndexError",
+  "KeyError",
+  "RuntimeError",
+]);
+
+/** Lexical recognition only; declaration names and member properties retain parser coloring. */
+export function identifierAccent(name: string, parent: string): string | undefined {
+  if (parent === "FunctionDefinition" || parent === "ClassDefinition" || parent === "Decorator")
+    return;
+  if (name === "self" || name === "cls") return "cm-python-self";
+  if (parent !== "ParamList" && builtins.has(name)) return "cm-python-builtin";
+}
+
+/** Limits lexical accents to visible identifier nodes, excluding comments, strings and properties. */
+function visibleIdentifiers(view: EditorView): DecorationSet {
+  const ranges: Array<ReturnType<Decoration["range"]>> = [];
+  const tree = syntaxTree(view.state);
+  for (const visible of view.visibleRanges) {
+    tree.iterate({
+      from: visible.from,
+      to: visible.to,
+      enter(node) {
+        if (node.name !== "VariableName" || node.from < visible.from || node.to > visible.to)
+          return;
+        const name = view.state.doc.sliceString(node.from, node.to);
+        const className = identifierAccent(name, node.node.parent?.name ?? "");
+        if (className) ranges.push(Decoration.mark({ class: className }).range(node.from, node.to));
+      },
+    });
+  }
+  return Decoration.set(ranges, true);
+}
+
+export const pythonIdentifierAccents = ViewPlugin.define(
+  (view) => ({
+    decorations: visibleIdentifiers(view),
+    update(update) {
+      if (
+        update.docChanged ||
+        update.viewportChanged ||
+        syntaxTree(update.state) !== syntaxTree(update.startState)
+      ) {
+        this.decorations = visibleIdentifiers(update.view);
+      }
+    },
+  }),
+  { decorations: (plugin) => plugin.decorations },
+);

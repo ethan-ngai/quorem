@@ -10,6 +10,8 @@ import {
 } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { MatchPage } from "./features/matches/MatchPage";
+import { InvitePage } from "./features/matches/InvitePage";
 import { WorkspacePage } from "./features/editor/WorkspacePage";
 import "@fontsource-variable/geist";
 import "@fontsource/jetbrains-mono/400.css";
@@ -40,7 +42,23 @@ const problemRoute = createRoute({
     return <WorkspacePage slug={slug} />;
   },
 });
-const routeTree = rootRoute.addChildren([indexRoute, problemRoute]);
+const matchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/matches/$id",
+  component: function MatchRoute() {
+    const { id } = matchRoute.useParams();
+    return <MatchPage matchId={id} />;
+  },
+});
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/invite/$token",
+  component: function InviteRoute() {
+    const { token } = inviteRoute.useParams();
+    return <InvitePage token={token} />;
+  },
+});
+const routeTree = rootRoute.addChildren([indexRoute, problemRoute, matchRoute, inviteRoute]);
 const router = createRouter({ routeTree, defaultPreload: "intent" });
 
 declare module "@tanstack/react-router" {

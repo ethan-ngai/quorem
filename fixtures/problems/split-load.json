@@ -1,23 +1,71 @@
 {
   "problem": {
-    "id": "8d687f16-9dc8-5cad-9f91-6f6bcdeb878d",
+    "id": "1b3361b0-1fa0-5597-81e4-913b0318ac45",
     "slug": "split-load",
-    "version": "1",
+    "version": "4",
     "title": "Split Load",
     "difficulty": "hard",
     "tags": ["arrays", "binary search"],
-    "statementMarkdown": "Split `loads` into exactly `groups` nonempty contiguous groups. Minimize the largest group sum and return that minimum. Loads are nonnegative, `1 <= groups <= len(loads)`, and the total fits signed 32-bit.",
+    "statementMarkdown": "Split `loads` into exactly `groups` nonempty contiguous groups. Minimize the largest group sum and return that minimum. Loads are nonnegative, $1 \\le$ `groups` $\\le$ `len(loads)`, and $0 \\le$ `sum(loads)` $\\le 2^{31} - 1$.",
     "examples": [
       {
         "args": [[7, 2, 5, 10, 8], 2],
-        "expected": 18
+        "expected": 18,
+        "explanation": "Split after the third load: sums 14 and 18."
       },
       {
         "args": [[1, 2, 3], 3],
-        "expected": 3
+        "expected": 3,
+        "explanation": "Each of the three loads forms its own group."
       }
     ],
-    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "constraints": [
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "loads",
+          "projection": "length"
+        },
+        "min": 1,
+        "max": 10000
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "loads",
+          "projection": "elements"
+        },
+        "min": 0,
+        "max": 2147483647
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "groups",
+          "projection": "value"
+        },
+        "min": 1,
+        "max": 2147483647
+      },
+      {
+        "kind": "comparison",
+        "left": {
+          "parameter": "groups",
+          "projection": "value"
+        },
+        "right": {
+          "parameter": "loads",
+          "projection": "length"
+        },
+        "operator": "le"
+      },
+      {
+        "kind": "range",
+        "target": { "parameter": "loads", "projection": "sum" },
+        "min": 0,
+        "max": 2147483647
+      }
+    ],
     "signature": {
       "className": "Solution",
       "methodName": "splitLoad",

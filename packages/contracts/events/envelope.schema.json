@@ -102,6 +102,27 @@
       "required": ["error"],
       "additionalProperties": false
     },
+    "InputPresetConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preset"],
+      "properties": {
+        "preset": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Registered input preset ID. Built-ins: default, number, text, boolean, sequence, matrix, tree, linkedList, structured. Server rejects unregistered or codec-incompatible presets."
+        },
+        "placeholder": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        }
+      }
+    },
     "Parameter": {
       "type": "object",
       "properties": {
@@ -110,6 +131,9 @@
         },
         "type": {
           "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/InputPresetConfig"
         }
       },
       "required": ["name", "type"],
@@ -249,7 +273,7 @@
         "constraints": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/Constraint"
           }
         },
         "signature": {
@@ -567,6 +591,27 @@
           "items": {
             "$ref": "#/$defs/Diagnostic"
           }
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        }
+      },
+      "required": ["index", "status"],
+      "additionalProperties": false
+    },
+    "HiddenCaseResult": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": ["accepted", "wrong_answer", "time_limit"]
         }
       },
       "required": ["index", "status"],
@@ -605,6 +650,13 @@
         },
         "score": {
           "$ref": "#/$defs/Score"
+        },
+        "hiddenCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HiddenCaseResult"
+          },
+          "maxItems": 20
         },
         "publicCases": {
           "type": "array",
@@ -731,6 +783,14 @@
         },
         "outcome": {
           "$ref": "#/$defs/MatchOutcome"
+        },
+        "hostUserId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "required": [
@@ -740,7 +800,9 @@
         "serverNow",
         "difficulty",
         "durationMinutes",
-        "participants"
+        "participants",
+        "hostUserId",
+        "expiresAt"
       ],
       "additionalProperties": false
     },
@@ -917,6 +979,123 @@
               "$ref": "#/$defs/MatchSnapshot"
             }
           }
+        }
+      ]
+    },
+    "ConstraintTarget": {
+      "type": "object",
+      "properties": {
+        "parameter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projection": {
+          "type": "string",
+          "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues"]
+        }
+      },
+      "required": ["parameter", "projection"],
+      "additionalProperties": false
+    },
+    "Constraint": {
+      "oneOf": [
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "range"
+                },
+                "target": {
+                  "$ref": "#/$defs/ConstraintTarget"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": ["kind", "target", "min"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "range"
+                },
+                "target": {
+                  "$ref": "#/$defs/ConstraintTarget"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": ["kind", "target", "max"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "comparison"
+            },
+            "left": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "right": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "operator": {
+              "type": "string",
+              "enum": ["eq", "le", "lt", "ge", "gt"]
+            }
+          },
+          "required": ["kind", "left", "right", "operator"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "property"
+            },
+            "target": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "property": {
+              "type": "string",
+              "enum": ["sorted", "nondecreasing", "unique"]
+            }
+          },
+          "required": ["kind", "target", "property"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "prose"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["kind", "text"],
+          "additionalProperties": false
         }
       ]
     }

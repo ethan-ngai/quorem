@@ -45,6 +45,9 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+			if e := s.store.ReconcileMatches(ctx); e != nil {
+				log.Print("Match reconciliation unavailable")
+			}
 			attempts, e := s.store.ExpiredAttempts(ctx)
 			if e != nil {
 				log.Print("Queue reconciliation unavailable")

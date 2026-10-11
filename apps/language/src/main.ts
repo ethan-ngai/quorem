@@ -7,6 +7,7 @@ import { isIP } from "node:net";
 import { WebSocket, WebSocketServer } from "ws";
 import { encodeFrame, FrameDecoder } from "./framing.ts";
 import { authorizeUpgrade, validateMessage } from "./policy.ts";
+import { retryableCleanup } from "./cleanup.ts";
 
 if (process.env.NODE_ENV === "production" || process.env.QUOREM_DEV_IDENTITY !== "true") {
   throw new Error("Local language adapter requires explicit development identity mode");
@@ -81,7 +82,6 @@ function bridge(owner: string, client: WebSocket): Session {
   const decoder = new FrameDecoder();
   let child: ReturnType<typeof spawn> | undefined;
   let stopped = false;
-  let cleanup: Promise<void> | undefined;
   let idle = setTimeout(() => void stopSafely(), 30 * 60 * 1000);
   // Create completes before cleanup, preventing a late start from orphaning a container.
   const creation = execute(
@@ -99,9 +99,9 @@ function bridge(owner: string, client: WebSocket): Session {
       "none",
       "--read-only",
       "--memory",
-      "256m",
+      "512m",
       "--memory-swap",
-      "256m",
+      "512m",
       "--cpus",
       "1",
       "--pids-limit",
@@ -115,31 +115,33 @@ function bridge(owner: string, client: WebSocket): Session {
       "--user",
       "65534:65534",
       "--env",
-      "NODE_OPTIONS=--max-old-space-size=192",
+      // Cold global completion loads Python's standard-library type graph.
+      "NODE_OPTIONS=--max-old-space-size=384",
       "quorem-language:local",
     ],
     { timeout: 2000 },
   );
 
+  const cleanup = retryableCleanup(async () => {
+    await creation.catch(() => {});
+    child?.stdin?.end();
+    try {
+      await execute("docker", ["rm", "-f", name], { timeout: 2000 });
+    } catch (error) {
+      const failure = error as { stderr?: string };
+      if (!failure.stderr?.includes("No such container")) throw error;
+    }
+    child?.kill("SIGTERM");
+    client.terminate();
+    if (sessions.get(owner) === session) sessions.delete(owner);
+  });
+
   function stop(code = 1000, reason = "Language session closed"): Promise<void> {
-    if (cleanup) return cleanup;
     stopped = true;
     clearTimeout(idle);
     if (client.readyState === WebSocket.OPEN) client.close(code, reason);
-    cleanup = (async () => {
-      await creation.catch(() => {});
-      child?.stdin?.end();
-      try {
-        await execute("docker", ["rm", "-f", name], { timeout: 2000 });
-      } catch (error) {
-        const failure = error as { stderr?: string };
-        if (!failure.stderr?.includes("No such container")) throw error;
-      }
-      child?.kill("SIGTERM");
-      client.terminate();
-      if (sessions.get(owner) === session) sessions.delete(owner);
-    })();
-    return cleanup;
+    // Reserve the owner until Docker confirms removal; later admissions can retry failures.
+    return cleanup();
   }
 
   async function stopSafely(code?: number, reason?: string): Promise<void> {

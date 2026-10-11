@@ -4,8 +4,8 @@ export const workspaceLayout = {
   problemPane: 40,
   editorPane: 60,
   paneMinimum: 280,
-  resultsHeight: 240,
-  controlHeight: 36,
+  resultsHeight: 260,
+  controlHeight: 32,
   narrowTouchTarget: 44,
 } as const;
 

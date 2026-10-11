@@ -261,6 +261,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matches/{id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateMatchSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -287,9 +303,16 @@ export interface components {
                 };
             };
         };
+        InputPresetConfig: {
+            /** @description Registered input preset ID. Built-ins: default, number, text, boolean, sequence, matrix, tree, linkedList, structured. Server rejects unregistered or codec-incompatible presets. */
+            preset: string;
+            placeholder?: string;
+            rows?: number;
+        };
         Parameter: {
             name: string;
             type: string;
+            input?: components["schemas"]["InputPresetConfig"];
         };
         Signature: {
             /** @enum {string} */
@@ -325,7 +348,7 @@ export interface components {
             tags: string[];
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
-            constraints: string[];
+            constraints: components["schemas"]["Constraint"][];
             signature: components["schemas"]["Signature"];
             starterSource: string;
             runtimeRevision: string;
@@ -419,6 +442,13 @@ export interface components {
             actual?: components["schemas"]["WireValue"];
             expected?: components["schemas"]["WireValue"];
             diagnostics?: components["schemas"]["Diagnostic"][];
+            stdout?: string;
+            stderr?: string;
+        };
+        HiddenCaseResult: {
+            index: number;
+            /** @enum {string} */
+            status: "accepted" | "wrong_answer" | "time_limit";
         };
         Submission: {
             /** Format: uuid */
@@ -434,6 +464,7 @@ export interface components {
             updatedAt: string;
             verdict?: components["schemas"]["Verdict"];
             score?: components["schemas"]["Score"];
+            hiddenCases?: components["schemas"]["HiddenCaseResult"][];
             publicCases?: components["schemas"]["PublicCaseResult"][];
             diagnostics?: components["schemas"]["Diagnostic"][];
             infrastructureError?: string;
@@ -481,6 +512,10 @@ export interface components {
             /** Format: uuid */
             problemVersionId?: string;
             outcome?: components["schemas"]["MatchOutcome"];
+            /** Format: uuid */
+            hostUserId: string;
+            /** Format: date-time */
+            expiresAt: string;
         };
         CreateMatchRequest: {
             difficulty: components["schemas"]["Difficulty"];
@@ -539,6 +574,41 @@ export interface components {
             /** Format: date-time */
             occurredAt: string;
             payload: components["schemas"]["MatchSnapshot"];
+        };
+        ConstraintTarget: {
+            parameter: string;
+            /** @enum {string} */
+            projection: "value" | "length" | "elements" | "sum" | "nodeCount" | "nodeValues";
+        };
+        Constraint: ({
+            /** @constant */
+            kind: "range";
+            target: components["schemas"]["ConstraintTarget"];
+            min: number;
+            max?: number;
+        } | {
+            /** @constant */
+            kind: "range";
+            target: components["schemas"]["ConstraintTarget"];
+            min?: number;
+            max: number;
+        }) | {
+            /** @constant */
+            kind: "comparison";
+            left: components["schemas"]["ConstraintTarget"];
+            right: components["schemas"]["ConstraintTarget"];
+            /** @enum {string} */
+            operator: "eq" | "le" | "lt" | "ge" | "gt";
+        } | {
+            /** @constant */
+            kind: "property";
+            target: components["schemas"]["ConstraintTarget"];
+            /** @enum {string} */
+            property: "sorted" | "nondecreasing" | "unique";
+        } | {
+            /** @constant */
+            kind: "prose";
+            text: string;
         };
     };
     responses: never;
@@ -1092,6 +1162,43 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateMatchSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMatchRequest"];
+            };
+        };
         responses: {
             /** @description Success */
             200: {

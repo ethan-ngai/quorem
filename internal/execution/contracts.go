@@ -62,11 +62,19 @@ type Diagnostic struct {
 }
 
 type PublicCaseResult struct {
+	Stdout      string          `json:"stdout,omitempty"`
+	Stderr      string          `json:"stderr,omitempty"`
 	Index       int             `json:"index"`
 	Status      string          `json:"status"`
 	Actual      json.RawMessage `json:"actual,omitempty"`
 	Expected    json.RawMessage `json:"expected,omitempty"`
 	Diagnostics []Diagnostic    `json:"diagnostics,omitempty"`
+}
+
+// HiddenCaseResult exposes only the outcome, never hidden inputs or execution output.
+type HiddenCaseResult struct {
+	Index  int     `json:"index"`
+	Status Verdict `json:"status"`
 }
 
 type Completion struct {
@@ -76,6 +84,7 @@ type Completion struct {
 	Score             *Score             `json:"score,omitempty"`
 	SafeDiagnostics   []Diagnostic       `json:"safeDiagnostics,omitempty"`
 	PublicCaseResults []PublicCaseResult `json:"publicCaseResults,omitempty"`
+	HiddenCases       []HiddenCaseResult `json:"hiddenCases,omitempty"`
 	EngineFailure     string             `json:"engineFailure,omitempty"`
 }
 

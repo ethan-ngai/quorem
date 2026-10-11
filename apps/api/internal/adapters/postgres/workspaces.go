@@ -17,7 +17,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner, problemID, language 
 		return workspace.Workspace{}, err
 	}
 	var id string
-	err = s.Pool.QueryRow(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,source) VALUES($1,$2,$3,$4,$5) ON CONFLICT(owner_id,problem_version_id,language) DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id", ID(), owner, p.ID, language, p.StarterSource).Scan(&id)
+	err = s.Pool.QueryRow(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,source) VALUES($1,$2,$3,$4,$5) ON CONFLICT(owner_id,problem_version_id,language) WHERE kind='solo' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id", ID(), owner, p.ID, language, p.StarterSource).Scan(&id)
 	if err != nil {
 		return workspace.Workspace{}, err
 	}
@@ -26,7 +26,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner, problemID, language 
 func (s *Store) Workspace(ctx context.Context, owner, id string) (workspace.Workspace, error) {
 	var w workspace.Workspace
 	var revision int64
-	err := s.Pool.QueryRow(ctx, "SELECT id,kind,problem_version_id,language,source,revision,updated_at FROM workspaces WHERE id::text=$1 AND owner_id=$2", id, owner).Scan(&w.ID, &w.Kind, &w.ProblemVersionID, &w.Language, &w.Draft.Source, &revision, &w.Draft.SavedAt)
+	err := s.Pool.QueryRow(ctx, "SELECT id,kind,problem_version_id,language,source,revision,updated_at,COALESCE(match_id::text,'') FROM workspaces WHERE id::text=$1 AND owner_id=$2", id, owner).Scan(&w.ID, &w.Kind, &w.ProblemVersionID, &w.Language, &w.Draft.Source, &revision, &w.Draft.SavedAt, &w.MatchID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return w, failure("not_found", 404, "Workspace not found")
 	}

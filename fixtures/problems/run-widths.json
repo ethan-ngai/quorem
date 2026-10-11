@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "68e9df4b-8cd8-52b7-b2e3-84c279e5669c",
+    "id": "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
     "slug": "run-widths",
-    "version": "2",
+    "version": "3",
     "title": "Run Widths",
     "difficulty": "easy",
     "tags": ["arrays"],
@@ -10,18 +10,40 @@
     "examples": [
       {
         "args": [[1, 1, 2, 2, 2, 1]],
-        "expected": [2, 3, 1]
+        "expected": [2, 3, 1],
+        "explanation": "The runs contain two 1s, three 2s, and one 1."
       },
       {
         "args": [[1, 2, 3]],
-        "expected": [1, 1, 1]
+        "expected": [1, 1, 1],
+        "explanation": "Each value begins a new run."
       },
       {
         "args": [[]],
-        "expected": []
+        "expected": [],
+        "explanation": "No values create no runs."
       }
     ],
-    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "constraints": [
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "values",
+          "projection": "length"
+        },
+        "min": 0,
+        "max": 10000
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "values",
+          "projection": "elements"
+        },
+        "min": -2147483648,
+        "max": 2147483647
+      }
+    ],
     "signature": {
       "className": "Solution",
       "methodName": "runWidths",

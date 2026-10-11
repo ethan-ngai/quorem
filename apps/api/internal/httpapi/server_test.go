@@ -33,3 +33,14 @@ func TestLocalIdentityFailsClosedAndCommandsRejectUnknownFields(t *testing.T) {
 		})
 	}
 }
+
+func TestEmptyCustomSuiteRejectedAtHTTPBoundary(t *testing.T) {
+	request := httptest.NewRequest("POST", "/v1/submissions", strings.NewReader(`{"workspaceId":"00000000-0000-4000-8000-000000000000","kind":"run","source":"pass","customCases":[]}`))
+	request.RemoteAddr = "127.0.0.1:1000"
+	request.Header.Set("Idempotency-Key", "empty-suite")
+	response := httptest.NewRecorder()
+	(&Server{Local: true}).Handler().ServeHTTP(response, request)
+	if response.Code != 400 {
+		t.Fatalf("got %d: %s", response.Code, response.Body.String())
+	}
+}

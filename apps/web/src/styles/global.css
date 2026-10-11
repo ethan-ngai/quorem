@@ -38,6 +38,7 @@ a:focus-visible,
 select:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
+summary:focus-visible,
 [role="separator"]:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
