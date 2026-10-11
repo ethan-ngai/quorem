@@ -44,8 +44,9 @@ Job contract: `{jobId, submissionId, attemptId, problemVersionId, runtimeRevisio
 - `POST /v1/matches`: `{difficulty, durationMinutes: 15|30|45|60}` → `{id, inviteUrl, state}`. Host seat, 24-hour invite. Opaque invite capability permits joining only after authentication; never reading private participant data by itself.
 - `POST /v1/matches/join`: `{inviteToken}` → owned MatchSnapshot. Atomic two-seat claim and per-user active-match reservation.
 - `POST /v1/matches/{id}/ready`: `{ready: boolean}`. Both ready triggers locked random selection, immutable start/duration/deadline and fresh match workspaces.
+- `PUT /v1/matches/{id}/settings`: `{difficulty, durationMinutes}`. Host only before start; changes clear both ready flags.
 - `POST /v1/matches/{id}/forfeit`: immediate concession before completion. `POST .../leave`: pre-start guest leaves or host cancels; after start use forfeit.
-- `GET /v1/matches/{id}` → MatchSnapshot: `{id, version, state, serverNow, difficulty, durationMinutes, participants, startedAt?, deadline?, finalizingAt?, problemVersionId?, outcome?}`. Participants: own identity/display label, readiness, advisory presence, safe submission status, best score. No source, email, tokens or hidden cases. Reveal version/workspace only after start.
+- `GET /v1/matches/{id}` → MatchSnapshot: `{id, version, state, serverNow, hostUserId, expiresAt, difficulty, durationMinutes, participants, startedAt?, deadline?, finalizingAt?, problemVersionId?, outcome?}`. Participants: internal identity/display label, readiness, advisory presence, safe submission status, best score. No source, email, tokens or hidden cases. Reveal problem version and viewer's own workspace only after start.
 - Outcome: `{kind: win|draw|no_contest|cancelled, winnerUserId?, reason, completedAt}`. Receipt sequence decides correct-solution ordering; best eligible score decides timeout; no submissions score zero. Forfeit serialized with completion; no contest if uncertain after two minutes.
 
 ## Events and recovery
