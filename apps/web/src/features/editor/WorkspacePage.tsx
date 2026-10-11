@@ -25,6 +25,7 @@ import {
 } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { ProblemStatement } from "./components/ProblemStatement";
+import { TestCases } from "./components/TestCases";
 import { ResultContent } from "./components/ResultContent";
 import { Brand, Icon } from "./components/Icon";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
@@ -94,6 +95,7 @@ export function WorkspacePage({
     readPreference("quorem.results-height.v1", defaultResultsHeight),
   );
   const [activePanel, setActivePanel] = useState<Panel>("code");
+  const [resultsTab, setResultsTab] = useState<"cases" | "result">("cases");
   const [createMatchOpen, setCreateMatchOpen] = useState(false);
   const [problem, setProblem] = useState<ProblemVersion>();
   const [workspace, setWorkspace] = useState<Workspace>();
@@ -342,12 +344,14 @@ export function WorkspacePage({
   const submissionBusy = execution.busy;
   const admissionPending = execution.admissionPending;
   const run = useCallback(async () => {
-    const admitted = await execution.run();
-    if (admitted) setActivePanel("results");
+    setResultsTab("result");
+    setActivePanel("results");
+    await execution.run();
   }, [execution.run]);
   const submit = useCallback(async () => {
-    const admitted = await execution.submit();
-    if (admitted) setActivePanel("results");
+    setResultsTab("result");
+    setActivePanel("results");
+    await execution.submit();
   }, [execution.submit]);
 
   useEffect(() => {
@@ -546,33 +550,7 @@ export function WorkspacePage({
           </nav>
           <div className="topbar-spacer" />
           <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
-          <div className="run-actions">
-            {submissionBusy &&
-              !admissionPending &&
-              !(submission?.kind === "submit" && workspace.kind === "match") && (
-                <button className="quiet-button" onClick={() => void execution.cancel()}>
-                  Cancel run
-                </button>
-              )}
-            <button
-              className="button button-secondary"
-              disabled={submissionBusy || !actionsEnabled}
-              onClick={() => void run()}
-              title="Run (Ctrl/Cmd+Enter)"
-            >
-              <Icon name="play" />
-              Run
-            </button>
-            <button
-              className="button button-primary"
-              disabled={submissionBusy || !actionsEnabled}
-              onClick={() => void submit()}
-              title="Submit (Ctrl/Cmd+Shift+Enter)"
-            >
-              <Icon name="submit" />
-              Submit
-            </button>
-          </div>
+
           <WorkspaceSettings
             identity={identity}
             onIdentityChange={(next) => void activeIdentityChanged(next)}
@@ -700,49 +678,60 @@ export function WorkspacePage({
             />
             <section className="results-pane" aria-label="Execution results">
               <div className="results-toolbar">
-                <div className="results-label">
-                  <span>{submission ? "Test results" : "Test cases"}</span>
-                  <span className="result-context">
-                    {submission?.kind === "submit"
-                      ? "Full suite"
-                      : customMode
-                        ? "Custom cases"
-                        : "Public examples"}
-                  </span>
+                <div className="result-tabs" role="tablist" aria-label="Tests">
+                  {(["cases", "result"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      id={`tests-${tab}-tab`}
+                      role="tab"
+                      aria-selected={resultsTab === tab}
+                      aria-controls={`tests-${tab}-panel`}
+                      tabIndex={resultsTab === tab ? 0 : -1}
+                      onClick={() => setResultsTab(tab)}
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                          event.preventDefault();
+                          const next = tab === "cases" ? "result" : "cases";
+                          setResultsTab(next);
+                          document.getElementById(`tests-${next}-tab`)?.focus();
+                        }
+                      }}
+                    >
+                      {tab === "cases" ? "Test cases" : "Test result"}
+                    </button>
+                  ))}
                 </div>
-                <button
-                  className="quiet-button"
-                  aria-expanded={customMode}
-                  onClick={() => setCustomMode((current) => !current)}
+              </div>
+              <div className="results-content">
+                <div
+                  id="tests-cases-panel"
+                  role="tabpanel"
+                  aria-labelledby="tests-cases-tab"
+                  hidden={resultsTab !== "cases"}
                 >
-                  {customMode ? "Use examples" : "Custom input"}
-                  <Icon name="chevron" />
-                </button>
-              </div>
-              <div className="results-content" aria-live="polite" aria-atomic="false">
-                <ResultContent
-                  submission={submission}
-                  busy={admissionPending || (execution.isPending && !!execution.submissionId)}
-                  error={execution.error}
-                  problem={problem}
-                />
-              </div>
-              {customMode && (
-                <div className="custom-input">
-                  <label htmlFor="custom-cases">Custom cases · JSON</label>
-                  <textarea
-                    id="custom-cases"
-                    aria-label="Custom cases as JSON"
-                    spellCheck={false}
-                    value={customCasesText}
-                    onChange={(event) => setCustomCasesText(event.target.value)}
+                  <TestCases
+                    key={problem.id}
+                    problem={problem}
+                    customMode={customMode}
+                    onCustomModeChange={setCustomMode}
+                    customCasesText={customCasesText}
+                    onCustomCasesChange={setCustomCasesText}
                   />
-                  <p>
-                    Use <code>[&#123;"args": [1, "text"]&#125;]</code>. Optional{" "}
-                    <code>expected</code> compares output.
-                  </p>
                 </div>
-              )}
+                <div
+                  id="tests-result-panel"
+                  role="tabpanel"
+                  aria-labelledby="tests-result-tab"
+                  hidden={resultsTab !== "result"}
+                  aria-live="polite"
+                >
+                  <ResultContent
+                    submission={submission}
+                    busy={admissionPending || (execution.isPending && !!execution.submissionId)}
+                    error={execution.error}
+                  />
+                </div>
+              </div>
               {actionError && (
                 <p className="action-error" role="alert">
                   {actionError}
@@ -750,6 +739,35 @@ export function WorkspacePage({
               )}
             </section>
           </div>
+          <footer className="execution-bar" aria-label="Execution actions">
+            <div className="run-actions">
+              {submissionBusy &&
+                !admissionPending &&
+                !(submission?.kind === "submit" && workspace.kind === "match") && (
+                  <button className="quiet-button" onClick={() => void execution.cancel()}>
+                    Cancel run
+                  </button>
+                )}
+              <button
+                className="button button-secondary"
+                disabled={submissionBusy || !actionsEnabled}
+                onClick={() => void run()}
+                title="Run (Ctrl/Cmd+Enter)"
+              >
+                <Icon name="play" />
+                Run
+              </button>
+              <button
+                className="button button-primary"
+                disabled={submissionBusy || !actionsEnabled}
+                onClick={() => void submit()}
+                title="Submit (Ctrl/Cmd+Shift+Enter)"
+              >
+                <Icon name="submit" />
+                Submit
+              </button>
+            </div>
+          </footer>
         </div>
         {historyOpen && (
           <HistoryDialog

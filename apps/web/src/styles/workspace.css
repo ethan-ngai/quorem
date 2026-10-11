@@ -299,8 +299,8 @@ kbd {
   min-height: 0;
   padding: 4px 12px 12px;
   grid-template-columns: minmax(280px, var(--problem-ratio)) 8px minmax(280px, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: "problem split-x solution";
+  grid-template-rows: minmax(0, 1fr) 48px;
+  grid-template-areas: "problem split-x solution" "problem split-x actions";
   overflow: hidden;
 }
 .problem-pane {
@@ -537,16 +537,7 @@ kbd {
   grid-template-rows: 38px minmax(0, 1fr) auto;
   background: var(--color-field);
 }
-.results-label {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-}
-.result-context {
-  color: var(--color-text-secondary);
-  font-size: 11px;
-}
+
 .results-content {
   min-height: 0;
   overflow: auto;
@@ -558,27 +549,6 @@ kbd {
   font-size: 13px;
 }
 
-.ready-cases {
-  margin-top: 14px;
-}
-.ready-cases > div {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto minmax(0, 0.55fr);
-  align-items: baseline;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--color-border);
-}
-.ready-cases code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 11px var(--font-code);
-}
-.expected-label {
-  color: var(--color-text-disabled);
-  font-size: 10px;
-}
 .result-running {
   display: flex;
   align-items: center;
@@ -595,11 +565,7 @@ kbd {
   font-weight: 550;
   letter-spacing: -0.03em;
 }
-.result-running p {
-  margin: 4px 0 0;
-  color: var(--color-text-secondary);
-  font: 11px var(--font-code);
-}
+
 .verdict-line {
   display: flex;
   align-items: baseline;
@@ -626,40 +592,9 @@ kbd {
   font-size: 12px;
   color: var(--color-text-secondary);
 }
-.case-list {
-  display: grid;
-  gap: 0;
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.case-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 8px 0;
-  border-top: 1px solid var(--color-border);
-  font-size: 12px;
-}
-.case-list code {
-  font: 10px var(--font-code);
-}
-.case-value {
-  color: var(--color-text-secondary);
-  overflow-wrap: anywhere;
-}
-.case-diagnostic {
-  width: 100%;
-  margin: 0;
-  font-size: 11px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+
 .custom-input {
-  padding: 12px 18px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-field);
+  padding: 8px 0 0;
 }
 .custom-input textarea {
   display: block;
@@ -1123,13 +1058,7 @@ kbd {
 .workspace-nav > a {
   text-decoration: none;
 }
-.topbar .run-actions {
-  gap: 6px;
-}
-.topbar .button {
-  min-height: 32px;
-  padding-inline: 12px;
-}
+
 .topbar .wordmark svg {
   width: 22px;
   height: 22px;
@@ -1155,7 +1084,8 @@ kbd {
   grid-template-areas: "code" "split-y" "results";
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--color-field);
 }
 .problem-meta {
@@ -1293,7 +1223,10 @@ kbd {
     color: var(--color-text);
   }
   .workspace-grid {
-    display: block;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 48px;
+    grid-template-areas: "content" "actions";
     padding-top: 6px;
   }
   .problem-pane,
@@ -1304,8 +1237,14 @@ kbd {
     height: 100%;
   }
   .solution-pane {
+    grid-area: content;
     display: block;
     height: 100%;
+  }
+  .problem-pane {
+    grid-area: content;
+    border-bottom: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
   .workspace-grid[data-active-panel="problem"] .problem-pane,
   .workspace-grid[data-active-panel="code"] .coding-pane,
@@ -1368,20 +1307,12 @@ kbd {
     width: 32px;
     padding: 0;
   }
-  .topbar .button {
-    padding-inline: 9px;
-    font-size: 12px;
-  }
-  .topbar .button svg {
-    width: 14px;
-  }
+
   .problem-picker summary {
     font-size: 12px;
     padding-inline: 5px;
   }
-  .topbar .run-actions {
-    gap: 5px;
-  }
+
   .run-actions .quiet-button {
     max-width: 40px;
     padding: 0;
@@ -1416,12 +1347,7 @@ kbd {
   .results-toolbar {
     padding-inline: 14px;
   }
-  .result-context {
-    font-size: 10px;
-  }
-  .results-label {
-    gap: 10px;
-  }
+
   .code-toolbar {
     padding-inline: 12px;
   }
@@ -1479,5 +1405,113 @@ kbd {
   }
   .match-dialog-body {
     padding-inline: 24px;
+  }
+}
+
+.execution-bar {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--color-field);
+}
+.execution-bar .run-actions {
+  gap: 8px;
+}
+.execution-bar .button {
+  min-height: 32px;
+}
+.result-tabs {
+  display: flex;
+  align-self: stretch;
+  gap: 18px;
+}
+.result-tabs button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.result-tabs button[aria-selected="true"] {
+  color: var(--color-text);
+  font-weight: 550;
+}
+.case-selectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 3px 0 16px;
+}
+.case-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.case-selector:hover,
+.case-selector[aria-pressed="true"] {
+  background: var(--color-overlay);
+  color: var(--color-text);
+}
+.custom-case-selector {
+  margin-left: auto;
+}
+.case-details {
+  display: grid;
+  gap: 12px;
+}
+.case-detail {
+  display: grid;
+  gap: 5px;
+}
+.case-detail > span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.case-detail > code {
+  font: 12px/1.5 var(--font-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.case-state {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-text-disabled);
+}
+.case-state.accepted {
+  background: var(--color-success);
+}
+.case-state.failed {
+  background: var(--color-error);
+}
+.case-verdict {
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.result-complete > .case-selectors {
+  margin-top: 16px;
+}
+@media (max-width: 560px) {
+  .execution-bar .button {
+    min-height: 36px;
+  }
+  .execution-bar .run-actions .quiet-button {
+    max-width: none;
+    padding: 0 8px;
+    font-size: 12px;
   }
 }
