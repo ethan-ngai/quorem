@@ -1,5 +1,4 @@
 import * as Popover from "@radix-ui/react-popover";
-import * as Switch from "@radix-ui/react-switch";
 import * as Select from "@radix-ui/react-select";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
@@ -7,6 +6,7 @@ import {
   Clipboard,
   Focus,
   Gauge,
+  Check,
   Dices,
   Search,
   Swords,
@@ -187,34 +187,38 @@ export function MatchSettings({
           Difficulty
         </span>
         <div className="difficulty-filters" role="group" aria-label="Difficulty filter">
-          <button
-            type="button"
-            className="difficulty-select-all"
-            disabled={disabled || pools.length === 3}
-            onClick={() => changeDifficulties(["easy", "medium", "hard"])}
-          >
-            {pools.length === 3 ? "All selected" : "Select all"}
-          </button>
           {(["easy", "medium", "hard"] as const).map((difficulty) => (
-            <label className="difficulty-filter-row" key={difficulty}>
+            <button
+              type="button"
+              className="difficulty-chip"
+              key={difficulty}
+              aria-pressed={pools.includes(difficulty)}
+              disabled={disabled || (pools.length === 1 && pools.includes(difficulty))}
+              onClick={() =>
+                changeDifficulties(
+                  pools.includes(difficulty)
+                    ? pools.filter((pool) => pool !== difficulty)
+                    : [...pools, difficulty],
+                )
+              }
+            >
+              <Check size={12} aria-hidden="true" />
               <span className={`difficulty-${difficulty}`}>
                 {difficulty[0].toUpperCase() + difficulty.slice(1)}
               </span>
-              <Switch.Root
-                aria-label={difficulty[0].toUpperCase() + difficulty.slice(1)}
-                className="settings-switch"
-                checked={pools.includes(difficulty)}
-                disabled={disabled || (pools.length === 1 && pools.includes(difficulty))}
-                onCheckedChange={(checked) =>
-                  changeDifficulties(
-                    checked ? [...pools, difficulty] : pools.filter((pool) => pool !== difficulty),
-                  )
-                }
-              >
-                <Switch.Thumb className="settings-switch-thumb" />
-              </Switch.Root>
-            </label>
+            </button>
           ))}
+          <Tooltip content="Select all difficulties">
+            <button
+              type="button"
+              className="difficulty-select-all"
+              aria-label="Select all difficulties"
+              disabled={disabled || pools.length === 3}
+              onClick={() => changeDifficulties(["easy", "medium", "hard"])}
+            >
+              All
+            </button>
+          </Tooltip>
         </div>
       </div>
       <div className="match-option">
@@ -256,14 +260,6 @@ export function MatchSettings({
                 searchInput.current?.focus();
               }}
             >
-              <header className="competitive-dialog-heading">
-                <h2>Choose problem</h2>
-                <Popover.Close asChild>
-                  <button className="icon-button" aria-label="Close problem picker">
-                    <Icon name="close" />
-                  </button>
-                </Popover.Close>
-              </header>
               <label className="problem-picker-search">
                 <Search size={16} />
                 <input
