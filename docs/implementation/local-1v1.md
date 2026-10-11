@@ -8,13 +8,13 @@ Verified 2026-10-10. Builds on the solo checkpoint. Sol 6.1 handled match author
 - PostgreSQL locks serialize seats, per-owner reservations, admission, outcomes and expiry. Correct submissions rank by admission time and sequence; deadline scoring uses best hidden-test counts. Outcome-relevant uncertainty gets a persisted two-minute finalization window.
 - Late completions preserve owner history without reopening outcomes. Same-owner uncertainty cannot block an already certain winner. Match Submit remains irrevocable; Run remains cancellable.
 - Provider-neutral PubSub/Presence interfaces, local authenticated WebSockets, transactional outbox, bounded connections/subscribers, subscribe-then-fetch recovery, version checks and REST polling fallback.
-- Portfolio/CUXR-informed editor: open statement composition, graphite/paper themes, readable examples, compact action bar, grouped settings, SVG controls and narrow-screen pane navigation. Static match preview removed.
+- Linear-informed editor: neutral themes, soft boundaries, one toolbar and a shared editor/results surface. Coding-site problem hierarchy uses named inputs, direct prose and optional topics; code ligatures disabled. Grouped settings and narrow-screen pane navigation remain. Static match preview removed.
 - Owner-scoped mutation retry keys preserve exact create payloads after uncertain responses; invitations survive reload. Source recovery, route/identity fencing and immutable problem-version loading protect drafts and execution context.
 
 ## Evidence
 
 - `make dev`: complete local stack starts without AWS credentials; database and existing drafts survive restart.
-- `make check`, `make build`: generated contracts, formatting, TypeScript, Go/vet and frontend checks pass. Frontend has 23 tests covering recovery, version ordering, execution guards and statement rendering.
+- `make check`, `make build`: generated contracts, formatting, TypeScript, Go/vet and frontend checks pass. Frontend has 24 tests covering recovery, version ordering, execution guards and statement rendering.
 - `QUOREM_TEST_DATABASE_URL=… QUOREM_TEST_DOCKER=1 go test -race ./...`: real PostgreSQL and Docker suites pass. HTTP tests use isolated schemas; adapter tests use a dedicated test database.
 - Database tests cover reservation/replay races, version selection, strict deadline admission, timeout scores/draws, uncertain work, restart/late-completion cutoff, forfeit and frozen progress.
 - WebSocket tests verify membership/origin authorization, private payloads, rejection of browser publication, durable outbox acknowledgement and outcome recovery after API restart.
