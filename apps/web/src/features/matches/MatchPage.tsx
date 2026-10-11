@@ -423,12 +423,20 @@ export function MatchPage({ matchId }: { matchId: string }) {
               </span>
               <button
                 className={`button readiness-action ${own?.ready ? "button-secondary" : "button-primary"}`}
+                data-ready={!!own?.ready}
+                aria-label={own?.ready ? "Cancel" : "Ready"}
                 aria-busy={pending}
                 disabled={pending || !own}
                 onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
               >
-                <Icon name={own?.ready ? "close" : "submit"} />
-                {own?.ready ? "Cancel" : "Ready"}
+                <span className="readiness-option readiness-option-ready" aria-hidden="true">
+                  <Icon name="submit" />
+                  Ready
+                </span>
+                <span className="readiness-option readiness-option-cancel" aria-hidden="true">
+                  <Icon name="close" />
+                  Cancel
+                </span>
               </button>
             </footer>
           </>

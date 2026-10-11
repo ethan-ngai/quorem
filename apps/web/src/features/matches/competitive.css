@@ -1,4 +1,9 @@
 /* Competition uses the workspace hierarchy; the editor keeps the available height. */
+.match-page {
+  --interaction-fast: var(--motion-fast);
+  --interaction-reveal: var(--motion-standard);
+  --interaction-ease: var(--motion-easing);
+}
 .match-page .topbar {
   height: 48px;
   border-bottom: 1px solid var(--color-border);
@@ -35,6 +40,42 @@
   width: 104px;
   flex-shrink: 0;
   justify-content: center;
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+.readiness-option {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  transition:
+    opacity var(--interaction-reveal) var(--interaction-ease),
+    transform var(--interaction-reveal) var(--interaction-ease);
+}
+.readiness-option-ready {
+  opacity: 1;
+  transform: translateY(0);
+}
+.readiness-option-cancel {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.readiness-action[data-ready="true"] .readiness-option-ready {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.readiness-action[data-ready="true"] .readiness-option-cancel {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .readiness-action .readiness-option {
+    transform: none;
+    transition-duration: 1ms;
+  }
 }
 .competitive-lobby-heading p,
 .invite-entry p {
