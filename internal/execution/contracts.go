@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 )
 
-const HarnessRevision = "quorem-harness-v1"
+const HarnessRevision = "quorem-harness-v2"
 const RuntimeRevision = "python-3.12-v1"
 
 //go:embed public/quorem_types.py
