@@ -1349,6 +1349,10 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["showdown"]
           }
         },
         "required": [
@@ -1360,7 +1364,8 @@
           "durationMinutes",
           "participants",
           "hostUserId",
-          "expiresAt"
+          "expiresAt",
+          "mode"
         ],
         "additionalProperties": false
       },

@@ -437,6 +437,8 @@ export interface components {
             hostUserId: string;
             /** Format: date-time */
             expiresAt: string;
+            /** @enum {string} */
+            mode: "showdown";
         };
         CreateMatchRequest: {
             difficulty: components["schemas"]["Difficulty"];

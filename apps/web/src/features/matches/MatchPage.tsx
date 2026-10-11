@@ -15,9 +15,16 @@ import { forfeitMatch, leaveMatch, setReady, updateMatchSettings } from "./api";
 import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { CopyFeedbackIcon } from "./CopyFeedbackIcon";
+import { ReadinessIcon } from "./ReadinessIcon";
 import { shareInvitation } from "./shareInvitation";
 import { readInvite } from "./commandRecovery";
-import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
+import {
+  lobbyWaitingLabel,
+  outcomeLabel,
+  ownParticipant,
+  remainingTime,
+  showdown,
+} from "./matchState";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
@@ -240,14 +247,20 @@ export function MatchPage({ matchId }: { matchId: string }) {
     <main className="match-page">
       <header className="topbar">
         <Brand />
-        <span className="workspace-mode">Private 1v1</span>
+        <span className="workspace-mode">
+          <Icon name="showdown" />
+          {showdown.name}
+        </span>
         <div className="topbar-spacer" />
         <IdentityChoice identity={identity} onChange={setIdentity} />
       </header>
       <section className="match-page-content">
         <div className="competitive-lobby-heading">
           <div>
-            <h1>{closed ? outcomeLabel(snapshot, identity) : "Private 1v1"}</h1>
+            <h1>
+              {!closed && <Icon name="showdown" />}
+              {closed ? outcomeLabel(snapshot, identity) : showdown.name}
+            </h1>
             {closed && <p>{snapshot.outcome?.reason.replaceAll("_", " ")}</p>}
           </div>
           {!closed && (
@@ -289,7 +302,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                       aria-label={participant.ready ? "Ready" : "Not ready"}
                       tabIndex={0}
                     >
-                      <Icon name={participant.ready ? "ready" : "clock"} />
+                      <ReadinessIcon ready={participant.ready} />
                     </span>
                   </Tooltip>
                 </div>
@@ -406,21 +419,16 @@ export function MatchPage({ matchId }: { matchId: string }) {
             )}
             <footer className="competitive-lobby-footer">
               <span role="status">
-                {status !== "live"
-                  ? "Reconnecting…"
-                  : own?.ready
-                    ? "Waiting for opponent to ready up"
-                    : snapshot.participants.length < 2
-                      ? "Waiting for opponent to join"
-                      : "Opponent joined. Ready to begin?"}
+                {status !== "live" ? "Reconnecting…" : lobbyWaitingLabel(snapshot, identity)}
               </span>
               <button
-                className={`button ${own?.ready ? "button-secondary" : "button-primary"}`}
+                className={`button readiness-action ${own?.ready ? "button-secondary" : "button-primary"}`}
+                aria-busy={pending}
                 disabled={pending || !own}
                 onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
               >
                 <Icon name={own?.ready ? "close" : "submit"} />
-                {pending ? "Updating…" : own?.ready ? "Cancel ready" : "Ready up"}
+                {own?.ready ? "Cancel" : "Ready"}
               </button>
             </footer>
           </>

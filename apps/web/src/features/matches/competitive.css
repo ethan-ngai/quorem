@@ -21,6 +21,21 @@
   letter-spacing: -0.025em;
   font-weight: 600;
 }
+.competitive-lobby-heading h1,
+.match-page .workspace-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.competitive-lobby-heading h1 > svg {
+  width: 24px;
+  height: 24px;
+}
+.readiness-action {
+  width: 104px;
+  flex-shrink: 0;
+  justify-content: center;
+}
 .competitive-lobby-heading p,
 .invite-entry p {
   margin: 8px 0 0;

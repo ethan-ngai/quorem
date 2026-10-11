@@ -1,9 +1,11 @@
 # Competitive workspace
 
-Issue #26 updates the private 1v1 flow.
+Issue #26 updates the Showdown flow.
 
 ## Behavior
 
+- Showdown uses the persisted/API mode `showdown`; migration 061 backfills existing matches and cached snapshot responses.
+- Ready/Cancel retain their dimensions; readiness morphs reversibly. Waiting text follows opponent presence/readiness, then the current player.
 - Centered, animated match creation; segmented difficulty and Radix duration selection.
 - Compact lobby with side-by-side players, icon readiness and animated invitation copying. Settings apply immediately; changed rules reset readiness.
 - Invitation Share and open-seat Invite use Web Share from the click gesture, with clipboard fallback when unsupported. Cancellation is silent; Copy remains available. Native targets depend on the browser/device.

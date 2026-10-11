@@ -1,12 +1,42 @@
 /** @file matchState.test.ts @description Privacy and outcome display boundaries. @module matches */
 import { describe, expect, it } from "vitest";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
-import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
+import { lobbyWaitingLabel, outcomeLabel, ownParticipant, remainingTime } from "./matchState";
+
+describe("lobby readiness", () => {
+  it("keeps join status even when the only player is ready", () => {
+    for (const ready of [false, true]) {
+      const solo = { ...snapshot, participants: [{ ...snapshot.participants[1]!, ready }] };
+      expect(lobbyWaitingLabel(solo, "alice")).toBe("Waiting for opponent to join");
+    }
+  });
+  it("names the participant still needing to ready", () => {
+    for (const ownReady of [false, true]) {
+      for (const opponentReady of [false, true]) {
+        const pair = {
+          ...snapshot,
+          participants: [
+            { ...snapshot.participants[0]!, ready: opponentReady },
+            { ...snapshot.participants[1]!, ready: ownReady },
+          ],
+        };
+        expect(lobbyWaitingLabel(pair, "alice")).toBe(
+          !opponentReady
+            ? "Waiting for opponent to ready"
+            : !ownReady
+              ? "Waiting for you to ready"
+              : "Starting Showdown…",
+        );
+      }
+    }
+  });
+});
 
 const snapshot: MatchSnapshot = {
   id: "match",
   version: "3",
   state: "active",
+  mode: "showdown",
   serverNow: "2026-10-10T12:00:00Z",
   difficulty: "easy",
   durationMinutes: 15,

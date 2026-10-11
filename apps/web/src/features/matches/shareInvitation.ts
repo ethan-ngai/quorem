@@ -8,7 +8,7 @@ export async function shareInvitation(
   url: string,
   browser: ShareBrowser = navigator,
 ): Promise<"shared" | "copied" | "cancelled"> {
-  const data = { title: "Quorem · Private 1v1", url };
+  const data = { title: "Quorem · Showdown", url };
   if (!browser.share || (browser.canShare && !browser.canShare(data))) {
     await browser.clipboard.writeText(url);
     return "copied";

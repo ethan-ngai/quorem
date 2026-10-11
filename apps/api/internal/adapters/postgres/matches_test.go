@@ -44,7 +44,7 @@ func createPair(t *testing.T, s *Store) (string, matches.Snapshot) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if v.State != "active" || v.ProblemVersionID == "" || v.DurationMinutes != 30 {
+	if v.Mode != matches.Showdown || v.State != "active" || v.ProblemVersionID == "" || v.DurationMinutes != 30 {
 		t.Fatal(v)
 	}
 	return c.ID, v

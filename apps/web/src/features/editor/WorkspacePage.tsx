@@ -548,17 +548,17 @@ export function WorkspacePage({
               </details>
             )}
             {!match && (
-              <Tooltip content="Private match">
+              <Tooltip content="Showdown">
                 <button
-                  className="quiet-button private-match-button"
-                  aria-label="Create private match"
+                  className="quiet-button showdown-button"
+                  aria-label="Create Showdown"
                   onClick={async () => {
                     await saveCurrentDraft();
                     setCreateMatchOpen(true);
                   }}
                 >
-                  <Icon name="people" />
-                  <span>Private match</span>
+                  <Icon name="showdown" />
+                  <span>Showdown</span>
                 </button>
               </Tooltip>
             )}

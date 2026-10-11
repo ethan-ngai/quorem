@@ -45,11 +45,11 @@ export function CreateMatchDialog({
           <header className="competitive-dialog-heading">
             <div>
               <Dialog.Title>
-                <Icon name="people" />
-                Create match
+                <Icon name="showdown" />
+                Create Showdown
               </Dialog.Title>
               <Dialog.Description>
-                Invite one opponent. Both players ready up to begin.
+                Invite one opponent. Both players ready to begin.
               </Dialog.Description>
             </div>
             <Tooltip content="Close">
@@ -95,7 +95,7 @@ export function CreateMatchDialog({
                 <span />
               )}
               <button className="button button-primary" disabled={pending}>
-                {pending ? "Creating…" : "Create match"}
+                {pending ? "Creating…" : "Create Showdown"}
                 <Icon name="arrow" />
               </button>
             </footer>

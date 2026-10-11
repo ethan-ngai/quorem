@@ -1350,10 +1350,10 @@ kbd {
   .workspace-nav {
     gap: 3px;
   }
-  .private-match-button > span {
+  .showdown-button > span {
     display: none;
   }
-  .private-match-button {
+  .showdown-button {
     width: 32px;
     padding: 0;
   }
