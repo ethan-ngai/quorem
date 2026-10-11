@@ -11,7 +11,7 @@ Status: review-ready planning baseline. Confirmed requirements are binding; engi
 - Include ListNode and TreeNode in the initial harness and editor declarations.
 - Python intelligence runs in a separate local backend service: completion, hover, signatures, syntax/type diagnostics. Navigation/refactoring/formatting deferred.
 - System theme + override; blue accent; Geist Sans/JetBrains Mono; resizable problem-left/editor-right/results-below layout; desktop-first narrow-screen fallback.
-- Drafts: server autosave/browser recovery; latest server save wins with history. Run examples/custom input; Submit safe verdict/counts/error summaries. One active-or-queued job per user; reject additional work.
+- Drafts: browser-only drafts/history; independent windows, latest local write resumes on reload. Run examples/custom input; Submit safe verdict/counts/error summaries. One active-or-queued job per user; reject additional work.
 - Development-only identities first. Real 1v1 starts with private invites, not public matchmaking.
 - MVP subsequently includes real 1v1 with a LeetCode-style workspace.
 - Go; Astro marketing; React + TanStack Router; Vite+; modern vanilla CSS; Terraform; GitHub Actions. Better Auth + Cognito through a small TypeScript auth service; public email/password and social sign-in.

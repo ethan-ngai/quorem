@@ -48,7 +48,7 @@ Use foreign keys, uniqueness, transactions, explicit query indexes, and keyset p
 ## HTTP contract overview
 
 - `GET /v1/problems/{slug}`: public statement, templates, examples, limits, immutable version ID; no hidden cases.
-- `GET/PUT /v1/workspaces/{workspaceId}/draft`: authenticated owner only; atomic revision assignment/history capture; latest accepted server save wins. Per-session save sequence prevents delayed writes from that session replacing a newer accepted write. Offline recovery requires explicit save/restore instead of automatic replay. Workspace namespaces separate solo and match source.
+- `GET /v1/workspaces/{workspaceId}`: owner-scoped workspace metadata only. Drafts/history live in browser storage; active windows stay independent. Source reaches the server only in Run/Submit snapshots.
 - `POST /v1/submissions`: authorized workspace ID, source snapshot, kind, optional public custom inputs; server derives owner/problem/language/match and enforces limits. Idempotency key; returns job ID/state. One nonterminal job per owner across instances; retry same key retrieves its existing job. Canonical fields: contracts.md.
 - `GET /v1/submissions/{id}`: owner-scoped state, safe verdict details; poll fallback.
 - Later: create/join/ready/leave match commands and authoritative match snapshot.

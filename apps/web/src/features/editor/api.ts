@@ -3,9 +3,7 @@ import { createApiClient } from "@quorem/contracts";
 import type {
   CustomCase,
   DevelopmentIdentity,
-  DraftHistory,
   ProblemVersion,
-  SaveDraftResponse,
   Submission,
   SubmissionAdmission,
   Workspace,
@@ -50,40 +48,6 @@ export async function fetchWorkspace(identity: DevelopmentIdentity, id: string) 
     params: { path: { id } },
   });
   return requireData(data as Workspace | undefined, error);
-}
-
-/** Saves one revision without replacing the editor's active buffer. */
-export async function saveDraft(
-  identity: DevelopmentIdentity,
-  workspaceId: string,
-  body: { source: string; editorSessionId: string; saveSequence: string },
-) {
-  const { data, error } = await api(identity).PUT("/v1/workspaces/{id}/draft", {
-    params: { path: { id: workspaceId } },
-    body,
-  });
-  return requireData(data as SaveDraftResponse | undefined, error);
-}
-
-/** Loads up to the retained server history limit, newest first. */
-export async function fetchDraftHistory(identity: DevelopmentIdentity, workspaceId: string) {
-  const { data, error } = await api(identity).GET("/v1/workspaces/{id}/draft-history", {
-    params: { path: { id: workspaceId }, query: { limit: 100 } },
-  });
-  return requireData(data as DraftHistory | undefined, error);
-}
-
-/** Restores a history revision as a new active server revision. */
-export async function restoreDraft(
-  identity: DevelopmentIdentity,
-  workspaceId: string,
-  revision: string,
-) {
-  const { data, error } = await api(identity).POST("/v1/workspaces/{id}/restore", {
-    params: { path: { id: workspaceId } },
-    body: { revision },
-  });
-  return requireData(data as SaveDraftResponse | undefined, error);
 }
 
 /** Admits a source snapshot with an idempotency key. */

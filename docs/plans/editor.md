@@ -1,6 +1,6 @@
 # Editor — first milestone
 
-Confirmed: solo practice, Python, CodeMirror 6, scoped Python IntelliSense, real judge, server autosave/browser recovery history, mocked multiplayer state. System theme + override, restrained blue, Geist Sans/JetBrains Mono. Desktop-first with usable narrow-screen fallback.
+Confirmed: solo practice, Python, CodeMirror 6, scoped Python IntelliSense, real judge, browser-only drafts and history, mocked multiplayer state. System theme + override, restrained blue, Geist Sans/JetBrains Mono. Desktop-first with usable narrow-screen fallback.
 
 ## Workspace
 
@@ -10,15 +10,15 @@ TanStack Router owns URLs/navigation. TanStack Query owns remote snapshots and r
 
 ## Behavior
 
-1. Open stable problem URL; fetch public immutable problem version and owner draft.
+1. Open stable problem URL; fetch public immutable problem version and load this browser's owner-scoped draft.
 2. Restore source for that version/language; otherwise initialize the Python template.
-3. Save with debounce; latest accepted server save becomes active while prior versions/recovery copies are retained. Show saving/saved/offline/recovery availability without moving editor content. Serialize writes per editor session and ignore stale responses.
+3. Persist latest source locally on edits; debounce bounded IndexedDB history. Keep active buffers independent across windows; reload resumes latest browser draft. Never send code to the server except Run/Submit snapshots.
 4. Run snapshots current source against public examples and custom inputs using the public typed codecs.
 5. Submit snapshots current source against hidden cases. Receive job ID, show pending/running, then verdict.
 6. Edits after dispatch do not alter that job; results identify the evaluated snapshot. Preserve source on errors.
 7. Recover completion by polling/snapshot after disconnect or reload. Prevent duplicate dispatch with idempotency.
 
-Latest accepted server save wins, retaining history. Remote saves do not replace dirty local buffer. IndexedDB recovery is keyed by owner/workspace/version/language; save after 750ms idle; keep 100 accepted revisions for 30 days. Offline recovery requires explicit restore/save, never automatic replay onto newer remote code. Show timestamped history/current/local choices. Handle late fetch, tab races, stale responses and navigation without destroying recoverable code.
+Browser draft keys include owner, immutable problem version and language; match drafts additionally include their private workspace ID. Practice drafts survive replacement server workspace IDs. Latest source uses synchronous browser storage; IndexedDB history retains 100 snapshots for 30 days. Other windows never replace the active buffer or require takeover; latest local write resumes on reload. Preserve empty drafts, old recovery data, identity isolation and newer edits during restore. No server draft endpoints or draft tables.
 
 ## States
 
@@ -57,5 +57,5 @@ Q5 owns `PythonEditor` and EditorView lifecycle. Contract: initial document/work
 - Verify undo/cursor survive ordinary query refreshes and status events.
 - Keyboard-only operation, named icon buttons, accessible splitters, focus restoration, readable status announcements.
 - No hidden case/source leakage into bundles, responses, or mocked opponent state.
-- Integration tests: duplicate click, source edit during execution, stale saves, reload pending job, backend unavailable, reordered events.
+- Integration tests: duplicate click, source edit during execution, concurrent browser windows, reload pending job, backend unavailable, reordered events.
 - Visual verification against confirmed DESIGN.md at agreed viewport sizes; inspect actual browser behavior and console.

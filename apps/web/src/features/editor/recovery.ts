@@ -1,4 +1,4 @@
-/** @file recovery.ts @description Stores private browser recovery snapshots in IndexedDB. @module editor */
+/** @file recovery.ts @description Stores browser drafts and bounded local history in IndexedDB. @module editor */
 import type { DevelopmentIdentity } from "@quorem/contracts";
 
 /** Local source copy scoped to one owner, workspace, version, and language. */
@@ -29,8 +29,68 @@ function openDatabase() {
 }
 
 /** Creates the isolation key used by browser recovery history. */
-function scopeKey(identity: DevelopmentIdentity, workspaceId: string, problemVersionId: string) {
+export function scopeKey(
+  identity: DevelopmentIdentity,
+  workspaceId: string,
+  problemVersionId: string,
+) {
   return `${identity}:${workspaceId}:${problemVersionId}:python`;
+}
+
+/** Stable practice scope; match workspaces keep separate private drafts. */
+export function browserDraftScope(workspace: { id: string; kind: string }) {
+  return workspace.kind === "solo" ? "solo" : workspace.id;
+}
+
+const latestPrefix = "quorem.browser-draft.v1:";
+
+/** Synchronous latest copy survives immediate reloads and page closure. */
+export function readBrowserDraft(
+  identity: DevelopmentIdentity,
+  workspaceId: string,
+  version: string,
+) {
+  try {
+    const value: unknown = JSON.parse(
+      localStorage.getItem(latestPrefix + scopeKey(identity, workspaceId, version)) ?? "null",
+    );
+    if (
+      value &&
+      typeof value === "object" &&
+      "source" in value &&
+      typeof value.source === "string"
+    ) {
+      return value.source;
+    }
+  } catch {
+    /* IndexedDB history can recover when browser storage is unavailable. */
+  }
+  return undefined;
+}
+
+export function writeBrowserDraft(
+  identity: DevelopmentIdentity,
+  workspaceId: string,
+  version: string,
+  source: string,
+) {
+  localStorage.setItem(
+    latestPrefix + scopeKey(identity, workspaceId, version),
+    JSON.stringify({ source }),
+  );
+}
+
+export async function readBrowserHistory(
+  identity: DevelopmentIdentity,
+  workspaceId: string,
+  version: string,
+) {
+  const db = await openDatabase();
+  try {
+    return await listScope(db, scopeKey(identity, workspaceId, version));
+  } finally {
+    db.close();
+  }
 }
 
 /** Appends a recovery snapshot and trims expired or excess copies. */
@@ -86,6 +146,9 @@ export async function readLatestRecovery(
 
 /** Removes all local source copies for the selected local identity. */
 export async function clearOwnerRecovery(identity: DevelopmentIdentity) {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(`${latestPrefix}${identity}:`)) localStorage.removeItem(key);
+  }
   const db = await openDatabase();
   const all = await new Promise<RecoverySnapshot[]>((resolve, reject) => {
     const request = db.transaction(storeName).objectStore(storeName).getAll();
@@ -111,9 +174,44 @@ function listScope(db: IDBDatabase, scope: string) {
     const request = index.getAll(scope);
     request.onsuccess = () => {
       const values = request.result as RecoverySnapshot[];
-      values.sort((left, right) => right.savedAt.localeCompare(left.savedAt));
+      values.sort(
+        (left, right) =>
+          right.savedAt.localeCompare(left.savedAt) || (right.id ?? 0) - (left.id ?? 0),
+      );
       resolve(values);
     };
     request.onerror = () => reject(request.error ?? new Error("Could not read local recovery"));
   });
+}
+
+/** Imports missing latest drafts from a private legacy export, never replacing local edits. */
+export async function importBrowserDrafts(contents: string, identity: DevelopmentIdentity) {
+  if (contents.length > 16 * 1024 * 1024) throw new Error("Draft export is too large.");
+  const data: unknown = JSON.parse(contents);
+  if (
+    !data ||
+    typeof data !== "object" ||
+    !("workspaces" in data) ||
+    !Array.isArray(data.workspaces)
+  ) {
+    throw new Error("Invalid draft export.");
+  }
+  let imported = 0;
+  for (const item of data.workspaces) {
+    if (!item || item.identity !== identity) continue;
+    if (
+      typeof item.workspaceId !== "string" ||
+      typeof item.problemVersionId !== "string" ||
+      typeof item.source !== "string" ||
+      item.source.length > 65536 ||
+      (item.kind !== "solo" && item.kind !== "match")
+    )
+      throw new Error("Invalid draft export entry.");
+    const scope = browserDraftScope({ id: item.workspaceId, kind: item.kind });
+    if (readBrowserDraft(identity, scope, item.problemVersionId) !== undefined) continue;
+    writeBrowserDraft(identity, scope, item.problemVersionId, item.source);
+    await writeRecovery(identity, scope, item.problemVersionId, item.source);
+    imported++;
+  }
+  return imported;
 }

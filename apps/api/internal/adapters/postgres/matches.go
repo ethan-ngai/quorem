@@ -394,7 +394,7 @@ func (s *Store) ReadyMatch(ctx context.Context, owner, id, key string, ready boo
 			}
 			for _, o := range owners {
 				w := ID()
-				if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,source,match_id) VALUES($1,$2,$3,'python','match',$4,$5)", w, o, p.ID, p.StarterSource, id); err != nil {
+				if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)", w, o, p.ID, id); err != nil {
 					return err
 				}
 				if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", id, o, w); err != nil {

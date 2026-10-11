@@ -240,6 +240,6 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 	return v, tx.Commit(ctx)
 }
 func (s *Store) Cleanup(ctx context.Context) error {
-	_, err := s.Pool.Exec(ctx, "DELETE FROM execution_idempotency WHERE expires_at < clock_timestamp(); DELETE FROM cancellation_idempotency WHERE expires_at < clock_timestamp(); UPDATE submissions SET source='',result=NULL WHERE admitted_at < clock_timestamp()-interval '30 days' AND state NOT IN ('queued','running'); DELETE FROM draft_versions WHERE saved_at < clock_timestamp()-interval '30 days'")
+	_, err := s.Pool.Exec(ctx, "DELETE FROM execution_idempotency WHERE expires_at < clock_timestamp(); DELETE FROM cancellation_idempotency WHERE expires_at < clock_timestamp(); UPDATE submissions SET source='',result=NULL WHERE admitted_at < clock_timestamp()-interval '30 days' AND state NOT IN ('queued','running')")
 	return err
 }

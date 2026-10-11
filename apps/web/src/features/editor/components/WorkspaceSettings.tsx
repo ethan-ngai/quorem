@@ -27,6 +27,7 @@ type SettingsProps = {
   onWrapChange: (wrap: boolean) => void;
   onHistory: () => void;
   onClearRecovery: () => void;
+  onImportDrafts: (file: File) => Promise<void>;
 };
 
 const sections = [
@@ -259,7 +260,8 @@ export function WorkspaceSettings(props: SettingsProps) {
               {section === "drafts" && (
                 <>
                   <p className="settings-section-description">
-                    Saved versions and local recovery for this account.
+                    Drafts and history stay in this browser. Other windows keep their own active
+                    code.
                   </p>
                   <button
                     className="settings-action"
@@ -269,15 +271,29 @@ export function WorkspaceSettings(props: SettingsProps) {
                     }}
                   >
                     <Icon name="history" />
-                    Draft history
+                    Browser history
                     <Icon name="arrow" />
                   </button>
+                  <label className="settings-action">
+                    <Icon name="history" />
+                    Import previous drafts
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        if (file) void props.onImportDrafts(file);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
                   <button
                     className="settings-action destructive-icon"
                     onClick={props.onClearRecovery}
                   >
                     <Icon name="trash" />
-                    Clear local recovery
+                    Clear browser drafts
                   </button>
                 </>
               )}

@@ -1,14 +1,14 @@
-/** @file HistoryDialog.tsx @description Loads and restores server-backed draft revisions. @module editor */
+/** @file HistoryDialog.tsx @description Loads and restores browser draft revisions. @module editor */
 import type { DevelopmentIdentity, Workspace } from "@quorem/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { fetchDraftHistory } from "../api";
+import { browserDraftScope, readBrowserHistory } from "../recovery";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Could not load draft history.";
 }
 
-/** Offers explicit restoration from the workspace's retained server history. */
+/** Offers explicit restoration from the workspace's retained browser history. */
 export function HistoryDialog({
   identity,
   workspace,
@@ -22,7 +22,8 @@ export function HistoryDialog({
 }) {
   const historyQuery = useQuery({
     queryKey: ["draft-history", identity, workspace.id],
-    queryFn: () => fetchDraftHistory(identity, workspace.id),
+    queryFn: () =>
+      readBrowserHistory(identity, browserDraftScope(workspace), workspace.problemVersionId),
   });
   const [restoringRevision, setRestoringRevision] = useState<string>();
   const [restoreError, setRestoreError] = useState<string>();
@@ -49,7 +50,7 @@ export function HistoryDialog({
         <header className="dialog-header">
           <div>
             <span className="eyebrow">Workspace</span>
-            <h2 id="history-title">Draft history</h2>
+            <h2 id="history-title">Browser history</h2>
           </div>
           <button
             className="icon-button"
@@ -70,10 +71,10 @@ export function HistoryDialog({
           </p>
         )}
         <ol className="history-list">
-          {historyQuery.data?.items.map((item) => (
-            <li key={item.revision}>
+          {historyQuery.data?.map((item) => (
+            <li key={String(item.id)}>
               <div>
-                <strong>Revision {item.revision}</strong>
+                <strong>Revision {String(item.id)}</strong>
                 <time dateTime={item.savedAt}>{new Date(item.savedAt).toLocaleString()}</time>
                 <pre>{item.source.slice(0, 220)}</pre>
               </div>
@@ -82,10 +83,10 @@ export function HistoryDialog({
                 className="button button-secondary"
                 disabled={!!restoringRevision}
                 onClick={async () => {
-                  setRestoringRevision(item.revision);
+                  setRestoringRevision(String(item.id));
                   setRestoreError(undefined);
                   try {
-                    await onRestore(item.source, item.revision);
+                    await onRestore(item.source, String(item.id));
                     onClose();
                   } catch (cause) {
                     setRestoreError(errorMessage(cause));
@@ -94,12 +95,12 @@ export function HistoryDialog({
                   }
                 }}
               >
-                {restoringRevision === item.revision ? "Restoring…" : "Restore"}
+                {restoringRevision === String(item.id) ? "Restoring…" : "Restore"}
               </button>
             </li>
           ))}
         </ol>
-        {historyQuery.data?.items.length === 0 ? (
+        {historyQuery.data?.length === 0 ? (
           <p className="dialog-state">No previous saves yet.</p>
         ) : null}
       </dialog>

@@ -190,7 +190,7 @@ func TestMatchInviteSeatsReadinessPrivacyAndReservations(t *testing.T) {
 		t.Fatal(e)
 	}
 	w, e := s.Workspace(ctx, "alice", own)
-	if e != nil || w.Kind != "match" || w.MatchID != c.ID || w.Draft.Source == "private alice" {
+	if e != nil || w.Kind != "match" || w.MatchID != c.ID {
 		t.Fatal(w, e)
 	}
 	if _, e = s.UpdateMatchSettings(ctx, "alice", c.ID, ID(), matches.Settings{Difficulty: "hard", DurationMinutes: 30}); errorCode(e) != "invalid_transition" {

@@ -18,11 +18,9 @@ Local identity: `X-Dev-User: alice` or `bob`, default Alice. The service refuses
 non-loopback binds and any `APP_ENV` other than `local`. Production identity is
 outside this milestone.
 
-Draft saves lock their workspace, assign server revisions, and reject older
-session sequences. History retains 100 accepted revisions for 30 days. Restore
-creates a new revision. PostgreSQL enforces one nonterminal execution per owner;
-admission resolves idempotency before busy checks, then applies token-bucket,
-daily, and global queue limits.
+Workspaces retain metadata only. Draft source and history live in the browser;
+Run/Submit send immutable source snapshots for judging. No draft-saving endpoints
+or server draft/history tables remain.
 
 Integration tests require a **disposable** database; they truncate product tables:
 
