@@ -11,9 +11,12 @@ void test(
     timeout: 30000,
   },
   async () => {
-    const socket = new WebSocket("ws://127.0.0.1:8081/lsp?user=bob", {
-      origin: "http://localhost:5173",
-    });
+    const socket = new WebSocket(
+      `${process.env.QUOREM_LANGUAGE_TEST_URL ?? "ws://127.0.0.1:8081/lsp"}?user=bob`,
+      {
+        origin: "http://localhost:5173",
+      },
+    );
     const pending = new Map<number, (result: unknown) => void>();
     let nextId = 0;
     let diagnostic: (value: unknown) => void = () => {};

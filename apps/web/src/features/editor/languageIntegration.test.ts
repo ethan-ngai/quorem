@@ -17,7 +17,7 @@ const uri = "file:///workspace/main.py";
 const languageURL = process.env.QUOREM_LANGUAGE_TEST_URL ?? "ws://127.0.0.1:8081/lsp";
 
 it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
-  "browser client supplies capabilities, reopens current source and respects owner takeover",
+  "browser client supplies capabilities, reopens current source and keeps same-owner documents isolated",
   async () => {
     const connections: {
       socket: WebSocket;
@@ -26,8 +26,8 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
       dispose(): void;
     }[] = [];
     const diagnostics: { version: number; diagnostics: { message: string }[] }[] = [];
-    async function connect(takeover = false) {
-      const socket = new NodeSocket(`${languageURL}?user=bob${takeover ? "&takeover=1" : ""}`, {
+    async function connect() {
+      const socket = new NodeSocket(`${languageURL}?user=bob`, {
         origin: "http://localhost:5173",
       });
       const closed = new Promise<number>((resolve) =>
@@ -124,11 +124,8 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
         )
         .toBe(true);
 
-      const duplicate = await connect();
-      expect(await duplicate.closed).toBe(4009);
+      const replacement = await connect();
       expect(first.socket.readyState).toBe(1);
-      const replacement = await connect(true);
-      expect(await first.closed).toBe(4009);
       await replacement.initialize();
       const offline = state.update({
         changes: {
@@ -145,6 +142,12 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
         { contents: { value: string } }
       >("textDocument/hover", params(0, 2));
       expect(latestHover.contents.value).toContain("private edit");
+      const originalHover = await first.client.request<unknown, { contents: { value: string } }>(
+        "textDocument/hover",
+        params(2, 2),
+      );
+      expect(originalHover.contents.value).toContain("list[str]");
+      expect(first.socket.readyState).toBe(1);
       expect(offline.selection.main.head).toBe(3);
       const view = {
         state: offline,

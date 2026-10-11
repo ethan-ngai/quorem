@@ -22,17 +22,17 @@ export const highlightedPython = pythonLanguage.configure({
 });
 /** Let the server supply symbol kinds; conflicting local kinds prevent completion deduplication. */
 function fallbackCompletion(source: CompletionSource): CompletionSource {
-  return async (context) => {
-    const result = await source(context);
-    return (
-      result && {
-        ...result,
-        options: result.options.map((option) => ({
-          ...option,
-          type: option.type === "keyword" ? option.type : undefined,
-        })),
-      }
-    );
+  const normalize = (result: Awaited<ReturnType<CompletionSource>>) =>
+    result && {
+      ...result,
+      options: result.options.map((option) => ({
+        ...option,
+        type: option.type === "keyword" ? option.type : undefined,
+      })),
+    };
+  return (context) => {
+    const result = source(context);
+    return result instanceof Promise ? result.then(normalize) : normalize(result);
   };
 }
 export const pythonSupport = [

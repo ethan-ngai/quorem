@@ -33,7 +33,6 @@ export function useIntelligence(
     let socket: WebSocket | undefined;
     let client: PythonLanguageClient | undefined;
     let transport: ReturnType<typeof languageTransport> | undefined;
-    let takeover = attempt.key === key;
     setExtensions([]);
 
     function connect() {
@@ -41,8 +40,6 @@ export function useIntelligence(
       setStatus("connecting");
       const url = new URL(import.meta.env.VITE_LANGUAGE_URL ?? "ws://127.0.0.1:8081/lsp");
       url.searchParams.set("user", identity);
-      if (takeover) url.searchParams.set("takeover", "1");
-      takeover = false;
       const active = new WebSocket(url);
       socket = active;
       const connection = languageTransport(active);
@@ -89,9 +86,9 @@ export function useIntelligence(
         language?.disconnect();
         if (disposed || socket !== active) return;
         setExtensions([]);
-        setStatus(event.code === 4009 ? "replaced" : "unavailable");
-        // A replaced tab must not reconnect automatically and evict the newer editor.
-        if (event.code !== 4009 && failures++ < 3)
+        setStatus("unavailable");
+        // Capacity failures need an explicit retry, avoiding a reconnect storm.
+        if (event.code !== 1013 && failures++ < 3)
           reconnect = setTimeout(connect, 1000 * 2 ** failures);
       });
     }
