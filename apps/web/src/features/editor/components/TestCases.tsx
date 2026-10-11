@@ -164,19 +164,21 @@ export function TestCases({
             ))}
             {draft.expectedEnabled ? (
               <div className="expected-field">
-                <button
-                  type="button"
-                  className="icon-button destructive-icon remove-expected"
-                  aria-label="Remove expected output"
-                  title="Remove expected output"
-                  onClick={() => updateDraft({ expectedEnabled: false })}
-                >
-                  <Icon name="trash" />
-                </button>
                 <TypedCaseInput
                   id={`custom-${draft.id}-expected`}
                   name="Expected output"
                   purpose="expected"
+                  action={
+                    <button
+                      type="button"
+                      className="icon-button destructive-icon"
+                      aria-label="Remove expected output"
+                      title="Remove expected output"
+                      onClick={() => updateDraft({ expectedEnabled: false })}
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  }
                   type={problem.signature.returnType}
                   value={draft.expected}
                   onChange={(expected) => updateDraft({ expected })}

@@ -599,6 +599,9 @@ export function WorkspacePage({
               aria-current={activePanel === panel ? "page" : undefined}
               onClick={() => setActivePanel(panel)}
             >
+              <Icon
+                name={panel === "problem" ? "problem" : panel === "code" ? "code" : "results"}
+              />
               {panel === "problem" ? "Problem" : panel === "code" ? "Code" : "Results"}
             </button>
           ))}

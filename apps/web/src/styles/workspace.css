@@ -1180,7 +1180,7 @@ kbd {
 }
 .example-data > div {
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr);
+  grid-template-columns: 18px minmax(0, 1fr);
   align-items: baseline;
   gap: 8px;
 }
@@ -1621,4 +1621,19 @@ kbd {
   width: 14px;
   height: 14px;
   flex: 0 0 auto;
+}
+
+.icon-button.destructive-icon,
+.icon-button.destructive-icon:hover {
+  color: var(--color-error);
+}
+.mobile-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.mobile-tabs svg {
+  width: 14px;
+  height: 14px;
 }

@@ -142,3 +142,5 @@ Editor intelligence popovers use the small text token; documentation scrolls wit
 Descriptions, explanations and prose constraints support inline code, bold, italics and KaTeX math. Structured constraints render machine references as text-fitting monospace code and quantities/operators as inline mathematics at the surrounding type scale. Code-editor ligatures remain disabled.
 
 Use semantic icons alongside labels for sample/custom collections and input/output/expected values. Compact destructive actions use red trash icons with accessible names and tooltips. Collection focus belongs to the outer control only. Constraint inline code shares description code padding and tone.
+
+Parameter names use monospace; input-purpose icons sit beside controls. Example input/output icons use tooltip and accessible names without visible labels. Pane tabs pair semantic icons with text. Destructive icon actions stay red and share aligned 28px targets.

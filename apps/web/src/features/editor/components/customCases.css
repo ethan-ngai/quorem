@@ -94,13 +94,6 @@
 .expected-field {
   position: relative;
 }
-.remove-expected {
-  position: absolute;
-  inset: 0 0 auto auto;
-  width: 26px;
-  height: 26px;
-  top: -4px;
-}
 .add-expected {
   justify-self: start;
   font-size: 12px;
@@ -150,4 +143,38 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.typed-input-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+.field-purpose {
+  display: flex;
+  align-items: center;
+  height: var(--control-height);
+  color: var(--color-text-secondary);
+}
+.field-purpose svg {
+  width: 14px;
+  height: 14px;
+}
+.parameter-name {
+  font: inherit;
+  font-family: var(--font-code);
+}
+.typed-case-label {
+  min-height: 28px;
+  gap: 8px;
+}
+.typed-case-label label {
+  margin-right: auto;
+}
+.custom-case-heading .icon-button,
+.typed-case-label .icon-button {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
 }

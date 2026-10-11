@@ -1,5 +1,5 @@
 import { Icon } from "./Icon";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { InputPresetConfig } from "@quorem/contracts";
 import { innerType } from "../customCases";
 import { resolveInputPreset } from "../inputPresets";
@@ -10,6 +10,7 @@ export function TypedCaseInput({
   type,
   input,
   purpose = "input",
+  action,
   value,
   onChange,
 }: {
@@ -18,6 +19,7 @@ export function TypedCaseInput({
   type: string;
   input?: InputPresetConfig;
   purpose?: "input" | "expected";
+  action?: ReactNode;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -69,10 +71,11 @@ export function TypedCaseInput({
   return (
     <div className="typed-case-field">
       <div className="typed-case-label">
-        <label htmlFor={id} className="value-label">
-          <Icon name={purpose === "expected" ? "target" : "input"} />
-          {name} <span>{type}</span>
+        <label htmlFor={id}>
+          {purpose === "input" ? <code className="parameter-name">{name}</code> : name}{" "}
+          <span>{type}</span>
         </label>
+        {action}
         {optional && (
           <button
             type="button"
@@ -94,34 +97,43 @@ export function TypedCaseInput({
           </button>
         )}
       </div>
-      {empty ? (
-        <code className="typed-null">null</code>
-      ) : control.kind === "boolean" ? (
-        <select {...props}>
-          <option value="false">false</option>
-          <option value="true">true</option>
-        </select>
-      ) : (
-        <div className={framed ? "typed-collection" : "typed-control"}>
-          {framed && (
-            <span className="collection-delimiter" aria-hidden="true">
-              [
-            </span>
-          )}
-          {control.kind === "number" ||
-          ((control.kind === "sequence" || control.kind === "linkedList") &&
-            (input?.rows ?? 1) === 1) ? (
-            <input {...props} type="text" autoComplete="off" spellCheck={false} />
-          ) : (
-            <textarea {...props} rows={input?.rows ?? (framed ? 2 : 1)} spellCheck={false} />
-          )}
-          {framed && (
-            <span className="collection-delimiter" aria-hidden="true">
-              ]
-            </span>
-          )}
-        </div>
-      )}
+      <div className="typed-input-row">
+        <span
+          className="field-purpose"
+          title={purpose === "expected" ? "Expected output" : "Input"}
+          aria-label={purpose === "expected" ? "Expected output" : "Input"}
+        >
+          <Icon name={purpose === "expected" ? "target" : "input"} />
+        </span>
+        {empty ? (
+          <code className="typed-null">null</code>
+        ) : control.kind === "boolean" ? (
+          <select {...props}>
+            <option value="false">false</option>
+            <option value="true">true</option>
+          </select>
+        ) : (
+          <div className={framed ? "typed-collection" : "typed-control"}>
+            {framed && (
+              <span className="collection-delimiter" aria-hidden="true">
+                [
+              </span>
+            )}
+            {control.kind === "number" ||
+            ((control.kind === "sequence" || control.kind === "linkedList") &&
+              (input?.rows ?? 1) === 1) ? (
+              <input {...props} type="text" autoComplete="off" spellCheck={false} />
+            ) : (
+              <textarea {...props} rows={input?.rows ?? (framed ? 2 : 1)} spellCheck={false} />
+            )}
+            {framed && (
+              <span className="collection-delimiter" aria-hidden="true">
+                ]
+              </span>
+            )}
+          </div>
+        )}
+      </div>
       {error && (
         <p id={errorId} className="typed-case-error">
           {error}

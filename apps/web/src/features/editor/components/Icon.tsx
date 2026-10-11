@@ -2,6 +2,8 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  problem: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 12h8M8 16h6",
+  results: "M4 3v18h17M8 16l4-5 4 2 5-7",
   trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",
   samples: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 15l2 2 5-5",
   custom:
