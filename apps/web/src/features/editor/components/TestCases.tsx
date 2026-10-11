@@ -1,3 +1,4 @@
+import { Tooltip } from "./Tooltip";
 import type { ProblemVersion, Submission } from "@quorem/contracts";
 import { useState } from "react";
 import {
@@ -152,19 +153,20 @@ export function TestCases({
           <>
             <div className="custom-case-heading">
               <span>Case {customIndex + 1}</span>
-              <button
-                className="icon-button destructive-icon"
-                title="Remove case"
-                disabled={drafts.length === 1}
-                aria-label={`Remove custom case ${customIndex + 1}`}
-                onClick={() => {
-                  const remaining = drafts.filter((item) => item.id !== draft.id);
-                  onDraftsChange(remaining);
-                  setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
-                }}
-              >
-                <Icon name="trash" />
-              </button>
+              <Tooltip content="Remove case">
+                <button
+                  className="icon-button destructive-icon"
+                  disabled={drafts.length === 1}
+                  aria-label={`Remove custom case ${customIndex + 1}`}
+                  onClick={() => {
+                    const remaining = drafts.filter((item) => item.id !== draft.id);
+                    onDraftsChange(remaining);
+                    setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
+                  }}
+                >
+                  <Icon name="trash" />
+                </button>
+              </Tooltip>
             </div>
             {problem.signature.parameters.map(({ name, type, input }, index) => (
               <TypedCaseInput
@@ -188,15 +190,16 @@ export function TestCases({
                   name="Expected output"
                   purpose="expected"
                   action={
-                    <button
-                      type="button"
-                      className="icon-button destructive-icon"
-                      aria-label="Remove expected output"
-                      title="Remove expected output"
-                      onClick={() => updateDraft({ expectedEnabled: false })}
-                    >
-                      <Icon name="trash" />
-                    </button>
+                    <Tooltip content="Remove expected output">
+                      <button
+                        type="button"
+                        className="icon-button destructive-icon"
+                        aria-label="Remove expected output"
+                        onClick={() => updateDraft({ expectedEnabled: false })}
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    </Tooltip>
                   }
                   type={problem.signature.returnType}
                   value={draft.expected}

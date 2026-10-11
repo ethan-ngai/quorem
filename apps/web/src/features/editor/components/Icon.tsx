@@ -2,6 +2,7 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  explanation: "M9 18h6M10 21h4M8.5 14.5a6 6 0 1 1 7 0L15 18H9Z",
   terminal: "m4 6 5 6-5 6M12 18h8",
   lock: "M6 10h12v11H6ZM8 10V7a4 4 0 0 1 8 0v3M12 14v3",
   problem: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 12h8M8 16h6",

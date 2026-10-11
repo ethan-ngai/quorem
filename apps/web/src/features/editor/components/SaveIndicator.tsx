@@ -1,4 +1,5 @@
 /** @file SaveIndicator.tsx @description Announces draft persistence state. @module editor */
+import { Tooltip } from "./Tooltip";
 
 export type SaveState = "saved" | "dirty" | "saving" | "offline" | "error";
 
@@ -20,19 +21,22 @@ export function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry?: 
   );
   if (actionable && onRetry)
     return (
-      <button
-        className={`save-indicator save-${state} save-retry`}
-        type="button"
-        onClick={onRetry}
-        title={`${label}. Click to retry saving.`}
-        aria-label={`${label}. Retry saving.`}
-      >
-        {content}
-      </button>
+      <Tooltip content={`${label}. Click to retry saving.`}>
+        <button
+          className={`save-indicator save-${state} save-retry`}
+          type="button"
+          onClick={onRetry}
+          aria-label={`${label}. Retry saving.`}
+        >
+          {content}
+        </button>
+      </Tooltip>
     );
   return (
-    <span className={`save-indicator save-${state}`} role="status" title={label}>
-      {content}
-    </span>
+    <Tooltip content={label}>
+      <span tabIndex={0} className={`save-indicator save-${state}`} role="status">
+        {content}
+      </span>
+    </Tooltip>
   );
 }

@@ -1,3 +1,4 @@
+import { Tooltip } from "./Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
 import type { ReactNode } from "react";
 import { Icon } from "./Icon";
@@ -27,13 +28,15 @@ export function CaseValue({
     <div className="case-detail">
       <span className={parameter ? "parameter-name" : undefined}>{name}</span>
       <div className="case-value-row">
-        <span
-          className="field-purpose"
-          title={purpose === "input" ? "Input" : name}
-          aria-label={purpose === "input" ? "Input" : name}
-        >
-          <Icon name={purpose} />
-        </span>
+        <Tooltip content={purpose === "input" ? "Input" : name}>
+          <span
+            tabIndex={0}
+            className="field-purpose"
+            aria-label={purpose === "input" ? "Input" : name}
+          >
+            <Icon name={purpose} />
+          </span>
+        </Tooltip>
         <code className={`machine-value ${tone ?? ""}`}>{JSON.stringify(value)}</code>
       </div>
     </div>
@@ -95,9 +98,11 @@ function ConsoleSection({ label, children }: { label: string; children: ReactNod
     <section className="case-console" aria-label={label}>
       <span>{label}</span>
       <div className="console-value-row">
-        <span className="field-purpose" title={label} aria-label={label}>
-          <Icon name="terminal" />
-        </span>
+        <Tooltip content={label}>
+          <span tabIndex={0} className="field-purpose" aria-label={label}>
+            <Icon name="terminal" />
+          </span>
+        </Tooltip>
         <pre>{children}</pre>
       </div>
     </section>

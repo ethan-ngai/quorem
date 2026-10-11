@@ -1,4 +1,5 @@
 /** @file WorkspaceSettings.tsx @description Grouped editor, appearance, recovery, and local account controls. @module editor */
+import { Tooltip } from "./Tooltip";
 import { useEffect, useRef } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
@@ -47,9 +48,11 @@ export function WorkspaceSettings(props: SettingsProps) {
   }, []);
   return (
     <details className="settings-disclosure" ref={disclosure}>
-      <summary className="icon-button" aria-label="Workspace settings" title="Workspace settings">
-        <Icon name="settings" />
-      </summary>
+      <Tooltip content="Workspace settings">
+        <summary className="icon-button" aria-label="Workspace settings">
+          <Icon name="settings" />
+        </summary>
+      </Tooltip>
       <div className="settings-popover">
         <header>
           <strong>Workspace settings</strong>

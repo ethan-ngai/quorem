@@ -1,3 +1,4 @@
+import { Tooltip } from "./Tooltip";
 import { Icon } from "./Icon";
 import { useState, type ReactNode } from "react";
 import type { InputPresetConfig } from "@quorem/contracts";
@@ -98,13 +99,15 @@ export function TypedCaseInput({
         )}
       </div>
       <div className="typed-input-row">
-        <span
-          className="field-purpose"
-          title={purpose === "expected" ? "Expected output" : "Input"}
-          aria-label={purpose === "expected" ? "Expected output" : "Input"}
-        >
-          <Icon name={purpose === "expected" ? "target" : "input"} />
-        </span>
+        <Tooltip content={purpose === "expected" ? "Expected output" : "Input"}>
+          <span
+            tabIndex={0}
+            className="field-purpose"
+            aria-label={purpose === "expected" ? "Expected output" : "Input"}
+          >
+            <Icon name={purpose === "expected" ? "target" : "input"} />
+          </span>
+        </Tooltip>
         {empty ? (
           <code className="typed-null">null</code>
         ) : control.kind === "boolean" ? (

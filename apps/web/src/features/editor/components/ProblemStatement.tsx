@@ -2,6 +2,7 @@
 import { useId, useState } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "./Icon";
+import { Tooltip } from "./Tooltip";
 import { bindArguments } from "../argumentBinding";
 import { constraintMarkup } from "../constraintMarkup";
 import type { ProblemVersion } from "@quorem/contracts";
@@ -66,22 +67,31 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
                 <div className="example-content">
                   <div className="example-data">
                     <div>
-                      <span className="value-label" title="Input" aria-label="Input">
-                        <Icon name="input" />
-                      </span>
+                      <Tooltip content="Input">
+                        <span className="value-label" tabIndex={0} aria-label="Input">
+                          <Icon name="input" />
+                        </span>
+                      </Tooltip>
                       <code>{exampleInput(problem, example.args)}</code>
                     </div>
                     <div>
-                      <span className="value-label" title="Output" aria-label="Output">
-                        <Icon name="output" />
-                      </span>
+                      <Tooltip content="Output">
+                        <span className="value-label" tabIndex={0} aria-label="Output">
+                          <Icon name="output" />
+                        </span>
+                      </Tooltip>
                       <code>{JSON.stringify(example.expected)}</code>
                     </div>
                   </div>
                   <div className="example-explanation">
                     {example.explanation && (
                       <p>
-                        <strong>Explanation:</strong> {inlineStatement(example.explanation)}
+                        <Tooltip content="Explanation">
+                          <span className="explanation-icon" tabIndex={0} aria-label="Explanation">
+                            <Icon name="explanation" />
+                          </span>
+                        </Tooltip>
+                        <span>{inlineStatement(example.explanation)}</span>
                       </p>
                     )}
                   </div>

@@ -1,4 +1,5 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { Tooltip } from "./components/Tooltip";
 import type {
   DevelopmentIdentity,
   MatchSnapshot,
@@ -553,18 +554,19 @@ export function WorkspacePage({
                 </div>
               </details>
             )}
-            <button
-              className="quiet-button private-match-button"
-              title="Private match"
-              aria-label="Create private match"
-              onClick={async () => {
-                await saveCurrentDraft();
-                setCreateMatchOpen(true);
-              }}
-            >
-              <Icon name="people" />
-              <span>Private match</span>
-            </button>
+            <Tooltip content="Private match">
+              <button
+                className="quiet-button private-match-button"
+                aria-label="Create private match"
+                onClick={async () => {
+                  await saveCurrentDraft();
+                  setCreateMatchOpen(true);
+                }}
+              >
+                <Icon name="people" />
+                <span>Private match</span>
+              </button>
+            </Tooltip>
           </nav>
           <div className="topbar-spacer" />
           <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
@@ -778,24 +780,26 @@ export function WorkspacePage({
                     Cancel run
                   </button>
                 )}
-              <button
-                className="button button-secondary"
-                disabled={submissionBusy || !actionsEnabled}
-                onClick={() => void run()}
-                title="Run (Ctrl/Cmd+Enter)"
-              >
-                <Icon name="play" />
-                Run
-              </button>
-              <button
-                className="button button-primary"
-                disabled={submissionBusy || !actionsEnabled}
-                onClick={() => void submit()}
-                title="Submit (Ctrl/Cmd+Shift+Enter)"
-              >
-                <Icon name="submit" />
-                Submit
-              </button>
+              <Tooltip content="Run (Ctrl/Cmd+Enter)">
+                <button
+                  className="button button-secondary"
+                  disabled={submissionBusy || !actionsEnabled}
+                  onClick={() => void run()}
+                >
+                  <Icon name="play" />
+                  Run
+                </button>
+              </Tooltip>
+              <Tooltip content="Submit (Ctrl/Cmd+Shift+Enter)">
+                <button
+                  className="button button-primary"
+                  disabled={submissionBusy || !actionsEnabled}
+                  onClick={() => void submit()}
+                >
+                  <Icon name="submit" />
+                  Submit
+                </button>
+              </Tooltip>
             </div>
           </footer>
         </div>
