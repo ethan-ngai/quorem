@@ -38,6 +38,7 @@ language:
 check:
 	vp check
 	vp run contracts:check
+	vp run --filter @quorem/language test
 	go test ./...
 	go vet ./...
 

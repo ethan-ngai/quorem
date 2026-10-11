@@ -53,7 +53,7 @@ server.on("upgrade", (request, socket, head) => {
 
 async function admit(owner: string, client: WebSocket, takeover: boolean): Promise<void> {
   const prior = sessions.get(owner);
-  if (prior && !takeover) {
+  if (prior?.client.readyState === WebSocket.OPEN && !takeover) {
     client.close(4009, "Language session already active; explicit takeover required");
     client.resume();
     return;
@@ -99,6 +99,8 @@ function bridge(owner: string, client: WebSocket): Session {
       "none",
       "--read-only",
       "--memory",
+      "256m",
+      "--memory-swap",
       "256m",
       "--cpus",
       "1",

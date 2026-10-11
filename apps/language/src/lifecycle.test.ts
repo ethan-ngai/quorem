@@ -102,6 +102,15 @@ void test(
         }),
       );
       await initialized;
+      const priorId = (await containers())[0];
+      replacement.client.close();
+      const reopened = await connect("alice");
+      await until(async () => {
+        const ids = await containers();
+        assert.ok(ids.length <= 1, "Reopen overlapped the closing container");
+        return ids.length === 1 && ids[0] !== priorId;
+      }, "Immediate document reopen required takeover");
+      assert.equal(reopened.client.readyState, WebSocket.OPEN);
       const bob = await connect("bob");
       await until(
         async () => (await containers()).length === 2,
