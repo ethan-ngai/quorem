@@ -102,7 +102,7 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
         </section>
       )}
       <section className="problem-section" aria-labelledby="constraints-heading">
-        <h2 id="constraints-heading">Constraints:</h2>
+        <h2 id="constraints-heading">Constraints</h2>
         <ul className="constraint-list">
           {problem.constraints.map((constraint, constraintIndex) => {
             return <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>;
