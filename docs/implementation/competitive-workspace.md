@@ -10,6 +10,7 @@ Issue #26 updates the private 1v1 flow.
 - One active competition per owner remains enforced by server reservations; multiple browser windows remain supported.
 - Browser-only drafts/history; see [migration and backup guidance](browser-drafts.md).
 - Python assistance follows the focused window. Background windows pause assistance while retaining their editor buffers; indentation guides remain local.
+- CodeMirror draws the caret and selection; desktop Safari no longer depends on its native caret rendering.
 
 ## Evidence
 
@@ -17,6 +18,7 @@ Issue #26 updates the private 1v1 flow.
 - Admission rejected a second competition for the same owner.
 - Immediate reload retained browser edits; local completion accepted `print` with Tab; indentation guides rendered in Darcula.
 - `make check` and `make build` passed. Real PostgreSQL tests used a separate disposable database; real Docker language-session tests covered ownership transfer and cleanup.
+- Native Safari Tab/Shift+Tab and arrow-key sampling showed no long JavaScript/frame stall. Switching to CodeMirror's cursor resolved the perceived lag in user validation; temporary profiling UI was removed.
 
 ## Limits
 

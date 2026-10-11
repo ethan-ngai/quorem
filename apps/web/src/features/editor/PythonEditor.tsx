@@ -12,6 +12,7 @@ import { searchKeymap } from "@codemirror/search";
 import { Compartment, EditorState, Facet, Prec, type Extension } from "@codemirror/state";
 import {
   EditorView,
+  drawSelection,
   keymap,
   lineNumbers,
   rectangularSelection,
@@ -66,6 +67,8 @@ const workspaceKeymap = keymap.of([
 
 const baseExtensions: Extension[] = [
   lineNumbers(),
+  // Keep cursor placement under editor control instead of Safari's native caret.
+  drawSelection(),
   indentationGuides,
   Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])),
   highlightActiveLine(),
