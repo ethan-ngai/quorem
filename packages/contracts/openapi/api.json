@@ -777,6 +777,64 @@
           }
         }
       }
+    },
+    "/v1/matches/{id}/settings": {
+      "put": {
+        "operationId": "updateMatchSettings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMatchRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1518,6 +1576,14 @@
           },
           "outcome": {
             "$ref": "#/components/schemas/MatchOutcome"
+          },
+          "hostUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
@@ -1527,7 +1593,9 @@
           "serverNow",
           "difficulty",
           "durationMinutes",
-          "participants"
+          "participants",
+          "hostUserId",
+          "expiresAt"
         ],
         "additionalProperties": false
       },
