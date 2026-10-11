@@ -293,11 +293,11 @@ export function MatchSettings({
                       setProblemPickerOpen(false);
                     }}
                   >
+                    {value.selectedProblemVersionId === problem.id && <Icon name="submit" />}
                     <span>{problem.title}</span>
                     <small className={`difficulty-${problem.difficulty}`}>
                       {problem.difficulty}
                     </small>
-                    {value.selectedProblemVersionId === problem.id && <Icon name="submit" />}
                   </button>
                 ))}
                 {!filteredProblems.length && <p role="status">No matching problems</p>}
