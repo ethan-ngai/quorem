@@ -19,12 +19,9 @@ if (!isIP(host) || host !== "127.0.0.1" || !Number.isInteger(port) || port < 1 |
   throw new Error("Language adapter requires a loopback IPv4 address and valid port");
 }
 const execute = promisify(execFile);
-type Session = {
-  owner: string;
-  client: WebSocket;
-  stop: (code?: number, reason?: string) => Promise<void>;
-};
+type Session = { client: WebSocket; stop: (code?: number, reason?: string) => Promise<void> };
 const sessions = new Map<string, Session>();
+const admissions = new Map<string, WebSocket>();
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 });
 let shuttingDown = false;
 const server = createServer((request, response) => {
@@ -52,24 +49,44 @@ server.on("upgrade", (request, socket, head) => {
   sockets.handleUpgrade(request, socket, head, (client) => {
     client.pause();
     client.on("error", () => {});
-    admit(owner, client);
+    void admit(owner, client, url.searchParams.get("takeover") === "1");
   });
 });
 
-/** Each browser document owns an isolated engine; never evict another window. */
-function admit(owner: string, client: WebSocket): void {
-  const owned = [...sessions.values()].filter((session) => session.owner === owner).length;
-  if (shuttingDown || owned >= 4 || sessions.size >= 8 || client.readyState !== WebSocket.OPEN) {
-    client.close(1013, "Language session capacity reached; close an unused editor and retry");
+async function admit(owner: string, client: WebSocket, takeover: boolean): Promise<void> {
+  const prior = sessions.get(owner);
+  if (prior?.client.readyState === WebSocket.OPEN && !takeover) {
+    client.close(4009, "Language session already active; explicit takeover required");
     client.resume();
     return;
   }
-  const id = randomUUID();
-  const session = bridge(id, owner, client);
-  sessions.set(id, session);
+  admissions.set(owner, client);
+  if (prior) {
+    try {
+      await prior.stop(4009, "Editor session replaced");
+    } catch {
+      client.close(1011, "Previous language engine cleanup failed");
+      client.resume();
+      return;
+    }
+  }
+  // Rapid focus changes can await the same teardown; only the newest window may start.
+  if (
+    shuttingDown ||
+    admissions.get(owner) !== client ||
+    sessions.has(owner) ||
+    client.readyState !== WebSocket.OPEN
+  ) {
+    client.close(4009, "Language session unavailable");
+    client.resume();
+    return;
+  }
+  admissions.delete(owner);
+  const session = bridge(owner, client);
+  sessions.set(owner, session);
 }
 
-function bridge(id: string, owner: string, client: WebSocket): Session {
+function bridge(owner: string, client: WebSocket): Session {
   const name = `quorem-language-${randomUUID()}`;
   const decoder = new FrameDecoder();
   let child: ReturnType<typeof spawn> | undefined;
@@ -125,14 +142,14 @@ function bridge(id: string, owner: string, client: WebSocket): Session {
     }
     child?.kill("SIGTERM");
     client.terminate();
-    if (sessions.get(id) === session) sessions.delete(id);
+    if (sessions.get(owner) === session) sessions.delete(owner);
   });
 
   function stop(code = 1000, reason = "Language session closed"): Promise<void> {
     stopped = true;
     clearTimeout(idle);
     if (client.readyState === WebSocket.OPEN) client.close(code, reason);
-    // Count the engine until Docker confirms removal to preserve the resource bound.
+    // Reserve the owner until Docker confirms removal; later admissions can retry failures.
     return cleanup();
   }
 
@@ -141,11 +158,11 @@ function bridge(id: string, owner: string, client: WebSocket): Session {
       await stop(code, reason);
     } catch {
       client.terminate();
-      console.error("Language container cleanup failed; session remains reserved");
+      console.error("Language container cleanup failed; owner remains reserved");
     }
   }
 
-  const session: Session = { owner, client, stop };
+  const session: Session = { client, stop };
   client.on("message", (data, binary) => {
     try {
       if (binary || stopped || !child?.stdin) throw new Error("Invalid language message");

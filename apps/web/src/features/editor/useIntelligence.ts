@@ -5,10 +5,11 @@ import type { Extension } from "@codemirror/state";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import DOMPurify from "dompurify";
 import { useEffect, useState, useCallback } from "react";
+import { watchEditorActivity } from "./languageActivity";
 import { languageTransport } from "./languageTransport";
 import { PythonLanguageClient } from "./pythonLanguageClient";
 
-type IntelligenceStatus = "connecting" | "ready" | "unavailable" | "replaced";
+type IntelligenceStatus = "connecting" | "ready" | "unavailable" | "paused";
 
 /** Connect one isolated language session per active document. Editing stays available during outages. */
 export function useIntelligence(
@@ -35,11 +36,25 @@ export function useIntelligence(
     let transport: ReturnType<typeof languageTransport> | undefined;
     setExtensions([]);
 
+    const isActive = () => document.visibilityState === "visible" && document.hasFocus();
+
+    function pause() {
+      clearTimeout(reconnect);
+      socket = undefined;
+      transport?.dispose();
+      client?.disconnect();
+      transport = undefined;
+      client = undefined;
+      setExtensions([]);
+      setStatus("paused");
+    }
+
     function connect() {
-      if (disposed) return;
+      if (disposed || !isActive() || socket) return;
       setStatus("connecting");
       const url = new URL(import.meta.env.VITE_LANGUAGE_URL ?? "ws://127.0.0.1:8081/lsp");
       url.searchParams.set("user", identity);
+      url.searchParams.set("takeover", "1");
       const active = new WebSocket(url);
       socket = active;
       const connection = languageTransport(active);
@@ -85,16 +100,28 @@ export function useIntelligence(
         connection.dispose();
         language?.disconnect();
         if (disposed || socket !== active) return;
+        socket = undefined;
         setExtensions([]);
-        setStatus("unavailable");
-        // Capacity failures need an explicit retry, avoiding a reconnect storm.
-        if (event.code !== 1013 && failures++ < 3)
+        setStatus(event.code === 4009 || !isActive() ? "paused" : "unavailable");
+        // Replaced windows wait for a real focus event instead of reclaiming the engine.
+        if (event.code !== 4009 && isActive() && failures++ < 3)
           reconnect = setTimeout(connect, 1000 * 2 ** failures);
       });
     }
-    connect();
+    const stopWatching = watchEditorActivity(
+      () => {
+        failures = 0;
+        connect();
+      },
+      () => {
+        const active = socket;
+        pause();
+        active?.close(1000, "Editor paused");
+      },
+    );
     return () => {
       disposed = true;
+      stopWatching();
       clearTimeout(reconnect);
       transport?.dispose();
       client?.disconnect();
