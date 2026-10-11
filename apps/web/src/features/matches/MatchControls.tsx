@@ -6,7 +6,6 @@ import {
   Clipboard,
   Focus,
   Gauge,
-  Check,
   Dices,
   Search,
   Swords,
@@ -186,11 +185,10 @@ export function MatchSettings({
           <Gauge />
           Difficulty
         </span>
-        <div className="difficulty-filters" role="group" aria-label="Difficulty filter">
+        <div className="match-difficulty" role="group" aria-label="Difficulty filter">
           {(["easy", "medium", "hard"] as const).map((difficulty) => (
             <button
               type="button"
-              className="difficulty-chip"
               key={difficulty}
               aria-pressed={pools.includes(difficulty)}
               disabled={disabled || (pools.length === 1 && pools.includes(difficulty))}
@@ -202,23 +200,20 @@ export function MatchSettings({
                 )
               }
             >
-              <Check size={12} aria-hidden="true" />
               <span className={`difficulty-${difficulty}`}>
                 {difficulty[0].toUpperCase() + difficulty.slice(1)}
               </span>
             </button>
           ))}
-          <Tooltip content="Select all difficulties">
-            <button
-              type="button"
-              className="difficulty-select-all"
-              aria-label="Select all difficulties"
-              disabled={disabled || pools.length === 3}
-              onClick={() => changeDifficulties(["easy", "medium", "hard"])}
-            >
-              All
-            </button>
-          </Tooltip>
+          <button
+            type="button"
+            aria-label="Select all difficulties"
+            aria-pressed={pools.length === 3}
+            disabled={disabled}
+            onClick={() => changeDifficulties(["easy", "medium", "hard"])}
+          >
+            All
+          </button>
         </div>
       </div>
       <div className="match-option">

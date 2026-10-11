@@ -691,61 +691,8 @@
   border-radius: 2px;
 }
 
-.difficulty-filters {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.difficulty-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition:
-    background var(--motion-fast) var(--motion-easing),
-    border-color var(--motion-fast) var(--motion-easing);
-}
-.difficulty-chip[aria-pressed="true"] {
-  background: var(--color-overlay);
-  border-color: var(--color-text-secondary);
-}
-.difficulty-chip > svg {
-  width: 0;
-  opacity: 0;
-  color: var(--color-text-secondary);
-  transition:
-    width var(--motion-fast) var(--motion-easing),
-    opacity var(--motion-fast) var(--motion-easing);
-}
-.difficulty-chip[aria-pressed="true"] > svg {
-  width: 12px;
-  opacity: 1;
-}
-.difficulty-chip:disabled {
-  cursor: default;
-}
-.difficulty-select-all {
-  border: 0;
-  padding: 6px;
-  background: transparent;
-  color: var(--color-brand-accent);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.difficulty-select-all:disabled {
-  color: var(--color-text-secondary);
-  cursor: default;
-}
 .problem-picker-popover {
-  width: min(280px, calc(100vw - 32px));
+  width: min(220px, calc(100vw - 32px));
   padding: 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
