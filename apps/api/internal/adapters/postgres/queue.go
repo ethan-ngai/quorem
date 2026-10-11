@@ -114,6 +114,17 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 		return err
 	}
 	defer tx.Rollback(ctx)
+	var matchID string
+	if err = tx.QueryRow(ctx, "SELECT COALESCE(match_id::text,'') FROM submissions WHERE id=$1", j.SubmissionID).Scan(&matchID); err != nil {
+		return err
+	}
+	var match matchRecord
+	if matchID != "" {
+		match, err = lockMatch(ctx, tx, matchID)
+		if err != nil {
+			return err
+		}
+	}
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740020)"); err != nil {
 		return err
 	}
@@ -166,6 +177,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	payload, _ := json.Marshal(map[string]string{"submissionId": j.SubmissionID, "state": state})
 	if _, err = tx.Exec(ctx, "INSERT INTO outbox_events(id,aggregate_id,type,payload) VALUES($1,$2,'submission.updated',$3)", ID(), j.SubmissionID, payload); err != nil {
 		return err
+	}
+	if matchID != "" {
+		if err = s.reconcileMatch(ctx, tx, &match); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }

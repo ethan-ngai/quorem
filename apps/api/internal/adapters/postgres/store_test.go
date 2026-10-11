@@ -26,7 +26,7 @@ func testStore(t *testing.T) *Store {
 	if err = store.Migrate(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Pool.Exec(ctx, "TRUNCATE cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,draft_sessions,draft_versions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
+	if _, err = store.Pool.Exec(ctx, "TRUNCATE match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,draft_sessions,draft_versions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
 		t.Fatal(err)
 	}
 	f, err := problems.LoadFixtures("../../../../../fixtures/problems")

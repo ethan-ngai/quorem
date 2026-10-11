@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"io"
 	"math"
 	"net"
@@ -16,8 +17,9 @@ import (
 )
 
 type Server struct {
-	Store *postgres.Store
-	Local bool
+	Store  *postgres.Store
+	Events *realtime.Memory
+	Local  bool
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -38,6 +40,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/submissions", s.admit)
 	mux.HandleFunc("GET /v1/submissions/{id}", s.submission)
 	mux.HandleFunc("POST /v1/submissions/{id}/cancel", s.cancel)
+	mux.HandleFunc("POST /v1/matches", s.createMatch)
+	mux.HandleFunc("POST /v1/matches/join", s.joinMatch)
+	mux.HandleFunc("GET /v1/matches/{id}", s.getMatch)
+	for _, action := range []string{"ready", "forfeit", "leave"} {
+		a := action
+		mux.HandleFunc("POST /v1/matches/{id}/"+a, func(w http.ResponseWriter, r *http.Request) { r.SetPathValue("action", a); s.mutateMatch(w, r) })
+	}
+	mux.HandleFunc("PUT /v1/matches/{id}/settings", func(w http.ResponseWriter, r *http.Request) {
+		r.SetPathValue("action", "settings")
+		s.mutateMatch(w, r)
+	})
+	s.registerRealtime(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := postgres.ID()
 		w.Header().Set("X-Request-ID", id)
