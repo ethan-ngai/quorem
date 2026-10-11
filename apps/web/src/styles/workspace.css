@@ -2084,11 +2084,14 @@ kbd {
   gap: 4px;
 }
 .shortcut-tile kbd {
+  font-family: var(--font-interface);
+  min-width: 22px;
+  text-align: center;
   padding: 3px 6px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
   background: var(--color-overlay);
-  font-size: 10px;
+  font-size: 12px;
 }
 .shortcut-tiles[data-enabled="false"] {
   opacity: 0.5;
