@@ -270,6 +270,15 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           border: `1px solid ${color("border")}`,
           borderRadius: "var(--radius-md)",
         },
+        ".cm-tooltip": {
+          fontSize: "var(--text-small)",
+          lineHeight: "1.5",
+          maxWidth: "calc(100vw - 32px)",
+        },
+        ".cm-completionInfo, .cm-lsp-hover-tooltip, .cm-lsp-signature-tooltip": {
+          maxHeight: "min(260px, 40vh)",
+          overflow: "auto",
+        },
         ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
           backgroundColor: color("selection"),
           color: color("foreground"),

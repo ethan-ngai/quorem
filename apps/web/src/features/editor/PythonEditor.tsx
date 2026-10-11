@@ -66,7 +66,10 @@ const baseExtensions: Extension[] = [
   bracketMatching(),
   rectangularSelection(),
   closeBrackets(),
-  autocompletion(),
+  autocompletion({
+    // Adjacent identical labels merge local suggestions with richer server documentation.
+    compareCompletions: (a, b) => a.label.localeCompare(b.label),
+  }),
   highlightedPython,
   pythonSupport,
   pythonIdentifierAccents,

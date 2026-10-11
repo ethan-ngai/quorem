@@ -1,6 +1,6 @@
 /** @file useIntelligence.ts @description Disposable Python language sessions. @module editor */
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
-import { autocompletion } from "@codemirror/autocomplete";
+import { pythonLanguage } from "@codemirror/lang-python";
 import type { Extension } from "@codemirror/state";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import DOMPurify from "dompurify";
@@ -74,7 +74,8 @@ export function useIntelligence(
             failures = 0;
             setExtensions([
               language!.plugin("file:///workspace/main.py", "python"),
-              autocompletion({ override: [language!.completionSource] }),
+              // Preserve local completion state while the language service initializes/reconnects.
+              pythonLanguage.data.of({ autocomplete: language!.completionSource }),
             ]);
             setStatus("ready");
           })

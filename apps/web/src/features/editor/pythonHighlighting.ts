@@ -1,5 +1,6 @@
 /** @file pythonHighlighting.ts @description Python parser-context tags and visible lexical identifier accents. @module editor */
-import { python, pythonLanguage } from "@codemirror/lang-python";
+import { globalCompletion, localCompletionSource, pythonLanguage } from "@codemirror/lang-python";
+import type { CompletionSource } from "@codemirror/autocomplete";
 import { syntaxTree } from "@codemirror/language";
 import { Decoration, ViewPlugin, type DecorationSet, type EditorView } from "@codemirror/view";
 import { Tag, styleTags, tags } from "@lezer/highlight";
@@ -19,7 +20,25 @@ export const highlightedPython = pythonLanguage.configure({
     }),
   ],
 });
-export const pythonSupport = python().support;
+/** Let the server supply symbol kinds; conflicting local kinds prevent completion deduplication. */
+function fallbackCompletion(source: CompletionSource): CompletionSource {
+  return async (context) => {
+    const result = await source(context);
+    return (
+      result && {
+        ...result,
+        options: result.options.map((option) => ({
+          ...option,
+          type: option.type === "keyword" ? option.type : undefined,
+        })),
+      }
+    );
+  };
+}
+export const pythonSupport = [
+  pythonLanguage.data.of({ autocomplete: fallbackCompletion(localCompletionSource) }),
+  pythonLanguage.data.of({ autocomplete: fallbackCompletion(globalCompletion) }),
+];
 
 const builtins = new Set([
   "abs",
