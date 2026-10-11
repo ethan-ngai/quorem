@@ -49,7 +49,7 @@ export function CreateMatchDialog({
                 Create match
               </Dialog.Title>
               <Dialog.Description className="match-dialog-description">
-                Choose a mode, problem and rules.
+                Choose a mode, difficulty and problem.
               </Dialog.Description>
             </div>
             <Tooltip content="Close">

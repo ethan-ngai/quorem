@@ -6,7 +6,8 @@ Issue #28; depends on #27.
 
 - Shared global navigation and centered creation dialog; Showdown and eight-seat Free-for-all.
 - Hosts switch modes before start; Showdown requires at most two seated players. Changed settings clear readiness.
-- Specific public problem version or uniform random selection across multiple difficulty pools. Selection freezes at start.
+- Always-visible Difficulty switches with a Select all action constrain searchable problem selection in an anchored popover and Random. Incompatible selected problems reset to Random. Selection freezes at start.
+- Host rules appear only in the lobby; creation retains mode, difficulty, problem and duration.
 - Free-for-all starts explicitly by its host after two or more players all ready. First correct wins; deadline uses highest passed count, drawing on a tie.
 - Forfeit excludes that player, including pending results. Last remaining player wins; reservations remain until completion.
 - Independent clipboard/focus actions: allow, local warning, thirty-second admission cooldown, or public announcement. No clipboard/source/navigation content sent. Blur/hidden deduplicate; cooldown does not stack; announcements retain twenty events.

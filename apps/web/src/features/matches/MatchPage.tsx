@@ -375,6 +375,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
             {host ? (
               <div className="competitive-lobby-settings">
                 <MatchSettings
+                  showHostRules
                   value={settings}
                   identity={identity}
                   participantCount={snapshot.participants.length}
@@ -396,6 +397,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
             ) : (
               <div className="competitive-lobby-settings">
                 <MatchSettings
+                  showHostRules
                   value={snapshotSettings(snapshot)}
                   identity={identity}
                   participantCount={snapshot.participants.length}
