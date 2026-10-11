@@ -30,21 +30,19 @@ export function useIntelligence(
     }
     let disposed = false;
     let reconnect: ReturnType<typeof setTimeout> | undefined;
+    let initializationDeadline: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
     let socket: WebSocket | undefined;
     let client: PythonLanguageClient | undefined;
     let transport: ReturnType<typeof languageTransport> | undefined;
+    let readyExtensions: Extension[] = [];
     setExtensions([]);
 
     const isActive = () => document.visibilityState === "visible" && document.hasFocus();
 
     function pause() {
       clearTimeout(reconnect);
-      socket = undefined;
-      transport?.dispose();
-      client?.disconnect();
-      transport = undefined;
-      client = undefined;
+      // Keep the idle engine warm; another focused window can explicitly replace it.
       setExtensions([]);
       setStatus("paused");
     }
@@ -61,6 +59,7 @@ export function useIntelligence(
       transport = connection;
       let language: PythonLanguageClient | undefined;
       const deadline = setTimeout(() => active.close(4000, "Connection timeout"), 15000);
+      initializationDeadline = deadline;
       active.addEventListener("open", () => {
         if (disposed || socket !== active) return;
         language = new PythonLanguageClient(
@@ -84,12 +83,15 @@ export function useIntelligence(
             clearTimeout(deadline);
             if (disposed || socket !== active || active.readyState !== WebSocket.OPEN) return;
             failures = 0;
-            setExtensions([
+            readyExtensions = [
               language!.plugin("file:///workspace/main.py", "python"),
               // Preserve local completion state while the language service initializes/reconnects.
               pythonLanguage.data.of({ autocomplete: language!.completionSource }),
-            ]);
-            setStatus("ready");
+            ];
+            if (isActive()) {
+              setExtensions(readyExtensions);
+              setStatus("ready");
+            } else setStatus("paused");
           })
           .catch(() => {
             active.close(4000, "Initialization failed");
@@ -101,6 +103,7 @@ export function useIntelligence(
         language?.disconnect();
         if (disposed || socket !== active) return;
         socket = undefined;
+        readyExtensions = [];
         setExtensions([]);
         setStatus(event.code === 4009 || !isActive() ? "paused" : "unavailable");
         // Replaced windows wait for a real focus event instead of reclaiming the engine.
@@ -108,21 +111,18 @@ export function useIntelligence(
           reconnect = setTimeout(connect, 1000 * 2 ** failures);
       });
     }
-    const stopWatching = watchEditorActivity(
-      () => {
-        failures = 0;
-        connect();
-      },
-      () => {
-        const active = socket;
-        pause();
-        active?.close(1000, "Editor paused");
-      },
-    );
+    const stopWatching = watchEditorActivity(() => {
+      failures = 0;
+      if (socket?.readyState === WebSocket.OPEN && readyExtensions.length) {
+        setExtensions(readyExtensions);
+        setStatus("ready");
+      } else connect();
+    }, pause);
     return () => {
       disposed = true;
       stopWatching();
       clearTimeout(reconnect);
+      clearTimeout(initializationDeadline);
       transport?.dispose();
       client?.disconnect();
       socket?.close(1000, "Document closed");

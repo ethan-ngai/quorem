@@ -12,6 +12,32 @@ export function indentationColumns(text: string, tabSize: number): number {
   return columns;
 }
 
+/** Carry the enclosing indentation through blank separators, without scanning the document. */
+export function scopeIndentation(state: EditorState, number: number, size: number): number {
+  const line = state.doc.line(number);
+  const own = indentationColumns(line.text, size);
+  if (line.text.trim() || own) return own;
+  function neighbor(direction: -1 | 1): number | undefined {
+    for (let distance = 1; distance <= 20; distance++) {
+      const candidate = number + distance * direction;
+      if (candidate < 1 || candidate > state.doc.lines) return;
+      const text = state.doc.line(candidate).text;
+      if (text.trim())
+        return (
+          indentationColumns(text, size) +
+          (direction === -1 && text.trimEnd().endsWith(":") ? size : 0)
+        );
+    }
+  }
+  const before = neighbor(-1),
+    after = neighbor(1);
+  return before === undefined
+    ? (after ?? 0)
+    : after === undefined
+      ? before
+      : Math.min(before, after);
+}
+
 function guides(view: EditorView): DecorationSet {
   const ranges: Array<ReturnType<Decoration["range"]>> = [];
   const size = view.state.facet(EditorState.tabSize);
@@ -21,7 +47,7 @@ function guides(view: EditorView): DecorationSet {
     while (line.from <= visible.to) {
       if (!seen.has(line.number)) {
         seen.add(line.number);
-        const columns = indentationColumns(line.text, size);
+        const columns = scopeIndentation(view.state, line.number, size);
         if (columns >= size) {
           ranges.push(
             Decoration.line({
@@ -56,7 +82,7 @@ export const indentationGuides = [
   EditorView.baseTheme({
     ".cm-indent-guides": {
       backgroundImage:
-        "repeating-linear-gradient(90deg, var(--color-border) 0px, var(--color-border) 1px, transparent 1px, transparent var(--cm-indent-step))",
+        "repeating-linear-gradient(90deg, var(--editor-border) 0px, var(--editor-border) 1px, transparent 1px, transparent var(--cm-indent-step))",
       backgroundSize: "var(--cm-indent-width) 100%",
       backgroundRepeat: "no-repeat",
       backgroundOrigin: "content-box",

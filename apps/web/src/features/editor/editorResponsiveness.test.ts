@@ -3,7 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { CompletionContext, type CompletionSource } from "@codemirror/autocomplete";
 import { describe, expect, it } from "vitest";
 import { highlightedPython, pythonSupport } from "./pythonHighlighting";
-import { indentationColumns } from "./indentationGuides";
+import { indentationColumns, scopeIndentation } from "./indentationGuides";
 
 describe("editor responsiveness", () => {
   it("supplies builtin completion immediately, without waiting for a remote response", () => {
@@ -28,5 +28,13 @@ describe("editor responsiveness", () => {
     expect(indentationColumns(" \t  return 1", 4)).toBe(6);
     expect(indentationColumns("\t\tpass", 2)).toBe(4);
     expect(indentationColumns('return "    "', 4)).toBe(0);
+  });
+  it("continues nested scope guides through blank lines and stops before dedented code", () => {
+    const state = EditorState.create({
+      doc: "class Solution:\n\n    def solve(self):\n        value = 1\n\n        return value\n\nnext_value = 2",
+    });
+    expect(scopeIndentation(state, 2, 4)).toBe(4);
+    expect(scopeIndentation(state, 5, 4)).toBe(8);
+    expect(scopeIndentation(state, 7, 4)).toBe(0);
   });
 });
