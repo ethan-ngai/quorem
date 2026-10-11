@@ -65,6 +65,16 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 	var v matches.Snapshot
 	var e error
 	switch r.PathValue("action") {
+	case "start":
+		v, e = s.Store.StartMatch(r.Context(), owner(r), id, key)
+	case "rule-events":
+		var body struct {
+			Kind string `json:"kind"`
+		}
+		if !s.decode(w, r, &body, 1024) {
+			return
+		}
+		v, e = s.Store.ReportMatchRule(r.Context(), owner(r), id, key, body.Kind)
 	case "ready":
 		var body struct {
 			Ready *bool `json:"ready"`

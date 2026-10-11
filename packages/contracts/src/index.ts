@@ -20,14 +20,20 @@ export type Diagnostic = components["schemas"]["Diagnostic"];
 export type MatchSnapshot = components["schemas"]["MatchSnapshot"];
 export type MatchInvite = components["schemas"]["MatchInvite"];
 export type CreateMatchRequest = components["schemas"]["CreateMatchRequest"];
+export type MatchMode = components["schemas"]["MatchMode"];
+export type MatchRules = components["schemas"]["MatchRules"];
+export type MatchRuleKind = components["schemas"]["MatchRuleKind"];
+export type MatchRuleAction = components["schemas"]["MatchRuleAction"];
 export type ErrorResponse = components["schemas"]["ErrorResponse"];
 export type EventEnvelope = components["schemas"]["EventEnvelope"];
-export type DevelopmentIdentity = "alice" | "bob";
+export type DevelopmentIdentity = "alice" | "bob" | "charlie" | "dana";
 
 /** Stable local subjects; production identity supplies its own internal UUID. */
 export const developmentUserIds: Record<DevelopmentIdentity, string> = {
   alice: "00000000-0000-4000-8000-000000000001",
   bob: "00000000-0000-4000-8000-000000000002",
+  charlie: "00000000-0000-4000-8000-000000000003",
+  dana: "00000000-0000-4000-8000-000000000004",
 };
 
 /** @returns Typed client; development identity is explicit. */

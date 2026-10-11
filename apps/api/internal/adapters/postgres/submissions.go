@@ -60,6 +60,13 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		if m.state != "active" || m.deadline == nil || !admitted.Before(*m.deadline) {
 			return judging.Submission{}, failure("invalid_transition", 409, "Match admission is closed")
 		}
+		var forbidden bool
+		if e = tx.QueryRow(ctx, "SELECT forfeited OR COALESCE(cooldown_until>clock_timestamp(),false) FROM match_participants WHERE match_id=$1 AND owner_id=$2", matchID, owner).Scan(&forbidden); e != nil {
+			return judging.Submission{}, e
+		}
+		if forbidden {
+			return judging.Submission{}, failure("invalid_transition", 409, "Match participant is forfeited or cooling down")
+		}
 		admissionTime = admitted
 		if c.Kind == "submit" {
 			var sequence int64

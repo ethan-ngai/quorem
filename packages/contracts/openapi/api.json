@@ -648,6 +648,149 @@
           }
         }
       }
+    },
+    "/v1/matches/{id}/start": {
+      "post": {
+        "operationId": "startMatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/rule-events": {
+      "post": {
+        "operationId": "reportMatchRule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportMatchRuleRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/problems": {
+      "get": {
+        "operationId": "listProblems",
+        "responses": {
+          "200": {
+            "description": "Latest public problem versions, ordered by title.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProblemVersion"
+                      }
+                    }
+                  },
+                  "required": ["items"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -656,7 +799,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Dev-User",
-        "description": "Local development only: alice or bob. Disabled outside development."
+        "description": "Local development only: alice, bob, charlie or dana. Disabled outside development."
       }
     },
     "schemas": {
@@ -1287,6 +1430,13 @@
           "workspaceId": {
             "type": "string",
             "format": "uuid"
+          },
+          "forfeited": {
+            "type": "boolean"
+          },
+          "cooldownUntil": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": ["userId", "displayName", "ready", "presence"],
@@ -1321,7 +1471,9 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MatchParticipant"
-            }
+            },
+            "minItems": 1,
+            "maxItems": 8
           },
           "startedAt": {
             "type": "string",
@@ -1351,8 +1503,30 @@
             "format": "date-time"
           },
           "mode": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "difficulties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Difficulty"
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
+          },
+          "selectedProblemVersionId": {
             "type": "string",
-            "enum": ["showdown"]
+            "format": "uuid"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/MatchRules"
+          },
+          "ruleEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchRuleEvent"
+            },
+            "maxItems": 20
           }
         },
         "required": [
@@ -1365,7 +1539,10 @@
           "participants",
           "hostUserId",
           "expiresAt",
-          "mode"
+          "mode",
+          "difficulties",
+          "rules",
+          "ruleEvents"
         ],
         "additionalProperties": false
       },
@@ -1378,10 +1555,78 @@
           "durationMinutes": {
             "type": "integer",
             "enum": [15, 30, 45, 60]
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "difficulties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Difficulty"
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
+          },
+          "selectedProblemVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rules": {
+            "type": "object",
+            "properties": {
+              "clipboard": {
+                "$ref": "#/components/schemas/MatchRuleAction"
+              },
+              "focus": {
+                "$ref": "#/components/schemas/MatchRuleAction"
+              }
+            },
+            "additionalProperties": false
           }
         },
-        "required": ["difficulty", "durationMinutes"],
-        "additionalProperties": false
+        "required": ["durationMinutes"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "difficulty": {
+                    "$ref": "#/components/schemas/Difficulty"
+                  }
+                },
+                "required": ["difficulty"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "difficulties": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Difficulty"
+                    },
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "uniqueItems": true
+                  }
+                },
+                "required": ["difficulties"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "selectedProblemVersionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["selectedProblemVersionId"]
+              }
+            ]
+          }
+        ]
       },
       "MatchInvite": {
         "type": "object",
@@ -1661,6 +1906,67 @@
             "additionalProperties": false
           }
         ]
+      },
+      "MatchMode": {
+        "type": "string",
+        "enum": ["showdown", "free-for-all"]
+      },
+      "MatchRuleAction": {
+        "type": "string",
+        "enum": ["off", "warning", "cooldown", "announce"]
+      },
+      "MatchRuleKind": {
+        "type": "string",
+        "enum": ["clipboard", "focus"]
+      },
+      "MatchRules": {
+        "type": "object",
+        "properties": {
+          "clipboard": {
+            "$ref": "#/components/schemas/MatchRuleAction"
+          },
+          "focus": {
+            "$ref": "#/components/schemas/MatchRuleAction"
+          }
+        },
+        "required": ["clipboard", "focus"],
+        "additionalProperties": false
+      },
+      "MatchRuleEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MatchRuleKind"
+          },
+          "action": {
+            "type": "string",
+            "const": "announce"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "userId", "kind", "action", "occurredAt"],
+        "additionalProperties": false
+      },
+      "ReportMatchRuleRequest": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/MatchRuleKind"
+          }
+        },
+        "required": ["kind"],
+        "additionalProperties": false
       }
     }
   }

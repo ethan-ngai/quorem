@@ -18,7 +18,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { GlobalNav } from "../navigation/GlobalNav";
+import { MatchRuleNotice, useMatchRules } from "../matches/useMatchRules";
 import { fetchProblem, fetchProblemVersion, fetchWorkspace, createWorkspace } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { ProblemStatement } from "./components/ProblemStatement";
@@ -55,15 +56,6 @@ import "../../styles/workspace.css";
 
 type Panel = "problem" | "code" | "results";
 
-const problemSlugs = [
-  "run-widths",
-  "mirror-letters",
-  "segment-sums",
-  "level-spreads",
-  "split-load",
-  "quota-window",
-];
-
 const defaultPaneRatio = 40;
 const defaultResultsHeight = 260;
 
@@ -88,7 +80,6 @@ export function WorkspacePage({
   onIdentityChange?: (identity: DevelopmentIdentity) => void;
   matchHeader?: ReactNode;
 }) {
-  const navigate = useNavigate();
   const [localIdentity, setLocalIdentity] = useState<DevelopmentIdentity>(() =>
     readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
   );
@@ -347,6 +338,7 @@ export function WorkspacePage({
     !dataMatchesState ||
     !problem ||
     !workspace;
+  const matchRules = useMatchRules(identity, match);
   const execution = useSubmission({
     identity,
     workspace,
@@ -355,16 +347,18 @@ export function WorkspacePage({
     customMode,
     drafts: customDrafts,
     problem,
-    enabled: canExecuteDocument({
-      identity,
-      contextKey: draftContextRef.current?.key,
-      problem,
-      workspace,
-      slug,
-      match,
-      matchWorkspaceId,
-      loaded: !loading,
-    }),
+    enabled:
+      !matchRules.blocked &&
+      canExecuteDocument({
+        identity,
+        contextKey: draftContextRef.current?.key,
+        problem,
+        workspace,
+        slug,
+        match,
+        matchWorkspaceId,
+        loaded: !loading,
+      }),
   });
   const changeCustomDrafts = useCallback((drafts: CustomCaseDraft[]) => {
     setCustomDrafts(drafts);
@@ -461,16 +455,18 @@ export function WorkspacePage({
     : "pending";
   const intelligence = useIntelligence(identity, editorDocumentKey, !loading);
 
-  const actionsEnabled = canExecuteDocument({
-    identity,
-    contextKey: draftContextRef.current?.key,
-    problem,
-    workspace,
-    slug,
-    match,
-    matchWorkspaceId,
-    loaded: !loading,
-  });
+  const actionsEnabled =
+    !matchRules.blocked &&
+    canExecuteDocument({
+      identity,
+      contextKey: draftContextRef.current?.key,
+      problem,
+      workspace,
+      slug,
+      match,
+      matchWorkspaceId,
+      loaded: !loading,
+    });
   if (!problem || !workspace)
     return (
       <main className="workspace-loading" aria-live="polite">
@@ -517,53 +513,14 @@ export function WorkspacePage({
         style={{ ...workspaceStyle, visibility: loading ? "hidden" : undefined }}
         inert={loading}
       >
-        <header className="topbar">
-          <Brand />
-          <nav className="workspace-nav" aria-label="Workspace navigation">
-            {match ? (
-              <a className="quiet-button" href="/run-widths">
-                Practice
-              </a>
-            ) : (
-              <details className="problem-picker">
-                <summary>
-                  Problems
-                  <Icon name="chevron" />
-                </summary>
-                <div className="problem-menu">
-                  {problemSlugs.map((item) => (
-                    <button
-                      key={item}
-                      aria-current={item === slug ? "page" : undefined}
-                      onClick={(event) => {
-                        event.currentTarget.closest("details")?.removeAttribute("open");
-                        void navigate({ to: "/$slug", params: { slug: item } });
-                      }}
-                    >
-                      {item.replaceAll("-", " ")}
-                      {item === slug && <Icon name="submit" />}
-                    </button>
-                  ))}
-                </div>
-              </details>
-            )}
-            {!match && (
-              <Tooltip content="Showdown">
-                <button
-                  className="quiet-button showdown-button"
-                  aria-label="Create Showdown"
-                  onClick={async () => {
-                    await saveCurrentDraft();
-                    setCreateMatchOpen(true);
-                  }}
-                >
-                  <Icon name="showdown" />
-                  <span>Showdown</span>
-                </button>
-              </Tooltip>
-            )}
-          </nav>
-          <div className="topbar-spacer" />
+        <GlobalNav
+          identity={identity}
+          slug={match ? undefined : slug}
+          mode={match?.mode}
+          onCreateMatch={() => {
+            void saveCurrentDraft().then(() => setCreateMatchOpen(true));
+          }}
+        >
           <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
 
           <WorkspaceSettings
@@ -594,8 +551,17 @@ export function WorkspacePage({
               void clearOwnerRecovery(identity);
             }}
           />
-        </header>
-        {matchHeader && <div className="match-strip">{matchHeader}</div>}
+        </GlobalNav>
+        {matchHeader && (
+          <div className="match-strip">
+            {matchHeader}
+            <MatchRuleNotice
+              message={matchRules.notice}
+              until={matchRules.until}
+              onDismiss={matchRules.dismiss}
+            />
+          </div>
+        )}
         <nav className="mobile-tabs" aria-label="Workspace panes">
           {(["problem", "code", "results"] as const).map((panel) => (
             <button

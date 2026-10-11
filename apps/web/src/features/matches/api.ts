@@ -83,3 +83,25 @@ export function leaveMatch(identity: DevelopmentIdentity, id: string) {
     return requireData(data as MatchSnapshot | undefined, error);
   });
 }
+
+export function startMatch(identity: DevelopmentIdentity, id: string) {
+  return recoverableCommand(identity, `start:${id}`, {}, async (_body, key) => {
+    const { data, error } = await api(identity).POST("/v1/matches/{id}/start", {
+      params: { path: { id }, header: { "Idempotency-Key": key } },
+    });
+    return requireData(data as MatchSnapshot | undefined, error);
+  });
+}
+
+/** Reports the event kind only; clipboard data and navigation targets remain private. */
+export async function reportRuleEvent(
+  identity: DevelopmentIdentity,
+  id: string,
+  kind: "clipboard" | "focus",
+) {
+  const { data, error } = await api(identity).POST("/v1/matches/{id}/rule-events", {
+    body: { kind },
+    params: { path: { id }, header: { "Idempotency-Key": crypto.randomUUID() } },
+  });
+  return requireData(data as MatchSnapshot | undefined, error);
+}

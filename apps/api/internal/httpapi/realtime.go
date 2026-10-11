@@ -76,6 +76,12 @@ func developmentSubject(user string) string {
 	if user == "bob" {
 		return "00000000-0000-4000-8000-000000000002"
 	}
+	if user == "charlie" {
+		return "00000000-0000-4000-8000-000000000003"
+	}
+	if user == "dana" {
+		return "00000000-0000-4000-8000-000000000004"
+	}
 	return ""
 }
 

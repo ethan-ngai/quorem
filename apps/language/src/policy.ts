@@ -27,7 +27,7 @@ export function authorizeUpgrade(
   const allowedOrigin = origin === "http://localhost:5173" || origin === "http://127.0.0.1:5173";
   const owner = url.searchParams.get("user");
   if (!local || !allowedOrigin || url.pathname !== "/lsp") return null;
-  return owner === "alice" || owner === "bob" ? owner : null;
+  return owner && ["alice", "bob", "charlie", "dana"].includes(owner) ? owner : null;
 }
 
 /** Validate JSON-RPC methods and virtual document paths. @returns Parsed message. */

@@ -20,6 +20,9 @@ function snapshot(version: string, state: MatchSnapshot["state"] = "active"): Ma
     version,
     state,
     mode: "showdown",
+    difficulties: ["easy"],
+    rules: { clipboard: "off", focus: "off" },
+    ruleEvents: [],
     serverNow: "2026-10-10T12:00:00Z",
     difficulty: "easy",
     durationMinutes: 15,
@@ -117,6 +120,29 @@ describe("match sync guards and ordering", () => {
         },
         matchId,
       ),
+    ).toBe(false);
+  });
+
+  it("accepts eight FFA seats and rejects malformed rules and pools", () => {
+    const ffa = {
+      ...snapshot("4"),
+      mode: "free-for-all",
+      participants: Array.from({ length: 8 }, (_, index) => ({
+        userId: `22222222-2222-4222-8222-${String(index + 1).padStart(12, "0")}`,
+        displayName: `Player ${index}`,
+        ready: true,
+        presence: "online",
+      })),
+    };
+    expect(isMatchSnapshot(ffa)).toBe(true);
+    expect(isMatchSnapshot({ ...ffa, mode: "showdown" })).toBe(false);
+    expect(isMatchSnapshot({ ...ffa, difficulties: ["easy", "easy"] })).toBe(false);
+    expect(isMatchSnapshot({ ...ffa, rules: { clipboard: "ban", focus: "off" } })).toBe(false);
+    expect(
+      isMatchSnapshot({
+        ...ffa,
+        ruleEvents: [{ id: matchId, userId, kind: "focus", action: "announce", occurredAt: "bad" }],
+      }),
     ).toBe(false);
   });
 

@@ -321,6 +321,8 @@ export function WorkspaceSettings(props: SettingsProps) {
                       options={[
                         { value: "alice", label: "Alice" },
                         { value: "bob", label: "Bob" },
+                        { value: "charlie", label: "Charlie" },
+                        { value: "dana", label: "Dana" },
                       ]}
                     />
                   </Setting>

@@ -492,3 +492,117 @@
     transition: none;
   }
 }
+
+/* Multi-mode controls stay compact while wrapping players and bounded modal content. */
+.match-creation-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  --interaction-fast: var(--motion-fast);
+  --interaction-reveal: var(--motion-standard);
+  --interaction-ease: var(--motion-easing);
+}
+.match-modes button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.match-rules-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.match-rules-heading .icon-button {
+  width: 24px;
+  height: 24px;
+}
+.match-catalog-error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 12px;
+}
+.lobby-ready-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ffa-seats {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.ffa-seats .competitive-seat {
+  padding: 12px;
+  border: 0;
+}
+.ffa-seats .waiting-seat {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--color-border);
+}
+.match-difficulty button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.match-difficulty button[aria-pressed="true"]:disabled {
+  opacity: 1;
+}
+.match-option .settings-select {
+  max-width: 250px;
+}
+.match-option .settings-select > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .match-option {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .match-option > span {
+    min-width: 120px;
+  }
+  .match-modes {
+    width: 100%;
+  }
+  .match-modes button {
+    flex: 1;
+    justify-content: center;
+  }
+  .competitive-lobby-footer {
+    flex-wrap: wrap;
+  }
+  .lobby-ready-actions {
+    margin-left: auto;
+  }
+}
+
+.match-dialog-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.match-rule-announcements {
+  border-top: 1px solid var(--color-border);
+  padding: 8px 16px;
+  max-height: 90px;
+  overflow-y: auto;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.match-rule-announcements p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.match-rule-announcements time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}

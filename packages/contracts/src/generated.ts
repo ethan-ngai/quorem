@@ -229,6 +229,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matches/{id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startMatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/rule-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reportMatchRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/problems": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProblems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -412,6 +460,9 @@ export interface components {
             bestScore?: components["schemas"]["Score"];
             /** Format: uuid */
             workspaceId?: string;
+            forfeited?: boolean;
+            /** Format: date-time */
+            cooldownUntil?: string;
         };
         MatchSnapshot: {
             /** Format: uuid */
@@ -437,14 +488,33 @@ export interface components {
             hostUserId: string;
             /** Format: date-time */
             expiresAt: string;
-            /** @enum {string} */
-            mode: "showdown";
+            mode: components["schemas"]["MatchMode"];
+            difficulties: components["schemas"]["Difficulty"][];
+            /** Format: uuid */
+            selectedProblemVersionId?: string;
+            rules: components["schemas"]["MatchRules"];
+            ruleEvents: components["schemas"]["MatchRuleEvent"][];
         };
         CreateMatchRequest: {
-            difficulty: components["schemas"]["Difficulty"];
+            difficulty?: components["schemas"]["Difficulty"];
             /** @enum {integer} */
             durationMinutes: 15 | 30 | 45 | 60;
-        };
+            mode?: components["schemas"]["MatchMode"];
+            difficulties?: components["schemas"]["Difficulty"][];
+            /** Format: uuid */
+            selectedProblemVersionId?: string;
+            rules?: {
+                clipboard?: components["schemas"]["MatchRuleAction"];
+                focus?: components["schemas"]["MatchRuleAction"];
+            };
+        } & ({
+            difficulty: components["schemas"]["Difficulty"];
+        } | {
+            difficulties: components["schemas"]["Difficulty"][];
+        } | {
+            /** Format: uuid */
+            selectedProblemVersionId: string;
+        });
         MatchInvite: {
             /** Format: uuid */
             id: string;
@@ -532,6 +602,30 @@ export interface components {
             /** @constant */
             kind: "prose";
             text: string;
+        };
+        /** @enum {string} */
+        MatchMode: "showdown" | "free-for-all";
+        /** @enum {string} */
+        MatchRuleAction: "off" | "warning" | "cooldown" | "announce";
+        /** @enum {string} */
+        MatchRuleKind: "clipboard" | "focus";
+        MatchRules: {
+            clipboard: components["schemas"]["MatchRuleAction"];
+            focus: components["schemas"]["MatchRuleAction"];
+        };
+        MatchRuleEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            userId: string;
+            kind: components["schemas"]["MatchRuleKind"];
+            /** @constant */
+            action: "announce";
+            /** Format: date-time */
+            occurredAt: string;
+        };
+        ReportMatchRuleRequest: {
+            kind: components["schemas"]["MatchRuleKind"];
         };
     };
     responses: never;
@@ -995,6 +1089,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MatchSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    startMatch: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reportMatchRule: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportMatchRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listProblems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest public problem versions, ordered by title. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ProblemVersion"][];
+                    };
                 };
             };
             /** @description Safe application error */
