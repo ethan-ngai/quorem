@@ -5,13 +5,7 @@ import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { parameterTag } from "./pythonHighlighting";
 
-export const editorSchemes = [
-  { id: "workspace", label: "Workspace" },
-  { id: "jetbrains-light", label: "JetBrains Light" },
-  { id: "darcula", label: "Darcula" },
-  { id: "one-dark", label: "One Dark" },
-] as const;
-export type EditorScheme = (typeof editorSchemes)[number]["id"];
+import type { EditorScheme } from "./editorSchemes";
 
 type Palette = {
   dark: boolean;
@@ -117,11 +111,6 @@ const palettes: Record<Exclude<EditorScheme, "workspace">, Palette> = {
     },
   },
 };
-
-/** Rejects stale or invalid persisted scheme identifiers. */
-export function normalizeEditorScheme(value: unknown): EditorScheme {
-  return editorSchemes.find((scheme) => scheme.id === value)?.id ?? "workspace";
-}
 
 /** Resolves scheme mode independently of the surrounding app theme. */
 export function resolveEditorPalette(scheme: EditorScheme, theme: "light" | "dark"): Palette {

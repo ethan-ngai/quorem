@@ -1,0 +1,12 @@
+---
+interface Props {
+  name: string;
+  alt: string;
+  eager?: boolean;
+}
+const { name, alt, eager = false } = Astro.props;
+---
+<div class="product-preview">
+  <img class="preview-light" src={`/promo/${name}-light.png`} alt={alt} width={name === "lobby" ? 680 : 1280} height={name === "lobby" ? 550 : 720} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} />
+  <img class="preview-dark" src={`/promo/${name}-dark.png`} alt={alt} width={name === "lobby" ? 680 : 1280} height={name === "lobby" ? 550 : 720} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} />
+</div>

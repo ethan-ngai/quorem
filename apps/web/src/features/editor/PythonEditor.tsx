@@ -21,7 +21,8 @@ import {
 } from "@codemirror/view";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { indentationGuides } from "./indentationGuides";
-import { editorColorTheme, type EditorScheme } from "./editorPalette";
+import { editorColorTheme } from "./editorPalette";
+import type { EditorScheme } from "./editorSchemes";
 import { highlightedPython, pythonSupport, pythonIdentifierAccents } from "./pythonHighlighting";
 
 /** Theme accepted by the shared workspace token set. */

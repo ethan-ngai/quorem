@@ -44,5 +44,5 @@ check:
 	go vet ./...
 
 build:
-	vp -C apps/web build
+	vp run build
 	go build ./apps/api/cmd/api ./apps/runner/cmd/runner

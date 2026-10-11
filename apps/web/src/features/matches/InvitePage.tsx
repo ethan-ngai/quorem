@@ -4,26 +4,24 @@ import { Icon } from "../editor/components/Icon";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
 import { joinMatch } from "./api";
-import { IdentityChoice, useLocalIdentity } from "./MatchControls";
+import { useLocalIdentity } from "./MatchControls";
 import "../../styles/workspace.css";
 
 /** @returns An invitation entry screen without exposing the problem. */
 export function InvitePage({ token }: { token: string }) {
   const { identity, setIdentity } = useLocalIdentity();
-  useTheme();
+  const { preference, setPreference } = useTheme();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
-  let existingMatch: string | null = null;
-  try {
-    existingMatch = localStorage.getItem(`quorem.last-match.v1:${identity}`);
-  } catch {
-    /* Storage may be unavailable. */
-  }
   return (
     <main className="match-page">
-      <GlobalNav identity={identity}>
-        <IdentityChoice identity={identity} onChange={setIdentity} disabled={pending} />
-      </GlobalNav>
+      <GlobalNav
+        identity={identity}
+        onIdentityChange={setIdentity}
+        identityDisabled={pending}
+        theme={preference}
+        onThemeChange={setPreference}
+      />
       <section className="match-page-content invite-entry">
         <div className="invite-symbol">
           <Icon name="people" />
@@ -38,7 +36,7 @@ export function InvitePage({ token }: { token: string }) {
             setError(undefined);
             try {
               const snapshot = await joinMatch(identity, token);
-              window.location.assign(`/matches/${snapshot.id}`);
+              window.location.assign(`/match/${snapshot.id}`);
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : "Invitation unavailable.");
               setPending(false);
@@ -53,12 +51,7 @@ export function InvitePage({ token }: { token: string }) {
             {error}
           </p>
         )}
-        {error && existingMatch && (
-          <a className="text-link" href={`/matches/${existingMatch}`}>
-            Open existing match
-          </a>
-        )}
-        <a className="text-link" href="/run-widths">
+        <a className="text-link" href="/practice">
           Back to practice
         </a>
       </section>

@@ -12,13 +12,7 @@ import { Icon } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch, leaveMatch, setReady, startMatch, updateMatchSettings } from "./api";
-import {
-  IdentityChoice,
-  MatchSettings,
-  ModeIcon,
-  defaultMatchSettings,
-  useLocalIdentity,
-} from "./MatchControls";
+import { MatchSettings, ModeIcon, defaultMatchSettings, useLocalIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { InvitationActions } from "./InvitationActions";
 import { ReadinessIcon } from "./ReadinessIcon";
@@ -122,7 +116,7 @@ function MatchLedger({
 /** @returns A fully authoritative match route, revealing the problem only after start. */
 export function MatchPage({ matchId }: { matchId: string }) {
   const { identity, setIdentity } = useLocalIdentity();
-  useTheme();
+  const { preference, setPreference } = useTheme();
   const { snapshot, error, status, refetch } = useMatchSync(identity, matchId);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
@@ -164,9 +158,12 @@ export function MatchPage({ matchId }: { matchId: string }) {
   if (!snapshot)
     return (
       <main className="match-page">
-        <GlobalNav identity={identity}>
-          <IdentityChoice identity={identity} onChange={setIdentity} />
-        </GlobalNav>
+        <GlobalNav
+          identity={identity}
+          onIdentityChange={setIdentity}
+          theme={preference}
+          onThemeChange={setPreference}
+        />
         <section className="match-page-content">
           <h1>{error ? "Match unavailable" : "Opening match…"}</h1>
           {error && (
@@ -175,7 +172,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
               <button className="button button-secondary" onClick={() => void refetch()}>
                 Retry
               </button>
-              <a className="text-link" href="/run-widths">
+              <a className="text-link" href="/practice">
                 Back to practice
               </a>
             </>
@@ -272,7 +269,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
               ? "Admitted submissions are still being judged. Scores settle before the final outcome."
               : snapshot.outcome?.reason.replaceAll("_", " ")}
           </span>
-          <a href="/run-widths">Back to practice</a>
+          <a href="/practice">Back to practice</a>
         </div>
       )}
       {error && (
@@ -296,9 +293,13 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const closed = snapshot.state === "cancelled" || snapshot.state === "completed";
   return (
     <main className="match-page">
-      <GlobalNav identity={identity} mode={snapshot.mode}>
-        <IdentityChoice identity={identity} onChange={setIdentity} />
-      </GlobalNav>
+      <GlobalNav
+        identity={identity}
+        mode={snapshot.mode}
+        onIdentityChange={setIdentity}
+        theme={preference}
+        onThemeChange={setPreference}
+      />
       <section className="match-page-content">
         <div className="competitive-lobby-heading">
           <div>
@@ -317,7 +318,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                 onClick={() =>
                   void command(async () => {
                     await leaveMatch(identity, matchId);
-                    window.location.assign("/run-widths");
+                    window.location.assign("/practice");
                   })
                 }
               >
@@ -466,7 +467,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
           </p>
         )}
         {closed && (
-          <a className="text-link" href="/run-widths">
+          <a className="text-link" href="/practice">
             Back to practice
           </a>
         )}

@@ -69,7 +69,7 @@ export function Icon({
 /** @returns The compact Quorem mark, formed from opposed code brackets. */
 export function Brand() {
   return (
-    <a className="wordmark" href="/run-widths" aria-label="Quorem home">
+    <a className="wordmark" href="/" aria-label="Quorem home">
       <svg viewBox="0 0 30 30" width="26" height="26" fill="none" aria-hidden="true">
         <path
           d="m11 5-8 10 8 10M19 5l8 10-8 10M17 8l-4 14"

@@ -32,6 +32,7 @@ signal.signal(signal.SIGINT, stop)
 try:
     Path(".local/bin").mkdir(parents=True, exist_ok=True)
     for command in [
+        ["vp", "-C", "apps/marketing", "run", "build"],
         ["docker", "compose", "up", "-d", "--wait"],
         ["docker", "build", "-f", "apps/runner/Dockerfile", "-t", "quorem-python:local", "."],
         ["docker", "build", "-f", "apps/language/Dockerfile", "-t", "quorem-language:local", "."],

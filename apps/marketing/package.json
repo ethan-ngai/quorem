@@ -1,0 +1,15 @@
+{
+  "name": "@quorem/marketing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1 --port 4321",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "^5.2.6",
+    "@quorem/ui": "workspace:*",
+    "astro": "^6.0.0"
+  }
+}

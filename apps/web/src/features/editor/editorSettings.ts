@@ -1,7 +1,7 @@
 /** @file editorSettings.ts @description Stores editor settings and resolves the active theme. @module editor */
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { EditorTheme } from "./PythonEditor";
-import { normalizeEditorScheme } from "./editorPalette";
+import { normalizeEditorScheme } from "./editorSchemes";
 
 export type ThemePreference = "system" | EditorTheme;
 

@@ -1,0 +1,142 @@
+---
+import "@fontsource-variable/geist";
+import "@quorem/ui/theme.css";
+import "../styles/marketing.css";
+import ProductPreview from "../components/ProductPreview.astro";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Practice Python coding problems with completion, custom test cases and judged submissions. Invite friends to Showdown or Free-for-all matches." />
+    <meta name="theme-color" content="#f5f5f6" />
+    <title>Quorem — Python practice and private coding matches</title>
+    <script is:inline>
+      (() => {
+        let preference = "system";
+        try { preference = JSON.parse(localStorage.getItem("quorem.theme.v1") || '"system"'); } catch {}
+        document.documentElement.dataset.theme = preference === "dark" || (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header page-width" data-reveal>
+      <div class="brand-navigation">
+      <details class="site-menu"><summary aria-label="Open navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></summary><nav aria-label="Site navigation"><a href="/">Home</a><a href="/practice">Practice</a><a href="/practice?create=match">Create match</a><a href="#workspace">Workspace features</a><a href="#matches">Match modes</a></nav></details>
+      <a class="wordmark" href="/" aria-label="Quorem home">quorem<span aria-hidden="true">.</span></a>
+      </div>
+      <nav aria-label="Main navigation">
+        <a class="quiet-link" href="/practice?create=match">Create match</a>
+        <details class="profile-preferences"><summary aria-label="Profile preferences"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></svg></summary><div class="profile-panel"><span>Appearance</span>
+        <button class="theme-switch" type="button" aria-label="Switch to dark theme" title="Switch theme">
+          <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z" /></svg>
+        </button>
+        </div></details>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero page-width" aria-labelledby="hero-title">
+        <div class="hero-top">
+          <h1 id="hero-title" data-reveal>Python practice.<br /><span>Private matches.</span></h1>
+          <div class="hero-intro" data-reveal>
+            <p>A coding workspace for solving problems on your own or competing with friends. Write Python, test your approach, and submit it to the judge.</p>
+            <a class="button primary-button" href="/practice">Browse problems <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <div class="hero-proof" data-reveal>
+          <ProductPreview name="editor" alt="Quorem Python workspace: problem statement, code editor and test results in light and dark themes." eager />
+        </div>
+        <div class="hero-caption" data-reveal><span>Python · Run · Submit</span><a class="quiet-link" href="#workspace">Explore the workspace <span aria-hidden="true">↓</span></a></div>
+      </section>
+      <section class="workspace-section page-width" id="workspace" aria-labelledby="workspace-title">
+        <div class="section-heading" data-reveal><h2 id="workspace-title">Write, run<br />and submit.</h2><p>The statement, editor and results stay together. Resize the panes to fit the way you work.</p></div>
+        <div class="feature-flow">
+          <article class="feature feature-editor" data-reveal>
+            <div class="feature-copy"><h3>Python, with context.</h3><p>Completion, hover documentation, signatures and diagnostics while you write. Problem-specific starters include Solution, ListNode and TreeNode.</p></div>
+            <ProductPreview name="editor" alt="Python editor with a problem-specific Solution starter and syntax highlighting." />
+          </article>
+          <article class="feature feature-cases" data-reveal>
+            <div class="feature-copy"><h3>Test the edge cases.</h3><p>Run examples or add your own inputs and expected output. Inspect each result, then Submit for a judged verdict.</p></div>
+            <ProductPreview name="editor" alt="Workspace sample cases and test results." />
+          </article>
+          <article class="feature feature-drafts" data-reveal>
+            <div class="draft-visual" aria-hidden="true"><span>Solution.py</span><div class="draft-line"><i></i><b></b></div><div class="draft-line"><i></i><b></b></div><div class="draft-line"><i></i><b></b></div><div class="draft-saved"><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8" /></svg>Saved on this device</div></div>
+            <div class="feature-copy"><h3>Pick up where you left off.</h3><p>Drafts and revision history stay in your browser. Reload to resume, or restore an earlier snapshot. Each window keeps its own active buffer.</p></div>
+          </article>
+          <article class="feature feature-themes" data-reveal>
+            <div class="theme-visual" aria-hidden="true"><span class="theme-sample theme-sample-light"><i></i><i></i><i></i></span><span class="theme-sample theme-sample-dark"><i></i><i></i><i></i></span></div>
+            <div class="feature-copy"><h3>Your workspace preferences.</h3><p>Light and dark themes, independent editor color schemes, adjustable text size and keyboard shortcuts.</p></div>
+          </article>
+        </div>
+      </section>
+      <section class="matches-section page-width" id="matches" aria-labelledby="matches-title">
+        <div class="section-heading" data-reveal><h2 id="matches-title">Showdown<br />and Free-for-all.</h2><p>Choose a problem or a difficulty pool, set the duration, and share a private invitation.</p></div>
+        <div class="match-layout">
+          <div class="match-proof" data-reveal><ProductPreview name="lobby" alt="Private Quorem match lobby with mode selection, participant readiness and invitation controls." /></div>
+          <div class="match-details">
+            <article data-reveal><span class="mode-count">1 v 1</span><h3>Showdown</h3><p>Two contestants. Start when both are ready. The first correct submission wins; at the deadline, the highest passed test count decides.</p></article>
+            <article data-reveal><span class="mode-count">2–8 players</span><h3>Free-for-all</h3><p>Invite a group. The host starts once everyone is ready. Compete on the same problem with private code and individual submissions.</p></article>
+            <p class="privacy-note" data-reveal>Opponent code and hidden test inputs stay private. Run checks your approach; only Submit counts toward the match.</p>
+          </div>
+        </div>
+      </section>
+      <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Browse the<br />problem library.</h2><a class="button primary-button" href="/practice">Open practice <span aria-hidden="true">↗</span></a></section>
+    </main>
+    <footer class="site-footer page-width" data-reveal><a class="wordmark" href="/">quorem<span aria-hidden="true">.</span></a><span>Python practice and private coding matches.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a></footer>
+    <script>
+      document.querySelectorAll(".site-menu a").forEach((link) => link.addEventListener("click", () => {
+        const menu = document.querySelector<HTMLDetailsElement>(".site-menu");
+        if (menu) menu.open = false;
+      }));
+      const closeMenus = () => document.querySelectorAll<HTMLDetailsElement>(".site-menu,.profile-preferences").forEach((menu) => { menu.open = false; });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          const openMenu = document.querySelector<HTMLDetailsElement>(".site-menu[open],.profile-preferences[open]");
+          openMenu?.querySelector<HTMLElement>("summary")?.focus();
+          closeMenus();
+        }
+      });
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (target instanceof Element && !target.closest(".site-menu,.profile-preferences")) closeMenus();
+      });
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      const toggle = document.querySelector<HTMLButtonElement>(".theme-switch");
+      const updateLabel = () => {
+        const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        toggle?.setAttribute("aria-label", `Switch to ${next} theme`);
+        toggle?.setAttribute("title", `Switch to ${next} theme`);
+      };
+      toggle?.addEventListener("click", () => {
+        const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem("quorem.theme.v1", JSON.stringify(next)); } catch {}
+        updateLabel();
+      });
+      media.addEventListener("change", () => {
+        let preference = "system";
+        try { preference = JSON.parse(localStorage.getItem("quorem.theme.v1") || '"system"'); } catch {}
+        if (preference === "system") document.documentElement.dataset.theme = media.matches ? "dark" : "light";
+        updateLabel();
+      });
+      updateLabel();
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.08 });
+        document.querySelectorAll<HTMLElement>("[data-reveal]").forEach((element) => {
+          if (element.getBoundingClientRect().top > window.innerHeight) element.classList.add("reveal-pending");
+          observer.observe(element);
+        });
+      }
+    </script>
+  </body>
+</html>

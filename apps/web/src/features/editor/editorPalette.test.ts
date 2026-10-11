@@ -3,12 +3,8 @@ import { history, undoDepth } from "@codemirror/commands";
 import { Compartment, EditorState } from "@codemirror/state";
 import { highlightTree, tags } from "@lezer/highlight";
 import { describe, expect, it } from "vitest";
-import {
-  editorColorTheme,
-  normalizeEditorScheme,
-  pythonSyntaxStyle,
-  resolveEditorPalette,
-} from "./editorPalette";
+import { editorColorTheme, pythonSyntaxStyle, resolveEditorPalette } from "./editorPalette";
+import { normalizeEditorScheme } from "./editorSchemes";
 import { highlightedPython, identifierAccent, parameterTag } from "./pythonHighlighting";
 
 /** Converts an opaque sRGB palette value into relative luminance. */
