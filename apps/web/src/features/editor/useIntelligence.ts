@@ -1,16 +1,12 @@
 /** @file useIntelligence.ts @description Disposable Python language sessions. @module editor */
-import {
-  LSPClient,
-  serverCompletion,
-  hoverTooltips,
-  signatureHelp,
-  serverDiagnostics,
-  type Transport,
-} from "@codemirror/lsp-client";
+import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
+import { autocompletion } from "@codemirror/autocomplete";
 import type { Extension } from "@codemirror/state";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import DOMPurify from "dompurify";
 import { useEffect, useState, useCallback } from "react";
+import { languageTransport } from "./languageTransport";
+import { PythonLanguageClient } from "./pythonLanguageClient";
 
 type IntelligenceStatus = "connecting" | "ready" | "unavailable" | "replaced";
 
@@ -27,12 +23,16 @@ export function useIntelligence(
   const retry = useCallback(() => setAttempt((value) => ({ key, nonce: value.nonce + 1 })), [key]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setExtensions([]);
+      return;
+    }
     let disposed = false;
     let reconnect: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
     let socket: WebSocket | undefined;
-    let client: LSPClient | undefined;
+    let client: PythonLanguageClient | undefined;
+    let transport: ReturnType<typeof languageTransport> | undefined;
     let takeover = attempt.key === key;
     setExtensions([]);
 
@@ -45,52 +45,37 @@ export function useIntelligence(
       takeover = false;
       const active = new WebSocket(url);
       socket = active;
-      const listeners = new Set<(message: string) => void>();
-      const transport: Transport = {
-        send(message) {
-          if (disposed) return;
-          if (active.readyState !== WebSocket.OPEN)
-            throw new Error("Language connection unavailable");
-          const request = JSON.parse(message) as {
-            method?: string;
-            params?: Record<string, unknown>;
-          };
-          if (request.method === "initialize" && request.params) {
-            request.params.workspaceFolders = [{ uri: "file:///workspace", name: "Quorem" }];
-          }
-          active.send(JSON.stringify(request));
-        },
-        subscribe: (handler) => {
-          listeners.add(handler);
-        },
-        unsubscribe: (handler) => {
-          listeners.delete(handler);
-        },
-      };
+      const connection = languageTransport(active);
+      transport = connection;
+      let language: PythonLanguageClient | undefined;
       const deadline = setTimeout(() => active.close(4000, "Connection timeout"), 15000);
-      active.addEventListener("message", (event: MessageEvent<unknown>) => {
-        if (typeof event.data === "string") for (const listener of listeners) listener(event.data);
-      });
       active.addEventListener("open", () => {
-        const language = new LSPClient({
-          rootUri: "file:///workspace",
-          timeout: 15000,
-          sanitizeHTML: (html) => DOMPurify.sanitize(html),
-          extensions: [
-            { clientCapabilities: { workspace: { workspaceFolders: true } } },
-            serverCompletion({ override: true }),
-            hoverTooltips(),
-            signatureHelp(),
-            serverDiagnostics(),
-          ],
-        });
+        if (disposed || socket !== active) return;
+        language = new PythonLanguageClient(
+          {
+            rootUri: "file:///workspace",
+            timeout: 15000,
+            sanitizeHTML: (html) => DOMPurify.sanitize(html),
+            extensions: [
+              { clientCapabilities: { workspace: { workspaceFolders: true } } },
+              hoverTooltips(),
+              signatureHelp(),
+              serverDiagnostics(),
+            ],
+          },
+          () => active.close(4000, "Language requests timed out"),
+        );
         client = language;
-        language.connect(transport);
+        language.connect(connection);
         void language.initializing
           .then(() => {
             clearTimeout(deadline);
-            if (disposed || socket !== active) return;
-            setExtensions([language.plugin("file:///workspace/main.py", "python")]);
+            if (disposed || socket !== active || active.readyState !== WebSocket.OPEN) return;
+            failures = 0;
+            setExtensions([
+              language!.plugin("file:///workspace/main.py", "python"),
+              autocompletion({ override: [language!.completionSource] }),
+            ]);
             setStatus("ready");
           })
           .catch(() => {
@@ -99,7 +84,8 @@ export function useIntelligence(
       });
       active.addEventListener("close", (event) => {
         clearTimeout(deadline);
-        listeners.clear();
+        connection.dispose();
+        language?.disconnect();
         if (disposed || socket !== active) return;
         setExtensions([]);
         setStatus(event.code === 4009 ? "replaced" : "unavailable");
@@ -112,6 +98,7 @@ export function useIntelligence(
     return () => {
       disposed = true;
       clearTimeout(reconnect);
+      transport?.dispose();
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
