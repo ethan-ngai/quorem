@@ -2,6 +2,7 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  flag: "M5 21V3m0 1c5-4 9 4 14 0v9c-5 4-9-4-14 0",
   enter: "M20 5v9H4m5-5-5 5 5 5",
   keyboard: "M3 6h18v12H3ZM6 9h1m3 0h1m3 0h1m3 0h1M6 12h1m3 0h1m3 0h1m3 0h1M7 15h10",
   save: "M4 3h13l4 4v14H3V3ZM7 3v6h9V3M7 21v-8h10v8",
