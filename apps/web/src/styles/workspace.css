@@ -1152,13 +1152,21 @@ kbd {
 .topic-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: 4px 6px;
   min-height: 24px;
   margin: 0 0 12px;
   padding: 0;
   color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.8;
+}
+.topic-list > span {
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--color-overlay);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 24px;
 }
 .topic-list[data-visible="false"] {
   visibility: hidden;
