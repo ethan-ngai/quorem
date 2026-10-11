@@ -1,0 +1,495 @@
+{
+  "problem": {
+    "id": "8a341d56-f8ba-5500-912b-e0e3a46e910d",
+    "slug": "segment-sums",
+    "version": "1",
+    "title": "Segment Sums",
+    "difficulty": "medium",
+    "tags": [
+      "linked lists"
+    ],
+    "statementMarkdown": "The linked list contains integer values separated by zero nodes. Return a new list with the sum of each nonempty segment, including segments at either end. Consecutive zero separators create no segment. A segment whose sum is zero still creates a zero node.",
+    "examples": [
+      {
+        "args": [
+          null
+        ],
+        "expected": null
+      },
+      {
+        "args": [
+          []
+        ],
+        "expected": null
+      }
+    ],
+    "constraints": [
+      "At most 10,000 collection elements.",
+      "All integers are signed 32-bit."
+    ],
+    "signature": {
+      "className": "Solution",
+      "methodName": "segmentSums",
+      "parameters": [
+        {
+          "name": "head",
+          "type": "ListNode"
+        }
+      ],
+      "returnType": "ListNode"
+    },
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def segmentSums(self, head: Optional[ListNode]) -> Optional[ListNode]:\n        pass\n",
+    "runtimeRevision": "python-3.12-v1",
+    "limits": {
+      "wallTimeMs": 2000,
+      "memoryBytes": 268435456,
+      "outputBytes": 65536,
+      "maxProcesses": 16,
+      "maxCollectionElements": 10000,
+      "maxNestingDepth": 100
+    }
+  },
+  "harnessRevision": "quorem-harness-v1",
+  "comparator": "ordered",
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "hiddenCases": [
+    {
+      "args": [
+        null
+      ],
+      "expected": null
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": null
+    },
+    {
+      "args": [
+        [
+          0
+        ]
+      ],
+      "expected": null
+    },
+    {
+      "args": [
+        [
+          1,
+          2,
+          0,
+          4
+        ]
+      ],
+      "expected": [
+        3,
+        4
+      ]
+    },
+    {
+      "args": [
+        [
+          0,
+          2,
+          3,
+          0,
+          0,
+          -1,
+          1,
+          0
+        ]
+      ],
+      "expected": [
+        5,
+        0
+      ]
+    },
+    {
+      "args": [
+        [
+          1
+        ]
+      ],
+      "expected": [
+        1
+      ]
+    },
+    {
+      "args": [
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected": null
+    },
+    {
+      "args": [
+        [
+          1,
+          -1
+        ]
+      ],
+      "expected": [
+        0
+      ]
+    },
+    {
+      "args": [
+        [
+          0,
+          1,
+          0
+        ]
+      ],
+      "expected": [
+        1
+      ]
+    },
+    {
+      "args": [
+        [
+          2,
+          0,
+          3,
+          0,
+          4
+        ]
+      ],
+      "expected": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "args": [
+        [
+          0,
+          -2,
+          -3,
+          0
+        ]
+      ],
+      "expected": [
+        -5
+      ]
+    },
+    {
+      "args": [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "expected": [
+        6
+      ]
+    },
+    {
+      "args": [
+        [
+          0,
+          0,
+          1,
+          0,
+          0
+        ]
+      ],
+      "expected": [
+        1
+      ]
+    },
+    {
+      "args": [
+        [
+          1,
+          0,
+          0,
+          2
+        ]
+      ],
+      "expected": [
+        1,
+        2
+      ]
+    },
+    {
+      "args": [
+        [
+          -1,
+          0,
+          -2
+        ]
+      ],
+      "expected": [
+        -1,
+        -2
+      ]
+    },
+    {
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected": null
+    },
+    {
+      "args": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "expected": [
+        100
+      ]
+    },
+    {
+      "args": [
+        [
+          3,
+          -3,
+          0,
+          2,
+          -2
+        ]
+      ],
+      "expected": [
+        0,
+        0
+      ]
+    },
+    {
+      "args": [
+        [
+          2147483647,
+          0,
+          -2147483648
+        ]
+      ],
+      "expected": [
+        2147483647,
+        -2147483648
+      ]
+    },
+    {
+      "args": [
+        [
+          0,
+          7,
+          8,
+          0,
+          9,
+          0
+        ]
+      ],
+      "expected": [
+        15,
+        9
+      ]
+    }
+  ],
+  "referenceSource": "def solve(head):\n    if isinstance(head, list) or head is None:\n        values = head or []\n        out = []; total = 0; active = False\n        for value in values + [0]:\n            if value == 0:\n                if active: out.append(total)\n                total = 0; active = False\n            else: total += value; active = True\n        return out or None\n    from quorem_types import ListNode\n    values = []\n    while head: values.append(head.val); head = head.next\n    values = solve(values) or []\n    dummy = ListNode(); tail = dummy\n    for value in values: tail.next = ListNode(value); tail = tail.next\n    return dummy.next\nclass Solution:\n    def segmentSums(self, head):\n        return solve(head)\n"
+}
