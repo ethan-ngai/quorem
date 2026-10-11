@@ -41,8 +41,14 @@ func TestCoalescingAndTopicIsolation(t *testing.T) {
 
 func TestPresenceCountsAndShutdown(t *testing.T) {
 	hub := NewMemory()
-	first := hub.Connect("match", "alice")
-	second := hub.Connect("match", "alice")
+	first, e := hub.Connect("match", "alice")
+	if e != nil {
+		t.Fatal(e)
+	}
+	second, e := hub.Connect("match", "alice")
+	if e != nil {
+		t.Fatal(e)
+	}
 	first()
 	first()
 	if !hub.Online("match", "alice") {

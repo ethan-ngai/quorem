@@ -37,5 +37,9 @@ func (s *Store) DispatchMatchEvents(ctx context.Context, publish func(realtime.N
 			return err
 		}
 	}
+	_, err = tx.Exec(ctx, `DELETE FROM match_outbox WHERE sequence IN (SELECT sequence FROM match_outbox WHERE published_at IS NOT NULL AND occurred_at<clock_timestamp()-interval '7 days' ORDER BY sequence LIMIT 256)`)
+	if err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }

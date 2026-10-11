@@ -15,8 +15,14 @@ import (
 
 // StartRealtime attaches the local adapter; authority remains in PostgreSQL.
 func (s *Server) StartRealtime(ctx context.Context) {
-	s.Events = realtime.NewMemory()
-	go func() { <-ctx.Done(); s.Events.Close() }()
+	local := realtime.NewMemory()
+	if s.Events == nil {
+		s.Events = local
+	}
+	if s.Presence == nil {
+		s.Presence = local
+	}
+	go func() { <-ctx.Done(); local.Close() }()
 	go func() {
 		tick := time.NewTicker(250 * time.Millisecond)
 		defer tick.Stop()
@@ -38,18 +44,25 @@ func (s *Server) StartRealtime(ctx context.Context) {
 
 func (s *Server) registerRealtime(mux *http.ServeMux) {
 	if s.Events == nil {
-		s.Events = realtime.NewMemory()
+		local := realtime.NewMemory()
+		s.Events = local
+		if s.Presence == nil {
+			s.Presence = local
+		}
+	}
+	if s.Presence == nil {
+		s.Presence = realtime.NewMemory()
 	}
 	mux.HandleFunc("GET /v1/matches/{id}/events", s.matchEvents)
 }
 
 func (s *Server) withPresence(snapshot matches.Snapshot) matches.Snapshot {
-	if s.Events == nil {
+	if s.Presence == nil {
 		return snapshot
 	}
 	for i := range snapshot.Participants {
 		snapshot.Participants[i].Presence = "offline"
-		if s.Events.Online("/matches/"+snapshot.ID, snapshot.Participants[i].UserID) {
+		if s.Presence.Online("/matches/"+snapshot.ID, snapshot.Participants[i].UserID) {
 			snapshot.Participants[i].Presence = "online"
 		}
 	}
@@ -98,7 +111,11 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unsubscribe()
-	disconnect := s.Events.Connect(topic, developmentSubject(user))
+	disconnect, err := s.Presence.Connect(topic, developmentSubject(user))
+	if err != nil {
+		connection.Close(websocket.StatusTryAgainLater, "Connection capacity reached")
+		return
+	}
 	defer disconnect()
 	send := func(notice realtime.Notice) error {
 		snapshot, e := s.Store.Match(ctx, user, id)

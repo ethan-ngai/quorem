@@ -22,12 +22,19 @@ type PubSub interface {
 	Subscribe(context.Context, string) (<-chan Notice, func(), error)
 }
 
+// Presence is advisory and independent of durable participant state.
+type Presence interface {
+	Connect(string, string) (func(), error)
+	Online(string, string) bool
+}
+
 // Memory is the bounded local transport and advisory connection registry.
 type Memory struct {
 	mu          sync.Mutex
 	subscribers map[string]map[chan Notice]struct{}
 	connections map[string]map[string]int
 	closed      bool
+	count       int
 }
 
 func NewMemory() *Memory {
@@ -40,11 +47,15 @@ func (m *Memory) Subscribe(ctx context.Context, topic string) (<-chan Notice, fu
 	if m.closed || ctx.Err() != nil {
 		return nil, nil, errors.New("transport closed")
 	}
+	if m.count >= 256 || len(m.subscribers[topic]) >= 8 {
+		return nil, nil, errors.New("subscription capacity reached")
+	}
 	ch := make(chan Notice, 1)
 	if m.subscribers[topic] == nil {
 		m.subscribers[topic] = make(map[chan Notice]struct{})
 	}
 	m.subscribers[topic][ch] = struct{}{}
+	m.count++
 	var once sync.Once
 	cancel := func() {
 		once.Do(func() {
@@ -52,6 +63,7 @@ func (m *Memory) Subscribe(ctx context.Context, topic string) (<-chan Notice, fu
 			defer m.mu.Unlock()
 			if _, ok := m.subscribers[topic][ch]; ok {
 				delete(m.subscribers[topic], ch)
+				m.count--
 				close(ch)
 			}
 			if len(m.subscribers[topic]) == 0 {
@@ -86,8 +98,12 @@ func (m *Memory) Publish(ctx context.Context, topic string, notice Notice) error
 	return nil
 }
 
-func (m *Memory) Connect(topic, subject string) func() {
+func (m *Memory) Connect(topic, subject string) (func(), error) {
 	m.mu.Lock()
+	if m.closed || m.connections[topic][subject] >= 4 {
+		m.mu.Unlock()
+		return nil, errors.New("connection capacity reached")
+	}
 	if m.connections[topic] == nil {
 		m.connections[topic] = make(map[string]int)
 	}
@@ -106,7 +122,7 @@ func (m *Memory) Connect(topic, subject string) func() {
 				delete(m.connections, topic)
 			}
 		})
-	}
+	}, nil
 }
 
 func (m *Memory) Online(topic, subject string) bool {
