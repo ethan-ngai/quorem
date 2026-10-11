@@ -42,7 +42,10 @@
           "maximum": 2147483647
         },
         {
-          "type": "number"
+          "type": "number",
+          "not": {
+            "type": "integer"
+          }
         },
         {
           "type": "boolean"
@@ -792,128 +795,131 @@
       },
       "required": ["ready"],
       "additionalProperties": false
+    },
+    "EventEnvelope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eventId",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "type",
+            "occurredAt",
+            "payload"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "type": {
+              "const": "submission.updated"
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "payload": {
+              "$ref": "#/$defs/Submission"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eventId",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "type",
+            "occurredAt",
+            "payload"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "type": {
+              "const": "match.updated"
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "payload": {
+              "$ref": "#/$defs/MatchSnapshot"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eventId",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "type",
+            "occurredAt",
+            "payload"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "type": {
+              "const": "match.completed"
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "payload": {
+              "$ref": "#/$defs/MatchSnapshot"
+            }
+          }
+        }
+      ]
     }
   },
-  "oneOf": [
-    {
-      "type": "object",
-      "properties": {
-        "eventId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "schemaVersion": {
-          "const": 1
-        },
-        "aggregateId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "aggregateVersion": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        },
-        "type": {
-          "const": "submission.updated"
-        },
-        "occurredAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "payload": {
-          "$ref": "#/$defs/Submission"
-        }
-      },
-      "required": [
-        "eventId",
-        "schemaVersion",
-        "aggregateId",
-        "aggregateVersion",
-        "type",
-        "occurredAt",
-        "payload"
-      ],
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "properties": {
-        "eventId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "schemaVersion": {
-          "const": 1
-        },
-        "aggregateId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "aggregateVersion": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        },
-        "type": {
-          "const": "match.updated"
-        },
-        "occurredAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "payload": {
-          "$ref": "#/$defs/MatchSnapshot"
-        }
-      },
-      "required": [
-        "eventId",
-        "schemaVersion",
-        "aggregateId",
-        "aggregateVersion",
-        "type",
-        "occurredAt",
-        "payload"
-      ],
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "properties": {
-        "eventId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "schemaVersion": {
-          "const": 1
-        },
-        "aggregateId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "aggregateVersion": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        },
-        "type": {
-          "const": "match.completed"
-        },
-        "occurredAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "payload": {
-          "$ref": "#/$defs/MatchSnapshot"
-        }
-      },
-      "required": [
-        "eventId",
-        "schemaVersion",
-        "aggregateId",
-        "aggregateVersion",
-        "type",
-        "occurredAt",
-        "payload"
-      ],
-      "additionalProperties": false
-    }
-  ]
+  "$ref": "#/$defs/EventEnvelope"
 }

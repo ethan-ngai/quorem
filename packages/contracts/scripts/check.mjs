@@ -28,6 +28,7 @@ for (const [fixture, schema] of Object.entries({
 const submissionCommand = ajv.compile({ $ref: `${document.$id}#/$defs/CreateSubmissionRequest` });
 assert(!submissionCommand({ ...fixtures.createSubmission, ownerId: "alice" }));
 assert(!submissionCommand({ ...fixtures.createSubmission, workspaceId: undefined }));
+assert(!submissionCommand({ ...fixtures.createSubmission, customCases: [{ args: [2147483648] }] }));
 const eventSchema = JSON.parse(readFileSync("events/envelope.schema.json", "utf8"));
 const event = {
   eventId: fixtures.submission.id,
@@ -38,6 +39,7 @@ const event = {
   occurredAt: fixtures.submission.updatedAt,
   payload: fixtures.submission,
 };
+assert.deepEqual(eventSchema.$defs, schemas, "Event schemas must match OpenAPI");
 const validateEvent = ajv.compile(eventSchema);
 assert(validateEvent(event), JSON.stringify(validateEvent.errors));
 assert(!validateEvent({ ...event, payload: { ...event.payload, source: "private" } }));

@@ -19,6 +19,7 @@ export type PublicCaseResult = components["schemas"]["PublicCaseResult"];
 export type Diagnostic = components["schemas"]["Diagnostic"];
 export type MatchSnapshot = components["schemas"]["MatchSnapshot"];
 export type ErrorResponse = components["schemas"]["ErrorResponse"];
+export type EventEnvelope = components["schemas"]["EventEnvelope"];
 export type DevelopmentIdentity = "alice" | "bob";
 
 /** @returns Typed client; development identity is explicit. */

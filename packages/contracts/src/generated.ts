@@ -499,6 +499,46 @@ export interface components {
         ReadyMatchRequest: {
             ready: boolean;
         };
+        EventEnvelope: {
+            /** Format: uuid */
+            eventId: string;
+            /** @constant */
+            schemaVersion: 1;
+            /** Format: uuid */
+            aggregateId: string;
+            aggregateVersion: string;
+            /** @constant */
+            type: "submission.updated";
+            /** Format: date-time */
+            occurredAt: string;
+            payload: components["schemas"]["Submission"];
+        } | {
+            /** Format: uuid */
+            eventId: string;
+            /** @constant */
+            schemaVersion: 1;
+            /** Format: uuid */
+            aggregateId: string;
+            aggregateVersion: string;
+            /** @constant */
+            type: "match.updated";
+            /** Format: date-time */
+            occurredAt: string;
+            payload: components["schemas"]["MatchSnapshot"];
+        } | {
+            /** Format: uuid */
+            eventId: string;
+            /** @constant */
+            schemaVersion: 1;
+            /** Format: uuid */
+            aggregateId: string;
+            aggregateVersion: string;
+            /** @constant */
+            type: "match.completed";
+            /** Format: date-time */
+            occurredAt: string;
+            payload: components["schemas"]["MatchSnapshot"];
+        };
     };
     responses: never;
     parameters: never;
