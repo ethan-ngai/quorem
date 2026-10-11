@@ -275,7 +275,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                       aria-label={participant.ready ? "Ready" : "Not ready"}
                       tabIndex={0}
                     >
-                      <Icon name={participant.ready ? "ready" : "waiting"} />
+                      <Icon name={participant.ready ? "ready" : "clock"} />
                     </span>
                   </Tooltip>
                 </div>
