@@ -185,7 +185,11 @@ export function MatchSettings({
           <Gauge />
           Difficulty
         </span>
-        <div className="match-difficulty" role="group" aria-label="Difficulty filter">
+        <div
+          className="match-difficulty difficulty-segments"
+          role="group"
+          aria-label="Difficulty filter"
+        >
           {(["easy", "medium", "hard"] as const).map((difficulty) => (
             <button
               type="button"
@@ -205,15 +209,6 @@ export function MatchSettings({
               </span>
             </button>
           ))}
-          <button
-            type="button"
-            aria-label="Select all difficulties"
-            aria-pressed={pools.length === 3}
-            disabled={disabled}
-            onClick={() => changeDifficulties(["easy", "medium", "hard"])}
-          >
-            All
-          </button>
         </div>
       </div>
       <div className="match-option">

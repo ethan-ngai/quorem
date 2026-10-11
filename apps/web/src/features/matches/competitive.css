@@ -744,3 +744,15 @@
   height: 14px;
   flex-shrink: 0;
 }
+
+.difficulty-segments {
+  gap: 0;
+}
+.difficulty-segments button[aria-pressed="true"]:has(+ button[aria-pressed="true"]) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.difficulty-segments button[aria-pressed="true"] + button[aria-pressed="true"] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
