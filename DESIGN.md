@@ -4,6 +4,7 @@ description: "An open coding workspace informed by the portfolio and CUXR: paper
 colors:
   primary: { light: "oklch(0.48 0.15 255)", dark: "oklch(0.72 0.12 255)" }
   brand:
+    primary: { light: "oklch(0.48 0.15 255)", dark: "oklch(0.72 0.12 255)" }
     secondary: { light: "oklch(0.94 0.025 255)", dark: "oklch(0.26 0.035 255)" }
     accent: { light: "oklch(0.43 0.15 255)", dark: "oklch(0.77 0.11 255)" }
     onPrimary: { light: "oklch(1 0 0)", dark: "oklch(0.15 0.006 255)" }

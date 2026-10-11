@@ -65,15 +65,18 @@ export function MatchSettings({
 export function IdentityChoice({
   identity,
   onChange,
+  disabled = false,
 }: {
   identity: DevelopmentIdentity;
   onChange: (identity: DevelopmentIdentity) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="identity-choice">
       Local account
       <select
         aria-label="Local development identity"
+        disabled={disabled}
         value={identity}
         onChange={(e) => onChange(e.target.value as DevelopmentIdentity)}
       >

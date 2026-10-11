@@ -81,9 +81,9 @@ function MatchLedger({
         </small>
       </div>
       <div className="match-ledger-end">
-        {snapshot.state === "active" ? (
+        {snapshot.state === "active" || snapshot.state === "finalizing" ? (
           <>
-            <MatchClock snapshot={snapshot} />
+            {snapshot.state === "active" ? <MatchClock snapshot={snapshot} /> : null}
             <button className="quiet-button" onClick={onForfeit}>
               Forfeit
             </button>

@@ -39,6 +39,7 @@ import {
   type RecoverySnapshot,
 } from "./recovery";
 import { useTheme } from "./useTheme";
+import { canExecuteDocument } from "./executionGuard";
 import { useSubmission } from "./useSubmission";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
@@ -307,6 +308,18 @@ export function WorkspacePage({
     };
   }, []);
 
+  const dataMatchesRoute =
+    (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
+    workspaceQuery.data?.problemVersionId === problemQuery.data?.id;
+  const dataMatchesState =
+    problem?.id === problemQuery.data?.id && workspace?.id === workspaceQuery.data?.id;
+  const loading =
+    problemQuery.isPending ||
+    workspaceQuery.isPending ||
+    !dataMatchesRoute ||
+    !dataMatchesState ||
+    !problem ||
+    !workspace;
   const execution = useSubmission({
     identity,
     workspace,
@@ -314,9 +327,16 @@ export function WorkspacePage({
     editorRef,
     customMode,
     customCasesText,
-    enabled:
-      (match ? match.state === "active" : problem?.slug === slug) &&
-      draftContextRef.current?.identity === identity,
+    enabled: canExecuteDocument({
+      identity,
+      contextKey: draftContextRef.current?.key,
+      problem,
+      workspace,
+      slug,
+      match,
+      matchWorkspaceId,
+      loaded: !loading,
+    }),
   });
   const submission = execution.submission;
   const submissionBusy = execution.busy;
@@ -415,18 +435,6 @@ export function WorkspacePage({
     [identity, saveCurrentDraft, setIdentity],
   );
 
-  const dataMatchesRoute =
-    (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
-    workspaceQuery.data?.problemVersionId === problemQuery.data?.id;
-  const dataMatchesState =
-    problem?.id === problemQuery.data?.id && workspace?.id === workspaceQuery.data?.id;
-  const loading =
-    problemQuery.isPending ||
-    workspaceQuery.isPending ||
-    !dataMatchesRoute ||
-    !dataMatchesState ||
-    !problem ||
-    !workspace;
   const loadError = problemQuery.error ?? workspaceQuery.error;
   const workspaceStyle = {
     "--problem-ratio": `${paneRatio}%`,
@@ -438,7 +446,16 @@ export function WorkspacePage({
     : "pending";
   const intelligence = useIntelligence(identity, editorDocumentKey, !loading);
 
-  const actionsEnabled = !loading && (!match || match.state === "active");
+  const actionsEnabled = canExecuteDocument({
+    identity,
+    contextKey: draftContextRef.current?.key,
+    problem,
+    workspace,
+    slug,
+    match,
+    matchWorkspaceId,
+    loaded: !loading,
+  });
   if (!problem || !workspace)
     return (
       <main className="workspace-loading" aria-live="polite">

@@ -17,7 +17,7 @@ export function InvitePage({ token }: { token: string }) {
       <header className="topbar">
         <Brand />
         <div className="topbar-spacer" />
-        <IdentityChoice identity={identity} onChange={setIdentity} />
+        <IdentityChoice identity={identity} onChange={setIdentity} disabled={pending} />
       </header>
       <section className="match-page-content invite-entry">
         <span className="eyebrow">Private 1v1 invitation</span>
