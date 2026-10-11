@@ -253,7 +253,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.Header.Get("Idempotency-Key")
 	custom, _ := json.Marshal(body.CustomCases)
-	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > 65536 || len(body.CustomCases) > 20 {
+	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > 65536 || len(body.CustomCases) > 20 || (body.CustomCases != nil && len(body.CustomCases) == 0) {
 		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid execution command", Status: 400})
 		return
 	}

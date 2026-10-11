@@ -76,7 +76,10 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	cases := f.HiddenCases
 	if c.Kind == "run" {
 		cases = f.Problem.Examples
-		if len(c.CustomCases) > 0 {
+		if c.CustomCases != nil {
+			if err = problems.ValidateCustomCases(f.Problem.Signature, c.CustomCases); err != nil {
+				return judging.Submission{}, failure("invalid_input", 400, err.Error())
+			}
 			cases = c.CustomCases
 		}
 		for _, test := range cases {
@@ -84,7 +87,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 				return judging.Submission{}, failure("invalid_input", 400, err.Error())
 			}
 		}
-	} else if len(c.CustomCases) > 0 {
+	} else if c.CustomCases != nil {
 		return judging.Submission{}, failure("invalid_input", 400, "Submit cannot choose cases")
 	}
 	var busy bool

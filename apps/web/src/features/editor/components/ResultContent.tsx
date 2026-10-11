@@ -82,10 +82,12 @@ export function ResultContent({
   submission,
   busy,
   error,
+  showCases = true,
 }: {
   submission?: Submission;
   busy: boolean;
   error?: string;
+  showCases?: boolean;
 }) {
   if (error)
     return (
@@ -132,7 +134,7 @@ export function ResultContent({
         </div>
         <Diagnostics items={submission.diagnostics} />
       </div>
-      {submission.kind === "run" && submission.publicCases?.length ? (
+      {showCases && submission.kind === "run" && submission.publicCases?.length ? (
         <RunCaseResults key={submission.id} cases={submission.publicCases} />
       ) : null}
     </div>

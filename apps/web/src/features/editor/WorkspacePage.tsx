@@ -27,6 +27,7 @@ import { HistoryDialog } from "./components/HistoryDialog";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { TestCases } from "./components/TestCases";
 import { ResultContent } from "./components/ResultContent";
+import { customDraftStorageKey, readCustomDrafts, type CustomCaseDraft } from "./customCases";
 import { Brand, Icon } from "./components/Icon";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
@@ -100,7 +101,6 @@ export function WorkspacePage({
     readPreference("quorem.results-height.v1", defaultResultsHeight),
   );
   const [activePanel, setActivePanel] = useState<Panel>("code");
-  const [resultsTab, setResultsTab] = useState<"cases" | "result">("cases");
   const [createMatchOpen, setCreateMatchOpen] = useState(false);
   const [problem, setProblem] = useState<ProblemVersion>();
   const [workspace, setWorkspace] = useState<Workspace>();
@@ -109,7 +109,7 @@ export function WorkspacePage({
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [localRecovery, setLocalRecovery] = useState<RecoverySnapshot>();
   const [customMode, setCustomMode] = useState(false);
-  const [customCasesText, setCustomCasesText] = useState('[{"args": []}]');
+  const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
   const [actionError, setActionError] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [shortcutsEnabled, setShortcutsEnabled] = useState(() =>
@@ -198,6 +198,8 @@ export function WorkspacePage({
     lastQueuedSourceRef.current = undefined;
     setProblem(problemQuery.data);
     setWorkspace(workspaceQuery.data);
+    setCustomMode(false);
+    setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
     const initialSource = workspaceQuery.data.draft.source;
     setSource(initialSource);
     sourceRef.current = initialSource;
@@ -335,7 +337,8 @@ export function WorkspacePage({
     sourceRef,
     editorRef,
     customMode,
-    customCasesText,
+    drafts: customDrafts,
+    problem,
     enabled: canExecuteDocument({
       identity,
       contextKey: draftContextRef.current?.key,
@@ -347,16 +350,24 @@ export function WorkspacePage({
       loaded: !loading,
     }),
   });
+  const changeCustomDrafts = useCallback((drafts: CustomCaseDraft[]) => {
+    setCustomDrafts(drafts);
+    const context = draftContextRef.current;
+    if (!context) return;
+    try {
+      localStorage.setItem(customDraftStorageKey(context.key), JSON.stringify(drafts));
+    } catch {
+      /* Custom inputs remain usable without browser storage. */
+    }
+  }, []);
   const submission = execution.submission;
   const submissionBusy = execution.busy;
   const admissionPending = execution.admissionPending;
   const run = useCallback(async () => {
-    setResultsTab("result");
     setActivePanel("results");
     await execution.run();
   }, [execution.run]);
   const submit = useCallback(async () => {
-    setResultsTab("result");
     setActivePanel("results");
     await execution.submit();
   }, [execution.submit]);
@@ -671,58 +682,67 @@ export function WorkspacePage({
             <section className="results-pane" aria-label="Execution results">
               <div className="results-toolbar">
                 <div className="result-tabs" role="tablist" aria-label="Tests">
-                  {(["cases", "result"] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      id={`tests-${tab}-tab`}
-                      role="tab"
-                      aria-selected={resultsTab === tab}
-                      aria-controls={`tests-${tab}-panel`}
-                      tabIndex={resultsTab === tab ? 0 : -1}
-                      onClick={() => setResultsTab(tab)}
-                      onKeyDown={(event) => {
-                        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                          event.preventDefault();
-                          const next = tab === "cases" ? "result" : "cases";
-                          setResultsTab(next);
-                          document.getElementById(`tests-${next}-tab`)?.focus();
-                        }
-                      }}
-                    >
-                      {tab === "cases" ? "Test cases" : "Test result"}
-                    </button>
-                  ))}
+                  {(["samples", "custom"] as const).map((tab) => {
+                    const selected = customMode === (tab === "custom");
+                    return (
+                      <button
+                        key={tab}
+                        id={`tests-${tab}-tab`}
+                        role="tab"
+                        aria-selected={selected}
+                        aria-controls={`tests-${tab}-panel`}
+                        tabIndex={selected ? 0 : -1}
+                        onClick={() => setCustomMode(tab === "custom")}
+                        onKeyDown={(event) => {
+                          if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                            event.preventDefault();
+                            const next =
+                              event.key === "Home"
+                                ? "samples"
+                                : event.key === "End"
+                                  ? "custom"
+                                  : tab === "samples"
+                                    ? "custom"
+                                    : "samples";
+                            setCustomMode(next === "custom");
+                            document.getElementById(`tests-${next}-tab`)?.focus();
+                          }
+                        }}
+                      >
+                        {tab === "samples" ? "Sample cases" : "Custom cases"}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="results-content">
-                <div
-                  id="tests-cases-panel"
-                  role="tabpanel"
-                  aria-labelledby="tests-cases-tab"
-                  hidden={resultsTab !== "cases"}
-                >
-                  <TestCases
-                    key={problem.id}
-                    problem={problem}
-                    customMode={customMode}
-                    onCustomModeChange={setCustomMode}
-                    customCasesText={customCasesText}
-                    onCustomCasesChange={setCustomCasesText}
-                  />
-                </div>
-                <div
-                  id="tests-result-panel"
-                  role="tabpanel"
-                  aria-labelledby="tests-result-tab"
-                  hidden={resultsTab !== "result"}
-                  aria-live="polite"
-                >
+              <div className="results-content case-results-content">
+                <div aria-live="polite" className="case-result-summary">
                   <ResultContent
                     submission={submission}
                     busy={admissionPending || (execution.isPending && !!execution.submissionId)}
                     error={execution.error}
+                    showCases={!execution.runSnapshot}
                   />
                 </div>
+                {(["samples", "custom"] as const).map((tab) => (
+                  <div
+                    key={tab}
+                    id={`tests-${tab}-panel`}
+                    role="tabpanel"
+                    aria-labelledby={`tests-${tab}-tab`}
+                    hidden={customMode !== (tab === "custom")}
+                  >
+                    <TestCases
+                      key={`${identity}:${workspace.id}:${problem.id}:${tab}`}
+                      problem={problem}
+                      customMode={tab === "custom"}
+                      drafts={customDrafts}
+                      onDraftsChange={changeCustomDrafts}
+                      submission={submission}
+                      snapshot={execution.runSnapshot}
+                    />
+                  </div>
+                ))}
               </div>
               {actionError && (
                 <p className="action-error" role="alert">
