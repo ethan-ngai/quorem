@@ -19,6 +19,7 @@ export function useSubmission({
   editorRef,
   customMode,
   customCasesText,
+  enabled = true,
 }: {
   identity: DevelopmentIdentity;
   workspace?: Workspace;
@@ -26,12 +27,14 @@ export function useSubmission({
   editorRef: MutableRefObject<PythonEditorHandle | null>;
   customMode: boolean;
   customCasesText: string;
+  enabled?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [active, setActive] = useState<{ scope: string; id: string }>();
   const [admissionPending, setAdmissionPending] = useState(false);
   const [error, setError] = useState<string>();
   const admissionLock = useRef(false);
+  const pendingRequest = useRef<{ fingerprint: string; key: string } | undefined>(undefined);
   const scope = workspace ? `${identity}:${workspace.id}` : "";
   const activeSubmissionId = active?.scope === scope ? active.id : undefined;
 
@@ -51,40 +54,105 @@ export function useSubmission({
     },
   });
   const submission = submissionQuery.data;
-  const busy = admissionLock.current || admissionPending || (!!activeSubmissionId && submissionQuery.isPending) || submission?.state === "queued" || submission?.state === "running";
+  const busy =
+    admissionLock.current ||
+    admissionPending ||
+    (!!activeSubmissionId && submissionQuery.isPending) ||
+    submission?.state === "queued" ||
+    submission?.state === "running";
 
-  const dispatch = useCallback(async (kind: "run" | "submit") => {
-    if (!workspace || admissionLock.current || busy) return false;
-    let customCases;
-    if (kind === "run" && customMode) {
+  const dispatch = useCallback(
+    async (kind: "run" | "submit") => {
+      if (!enabled || !workspace || admissionLock.current || busy) return false;
+      let customCases;
+      if (kind === "run" && customMode) {
+        try {
+          customCases = parseCustomCases(customCasesText);
+        } catch (cause) {
+          setError(errorMessage(cause));
+          return false;
+        }
+      }
+      const source = editorRef.current?.getSource() ?? sourceRef.current;
+      admissionLock.current = true;
+      setAdmissionPending(true);
+      setError(undefined);
       try {
-        customCases = parseCustomCases(customCasesText);
+        const bytes = new TextEncoder().encode(
+          JSON.stringify({ scope, kind, source, customCases }),
+        );
+        const fingerprint = Array.from(
+          new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+          (byte) => byte.toString(16).padStart(2, "0"),
+        ).join("");
+        const recoveryKey = `${submissionStorageKey(identity, workspace.id)}:pending`;
+        try {
+          const stored = localStorage.getItem(recoveryKey);
+          if (stored) {
+            const recovered: unknown = JSON.parse(stored);
+            if (
+              recovered &&
+              typeof recovered === "object" &&
+              "fingerprint" in recovered &&
+              recovered.fingerprint === fingerprint &&
+              "key" in recovered &&
+              typeof recovered.key === "string"
+            )
+              pendingRequest.current = { fingerprint, key: recovered.key };
+          }
+        } catch {
+          /* Browser storage may be unavailable; the current tab retains its retry key. */
+        }
+        if (pendingRequest.current?.fingerprint !== fingerprint)
+          pendingRequest.current = { fingerprint, key: crypto.randomUUID() };
+        try {
+          localStorage.setItem(recoveryKey, JSON.stringify(pendingRequest.current));
+        } catch {
+          /* Execution remains available without browser storage. */
+        }
+        const admission = await createSubmission(
+          identity,
+          workspace.id,
+          kind,
+          source,
+          customCases,
+          pendingRequest.current.key,
+        );
+        setActive({ scope, id: admission.id });
+        pendingRequest.current = undefined;
+        try {
+          localStorage.setItem(submissionStorageKey(identity, workspace.id), admission.id);
+          localStorage.removeItem(recoveryKey);
+        } catch {
+          /* The live result still has an authoritative submission ID. */
+        }
+        await queryClient.invalidateQueries({ queryKey: ["submission", identity, admission.id] });
+        return true;
       } catch (cause) {
         setError(errorMessage(cause));
         return false;
+      } finally {
+        admissionLock.current = false;
+        setAdmissionPending(false);
       }
-    }
-    const source = editorRef.current?.getSource() ?? sourceRef.current;
-    admissionLock.current = true;
-    setAdmissionPending(true);
-    setError(undefined);
-    try {
-      const admission = await createSubmission(identity, workspace.id, kind, source, customCases);
-      localStorage.setItem(submissionStorageKey(identity, workspace.id), admission.id);
-      setActive({ scope, id: admission.id });
-      await queryClient.invalidateQueries({ queryKey: ["submission", identity, admission.id] });
-      return true;
-    } catch (cause) {
-      setError(errorMessage(cause));
-      return false;
-    } finally {
-      admissionLock.current = false;
-      setAdmissionPending(false);
-    }
-  }, [workspace, identity, busy, customMode, customCasesText, editorRef, sourceRef, scope, queryClient]);
+    },
+    [
+      workspace,
+      identity,
+      busy,
+      customMode,
+      customCasesText,
+      editorRef,
+      sourceRef,
+      scope,
+      queryClient,
+      enabled,
+    ],
+  );
 
   const cancel = useCallback(async () => {
-    if (!submission || !busy || submission.kind === "submit" && workspace?.kind === "match") return;
+    if (!submission || !busy || (submission.kind === "submit" && workspace?.kind === "match"))
+      return;
     try {
       await cancelSubmission(identity, submission.id);
       await queryClient.invalidateQueries({ queryKey: ["submission", identity, submission.id] });

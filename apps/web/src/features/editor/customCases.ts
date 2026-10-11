@@ -5,9 +5,16 @@ function validateWireValue(value: unknown, depth = 0): value is CustomCase["args
   if (depth > 100) return false;
   if (value === null || typeof value === "boolean" || typeof value === "string") return true;
   if (typeof value === "number") {
-    return Number.isFinite(value) && (!Number.isInteger(value) || value >= -2_147_483_648 && value <= 2_147_483_647);
+    return (
+      Number.isFinite(value) &&
+      (!Number.isInteger(value) || (value >= -2_147_483_648 && value <= 2_147_483_647))
+    );
   }
-  return Array.isArray(value) && value.length <= 10_000 && value.every((item) => validateWireValue(item, depth + 1));
+  return (
+    Array.isArray(value) &&
+    value.length <= 10_000 &&
+    value.every((item) => validateWireValue(item, depth + 1))
+  );
 }
 
 /** Parses 1–20 custom case records and enforces the public wire bounds. */

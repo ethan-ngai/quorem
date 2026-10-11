@@ -9,6 +9,36 @@
   background: var(--color-background);
 }
 
+.match-preview {
+  margin: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.match-preview div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.match-preview p {
+  margin: var(--space-3) 0;
+}
+.match-preview small {
+  color: var(--color-text-secondary);
+}
+
+.workspace-transition {
+  position: fixed;
+  inset: 0;
+}
+
+.mobile-problem-select {
+  display: none;
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -158,7 +188,9 @@
   color: var(--color-text-secondary);
   font-size: 20px;
   line-height: 1;
-  transition: background var(--motion-fast) var(--motion-easing), color var(--motion-fast) var(--motion-easing);
+  transition:
+    background var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
 }
 
 .icon-button:hover,
@@ -175,7 +207,10 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: minmax(var(--pane-minimum), var(--problem-ratio)) 8px minmax(var(--pane-minimum), 1fr);
+  grid-template-columns: minmax(var(--pane-minimum), var(--problem-ratio)) 8px minmax(
+      var(--pane-minimum),
+      1fr
+    );
   grid-template-rows: minmax(0, 1fr) 8px minmax(170px, var(--results-height));
   grid-template-areas:
     "problem split-x code"
@@ -418,7 +453,9 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--text-label);
-  transition: background var(--motion-fast) var(--motion-easing), color var(--motion-fast) var(--motion-easing);
+  transition:
+    background var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
 }
 
 .compact-option select {
@@ -557,7 +594,10 @@
   font-size: var(--text-label);
   font-weight: 550;
   white-space: nowrap;
-  transition: background var(--motion-fast) var(--motion-easing), border-color var(--motion-fast) var(--motion-easing), color var(--motion-fast) var(--motion-easing);
+  transition:
+    background var(--motion-fast) var(--motion-easing),
+    border-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
 }
 
 .button:disabled {
@@ -792,6 +832,9 @@
 }
 
 .history-dialog {
+  margin: auto;
+  padding: 0;
+  color: var(--color-text);
   display: grid;
   width: min(760px, 100%);
   max-height: min(700px, 90dvh);
@@ -801,6 +844,17 @@
   border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: 0 16px 48px oklch(0 0 0 / 0.16);
+}
+
+.history-dialog::backdrop {
+  background: oklch(0.1 0 0 / 0.36);
+}
+
+.case-diagnostic {
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
 }
 
 .dialog-header {
@@ -909,6 +963,23 @@
     grid-template-columns: repeat(3, 1fr);
     border-bottom: 1px solid var(--color-border);
     background: var(--color-surface);
+  }
+
+  .mobile-problem-select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin: var(--space-5);
+    font-size: var(--text-small);
+  }
+
+  .mobile-problem-select select {
+    min-height: var(--narrow-touch-target);
+    background: var(--color-field);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
   }
 
   .mobile-tabs button {

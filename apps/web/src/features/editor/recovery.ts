@@ -29,11 +29,7 @@ function openDatabase() {
 }
 
 /** Creates the isolation key used by browser recovery history. */
-function scopeKey(
-  identity: DevelopmentIdentity,
-  workspaceId: string,
-  problemVersionId: string,
-) {
+function scopeKey(identity: DevelopmentIdentity, workspaceId: string, problemVersionId: string) {
   return `${identity}:${workspaceId}:${problemVersionId}:python`;
 }
 
@@ -83,10 +79,7 @@ export async function readLatestRecovery(
   problemVersionId: string,
 ) {
   const db = await openDatabase();
-  const snapshots = await listScope(
-    db,
-    scopeKey(identity, workspaceId, problemVersionId),
-  );
+  const snapshots = await listScope(db, scopeKey(identity, workspaceId, problemVersionId));
   db.close();
   return snapshots[0];
 }

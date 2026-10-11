@@ -11,6 +11,9 @@ import {
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { WorkspacePage } from "./features/editor/WorkspacePage";
+import "@fontsource-variable/geist";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/500.css";
 import "@quorem/ui/theme.css";
 import "./styles/global.css";
 
@@ -25,7 +28,9 @@ const rootRoute = createRootRoute({ component: Outlet });
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  beforeLoad: () => { throw redirect({ to: "/$slug", params: { slug: "run-widths" } }); },
+  beforeLoad: () => {
+    throw redirect({ to: "/$slug", params: { slug: "run-widths" } });
+  },
 });
 const problemRoute = createRoute({
   getParentRoute: () => rootRoute,

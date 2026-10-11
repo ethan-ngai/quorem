@@ -38,8 +38,16 @@ export function ResizableDivider({
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const direction = isVertical
-      ? event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0
-      : event.key === "ArrowDown" ? -1 : event.key === "ArrowUp" ? 1 : 0;
+      ? event.key === "ArrowLeft"
+        ? -1
+        : event.key === "ArrowRight"
+          ? 1
+          : 0
+      : event.key === "ArrowDown"
+        ? -1
+        : event.key === "ArrowUp"
+          ? 1
+          : 0;
     if (!direction) return;
     event.preventDefault();
     onChange(Math.min(maximum, Math.max(minimum, value + direction * (isVertical ? 2 : 16))));
@@ -54,7 +62,11 @@ export function ResizableDivider({
       aria-valuemin={minimum}
       aria-valuemax={maximum}
       aria-valuenow={Math.round(value)}
-      aria-valuetext={isVertical ? `${Math.round(value)} percent problem pane` : `${Math.round(value)} pixels results pane`}
+      aria-valuetext={
+        isVertical
+          ? `${Math.round(value)} percent problem pane`
+          : `${Math.round(value)} pixels results pane`
+      }
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
       style={{ "--split-value": `${value}${isVertical ? "%" : "px"}` } as CSSProperties}

@@ -1,5 +1,6 @@
+/** @file vite.config.ts @description Editor development and build configuration. @module web */
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   plugins: [react()],

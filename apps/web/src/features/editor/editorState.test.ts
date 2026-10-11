@@ -10,11 +10,7 @@ describe("editor state reconfiguration", () => {
     const intelligence = new Compartment();
     let state = EditorState.create({
       doc: "answer = 1",
-      extensions: [
-        history(),
-        theme.of(EditorState.tabSize.of(4)),
-        intelligence.of([]),
-      ],
+      extensions: [history(), theme.of(EditorState.tabSize.of(4)), intelligence.of([])],
     });
     state = state.update({
       changes: { from: state.doc.length, insert: "\n" },
@@ -32,13 +28,13 @@ describe("editor state reconfiguration", () => {
     expect(configured.selection.main.head).toBe(configured.doc.length);
     expect(configured.field(historyField)).toBeDefined();
 
-    const view = {
+    const viewState = {
       state: configured,
-      dispatch(transaction: Parameters<EditorView["dispatch"]>[0]) {
-        this.state = this.state.update(transaction).state;
+      dispatch(transaction: Parameters<EditorState["update"]>[0]) {
+        viewState.state = viewState.state.update(transaction).state;
       },
-    } as unknown as EditorView;
-    expect(undo(view)).toBe(true);
-    expect(view.state.doc.toString()).toBe("answer = 1");
+    };
+    expect(undo(viewState as unknown as EditorView)).toBe(true);
+    expect(viewState.state.doc.toString()).toBe("answer = 1");
   });
 });

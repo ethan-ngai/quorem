@@ -5,31 +5,19 @@
     "version": "1",
     "title": "Quota Window",
     "difficulty": "hard",
-    "tags": [
-      "strings",
-      "sliding window"
-    ],
+    "tags": ["strings", "sliding window"],
     "statementMarkdown": "Return the shortest contiguous substring of `text` containing every character of `quota` with at least its multiplicity. Match characters exactly, including case. Ties choose the earliest substring. Return an empty string if quota is empty or no window exists.",
     "examples": [
       {
-        "args": [
-          "AXBCAYBC",
-          "ABC"
-        ],
+        "args": ["AXBCAYBC", "ABC"],
         "expected": "BCA"
       },
       {
-        "args": [
-          "aaabb",
-          "aab"
-        ],
+        "args": ["aaabb", "aab"],
         "expected": "aab"
       }
     ],
-    "constraints": [
-      "At most 10,000 collection elements.",
-      "All integers are signed 32-bit."
-    ],
+    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
     "signature": {
       "className": "Solution",
       "methodName": "quotaWindow",
@@ -61,101 +49,59 @@
   "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {
-      "args": [
-        "AXBCAYBC",
-        "ABC"
-      ],
+      "args": ["AXBCAYBC", "ABC"],
       "expected": "BCA"
     },
     {
-      "args": [
-        "aaabb",
-        "aab"
-      ],
+      "args": ["aaabb", "aab"],
       "expected": "aab"
     },
     {
-      "args": [
-        "",
-        ""
-      ],
+      "args": ["", ""],
       "expected": ""
     },
     {
-      "args": [
-        "",
-        "a"
-      ],
+      "args": ["", "a"],
       "expected": ""
     },
     {
-      "args": [
-        "abc",
-        ""
-      ],
+      "args": ["abc", ""],
       "expected": ""
     },
     {
-      "args": [
-        "abc",
-        "d"
-      ],
+      "args": ["abc", "d"],
       "expected": ""
     },
     {
-      "args": [
-        "abc",
-        "abc"
-      ],
+      "args": ["abc", "abc"],
       "expected": "abc"
     },
     {
-      "args": [
-        "aaaa",
-        "aa"
-      ],
+      "args": ["aaaa", "aa"],
       "expected": "aa"
     },
     {
-      "args": [
-        "bbaa",
-        "ab"
-      ],
+      "args": ["bbaa", "ab"],
       "expected": "ba"
     },
     {
-      "args": [
-        "AaAa",
-        "AA"
-      ],
+      "args": ["AaAa", "AA"],
       "expected": "AaA"
     },
     {
-      "args": [
-        "xyzzx",
-        "zx"
-      ],
+      "args": ["xyzzx", "zx"],
       "expected": "zx"
     },
     {
-      "args": [
-        "a b a",
-        "a "
-      ],
+      "args": ["a b a", "a "],
       "expected": "a "
     },
     {
-      "args": [
-        "abcbcba",
-        "bb"
-      ],
+      "args": ["abcbcba", "bb"],
       "expected": "bcb"
     },
     {
-      "args": [
-        "1230123",
-        "30"
-      ],
+      "args": ["1230123", "30"],
       "expected": "30"
     },
     {
@@ -173,31 +119,19 @@
       "expected": "ab"
     },
     {
-      "args": [
-        "ABC",
-        "abc"
-      ],
+      "args": ["ABC", "abc"],
       "expected": ""
     },
     {
-      "args": [
-        "\u03b1\u03b2\u03b3\u03b2",
-        "\u03b2\u03b3"
-      ],
+      "args": ["\u03b1\u03b2\u03b3\u03b2", "\u03b2\u03b3"],
       "expected": "\u03b2\u03b3"
     },
     {
-      "args": [
-        "ab",
-        "aab"
-      ],
+      "args": ["ab", "aab"],
       "expected": ""
     },
     {
-      "args": [
-        "bbacba",
-        "abc"
-      ],
+      "args": ["bbacba", "abc"],
       "expected": "bac"
     }
   ],

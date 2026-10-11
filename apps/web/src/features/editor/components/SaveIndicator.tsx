@@ -11,5 +11,10 @@ export function SaveIndicator({ state }: { state: SaveState }) {
     offline: "Offline · saved locally",
     error: "Save failed · retry available",
   }[state];
-  return <span className={`save-indicator save-${state}`} role="status"><i aria-hidden="true" />{label}</span>;
+  return (
+    <span className={`save-indicator save-${state}`} role="status">
+      <i aria-hidden="true" />
+      {label}
+    </span>
+  );
 }

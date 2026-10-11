@@ -34,7 +34,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/workspaces/{id}/draft", s.getDraft)
 	mux.HandleFunc("PUT /v1/workspaces/{id}/draft", s.save)
 	mux.HandleFunc("GET /v1/workspaces/{id}/draft-history", s.history)
-	mux.HandleFunc("POST /v1/workspaces/{id}/draft-history/restore", s.restore)
+	mux.HandleFunc("POST /v1/workspaces/{id}/restore", s.restore)
 	mux.HandleFunc("POST /v1/submissions", s.admit)
 	mux.HandleFunc("GET /v1/submissions/{id}", s.submission)
 	mux.HandleFunc("POST /v1/submissions/{id}/cancel", s.cancel)

@@ -13,7 +13,10 @@ import type {
 
 /** Creates a same-origin client so local requests pass through Vite's API proxy. */
 const api = (identity: DevelopmentIdentity) =>
-  createApiClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin, identity });
+  createApiClient({
+    baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
+    identity,
+  });
 
 /** Turns typed API error responses into messages suitable for the workspace. */
 function requireData<T>(data: T | undefined, error: unknown): T {
@@ -34,10 +37,7 @@ export async function fetchProblem(identity: DevelopmentIdentity, slug: string) 
 }
 
 /** Creates or reuses the owner's solo workspace for a problem version. */
-export async function createWorkspace(
-  identity: DevelopmentIdentity,
-  problemVersionId: string,
-) {
+export async function createWorkspace(identity: DevelopmentIdentity, problemVersionId: string) {
   const { data, error } = await api(identity).POST("/v1/workspaces", {
     body: { problemVersionId, language: "python" },
   });
@@ -93,9 +93,10 @@ export async function createSubmission(
   kind: "run" | "submit",
   source: string,
   customCases?: CustomCase[],
+  idempotencyKey: string = crypto.randomUUID(),
 ) {
   const { data, error } = await api(identity).POST("/v1/submissions", {
-    params: { header: { "Idempotency-Key": crypto.randomUUID() } },
+    params: { header: { "Idempotency-Key": idempotencyKey } },
     body: { workspaceId, kind, source, customCases },
   });
   return requireData(data as SubmissionAdmission | undefined, error);
