@@ -12,3 +12,11 @@
 - Editor first: CodeMirror 6, Python Solution/ListNode/TreeNode, completion/hover/signatures/diagnostics, real judging, server autosave/browser recovery. Then invite-based 1v1. Defer FFA, parties, collaboration, points/leaderboard, social, adaptive selection.
 - Ask subjective/blocking questions individually through the question tool; keep the turn open while awaiting answers. Use judgment for routine engineering choices; document defaults and evidence gates.
 - Planning is not implementation authorization. Keep specs, confirmed requirements, defaults, and release gates distinct.
+
+## Task workflow
+
+- Start each task by reading this file, inspecting Git status/worktrees and open GitHub issues/PRs, and checking relevant `docs/plans/` and `docs/implementation/` guidance. GitHub is the current work ledger; do not depend on previous chat history.
+- Link work to an existing GitHub issue or create a concise issue for new substantive work. Reuse a suitable worktree for ongoing work; create an isolated worktree from current `origin/main` for independent work. Preserve unrelated changes.
+- Push a conventional branch and open/update a draft PR linked to its issue, with concise behavior and validation evidence. For dependent work, base each PR on its predecessor and record the order; otherwise target `main`.
+- Fix failing CI before marking ready. Merge only when the user authorizes it, in dependency order; update remaining PR bases and local `main` afterward. Keep workflow instructions on `main` so new chats inherit them.
+- PostgreSQL integration tests truncate data. Point `QUOREM_TEST_DATABASE_URL` only at a separate disposable test database, never the running development database.

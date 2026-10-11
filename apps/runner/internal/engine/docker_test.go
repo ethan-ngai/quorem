@@ -196,9 +196,9 @@ func TestDockerRuntimeTracebackPublicAndHidden(t *testing.T) {
 	if run.Verdict != execution.RuntimeError || len(run.PublicCaseResults) != 1 {
 		t.Fatal(run)
 	}
-	diagnostics := run.PublicCaseResults[0].Diagnostics
-	if len(diagnostics) != 1 || !strings.Contains(diagnostics[0].Message, "ValueError: debug-marker") || !strings.Contains(diagnostics[0].Message, "<solution>") {
-		t.Fatal("missing user traceback", diagnostics)
+	public := run.PublicCaseResults[0]
+	if len(public.Diagnostics) != 0 || !strings.Contains(public.Stderr, "ValueError: debug-marker") || !strings.Contains(public.Stderr, "<solution>") {
+		t.Fatal("runtime traceback must remain in stderr", public)
 	}
 	submit := executeFixture(t, f, source, "submit", f.HiddenCases)
 	encoded, _ := json.Marshal(submit)
@@ -221,10 +221,8 @@ func TestDockerExceptionFormattingBudgets(t *testing.T) {
 		if result.Verdict != test.want {
 			t.Fatal(result)
 		}
-		for _, diagnostic := range result.PublicCaseResults[0].Diagnostics {
-			if len(diagnostic.Message) > 65536 {
-				t.Fatal("unbounded diagnostic")
-			}
+		if len(result.PublicCaseResults[0].Stderr) > 65536 {
+			t.Fatal("unbounded traceback")
 		}
 	}
 }
