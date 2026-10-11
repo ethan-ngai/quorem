@@ -393,16 +393,7 @@ kbd {
   padding: 0;
 }
 .example-list > li {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 10px;
   margin-bottom: 16px;
-}
-.example-number {
-  padding-top: 3px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 .example-content {
   min-width: 0;
@@ -1184,7 +1175,10 @@ kbd {
   color: var(--color-text-secondary);
 }
 .example-data code {
-  display: block;
+  display: inline-block;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
   min-width: 0;
   padding: 5px 8px;
   border-radius: var(--radius-sm);

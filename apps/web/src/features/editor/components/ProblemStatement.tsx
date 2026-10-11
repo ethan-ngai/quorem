@@ -50,9 +50,6 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
           <ol className="example-list">
             {problem.examples.map((example, index) => (
               <li key={index} aria-label={`Example ${index + 1}`}>
-                <span className="example-number" aria-hidden="true">
-                  {index + 1}
-                </span>
                 <div className="example-content">
                   <div className="example-data">
                     <div>
