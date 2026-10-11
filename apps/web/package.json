@@ -12,12 +12,14 @@
     "@codemirror/commands": "^6.8.1",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.11.2",
+    "@codemirror/lsp-client": "6.3.0",
     "@codemirror/lint": "^6.8.5",
     "@codemirror/search": "^6.5.11",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.6",
     "@fontsource-variable/geist": "^5.2.6",
     "@fontsource/jetbrains-mono": "^5.2.6",
+    "dompurify": "^3.3.3",
     "@quorem/contracts": "workspace:*",
     "@quorem/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.2",
@@ -30,6 +32,6 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
     "typescript": "^5.9.3",
-    "vite": "^7.1.9"
+    "vitest": "^5.0.3"
   }
 }
