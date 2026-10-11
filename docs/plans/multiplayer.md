@@ -39,6 +39,6 @@ Extension seams: participant collections/configurable rules; ProblemSelector sta
 
 ## Browser-observed host rules
 
-Each of clipboard and window-focus rules offers Allow, Warning, 30-second cooldown, or Announce to lobby. Defaults allow both. Restricted clipboard events are cancelled in the statement/editor. Blur and hidden events count once per absence. No clipboard content, source, or navigation target is reported. Cooldown reports are serialized by the match lock, do not stack, and block server admission for Run and Submit. Announcements retain at most twenty events; reports are throttled. Policies freeze at start.
+Each of clipboard and window-focus rules offers Allow, Warning, or Announce to lobby. Defaults allow both. Restricted clipboard events are cancelled in the statement/editor. Blur and hidden events count once per absence. No clipboard content, source, or navigation target is reported. Announcements retain at most twenty events; reports are throttled. Policies freeze at start.
 
 These are browser-observed conduct controls, not tamper-proof anti-cheat. A modified client can bypass observation. Timing, scoring, membership, and admission remain server-authoritative.

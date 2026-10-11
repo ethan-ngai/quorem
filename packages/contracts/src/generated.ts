@@ -461,8 +461,6 @@ export interface components {
             /** Format: uuid */
             workspaceId?: string;
             forfeited?: boolean;
-            /** Format: date-time */
-            cooldownUntil?: string;
         };
         MatchSnapshot: {
             /** Format: uuid */
@@ -606,7 +604,7 @@ export interface components {
         /** @enum {string} */
         MatchMode: "showdown" | "free-for-all";
         /** @enum {string} */
-        MatchRuleAction: "off" | "warning" | "cooldown" | "announce";
+        MatchRuleAction: "off" | "warning" | "announce";
         /** @enum {string} */
         MatchRuleKind: "clipboard" | "focus";
         MatchRules: {

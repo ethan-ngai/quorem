@@ -337,7 +337,7 @@ export function MatchSettings({
           <div className="match-rules-heading">
             <Shield size={16} />
             <span>Host rules</span>
-            <Tooltip content="Browser-observed activity; these rules are not tamper-proof. Cooldowns block submissions for 30 seconds.">
+            <Tooltip content="Browser-observed activity; these rules are not tamper-proof.">
               <button type="button" className="icon-button" aria-label="About host rules">
                 <Info size={16} />
               </button>
@@ -357,7 +357,6 @@ export function MatchSettings({
                 options={[
                   { value: "off", label: "Allow" },
                   { value: "warning", label: "Warn" },
-                  { value: "cooldown", label: "30-second cooldown" },
                   { value: "announce", label: "Announce to lobby" },
                 ]}
               />

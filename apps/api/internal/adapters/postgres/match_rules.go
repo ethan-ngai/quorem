@@ -48,10 +48,6 @@ func (s *Store) ReportMatchRule(ctx context.Context, owner, id, key, kind string
 		if _, err := tx.Exec(ctx, "UPDATE match_participants SET last_rule_event_at=$3 WHERE match_id=$1 AND owner_id=$2", id, owner, now); err != nil {
 			return err
 		}
-		if action == "cooldown" {
-			_, err := tx.Exec(ctx, "UPDATE match_participants SET cooldown_until=$3+interval '30 seconds' WHERE match_id=$1 AND owner_id=$2 AND (cooldown_until IS NULL OR cooldown_until<=$3)", id, owner, now)
-			return err
-		}
 		if _, err := tx.Exec(ctx, "INSERT INTO match_rule_events(id,match_id,owner_id,kind,occurred_at) VALUES($1,$2,$3,$4,$5)", ID(), id, owner, kind, now); err != nil {
 			return err
 		}

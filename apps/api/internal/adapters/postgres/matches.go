@@ -40,7 +40,7 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	if err := tx.QueryRow(ctx, "SELECT participant_id,clock_timestamp() FROM users WHERE id=$1", m.host).Scan(&v.HostUserID, &v.ServerNow); err != nil {
 		return v, err
 	}
-	rows, err := tx.Query(ctx, `SELECT p.owner_id,u.participant_id,u.display_name,p.ready,p.presence,COALESCE(p.workspace_id::text,''),p.best_passed,COALESCE(p.submission_state,''),p.forfeited,p.cooldown_until FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 ORDER BY p.seat`, m.id)
+	rows, err := tx.Query(ctx, `SELECT p.owner_id,u.participant_id,u.display_name,p.ready,p.presence,COALESCE(p.workspace_id::text,''),p.best_passed,COALESCE(p.submission_state,''),p.forfeited FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 ORDER BY p.seat`, m.id)
 	if err != nil {
 		return v, err
 	}
@@ -50,7 +50,7 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 		var p matches.Participant
 		var seatOwner string
 		var passed int
-		if err = rows.Scan(&seatOwner, &p.UserID, &p.DisplayName, &p.Ready, &p.Presence, &p.WorkspaceID, &passed, &p.SubmissionState, &p.Forfeited, &p.CooldownUntil); err != nil {
+		if err = rows.Scan(&seatOwner, &p.UserID, &p.DisplayName, &p.Ready, &p.Presence, &p.WorkspaceID, &passed, &p.SubmissionState, &p.Forfeited); err != nil {
 			return v, err
 		}
 		if seatOwner == owner {

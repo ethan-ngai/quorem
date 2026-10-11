@@ -1433,10 +1433,6 @@
           },
           "forfeited": {
             "type": "boolean"
-          },
-          "cooldownUntil": {
-            "type": "string",
-            "format": "date-time"
           }
         },
         "required": ["userId", "displayName", "ready", "presence"],
@@ -1913,7 +1909,7 @@
       },
       "MatchRuleAction": {
         "type": "string",
-        "enum": ["off", "warning", "cooldown", "announce"]
+        "enum": ["off", "warning", "announce"]
       },
       "MatchRuleKind": {
         "type": "string",

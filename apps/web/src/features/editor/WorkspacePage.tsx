@@ -555,11 +555,7 @@ export function WorkspacePage({
         {matchHeader && (
           <div className="match-strip">
             {matchHeader}
-            <MatchRuleNotice
-              message={matchRules.notice}
-              until={matchRules.until}
-              onDismiss={matchRules.dismiss}
-            />
+            <MatchRuleNotice message={matchRules.notice} onDismiss={matchRules.dismiss} />
           </div>
         )}
         <nav className="mobile-tabs" aria-label="Workspace panes">

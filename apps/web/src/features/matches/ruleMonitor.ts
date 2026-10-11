@@ -1,4 +1,4 @@
-type RuleAction = "off" | "warning" | "cooldown" | "announce";
+type RuleAction = "off" | "warning" | "announce";
 export type RuleKind = "clipboard" | "focus";
 
 /** One focus violation per absence, even when blur and visibility fire together. */

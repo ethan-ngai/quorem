@@ -72,24 +72,22 @@ func TestFreeForAllHostStartSettingsAndForfeit(t *testing.T) {
 		t.Fatal(v, e)
 	}
 }
-func TestMatchRulesCooldownAndBoundedAnnouncements(t *testing.T) {
+func TestMatchRulesRejectRemovedCooldown(t *testing.T) {
+	s := testStore(t)
+	for _, rules := range []matches.Rules{{Clipboard: "cooldown"}, {Focus: "cooldown"}} {
+		_, err := s.CreateMatch(context.Background(), "alice", ID(), matches.Settings{Mode: matches.FreeForAll, Difficulties: []string{"easy"}, DurationMinutes: 30, Rules: rules})
+		if errorCode(err) != "invalid_input" {
+			t.Fatal(err)
+		}
+	}
+}
+func TestMatchRulesWarningsAndBoundedAnnouncements(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
-	id, _ := ffa(t, s, matches.Rules{Clipboard: "cooldown", Focus: "announce"})
+	id, _ := ffa(t, s, matches.Rules{Clipboard: "warning", Focus: "announce"})
 	v, e := s.ReportMatchRule(ctx, "alice", id, ID(), "clipboard")
-	if e != nil || v.Participants[0].CooldownUntil == nil {
+	if e != nil || len(v.RuleEvents) != 0 {
 		t.Fatal(v, e)
-	}
-	until := *v.Participants[0].CooldownUntil
-	execSQL(t, s, "UPDATE match_participants SET last_rule_event_at=clock_timestamp()-interval '3 seconds' WHERE match_id=$1", id)
-	v, e = s.ReportMatchRule(ctx, "alice", id, ID(), "clipboard")
-	if e != nil || !v.Participants[0].CooldownUntil.Equal(until) {
-		t.Fatal("cooldown stacked", v, e)
-	}
-	for _, kind := range []string{"run", "submit"} {
-		if _, e = s.Admit(ctx, "alice", ID(), judging.Command{WorkspaceID: matchWorkspace(t, s, id, "alice"), Kind: kind, Source: "pass"}, "hash"); errorCode(e) != "invalid_transition" {
-			t.Fatal(kind, e)
-		}
 	}
 	for i := 0; i < 23; i++ {
 		execSQL(t, s, "UPDATE match_participants SET last_rule_event_at=clock_timestamp()-interval '3 seconds' WHERE match_id=$1", id)

@@ -67,7 +67,7 @@ for (const request of [
   {
     selectedProblemVersionId: problemId,
     durationMinutes: 60,
-    rules: { clipboard: "cooldown", focus: "announce" },
+    rules: { clipboard: "warning", focus: "announce" },
   },
 ])
   assert(validateMatchRequest(request), JSON.stringify(validateMatchRequest.errors));
@@ -80,6 +80,8 @@ for (const request of [
   { difficulty: "easy", durationMinutes: 1 },
   { difficulty: "easy", durationMinutes: 30, mode: "unknown" },
   { difficulty: "easy", durationMinutes: 30, rules: { focus: "ban" } },
+  { difficulty: "easy", durationMinutes: 30, rules: { clipboard: "cooldown" } },
+  { difficulty: "easy", durationMinutes: 30, rules: { focus: "cooldown" } },
   { difficulty: "easy", durationMinutes: 30, rules: { clipboard: "off", contents: "private" } },
 ])
   assert(!validateMatchRequest(request), JSON.stringify(request));

@@ -72,7 +72,7 @@ func (s Settings) Valid() bool {
 		seen[d] = true
 	}
 	for _, a := range []string{s.Rules.Clipboard, s.Rules.Focus} {
-		if a != "off" && a != "warning" && a != "cooldown" && a != "announce" {
+		if a != "off" && a != "warning" && a != "announce" {
 			return false
 		}
 	}
@@ -86,7 +86,6 @@ type Created struct {
 }
 type Participant struct {
 	Forfeited       bool             `json:"forfeited"`
-	CooldownUntil   *time.Time       `json:"cooldownUntil,omitempty"`
 	UserID          string           `json:"userId"`
 	DisplayName     string           `json:"displayName"`
 	Ready           bool             `json:"ready"`

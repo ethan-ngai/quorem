@@ -16,7 +16,7 @@ describe("match browser rules", () => {
   it("blocks clipboard attempts without reading data and bounds reports", () => {
     const report = vi.fn();
     let now = 0;
-    const monitor = createRuleMonitor({ clipboard: "cooldown", focus: "off" }, report, () => now);
+    const monitor = createRuleMonitor({ clipboard: "warning", focus: "off" }, report, () => now);
     expect(monitor.clipboard()).toBe(true);
     monitor.clipboard();
     monitor.focus(false);

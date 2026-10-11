@@ -4,7 +4,7 @@ import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states = new Set(["waiting", "ready", "active", "finalizing", "completed", "cancelled"]);
 const difficulties = new Set(["easy", "medium", "hard"]);
-const ruleActions = new Set(["off", "warning", "cooldown", "announce"]);
+const ruleActions = new Set(["off", "warning", "announce"]);
 const submissionStates = new Set(["queued", "running", "completed", "cancelled", "failed"]);
 const outcomeKinds = new Set(["win", "draw", "no_contest", "cancelled"]);
 
@@ -73,7 +73,6 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
             !uuidPattern.test(participant.workspaceId))) ||
         (participant.bestScore !== undefined && !validScore(participant.bestScore)) ||
         (participant.forfeited !== undefined && typeof participant.forfeited !== "boolean") ||
-        (participant.cooldownUntil !== undefined && !validDate(participant.cooldownUntil)) ||
         participantIds.has(participant.userId)
       )
         return true;
