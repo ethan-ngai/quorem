@@ -63,7 +63,8 @@ def decode(kind, value):
 def encode(kind, value, depth=0, count=None, seen=None):
     count = [0] if count is None else count
     seen = set() if seen is None else seen
-    count[0] += 1
+    if depth > 0:
+        count[0] += 1
     if count[0] > MAX_ELEMENTS or depth > MAX_DEPTH:
         raise InvalidOutput()
     if kind.startswith('optional<'):

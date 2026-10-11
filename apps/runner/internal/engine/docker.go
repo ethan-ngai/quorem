@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
+	"io"
 	"os/exec"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -124,14 +126,10 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 	// Killing the Docker client alone leaves containers running.
 	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cleanupCancel()
-	cleanup := exec.CommandContext(cleanupCtx, "docker", "rm", "-f", name)
-	cleanupErr := cleanup.Run()
-	if cleanupErr != nil && ctx.Err() != nil {
-		check := exec.CommandContext(cleanupCtx, "docker", "inspect", name)
-		if check.Run() == nil {
-			return frame{}, errors.New("sandbox teardown failed")
-		}
+	if cleanupErr := removeContainer(cleanupCtx, name); cleanupErr != nil {
+		return frame{}, worker.ErrTeardown
 	}
+
 	if parent.Err() != nil {
 		return frame{}, parent.Err()
 	}
@@ -162,16 +160,39 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 		return frame{Status: "invalid_output"}, nil
 	}
 	var extra any
-	if decoder.Decode(&extra) == nil {
+	if decoder.Decode(&extra) != io.EOF {
 		return frame{Status: "invalid_output"}, nil
 	}
 	switch f.Status {
 	case "executed", "syntax_error", "runtime_error", "memory_limit", "output_limit", "invalid_output":
 	default:
-		return frame{}, fmt.Errorf("invalid sandbox status")
+		return frame{Status: "invalid_output"}, nil
 	}
 	if len(f.Stdout) > j.Limits.OutputBytes || len(f.Stderr) > j.Limits.OutputBytes || len(f.Actual) > j.Limits.OutputBytes {
 		return frame{Status: "output_limit"}, nil
 	}
 	return f, nil
+}
+
+func removeContainer(ctx context.Context, name string) error {
+	if exec.CommandContext(ctx, "docker", "rm", "-f", name).Run() == nil {
+		return nil
+	}
+	remaining, err := exec.CommandContext(ctx, "docker", "ps", "-a", "--filter", "name=^/"+regexp.QuoteMeta(name)+"$", "--format", "{{.ID}}").Output()
+	if err != nil || strings.TrimSpace(string(remaining)) != "" {
+		return worker.ErrTeardown
+	}
+	return nil
+}
+func (d *Docker) TeardownAttempt(ctx context.Context, attempt string) error {
+	containers, err := exec.CommandContext(ctx, "docker", "ps", "-a", "--filter", "name=^/quorem-"+regexp.QuoteMeta(attempt)+"-", "--format", "{{.Names}}").Output()
+	if err != nil {
+		return worker.ErrTeardown
+	}
+	for _, name := range strings.Fields(string(containers)) {
+		if err = removeContainer(ctx, name); err != nil {
+			return err
+		}
+	}
+	return nil
 }

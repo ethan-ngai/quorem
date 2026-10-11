@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "4414d89b-1578-5832-beee-2c8cee098477",
+    "id": "68e9df4b-8cd8-52b7-b2e3-84c279e5669c",
     "slug": "run-widths",
-    "version": "1",
+    "version": "2",
     "title": "Run Widths",
     "difficulty": "easy",
     "tags": [
@@ -12,19 +12,40 @@
     "examples": [
       {
         "args": [
-          []
-        ],
-        "expected": []
-      },
-      {
-        "args": [
           [
+            1,
+            1,
+            2,
+            2,
+            2,
             1
           ]
         ],
         "expected": [
+          2,
+          3,
           1
         ]
+      },
+      {
+        "args": [
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        "expected": [
+          1,
+          1,
+          1
+        ]
+      },
+      {
+        "args": [
+          []
+        ],
+        "expected": []
       }
     ],
     "constraints": [

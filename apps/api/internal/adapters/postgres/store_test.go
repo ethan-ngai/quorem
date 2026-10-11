@@ -26,7 +26,7 @@ func testStore(t *testing.T) *Store {
 	if err = store.Migrate(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Pool.Exec(ctx, "TRUNCATE outbox_events,execution_idempotency,execution_jobs,submissions,draft_sessions,draft_versions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
+	if _, err = store.Pool.Exec(ctx, "TRUNCATE cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,draft_sessions,draft_versions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
 		t.Fatal(err)
 	}
 	f, err := problems.LoadFixtures("../../../../../fixtures/problems")
@@ -221,5 +221,70 @@ func TestConcurrentAdmissionAndInfrastructureRetry(t *testing.T) {
 				t.Fatal(got)
 			}
 		}
+	}
+}
+func TestCancellationIdempotencyAndExpiredCrashBudget(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	p, _ := store.Problem(ctx, "run-widths", false)
+	w, _ := store.CreateWorkspace(ctx, "alice", p.ID, "python")
+	cmd := judging.Command{WorkspaceID: w.ID, Kind: "submit", Source: "snapshot"}
+	v, err := store.Admit(ctx, "alice", "a", cmd, "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := store.CancelWithKey(ctx, "alice", v.ID, "cancel")
+	if err != nil || first.State != "cancelled" {
+		t.Fatal(first, err)
+	}
+	repeat, err := store.CancelWithKey(ctx, "alice", v.ID, "cancel")
+	if err != nil || repeat.ID != first.ID || repeat.State != first.State {
+		t.Fatal(repeat, err)
+	}
+	next, err := store.Admit(ctx, "alice", "b", cmd, "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.CancelWithKey(ctx, "alice", next.ID, "cancel"); errorCode(err) != "idempotency_conflict" {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		job, e := store.Claim(ctx)
+		if e != nil || job.JobID == "" {
+			t.Fatal(job, e)
+		}
+		if _, e = store.Pool.Exec(ctx, "UPDATE execution_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1", job.JobID); e != nil {
+			t.Fatal(e)
+		}
+	}
+	job, err := store.Claim(ctx)
+	if err != nil || job.JobID != "" {
+		t.Fatal(job, err)
+	}
+	got, _ := store.Submission(ctx, "alice", next.ID)
+	if got.State != "failed" || got.Score != nil {
+		t.Fatal(got)
+	}
+}
+func TestGlobalBackpressureAndCustomValidation(t *testing.T) {
+	store := testStore(t)
+	ctx := context.Background()
+	p, _ := store.Problem(ctx, "run-widths", false)
+	w, _ := store.CreateWorkspace(ctx, "alice", p.ID, "python")
+	cmd := judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "source", CustomCases: []problems.Case{{Args: nil}}}
+	if _, err := store.Admit(ctx, "alice", "malformed", cmd, "m"); errorCode(err) != "invalid_input" {
+		t.Fatal(err)
+	}
+	for i := 0; i < 200; i++ {
+		user := ID()
+		workspaceID, submissionID, jobID := ID(), ID(), ID()
+		_, err := store.Pool.Exec(ctx, `WITH u AS (INSERT INTO users(id,display_name) VALUES($1,'Load')), w AS (INSERT INTO workspaces(id,owner_id,problem_version_id,language,source) VALUES($2,$1,$3,'python','')), s AS (INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($4,$1,$2,'run','','hash','queued','[]')) INSERT INTO execution_jobs(id,submission_id) VALUES($5,$4)`, user, workspaceID, p.ID, submissionID, jobID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd.CustomCases = nil
+	if _, err := store.Admit(ctx, "alice", "pressure", cmd, "p"); errorCode(err) != "queue_saturated" {
+		t.Fatal(err)
 	}
 }

@@ -28,7 +28,9 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		if hash != bodyHash {
 			return judging.Submission{}, failure("idempotency_conflict", 409, "Key was used for a different command")
 		}
-		return s.submission(ctx, tx, owner, prior)
+		v, e := s.submission(ctx, tx, owner, prior)
+		v.State = "queued"
+		return v, e
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, err
@@ -135,6 +137,9 @@ func (s *Store) Submission(ctx context.Context, owner, id string) (judging.Submi
 	return s.submission(ctx, s.Pool, owner, id)
 }
 func (s *Store) Cancel(ctx context.Context, owner, id string) (judging.Submission, error) {
+	return s.CancelWithKey(ctx, owner, id, "")
+}
+func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judging.Submission, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return judging.Submission{}, err
@@ -142,6 +147,22 @@ func (s *Store) Cancel(ctx context.Context, owner, id string) (judging.Submissio
 	defer tx.Rollback(ctx)
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740020)"); err != nil {
 		return judging.Submission{}, err
+	}
+	if key != "" {
+		var prior string
+		var response []byte
+		e := tx.QueryRow(ctx, "SELECT submission_id,response FROM cancellation_idempotency WHERE owner_id=$1 AND key=$2 AND expires_at>clock_timestamp()", owner, key).Scan(&prior, &response)
+		if e == nil {
+			if prior != id {
+				return judging.Submission{}, failure("idempotency_conflict", 409, "Key was used for a different cancellation")
+			}
+			var v judging.Submission
+			e = json.Unmarshal(response, &v)
+			return v, e
+		}
+		if !errors.Is(e, pgx.ErrNoRows) {
+			return judging.Submission{}, e
+		}
 	}
 	var state string
 	err = tx.QueryRow(ctx, "SELECT state FROM submissions WHERE id::text=$1 AND owner_id=$2 FOR UPDATE", id, owner).Scan(&state)
@@ -168,9 +189,15 @@ func (s *Store) Cancel(ctx context.Context, owner, id string) (judging.Submissio
 	if err != nil {
 		return v, err
 	}
+	if key != "" {
+		encoded, _ := json.Marshal(v)
+		if _, err = tx.Exec(ctx, "INSERT INTO cancellation_idempotency(owner_id,key,submission_id,response,expires_at) VALUES($1,$2,$3,$4,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET submission_id=EXCLUDED.submission_id,response=EXCLUDED.response,expires_at=EXCLUDED.expires_at", owner, key, id, encoded); err != nil {
+			return v, err
+		}
+	}
 	return v, tx.Commit(ctx)
 }
 func (s *Store) Cleanup(ctx context.Context) error {
-	_, err := s.Pool.Exec(ctx, "DELETE FROM execution_idempotency WHERE expires_at < clock_timestamp(); UPDATE submissions SET source='',result=NULL WHERE admitted_at < clock_timestamp()-interval '30 days' AND state NOT IN ('queued','running'); DELETE FROM draft_versions WHERE saved_at < clock_timestamp()-interval '30 days'")
+	_, err := s.Pool.Exec(ctx, "DELETE FROM execution_idempotency WHERE expires_at < clock_timestamp(); DELETE FROM cancellation_idempotency WHERE expires_at < clock_timestamp(); UPDATE submissions SET source='',result=NULL WHERE admitted_at < clock_timestamp()-interval '30 days' AND state NOT IN ('queued','running'); DELETE FROM draft_versions WHERE saved_at < clock_timestamp()-interval '30 days'")
 	return err
 }

@@ -111,7 +111,7 @@ func (s *Store) Problem(ctx context.Context, value string, byID bool) (problems.
 	return p, err
 }
 func (s *Store) Problems(ctx context.Context) ([]problems.Problem, error) {
-	rows, err := s.Pool.Query(ctx, "SELECT public FROM problem_versions ORDER BY slug")
+	rows, err := s.Pool.Query(ctx, "SELECT DISTINCT ON(slug) public FROM problem_versions ORDER BY slug,version DESC")
 	if err != nil {
 		return nil, err
 	}

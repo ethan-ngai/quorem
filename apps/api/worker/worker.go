@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
@@ -18,6 +19,11 @@ type Fixture = problems.Fixture
 func Normalize(typ string, value []byte) ([]byte, error) { return problems.Normalize(typ, value) }
 func LoadFixtures(dir string) ([]Fixture, error)         { return problems.LoadFixtures(dir) }
 
+var ErrTeardown = errors.New("sandbox teardown unconfirmed")
+
+type attemptReaper interface {
+	TeardownAttempt(context.Context, string) error
+}
 type Service struct{ store *postgres.Store }
 
 func Open(ctx context.Context, url string) (*Service, error) {
@@ -39,6 +45,23 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+			attempts, e := s.store.ExpiredAttempts(ctx)
+			if e != nil {
+				log.Print("Queue reconciliation unavailable")
+				continue
+			}
+			safe := true
+			for _, attempt := range attempts {
+				reaper, ok := engine.(attemptReaper)
+				if !ok || reaper.TeardownAttempt(ctx, attempt) != nil {
+					safe = false
+					break
+				}
+			}
+			if !safe {
+				log.Print("Sandbox reconciliation unavailable")
+				continue
+			}
 			job, err := s.store.Claim(ctx)
 			if err != nil {
 				log.Print("Queue claim unavailable")
@@ -83,6 +106,9 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 	completion, err := engine.Execute(ctx, j)
 	close(done)
 	<-watchDone
+	if errors.Is(err, ErrTeardown) {
+		return
+	}
 	if err != nil {
 		completion = execution.Completion{SubmissionID: j.SubmissionID, AttemptID: j.AttemptID, EngineFailure: "Execution engine unavailable"}
 	}

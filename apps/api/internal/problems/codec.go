@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"strings"
 )
@@ -33,6 +34,10 @@ func Normalize(typ string, data json.RawMessage) (json.RawMessage, error) {
 	if err := decoder.Decode(&v); err != nil {
 		return nil, fmt.Errorf("malformed value")
 	}
+	var extra any
+	if decoder.Decode(&extra) != io.EOF {
+		return nil, fmt.Errorf("malformed value")
+	}
 	n := 0
 	norm, err := normalize(typ, v, 0, &n)
 	if err != nil {
@@ -44,7 +49,9 @@ func normalize(typ string, v any, depth int, count *int) (any, error) {
 	if depth > 100 {
 		return nil, fmt.Errorf("nesting exceeds 100")
 	}
-	*count++
+	if depth > 0 {
+		*count++
+	}
 	if *count > 10000 {
 		return nil, fmt.Errorf("collection exceeds 10000 elements")
 	}
@@ -67,6 +74,14 @@ func normalize(typ string, v any, depth int, count *int) (any, error) {
 		}
 		if len(a) > 10000 {
 			return nil, fmt.Errorf("too many nodes")
+		}
+		if typ == "TreeNode" {
+			for len(a) > 0 && a[len(a)-1] == nil {
+				a = a[:len(a)-1]
+			}
+			if len(a) == 0 {
+				return nil, nil
+			}
 		}
 		if typ == "TreeNode" && a[0] == nil {
 			return nil, fmt.Errorf("null root with children")

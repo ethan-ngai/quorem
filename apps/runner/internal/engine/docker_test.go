@@ -6,6 +6,8 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"os"
+	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -105,5 +107,80 @@ class Solution:
 	data, _ := json.Marshal(result)
 	if result.Verdict != execution.Accepted || result.Score.Passed != 20 || len(result.PublicCaseResults) > 0 || len(result.SafeDiagnostics) > 0 {
 		t.Fatalf("isolation/freshness/redaction failed %s", data)
+	}
+}
+func TestDockerIncorrectCorpusAndCompletePartialScore(t *testing.T) {
+	fixtures := dockerTests(t)
+	for _, f := range fixtures {
+		t.Run(f.Problem.Slug, func(t *testing.T) {
+			value := "None"
+			switch f.Problem.Signature.ReturnType {
+			case "list<int>":
+				value = "[]"
+			case "str":
+				value = "''"
+			case "int":
+				value = "0"
+			}
+			source := "class Solution:\n def " + f.Problem.Signature.MethodName + "(self, *args): return " + value
+			result := executeFixture(t, f, source, "submit", f.HiddenCases)
+			if result.Verdict == execution.Accepted || result.Score == nil || result.Score.Total != 20 || result.Score.Passed >= 20 {
+				t.Fatal(result)
+			}
+		})
+	}
+	var f worker.Fixture
+	for _, candidate := range fixtures {
+		if candidate.Problem.Slug == "run-widths" {
+			f = candidate
+		}
+	}
+	source := f.ReferenceSource + "\nclass Solution:\n def runWidths(self, values):\n  if not values: raise Exception('secret')\n  return solve(values)\n"
+	result := executeFixture(t, f, source, "submit", f.HiddenCases)
+	if result.Verdict != execution.RuntimeError || result.Score.Passed != 19 || result.Score.Total != 20 {
+		t.Fatal(result)
+	}
+}
+func TestDockerCancellationTearsDown(t *testing.T) {
+	f := dockerTests(t)[0]
+	ctx, cancel := context.WithCancel(context.Background())
+	docker := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		return worker.Spec{Source: "class Solution:\n def levelSpreads(self, root):\n  while True: pass", Kind: "run", Fixture: f, Cases: f.Problem.Examples[:1]}, nil
+	}}
+	attempt := "cancel-" + time.Now().Format("150405.000000000")
+	job := execution.Job{SubmissionID: "cancel", AttemptID: attempt, RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
+	go func() { time.Sleep(300 * time.Millisecond); cancel() }()
+	if _, err := docker.Execute(ctx, job); err == nil {
+		t.Fatal("cancellation ignored")
+	}
+	if err := exec.Command("docker", "inspect", "quorem-"+attempt+"-0").Run(); err == nil {
+		t.Fatal("cancelled container survived")
+	}
+}
+func TestDockerForgedProtocolIsContestantFailure(t *testing.T) {
+	f := dockerTests(t)[0]
+	for _, frame := range []string{`{"status":"accepted","actual":[]}`, `{"status":"executed","actual":[]}garbage`} {
+		source := "import os\nos.write(1," + strconv.Quote(frame) + ".encode())\nos._exit(0)"
+		result := executeFixture(t, f, source, "run", f.Problem.Examples[:1])
+		if result.Verdict != execution.InvalidOutput || result.EngineFailure != "" {
+			t.Fatal(result)
+		}
+	}
+}
+func TestDockerReapsAbandonedAttempt(t *testing.T) {
+	dockerTests(t)
+	attempt := "abandoned-" + time.Now().Format("150405.000000000")
+	name := "quorem-" + attempt + "-0"
+	if err := exec.Command("docker", "run", "-d", "--name", name, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", "268435456", "--pids-limit", "16", "--entrypoint", "python", "quorem-python:local", "-c", "while True: pass").Run(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { exec.Command("docker", "rm", "-f", name).Run() })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := (&Docker{}).TeardownAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+	if exec.Command("docker", "inspect", name).Run() == nil {
+		t.Fatal("abandoned sandbox survived")
 	}
 }

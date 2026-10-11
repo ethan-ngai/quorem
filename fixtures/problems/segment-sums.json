@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "8a341d56-f8ba-5500-912b-e0e3a46e910d",
+    "id": "e0c53f32-6b48-5d8a-861b-7ea9bb227f43",
     "slug": "segment-sums",
-    "version": "1",
+    "version": "2",
     "title": "Segment Sums",
     "difficulty": "medium",
     "tags": [
@@ -12,13 +12,39 @@
     "examples": [
       {
         "args": [
-          null
+          [
+            1,
+            2,
+            0,
+            4
+          ]
         ],
-        "expected": null
+        "expected": [
+          3,
+          4
+        ]
       },
       {
         "args": [
-          []
+          [
+            0,
+            2,
+            3,
+            0,
+            0,
+            -1,
+            1,
+            0
+          ]
+        ],
+        "expected": [
+          5,
+          0
+        ]
+      },
+      {
+        "args": [
+          null
         ],
         "expected": null
       }

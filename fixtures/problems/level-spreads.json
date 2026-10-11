@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "9c6f658f-c289-5d04-a796-b5f54d07faf9",
+    "id": "27b0548e-bcb0-59c0-8de7-2c18016255ea",
     "slug": "level-spreads",
-    "version": "1",
+    "version": "2",
     "title": "Level Spreads",
     "difficulty": "medium",
     "tags": [
@@ -13,13 +13,38 @@
     "examples": [
       {
         "args": [
-          null
+          [
+            5,
+            2,
+            9,
+            1,
+            4,
+            null,
+            7
+          ]
         ],
-        "expected": []
+        "expected": [
+          0,
+          7,
+          6
+        ]
       },
       {
         "args": [
-          []
+          [
+            -2,
+            -5,
+            4
+          ]
+        ],
+        "expected": [
+          0,
+          9
+        ]
+      },
+      {
+        "args": [
+          null
         ],
         "expected": []
       }

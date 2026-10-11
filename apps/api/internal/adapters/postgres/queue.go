@@ -22,10 +22,11 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 	var j execution.Job
 	var data []byte
 	var cancelled bool
-	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,p.public,s.cancel_requested
+	var attempts int
+	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,p.public,s.cancel_requested,j.attempts
  FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id
  WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running')
- ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &data, &cancelled)
+ ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &data, &cancelled, &attempts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, nil
 	}
@@ -37,6 +38,16 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 			return j, err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE submissions SET state='cancelled',updated_at=clock_timestamp() WHERE id=$1", j.SubmissionID); err != nil {
+			return j, err
+		}
+		return execution.Job{}, tx.Commit(ctx)
+	}
+	if attempts >= 3 {
+		encoded, _ := json.Marshal(judging.Submission{InfrastructureError: "Judge unavailable"})
+		if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET finished=true,attempt_id=NULL,lease_until=NULL WHERE id=$1", j.JobID); err != nil {
+			return j, err
+		}
+		if _, err = tx.Exec(ctx, "UPDATE submissions SET state='failed',result=$2,updated_at=clock_timestamp() WHERE id=$1", j.SubmissionID, encoded); err != nil {
 			return j, err
 		}
 		return execution.Job{}, tx.Commit(ctx)
@@ -157,4 +168,21 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func (s *Store) ExpiredAttempts(ctx context.Context) ([]string, error) {
+	rows, err := s.Pool.Query(ctx, "SELECT attempt_id FROM execution_jobs WHERE NOT finished AND attempt_id IS NOT NULL AND lease_until<clock_timestamp()")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	attempts := []string{}
+	for rows.Next() {
+		var attempt string
+		if err = rows.Scan(&attempt); err != nil {
+			return nil, err
+		}
+		attempts = append(attempts, attempt)
+	}
+	return attempts, rows.Err()
 }

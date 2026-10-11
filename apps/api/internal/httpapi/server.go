@@ -238,7 +238,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.Header.Get("Idempotency-Key")
 	custom, _ := json.Marshal(body.CustomCases)
-	if key == "" || len(key) > 200 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > 65536 || len(body.CustomCases) > 20 {
+	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > 65536 || len(body.CustomCases) > 20 {
 		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid execution command", Status: 400})
 		return
 	}
@@ -259,11 +259,16 @@ func (s *Server) submission(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, v)
 }
 func (s *Server) cancel(w http.ResponseWriter, r *http.Request) {
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" || len(key) > 128 {
+		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Idempotency-Key required", Status: 400})
+		return
+	}
 	var body struct{}
 	if r.ContentLength > 0 && !s.decode(w, r, &body, 1024) {
 		return
 	}
-	v, e := s.Store.Cancel(r.Context(), owner(r), r.PathValue("id"))
+	v, e := s.Store.CancelWithKey(r.Context(), owner(r), r.PathValue("id"), key)
 	if e != nil {
 		s.err(w, r, e)
 		return
