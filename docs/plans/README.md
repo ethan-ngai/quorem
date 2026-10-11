@@ -34,6 +34,8 @@ Status: review-ready planning baseline. Confirmed requirements are binding; engi
 | [Operating defaults](operating-defaults.md) | Resource/latency limits, retention, admission |
 | [Delivery](delivery.md) | Local environment, AWS evaluation, CI/deployment |
 | [Work plan](work-plan.md) | Dependencies, tickets, agent ownership, acceptance |
+| [GitHub tickets](tickets.md) | Published implementation issues and predecessor links |
 | [Decisions](decisions.md) | Interview ledger and remaining questions |
+| [Planning evidence](evidence.md) | Document checks, independent review, runtime boundaries |
 
 Implement dependency-ordered tickets after this planning phase. Freeze schemas/EditorView seam before parallel domain work. Capability/security/cost spikes settle empirical choices without requiring more routine preference questions. Marketing follows the working editor and local 1v1.
