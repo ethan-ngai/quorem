@@ -22,6 +22,7 @@ export function parseNumericExpression(source: string): number {
       if (!token || !/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(token))
         throw new Error("Enter a numeric expression.");
       value = Number(token);
+      if (!Number.isFinite(value)) throw new Error("Enter a finite number.");
       if (Number.isInteger(value) && !Number.isSafeInteger(value))
         throw new Error("Integer exceeds exact arithmetic range.");
     }

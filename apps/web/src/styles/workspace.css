@@ -1598,3 +1598,10 @@ kbd {
     font-size: 12px;
   }
 }
+
+.statement-math .katex {
+  font-size: 1.05em;
+}
+.statement-math {
+  max-width: 100%;
+}

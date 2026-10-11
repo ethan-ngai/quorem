@@ -1,71 +1,123 @@
-import { innerType, parseTypedField } from "../customCases";
-
-function formatGuide(type: string): string {
-  if (type === "str") return "Plain text; no quotes.";
-  if (type === "int") return "Integer from -2,147,483,648 to 2,147,483,647.";
-  if (type === "float") return "Finite number, e.g. 1.25.";
-  if (type === "bool") return "Boolean value.";
-  if (type === "ListNode") return "Values in order, e.g. [1, 2, 3]. Empty: [] or null.";
-  if (type === "TreeNode")
-    return "Level order with null gaps, e.g. [1, null, 2, 3]. Empty: [] or null.";
-  const optional = innerType(type, "optional");
-  if (optional)
-    return `JSON ${optional} or null${optional === "str" ? "; strings need double quotes" : ""}.`;
-  if (innerType(type, "list"))
-    return `JSON array of ${innerType(type, "list")}, e.g. ${innerType(innerType(type, "list")!, "list") ? "[[1, 2], [3]]" : innerType(type, "list") === "str" ? '["a", "b"]' : "[1, 2, 3]"}.`;
-  return "JSON value; requires a registered server codec.";
-}
+import { useState } from "react";
+import type { InputPresetConfig } from "@quorem/contracts";
+import { innerType } from "../customCases";
+import { resolveInputPreset } from "../inputPresets";
 
 export function TypedCaseInput({
   id,
   name,
   type,
+  input,
   value,
   onChange,
 }: {
   id: string;
   name: string;
   type: string;
+  input?: InputPresetConfig;
   value: string;
   onChange: (value: string) => void;
 }) {
-  let error: string | undefined;
+  const [touched, setTouched] = useState(false);
+  const [rejected, setRejected] = useState<string>();
+  let preset: ReturnType<typeof resolveInputPreset>;
   try {
-    parseTypedField(type, value);
-  } catch (cause) {
-    error = (cause as Error).message;
+    preset = resolveInputPreset(type, input);
+  } catch {
+    return (
+      <div className="typed-case-field">
+        <label>{name}</label>
+        <p className="typed-case-error">This input preset is unavailable.</p>
+      </div>
+    );
   }
-  const descriptionId = `${id}-format`;
+  const optional = innerType(type, "optional");
+  const empty = optional !== undefined && value.trim() === "null";
+  let controlType = type;
+  while (innerType(controlType, "optional")) controlType = innerType(controlType, "optional")!;
+  const control = optional ? resolveInputPreset(controlType, input) : preset;
+  const framed = ["sequence", "matrix", "tree", "linkedList"].includes(control.kind);
+  let error = rejected;
+  if (touched && !error) {
+    try {
+      preset.parse(value);
+    } catch (cause) {
+      error = (cause as Error).message;
+    }
+  }
   const errorId = `${id}-error`;
   const props = {
     id,
-    value,
+    value: preset.toEditorSource(value),
+    placeholder: input?.placeholder,
     "aria-invalid": !!error,
-    "aria-describedby": `${descriptionId}${error ? ` ${errorId}` : ""}`,
-    onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+    "aria-describedby": error ? errorId : undefined,
+    onBlur: () => setTouched(true),
+    onChange: (event: { target: { value: string } }) => {
+      const source = event.target.value;
+      if (!preset.accepts(source)) {
+        setRejected("This input does not accept those characters.");
+        return;
+      }
+      setRejected(undefined);
+      onChange(preset.fromEditorSource(source));
+    },
   };
   return (
     <div className="typed-case-field">
-      <label htmlFor={id}>
-        {name} <span>{type}</span>
-      </label>
-      {type === "bool" ? (
+      <div className="typed-case-label">
+        <label htmlFor={id}>
+          {name} <span>{type}</span>
+        </label>
+        {optional && (
+          <button
+            type="button"
+            className="quiet-button"
+            aria-label={empty ? `Set ${name} value` : `Set ${name} to null`}
+            onClick={() => {
+              setTouched(false);
+              setRejected(undefined);
+              onChange(
+                empty
+                  ? preset.fromEditorSource(
+                      control.kind === "number" ? "0" : control.kind === "boolean" ? "false" : "",
+                    )
+                  : "null",
+              );
+            }}
+          >
+            {empty ? "Set value" : "Use null"}
+          </button>
+        )}
+      </div>
+      {empty ? (
+        <code className="typed-null">null</code>
+      ) : control.kind === "boolean" ? (
         <select {...props}>
           <option value="false">false</option>
           <option value="true">true</option>
         </select>
-      ) : type === "int" || type === "float" ? (
-        <input
-          {...props}
-          type="text"
-          inputMode={type === "int" ? "numeric" : "decimal"}
-          autoComplete="off"
-          spellCheck={false}
-        />
       ) : (
-        <textarea {...props} rows={type === "str" ? 2 : 3} spellCheck={false} />
+        <div className={framed ? "typed-collection" : "typed-control"}>
+          {framed && (
+            <span className="collection-delimiter" aria-hidden="true">
+              [
+            </span>
+          )}
+          {control.kind === "number" ||
+          ((control.kind === "sequence" || control.kind === "linkedList") &&
+            (input?.rows ?? 1) === 1) ? (
+            <input {...props} type="text" autoComplete="off" spellCheck={false} />
+          ) : (
+            <textarea {...props} rows={input?.rows ?? (framed ? 2 : 1)} spellCheck={false} />
+          )}
+          {framed && (
+            <span className="collection-delimiter" aria-hidden="true">
+              ]
+            </span>
+          )}
+        </div>
       )}
-      <p id={descriptionId}>{formatGuide(type)}</p>
       {error && (
         <p id={errorId} className="typed-case-error">
           {error}

@@ -15,7 +15,6 @@
   gap: 4px;
 }
 .typed-case-field label,
-.expected-toggle,
 .custom-case-heading,
 .case-stale {
   font-size: 12px;
@@ -54,13 +53,54 @@
   align-items: center;
   justify-content: space-between;
 }
-.expected-toggle {
+.typed-case-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
 }
-.expected-toggle input {
-  accent-color: var(--color-primary);
+.typed-collection {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+}
+.typed-collection:focus-within {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.typed-collection input,
+.typed-collection textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.typed-collection input:focus-visible,
+.typed-collection textarea:focus-visible {
+  outline: none;
+}
+.collection-delimiter,
+.typed-null {
+  color: var(--color-text-secondary);
+  font: 12px/1.5 var(--font-code);
+}
+.expected-field {
+  position: relative;
+}
+.remove-expected {
+  position: absolute;
+  inset: 0 0 auto auto;
+  font-size: 11px;
+}
+.add-expected {
+  justify-self: start;
+  font-size: 12px;
 }
 .case-run-output {
   display: grid;

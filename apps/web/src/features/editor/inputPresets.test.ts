@@ -26,6 +26,7 @@ describe("typed input presets", () => {
       "1/0",
       "2**2048",
       "1e400",
+      "1e400**0",
       "(".repeat(70) + "1" + ")".repeat(70),
     ])
       expect(() => parseTypedField("float", source)).toThrow();

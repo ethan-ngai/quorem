@@ -950,9 +950,7 @@
       "InputPresetConfig": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "preset"
-        ],
+        "required": ["preset"],
         "properties": {
           "preset": {
             "type": "string",

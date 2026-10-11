@@ -1,12 +1,12 @@
 {
   "problem": {
-    "id": "130d41b5-9a4b-5471-b7b9-27669601af66",
+    "id": "1b3361b0-1fa0-5597-81e4-913b0318ac45",
     "slug": "split-load",
-    "version": "3",
+    "version": "4",
     "title": "Split Load",
     "difficulty": "hard",
     "tags": ["arrays", "binary search"],
-    "statementMarkdown": "Split `loads` into exactly `groups` nonempty contiguous groups. Minimize the largest group sum and return that minimum. Loads are nonnegative, `1 <= groups <= len(loads)`, and the total fits signed 32-bit.",
+    "statementMarkdown": "Split `loads` into exactly `groups` nonempty contiguous groups. Minimize the largest group sum and return that minimum. Loads are nonnegative, $1 \\le$ `groups` $\\le$ `len(loads)`, and $0 \\le$ `sum(loads)` $\\le 2^{31} - 1$.",
     "examples": [
       {
         "args": [[7, 2, 5, 10, 8], 2],

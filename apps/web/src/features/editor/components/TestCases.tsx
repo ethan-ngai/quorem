@@ -139,12 +139,13 @@ export function TestCases({
                 Remove
               </button>
             </div>
-            {problem.signature.parameters.map(({ name, type }, index) => (
+            {problem.signature.parameters.map(({ name, type, input }, index) => (
               <TypedCaseInput
                 key={`${draft.id}:${name}`}
                 id={`custom-${draft.id}-${index}`}
                 name={name}
                 type={type}
+                input={input}
                 value={draft.args[index] ?? ""}
                 onChange={(value) =>
                   updateDraft({
@@ -153,22 +154,31 @@ export function TestCases({
                 }
               />
             ))}
-            <label className="expected-toggle">
-              <input
-                type="checkbox"
-                checked={draft.expectedEnabled}
-                onChange={(event) => updateDraft({ expectedEnabled: event.target.checked })}
-              />
-              Compare expected output
-            </label>
-            {draft.expectedEnabled && (
-              <TypedCaseInput
-                id={`custom-${draft.id}-expected`}
-                name="Expected output"
-                type={problem.signature.returnType}
-                value={draft.expected}
-                onChange={(expected) => updateDraft({ expected })}
-              />
+            {draft.expectedEnabled ? (
+              <div className="expected-field">
+                <button
+                  type="button"
+                  className="quiet-button remove-expected"
+                  onClick={() => updateDraft({ expectedEnabled: false })}
+                >
+                  Remove expected output
+                </button>
+                <TypedCaseInput
+                  id={`custom-${draft.id}-expected`}
+                  name="Expected output"
+                  type={problem.signature.returnType}
+                  value={draft.expected}
+                  onChange={(expected) => updateDraft({ expected })}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="quiet-button add-expected"
+                onClick={() => updateDraft({ expectedEnabled: true })}
+              >
+                + Add expected output
+              </button>
             )}
           </>
         ) : example ? (

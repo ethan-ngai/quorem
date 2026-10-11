@@ -14,12 +14,13 @@ Verified 2026-10-11. Builds on the solo checkpoint. Sol 6.1 handled match author
 - Python intelligence disposes closed transports and pending requests, preserves document notification ordering, resolves completion documentation lazily, and reconnects after repeated request timeouts. Healthy connection chatter is removed; outages retain recovery controls.
 - Owner-scoped mutation retry keys preserve exact create payloads after uncertain responses; invitations survive reload. Source recovery, route/identity fencing and immutable problem-version loading protect drafts and execution context.
 
+- Custom input presets provide fixed collection delimiters, bounded numeric arithmetic, nullable controls and question-level presentation overrides. Routine hints and expected-output checkboxes are removed. Inline Markdown and KaTeX separate machine references from mathematical quantities; malformed markup remains readable.
 - Parameter-aware constraints use ranges, comparisons, sequence properties and prose fallback. API admission and browser feedback share the typed contract. Examples use strict signature binding and preserve explanations separately from execution cases; immutable version upgrades retain earlier drafts and submissions. See [problem metadata](problem-metadata.md).
 
 ## Evidence
 
 - `make dev`: complete local stack starts without AWS credentials; database and existing drafts survive restart.
-- `make check`, `make build`: generated contracts, formatting, TypeScript, Go/vet and frontend checks pass. 48 frontend tests and two live-service integration tests pass; they cover recovery, version ordering, execution guards, statement rendering, result privacy and editor scheme/grammar/undo behavior.
+- `make check`, `make build`: generated contracts, formatting, TypeScript, Go/vet and frontend checks pass. 63 frontend tests and two live-service integration tests pass; they cover recovery, version ordering, execution guards, statement rendering, result privacy and editor scheme/grammar/undo behavior.
 - `QUOREM_TEST_DATABASE_URL=… QUOREM_TEST_DOCKER=1 go test -race ./...`: real PostgreSQL and Docker suites pass. HTTP tests use isolated schemas; adapter tests use a dedicated test database.
 - Database tests cover reservation/replay races, version selection, strict deadline admission, timeout scores/draws, uncertain work, restart/late-completion cutoff, forfeit and frozen progress.
 - WebSocket tests verify membership/origin authorization, private payloads, rejection of browser publication, durable outbox acknowledgement and outcome recovery after API restart.
@@ -36,4 +37,4 @@ Use `make dev`, open http://localhost:5173, create Private 1v1, and open its inv
 
 Invite hashes are durable; create-response replay encrypts the token using `QUOREM_INVITE_KEY` (base64url, 32 bytes) or a generated owner-only local cache file. Preserve that key across restarts. Key loss invalidates old create-response replays; existing invite links still join through their stored hashes.
 
-Realtime presence is process-local and advisory. Shared/cloud fanout remains an adapter milestone. Public Better Auth/Cognito, Aurora, AppSync Events, Terraform/deployment and Astro remain later tickets. Public sandbox approval, the $100 AWS budget and the 40-session load target remain unvalidated. Initial web bundle is about 946 kB minified / 310 kB gzip; split editor dependencies before public delivery.
+Realtime presence is process-local and advisory. Shared/cloud fanout remains an adapter milestone. Public Better Auth/Cognito, Aurora, AppSync Events, Terraform/deployment and Astro remain later tickets. Public sandbox approval, the $100 AWS budget and the 40-session load target remain unvalidated. Initial web bundle is about 1,278 kB minified / 407 kB gzip; split editor dependencies before public delivery.
