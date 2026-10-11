@@ -14,7 +14,7 @@ import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch, leaveMatch, setReady, updateMatchSettings } from "./api";
 import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
-import { CopyFeedbackIcon } from "./CopyFeedbackIcon";
+import { InvitationActions } from "./InvitationActions";
 import { ReadinessIcon } from "./ReadinessIcon";
 import { ReadyActionIcon } from "./ReadyActionIcon";
 import { shareInvitation } from "./shareInvitation";
@@ -189,6 +189,24 @@ export function MatchPage({ matchId }: { matchId: string }) {
       setSharing(false);
     }
   };
+  const copyInvitation = async () => {
+    if (!inviteUrl) return;
+    setActionError(undefined);
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+    } catch {
+      setActionError("Copy unavailable. Select and copy the link.");
+    }
+  };
+  const invitationActions = (
+    <InvitationActions
+      copied={copied}
+      sharing={sharing}
+      onCopy={() => void copyInvitation()}
+      onShare={() => void inviteOpponent()}
+    />
+  );
   const concession = (
     <ConcessionDialog
       open={conceding}
@@ -317,18 +335,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     <strong>Open seat</strong>
                     <span>Invite your opponent</span>
                   </div>
-                  {inviteUrl && host && (
-                    <Tooltip content="Share invitation, or copy if sharing is unavailable">
-                      <button
-                        className={`button button-secondary seat-invite ${copied ? "is-copied" : ""}`}
-                        disabled={sharing}
-                        onClick={() => void inviteOpponent()}
-                      >
-                        <Icon name={copied ? "submit" : "share"} />
-                        {copied ? "Copied" : "Invite"}
-                      </button>
-                    </Tooltip>
-                  )}
+                  {inviteUrl && host && invitationActions}
                 </div>
               )}
             </div>
@@ -389,32 +396,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     readOnly
                     onFocus={(event) => event.currentTarget.select()}
                   />
-                  <Tooltip content={copied ? "Copied" : "Copy invitation"}>
-                    <button
-                      className={`icon-button copy-invitation ${copied ? "is-copied" : ""}`}
-                      aria-label={copied ? "Copied" : "Copy invitation"}
-                      onClick={() =>
-                        void navigator.clipboard
-                          .writeText(inviteUrl)
-                          .then(() => setCopied(true))
-                          .catch(() =>
-                            setActionError("Copy unavailable. Select and copy the link."),
-                          )
-                      }
-                    >
-                      <CopyFeedbackIcon copied={copied} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip content="Share invitation, or copy if sharing is unavailable">
-                    <button
-                      className="icon-button"
-                      aria-label="Share invitation"
-                      disabled={sharing}
-                      onClick={() => void inviteOpponent()}
-                    >
-                      <Icon name="share" />
-                    </button>
-                  </Tooltip>
+                  {invitationActions}
                 </div>
               </div>
             )}

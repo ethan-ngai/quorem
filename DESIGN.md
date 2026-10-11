@@ -159,6 +159,6 @@ Competitive screens reuse the workspace scale: 48px navigation, 24px lobby headi
 
 Lobby headings name the game mode without instructional subtitles. Settings apply immediately and reset readiness through the server. Readiness uses tooltip-labeled muted clock/green circle-check icons; leave actions are red. Copy feedback morphs to a green check for two seconds, respecting reduced motion.
 
-Invitation links pair Copy and native Share icon actions. The open seat includes a compact Invite button using the same share flow; unsupported sharing copies the link with existing green feedback. Cancelling the share sheet is silent; failures retain manual copy recovery.
+Invitation links pair Copy and native Share icon actions. The open seat mirrors the identical Copy/Share icon pair, tooltips and synchronized copy feedback; unsupported sharing copies the link with existing green feedback. Cancelling the share sheet is silent; failures retain manual copy recovery.
 
 Showdown is the canonical mode: database/API ID `showdown`, display name Showdown, monochrome [Lucide Swords](https://lucide.dev/icons/swords) icon. Lobby Ready/Cancel share a fixed 104px action width; the check morphs into a cross and back, while overlaid labels crossfade and move 6px in opposite directions over 180ms. Reduced motion removes displacement. Readiness morphs clock hands into a green check and back in 180ms, without displacement or reduced-motion animation. Waiting text follows opponent presence first, then unready participants.

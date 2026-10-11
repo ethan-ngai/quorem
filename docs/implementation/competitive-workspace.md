@@ -8,7 +8,7 @@ Issue #26 updates the Showdown flow.
 - Ready/Cancel retain their dimensions; readiness morphs reversibly. Waiting text follows opponent presence/readiness, then the current player.
 - Centered, animated match creation; segmented difficulty and Radix duration selection.
 - Compact lobby with side-by-side players, icon readiness and animated invitation copying. Settings apply immediately; changed rules reset readiness.
-- Invitation Share and open-seat Invite use Web Share from the click gesture, with clipboard fallback when unsupported. Cancellation is silent; Copy remains available. Native targets depend on the browser/device.
+- Matching Copy/Share icon pairs in the invitation and open seat use Web Share from the click gesture, with clipboard fallback when unsupported. Cancellation is silent; Copy remains available. Native targets depend on the browser/device.
 - In-match score, presence and remaining time share a compact bar above the editor. Forfeit requires confirmation.
 - One active competition per owner remains enforced by server reservations; multiple browser windows remain supported.
 - Browser-only drafts/history; see [migration and backup guidance](browser-drafts.md).

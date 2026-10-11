@@ -133,20 +133,22 @@
 .seat-readiness.is-ready {
   color: var(--color-success);
 }
-.seat-invite {
-  margin-left: auto;
+.invitation-actions,
+.competitive-seat > .invitation-actions {
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
-  gap: 6px;
+  gap: 8px;
 }
-.match-page .seat-invite.is-copied {
-  color: var(--color-success);
+.competitive-seat > .invitation-actions {
+  margin-left: auto;
 }
 @media (max-width: 520px) {
   .waiting-seat {
     flex-wrap: wrap;
     padding-block: 12px;
   }
-  .waiting-seat .seat-invite {
+  .waiting-seat .invitation-actions {
     margin-left: 0;
   }
 }
