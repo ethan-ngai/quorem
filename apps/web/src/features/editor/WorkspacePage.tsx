@@ -1,4 +1,6 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { workspaceShortcuts } from "./workspaceShortcuts";
 import { Tooltip } from "./components/Tooltip";
 import type {
   DevelopmentIdentity,
@@ -109,6 +111,7 @@ export function WorkspacePage({
   const sourceRef = useRef(source);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [localRecovery, setLocalRecovery] = useState<RecoverySnapshot>();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [customMode, setCustomMode] = useState(false);
   const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
   const [actionError, setActionError] = useState<string>();
@@ -373,25 +376,14 @@ export function WorkspacePage({
     if (await execution.submit()) setCustomMode(false);
   }, [execution.submit]);
 
-  useEffect(() => {
-    if (!shortcutsEnabled) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
-      const key = event.key.toLowerCase();
-      if (key === "s") {
-        event.preventDefault();
-        void saveNowRef.current();
-      } else if (key === "enter" && event.shiftKey) {
-        event.preventDefault();
-        void submit();
-      } else if (key === "enter") {
-        event.preventDefault();
-        void run();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [shortcutsEnabled, run, submit]);
+  const hotkeyOptions = {
+    enabled: shortcutsEnabled && !settingsOpen,
+    ignoreInputs: false,
+    requireReset: true,
+  };
+  useHotkey(workspaceShortcuts.run.binding, () => void run(), hotkeyOptions);
+  useHotkey(workspaceShortcuts.submit.binding, () => void submit(), hotkeyOptions);
+  useHotkey(workspaceShortcuts.save.binding, () => void saveNowRef.current(), hotkeyOptions);
 
   const recoverLocal = useCallback(async () => {
     if (
@@ -572,6 +564,7 @@ export function WorkspacePage({
           <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
 
           <WorkspaceSettings
+            onOpenChange={setSettingsOpen}
             identity={identity}
             onIdentityChange={(next) => void activeIdentityChanged(next)}
             theme={themePreference}
@@ -780,7 +773,7 @@ export function WorkspacePage({
                     Cancel run
                   </button>
                 )}
-              <Tooltip content="Run (Ctrl/Cmd+Enter)">
+              <Tooltip content="Run (Meta+Enter)">
                 <button
                   className="button button-secondary"
                   disabled={submissionBusy || !actionsEnabled}
@@ -790,7 +783,7 @@ export function WorkspacePage({
                   Run
                 </button>
               </Tooltip>
-              <Tooltip content="Submit (Ctrl/Cmd+Shift+Enter)">
+              <Tooltip content="Submit (Meta+Shift+Enter)">
                 <button
                   className="button button-primary"
                   disabled={submissionBusy || !actionsEnabled}
