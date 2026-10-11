@@ -18,7 +18,7 @@ TanStack Router owns URLs/navigation. TanStack Query owns remote snapshots and r
 6. Edits after dispatch do not alter that job; results identify the evaluated snapshot. Preserve source on errors.
 7. Recover completion by polling/snapshot after disconnect or reload. Prevent duplicate dispatch with idempotency.
 
-Browser draft keys include owner, immutable problem version and language; match drafts additionally include their private workspace ID. Practice drafts survive replacement server workspace IDs. Latest source uses synchronous browser storage; IndexedDB history retains 100 snapshots for 30 days. Other windows never replace the active buffer or require takeover; latest local write resumes on reload. Preserve empty drafts, old recovery data, identity isolation and newer edits during restore. No server draft endpoints or draft tables.
+Browser draft keys include owner, immutable problem version and language; match drafts additionally include their private workspace ID. Practice drafts survive replacement server workspace IDs. Latest source writes coalesce after cursor paint, with synchronous flush on page closure, context changes and explicit save; IndexedDB history retains 100 snapshots for 30 days. Other windows never replace the active buffer or require takeover; latest local write resumes on reload. Preserve empty drafts, old recovery data, identity isolation and newer edits during restore. No server draft endpoints or draft tables.
 
 ## States
 
