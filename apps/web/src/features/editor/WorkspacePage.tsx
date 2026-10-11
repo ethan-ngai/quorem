@@ -545,7 +545,7 @@ export function WorkspacePage({
             </button>
           </nav>
           <div className="topbar-spacer" />
-          <SaveIndicator state={saveState} />
+          <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
           <div className="run-actions">
             {submissionBusy &&
               !admissionPending &&
