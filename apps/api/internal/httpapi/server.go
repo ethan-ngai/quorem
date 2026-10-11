@@ -17,9 +17,10 @@ import (
 )
 
 type Server struct {
-	Store  *postgres.Store
-	Events *realtime.Memory
-	Local  bool
+	Store    *postgres.Store
+	Events   realtime.PubSub
+	Presence realtime.Presence
+	Local    bool
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
