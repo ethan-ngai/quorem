@@ -2103,6 +2103,9 @@ kbd {
   align-items: center;
   gap: 10px;
 }
+.workspace-tooltip .shortcut-keys {
+  zoom: 0.5;
+}
 .shortcut-tiles[data-enabled="false"] {
   opacity: 0.5;
 }
