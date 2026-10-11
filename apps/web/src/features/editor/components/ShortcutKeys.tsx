@@ -1,11 +1,12 @@
 import { shortcutKeySymbols } from "../workspaceShortcuts";
+import { Icon } from "./Icon";
 
 export function ShortcutKeys({ keys }: { keys: readonly string[] }) {
   return (
     <span className="shortcut-keys">
       {keys.map((key) => (
         <kbd key={key} aria-label={key}>
-          {shortcutKeySymbols[key] ?? key}
+          {key === "Enter" ? <Icon name="enter" /> : (shortcutKeySymbols[key] ?? key)}
         </kbd>
       ))}
     </span>
