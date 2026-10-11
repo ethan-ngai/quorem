@@ -34,3 +34,24 @@ describe("topic disclosure", () => {
     expect(markup).toContain(`id="${region}" class="topic-list"`);
   });
 });
+
+it("renders structured mathematics and literal prose with named examples", () => {
+  const problem = {
+    id: "math",
+    title: "Bounded values",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown: "Return the first value.",
+    signature: { parameters: [{ name: "values", type: "list<int>" }], returnType: "int" },
+    examples: [{ args: [[3, 4]], expected: 3, explanation: "The first value is 3." }],
+    constraints: [
+      { kind: "range", target: { parameter: "values", projection: "length" }, min: 1, max: 10000 },
+      { kind: "prose", text: "Use the supplied values." },
+    ],
+  } as unknown as ProblemVersion;
+  const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(markup).toContain("values = [3,4]");
+  expect(markup).toContain("1 ≤ len(values) ≤ 10<sup>4</sup>");
+  expect(markup).toContain("Use the supplied values.");
+  expect(markup).toContain("The first value is 3.");
+});

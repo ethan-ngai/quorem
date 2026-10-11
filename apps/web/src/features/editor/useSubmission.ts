@@ -128,7 +128,7 @@ export function useSubmission({
       let customCases;
       if (kind === "run" && customMode) {
         try {
-          customCases = parseCustomDrafts(drafts, problem.signature);
+          customCases = parseCustomDrafts(drafts, problem.signature, problem.constraints);
         } catch (cause) {
           setError(errorMessage(cause));
           return false;

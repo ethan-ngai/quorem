@@ -2,16 +2,14 @@
 import { useId, useState } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon } from "./Icon";
+import { bindArguments } from "../argumentBinding";
 import { formatConstraint } from "../constraintFormatter";
 import type { ProblemVersion } from "@quorem/contracts";
 
 /** @returns Named argument values in the public function's declared order. */
 export function exampleInput(problem: ProblemVersion, args: unknown[]) {
-  return args
-    .map(
-      (value, index) =>
-        `${problem.signature.parameters[index]?.name ?? `arg${index + 1}`} = ${JSON.stringify(value)}`,
-    )
+  return bindArguments(problem.signature, args)
+    .map(({ name, value }) => `${name} = ${JSON.stringify(value)}`)
     .join(", ");
 }
 
@@ -92,11 +90,11 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
       <section className="problem-section" aria-labelledby="constraints-heading">
         <h2 id="constraints-heading">Constraints:</h2>
         <ul className="constraint-list">
-          {problem.constraints.map((constraint) => {
-            const formatted = formatConstraint(constraint, problem.signature);
+          {problem.constraints.map((constraint, constraintIndex) => {
+            const formatted = formatConstraint(constraint);
             return (
-              <li key={constraint}>
-                {/<=|>=|[≤≥]/.test(formatted) ? (
+              <li key={constraintIndex}>
+                {typeof constraint !== "string" && constraint.kind !== "prose" ? (
                   <code>
                     {formatted
                       .replaceAll("<=", "≤")

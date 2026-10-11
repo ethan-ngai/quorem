@@ -1,4 +1,7 @@
-import type { CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
+import type { Constraint, CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
+
+import { bindArguments } from "./argumentBinding";
+import { validateConstraints } from "./constraintValidation";
 
 type WireValue = CustomCase["args"][number];
 export type CustomCaseDraft = {
@@ -116,10 +119,11 @@ function defaultValue(type: string): WireValue {
 
 export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
   const example = problem.examples[0];
+  const inputs = example ? bindArguments(problem.signature, example.args) : undefined;
   return {
     id: crypto.randomUUID(),
     args: problem.signature.parameters.map(({ type }, index) =>
-      formatTypedField(type, example?.args[index] ?? defaultValue(type)),
+      formatTypedField(type, inputs ? inputs[index]!.value : defaultValue(type)),
     ),
     expectedEnabled: false,
     expected: formatTypedField(
@@ -129,15 +133,19 @@ export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
   };
 }
 
-export function parseCustomDraft(draft: CustomCaseDraft, signature: Signature): CustomCase {
-  if (draft.args.length !== signature.parameters.length) throw new Error("Wrong argument count.");
-  const args = signature.parameters.map(({ name, type }, index) => {
+export function parseCustomDraft(
+  draft: CustomCaseDraft,
+  signature: Signature,
+  constraints: Constraint[] = [],
+): CustomCase {
+  const args = bindArguments(signature, draft.args).map(({ name, type, value }) => {
     try {
-      return parseTypedField(type, draft.args[index]!);
+      return parseTypedField(type, value);
     } catch (error) {
       throw new Error(`${name}: ${(error as Error).message}`);
     }
   });
+  validateConstraints(signature, args, constraints);
   if (!draft.expectedEnabled) return { args };
   try {
     return { args, expected: parseTypedField(signature.returnType, draft.expected) };
@@ -146,12 +154,16 @@ export function parseCustomDraft(draft: CustomCaseDraft, signature: Signature): 
   }
 }
 
-export function parseCustomDrafts(drafts: CustomCaseDraft[], signature: Signature): CustomCase[] {
+export function parseCustomDrafts(
+  drafts: CustomCaseDraft[],
+  signature: Signature,
+  constraints: Constraint[] = [],
+): CustomCase[] {
   if (drafts.length < 1 || drafts.length > 20)
     throw new Error("Add between 1 and 20 custom cases.");
   const cases = drafts.map((draft, index) => {
     try {
-      return parseCustomDraft(draft, signature);
+      return parseCustomDraft(draft, signature, constraints);
     } catch (error) {
       throw new Error(`Case ${index + 1}: ${(error as Error).message}`);
     }
@@ -161,7 +173,11 @@ export function parseCustomDrafts(drafts: CustomCaseDraft[], signature: Signatur
   return cases;
 }
 
-export function parseCustomCases(source: string, signature: Signature): CustomCase[] {
+export function parseCustomCases(
+  source: string,
+  signature: Signature,
+  constraints: Constraint[] = [],
+): CustomCase[] {
   const parsed: unknown = JSON.parse(source);
   if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > 20)
     throw new Error("Enter between 1 and 20 cases as a JSON array.");
@@ -173,9 +189,10 @@ export function parseCustomCases(source: string, signature: Signature): CustomCa
       throw new Error("Unknown case field.");
     if (!Array.isArray(record.args) || record.args.length !== signature.parameters.length)
       throw new Error("Wrong argument count.");
-    signature.parameters.forEach(({ type }, argIndex) =>
-      validateTypedValue(type, (record.args as unknown[])[argIndex]),
+    bindArguments(signature, record.args).forEach(({ type, value }) =>
+      validateTypedValue(type, value),
     );
+    validateConstraints(signature, record.args, constraints);
     if ("expected" in record) validateTypedValue(signature.returnType, record.expected);
     return record as CustomCase;
   });

@@ -7,6 +7,7 @@ import {
   type CustomCaseDraft,
   type RunSnapshot,
 } from "../customCases";
+import { bindArguments } from "../argumentBinding";
 import { TypedCaseInput } from "./TypedCaseInput";
 import "./customCases.css";
 
@@ -64,7 +65,10 @@ export function TestCases({
   const example = problem.examples[sampleIndex];
   let currentValue;
   try {
-    currentValue = customMode && draft ? parseCustomDraft(draft, problem.signature) : example;
+    currentValue =
+      customMode && draft
+        ? parseCustomDraft(draft, problem.signature, problem.constraints)
+        : example;
   } catch {
     /* An edited invalid draft cannot inherit a previous result. */
   }
@@ -169,9 +173,9 @@ export function TestCases({
           </>
         ) : example ? (
           <>
-            {example.args.map((value, index) => (
+            {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
               <div className="case-detail" key={index}>
-                <span>{problem.signature.parameters[index]?.name ?? `arg${index + 1}`}</span>
+                <span>{name}</span>
                 <code>{JSON.stringify(value)}</code>
               </div>
             ))}
