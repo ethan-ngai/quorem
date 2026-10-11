@@ -1,63 +1,78 @@
-/** @file StatementMarkdown.tsx @description Safe statement prose, inline code, and fenced examples. @module editor */
+/** @file StatementMarkdown.tsx @description Restricted inline Markdown and bounded mathematics. @module editor */
 import type { ReactNode } from "react";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { mathFromMarkdown } from "mdast-util-math";
+import { math } from "micromark-extension-math";
+import type { Nodes } from "mdast";
 
-/** @returns Text and code nodes without interpreting HTML. */
-export function inlineStatement(text: string): ReactNode[] {
-  return text
-    .split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
-    .map((part, index) =>
-      part.startsWith("`") && part.endsWith("`") ? (
-        <code key={index}>{part.slice(1, -1)}</code>
-      ) : part.startsWith("**") && part.endsWith("**") ? (
-        <strong key={index}>{part.slice(2, -2)}</strong>
-      ) : (
-        part
-      ),
-    );
+function InlineMath({ value, source }: { value: string; source: string }) {
+  if (value.length > 4096) return source;
+  try {
+    const html = katex.renderToString(value, {
+      displayMode: false,
+      throwOnError: true,
+      strict: "error",
+      trust: false,
+      macros: {},
+      maxSize: 10,
+      maxExpand: 100,
+    });
+    // Only KaTeX output enters HTML; authored Markdown never enters this sink.
+    return <span className="statement-math" dangerouslySetInnerHTML={{ __html: html }} />;
+  } catch {
+    return source;
+  }
 }
 
-/** @returns Readable immutable statement blocks; raw HTML remains plain text. */
+/** Only inline code, emphasis and mathematics have rendering semantics. */
+export function inlineStatement(source: string): ReactNode[] {
+  const tree = fromMarkdown(source, {
+    extensions: [math()],
+    mdastExtensions: [mathFromMarkdown()],
+  });
+  const render = (node: Nodes, key: number): ReactNode => {
+    const literal = source.slice(node.position?.start.offset, node.position?.end.offset);
+    switch (node.type) {
+      case "text":
+        return node.value;
+      case "inlineCode":
+        return <code key={key}>{node.value}</code>;
+      case "strong":
+        return <strong key={key}>{node.children.map(render)}</strong>;
+      case "emphasis":
+        return <em key={key}>{node.children.map(render)}</em>;
+      case "inlineMath":
+        return <InlineMath key={key} value={node.value} source={literal} />;
+      case "paragraph":
+        return node.children.map(render);
+      default:
+        return literal;
+    }
+  };
+  let end = 0;
+  const rendered: ReactNode[] = [];
+  tree.children.forEach((node, index) => {
+    const start = node.position?.start.offset ?? end;
+    rendered.push(source.slice(end, start), render(node, index));
+    end = node.position?.end.offset ?? start;
+  });
+  rendered.push(source.slice(end));
+  return rendered;
+}
+
+/** Paragraph boundaries remain explicit; block Markdown stays literal. */
 export function StatementMarkdown({ source }: { source: string }) {
-  const blocks = source.split(/(```[\s\S]*?```)/g);
   return (
     <>
-      {blocks.map((block, index) =>
-        block.startsWith("```") ? (
-          <pre key={index}>
-            <code>
-              {block
-                .replace(/^```[^\n]*\n?/, "")
-                .replace(/```$/, "")
-                .trimEnd()}
-            </code>
-          </pre>
-        ) : (
-          <div key={index}>
-            {block
-              .trim()
-              .split(/\n\s*\n/)
-              .filter(Boolean)
-              .map((paragraph, paragraphIndex) => {
-                const lines = paragraph.split("\n");
-                if (lines.every((line) => /^[-*] /.test(line)))
-                  return (
-                    <ul key={paragraphIndex}>
-                      {lines.map((line, lineIndex) => (
-                        <li key={lineIndex}>{inlineStatement(line.slice(2))}</li>
-                      ))}
-                    </ul>
-                  );
-                if (/^#{1,3} /.test(paragraph))
-                  return (
-                    <h2 key={paragraphIndex}>
-                      {inlineStatement(paragraph.replace(/^#{1,3} /, ""))}
-                    </h2>
-                  );
-                return <p key={paragraphIndex}>{inlineStatement(paragraph)}</p>;
-              })}
-          </div>
-        ),
-      )}
+      {source
+        .trim()
+        .split(/\n\s*\n/)
+        .filter(Boolean)
+        .map((paragraph, index) => (
+          <p key={index}>{inlineStatement(paragraph)}</p>
+        ))}
     </>
   );
 }

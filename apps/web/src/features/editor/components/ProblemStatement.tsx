@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon } from "./Icon";
 import { bindArguments } from "../argumentBinding";
-import { formatConstraint } from "../constraintFormatter";
+import { constraintMarkup } from "../constraintMarkup";
 import type { ProblemVersion } from "@quorem/contracts";
 
 /** @returns Named argument values in the public function's declared order. */
@@ -91,24 +91,7 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
         <h2 id="constraints-heading">Constraints:</h2>
         <ul className="constraint-list">
           {problem.constraints.map((constraint, constraintIndex) => {
-            const formatted = formatConstraint(constraint);
-            return (
-              <li key={constraintIndex}>
-                {typeof constraint !== "string" && constraint.kind !== "prose" ? (
-                  <code>
-                    {formatted
-                      .replaceAll("<=", "≤")
-                      .replaceAll(">=", "≥")
-                      .split(/(\^-?\d+)/)
-                      .map((part, index) =>
-                        part.startsWith("^") ? <sup key={index}>{part.slice(1)}</sup> : part,
-                      )}
-                  </code>
-                ) : (
-                  inlineStatement(formatted)
-                )}
-              </li>
-            );
+            return <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>;
           })}
         </ul>
       </section>

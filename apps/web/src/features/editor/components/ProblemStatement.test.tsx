@@ -51,7 +51,9 @@ it("renders structured mathematics and literal prose with named examples", () =>
   } as unknown as ProblemVersion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(markup).toContain("values = [3,4]");
-  expect(markup).toContain("1 ≤ len(values) ≤ 10<sup>4</sup>");
+  expect(markup).toContain("<code>len(values)</code>");
+  expect(markup).toContain("<msup><mn>10</mn><mn>4</mn></msup>");
+  expect(markup).toContain("<mo>≤</mo>");
   expect(markup).toContain("Use the supplied values.");
   expect(markup).toContain("The first value is 3.");
 });
