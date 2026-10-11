@@ -53,6 +53,7 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 	var candidateOwner string
 	blocked := false
 	uncertainOwners := map[string]bool{}
+	earlierUncertainOwners := map[string]bool{}
 	rows, err = tx.Query(ctx, "SELECT owner_id,state,match_sequence,result FROM submissions WHERE match_id=$1 AND kind='submit' ORDER BY admitted_at,match_sequence", m.id)
 	if err != nil {
 		return err
@@ -83,6 +84,7 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		} else {
 			uncertainOwners[owner] = true
 			if candidateOwner == "" {
+				earlierUncertainOwners[owner] = true
 				blocked = true
 			}
 		}
@@ -123,12 +125,21 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 			}
 		}
 	}
+	// Earlier work from the candidate's owner cannot change the winning owner.
+	if candidateOwner != "" {
+		blocked = false
+		for owner := range earlierUncertainOwners {
+			if owner != candidateOwner {
+				blocked = true
+			}
+		}
+	}
 	if candidateOwner != "" && !blocked {
 		if err = finishMatch(ctx, tx, m, "win", candidateOwner, "first_correct"); err != nil {
 			return err
 		}
 		changed = true
-	} else if !now.Before(*m.deadline) || candidateOwner != "" {
+	} else if !now.Before(*m.deadline) || candidateOwner != "" || m.finalizing != nil {
 		if m.finalizing == nil {
 			// Deadline finalization begins at the persisted deadline, even after a restart.
 			at := now

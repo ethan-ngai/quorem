@@ -561,3 +561,57 @@ func TestMatchSelectionFiltersDifficultyAfterLatestVersion(t *testing.T) {
 		t.Fatal("latest version not selected", v, e)
 	}
 }
+func TestMatchAcceptedCandidateIgnoresEarlierOwnInfrastructureFailure(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	id, _ := createPair(t, s)
+	failed := admitMatch(t, s, id, "alice", "submit")
+	for range 3 {
+		job := claimJobs(t, s, 1)[0]
+		if e := s.Complete(ctx, job, execution.Completion{SubmissionID: job.SubmissionID, AttemptID: job.AttemptID, EngineFailure: "judge crashed"}); e != nil {
+			t.Fatal(e)
+		}
+		execSQL(t, s, "UPDATE execution_jobs SET available_at=clock_timestamp()")
+	}
+	earlier, e := s.Submission(ctx, "alice", failed.ID)
+	if e != nil || earlier.State != "failed" || earlier.Score != nil {
+		t.Fatal(earlier, e)
+	}
+	admitMatch(t, s, id, "alice", "submit")
+	completeScore(t, s, claimJobs(t, s, 1)[0], 20)
+	v, e := s.Match(ctx, "alice", id)
+	if e != nil || v.State != "completed" || v.Outcome == nil || v.Outcome.WinnerUserID != v.HostUserID || v.Outcome.Reason != "first_correct" {
+		t.Fatal("own earlier uncertainty blocked winner", v, e)
+	}
+}
+func TestMatchCompletionFreezesOverdueUncertaintyWithoutReconciler(t *testing.T) {
+	for _, persisted := range []bool{false, true} {
+		t.Run(map[bool]string{false: "deadline_downtime", true: "persisted_finalization"}[persisted], func(t *testing.T) {
+			s := testStore(t)
+			ctx := context.Background()
+			id, _ := createPair(t, s)
+			admitMatch(t, s, id, "alice", "submit")
+			var job execution.Job
+			if persisted {
+				admitMatch(t, s, id, "bob", "submit")
+				jobs := claimJobs(t, s, 2)
+				job = jobs[0]
+				completeScore(t, s, jobs[1], 20)
+				execSQL(t, s, "UPDATE matches SET finalizing_at=clock_timestamp()-interval '121 seconds' WHERE id=$1", id)
+			} else {
+				job = claimJobs(t, s, 1)[0]
+				execSQL(t, s, "UPDATE matches SET deadline=clock_timestamp()-interval '121 seconds' WHERE id=$1", id)
+			}
+			// No snapshot or reconciler runs between the elapsed window and completion.
+			completeScore(t, s, job, 20)
+			v, e := s.Match(ctx, "alice", id)
+			if e != nil || v.Outcome == nil || v.Outcome.Kind != "no_contest" || v.Participants[0].BestScore.Passed != 0 {
+				t.Fatal("late completion revived expired uncertainty", v, e)
+			}
+			ownerResult, e := s.Submission(ctx, "alice", job.SubmissionID)
+			if e != nil || ownerResult.Score == nil || ownerResult.Score.Passed != 20 {
+				t.Fatal("late owner history discarded", ownerResult, e)
+			}
+		})
+	}
+}

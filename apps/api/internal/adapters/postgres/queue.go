@@ -138,6 +138,12 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	if err != nil {
 		return err
 	}
+	// Freeze an elapsed finalization window before a late verdict can resolve uncertainty.
+	if matchID != "" {
+		if err = s.reconcileMatch(ctx, tx, &match); err != nil {
+			return err
+		}
+	}
 	state := "completed"
 	result := judging.Submission{}
 	if cancelled {
