@@ -1194,8 +1194,15 @@ kbd {
   font-size: 12px;
 }
 .editor-language {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--color-text-secondary);
   font-size: 12px;
+}
+.editor-language img {
+  width: 16px;
+  height: 16px;
 }
 .intelligence-status {
   display: flex;

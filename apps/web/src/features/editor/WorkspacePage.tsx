@@ -1,5 +1,6 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useHotkey } from "@tanstack/react-hotkeys";
+import pythonLogo from "../../assets/python.svg";
 import { workspaceShortcuts } from "./workspaceShortcuts";
 import { ShortcutHint } from "./components/ShortcutKeys";
 import { Tooltip } from "./components/Tooltip";
@@ -610,7 +611,10 @@ export function WorkspacePage({
           <div className="solution-pane">
             <section className="coding-pane" aria-label="Code editor">
               <div className="code-toolbar">
-                <span className="editor-language">Python</span>
+                <span className="editor-language">
+                  <img src={pythonLogo} alt="" />
+                  Python
+                </span>
                 <div className="code-options">
                   {(intelligence.status === "unavailable" ||
                     intelligence.status === "replaced") && (
