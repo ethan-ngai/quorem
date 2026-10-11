@@ -2,6 +2,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Select from "@radix-ui/react-select";
 import * as Switch from "@radix-ui/react-switch";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
@@ -36,6 +37,12 @@ const sections = [
   { id: "shortcuts", label: "Shortcuts", icon: "keyboard" },
   { id: "drafts", label: "Drafts", icon: "history" },
   { id: "account", label: "Local account", icon: "people" },
+] as const;
+
+const themes = [
+  { value: "system", label: "System", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
 ] as const;
 
 function Setting({
@@ -187,17 +194,21 @@ export function WorkspaceSettings(props: SettingsProps) {
               </h2>
               {section === "appearance" && (
                 <>
-                  <Setting label="Color theme" description="Follow your device or choose a theme.">
-                    <Choice
-                      label="Color theme"
-                      value={props.theme}
-                      onChange={(value) => props.onThemeChange(value as ThemePreference)}
-                      options={[
-                        { value: "system", label: "System" },
-                        { value: "light", label: "Light" },
-                        { value: "dark", label: "Dark" },
-                      ]}
-                    />
+                  <Setting label="Color theme">
+                    <div className="theme-segments" role="group" aria-label="Color theme">
+                      {themes.map(({ value, label, icon: ThemeIcon }) => (
+                        <Tooltip key={value} content={label}>
+                          <button
+                            type="button"
+                            aria-label={`${label} theme`}
+                            aria-pressed={props.theme === value}
+                            onClick={() => props.onThemeChange(value)}
+                          >
+                            <ThemeIcon size={18} strokeWidth={1.5} aria-hidden="true" />
+                          </button>
+                        </Tooltip>
+                      ))}
+                    </div>
                   </Setting>
                   <Setting label="Editor color scheme">
                     <Choice

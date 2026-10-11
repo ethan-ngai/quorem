@@ -2009,6 +2009,39 @@ kbd {
   font-size: 12px;
   flex-shrink: 0;
 }
+.theme-segments {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+}
+.theme-segments button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.theme-segments button[aria-pressed="true"] {
+  background: var(--color-field);
+  color: var(--color-text);
+}
+.theme-segments button:hover {
+  color: var(--color-text);
+}
+@media (pointer: coarse) {
+  .theme-segments button {
+    width: 44px;
+    height: 44px;
+  }
+}
 .settings-select svg {
   width: 14px;
   height: 14px;
