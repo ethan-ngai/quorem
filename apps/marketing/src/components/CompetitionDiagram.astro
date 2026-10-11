@@ -1,0 +1,15 @@
+---
+interface Props { mode: "showdown" | "free-for-all" }
+const { mode } = Astro.props;
+const duel = mode === "showdown";
+const players = duel
+  ? [{x: 85, y: 82}, {x: 315, y: 82}]
+  : [{x: 75, y: 65}, {x: 200, y: 38}, {x: 325, y: 65}, {x: 65, y: 187}, {x: 200, y: 228}, {x: 335, y: 187}];
+---
+<svg class="competition-diagram" viewBox="0 0 400 270" aria-hidden="true">
+  <path class="diagram-frame" d="M200 8 384 78v114l-184 70L16 192V78Z M16 78l184 70 184-70 M200 148v114" />
+  <g class="diagram-wires">{players.map(player => <path d={`M${player.x} ${player.y}L200 142`} />)}</g>
+  <g class="diagram-problem"><path d="m200 108 66 26-66 26-66-26Z" /><path d="m134 134 66 26 66-26v18l-66 26-66-26Z" /></g>
+  {players.map((player, index) => <g class="diagram-player" style={`--player-delay: ${index * 35}ms`}><circle cx={player.x} cy={player.y} r="19" /><circle cx={player.x} cy={player.y-4} r="4" /><path d={`M${player.x-7} ${player.y+8}v-2a7 7 0 0 1 14 0v2`} /></g>)}
+  <text class="diagram-label" x="200" y="196" text-anchor="middle">Shared problem</text>
+</svg>

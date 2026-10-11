@@ -3,15 +3,16 @@ import "@fontsource-variable/geist";
 import "@quorem/ui/theme.css";
 import "../styles/marketing.css";
 import ProductPreview from "../components/ProductPreview.astro";
+import CompetitionDiagram from "../components/CompetitionDiagram.astro";
 ---
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Practice coding problems with completion, custom test cases and judged submissions. Invite friends to Showdown or Free-for-all matches." />
+    <meta name="description" content="Challenge friends in private coding matches. Choose Showdown or Free-for-all, pick a problem, set the rules and share an invitation." />
     <meta name="theme-color" content="#f5f5f6" />
-    <title>Quorem — Coding practice and private matches</title>
+    <title>Quorem — Private coding matches</title>
     <script is:inline>
       (() => {
         let preference = "system";
@@ -38,52 +39,43 @@ import ProductPreview from "../components/ProductPreview.astro";
     <main id="main">
       <section class="hero page-width" aria-labelledby="hero-title">
         <div class="hero-top">
-          <h1 id="hero-title" data-reveal>Coding practice.<br /><span>Private matches.</span></h1>
+          <h1 id="hero-title" data-reveal>Private coding<br /><span>matches.</span></h1>
           <div class="hero-intro" data-reveal>
-            <p>A coding workspace for solving problems on your own or competing with friends. Write code, test your approach, and submit it to the judge.</p>
-            <a class="button primary-button" href="/practice">Browse problems <span aria-hidden="true">↗</span></a>
+            <p>Showdown for two. Free-for-all for a group. Choose a problem, share the invitation, and race for the first correct solution.</p>
+            <div class="hero-actions"><a class="button primary-button" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a><a class="quiet-link" href="/practice">Practice first <span aria-hidden="true">→</span></a></div>
           </div>
         </div>
-        <div class="hero-proof" data-reveal>
-          <ProductPreview name="editor" alt="Quorem workspace: problem statement, code editor and test results in light and dark themes." eager />
-        </div>
-        <div class="hero-caption" data-reveal><span>Write · Run · Submit</span><a class="quiet-link" href="#workspace">Explore the workspace <span aria-hidden="true">↓</span></a></div>
-      </section>
-      <section class="workspace-section page-width" id="workspace" aria-labelledby="workspace-title">
-        <div class="section-heading" data-reveal><h2 id="workspace-title">Write, run<br />and submit.</h2><p>The statement, editor and results stay together. Resize the panes to fit the way you work.</p></div>
-        <div class="feature-flow">
-          <article class="feature feature-editor" data-reveal>
-            <div class="feature-copy"><h3>Code, with context.</h3><p>Completion, hover documentation, signatures and diagnostics while you write. Problem-specific starter code handles the setup.</p></div>
-            <ProductPreview name="editor" alt="Code editor with a problem-specific starter and syntax highlighting." />
+        <div class="mode-showcase" data-reveal>
+          <article class="mode-preview">
+            <CompetitionDiagram mode="showdown" />
+            <div><h2>Showdown</h2><p>One opponent. One shared problem.</p></div><span class="mode-size">1 v 1</span>
           </article>
-          <article class="feature feature-cases" data-reveal>
-            <div class="feature-copy"><h3>Test the edge cases.</h3><p>Run examples or add your own inputs and expected output. Inspect each result, then Submit for a judged verdict.</p></div>
-            <ProductPreview name="editor" alt="Workspace sample cases and test results." />
-          </article>
-          <article class="feature feature-drafts" data-reveal>
-            <div class="draft-visual" aria-hidden="true"><span>Solution.py</span><div class="draft-line"><i></i><b></b></div><div class="draft-line"><i></i><b></b></div><div class="draft-line"><i></i><b></b></div><div class="draft-saved"><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8" /></svg>Saved on this device</div></div>
-            <div class="feature-copy"><h3>Pick up where you left off.</h3><p>Drafts and revision history stay in your browser. Reload to resume, or restore an earlier snapshot. Each window keeps its own active buffer.</p></div>
-          </article>
-          <article class="feature feature-themes" data-reveal>
-            <div class="theme-visual" aria-hidden="true"><span class="theme-sample theme-sample-light"><i></i><i></i><i></i></span><span class="theme-sample theme-sample-dark"><i></i><i></i><i></i></span></div>
-            <div class="feature-copy"><h3>Your workspace preferences.</h3><p>Light and dark themes, independent editor color schemes, adjustable text size and keyboard shortcuts.</p></div>
+          <article class="mode-preview">
+            <CompetitionDiagram mode="free-for-all" />
+            <div><h2>Free-for-all</h2><p>Bring a group into the same race.</p></div><span class="mode-size">2–8 players</span>
           </article>
         </div>
       </section>
-      <section class="matches-section page-width" id="matches" aria-labelledby="matches-title">
-        <div class="section-heading" data-reveal><h2 id="matches-title">Showdown<br />and Free-for-all.</h2><p>Choose a problem or a difficulty pool, set the duration, and share a private invitation.</p></div>
-        <div class="match-layout">
-          <div class="match-proof" data-reveal><ProductPreview name="lobby" alt="Private Quorem match lobby with mode selection, participant readiness and invitation controls." /></div>
-          <div class="match-details">
-            <article data-reveal><span class="mode-count">1 v 1</span><h3>Showdown</h3><p>Two contestants. Start when both are ready. The first correct submission wins; at the deadline, the highest passed test count decides.</p></article>
-            <article data-reveal><span class="mode-count">2–8 players</span><h3>Free-for-all</h3><p>Invite a group. The host starts once everyone is ready. Compete on the same problem with private code and individual submissions.</p></article>
-            <p class="privacy-note" data-reveal>Opponent code and hidden test inputs stay private. Run checks your approach; only Submit counts toward the match.</p>
+      <section class="match-blueprint page-width" id="matches" aria-labelledby="matches-title">
+        <div class="blueprint-grid">
+          <div class="blueprint-heading" data-reveal><h2 id="matches-title">Set up<br />the match.</h2></div>
+          <div class="blueprint-intro" data-reveal><p>Pick a mode, a challenge and a duration. Share the link with your friends, then start when everyone is ready.</p><a class="quiet-link" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
+          <div class="blueprint-product" data-reveal><ProductPreview alt="Free-for-all lobby with players, game mode, difficulty, problem, duration and host rules." eager /></div>
+          <div class="problem-visual blueprint-visual" aria-hidden="true" data-reveal>
+            <div class="problem-sheet"><div class="difficulty-samples"><span>Easy</span><span>Medium</span><span>Hard</span></div><div class="problem-line"><span>Run Widths</span><small>Easy</small></div><div class="problem-line"><span>Level Spreads</span><small>Medium</small></div><div class="problem-line"><span>Split Load</span><small>Hard</small></div><div class="random-choice">or a random pick</div></div>
           </div>
+          <article class="problem-copy blueprint-copy" data-reveal><h3>Pick the challenge.</h3><p>Select a specific problem, or choose Random across one or more difficulties. The random problem stays hidden until the match starts.</p><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">↗</span></a></article>
+          <article class="rules-copy blueprint-copy" data-reveal><h3>Set the ground rules.</h3><p>Choose how copy/paste and leaving the window are handled: allow it, warn the player, or announce it to the lobby.</p><p class="secondary-copy">Everyone sees the rules before the match begins.</p></article>
+          <div class="rules-visual blueprint-visual" aria-hidden="true" data-reveal><div class="rule-sheet"><div class="rule-row"><span>Copy / paste</span><span class="rule-policy">Warning</span></div><div class="rule-row"><span>Leaving the window</span><span class="rule-policy">Announce</span></div><div class="rule-connection"></div><div class="rule-notice"><span class="notice-dot"></span>Lobby notice</div></div></div>
         </div>
       </section>
-      <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Browse the<br />problem library.</h2><a class="button primary-button" href="/practice">Open practice <span aria-hidden="true">↗</span></a></section>
+      <section class="race-section page-width" aria-labelledby="race-title" data-reveal>
+        <h2 id="race-title">Same challenge.<br /><span>Independent solutions.</span></h2>
+        <div class="race-copy"><p>Each player writes their own solution. Only submissions count toward the match; test runs are yours to experiment with.</p><p>The first correct submission wins. At the deadline, the highest passed test count decides. Equal scores draw.</p></div>
+      </section>
+      <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Bring your<br />next challenge.</h2><div class="closing-actions"><a class="button primary-button" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a><a class="quiet-link" href="/practice">Browse practice <span aria-hidden="true">→</span></a></div></section>
     </main>
-    <footer class="site-footer page-width" data-reveal><a class="wordmark" href="/">quorem<span aria-hidden="true">.</span></a><span>Coding practice and private matches.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
+    <footer class="site-footer page-width" data-reveal><a class="wordmark" href="/">quorem<span aria-hidden="true">.</span></a><span>Private coding matches and practice.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
       <button class="theme-switch" type="button" aria-label="Switch to dark theme" title="Switch theme">
         <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></svg>
         <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z" /></svg>
