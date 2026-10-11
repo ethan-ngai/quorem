@@ -6,7 +6,7 @@
 - Build for <1k users. Keep a credible path to 1M+ through bounded workloads, explicit contracts, and measured scaling. Add infrastructure when justified.
 - Keep domain logic provider-neutral. Isolate persistence, realtime, execution, identity, and queue adapters. Allow Redis/ElastiCache without rewriting domain rules.
 - Develop locally with fixtures first. Require AWS credentials only for cloud validation/deployment.
-- Follow Conventional Commits. Use worktrees, dependency-ordered PR stacks, concise GitHub tickets, and agents with explicit ownership/contracts.
+- Use Conventional Commits for commits and branch names. Branch format: `<type>/<scope>-<description>` in lowercase kebab-case (e.g. `feat/editor-custom-cases`, `fix/editor-completion`, `docs/quorem-planning`). Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore. No agent/tool prefixes. Use worktrees, dependency-ordered PR stacks, concise GitHub tickets, and agents with explicit ownership/contracts.
 - Provision with Terraform; deploy through GitHub Actions. Keep secrets outside source control.
 - Anchor UI to root `DESIGN.md`; use the design-system skill. Prioritize the editor before other pages.
 - Editor first: CodeMirror 6, Python Solution/ListNode/TreeNode, completion/hover/signatures/diagnostics, real judging, server autosave/browser recovery. Then invite-based 1v1. Defer FFA, parties, collaboration, points/leaderboard, social, adaptive selection.
