@@ -13,7 +13,7 @@ export function ResizableDivider({
   value: number;
   minimum: number;
   maximum: number;
-  onChange(value: number): void;
+  onChange: (value: number) => void;
 }) {
   const isVertical = axis === "x";
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -54,6 +54,7 @@ export function ResizableDivider({
       aria-valuemin={minimum}
       aria-valuemax={maximum}
       aria-valuenow={Math.round(value)}
+      aria-valuetext={isVertical ? `${Math.round(value)} percent problem pane` : `${Math.round(value)} pixels results pane`}
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
       style={{ "--split-value": `${value}${isVertical ? "%" : "px"}` } as CSSProperties}

@@ -12,7 +12,7 @@ function resolveTheme(preference: ThemePreference): EditorTheme {
 export function useTheme() {
   const key = "quorem.theme.v1";
   const [preference, setPreference] = useState<ThemePreference>(() =>
-    readPreference(key, "system"),
+    readPreference<ThemePreference>(key, "system"),
   );
   const [theme, setTheme] = useState<EditorTheme>(() => resolveTheme(preference));
 

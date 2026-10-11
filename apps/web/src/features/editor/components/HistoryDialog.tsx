@@ -12,8 +12,8 @@ function errorMessage(error: unknown) {
 export function HistoryDialog({ identity, workspace, onClose, onRestore }: {
   identity: DevelopmentIdentity;
   workspace: Workspace;
-  onClose(): void;
-  onRestore(source: string, revision: string): Promise<void>;
+  onClose: () => void;
+  onRestore: (source: string, revision: string) => Promise<void>;
 }) {
   const historyQuery = useQuery({
     queryKey: ["draft-history", identity, workspace.id],

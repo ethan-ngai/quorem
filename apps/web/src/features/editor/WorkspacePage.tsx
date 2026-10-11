@@ -61,7 +61,7 @@ function errorMessage(error: unknown) {
 export function WorkspacePage({ slug }: { slug: string }) {
   const navigate = useNavigate();
   const [identity, setIdentity] = useState<DevelopmentIdentity>(() =>
-    readPreference("quorem.dev-identity.v1", "alice"),
+    readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
   );
   const { preference: themePreference, setPreference: setThemePreference, theme } = useTheme();
   const [paneRatio, setPaneRatio] = useState(() => readPreference("quorem.pane-ratio.v1", defaultPaneRatio));
@@ -79,15 +79,22 @@ export function WorkspacePage({ slug }: { slug: string }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [shortcutsEnabled, setShortcutsEnabled] = useState(() => readPreference("quorem.shortcuts.v1", true));
   const [fontSize, setFontSize] = useState(() => readPreference("quorem.code-font-size.v1", 15));
-  const [tabSize, setTabSize] = useState<2 | 4>(() => readPreference("quorem.tab-size.v1", 4));
+  const [tabSize, setTabSize] = useState<2 | 4>(() => readPreference<2 | 4>("quorem.tab-size.v1", 4));
   const [wrap, setWrap] = useState(() => readPreference("quorem.wrap.v1", false));
   const editorRef = useRef<PythonEditorHandle>(null);
   const saveSequence = useRef(0);
-  const editorSessionId = useRef(crypto.randomUUID());
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const dirtyRef = useRef(false);
   const saveNowRef = useRef<() => Promise<void>>(async () => {});
   const saveTimerRef = useRef<number | undefined>(undefined);
+  const draftContextRef = useRef<{
+    key: string;
+    identity: DevelopmentIdentity;
+    workspaceId: string;
+    problemVersionId: string;
+    editorSessionId: string;
+  } | undefined>(undefined);
+  const lastQueuedSourceRef = useRef<string | undefined>(undefined);
 
   const problemQuery = useQuery({
     queryKey: ["problem", identity, slug],
@@ -102,6 +109,31 @@ export function WorkspacePage({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (!problemQuery.data || !workspaceQuery.data) return;
+    const nextContext = {
+      key: `${identity}:${workspaceQuery.data.id}:${problemQuery.data.id}`,
+      identity,
+      workspaceId: workspaceQuery.data.id,
+      problemVersionId: problemQuery.data.id,
+      editorSessionId: crypto.randomUUID(),
+    };
+    const previousContext = draftContextRef.current;
+    if (previousContext && previousContext.key !== nextContext.key && dirtyRef.current) {
+      const snapshot = sourceRef.current;
+      void writeRecovery(previousContext.identity, previousContext.workspaceId, previousContext.problemVersionId, snapshot);
+      if (snapshot !== lastQueuedSourceRef.current) {
+        const sequence = String(++saveSequence.current);
+        const pendingSave = saveQueue.current.then(() => saveDraft(previousContext.identity, previousContext.workspaceId, {
+          source: snapshot,
+          editorSessionId: previousContext.editorSessionId,
+          saveSequence: sequence,
+        }));
+        saveQueue.current = pendingSave.catch(() => {});
+      }
+    }
+    window.clearTimeout(saveTimerRef.current);
+    draftContextRef.current = nextContext;
+    saveSequence.current = 0;
+    lastQueuedSourceRef.current = undefined;
     setProblem(problemQuery.data);
     setWorkspace(workspaceQuery.data);
     const initialSource = workspaceQuery.data.draft.source || problemQuery.data.starterSource;
@@ -139,24 +171,26 @@ export function WorkspacePage({ slug }: { slug: string }) {
   }, []);
 
   const saveCurrentDraft = useCallback(async () => {
-    const currentWorkspace = workspace;
-    const currentProblem = problem;
-    if (!currentWorkspace || !currentProblem || !dirtyRef.current) return;
+    const context = draftContextRef.current;
+    if (!context || !dirtyRef.current || context.key !== `${identity}:${workspace?.id}:${problem?.id}`) return;
     const snapshot = sourceRef.current;
-    saveSequence.current += 1;
-    const sequence = String(saveSequence.current);
+    if (snapshot === lastQueuedSourceRef.current) return;
+    const sequence = String(++saveSequence.current);
+    const sessionId = context.editorSessionId;
+    const key = context.key;
     setSaveState("saving");
-    const task = saveQueue.current.then(async () => {
-      await writeRecovery(identity, currentWorkspace.id, currentProblem.id, snapshot);
-      await saveDraft(identity, currentWorkspace.id, {
+    const recoveryWrite = writeRecovery(context.identity, context.workspaceId, context.problemVersionId, snapshot).catch(() => undefined);
+    const task = saveQueue.current.then(() => saveDraft(context.identity, context.workspaceId, {
         source: snapshot,
-        editorSessionId: editorSessionId.current,
+        editorSessionId: sessionId,
         saveSequence: sequence,
-      });
-    });
+      }));
+    lastQueuedSourceRef.current = snapshot;
     saveQueue.current = task.catch(() => {});
     try {
       await task;
+      await recoveryWrite;
+      if (draftContextRef.current?.key !== key) return;
       if (sourceRef.current === snapshot) {
         dirtyRef.current = false;
         setSaveState("saved");
@@ -165,6 +199,9 @@ export function WorkspacePage({ slug }: { slug: string }) {
         setSaveState("dirty");
       }
     } catch (error) {
+      await recoveryWrite;
+      if (draftContextRef.current?.key !== key) return;
+      if (lastQueuedSourceRef.current === snapshot) lastQueuedSourceRef.current = undefined;
       setSaveState(navigator.onLine ? "error" : "offline");
       setActionError(errorMessage(error));
     }
@@ -272,7 +309,7 @@ export function WorkspacePage({ slug }: { slug: string }) {
         <section className="problem-pane" aria-label="Problem statement">
           <ProblemStatement problem={problem} />
         </section>
-        <ResizableDivider axis="x" value={paneRatio} minimum={30} maximum={70} onChange={setPaneRatio} />
+        <ResizableDivider axis="x" value={paneRatio} minimum={30} maximum={65} onChange={setPaneRatio} />
         <section className="coding-pane" aria-label="Python workspace">
           <div className="code-toolbar">
             <div className="code-tab"><span className="python-glyph">Py</span><span>Solution.py</span><span className="file-dot" aria-label={localDirty ? "Unsaved" : "Saved"} /></div>

@@ -13,7 +13,7 @@ import type {
 
 /** Creates a same-origin client so local requests pass through Vite's API proxy. */
 const api = (identity: DevelopmentIdentity) =>
-  createApiClient({ baseUrl: window.location.origin, identity });
+  createApiClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin, identity });
 
 /** Turns typed API error responses into messages suitable for the workspace. */
 function requireData<T>(data: T | undefined, error: unknown): T {

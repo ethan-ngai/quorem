@@ -13,7 +13,6 @@ import {
 import { python } from "@codemirror/lang-python";
 import {
   bracketMatching,
-  defaultHighlightStyle,
   foldGutter,
   foldKeymap,
   indentUnit,
@@ -21,6 +20,7 @@ import {
 } from "@codemirror/language";
 import { lintKeymap } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
+import { HighlightStyle, tags } from "@lezer/highlight";
 import {
   Compartment,
   EditorState,
@@ -69,7 +69,7 @@ type PythonEditorProps = {
   tabSize: 2 | 4;
   wrap: boolean;
   intelligenceExtensions?: Extension[];
-  onSourceChange(source: string): void;
+  onSourceChange: (source: string) => void;
 };
 
 const workspaceKeymap = keymap.of([
@@ -91,7 +91,6 @@ const baseExtensions: Extension[] = [
   rectangularSelection(),
   closeBrackets(),
   autocompletion(),
-  syntaxHighlighting(defaultHighlightStyle),
   python(),
   history(),
   workspaceKeymap,
@@ -105,7 +104,7 @@ const baseExtensions: Extension[] = [
 
 /** Builds only visual extensions so a theme change keeps the document intact. */
 function editorTheme(theme: EditorTheme): Extension {
-  return EditorView.theme(
+  return [EditorView.theme(
     {
       "&": {
         height: "100%",
@@ -140,7 +139,15 @@ function editorTheme(theme: EditorTheme): Extension {
       ".cm-diagnostic-warning": { borderLeftColor: "var(--color-warning)" },
     },
     { dark: theme === "dark" },
-  );
+  ), syntaxHighlighting(HighlightStyle.define([
+    { tag: tags.keyword, color: "var(--color-editor-keyword)" },
+    { tag: [tags.string, tags.special(tags.string)], color: "var(--color-editor-string)" },
+    { tag: [tags.number, tags.bool, tags.null], color: "var(--color-editor-number)" },
+    { tag: [tags.function(tags.variableName), tags.definition(tags.function(tags.variableName))], color: "var(--color-editor-function)" },
+    { tag: tags.comment, color: "var(--color-editor-comment)", fontStyle: "italic" },
+    { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--color-editor-function)" },
+    { tag: [tags.operator, tags.punctuation], color: "var(--color-text-secondary)" },
+  ]))];
 }
 
 /** Reconfigures editor display preferences without resetting history. */
