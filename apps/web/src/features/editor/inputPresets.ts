@@ -15,6 +15,7 @@ export type InputKind =
 
 export abstract class InputPreset {
   abstract readonly kind: InputKind;
+  readonly delimiters?: readonly [string, string];
   constructor(
     readonly type: string,
     readonly config?: InputConfig,
@@ -48,6 +49,7 @@ export class NumberPreset extends InputPreset {
   }
 }
 export class TextPreset extends InputPreset {
+  override readonly delimiters = ['"', '"'] as const;
   readonly kind = "text";
   accepts(_source: string) {
     return true;
@@ -126,6 +128,7 @@ function splitEntries(source: string): string[] {
 }
 
 export class SequencePreset extends InputPreset {
+  override readonly delimiters = ["[", "]"] as const;
   readonly kind: InputKind = "sequence";
   accepts(source: string) {
     if (source.length > 65536) return false;

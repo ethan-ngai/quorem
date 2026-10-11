@@ -4,6 +4,13 @@ import type { ProblemVersion } from "@quorem/contracts";
 import { createCustomDraft, parseCustomDraft, parseTypedField } from "./customCases";
 
 describe("typed input presets", () => {
+  it("declares presentation delimiters for each built-in literal shape", () => {
+    expect(resolveInputPreset("str").delimiters).toEqual(['"', '"']);
+    for (const type of ["list<int>", "list<list<int>>", "ListNode", "TreeNode"])
+      expect(resolveInputPreset(type).delimiters).toEqual(["[", "]"]);
+    for (const type of ["int", "float", "bool"])
+      expect(resolveInputPreset(type).delimiters).toBeUndefined();
+  });
   it("evaluates bounded arithmetic with Python precedence and division", () => {
     for (const [source, expected] of [
       ["10*3", 30],

@@ -12,6 +12,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { MatchPage } from "./features/matches/MatchPage";
 import { InvitePage } from "./features/matches/InvitePage";
+import { HiddenCasesPreview } from "./features/editor/HiddenCasesPreview";
 import { WorkspacePage } from "./features/editor/WorkspacePage";
 import "@fontsource-variable/geist";
 import "@fontsource/jetbrains-mono/400.css";
@@ -58,7 +59,22 @@ const inviteRoute = createRoute({
     return <InvitePage token={token} />;
   },
 });
-const routeTree = rootRoute.addChildren([indexRoute, problemRoute, matchRoute, inviteRoute]);
+const previewRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/preview/hidden-cases",
+        component: () => <HiddenCasesPreview />,
+      }),
+    ]
+  : [];
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  problemRoute,
+  matchRoute,
+  inviteRoute,
+  ...previewRoutes,
+]);
 const router = createRouter({ routeTree, defaultPreload: "intent" });
 
 declare module "@tanstack/react-router" {

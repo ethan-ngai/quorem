@@ -22,7 +22,7 @@ const result: Submission = {
 describe("result presentation boundaries", () => {
   it("never renders case values for a full-suite submission", () => {
     const markup = renderToStaticMarkup(<ResultContent submission={result} busy={false} />);
-    expect(markup).toContain("accepted");
+    expect(markup).toContain("2/2 cases passed");
     expect(markup).toContain("2/2");
     expect(markup).not.toContain("private-output");
     expect(markup).not.toContain("private-expected");
@@ -31,6 +31,27 @@ describe("result presentation boundaries", () => {
     const markup = renderToStaticMarkup(<ResultContent submission={result} busy />);
     expect(markup).toContain("Starting");
     expect(markup).not.toContain("accepted");
+  });
+  it("summarizes compared runs while leaving uncompared cases out of the count", () => {
+    const markup = renderToStaticMarkup(
+      <ResultContent
+        submission={{
+          ...result,
+          kind: "run",
+          score: undefined,
+          verdict: "wrong_answer",
+          publicCases: [
+            { index: 0, status: "accepted" },
+            { index: 1, status: "wrong_answer" },
+            { index: 2, status: "executed" },
+          ],
+        }}
+        busy={false}
+        showCases={false}
+      />,
+    );
+    expect(markup).toContain("1/2 cases passed");
+    expect(markup).not.toContain("case-browser");
   });
   it("shows authoritative Run outputs without inventing input arguments", () => {
     const markup = renderToStaticMarkup(

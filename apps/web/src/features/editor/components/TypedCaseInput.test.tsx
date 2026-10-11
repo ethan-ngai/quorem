@@ -48,6 +48,18 @@ describe("typed case controls", () => {
     expect(markup).not.toContain("JSON array");
     expect(markup).not.toContain("-format");
   });
+  it("frames string and nullable-string content without changing literal data", () => {
+    for (const [type, value] of [
+      ["str", 'a"b\n雪'],
+      ["optional<str>", JSON.stringify("null")],
+    ]) {
+      const markup = renderToStaticMarkup(
+        <TypedCaseInput id="text" name="text" type={type!} value={value!} onChange={() => {}} />,
+      );
+      expect(markup.match(/class="collection-delimiter"/g)).toHaveLength(2);
+      expect(markup).toContain("&quot;</span>");
+    }
+  });
   it("supports multiline question overrides and nullable values", () => {
     const multiline = renderToStaticMarkup(
       <TypedCaseInput
@@ -126,6 +138,33 @@ describe("typed case controls", () => {
     );
     expect(markup).toContain(">90</code>");
     expect(markup.match(/>18<\/code>/g)).toHaveLength(1);
+  });
+  it("keeps hidden-case detail private except for timeouts", () => {
+    for (const status of ["accepted", "wrong_answer", "time_limit"] as const) {
+      const markup = renderToStaticMarkup(
+        <TestCases
+          problem={problem}
+          customMode={false}
+          drafts={[]}
+          onDraftsChange={() => {}}
+          submission={{
+            id: "submit",
+            workspaceId: "workspace",
+            kind: "submit",
+            state: "completed",
+            sourceHash: "source",
+            admittedAt: "2026-10-11T00:00:00Z",
+            updatedAt: "2026-10-11T00:00:01Z",
+            hiddenCases: [{ index: 0, status }],
+          }}
+        />,
+      );
+      expect(markup).toContain("locked-case");
+      expect(markup).not.toContain("machine-value");
+      expect(markup).not.toContain("case-run-output");
+      if (status === "time_limit") expect(markup).toContain("Time limit exceeded");
+      else expect(markup).not.toContain("Time limit exceeded");
+    }
   });
   it("uses add/remove actions for optional expected output, preserving its input", () => {
     const draft = { id: "case", args: ["[1]"], expectedEnabled: false, expected: "10 * 3" };

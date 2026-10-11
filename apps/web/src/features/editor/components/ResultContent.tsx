@@ -1,6 +1,7 @@
 /** @file ResultContent.tsx @description Safe submission summaries and selected public Run output. @module editor */
 import type { Diagnostic, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useState } from "react";
+import { Icon } from "./Icon";
 import { CaseOutput, verdictTone } from "./CaseOutput";
 
 /** Shows safe compiler or public-case diagnostics with useful source positions. */
@@ -38,16 +39,12 @@ function RunCaseResults({ cases }: { cases: PublicCaseResult[] }) {
             aria-label={`Case ${result.index + 1}: ${result.status.replaceAll("_", " ")}`}
             onClick={() => setSelectedIndex(index)}
           >
-            <i
-              className={
-                result.status === "accepted"
-                  ? "case-state accepted"
-                  : result.status === "executed"
-                    ? "case-state"
-                    : "case-state failed"
-              }
-              aria-hidden="true"
-            />
+            {result.status !== "executed" && (
+              <Icon
+                name={result.status === "accepted" ? "submit" : "close"}
+                className={verdictTone(result.status)}
+              />
+            )}
             Case {result.index + 1}
           </button>
         ))}
@@ -103,15 +100,30 @@ export function ResultContent({
   const verdict =
     submission.verdict?.replaceAll("_", " ") ??
     (submission.kind === "run" ? "Executed" : "Completed");
+  const compared = submission.publicCases?.filter((item) => item.status !== "executed") ?? [];
+  const passed = compared.filter((item) => item.status === "accepted").length;
   return (
     <div className="result-complete">
       <div className="result-summary">
         <div className={`verdict-line ${verdictTone(submission.verdict)}`}>
-          <strong>{verdict}</strong>
-          {submission.score && (
-            <span className="score-count">
-              {submission.score.passed}/{submission.score.total} passed
+          {submission.score || (submission.kind === "run" && compared.length) ? (
+            <span className="run-overview">
+              <Icon
+                name={
+                  submission.kind === "submit"
+                    ? "lock"
+                    : passed === compared.length
+                      ? "submit"
+                      : "close"
+                }
+              />
+              <span>
+                {submission.score?.passed ?? passed}/{submission.score?.total ?? compared.length}{" "}
+                cases passed
+              </span>
             </span>
+          ) : (
+            <strong>{verdict}</strong>
           )}
         </div>
         <Diagnostics items={submission.diagnostics} />

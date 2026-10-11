@@ -1,7 +1,7 @@
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
 import { useId, useState } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
-import { Icon } from "./Icon";
+import { Icon, VisibilityIcon } from "./Icon";
 import { bindArguments } from "../argumentBinding";
 import { constraintMarkup } from "../constraintMarkup";
 import type { ProblemVersion } from "@quorem/contracts";
@@ -34,7 +34,7 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
               aria-controls={topicsId}
               onClick={() => setRevealedTopicsFor(topicsVisible ? undefined : problem.id)}
             >
-              <Icon name={topicsVisible ? "eye-off" : "eye"} />
+              <VisibilityIcon visible={topicsVisible} />
               Topics
             </button>
           )}

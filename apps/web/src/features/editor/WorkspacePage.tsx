@@ -369,7 +369,7 @@ export function WorkspacePage({
   }, [execution.run]);
   const submit = useCallback(async () => {
     setActivePanel("results");
-    await execution.submit();
+    if (await execution.submit()) setCustomMode(false);
   }, [execution.submit]);
 
   useEffect(() => {
@@ -712,8 +712,20 @@ export function WorkspacePage({
                           }
                         }}
                       >
-                        <Icon name={tab === "samples" ? "samples" : "custom"} />
-                        {tab === "samples" ? "Sample cases" : "Custom cases"}
+                        <Icon
+                          name={
+                            tab === "samples"
+                              ? submission?.hiddenCases?.length
+                                ? "lock"
+                                : "samples"
+                              : "custom"
+                          }
+                        />
+                        {tab === "samples"
+                          ? submission?.hiddenCases?.length
+                            ? "Hidden cases"
+                            : "Sample cases"
+                          : "Custom cases"}
                       </button>
                     );
                   })}

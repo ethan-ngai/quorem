@@ -28,6 +28,10 @@ export function TestCases({
   submission?: Submission;
   snapshot?: RunSnapshot;
 }) {
+  const hiddenCases =
+    !customMode && submission?.kind === "submit" && submission.state === "completed"
+      ? submission.hiddenCases
+      : undefined;
   const [selectedSample, setSelectedSample] = useState(0);
   const [selectedCustomId, setSelectedCustomId] = useState<string>();
   // Recovered output without an admission snapshot belongs in this same case rail.
@@ -37,7 +41,7 @@ export function TestCases({
       : undefined;
   const sampleIndex = Math.min(
     selectedSample,
-    Math.max(0, (recoveredCases?.length ?? problem.examples.length) - 1),
+    Math.max(0, (hiddenCases?.length ?? recoveredCases?.length ?? problem.examples.length) - 1),
   );
   const customIndex = Math.max(
     0,
@@ -73,24 +77,62 @@ export function TestCases({
   function updateDraft(change: Partial<CustomCaseDraft>) {
     onDraftsChange(drafts.map((item) => (item.id === draft?.id ? { ...item, ...change } : item)));
   }
+  function caseStatus(index: number) {
+    if (hiddenCases) return hiddenCases[index]?.status;
+    if (submission?.kind !== "run" || submission.state !== "completed") return undefined;
+    if (recoveredCases) return recoveredCases[index]?.status;
+    let value;
+    try {
+      value = customMode
+        ? parseCustomDraft(drafts[index]!, problem.signature, problem.constraints)
+        : { args: problem.examples[index]!.args, expected: problem.examples[index]!.expected };
+    } catch {
+      return undefined;
+    }
+    const resultIndex = associatedResultIndex(
+      matchingSnapshot,
+      customMode,
+      customMode ? drafts[index]!.id : String(index),
+      value,
+    );
+    return resultIndex >= 0 ? submission.publicCases?.[resultIndex]?.status : undefined;
+  }
+  const statuses = (customMode ? drafts : (hiddenCases ?? recoveredCases ?? problem.examples)).map(
+    (_, index) => caseStatus(index),
+  );
   return (
     <div className="case-browser">
       <div
         className="case-rail"
-        aria-label={customMode ? "Select custom case" : "Select sample case"}
+        aria-label={
+          customMode
+            ? "Select custom case"
+            : hiddenCases
+              ? "Select hidden case"
+              : "Select sample case"
+        }
       >
-        {(customMode ? drafts : (recoveredCases ?? problem.examples)).map((item, index) => (
-          <button
-            key={customMode ? (item as CustomCaseDraft).id : index}
-            className="case-selector"
-            aria-pressed={index === (customMode ? customIndex : sampleIndex)}
-            onClick={() =>
-              customMode ? setSelectedCustomId(drafts[index]!.id) : setSelectedSample(index)
-            }
-          >
-            Case {index + 1}
-          </button>
-        ))}
+        {(customMode ? drafts : (hiddenCases ?? recoveredCases ?? problem.examples)).map(
+          (item, index) => (
+            <button
+              key={customMode ? (item as CustomCaseDraft).id : index}
+              className="case-selector"
+              aria-pressed={index === (customMode ? customIndex : sampleIndex)}
+              aria-label={`Case ${index + 1}${statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
+              onClick={() =>
+                customMode ? setSelectedCustomId(drafts[index]!.id) : setSelectedSample(index)
+              }
+            >
+              {statuses[index] && statuses[index] !== "executed" && (
+                <Icon
+                  name={hiddenCases ? "lock" : statuses[index] === "accepted" ? "submit" : "close"}
+                  className={statuses[index] === "accepted" ? "verdict-success" : "verdict-error"}
+                />
+              )}
+              Case {index + 1}
+            </button>
+          ),
+        )}
         {customMode && (
           <button
             className="case-selector add-case"
@@ -171,6 +213,27 @@ export function TestCases({
               </button>
             )}
           </>
+        ) : hiddenCases?.length ? (
+          <div className="locked-case">
+            <Icon
+              name="lock"
+              className={
+                hiddenCases[sampleIndex]?.status === "accepted"
+                  ? "verdict-success"
+                  : "verdict-error"
+              }
+            />
+            <span>Hidden case {sampleIndex + 1}</span>
+            <span
+              className={
+                hiddenCases[sampleIndex]?.status === "accepted"
+                  ? "verdict-success"
+                  : "verdict-error"
+              }
+            >
+              {hiddenCases[sampleIndex]?.status === "time_limit" ? "Time limit exceeded" : null}
+            </span>
+          </div>
         ) : recoveredCases?.length ? null : example ? (
           <>
             {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (

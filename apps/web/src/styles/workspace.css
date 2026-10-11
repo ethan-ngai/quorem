@@ -1683,3 +1683,228 @@ kbd {
 .expected-field textarea {
   color: var(--color-success);
 }
+
+.example-list > li + li {
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+.console-value-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.console-value-row .field-purpose {
+  height: 34px;
+}
+.case-selector,
+.run-overview,
+.score-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.case-selector svg,
+.run-overview svg,
+.score-count svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.run-overview {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Fast feedback for workspace controls; content never waits for motion. */
+.app-shell {
+  --interaction-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --interaction-fast: 120ms;
+  --interaction-reveal: 180ms;
+}
+.app-shell :is(button, summary, a, input, select, textarea),
+.app-shell .typed-collection,
+.app-shell .splitter::after {
+  transition:
+    color var(--interaction-fast) var(--interaction-ease),
+    background-color var(--interaction-fast) var(--interaction-ease),
+    border-color var(--interaction-fast) var(--interaction-ease),
+    box-shadow var(--interaction-fast) var(--interaction-ease),
+    opacity var(--interaction-fast) var(--interaction-ease),
+    transform var(--interaction-fast) var(--interaction-ease),
+    filter var(--interaction-fast) var(--interaction-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .app-shell :is(button, summary, a):hover {
+    filter: brightness(1.06);
+  }
+}
+.app-shell :is(button, summary):active:not(:disabled) {
+  transform: translateY(1px);
+}
+.app-shell :is(input, textarea, select):focus-visible {
+  border-color: var(--color-primary);
+}
+.app-shell .typed-collection:focus-within {
+  border-color: var(--color-primary);
+}
+.app-shell .typed-collection :is(input, textarea):focus-visible {
+  box-shadow: none;
+}
+.topic-list {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--interaction-reveal) var(--interaction-ease),
+    visibility 0s;
+}
+.topic-list > span {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform var(--interaction-reveal) var(--interaction-ease),
+    opacity var(--interaction-reveal) var(--interaction-ease);
+}
+.topic-list[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--interaction-reveal) var(--interaction-ease),
+    visibility 0s var(--interaction-reveal);
+}
+.topic-list[data-visible="false"] > span {
+  transform: translateY(-3px);
+  opacity: 0;
+}
+.eye-slash {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  transition:
+    stroke-dashoffset var(--interaction-reveal) var(--interaction-ease),
+    opacity var(--interaction-fast) var(--interaction-ease);
+}
+.visibility-icon[data-visible="false"] .eye-slash {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+.app-shell details::details-content {
+  opacity: 0;
+  transition:
+    opacity var(--interaction-reveal) var(--interaction-ease),
+    content-visibility var(--interaction-reveal) allow-discrete;
+}
+.app-shell details[open]::details-content {
+  opacity: 1;
+}
+.app-shell dialog {
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--interaction-reveal) var(--interaction-ease),
+    transform var(--interaction-reveal) var(--interaction-ease),
+    display var(--interaction-reveal) allow-discrete,
+    overlay var(--interaction-reveal) allow-discrete;
+}
+.app-shell dialog[open] {
+  opacity: 1;
+  transform: translateY(0);
+}
+.app-shell dialog::backdrop {
+  opacity: 0;
+  transition:
+    opacity var(--interaction-reveal) var(--interaction-ease),
+    display var(--interaction-reveal) allow-discrete,
+    overlay var(--interaction-reveal) allow-discrete;
+}
+.app-shell dialog[open]::backdrop {
+  opacity: 1;
+}
+.app-shell :is([role="tabpanel"], .typed-case-field, .expected-field, .case-console) {
+  transition: opacity var(--interaction-fast) var(--interaction-ease);
+}
+.app-shell details summary .icon-chevron {
+  transition:
+    transform var(--interaction-fast) var(--interaction-ease),
+    filter var(--interaction-fast) var(--interaction-ease);
+}
+@starting-style {
+  .app-shell details[open]::details-content,
+  .app-shell dialog[open],
+  .app-shell dialog[open]::backdrop,
+  .app-shell :is([role="tabpanel"], .typed-case-field, .expected-field, .case-console) {
+    opacity: 0;
+  }
+  .app-shell dialog[open] {
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :is(button, summary):active:not(:disabled),
+  .topic-list > span,
+  .topic-list[data-visible="false"] > span,
+  .app-shell dialog {
+    transform: none;
+  }
+}
+
+.app-shell .cm-foldGutter span {
+  transition:
+    color var(--interaction-fast) var(--interaction-ease),
+    opacity var(--interaction-fast) var(--interaction-ease);
+}
+.app-shell .cm-tooltip,
+.app-shell .cm-tooltip-autocomplete li {
+  transition:
+    opacity var(--interaction-fast) var(--interaction-ease),
+    background-color var(--interaction-fast) var(--interaction-ease);
+}
+@starting-style {
+  .app-shell .cm-tooltip {
+    opacity: 0;
+  }
+}
+
+.locked-case {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  padding: 24px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.locked-case > svg {
+  width: 24px;
+  height: 24px;
+}
+.locked-case > span:last-child {
+  text-transform: capitalize;
+}
+
+.app-shell.hidden-preview {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+.hidden-preview .preview-label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.hidden-preview .topbar > a:last-child {
+  margin-left: auto;
+}
+.hidden-preview .preview-results {
+  display: grid;
+  width: auto;
+  height: auto;
+  grid-area: auto;
+  grid-column: 1;
+  grid-row: 2;
+  margin: 8px 12px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.hidden-preview .case-result-summary {
+  max-height: none;
+}

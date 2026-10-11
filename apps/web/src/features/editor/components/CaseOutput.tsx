@@ -86,7 +86,12 @@ function ConsoleSection({ label, children }: { label: string; children: ReactNod
   return (
     <section className="case-console" aria-label={label}>
       <span>{label}</span>
-      <pre>{children}</pre>
+      <div className="console-value-row">
+        <span className="field-purpose" title={label} aria-label={label}>
+          <Icon name="terminal" />
+        </span>
+        <pre>{children}</pre>
+      </div>
     </section>
   );
 }

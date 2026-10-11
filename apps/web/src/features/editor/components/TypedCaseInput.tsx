@@ -41,7 +41,7 @@ export function TypedCaseInput({
   let controlType = type;
   while (innerType(controlType, "optional")) controlType = innerType(controlType, "optional")!;
   const control = optional ? resolveInputPreset(controlType, input) : preset;
-  const framed = ["sequence", "matrix", "tree", "linkedList"].includes(control.kind);
+  const framed = !!control.delimiters;
   let error = rejected;
   if (touched && !error) {
     try {
@@ -116,7 +116,7 @@ export function TypedCaseInput({
           <div className={framed ? "typed-collection" : "typed-control"}>
             {framed && (
               <span className="collection-delimiter" aria-hidden="true">
-                [
+                {control.delimiters![0]}
               </span>
             )}
             {control.kind === "number" ||
@@ -124,11 +124,15 @@ export function TypedCaseInput({
               (input?.rows ?? 1) === 1) ? (
               <input {...props} type="text" autoComplete="off" spellCheck={false} />
             ) : (
-              <textarea {...props} rows={input?.rows ?? (framed ? 2 : 1)} spellCheck={false} />
+              <textarea
+                {...props}
+                rows={input?.rows ?? (control.kind === "text" ? 1 : framed ? 2 : 1)}
+                spellCheck={false}
+              />
             )}
             {framed && (
               <span className="collection-delimiter" aria-hidden="true">
-                ]
+                {control.delimiters![1]}
               </span>
             )}
           </div>
