@@ -16,6 +16,7 @@ import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls
 import { ConcessionDialog } from "./ConcessionDialog";
 import { CopyFeedbackIcon } from "./CopyFeedbackIcon";
 import { ReadinessIcon } from "./ReadinessIcon";
+import { ReadyActionIcon } from "./ReadyActionIcon";
 import { shareInvitation } from "./shareInvitation";
 import { readInvite } from "./commandRecovery";
 import {
@@ -429,13 +430,10 @@ export function MatchPage({ matchId }: { matchId: string }) {
                 disabled={pending || !own}
                 onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
               >
-                <span className="readiness-option readiness-option-ready" aria-hidden="true">
-                  <Icon name="submit" />
-                  Ready
-                </span>
-                <span className="readiness-option readiness-option-cancel" aria-hidden="true">
-                  <Icon name="close" />
-                  Cancel
+                <ReadyActionIcon ready={!!own?.ready} />
+                <span className="readiness-labels" aria-hidden="true">
+                  <span className="readiness-option readiness-option-ready">Ready</span>
+                  <span className="readiness-option readiness-option-cancel">Cancel</span>
                 </span>
               </button>
             </footer>

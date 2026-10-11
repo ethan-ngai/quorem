@@ -40,9 +40,12 @@
   width: 104px;
   flex-shrink: 0;
   justify-content: center;
-  display: grid;
-  gap: 0;
+  display: flex;
+  gap: 8px;
   overflow: hidden;
+}
+.readiness-labels {
+  display: grid;
 }
 .readiness-option {
   grid-area: 1 / 1;
