@@ -336,7 +336,7 @@ kbd {
   scrollbar-width: thin;
 }
 .problem-heading {
-  margin-bottom: 22px;
+  margin-bottom: 6px;
 }
 .eyebrow {
   color: var(--color-text-secondary);
@@ -1150,8 +1150,12 @@ kbd {
   height: 14px;
 }
 .topic-list {
-  margin: 0;
-  padding-left: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  min-height: 24px;
+  margin: 0 0 12px;
+  padding: 0;
   color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.8;

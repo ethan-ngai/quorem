@@ -41,6 +41,20 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
           )}
         </div>
       </div>
+      {problem.tags.length > 0 && (
+        <div
+          id={topicsId}
+          className="topic-list"
+          data-visible={topicsVisible}
+          aria-hidden={!topicsVisible}
+        >
+          {problem.tags.map((tag) => (
+            <span key={tag}>
+              {tag.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="problem-copy">
         <StatementMarkdown source={problem.statementMarkdown} />
       </div>
@@ -82,21 +96,6 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
           ))}
         </ul>
       </section>
-      {problem.tags.length > 0 && (
-        <section className="problem-section" aria-labelledby={`${topicsId}-heading`}>
-          <h2 id={`${topicsId}-heading`}>Topics</h2>
-          <ul
-            id={topicsId}
-            className="topic-list"
-            data-visible={topicsVisible}
-            aria-hidden={!topicsVisible}
-          >
-            {problem.tags.map((tag) => (
-              <li key={tag}>{tag}</li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }
