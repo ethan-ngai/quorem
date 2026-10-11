@@ -608,37 +608,19 @@ export function WorkspacePage({
               <div className="code-toolbar">
                 <span className="editor-language">Python</span>
                 <div className="code-options">
-                  <span
-                    className="intelligence-status"
-                    role="status"
-                    title={
-                      intelligence.status === "ready"
-                        ? "IntelliSense connected"
-                        : intelligence.status === "connecting"
-                          ? "Connecting IntelliSense"
-                          : undefined
-                    }
-                  >
-                    <i className={`intelligence-dot ${intelligence.status}`} />
-                    {intelligence.status === "unavailable" || intelligence.status === "replaced" ? (
-                      <>
-                        <span>
-                          {intelligence.status === "replaced"
-                            ? "Active in another tab"
-                            : "IntelliSense unavailable"}
-                        </span>
-                        <button className="quiet-button" onClick={intelligence.retry}>
-                          {intelligence.status === "replaced" ? "Use here" : "Retry"}
-                        </button>
-                      </>
-                    ) : (
-                      <span className="sr-only">
-                        {intelligence.status === "ready"
-                          ? "IntelliSense connected"
-                          : "Connecting IntelliSense"}
+                  {(intelligence.status === "unavailable" ||
+                    intelligence.status === "replaced") && (
+                    <span className="intelligence-status" role="status">
+                      <span>
+                        {intelligence.status === "replaced"
+                          ? "Active in another tab"
+                          : "IntelliSense unavailable"}
                       </span>
-                    )}
-                  </span>
+                      <button className="quiet-button" onClick={intelligence.retry}>
+                        {intelligence.status === "replaced" ? "Use here" : "Retry"}
+                      </button>
+                    </span>
+                  )}
                 </div>
               </div>
               {localRecovery && (
