@@ -338,7 +338,7 @@ func (s *Store) ReadyMatch(ctx context.Context, owner, id, key string, ready boo
 			m.state = "ready"
 		}
 		if total == 2 && readies == 2 {
-			rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE public->>'difficulty'=$1 ORDER BY id", m.settings.Difficulty)
+			rows, err := tx.Query(ctx, "SELECT public FROM (SELECT DISTINCT ON (slug) id,public FROM problem_versions ORDER BY slug,version DESC) latest WHERE public->>'difficulty'=$1 ORDER BY id", m.settings.Difficulty)
 			if err != nil {
 				return err
 			}

@@ -519,3 +519,45 @@ func TestMatchCertainLeaderIgnoresOwnUnresolvedJob(t *testing.T) {
 		t.Fatal("irrelevant failure blocked certain winner", v, e)
 	}
 }
+func TestMatchSelectionFiltersDifficultyAfterLatestVersion(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	p, e := s.Problem(ctx, "run-widths", false)
+	if e != nil {
+		t.Fatal(e)
+	}
+	execSQL(t, s, "DELETE FROM problem_versions WHERE public->>'difficulty'='easy' AND id<>$1", p.ID)
+	latest := ID()
+	execSQL(t, s, `INSERT INTO problem_versions(id,slug,version,public,fixture)
+ SELECT $1::uuid,slug,version+1,public || jsonb_build_object('id',$1::uuid::text,'version',(version+1)::text,'difficulty','hard'),fixture
+ FROM problem_versions WHERE id=$2`, latest, p.ID)
+	c, e := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulty: "easy"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.JoinMatch(ctx, "bob", ID(), inviteToken(t, c)); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "temporarily_unavailable" {
+		t.Fatal("retained easy version entered pool", e)
+	}
+	v, e := s.Match(ctx, "alice", c.ID)
+	if e != nil || v.ProblemVersionID != "" || v.StartedAt != nil {
+		t.Fatal(v, e)
+	}
+	v, e = s.UpdateMatchSettings(ctx, "alice", c.ID, ID(), matches.Settings{Difficulty: "hard", DurationMinutes: 30})
+	if e != nil {
+		t.Fatal(e)
+	}
+	execSQL(t, s, "DELETE FROM problem_versions WHERE public->>'difficulty'='hard' AND id<>$1", latest)
+	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
+		t.Fatal(e)
+	}
+	v, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true)
+	if e != nil || v.ProblemVersionID != latest {
+		t.Fatal("latest version not selected", v, e)
+	}
+}
