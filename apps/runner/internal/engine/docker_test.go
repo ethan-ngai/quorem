@@ -54,7 +54,7 @@ func TestDockerFailuresAndUncomparedRun(t *testing.T) {
 	if f.Problem.Slug != "level-spreads" {
 		t.Fatal("fixture order changed")
 	}
-	cases := f.Problem.Examples[:1]
+	cases := f.Problem.SampleCases()[:1]
 	tests := []struct {
 		source  string
 		verdict execution.Verdict
@@ -146,7 +146,7 @@ func TestDockerCancellationTearsDown(t *testing.T) {
 	f := dockerTests(t)[0]
 	ctx, cancel := context.WithCancel(context.Background())
 	docker := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: "class Solution:\n def levelSpreads(self, root):\n  while True: pass", Kind: "run", Fixture: f, Cases: f.Problem.Examples[:1]}, nil
+		return worker.Spec{Source: "class Solution:\n def levelSpreads(self, root):\n  while True: pass", Kind: "run", Fixture: f, Cases: f.Problem.SampleCases()[:1]}, nil
 	}}
 	attempt := "cancel-" + time.Now().Format("150405.000000000")
 	job := execution.Job{SubmissionID: "cancel", AttemptID: attempt, RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
@@ -162,7 +162,7 @@ func TestDockerForgedProtocolIsContestantFailure(t *testing.T) {
 	f := dockerTests(t)[0]
 	for _, frame := range []string{`{"status":"accepted","actual":[]}`, `{"status":"executed","actual":[]}garbage`} {
 		source := "import os\nos.write(1," + strconv.Quote(frame) + ".encode())\nos._exit(0)"
-		result := executeFixture(t, f, source, "run", f.Problem.Examples[:1])
+		result := executeFixture(t, f, source, "run", f.Problem.SampleCases()[:1])
 		if result.Verdict != execution.InvalidOutput || result.EngineFailure != "" {
 			t.Fatal(result)
 		}
@@ -189,7 +189,7 @@ func TestDockerReapsAbandonedAttempt(t *testing.T) {
 func TestDockerRuntimeTracebackPublicAndHidden(t *testing.T) {
 	f := dockerTests(t)[0]
 	source := "class Solution:\n def levelSpreads(self, root):\n  raise ValueError('debug-marker')"
-	run := executeFixture(t, f, source, "run", f.Problem.Examples[:1])
+	run := executeFixture(t, f, source, "run", f.Problem.SampleCases()[:1])
 	if run.Verdict != execution.RuntimeError || len(run.PublicCaseResults) != 1 {
 		t.Fatal(run)
 	}
@@ -214,7 +214,7 @@ func TestDockerExceptionFormattingBudgets(t *testing.T) {
 		{"while True: pass", execution.TimeLimit},
 	} {
 		source := "class Hostile(Exception):\n def __str__(self):\n  " + test.body + "\nclass Solution:\n def levelSpreads(self, root): raise Hostile()"
-		result := executeFixture(t, f, source, "run", f.Problem.Examples[:1])
+		result := executeFixture(t, f, source, "run", f.Problem.SampleCases()[:1])
 		if result.Verdict != test.want {
 			t.Fatal(result)
 		}

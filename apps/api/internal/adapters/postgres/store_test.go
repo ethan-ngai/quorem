@@ -295,6 +295,10 @@ func TestTypedCustomCasesRejectBeforeEnqueue(t *testing.T) {
 	ctx := context.Background()
 	for _, test := range []struct{ slug, args, expected string }{
 		{"run-widths", `[]`, ""},
+		{"split-load", `[[1,2],3]`, ""},
+		{"split-load", `[[1,-2],1]`, ""},
+		{"split-load", `[[],1]`, ""},
+		{"split-load", `[[2147483647,1],1]`, ""},
 		{"run-widths", `[[true]]`, ""},
 		{"run-widths", `[[2147483648]]`, ""},
 		{"run-widths", `[[1.5]]`, ""},
