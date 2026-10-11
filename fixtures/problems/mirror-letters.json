@@ -1,0 +1,133 @@
+{
+  "problem": {
+    "id": "4a245182-503c-5c99-89b1-922a6dbb7a9d",
+    "slug": "mirror-letters",
+    "version": "1",
+    "title": "Mirror Letters",
+    "difficulty": "easy",
+    "tags": ["strings", "two pointers"],
+    "statementMarkdown": "Reverse only ASCII letters (`A-Z`, `a-z`) in `text`. Every nonletter stays at its original index, and letter case travels with the letter.",
+    "examples": [
+      {
+        "args": [""],
+        "expected": ""
+      },
+      {
+        "args": ["a-bC!"],
+        "expected": "C-ba!"
+      }
+    ],
+    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "signature": {
+      "className": "Solution",
+      "methodName": "mirrorLetters",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "str"
+        }
+      ],
+      "returnType": "str"
+    },
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def mirrorLetters(self, text: str) -> str:\n        pass\n",
+    "runtimeRevision": "python-3.12-v1",
+    "limits": {
+      "wallTimeMs": 2000,
+      "memoryBytes": 268435456,
+      "outputBytes": 65536,
+      "maxProcesses": 16,
+      "maxCollectionElements": 10000,
+      "maxNestingDepth": 100
+    }
+  },
+  "harnessRevision": "quorem-harness-v1",
+  "comparator": "ordered",
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "hiddenCases": [
+    {
+      "args": [""],
+      "expected": ""
+    },
+    {
+      "args": ["a-bC!"],
+      "expected": "C-ba!"
+    },
+    {
+      "args": ["abc"],
+      "expected": "cba"
+    },
+    {
+      "args": ["123"],
+      "expected": "123"
+    },
+    {
+      "args": ["A1z2B"],
+      "expected": "B1z2A"
+    },
+    {
+      "args": ["ab!cd?"],
+      "expected": "dc!ba?"
+    },
+    {
+      "args": ["x"],
+      "expected": "x"
+    },
+    {
+      "args": ["aA"],
+      "expected": "Aa"
+    },
+    {
+      "args": ["...abc..."],
+      "expected": "...cba..."
+    },
+    {
+      "args": ["Hi there!"],
+      "expected": "er ehtiH!"
+    },
+    {
+      "args": ["a_b_c"],
+      "expected": "c_b_a"
+    },
+    {
+      "args": ["\u03b1a\u03b2B"],
+      "expected": "\u03b1B\u03b2a"
+    },
+    {
+      "args": [
+        "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+      ],
+      "expected": "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+    },
+    {
+      "args": ["a1b2c3d4"],
+      "expected": "d1c2b3a4"
+    },
+    {
+      "args": ["\nA\tB"],
+      "expected": "\nB\tA"
+    },
+    {
+      "args": ["012a345"],
+      "expected": "012a345"
+    },
+    {
+      "args": ["A!b?C."],
+      "expected": "C!b?A."
+    },
+    {
+      "args": ["cabCAB"],
+      "expected": "BACbac"
+    },
+    {
+      "args": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "args": ["[]a{}z"],
+      "expected": "[]z{}a"
+    }
+  ],
+  "referenceSource": "def solve(text):\n    letters = [c for c in text if c.isascii() and c.isalpha()]\n    return \"\".join(letters.pop() if c.isascii() and c.isalpha() else c for c in text)\nclass Solution:\n    def mirrorLetters(self, text):\n        return solve(text)\n"
+}

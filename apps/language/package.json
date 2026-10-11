@@ -1,0 +1,18 @@
+{
+  "name": "@quorem/language",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --experimental-strip-types src/main.ts",
+    "check": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/*.test.ts"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.0.0",
+    "typescript": "^5.9.3"
+  }
+}

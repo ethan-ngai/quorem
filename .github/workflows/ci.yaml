@@ -1,0 +1,63 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: quorem
+          POSTGRES_PASSWORD: quorem
+          POSTGRES_DB: quorem
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U quorem -d quorem"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      APP_ENV: local
+      QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
+      QUOREM_TEST_DOCKER: "1"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
+      - run: vp check
+      - run: vp run contracts:check
+      - run: vp -C apps/web test
+      - run: vp build
+      - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
+      - name: Language lifecycle and Python capabilities
+        env:
+          QUOREM_DEV_IDENTITY: "true"
+          QUOREM_LANGUAGE_TEST: "true"
+        run: |
+          node --experimental-strip-types apps/language/src/main.ts > /tmp/quorem-language.log 2>&1 &
+          language_pid=$!
+          trap 'kill -TERM "$language_pid" 2>/dev/null || true; wait "$language_pid" || true' EXIT
+          for attempt in $(seq 1 100); do
+            if curl -fsS http://127.0.0.1:8081/health; then break; fi
+            if ! kill -0 "$language_pid" 2>/dev/null; then cat /tmp/quorem-language.log; exit 1; fi
+            sleep 0.1
+          done
+          curl -fsS http://127.0.0.1:8081/health
+          vp run --filter @quorem/language test
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: docker build -f apps/runner/Dockerfile -t quorem-python:local .
+      # Functional case tests measure a ready runtime; cold-start latency is a separate release gate.
+      - name: Warm sandbox runtime
+        run: docker run --rm --network none --read-only --entrypoint python quorem-python:local -c "pass"
+      - run: go test ./...
+      - run: go vet ./...

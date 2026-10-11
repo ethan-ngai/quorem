@@ -1,0 +1,9 @@
+{
+  "name": "@quorem/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./theme.css": "./src/theme.css",
+    "./tokens": "./src/tokens.ts"
+  }
+}

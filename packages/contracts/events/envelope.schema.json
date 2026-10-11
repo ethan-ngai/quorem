@@ -1,0 +1,925 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quorem.local/schemas/events.v1.json",
+  "$defs": {
+    "Language": {
+      "type": "string",
+      "enum": ["python"]
+    },
+    "Difficulty": {
+      "type": "string",
+      "enum": ["easy", "medium", "hard"]
+    },
+    "SubmissionKind": {
+      "type": "string",
+      "enum": ["run", "submit"]
+    },
+    "SubmissionState": {
+      "type": "string",
+      "enum": ["queued", "running", "completed", "cancelled", "failed"]
+    },
+    "Verdict": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "wrong_answer",
+        "syntax_error",
+        "runtime_error",
+        "time_limit",
+        "memory_limit",
+        "output_limit",
+        "invalid_output"
+      ]
+    },
+    "WireValue": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        {
+          "type": "number",
+          "not": {
+            "type": "integer"
+          }
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        }
+      ]
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "invalid_input",
+                "unauthenticated",
+                "forbidden",
+                "not_found",
+                "user_busy",
+                "invalid_transition",
+                "idempotency_conflict",
+                "stale_session_save",
+                "payload_too_large",
+                "quota_exceeded",
+                "queue_saturated",
+                "temporarily_unavailable"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "requestId": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "required": ["code", "message", "requestId"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["error"],
+      "additionalProperties": false
+    },
+    "Parameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "type"],
+      "additionalProperties": false
+    },
+    "Signature": {
+      "type": "object",
+      "properties": {
+        "className": {
+          "type": "string",
+          "enum": ["Solution"]
+        },
+        "methodName": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "returnType": {
+          "type": "string"
+        }
+      },
+      "required": ["className", "methodName", "parameters", "returnType"],
+      "additionalProperties": false
+    },
+    "ExecutionLimits": {
+      "type": "object",
+      "properties": {
+        "wallTimeMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outputBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxProcesses": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxCollectionElements": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxNestingDepth": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "wallTimeMs",
+        "memoryBytes",
+        "outputBytes",
+        "maxProcesses",
+        "maxCollectionElements",
+        "maxNestingDepth"
+      ],
+      "additionalProperties": false
+    },
+    "CustomCase": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        }
+      },
+      "required": ["args"],
+      "additionalProperties": false
+    },
+    "ProblemExample": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        },
+        "explanation": {
+          "type": "string"
+        }
+      },
+      "required": ["args", "expected"],
+      "additionalProperties": false
+    },
+    "ProblemVersion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "difficulty": {
+          "$ref": "#/$defs/Difficulty"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "statementMarkdown": {
+          "type": "string"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProblemExample"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "signature": {
+          "$ref": "#/$defs/Signature"
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "runtimeRevision": {
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/ExecutionLimits"
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "version",
+        "title",
+        "difficulty",
+        "tags",
+        "statementMarkdown",
+        "examples",
+        "constraints",
+        "signature",
+        "starterSource",
+        "runtimeRevision",
+        "limits"
+      ],
+      "additionalProperties": false
+    },
+    "EditorPreferences": {
+      "type": "object",
+      "properties": {
+        "theme": {
+          "type": "string",
+          "enum": ["system", "light", "dark"]
+        },
+        "paneRatios": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "exclusiveMaximum": 1
+          }
+        },
+        "codeFontSize": {
+          "type": "integer",
+          "minimum": 12,
+          "maximum": 24
+        },
+        "tabSize": {
+          "type": "integer",
+          "enum": [2, 4]
+        },
+        "wrap": {
+          "type": "boolean"
+        }
+      },
+      "required": ["theme", "paneRatios", "codeFontSize", "tabSize", "wrap"],
+      "additionalProperties": false
+    },
+    "Draft": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "savedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["source", "revision", "savedAt"],
+      "additionalProperties": false
+    },
+    "Workspace": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["solo", "match"]
+        },
+        "problemVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        },
+        "matchId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "draft": {
+          "$ref": "#/$defs/Draft"
+        },
+        "preferences": {
+          "$ref": "#/$defs/EditorPreferences"
+        }
+      },
+      "required": ["id", "kind", "problemVersionId", "language", "draft", "preferences"],
+      "additionalProperties": false
+    },
+    "CreateWorkspaceRequest": {
+      "type": "object",
+      "properties": {
+        "problemVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        }
+      },
+      "required": ["problemVersionId", "language"],
+      "additionalProperties": false
+    },
+    "SaveDraftRequest": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "editorSessionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "saveSequence": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        }
+      },
+      "required": ["source", "editorSessionId", "saveSequence"],
+      "additionalProperties": false
+    },
+    "SaveDraftResponse": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "savedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["revision", "savedAt"],
+      "additionalProperties": false
+    },
+    "DraftHistoryItem": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "source": {
+          "type": "string"
+        },
+        "savedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["revision", "source", "savedAt"],
+      "additionalProperties": false
+    },
+    "DraftHistory": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DraftHistoryItem"
+          }
+        },
+        "nextCursor": {
+          "type": "string"
+        }
+      },
+      "required": ["items"],
+      "additionalProperties": false
+    },
+    "RestoreDraftRequest": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        }
+      },
+      "required": ["revision"],
+      "additionalProperties": false
+    },
+    "CreateSubmissionRequest": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "$ref": "#/$defs/SubmissionKind"
+        },
+        "source": {
+          "type": "string",
+          "maxLength": 65536
+        },
+        "customCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomCase"
+          },
+          "maxItems": 20
+        }
+      },
+      "required": ["workspaceId", "kind", "source"],
+      "additionalProperties": false
+    },
+    "SubmissionAdmission": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "state": {
+          "$ref": "#/$defs/SubmissionState"
+        },
+        "sourceHash": {
+          "type": "string"
+        },
+        "admittedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "state", "sourceHash", "admittedAt"],
+      "additionalProperties": false
+    },
+    "Score": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["passed", "total"],
+      "additionalProperties": false
+    },
+    "Diagnostic": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["message"],
+      "additionalProperties": false
+    },
+    "PublicCaseResult": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "executed",
+            "accepted",
+            "wrong_answer",
+            "syntax_error",
+            "runtime_error",
+            "time_limit",
+            "memory_limit",
+            "output_limit",
+            "invalid_output"
+          ]
+        },
+        "actual": {
+          "$ref": "#/$defs/WireValue"
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          }
+        }
+      },
+      "required": ["index", "status"],
+      "additionalProperties": false
+    },
+    "Submission": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "$ref": "#/$defs/SubmissionKind"
+        },
+        "state": {
+          "$ref": "#/$defs/SubmissionState"
+        },
+        "sourceHash": {
+          "type": "string"
+        },
+        "admittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "score": {
+          "$ref": "#/$defs/Score"
+        },
+        "publicCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PublicCaseResult"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          }
+        },
+        "infrastructureError": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "workspaceId", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
+      "additionalProperties": false
+    },
+    "MatchState": {
+      "type": "string",
+      "enum": ["waiting", "ready", "active", "finalizing", "completed", "cancelled"]
+    },
+    "MatchOutcome": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["win", "draw", "no_contest", "cancelled"]
+        },
+        "winnerUserId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["kind", "reason", "completedAt"],
+      "additionalProperties": false
+    },
+    "MatchParticipant": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "presence": {
+          "type": "string",
+          "enum": ["online", "offline"]
+        },
+        "submissionState": {
+          "$ref": "#/$defs/SubmissionState"
+        },
+        "bestScore": {
+          "$ref": "#/$defs/Score"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": ["userId", "displayName", "ready", "presence"],
+      "additionalProperties": false
+    },
+    "MatchSnapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "state": {
+          "$ref": "#/$defs/MatchState"
+        },
+        "serverNow": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "difficulty": {
+          "$ref": "#/$defs/Difficulty"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "enum": [15, 30, 45, 60]
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MatchParticipant"
+          }
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deadline": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finalizingAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "problemVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "outcome": {
+          "$ref": "#/$defs/MatchOutcome"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "state",
+        "serverNow",
+        "difficulty",
+        "durationMinutes",
+        "participants"
+      ],
+      "additionalProperties": false
+    },
+    "CreateMatchRequest": {
+      "type": "object",
+      "properties": {
+        "difficulty": {
+          "$ref": "#/$defs/Difficulty"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "enum": [15, 30, 45, 60]
+        }
+      },
+      "required": ["difficulty", "durationMinutes"],
+      "additionalProperties": false
+    },
+    "MatchInvite": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "inviteUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "state": {
+          "$ref": "#/$defs/MatchState"
+        }
+      },
+      "required": ["id", "inviteUrl", "state"],
+      "additionalProperties": false
+    },
+    "JoinMatchRequest": {
+      "type": "object",
+      "properties": {
+        "inviteToken": {
+          "type": "string"
+        }
+      },
+      "required": ["inviteToken"],
+      "additionalProperties": false
+    },
+    "ReadyMatchRequest": {
+      "type": "object",
+      "properties": {
+        "ready": {
+          "type": "boolean"
+        }
+      },
+      "required": ["ready"],
+      "additionalProperties": false
+    },
+    "EventEnvelope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eventId",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "type",
+            "occurredAt",
+            "payload"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "type": {
+              "const": "submission.updated"
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "payload": {
+              "$ref": "#/$defs/Submission"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eventId",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "type",
+            "occurredAt",
+            "payload"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "type": {
+              "const": "match.updated"
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "payload": {
+              "$ref": "#/$defs/MatchSnapshot"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "eventId",
+            "schemaVersion",
+            "aggregateId",
+            "aggregateVersion",
+            "type",
+            "occurredAt",
+            "payload"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "schemaVersion": {
+              "const": 1
+            },
+            "aggregateId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "aggregateVersion": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "type": {
+              "const": "match.completed"
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "payload": {
+              "$ref": "#/$defs/MatchSnapshot"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$ref": "#/$defs/EventEnvelope"
+}
