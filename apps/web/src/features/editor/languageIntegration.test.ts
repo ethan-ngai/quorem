@@ -1,28 +1,35 @@
 /** @file languageIntegration.test.ts @description Browser LSP client against the real isolated Python engine. @module editor */
 /// <reference types="node" />
 import { createRequire } from "node:module";
+import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
 import { history, undo } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { expect, it } from "vitest";
 import { languageTransport } from "./languageTransport";
 import { PythonLanguageClient } from "./pythonLanguageClient";
+import runWidths from "../../../../../fixtures/problems/run-widths.json";
 
 const NodeSocket = createRequire(new URL("../../../../language/package.json", import.meta.url))(
   "ws",
 ) as new (url: string, options: { origin: string }) => WebSocket;
 const uri = "file:///workspace/main.py";
+const languageURL = process.env.QUOREM_LANGUAGE_TEST_URL ?? "ws://127.0.0.1:8081/lsp";
 
 it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
   "browser client supplies capabilities, reopens current source and respects owner takeover",
   async () => {
-    const connections: { socket: WebSocket; client: PythonLanguageClient; dispose(): void }[] = [];
+    const connections: {
+      socket: WebSocket;
+      client: PythonLanguageClient;
+      closed: Promise<number>;
+      dispose(): void;
+    }[] = [];
     const diagnostics: { version: number; diagnostics: { message: string }[] }[] = [];
     async function connect(takeover = false) {
-      const socket = new NodeSocket(
-        `ws://127.0.0.1:8081/lsp?user=bob${takeover ? "&takeover=1" : ""}`,
-        { origin: "http://localhost:5173" },
-      );
+      const socket = new NodeSocket(`${languageURL}?user=bob${takeover ? "&takeover=1" : ""}`, {
+        origin: "http://localhost:5173",
+      });
       const closed = new Promise<number>((resolve) =>
         socket.addEventListener("close", (event) => resolve(event.code), { once: true }),
       );
@@ -30,6 +37,12 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
       const client = new PythonLanguageClient({
         rootUri: "file:///workspace",
         timeout: 5000,
+        extensions: [
+          { clientCapabilities: { workspace: { workspaceFolders: true } } },
+          hoverTooltips(),
+          signatureHelp(),
+          serverDiagnostics(),
+        ],
         notificationHandlers: {
           "textDocument/publishDiagnostics": (_client, params) => {
             diagnostics.push(params);
@@ -41,7 +54,7 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
         transport.dispose();
         client.disconnect();
       };
-      connections.push({ socket, client, dispose });
+      connections.push({ socket, client, closed, dispose });
       socket.addEventListener("close", dispose, { once: true });
       await new Promise<void>((resolve, reject) => {
         socket.addEventListener("open", () => resolve(), { once: true });
@@ -157,7 +170,88 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
         connection.dispose();
         connection.socket.close();
       }
+      await Promise.all(connections.map((connection) => connection.closed));
     }
   },
   30000,
+);
+
+it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
+  "cold Run Widths global completion survives standard-library analysis without cache eviction",
+  async () => {
+    const socket = new NodeSocket(`${languageURL}?user=bob`, {
+      origin: "http://localhost:5173",
+    });
+    const closed = new Promise<void>((resolve) =>
+      socket.addEventListener("close", () => resolve(), { once: true }),
+    );
+    const transport = languageTransport(socket);
+    const cacheEvictions: string[] = [];
+    const client = new PythonLanguageClient({
+      rootUri: "file:///workspace",
+      timeout: 5000,
+      extensions: [
+        { clientCapabilities: { workspace: { workspaceFolders: true } } },
+        hoverTooltips(),
+        signatureHelp(),
+        serverDiagnostics(),
+      ],
+      notificationHandlers: {
+        "window/logMessage": (_client, params) => {
+          if (params.message.includes("Emptying type cache")) cacheEvictions.push(params.message);
+          return true;
+        },
+        "textDocument/publishDiagnostics": () => true,
+      },
+    });
+    socket.addEventListener(
+      "close",
+      () => {
+        transport.dispose();
+        client.disconnect();
+      },
+      { once: true },
+    );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        socket.addEventListener("open", () => resolve(), { once: true });
+        socket.addEventListener("error", reject, { once: true });
+      });
+      client.connect(transport);
+      await client.initializing;
+      const source = (prefix: string) =>
+        runWidths.problem.starterSource.replace("        pass", `        ${prefix}`);
+      client.didOpen({
+        uri,
+        languageId: "python",
+        version: 0,
+        doc: EditorState.create({ doc: source("p") }).doc,
+        getView: () => null,
+      });
+      let version = 0;
+      for (const prefix of ["p", "pr", "pri", "print", "p", "pr", "pri", "print"]) {
+        client.notification("textDocument/didChange", {
+          textDocument: { uri, version: ++version },
+          contentChanges: [{ text: source(prefix) }],
+        });
+        const result = await client.request<unknown, { items: { label: string }[] } | null>(
+          "textDocument/completion",
+          {
+            textDocument: { uri },
+            position: { line: 5, character: 8 + prefix.length },
+            context: { triggerKind: 1 },
+          },
+        );
+        expect(result?.items.some((item) => item.label === "print")).toBe(true);
+        expect(socket.readyState).toBe(1);
+      }
+      expect(cacheEvictions).toEqual([]);
+    } finally {
+      transport.dispose();
+      client.disconnect();
+      socket.close();
+      await closed;
+    }
+  },
+  20000,
 );
