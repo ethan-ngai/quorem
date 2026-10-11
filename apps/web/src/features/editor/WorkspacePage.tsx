@@ -579,11 +579,13 @@ export function WorkspacePage({
             {match ? "Source private · submits irrevocable" : "Python · practice"}
           </span>
           <div className="run-actions">
-            {submissionBusy && !(submission?.kind === "submit" && workspace.kind === "match") && (
-              <button className="quiet-button" onClick={() => void execution.cancel()}>
-                Cancel run
-              </button>
-            )}
+            {submissionBusy &&
+              !admissionPending &&
+              !(submission?.kind === "submit" && workspace.kind === "match") && (
+                <button className="quiet-button" onClick={() => void execution.cancel()}>
+                  Cancel run
+                </button>
+              )}
             <button
               className="button button-secondary"
               disabled={submissionBusy || !actionsEnabled}

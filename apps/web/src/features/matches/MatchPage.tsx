@@ -103,6 +103,9 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const [actionError, setActionError] = useState<string>();
   const [copied, setCopied] = useState(false);
   const [conceding, setConceding] = useState(false);
+  useEffect(() => {
+    if (snapshot?.state === "completed" || snapshot?.state === "cancelled") setConceding(false);
+  }, [snapshot?.state]);
   const [settings, setSettings] = useState<CreateMatchRequest>({
     difficulty: "easy",
     durationMinutes: 30,
