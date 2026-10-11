@@ -1,5 +1,5 @@
 /** @file check.mjs @description Validate fixtures and generated contract drift. @module contracts */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import assert from "node:assert/strict";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
@@ -22,6 +22,11 @@ for (const [fixture, schema] of Object.entries({
 })) {
   const validate = ajv.compile({ $ref: `${document.$id}#/$defs/${schema}` });
   assert(validate(fixtures[fixture]), JSON.stringify(validate.errors));
+}
+const validateProblem = ajv.compile({ $ref: `${document.$id}#/$defs/ProblemVersion` });
+for (const name of readdirSync("../../fixtures/problems")) {
+  const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
+  assert(validateProblem(fixture.problem), `${name}: ${JSON.stringify(validateProblem.errors)}`);
 }
 const submissionCommand = ajv.compile({ $ref: `${document.$id}#/$defs/CreateSubmissionRequest` });
 assert(!submissionCommand({ ...fixtures.createSubmission, ownerId: "alice" }));

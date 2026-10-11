@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "8d687f16-9dc8-5cad-9f91-6f6bcdeb878d",
+    "id": "faae7541-1ce0-5104-b013-bb27643893e4",
     "slug": "split-load",
-    "version": "1",
+    "version": "2",
     "title": "Split Load",
     "difficulty": "hard",
     "tags": ["arrays", "binary search"],
@@ -10,14 +10,60 @@
     "examples": [
       {
         "args": [[7, 2, 5, 10, 8], 2],
-        "expected": 18
+        "expected": 18,
+        "explanation": "Split after the third load: sums 14 and 18."
       },
       {
         "args": [[1, 2, 3], 3],
-        "expected": 3
+        "expected": 3,
+        "explanation": "Each of the three loads forms its own group."
       }
     ],
-    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "constraints": [
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "loads",
+          "projection": "length"
+        },
+        "min": 1,
+        "max": 10000
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "loads",
+          "projection": "elements"
+        },
+        "min": 0,
+        "max": 2147483647
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "groups",
+          "projection": "value"
+        },
+        "min": 1,
+        "max": 2147483647
+      },
+      {
+        "kind": "comparison",
+        "left": {
+          "parameter": "groups",
+          "projection": "value"
+        },
+        "right": {
+          "parameter": "loads",
+          "projection": "length"
+        },
+        "operator": "le"
+      },
+      {
+        "kind": "prose",
+        "text": "The total of loads fits a signed 32-bit integer."
+      }
+    ],
     "signature": {
       "className": "Solution",
       "methodName": "splitLoad",

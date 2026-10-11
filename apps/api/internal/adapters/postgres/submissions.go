@@ -75,20 +75,20 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	cases := f.HiddenCases
 	if c.Kind == "run" {
-		cases = f.Problem.Examples
+		cases = f.Problem.SampleCases()
 		if c.CustomCases != nil {
-			if err = problems.ValidateCustomCases(f.Problem.Signature, c.CustomCases); err != nil {
+			if err = problems.ValidateProblemCustomCases(f.Problem, c.CustomCases); err != nil {
 				return judging.Submission{}, failure("invalid_input", 400, err.Error())
 			}
 			cases = c.CustomCases
 		}
-		for _, test := range cases {
-			if err = problems.ValidateCase(f.Problem.Signature, test, false); err != nil {
-				return judging.Submission{}, failure("invalid_input", 400, err.Error())
-			}
-		}
 	} else if c.CustomCases != nil {
 		return judging.Submission{}, failure("invalid_input", 400, "Submit cannot choose cases")
+	}
+	for _, test := range cases {
+		if err = problems.ValidateProblemCase(f.Problem, test, false); err != nil {
+			return judging.Submission{}, failure("invalid_input", 400, err.Error())
+		}
 	}
 	var busy bool
 	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM submissions WHERE owner_id=$1 AND state IN ('queued','running'))", owner).Scan(&busy); err != nil {

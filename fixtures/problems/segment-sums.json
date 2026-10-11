@@ -1,8 +1,8 @@
 {
   "problem": {
-    "id": "e0c53f32-6b48-5d8a-861b-7ea9bb227f43",
+    "id": "869f9a71-cb7a-5650-b19c-01115ddeb860",
     "slug": "segment-sums",
-    "version": "2",
+    "version": "3",
     "title": "Segment Sums",
     "difficulty": "medium",
     "tags": ["linked lists"],
@@ -10,18 +10,44 @@
     "examples": [
       {
         "args": [[1, 2, 0, 4]],
-        "expected": [3, 4]
+        "expected": [3, 4],
+        "explanation": "The segments [1, 2] and [4] sum to 3 and 4."
       },
       {
         "args": [[0, 2, 3, 0, 0, -1, 1, 0]],
-        "expected": [5, 0]
+        "expected": [5, 0],
+        "explanation": "Consecutive separators add no segment; [-1, 1] still creates zero."
       },
       {
         "args": [null],
-        "expected": null
+        "expected": null,
+        "explanation": "An empty list creates no segments."
       }
     ],
-    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "constraints": [
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "head",
+          "projection": "nodeCount"
+        },
+        "min": 0,
+        "max": 10000
+      },
+      {
+        "kind": "range",
+        "target": {
+          "parameter": "head",
+          "projection": "nodeValues"
+        },
+        "min": -2147483648,
+        "max": 2147483647
+      },
+      {
+        "kind": "prose",
+        "text": "Each nonempty segment sum fits a signed 32-bit integer."
+      }
+    ],
     "signature": {
       "className": "Solution",
       "methodName": "segmentSums",

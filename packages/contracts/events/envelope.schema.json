@@ -249,7 +249,7 @@
         "constraints": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/Constraint"
           }
         },
         "signature": {
@@ -927,6 +927,123 @@
               "$ref": "#/$defs/MatchSnapshot"
             }
           }
+        }
+      ]
+    },
+    "ConstraintTarget": {
+      "type": "object",
+      "properties": {
+        "parameter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projection": {
+          "type": "string",
+          "enum": ["value", "length", "elements", "nodeCount", "nodeValues"]
+        }
+      },
+      "required": ["parameter", "projection"],
+      "additionalProperties": false
+    },
+    "Constraint": {
+      "oneOf": [
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "range"
+                },
+                "target": {
+                  "$ref": "#/$defs/ConstraintTarget"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": ["kind", "target", "min"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "range"
+                },
+                "target": {
+                  "$ref": "#/$defs/ConstraintTarget"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": ["kind", "target", "max"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "comparison"
+            },
+            "left": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "right": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "operator": {
+              "type": "string",
+              "enum": ["eq", "le", "lt", "ge", "gt"]
+            }
+          },
+          "required": ["kind", "left", "right", "operator"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "property"
+            },
+            "target": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "property": {
+              "type": "string",
+              "enum": ["sorted", "nondecreasing", "unique"]
+            }
+          },
+          "required": ["kind", "target", "property"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "prose"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["kind", "text"],
+          "additionalProperties": false
         }
       ]
     }

@@ -341,7 +341,7 @@ export interface components {
             tags: string[];
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
-            constraints: string[];
+            constraints: components["schemas"]["Constraint"][];
             signature: components["schemas"]["Signature"];
             starterSource: string;
             runtimeRevision: string;
@@ -559,6 +559,41 @@ export interface components {
             /** Format: date-time */
             occurredAt: string;
             payload: components["schemas"]["MatchSnapshot"];
+        };
+        ConstraintTarget: {
+            parameter: string;
+            /** @enum {string} */
+            projection: "value" | "length" | "elements" | "nodeCount" | "nodeValues";
+        };
+        Constraint: ({
+            /** @constant */
+            kind: "range";
+            target: components["schemas"]["ConstraintTarget"];
+            min: number;
+            max?: number;
+        } | {
+            /** @constant */
+            kind: "range";
+            target: components["schemas"]["ConstraintTarget"];
+            min?: number;
+            max: number;
+        }) | {
+            /** @constant */
+            kind: "comparison";
+            left: components["schemas"]["ConstraintTarget"];
+            right: components["schemas"]["ConstraintTarget"];
+            /** @enum {string} */
+            operator: "eq" | "le" | "lt" | "ge" | "gt";
+        } | {
+            /** @constant */
+            kind: "property";
+            target: components["schemas"]["ConstraintTarget"];
+            /** @enum {string} */
+            property: "sorted" | "nondecreasing" | "unique";
+        } | {
+            /** @constant */
+            kind: "prose";
+            text: string;
         };
     };
     responses: never;

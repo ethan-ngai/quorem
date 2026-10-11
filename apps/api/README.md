@@ -29,3 +29,17 @@ Integration tests require a **disposable** database; they truncate product table
 ```sh
 QUOREM_TEST_DATABASE_URL=postgres://quorem:quorem@127.0.0.1:54329/quorem_api_tests?sslmode=disable go test ./apps/api/...
 ```
+
+Problem constraints use typed ranges, scalar comparisons, numeric ordering/uniqueness,
+and informational prose. Targets name signature parameters; unsupported projections,
+duplicate names, malformed shapes, and unknown properties fail validation. String
+length counts Unicode codepoints; node count excludes null tree slots. Optional
+wrapper projections remain unsupported until nullable semantics are defined.
+
+Structured fixture metadata ships as new immutable problem versions and IDs. Seed
+never overwrites prior versions. Existing workspaces continue their original version
+and guarantees; legacy string constraints decode as informational prose. New versions
+bound each string to 10,000 codepoints (the earlier generic collection prose did not
+bound strings). Example explanations remain public metadata and are omitted from
+execution cases, hashes, and result ordering. Prose guarantees are informational,
+including aggregate sums and level differences.

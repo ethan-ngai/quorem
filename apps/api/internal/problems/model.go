@@ -22,6 +22,19 @@ type Case struct {
 	Args     []json.RawMessage `json:"args"`
 	Expected json.RawMessage   `json:"expected,omitempty"`
 }
+type ProblemExample struct {
+	Case
+	Explanation string `json:"explanation,omitempty"`
+}
+
+func (p Problem) SampleCases() []Case {
+	cases := make([]Case, len(p.Examples))
+	for i, example := range p.Examples {
+		cases[i] = example.Case
+	}
+	return cases
+}
+
 type Problem struct {
 	ID                string           `json:"id"`
 	Slug              string           `json:"slug"`
@@ -30,8 +43,8 @@ type Problem struct {
 	Difficulty        string           `json:"difficulty"`
 	Tags              []string         `json:"tags"`
 	StatementMarkdown string           `json:"statementMarkdown"`
-	Examples          []Case           `json:"examples"`
-	Constraints       []string         `json:"constraints"`
+	Examples          []ProblemExample `json:"examples"`
+	Constraints       []Constraint     `json:"constraints"`
 	Signature         Signature        `json:"signature"`
 	StarterSource     string           `json:"starterSource"`
 	RuntimeRevision   string           `json:"runtimeRevision"`
@@ -64,8 +77,11 @@ func LoadFixtures(dir string) ([]Fixture, error) {
 		if len(f.HiddenCases) != 20 {
 			return nil, fmt.Errorf("%s needs 20 cases", path)
 		}
-		for _, c := range append(append([]Case{}, f.Problem.Examples...), f.HiddenCases...) {
-			if e = ValidateCase(f.Problem.Signature, c, true); e != nil {
+		if e = ValidateConstraints(f.Problem.Signature, f.Problem.Constraints); e != nil {
+			return nil, fmt.Errorf("%s: %w", path, e)
+		}
+		for _, c := range append(append([]Case{}, f.Problem.SampleCases()...), f.HiddenCases...) {
+			if e = ValidateProblemCase(f.Problem, c, true); e != nil {
 				return nil, fmt.Errorf("%s: %w", path, e)
 			}
 		}
