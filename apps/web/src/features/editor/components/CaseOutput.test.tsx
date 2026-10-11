@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CaseOutput } from "./CaseOutput";
 
 describe("case output", () => {
-  it("omits an expectation already shown with inputs and separates console streams", () => {
+  it("omits repeated expectations and combines colored streams in one console box", () => {
     const markup = renderToStaticMarkup(
       <CaseOutput
         showExpected={false}
@@ -20,7 +20,10 @@ describe("case output", () => {
     expect(markup).not.toContain("Expected output");
     expect(markup).toContain("machine-value verdict-error");
     expect(markup).toContain('aria-label="Standard output"');
-    expect(markup).toContain('aria-label="Standard error"');
+    expect(markup).toContain('class="console-stream" aria-label="stdout"');
+    expect(markup).toContain('class="console-stream console-error" aria-label="stderr"');
+    expect(markup.match(/<pre>/g)).toHaveLength(1);
+    expect(markup).toContain('class="field-purpose" title="Standard output"');
     expect(markup).not.toContain("typed-case-error");
   });
   it("hides absent, empty and whitespace-only console streams", () => {

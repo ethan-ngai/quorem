@@ -62,12 +62,18 @@ export function CaseOutput({
           tone="verdict-success"
         />
       )}
-      {!!result.stdout?.trim() && (
-        <ConsoleSection label="Standard output">{result.stdout}</ConsoleSection>
-      )}
-      {!!result.stderr?.trim() && (
-        <ConsoleSection label="Standard error" error>
-          {result.stderr}
+      {(!!result.stdout?.trim() || !!result.stderr?.trim()) && (
+        <ConsoleSection label="Standard output">
+          {!!result.stdout?.trim() && (
+            <span className="console-stream" aria-label="stdout">
+              {result.stdout}
+            </span>
+          )}
+          {!!result.stderr?.trim() && (
+            <span className="console-stream console-error" aria-label="stderr">
+              {result.stderr}
+            </span>
+          )}
         </ConsoleSection>
       )}
       {!!result.diagnostics?.length && (
@@ -84,19 +90,16 @@ export function CaseOutput({
   );
 }
 
-function ConsoleSection({
-  label,
-  children,
-  error = false,
-}: {
-  label: string;
-  children: ReactNode;
-  error?: boolean;
-}) {
+function ConsoleSection({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className={`case-console${error ? " console-error" : ""}`} aria-label={label}>
+    <section className="case-console" aria-label={label}>
       <span>{label}</span>
-      <pre>{children}</pre>
+      <div className="console-value-row">
+        <span className="field-purpose" title={label} aria-label={label}>
+          <Icon name="terminal" />
+        </span>
+        <pre>{children}</pre>
+      </div>
     </section>
   );
 }

@@ -1688,8 +1688,19 @@ kbd {
   border-top: 1px solid var(--color-border);
   padding-top: 16px;
 }
-.case-console.console-error,
-.case-console.console-error pre {
+.console-value-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.console-value-row .field-purpose {
+  height: 34px;
+}
+.console-stream {
+  display: block;
+}
+.console-stream.console-error {
   color: var(--color-error);
 }
 .case-selector,
