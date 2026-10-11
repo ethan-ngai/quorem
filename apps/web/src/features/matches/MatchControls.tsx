@@ -236,7 +236,7 @@ export function MatchSettings({
               aria-label="Problem"
             >
               <span>
-                {value.selectedProblemVersionId ? <BookOpen size={16} /> : <Dices size={16} />}
+                {!value.selectedProblemVersionId && <Dices size={16} />}
                 {selectedProblem?.title ??
                   (value.selectedProblemVersionId ? "Selected problem" : "Random")}
               </span>
@@ -298,7 +298,6 @@ export function MatchSettings({
                       setProblemPickerOpen(false);
                     }}
                   >
-                    <BookOpen size={18} />
                     <span>{problem.title}</span>
                     <small className={`difficulty-${problem.difficulty}`}>
                       {problem.difficulty}
