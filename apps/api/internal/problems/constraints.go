@@ -103,6 +103,9 @@ func ValidateConstraints(sig Signature, constraints []Constraint) error {
 		if p.Name == "" || names[p.Name] || !validType(p.Type, 0) {
 			return fmt.Errorf("invalid signature parameter %q", p.Name)
 		}
+		if err := ValidateInputConfig(p.Type, p.Input); err != nil {
+			return fmt.Errorf("parameter %s: %w", p.Name, err)
+		}
 		names[p.Name] = true
 	}
 	if !validType(sig.ReturnType, 0) {

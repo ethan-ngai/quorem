@@ -947,6 +947,29 @@
         "required": ["error"],
         "additionalProperties": false
       },
+      "InputPresetConfig": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "preset"
+        ],
+        "properties": {
+          "preset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Registered input preset ID. Built-ins: default, number, text, boolean, sequence, matrix, tree, linkedList, structured. Server rejects unregistered or codec-incompatible presets."
+          },
+          "placeholder": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          }
+        }
+      },
       "Parameter": {
         "type": "object",
         "properties": {
@@ -955,6 +978,9 @@
           },
           "type": {
             "type": "string"
+          },
+          "input": {
+            "$ref": "#/components/schemas/InputPresetConfig"
           }
         },
         "required": ["name", "type"],

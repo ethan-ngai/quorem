@@ -6,6 +6,7 @@ export type { components, paths, operations } from "./generated";
 export type ProblemVersion = components["schemas"]["ProblemVersion"];
 export type Constraint = components["schemas"]["Constraint"];
 export type ConstraintTarget = components["schemas"]["ConstraintTarget"];
+export type InputPresetConfig = components["schemas"]["InputPresetConfig"];
 export type Signature = components["schemas"]["Signature"];
 export type Workspace = components["schemas"]["Workspace"];
 export type Draft = components["schemas"]["Draft"];

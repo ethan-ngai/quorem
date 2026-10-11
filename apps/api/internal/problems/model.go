@@ -9,8 +9,9 @@ import (
 )
 
 type Parameter struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name  string       `json:"name"`
+	Type  string       `json:"type"`
+	Input *InputConfig `json:"input,omitempty"`
 }
 type Signature struct {
 	ClassName  string      `json:"className"`

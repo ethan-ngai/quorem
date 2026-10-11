@@ -28,6 +28,13 @@ for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
   assert(validateProblem(fixture.problem), `${name}: ${JSON.stringify(validateProblem.errors)}`);
 }
+const validateInput = ajv.compile({ $ref: `${document.$id}#/$defs/InputPresetConfig` });
+assert(validateInput({ preset: "sequence", placeholder: "[1, 2]", rows: 8 }));
+for (const input of [
+  { preset: "" }, { preset: "text", rows: 0 }, { preset: "text", rows: 9 },
+  { preset: "text", rows: 1.5 }, { preset: "text", placeholder: "x".repeat(513) },
+  { preset: "text", unknown: true }, { preset: "text", rows: null },
+]) assert(!validateInput(input), JSON.stringify(input));
 const submissionCommand = ajv.compile({ $ref: `${document.$id}#/$defs/CreateSubmissionRequest` });
 assert(!submissionCommand({ ...fixtures.createSubmission, ownerId: "alice" }));
 assert(!submissionCommand({ ...fixtures.createSubmission, workspaceId: undefined }));

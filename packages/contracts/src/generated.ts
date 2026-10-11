@@ -303,9 +303,16 @@ export interface components {
                 };
             };
         };
+        InputPresetConfig: {
+            /** @description Registered input preset ID. Built-ins: default, number, text, boolean, sequence, matrix, tree, linkedList, structured. Server rejects unregistered or codec-incompatible presets. */
+            preset: string;
+            placeholder?: string;
+            rows?: number;
+        };
         Parameter: {
             name: string;
             type: string;
+            input?: components["schemas"]["InputPresetConfig"];
         };
         Signature: {
             /** @enum {string} */
