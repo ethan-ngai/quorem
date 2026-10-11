@@ -1200,9 +1200,14 @@ kbd {
   color: var(--color-text-secondary);
   font-size: 12px;
 }
-.editor-language img {
+.editor-language-logo {
   width: 16px;
   height: 16px;
+  background: currentColor;
+  mask-image: url("../assets/python.svg");
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
 }
 .intelligence-status {
   display: flex;
