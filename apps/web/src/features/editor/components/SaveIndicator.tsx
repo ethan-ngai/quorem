@@ -12,9 +12,15 @@ export function SaveIndicator({ state }: { state: SaveState }) {
     error: "Save failed · retry available",
   }[state];
   return (
-    <span className={`save-indicator save-${state}`} role="status">
+    <span className={`save-indicator save-${state}`} role="status" title={label}>
       <i aria-hidden="true" />
-      {label}
+      <span
+        className={
+          state === "saved" || state === "saving" || state === "dirty" ? "sr-only" : undefined
+        }
+      >
+        {label}
+      </span>
     </span>
   );
 }

@@ -94,9 +94,20 @@ function editorTheme(theme: EditorTheme): Extension {
           color: "var(--color-text)",
           backgroundColor: "var(--color-field)",
           fontFamily: "var(--font-code)",
+          fontVariantLigatures: "none",
+          fontFeatureSettings: '"liga" 0, "calt" 0',
         },
-        ".cm-scroller": { overflow: "auto", fontFamily: "inherit" },
-        ".cm-content": { caretColor: "var(--color-primary)" },
+        ".cm-scroller": {
+          overflow: "auto",
+          fontFamily: "inherit",
+          fontVariantLigatures: "none",
+          fontFeatureSettings: '"liga" 0, "calt" 0',
+        },
+        ".cm-content": {
+          caretColor: "var(--color-primary)",
+          fontVariantLigatures: "none",
+          fontFeatureSettings: '"liga" 0, "calt" 0',
+        },
         ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--color-primary)" },
         ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
           backgroundColor: "var(--color-editor-selection) !important",
@@ -106,6 +117,8 @@ function editorTheme(theme: EditorTheme): Extension {
           color: "var(--color-text-disabled)",
           backgroundColor: "var(--color-field)",
           borderRight: "none",
+          fontVariantLigatures: "none",
+          fontFeatureSettings: '"liga" 0, "calt" 0',
         },
         ".cm-activeLineGutter": { color: "var(--color-text-secondary)" },
         ".cm-tooltip": {

@@ -370,7 +370,6 @@ export function WorkspacePage({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [shortcutsEnabled, run, submit]);
 
-  const localDirty = saveState !== "saved";
   const recoverLocal = useCallback(async () => {
     if (
       !localRecovery ||
@@ -504,80 +503,49 @@ export function WorkspacePage({
       >
         <header className="topbar">
           <Brand />
-          <nav className="mode-nav" aria-label="Workspace mode">
-            <a href="/run-widths" aria-current={!match ? "page" : undefined}>
-              Practice
-            </a>
+          <nav className="workspace-nav" aria-label="Workspace navigation">
+            {match ? (
+              <a className="quiet-button" href="/run-widths">
+                Practice
+              </a>
+            ) : (
+              <details className="problem-picker">
+                <summary>
+                  Problems
+                  <Icon name="chevron" />
+                </summary>
+                <div className="problem-menu">
+                  {problemSlugs.map((item) => (
+                    <button
+                      key={item}
+                      aria-current={item === slug ? "page" : undefined}
+                      onClick={(event) => {
+                        event.currentTarget.closest("details")?.removeAttribute("open");
+                        void navigate({ to: "/$slug", params: { slug: item } });
+                      }}
+                    >
+                      {item.replaceAll("-", " ")}
+                      {item === slug && <Icon name="submit" />}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            )}
             <button
-              aria-current={match ? "page" : undefined}
+              className="quiet-button private-match-button"
+              title="Private match"
+              aria-label="Create private match"
               onClick={async () => {
                 await saveCurrentDraft();
                 setCreateMatchOpen(true);
               }}
             >
-              Private 1v1
+              <Icon name="people" />
+              <span>Private match</span>
             </button>
           </nav>
           <div className="topbar-spacer" />
           <SaveIndicator state={saveState} />
-          <span className="account-label">{identity === "alice" ? "Alice" : "Bob"}</span>
-          <WorkspaceSettings
-            identity={identity}
-            onIdentityChange={(next) => void activeIdentityChanged(next)}
-            theme={themePreference}
-            onThemeChange={setThemePreference}
-            fontSize={fontSize}
-            onFontSizeChange={setFontSize}
-            tabSize={tabSize}
-            onTabSizeChange={setTabSize}
-            wrap={wrap}
-            onWrapChange={setWrap}
-            shortcuts={shortcutsEnabled}
-            onShortcutsChange={setShortcutsEnabled}
-            onHistory={() => setHistoryOpen(true)}
-            onClearRecovery={() => {
-              void clearOwnerRecovery(identity);
-              setLocalRecovery(undefined);
-            }}
-          />
-        </header>
-        <div className="workspace-actionbar">
-          {match ? (
-            <div className="workspace-breadcrumb">
-              <Icon name="people" />
-              <span>Match workspace</span>
-              <span className="breadcrumb-rule">/</span>
-              <strong>{problem.title}</strong>
-            </div>
-          ) : (
-            <details className="problem-picker">
-              <summary>
-                <Icon name="code" />
-                <span>{problem.title}</span>
-                <Icon name="chevron" />
-              </summary>
-              <div className="problem-menu">
-                <span className="eyebrow">Practice problems</span>
-                {problemSlugs.map((item, index) => (
-                  <button
-                    key={item}
-                    aria-current={item === slug ? "page" : undefined}
-                    onClick={(event) => {
-                      event.currentTarget.closest("details")?.removeAttribute("open");
-                      void navigate({ to: "/$slug", params: { slug: item } });
-                    }}
-                  >
-                    <span className="problem-index">{String(index + 1).padStart(2, "0")}</span>
-                    {item.replaceAll("-", " ")}
-                    {item === slug && <Icon name="submit" />}
-                  </button>
-                ))}
-              </div>
-            </details>
-          )}
-          <span className="workspace-action-note">
-            {match ? "Source private · submits irrevocable" : "Python · practice"}
-          </span>
           <div className="run-actions">
             {submissionBusy &&
               !admissionPending &&
@@ -605,7 +573,26 @@ export function WorkspacePage({
               Submit
             </button>
           </div>
-        </div>
+          <WorkspaceSettings
+            identity={identity}
+            onIdentityChange={(next) => void activeIdentityChanged(next)}
+            theme={themePreference}
+            onThemeChange={setThemePreference}
+            fontSize={fontSize}
+            onFontSizeChange={setFontSize}
+            tabSize={tabSize}
+            onTabSizeChange={setTabSize}
+            wrap={wrap}
+            onWrapChange={setWrap}
+            shortcuts={shortcutsEnabled}
+            onShortcutsChange={setShortcutsEnabled}
+            onHistory={() => setHistoryOpen(true)}
+            onClearRecovery={() => {
+              void clearOwnerRecovery(identity);
+              setLocalRecovery(undefined);
+            }}
+          />
+        </header>
         {matchHeader && <div className="match-strip">{matchHeader}</div>}
         <nav className="mobile-tabs" aria-label="Workspace panes">
           {(["problem", "code", "results"] as const).map((panel) => (
@@ -620,12 +607,6 @@ export function WorkspacePage({
         </nav>
         <div className="workspace-grid" data-active-panel={activePanel}>
           <section className="problem-pane" aria-label="Problem statement">
-            <div className="pane-label">
-              <span>Problem</span>
-              <span className="mono">
-                {problem.difficulty} / v{problem.version}
-              </span>
-            </div>
             <ProblemStatement problem={problem} />
           </section>
           <ResizableDivider
@@ -635,145 +616,140 @@ export function WorkspacePage({
             maximum={60}
             onChange={setPaneRatio}
           />
-          <section className="coding-pane" aria-label="Code editor">
-            <div className="code-toolbar">
-              <div className="code-tab">
-                <Icon name="code" />
-                <span>main.py</span>
-                {localDirty && <span className="file-dot" aria-label="Unsaved" />}
+          <div className="solution-pane">
+            <section className="coding-pane" aria-label="Code editor">
+              <div className="code-toolbar">
+                <span className="editor-language">Python</span>
+                <div className="code-options">
+                  <span
+                    className="intelligence-status"
+                    role="status"
+                    title={
+                      intelligence.status === "ready"
+                        ? "IntelliSense connected"
+                        : intelligence.status === "connecting"
+                          ? "Connecting IntelliSense"
+                          : undefined
+                    }
+                  >
+                    <i className={`intelligence-dot ${intelligence.status}`} />
+                    {intelligence.status === "unavailable" || intelligence.status === "replaced" ? (
+                      <>
+                        <span>
+                          {intelligence.status === "replaced"
+                            ? "Active in another tab"
+                            : "IntelliSense unavailable"}
+                        </span>
+                        <button className="quiet-button" onClick={intelligence.retry}>
+                          {intelligence.status === "replaced" ? "Use here" : "Retry"}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="sr-only">
+                        {intelligence.status === "ready"
+                          ? "IntelliSense connected"
+                          : "Connecting IntelliSense"}
+                      </span>
+                    )}
+                  </span>
+                </div>
               </div>
-              <div className="code-options">
-                <span className="mono">Python 3.12</span>
-                <button
-                  className="icon-button"
-                  aria-label="Save draft"
-                  title="Save draft (Ctrl/Cmd+S)"
-                  onClick={() => void saveCurrentDraft()}
-                >
-                  <Icon name="submit" />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label="Open draft history"
-                  title="Draft history"
-                  onClick={() => setHistoryOpen(true)}
-                >
-                  <Icon name="history" />
-                </button>
-              </div>
-            </div>
-            {localRecovery && (
-              <div className="recovery-banner" role="status">
-                <span>Recover draft · {new Date(localRecovery.savedAt).toLocaleString()}</span>
-                <button onClick={() => void recoverLocal()}>Restore</button>
-                <button
-                  className="icon-button"
-                  aria-label="Dismiss local recovery"
-                  onClick={() => {
-                    setLocalRecovery(undefined);
-                    void writeRecovery(identity, workspace.id, problem.id, sourceRef.current).catch(
-                      () => undefined,
-                    );
-                  }}
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-            )}
-            <div className="editor-frame">
-              <PythonEditor
-                key={editorDocumentKey}
-                ref={editorRef}
-                documentKey={editorDocumentKey}
-                documentUri={virtualDocumentUri}
-                initialSource={source}
-                theme={theme}
-                fontSize={fontSize}
-                tabSize={tabSize}
-                wrap={wrap}
-                intelligenceExtensions={intelligence.extensions}
-                onSourceChange={updateSource}
-              />
-            </div>
-            <div className="editor-footer">
-              <span className="mono">UTF-8 · {tabSize} spaces</span>
-              <span role="status">
-                <i className={`intelligence-dot ${intelligence.status}`} />
-                {intelligence.status === "ready"
-                  ? "IntelliSense ready"
-                  : intelligence.status === "connecting"
-                    ? "Connecting IntelliSense…"
-                    : intelligence.status === "replaced"
-                      ? "IntelliSense active in another tab"
-                      : "IntelliSense unavailable"}
-                {(intelligence.status === "unavailable" || intelligence.status === "replaced") && (
-                  <button className="quiet-button" onClick={intelligence.retry}>
-                    {intelligence.status === "replaced" ? "Use here" : "Retry"}
+              {localRecovery && (
+                <div className="recovery-banner" role="status">
+                  <span>Recover draft · {new Date(localRecovery.savedAt).toLocaleString()}</span>
+                  <button onClick={() => void recoverLocal()}>Restore</button>
+                  <button
+                    className="icon-button"
+                    aria-label="Dismiss local recovery"
+                    onClick={() => {
+                      setLocalRecovery(undefined);
+                      void writeRecovery(
+                        identity,
+                        workspace.id,
+                        problem.id,
+                        sourceRef.current,
+                      ).catch(() => undefined);
+                    }}
+                  >
+                    <Icon name="close" />
                   </button>
-                )}
-              </span>
-            </div>
-          </section>
-          <ResizableDivider
-            axis="y"
-            value={resultsHeight}
-            minimum={170}
-            maximum={480}
-            onChange={setResultsHeight}
-          />
-          <section className="results-pane" aria-label="Execution results">
-            <div className="results-toolbar">
-              <div className="results-label">
-                <span>Results</span>
-                <span className="result-context">
-                  {submission?.kind === "submit"
-                    ? "Full suite"
-                    : customMode
-                      ? "Custom cases"
-                      : "Public examples"}
-                </span>
-              </div>
-              <button
-                className="quiet-button"
-                aria-expanded={customMode}
-                onClick={() => setCustomMode((current) => !current)}
-              >
-                {customMode ? "Use examples" : "Custom input"}
-                <Icon name="chevron" />
-              </button>
-            </div>
-            <div className="results-content" aria-live="polite" aria-atomic="false">
-              <ResultContent
-                submission={submission}
-                busy={admissionPending || (execution.isPending && !!execution.submissionId)}
-                error={execution.error}
-                problem={problem}
-              />
-            </div>
-            {customMode && (
-              <div className="custom-input">
-                <label htmlFor="custom-cases" className="eyebrow">
-                  Custom cases · JSON
-                </label>
-                <textarea
-                  id="custom-cases"
-                  aria-label="Custom cases as JSON"
-                  spellCheck={false}
-                  value={customCasesText}
-                  onChange={(event) => setCustomCasesText(event.target.value)}
+                </div>
+              )}
+              <div className="editor-frame">
+                <PythonEditor
+                  key={editorDocumentKey}
+                  ref={editorRef}
+                  documentKey={editorDocumentKey}
+                  documentUri={virtualDocumentUri}
+                  initialSource={source}
+                  theme={theme}
+                  fontSize={fontSize}
+                  tabSize={tabSize}
+                  wrap={wrap}
+                  intelligenceExtensions={intelligence.extensions}
+                  onSourceChange={updateSource}
                 />
-                <p>
-                  Use <code>[&#123;"args": [1, "text"]&#125;]</code>. Optional <code>expected</code>{" "}
-                  compares output.
-                </p>
               </div>
-            )}
-            {actionError && (
-              <p className="action-error" role="alert">
-                {actionError}
-              </p>
-            )}
-          </section>
+            </section>
+            <ResizableDivider
+              axis="y"
+              value={resultsHeight}
+              minimum={170}
+              maximum={480}
+              onChange={setResultsHeight}
+            />
+            <section className="results-pane" aria-label="Execution results">
+              <div className="results-toolbar">
+                <div className="results-label">
+                  <span>{submission ? "Test results" : "Test cases"}</span>
+                  <span className="result-context">
+                    {submission?.kind === "submit"
+                      ? "Full suite"
+                      : customMode
+                        ? "Custom cases"
+                        : "Public examples"}
+                  </span>
+                </div>
+                <button
+                  className="quiet-button"
+                  aria-expanded={customMode}
+                  onClick={() => setCustomMode((current) => !current)}
+                >
+                  {customMode ? "Use examples" : "Custom input"}
+                  <Icon name="chevron" />
+                </button>
+              </div>
+              <div className="results-content" aria-live="polite" aria-atomic="false">
+                <ResultContent
+                  submission={submission}
+                  busy={admissionPending || (execution.isPending && !!execution.submissionId)}
+                  error={execution.error}
+                  problem={problem}
+                />
+              </div>
+              {customMode && (
+                <div className="custom-input">
+                  <label htmlFor="custom-cases">Custom cases · JSON</label>
+                  <textarea
+                    id="custom-cases"
+                    aria-label="Custom cases as JSON"
+                    spellCheck={false}
+                    value={customCasesText}
+                    onChange={(event) => setCustomCasesText(event.target.value)}
+                  />
+                  <p>
+                    Use <code>[&#123;"args": [1, "text"]&#125;]</code>. Optional{" "}
+                    <code>expected</code> compares output.
+                  </p>
+                </div>
+              )}
+              {actionError && (
+                <p className="action-error" role="alert">
+                  {actionError}
+                </p>
+              )}
+            </section>
+          </div>
         </div>
         {historyOpen && (
           <HistoryDialog

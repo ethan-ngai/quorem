@@ -1,61 +1,76 @@
-/** @file ProblemStatement.tsx @description Renders the public problem definition. @module editor */
-import { StatementMarkdown } from "./StatementMarkdown";
+/** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
+import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
+import { Icon } from "./Icon";
 import type { ProblemVersion } from "@quorem/contracts";
 
-/** Shows the statement, public examples, constraints, and signature. */
+/** @returns Named argument values in the public function's declared order. */
+export function exampleInput(problem: ProblemVersion, args: unknown[]) {
+  return args
+    .map(
+      (value, index) =>
+        `${problem.signature.parameters[index]?.name ?? `arg${index + 1}`} = ${JSON.stringify(value)}`,
+    )
+    .join(", ");
+}
+
+/** Shows the problem directly, with optional topics and named public examples. */
 export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
   return (
     <div className="problem-scroll">
       <div className="problem-heading">
-        <div className="eyebrow">Problem statement</div>
         <h1>{problem.title}</h1>
-        <div className="tag-list" aria-label="Problem tags">
-          {problem.tags.map((tag) => (
-            <span className="problem-tag" key={tag}>
-              {tag}
-            </span>
-          ))}
+        <div className="problem-meta">
+          <span className={`difficulty difficulty-${problem.difficulty}`}>
+            {problem.difficulty}
+          </span>
+          {problem.tags.length > 0 && (
+            <details className="topic-disclosure">
+              <summary>
+                Topics
+                <Icon name="chevron" />
+              </summary>
+              <div className="tag-list" aria-label="Problem topics">
+                {problem.tags.map((tag) => (
+                  <span className="problem-tag" key={tag}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       </div>
       <div className="problem-copy">
         <StatementMarkdown source={problem.statementMarkdown} />
       </div>
-      <section className="problem-section" aria-labelledby="examples-heading">
-        <h2 id="examples-heading">Examples</h2>
-        <ol className="example-list">
-          {problem.examples.map((example, index) => (
-            <li key={index}>
-              <span className="example-number">Example {index + 1}</span>
-              <div className="example-line">
-                <span>Input</span>
-                <code>{JSON.stringify(example.args)}</code>
+      <ol className="example-list" aria-label="Examples">
+        {problem.examples.map((example, index) => (
+          <li key={index}>
+            <h2>Example {index + 1}:</h2>
+            <div className="example-data">
+              <div>
+                <strong>Input:</strong> <code>{exampleInput(problem, example.args)}</code>
               </div>
-              <div className="example-line">
-                <span>Output</span>
-                <code>{JSON.stringify(example.expected)}</code>
+              <div>
+                <strong>Output:</strong> <code>{JSON.stringify(example.expected)}</code>
               </div>
-              {example.explanation && <p>{example.explanation}</p>}
-            </li>
-          ))}
-        </ol>
-      </section>
+            </div>
+            {example.explanation && (
+              <p>
+                <strong>Explanation:</strong> {inlineStatement(example.explanation)}
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
       <section className="problem-section" aria-labelledby="constraints-heading">
-        <h2 id="constraints-heading">Constraints</h2>
+        <h2 id="constraints-heading">Constraints:</h2>
         <ul className="constraint-list">
           {problem.constraints.map((constraint) => (
-            <li key={constraint}>
-              <code>{constraint}</code>
-            </li>
+            <li key={constraint}>{inlineStatement(constraint)}</li>
           ))}
         </ul>
       </section>
-      <div className="signature-note">
-        <span className="eyebrow">Python signature</span>
-        <code>
-          {problem.signature.className}.{problem.signature.methodName}(
-          {problem.signature.parameters.map(({ name }) => name).join(", ")})
-        </code>
-      </div>
     </div>
   );
 }

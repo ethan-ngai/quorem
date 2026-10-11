@@ -1,4 +1,5 @@
 /** @file ResultContent.tsx @description Renders safe judge status and public case output. @module editor */
+import { exampleInput } from "./ProblemStatement";
 import type { ProblemVersion, Submission } from "@quorem/contracts";
 
 /** Shows a bounded execution result without exposing hidden case data. */
@@ -14,25 +15,22 @@ export function ResultContent({
   problem?: ProblemVersion;
 }) {
   if (error) return <p className="result-message result-error">{error}</p>;
-  if (!submission && busy) return <p className="result-message">Starting a fresh judge job…</p>;
+  if (!submission && busy) return <p className="result-message">Starting…</p>;
   if (!submission)
     return (
       <div className="result-empty">
-        <div className="result-empty-heading">
-          <strong>Ready to run.</strong>
-          <span>Check the public examples before submitting.</span>
-        </div>
         <div className="ready-cases">
           {problem?.examples.map((example, index) => (
             <div key={index}>
               <span className="mono">{String(index + 1).padStart(2, "0")}</span>
-              <code>{JSON.stringify(example.args)}</code>
+              <code>
+                {problem ? exampleInput(problem, example.args) : JSON.stringify(example.args)}
+              </code>
               <span className="expected-label">expected</span>
               <code>{JSON.stringify(example.expected)}</code>
             </div>
           ))}
         </div>
-        <p>Submit evaluates the full suite. Hidden inputs remain private.</p>
       </div>
     );
   if (submission.state === "queued" || submission.state === "running") {
@@ -41,7 +39,7 @@ export function ResultContent({
         <span className="running-marker" aria-hidden="true" />
         <div>
           <strong>{submission.state === "queued" ? "Queued" : "Running"}</strong>
-          <p>Checking source {submission.sourceHash.slice(0, 12)}…</p>
+          <p>{submission.kind === "submit" ? "Evaluating submission…" : "Running cases…"}</p>
         </div>
       </div>
     );
@@ -53,10 +51,7 @@ export function ResultContent({
       </p>
     );
   }
-  if (submission.state === "cancelled")
-    return (
-      <p className="result-message">Run cancelled · source {submission.sourceHash.slice(0, 12)}</p>
-    );
+  if (submission.state === "cancelled") return <p className="result-message">Run cancelled</p>;
 
   const verdict =
     submission.verdict?.replaceAll("_", " ") ??
@@ -72,7 +67,6 @@ export function ResultContent({
             {submission.score.passed}/{submission.score.total} passed
           </span>
         )}
-        <span className="source-hash">source {submission.sourceHash.slice(0, 12)}</span>
       </div>
       {submission.diagnostics?.length ? (
         <ul className="diagnostic-list">
