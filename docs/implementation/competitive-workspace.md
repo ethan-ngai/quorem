@@ -5,7 +5,7 @@ Issue #26 updates the private 1v1 flow.
 ## Behavior
 
 - Centered, animated match creation; segmented difficulty and Radix duration selection.
-- Compact lobby with participant readiness, invitation copying and explicit settings application. Changed rules reset readiness.
+- Compact lobby with side-by-side players, icon readiness and animated invitation copying. Settings apply immediately; changed rules reset readiness.
 - In-match score, presence and remaining time share a compact bar above the editor. Forfeit requires confirmation.
 - One active competition per owner remains enforced by server reservations; multiple browser windows remain supported.
 - Browser-only drafts/history; see [migration and backup guidance](browser-drafts.md).

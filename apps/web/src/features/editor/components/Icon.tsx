@@ -2,6 +2,8 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  ready: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM8 12l3 3 5-6",
+  waiting: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM8 12h8",
   flag: "M5 21V3m0 1c5-4 9 4 14 0v9c-5 4-9-4-14 0",
   enter: "M20 5v9H4m5-5-5 5 5 5",
   keyboard: "M3 6h18v12H3ZM6 9h1m3 0h1m3 0h1m3 0h1M6 12h1m3 0h1m3 0h1m3 0h1M7 15h10",

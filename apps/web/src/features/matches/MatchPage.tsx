@@ -14,6 +14,7 @@ import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch, leaveMatch, setReady, updateMatchSettings } from "./api";
 import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
+import { CopyFeedbackIcon } from "./CopyFeedbackIcon";
 import { readInvite } from "./commandRecovery";
 import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import "../../styles/workspace.css";
@@ -220,9 +221,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
         matchHeader={ledger}
       />
     );
-  const settingsChanged =
-    settings.difficulty !== snapshot.difficulty ||
-    settings.durationMinutes !== snapshot.durationMinutes;
   const closed = snapshot.state === "cancelled" || snapshot.state === "completed";
   return (
     <main className="match-page">
@@ -235,17 +233,13 @@ export function MatchPage({ matchId }: { matchId: string }) {
       <section className="match-page-content">
         <div className="competitive-lobby-heading">
           <div>
-            <h1>{closed ? outcomeLabel(snapshot, identity) : "Match lobby"}</h1>
-            <p>
-              {closed
-                ? snapshot.outcome?.reason.replaceAll("_", " ")
-                : "Both players ready up to reveal the problem and start the clock."}
-            </p>
+            <h1>{closed ? outcomeLabel(snapshot, identity) : "Private 1v1"}</h1>
+            {closed && <p>{snapshot.outcome?.reason.replaceAll("_", " ")}</p>}
           </div>
           {!closed && (
             <Tooltip content="Leave lobby">
               <button
-                className="icon-button"
+                className="icon-button destructive-icon"
                 aria-label="Leave lobby"
                 disabled={pending}
                 onClick={() =>
@@ -274,10 +268,16 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     </strong>
                     <span>{participant.userId === snapshot.hostUserId ? "Host" : "Opponent"}</span>
                   </div>
-                  <span className={`seat-readiness ${participant.ready ? "is-ready" : ""}`}>
-                    <Icon name={participant.ready ? "submit" : "clock"} />
-                    {participant.ready ? "Ready" : "Not ready"}
-                  </span>
+                  <Tooltip content={participant.ready ? "Ready" : "Not ready"}>
+                    <span
+                      className={`seat-readiness ${participant.ready ? "is-ready" : ""}`}
+                      role="img"
+                      aria-label={participant.ready ? "Ready" : "Not ready"}
+                      tabIndex={0}
+                    >
+                      <Icon name={participant.ready ? "ready" : "waiting"} />
+                    </span>
+                  </Tooltip>
                 </div>
               ))}
               {snapshot.participants.length < 2 && (
@@ -293,23 +293,31 @@ export function MatchPage({ matchId }: { matchId: string }) {
               )}
             </div>
             {host ? (
-              <form
-                className="competitive-lobby-settings"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void command(() => updateMatchSettings(identity, matchId, settings));
-                }}
-              >
-                <MatchSettings value={settings} onChange={setSettings} disabled={pending} />
-                {settingsChanged && (
-                  <div className="settings-change-actions">
-                    <span>Changes reset readiness.</span>
-                    <button className="button button-secondary" disabled={pending}>
-                      Apply changes
-                    </button>
-                  </div>
-                )}
-              </form>
+              <div className="competitive-lobby-settings">
+                <MatchSettings
+                  value={settings}
+                  disabled={pending}
+                  onChange={(next) => {
+                    if (
+                      next.difficulty === settings.difficulty &&
+                      next.durationMinutes === settings.durationMinutes
+                    )
+                      return;
+                    setSettings(next);
+                    void command(async () => {
+                      try {
+                        await updateMatchSettings(identity, matchId, next);
+                      } catch (cause) {
+                        setSettings({
+                          difficulty: snapshot.difficulty,
+                          durationMinutes: snapshot.durationMinutes,
+                        });
+                        throw cause;
+                      }
+                    });
+                  }}
+                />
+              </div>
             ) : (
               <dl className="competitive-lobby-summary">
                 <div>
@@ -343,7 +351,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   />
                   <Tooltip content={copied ? "Copied" : "Copy invitation"}>
                     <button
-                      className="icon-button"
+                      className={`icon-button copy-invitation ${copied ? "is-copied" : ""}`}
                       aria-label={copied ? "Copied" : "Copy invitation"}
                       onClick={() =>
                         void navigator.clipboard
@@ -354,7 +362,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                           )
                       }
                     >
-                      <Icon name={copied ? "submit" : "copy"} />
+                      <CopyFeedbackIcon copied={copied} />
                     </button>
                   </Tooltip>
                 </div>
@@ -372,7 +380,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
               </span>
               <button
                 className={`button ${own?.ready ? "button-secondary" : "button-primary"}`}
-                disabled={pending || !own || settingsChanged}
+                disabled={pending || !own}
                 onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
               >
                 <Icon name={own?.ready ? "close" : "submit"} />
