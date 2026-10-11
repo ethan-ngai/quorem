@@ -225,3 +225,15 @@ func TestDockerExceptionFormattingBudgets(t *testing.T) {
 		}
 	}
 }
+
+func TestDockerConsoleStreams(t *testing.T) {
+	f := dockerTests(t)[0]
+	result := executeFixture(t, f, "class Solution:\n def levelSpreads(self, root):\n  import sys\n  print('hello')\n  print('notice', file=sys.stderr)\n  return []", "run", f.Problem.SampleCases()[:1])
+	if len(result.PublicCaseResults) != 1 {
+		t.Fatal(result)
+	}
+	public := result.PublicCaseResults[0]
+	if public.Stdout != "hello\n" || public.Stderr != "notice\n" || len(public.Diagnostics) != 0 {
+		t.Fatal(public)
+	}
+}

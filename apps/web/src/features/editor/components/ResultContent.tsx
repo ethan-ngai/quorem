@@ -1,6 +1,7 @@
 /** @file ResultContent.tsx @description Safe submission summaries and selected public Run output. @module editor */
 import type { Diagnostic, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useState } from "react";
+import { CaseOutput, verdictTone } from "./CaseOutput";
 
 /** Shows safe compiler or public-case diagnostics with useful source positions. */
 function Diagnostics({ items }: { items?: Diagnostic[] }) {
@@ -53,24 +54,7 @@ function RunCaseResults({ cases }: { cases: PublicCaseResult[] }) {
       </div>
       {selected && (
         <div className="case-details">
-          <span
-            className={`case-verdict ${selected.status === "accepted" ? "verdict-success" : ""}`}
-          >
-            {selected.status.replaceAll("_", " ")}
-          </span>
-          {selected.actual !== undefined && (
-            <div className="case-detail">
-              <span>Output</span>
-              <code>{JSON.stringify(selected.actual)}</code>
-            </div>
-          )}
-          {selected.expected !== undefined && (
-            <div className="case-detail">
-              <span>Expected output</span>
-              <code>{JSON.stringify(selected.expected)}</code>
-            </div>
-          )}
-          <Diagnostics items={selected.diagnostics} />
+          <CaseOutput result={selected} />
         </div>
       )}
     </div>
@@ -122,9 +106,7 @@ export function ResultContent({
   return (
     <div className="result-complete">
       <div className="result-summary">
-        <div
-          className={`verdict-line ${submission.verdict === "accepted" ? "verdict-success" : "verdict-neutral"}`}
-        >
+        <div className={`verdict-line ${verdictTone(submission.verdict)}`}>
           <strong>{verdict}</strong>
           {submission.score && (
             <span className="score-count">

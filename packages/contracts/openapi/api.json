@@ -1436,6 +1436,12 @@
             "items": {
               "$ref": "#/components/schemas/Diagnostic"
             }
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
           }
         },
         "required": ["index", "status"],

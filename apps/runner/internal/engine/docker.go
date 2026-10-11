@@ -93,12 +93,8 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 			if f.Line > 0 {
 				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
 			}
-			if f.Stdout != "" {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: f.Stdout})
-			}
-			if f.Stderr != "" {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: f.Stderr})
-			}
+			public.Stdout = f.Stdout
+			public.Stderr = f.Stderr
 			result.PublicCaseResults = append(result.PublicCaseResults, public)
 		}
 	}

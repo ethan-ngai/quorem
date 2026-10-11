@@ -1,4 +1,4 @@
-import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
+import type { ProblemVersion, Submission } from "@quorem/contracts";
 import { useState } from "react";
 import {
   associatedResultIndex,
@@ -11,40 +11,7 @@ import { bindArguments } from "../argumentBinding";
 import { Icon } from "./Icon";
 import { TypedCaseInput } from "./TypedCaseInput";
 import "./customCases.css";
-
-function CaseOutput({ result }: { result: PublicCaseResult }) {
-  return (
-    <div className="case-run-output">
-      <span className={`case-verdict ${result.status === "accepted" ? "verdict-success" : ""}`}>
-        {result.status.replaceAll("_", " ")}
-      </span>
-      {result.actual !== undefined && (
-        <div className="case-detail">
-          <span className="value-label">
-            <Icon name="output" />
-            Output
-          </span>
-          <code>{JSON.stringify(result.actual)}</code>
-        </div>
-      )}
-      {result.expected !== undefined && (
-        <div className="case-detail">
-          <span className="value-label">
-            <Icon name="target" />
-            Expected output from run
-          </span>
-          <code>{JSON.stringify(result.expected)}</code>
-        </div>
-      )}
-      {result.diagnostics?.map((item, index) => (
-        <p className="typed-case-error" key={index}>
-          {item.line ? `Line ${item.line}: ` : ""}
-          {item.message}
-        </p>
-      ))}
-    </div>
-  );
-}
+import { CaseOutput, CaseValue } from "./CaseOutput";
 
 export function TestCases({
   problem,
@@ -197,21 +164,14 @@ export function TestCases({
         ) : example ? (
           <>
             {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
-              <div className="case-detail" key={index}>
-                <span className="value-label">
-                  <Icon name="input" />
-                  {name}
-                </span>
-                <code>{JSON.stringify(value)}</code>
-              </div>
+              <CaseValue key={index} name={name} value={value} parameter />
             ))}
-            <div className="case-detail">
-              <span className="value-label">
-                <Icon name="target" />
-                Expected output
-              </span>
-              <code>{JSON.stringify(example.expected)}</code>
-            </div>
+            <CaseValue
+              name="Expected output"
+              purpose="target"
+              value={example.expected}
+              tone="verdict-success"
+            />
           </>
         ) : (
           <p className="result-message">No sample cases available.</p>
@@ -219,7 +179,9 @@ export function TestCases({
         {editedAfterRun && (
           <p className="case-stale">Edited since last run. Run again for this input.</p>
         )}
-        {result && <CaseOutput result={result} />}
+        {result && (
+          <CaseOutput result={result} showExpected={customMode && !draft?.expectedEnabled} />
+        )}
       </div>
     </div>
   );

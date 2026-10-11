@@ -442,6 +442,8 @@ export interface components {
             actual?: components["schemas"]["WireValue"];
             expected?: components["schemas"]["WireValue"];
             diagnostics?: components["schemas"]["Diagnostic"][];
+            stdout?: string;
+            stderr?: string;
         };
         Submission: {
             /** Format: uuid */

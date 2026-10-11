@@ -62,6 +62,8 @@ type Diagnostic struct {
 }
 
 type PublicCaseResult struct {
+	Stdout      string          `json:"stdout,omitempty"`
+	Stderr      string          `json:"stderr,omitempty"`
 	Index       int             `json:"index"`
 	Status      string          `json:"status"`
 	Actual      json.RawMessage `json:"actual,omitempty"`

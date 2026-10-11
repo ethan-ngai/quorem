@@ -591,6 +591,12 @@
           "items": {
             "$ref": "#/$defs/Diagnostic"
           }
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
         }
       },
       "required": ["index", "status"],

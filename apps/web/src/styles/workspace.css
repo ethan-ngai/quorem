@@ -1637,3 +1637,49 @@ kbd {
   width: 14px;
   height: 14px;
 }
+
+.verdict-error {
+  color: var(--color-error);
+}
+.case-value-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.case-value-row .field-purpose {
+  height: 28px;
+}
+.machine-value {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  font: 12px/1.5 var(--font-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.case-console {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.case-console pre {
+  margin: 0;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  color: var(--color-text);
+  font: 12px/1.5 var(--font-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.expected-field input,
+.expected-field textarea {
+  color: var(--color-success);
+}
