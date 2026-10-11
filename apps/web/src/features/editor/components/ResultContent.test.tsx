@@ -20,6 +20,30 @@ const result: Submission = {
 };
 
 describe("result presentation boundaries", () => {
+  it("shows a run summary only in its admitted collection", () => {
+    const run: Submission = {
+      ...result,
+      kind: "run",
+      score: undefined,
+      publicCases: [{ index: 0, status: "wrong_answer" }],
+    };
+    for (const runWasCustom of [false, true]) {
+      for (const customMode of [false, true]) {
+        const markup = renderToStaticMarkup(
+          <ResultContent
+            submission={run}
+            busy={false}
+            customMode={customMode}
+            runWasCustom={runWasCustom}
+          />,
+        );
+        expect(markup.includes("0/1 cases passed")).toBe(customMode === runWasCustom);
+      }
+    }
+    expect(
+      renderToStaticMarkup(<ResultContent submission={result} busy={false} customMode />),
+    ).toBe("");
+  });
   it("never renders case values for a full-suite submission", () => {
     const markup = renderToStaticMarkup(<ResultContent submission={result} busy={false} />);
     expect(markup).toContain("2/2 cases passed");

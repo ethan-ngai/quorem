@@ -738,6 +738,8 @@ export function WorkspacePage({
                     busy={admissionPending || (execution.isPending && !!execution.submissionId)}
                     error={execution.error}
                     showCases={false}
+                    customMode={customMode}
+                    runWasCustom={execution.runSnapshot?.custom}
                   />
                 </div>
                 {(["samples", "custom"] as const).map((tab) => (

@@ -64,12 +64,23 @@ export function ResultContent({
   busy,
   error,
   showCases = true,
+  customMode,
+  runWasCustom = false,
 }: {
   submission?: Submission;
   busy: boolean;
   error?: string;
   showCases?: boolean;
+  customMode?: boolean;
+  runWasCustom?: boolean;
 }) {
+  // Results belong to their admitted collection, regardless of the currently selected tab.
+  if (
+    submission &&
+    customMode !== undefined &&
+    customMode !== (submission.kind === "run" && runWasCustom)
+  )
+    return null;
   if (error)
     return (
       <p className="result-message result-error" role="alert">
