@@ -2,6 +2,7 @@
 
 Issues #16 and #30. Static Astro app in `apps/marketing`; React owns `/practice`, `/practice/{problem}` and `/match/{id}`.
 
+- Language-neutral positioning; current product captures show the existing editor. Expanded Practice/Create match navigation collapses when its container has less than 440px of usable width; Login stays disabled until #14. Theme toggle lives in the footer.
 - Shared `@quorem/ui/theme.css` colors, Geist and `quorem.theme.v1` preference. System theme initially; explicit toggle persists across marketing/workspace.
 - Asymmetric typographic hero, actual paired product captures, flowing feature bento and open match comparison. Portfolio `/mac` supplies spanning geometry; CUXR supplies open layout, scale and factual copy. No fabricated metrics, testimonials or pricing.
 - CSS handles 560ms spring entry/16px scroll reveals, 120–180ms interaction feedback; IntersectionObserver reveals once. Reduced motion removes displacement. Essential content remains visible without JavaScript.

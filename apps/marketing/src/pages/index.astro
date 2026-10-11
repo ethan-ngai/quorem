@@ -9,9 +9,9 @@ import ProductPreview from "../components/ProductPreview.astro";
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Practice Python coding problems with completion, custom test cases and judged submissions. Invite friends to Showdown or Free-for-all matches." />
+    <meta name="description" content="Practice coding problems with completion, custom test cases and judged submissions. Invite friends to Showdown or Free-for-all matches." />
     <meta name="theme-color" content="#f5f5f6" />
-    <title>Quorem — Python practice and private coding matches</title>
+    <title>Quorem — Coding practice and private matches</title>
     <script is:inline>
       (() => {
         let preference = "system";
@@ -24,39 +24,37 @@ import ProductPreview from "../components/ProductPreview.astro";
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header page-width" data-reveal>
       <div class="brand-navigation">
-      <details class="site-menu"><summary aria-label="Open navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></summary><nav aria-label="Site navigation"><a href="/">Home</a><a href="/practice">Practice</a><a href="/practice?create=match">Create match</a><a href="#workspace">Workspace features</a><a href="#matches">Match modes</a></nav></details>
+      <details class="site-menu"><summary aria-label="Open navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></summary><nav aria-label="Mobile navigation"><a href="/practice">Practice</a><a href="/practice?create=match">Create match</a></nav></details>
       <a class="wordmark" href="/" aria-label="Quorem home">quorem<span aria-hidden="true">.</span></a>
       </div>
-      <nav aria-label="Main navigation">
+      <div class="header-actions">
+      <nav class="desktop-navigation" aria-label="Main navigation">
+        <a class="quiet-link" href="/practice">Practice</a>
         <a class="quiet-link" href="/practice?create=match">Create match</a>
-        <details class="profile-preferences"><summary aria-label="Profile preferences"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></svg></summary><div class="profile-panel"><span>Appearance</span>
-        <button class="theme-switch" type="button" aria-label="Switch to dark theme" title="Switch theme">
-          <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></svg>
-          <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z" /></svg>
-        </button>
-        </div></details>
       </nav>
+      <button class="button nav-button login-button" type="button" disabled title="Login will be available when authentication is ready">Login</button>
+      </div>
     </header>
     <main id="main">
       <section class="hero page-width" aria-labelledby="hero-title">
         <div class="hero-top">
-          <h1 id="hero-title" data-reveal>Python practice.<br /><span>Private matches.</span></h1>
+          <h1 id="hero-title" data-reveal>Coding practice.<br /><span>Private matches.</span></h1>
           <div class="hero-intro" data-reveal>
-            <p>A coding workspace for solving problems on your own or competing with friends. Write Python, test your approach, and submit it to the judge.</p>
+            <p>A coding workspace for solving problems on your own or competing with friends. Write code, test your approach, and submit it to the judge.</p>
             <a class="button primary-button" href="/practice">Browse problems <span aria-hidden="true">↗</span></a>
           </div>
         </div>
         <div class="hero-proof" data-reveal>
-          <ProductPreview name="editor" alt="Quorem Python workspace: problem statement, code editor and test results in light and dark themes." eager />
+          <ProductPreview name="editor" alt="Quorem workspace: problem statement, code editor and test results in light and dark themes." eager />
         </div>
-        <div class="hero-caption" data-reveal><span>Python · Run · Submit</span><a class="quiet-link" href="#workspace">Explore the workspace <span aria-hidden="true">↓</span></a></div>
+        <div class="hero-caption" data-reveal><span>Write · Run · Submit</span><a class="quiet-link" href="#workspace">Explore the workspace <span aria-hidden="true">↓</span></a></div>
       </section>
       <section class="workspace-section page-width" id="workspace" aria-labelledby="workspace-title">
         <div class="section-heading" data-reveal><h2 id="workspace-title">Write, run<br />and submit.</h2><p>The statement, editor and results stay together. Resize the panes to fit the way you work.</p></div>
         <div class="feature-flow">
           <article class="feature feature-editor" data-reveal>
-            <div class="feature-copy"><h3>Python, with context.</h3><p>Completion, hover documentation, signatures and diagnostics while you write. Problem-specific starters include Solution, ListNode and TreeNode.</p></div>
-            <ProductPreview name="editor" alt="Python editor with a problem-specific Solution starter and syntax highlighting." />
+            <div class="feature-copy"><h3>Code, with context.</h3><p>Completion, hover documentation, signatures and diagnostics while you write. Problem-specific starter code handles the setup.</p></div>
+            <ProductPreview name="editor" alt="Code editor with a problem-specific starter and syntax highlighting." />
           </article>
           <article class="feature feature-cases" data-reveal>
             <div class="feature-copy"><h3>Test the edge cases.</h3><p>Run examples or add your own inputs and expected output. Inspect each result, then Submit for a judged verdict.</p></div>
@@ -85,23 +83,28 @@ import ProductPreview from "../components/ProductPreview.astro";
       </section>
       <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Browse the<br />problem library.</h2><a class="button primary-button" href="/practice">Open practice <span aria-hidden="true">↗</span></a></section>
     </main>
-    <footer class="site-footer page-width" data-reveal><a class="wordmark" href="/">quorem<span aria-hidden="true">.</span></a><span>Python practice and private coding matches.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a></footer>
+    <footer class="site-footer page-width" data-reveal><a class="wordmark" href="/">quorem<span aria-hidden="true">.</span></a><span>Coding practice and private matches.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
+      <button class="theme-switch" type="button" aria-label="Switch to dark theme" title="Switch theme">
+        <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></svg>
+        <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z" /></svg>
+      </button>
+    </footer>
     <script>
       document.querySelectorAll(".site-menu a").forEach((link) => link.addEventListener("click", () => {
         const menu = document.querySelector<HTMLDetailsElement>(".site-menu");
         if (menu) menu.open = false;
       }));
-      const closeMenus = () => document.querySelectorAll<HTMLDetailsElement>(".site-menu,.profile-preferences").forEach((menu) => { menu.open = false; });
+      const closeMenus = () => document.querySelectorAll<HTMLDetailsElement>(".site-menu").forEach((menu) => { menu.open = false; });
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
-          const openMenu = document.querySelector<HTMLDetailsElement>(".site-menu[open],.profile-preferences[open]");
+          const openMenu = document.querySelector<HTMLDetailsElement>(".site-menu[open]");
           openMenu?.querySelector<HTMLElement>("summary")?.focus();
           closeMenus();
         }
       });
       document.addEventListener("click", (event) => {
         const target = event.target;
-        if (target instanceof Element && !target.closest(".site-menu,.profile-preferences")) closeMenus();
+        if (target instanceof Element && !target.closest(".site-menu")) closeMenus();
       });
       const media = window.matchMedia("(prefers-color-scheme: dark)");
       const toggle = document.querySelector<HTMLButtonElement>(".theme-switch");

@@ -84,6 +84,9 @@ button:focus-visible {
   transform: none;
 }
 .site-header {
+  container-type: inline-size;
+  position: relative;
+  z-index: 2;
   min-height: 100px;
   display: flex;
   justify-content: space-between;
@@ -524,12 +527,6 @@ button:focus-visible {
   .site-header {
     min-height: 80px;
   }
-  .site-header nav {
-    gap: 12px;
-  }
-  .site-header nav > .quiet-link {
-    display: none;
-  }
   .site-header .wordmark {
     font-size: 25px;
   }
@@ -648,6 +645,7 @@ button:focus-visible {
   gap: 14px;
 }
 .site-menu {
+  display: none;
   position: relative;
 }
 .site-menu summary {
@@ -703,67 +701,8 @@ button:focus-visible {
   width: 44px;
   height: 44px;
 }
-@media (max-width: 700px) {
-  .brand-navigation {
-    gap: 6px;
-  }
-  .site-header nav {
-    gap: 6px;
-  }
-  .nav-button {
-    padding-inline: 12px;
-  }
-}
-.profile-preferences {
-  position: relative;
-}
-.profile-preferences summary {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  list-style: none;
-  color: var(--color-text-secondary);
-  transition: background-color var(--motion-fast) var(--motion-easing);
-}
-.profile-preferences summary::-webkit-details-marker {
-  display: none;
-}
-.profile-preferences summary:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 3px;
-}
-.profile-preferences summary svg {
-  width: 19px;
-  height: 19px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-}
-.profile-preferences[open] summary {
-  background: var(--color-overlay);
-}
-.profile-panel {
-  position: absolute;
-  right: 0;
-  top: 52px;
-  z-index: 4;
-  width: 190px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 8px 12px;
-  background: var(--color-field);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
 @media (prefers-reduced-motion: no-preference) {
-  .site-menu[open] nav,
-  .profile-preferences[open] .profile-panel {
+  .site-menu[open] nav {
     animation: marketing-popover 180ms var(--marketing-spring);
   }
   @keyframes marketing-popover {
@@ -777,18 +716,28 @@ button:focus-visible {
     }
   }
 }
-@media (max-width: 700px) {
-  .site-header > nav > .quiet-link {
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.login-button:disabled {
+  color: var(--color-text-disabled);
+  background: transparent;
+  cursor: not-allowed;
+}
+.login-button:disabled:hover {
+  transform: none;
+  background: transparent;
+}
+@container (max-width: 440px) {
+  .site-header .desktop-navigation {
     display: none;
   }
-  .site-header > nav {
-    gap: 2px;
+  .site-menu {
+    display: block;
   }
-  .nav-button {
-    font-size: 12px;
-    padding-inline: 8px;
-  }
-  .site-header > nav {
-    gap: 2px;
+  .brand-navigation {
+    gap: 6px;
   }
 }
