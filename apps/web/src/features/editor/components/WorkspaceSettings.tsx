@@ -6,7 +6,8 @@ import { useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
 import { editorSchemes, type EditorScheme } from "../editorPalette";
-import { shortcutKeySymbols, workspaceShortcuts } from "../workspaceShortcuts";
+import { workspaceShortcuts } from "../workspaceShortcuts";
+import { ShortcutKeys } from "./ShortcutKeys";
 import { Icon } from "./Icon";
 import { Tooltip } from "./Tooltip";
 
@@ -260,11 +261,7 @@ export function WorkspaceSettings(props: SettingsProps) {
                         <Icon name={shortcut.icon} />
                         <span>{shortcut.label}</span>
                         <div>
-                          {shortcut.keys.map((key) => (
-                            <kbd key={key} aria-label={key}>
-                              {shortcutKeySymbols[key] ?? key}
-                            </kbd>
-                          ))}
+                          <ShortcutKeys keys={shortcut.keys} />
                         </div>
                       </div>
                     ))}

@@ -20,7 +20,3 @@ export const shortcutKeySymbols: Record<string, string> = {
   Shift: "⇧",
   Enter: "↵",
 };
-
-export function shortcutHint(shortcut: { label: string; keys: readonly string[] }) {
-  return `${shortcut.label} (${shortcut.keys.map((key) => shortcutKeySymbols[key] ?? key).join(" ")})`;
-}

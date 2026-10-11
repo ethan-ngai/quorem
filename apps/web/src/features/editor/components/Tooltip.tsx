@@ -1,8 +1,8 @@
 import * as RadixTooltip from "@radix-ui/react-tooltip";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 /** Shared fast, keyboard-accessible hint; portals avoid pane clipping. */
-export function Tooltip({ content, children }: { content: string; children: ReactElement }) {
+export function Tooltip({ content, children }: { content: ReactNode; children: ReactElement }) {
   return (
     <RadixTooltip.Provider delayDuration={100}>
       <RadixTooltip.Root>

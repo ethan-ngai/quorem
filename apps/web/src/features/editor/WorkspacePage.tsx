@@ -1,6 +1,7 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { shortcutHint, workspaceShortcuts } from "./workspaceShortcuts";
+import { workspaceShortcuts } from "./workspaceShortcuts";
+import { ShortcutHint } from "./components/ShortcutKeys";
 import { Tooltip } from "./components/Tooltip";
 import type {
   DevelopmentIdentity,
@@ -773,7 +774,7 @@ export function WorkspacePage({
                     Cancel run
                   </button>
                 )}
-              <Tooltip content={shortcutHint(workspaceShortcuts.run)}>
+              <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.run} />}>
                 <button
                   className="button button-secondary"
                   disabled={submissionBusy || !actionsEnabled}
@@ -783,7 +784,7 @@ export function WorkspacePage({
                   Run
                 </button>
               </Tooltip>
-              <Tooltip content={shortcutHint(workspaceShortcuts.submit)}>
+              <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.submit} />}>
                 <button
                   className="button button-primary"
                   disabled={submissionBusy || !actionsEnabled}

@@ -2083,7 +2083,7 @@ kbd {
   display: flex;
   gap: 4px;
 }
-.shortcut-tile kbd {
+.shortcut-keys kbd {
   font-family: var(--font-interface);
   min-width: 22px;
   text-align: center;
@@ -2092,6 +2092,16 @@ kbd {
   border-radius: 4px;
   background: var(--color-overlay);
   font-size: 12px;
+}
+.shortcut-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.shortcut-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 .shortcut-tiles[data-enabled="false"] {
   opacity: 0.5;
