@@ -292,14 +292,17 @@ summary::-webkit-details-marker {
   font-size: 11px;
 }
 .settings-popover fieldset {
+  min-inline-size: 0;
   margin: 0;
   padding: 12px 0 14px;
   border: 0;
   border-top: 1px solid var(--color-border);
 }
 .settings-popover legend {
-  float: left;
-  width: 100%;
+  float: none;
+  display: block;
+  width: auto;
+  padding: 0;
   margin-bottom: 10px;
   color: var(--color-text-secondary);
   font: 10px var(--font-code);
@@ -307,6 +310,8 @@ summary::-webkit-details-marker {
   letter-spacing: 0.06em;
 }
 .settings-popover label {
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1227,8 +1232,8 @@ kbd {
 .concession-dialog {
   position: fixed;
   z-index: 30;
-  top: 50%;
-  transform: translateY(-50%);
+  top: auto;
+  margin: auto;
   width: min(420px, calc(100% - 32px));
   padding: 28px;
   border: 1px solid var(--color-border);
@@ -1505,4 +1510,14 @@ kbd {
   .match-dialog-body {
     padding-inline: 24px;
   }
+}
+
+.concession-dialog::backdrop {
+  background: oklch(0.1 0 0 / 0.5);
+}
+
+.settings-popover select {
+  min-width: 0;
+  max-width: 145px;
+  flex: 0 0 auto;
 }

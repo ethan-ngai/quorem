@@ -1,4 +1,5 @@
 /** @file WorkspaceSettings.tsx @description Grouped editor, appearance, recovery, and local account controls. @module editor */
+import { useEffect, useRef } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
 import { Icon } from "./Icon";
@@ -22,8 +23,27 @@ type SettingsProps = {
 
 /** @returns A compact native disclosure with accessible labeled controls. */
 export function WorkspaceSettings(props: SettingsProps) {
+  const disclosure = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (!disclosure.current?.contains(event.target as Node))
+        disclosure.current?.removeAttribute("open");
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && disclosure.current?.open) {
+        disclosure.current.removeAttribute("open");
+        disclosure.current.querySelector("summary")?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, []);
   return (
-    <details className="settings-disclosure">
+    <details className="settings-disclosure" ref={disclosure}>
       <summary className="icon-button" aria-label="Workspace settings" title="Workspace settings">
         <Icon name="settings" />
       </summary>

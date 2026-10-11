@@ -1,6 +1,7 @@
 /** @file CreateMatchDialog.tsx @description Creates a private invitation from the practice workspace. @module matches */
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
+import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings } from "./MatchControls";
 import { Icon } from "../editor/components/Icon";
@@ -14,9 +15,15 @@ export function CreateMatchDialog({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [settings, setSettings] = useState<CreateMatchRequest>({
-    difficulty: "easy",
-    durationMinutes: 30,
+  const [settings, setSettings] = useState<CreateMatchRequest>(
+    () => pendingCreate(identity)?.payload ?? { difficulty: "easy", durationMinutes: 30 },
+  );
+  const [recentMatch] = useState(() => {
+    try {
+      return localStorage.getItem(`quorem.last-match.v1:${identity}`);
+    } catch {
+      return null;
+    }
   });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -44,7 +51,7 @@ export function CreateMatchDialog({
           setError(undefined);
           try {
             const invite = await createMatch(identity, settings);
-            sessionStorage.setItem(`quorem.invite.${identity}.${invite.id}`, invite.inviteUrl);
+
             window.location.assign(`/matches/${invite.id}`);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : "Could not create match.");
@@ -54,16 +61,29 @@ export function CreateMatchDialog({
       >
         <h2 id="create-match-title">Invite an opponent.</h2>
         <p>Same problem. Separate code. The problem appears when both players are ready.</p>
-        <MatchSettings value={settings} onChange={setSettings} disabled={pending} />
+        <MatchSettings
+          value={settings}
+          onChange={setSettings}
+          disabled={pending || !!pendingCreate(identity)}
+        />
         {error && (
           <p className="result-error" role="alert">
             {error}
           </p>
         )}
         <button className="button button-primary" disabled={pending}>
-          {pending ? "Creating…" : "Create private match"}
+          {pending
+            ? "Creating…"
+            : pendingCreate(identity)
+              ? "Retry private match"
+              : "Create private match"}
           <Icon name="arrow" />
         </button>
+        {recentMatch && (
+          <a className="text-link" href={`/matches/${recentMatch}`}>
+            Reopen recent match →
+          </a>
+        )}
         <small>Playing as {identity === "alice" ? "Alice" : "Bob"} · 2 players</small>
       </form>
     </dialog>

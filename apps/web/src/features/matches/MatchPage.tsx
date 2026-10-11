@@ -12,14 +12,16 @@ import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch, leaveMatch, setReady, updateMatchSettings } from "./api";
 import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls";
+import { ConcessionDialog } from "./ConcessionDialog";
+import { readInvite } from "./commandRecovery";
 import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
 function MatchClock({ snapshot }: { snapshot: MatchSnapshot }) {
-  const received = useRef({ version: snapshot.version, at: Date.now() });
-  if (received.current.version !== snapshot.version)
-    received.current = { version: snapshot.version, at: Date.now() };
+  const received = useRef({ version: snapshot.serverNow, at: Date.now() });
+  if (received.current.version !== snapshot.serverNow)
+    received.current = { version: snapshot.serverNow, at: Date.now() };
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -86,9 +88,7 @@ function MatchLedger({
               Forfeit
             </button>
           </>
-        ) : (
-          <strong className="match-outcome">{outcomeLabel(snapshot, identity)}</strong>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -153,38 +153,19 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const host = snapshot.hostUserId === developmentUserIds[identity];
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
-  const inviteUrl = sessionStorage.getItem(`quorem.invite.${identity}.${matchId}`);
+  const inviteUrl = readInvite(identity, matchId);
   const concession = conceding ? (
-    <dialog open className="concession-dialog" aria-labelledby="concession-title">
-      <h2 id="concession-title">Concede this match?</h2>
-      <p>Your opponent wins. This cannot be undone.</p>
-      <div className="dialog-actions">
-        <button
-          className="button button-secondary"
-          disabled={pending}
-          onClick={() => setConceding(false)}
-        >
-          Keep playing
-        </button>
-        <button
-          className="button button-danger"
-          disabled={pending}
-          onClick={() =>
-            void command(async () => {
-              await forfeitMatch(identity, matchId);
-              setConceding(false);
-            })
-          }
-        >
-          {pending ? "Conceding…" : "Forfeit match"}
-        </button>
-      </div>
-      {actionError && (
-        <p role="alert" className="result-error">
-          {actionError}
-        </p>
-      )}
-    </dialog>
+    <ConcessionDialog
+      pending={pending}
+      error={actionError}
+      onCancel={() => setConceding(false)}
+      onConfirm={() =>
+        void command(async () => {
+          await forfeitMatch(identity, matchId);
+          setConceding(false);
+        })
+      }
+    />
   ) : null;
   const ledger = (
     <>

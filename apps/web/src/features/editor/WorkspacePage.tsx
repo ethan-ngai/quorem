@@ -288,7 +288,24 @@ export function WorkspacePage({
   }, [identity, problem, workspace]);
   saveNowRef.current = saveCurrentDraft;
 
-  useEffect(() => () => window.clearTimeout(saveTimerRef.current), []);
+  useEffect(() => {
+    const preserveDraft = () => {
+      const context = draftContextRef.current;
+      if (context && dirtyRef.current)
+        void writeRecovery(
+          context.identity,
+          context.workspaceId,
+          context.problemVersionId,
+          sourceRef.current,
+        ).catch(() => undefined);
+    };
+    window.addEventListener("pagehide", preserveDraft);
+    return () => {
+      window.removeEventListener("pagehide", preserveDraft);
+      window.clearTimeout(saveTimerRef.current);
+      preserveDraft();
+    };
+  }, []);
 
   const execution = useSubmission({
     identity,
@@ -392,9 +409,10 @@ export function WorkspacePage({
         !window.confirm("There are unsaved changes in this workspace. Switch local user anyway?")
       )
         return;
+      await saveCurrentDraft();
       setIdentity(next);
     },
-    [identity],
+    [identity, saveCurrentDraft, setIdentity],
   );
 
   const dataMatchesRoute =
