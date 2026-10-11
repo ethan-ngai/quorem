@@ -15,6 +15,7 @@ export function validateConstraints(
       value: ["int", "float", "str"].includes(binding.type),
       length: binding.type === "str" || binding.type.startsWith("list<"),
       elements: ["list<int>", "list<float>"].includes(binding.type),
+      sum: ["list<int>", "list<float>"].includes(binding.type),
       nodeCount: ["ListNode", "TreeNode"].includes(binding.type),
       nodeValues: ["ListNode", "TreeNode"].includes(binding.type),
     }[target.projection];
@@ -31,6 +32,15 @@ export function validateConstraints(
               ? value.length
               : 0,
         ];
+      case "sum":
+        if (
+          !Array.isArray(value) ||
+          value.some((item) => typeof item !== "number" || !Number.isFinite(item))
+        )
+          throw new Error("A sum target requires a numeric list.");
+        const total = value.reduce((total: number, item: number) => total + item, 0);
+        if (!Number.isFinite(total)) throw new Error("Numeric list total must be finite.");
+        return [total];
       case "elements":
         return Array.isArray(value) ? value : [];
       case "nodeCount":

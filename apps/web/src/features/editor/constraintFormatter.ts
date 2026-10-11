@@ -5,6 +5,8 @@ export function formatTarget(target: ConstraintTarget): string {
   switch (target.projection) {
     case "value":
       return name;
+    case "sum":
+      return `sum(${name})`;
     case "length":
       return `len(${name})`;
     case "elements":

@@ -119,6 +119,29 @@ describe("structured constraints", () => {
       ),
     ).toThrow("Unsupported constraint target");
   });
+  it("renders and admits numeric totals as scalar targets", () => {
+    const sum: Constraint = {
+      kind: "range",
+      target: { parameter: "values", projection: "sum" },
+      max: 2147483647,
+    };
+    expect(formatConstraint(sum)).toBe("sum(values) ≤ 2^31 - 1");
+    expect(() =>
+      parseCustomDraft(
+        { id: "case", args: ["[2147483647,1]", "2"], expectedEnabled: false, expected: "" },
+        signature,
+        [sum],
+      ),
+    ).toThrow("Constraint:");
+    const comparison: Constraint = {
+      kind: "comparison",
+      left: { parameter: "values", projection: "sum" },
+      right: { parameter: "limit", projection: "value" },
+      operator: "le",
+    };
+    expect(() => validateConstraints(signature, [[1, 2], 3], [comparison])).not.toThrow();
+    expect(() => validateConstraints(signature, [[1, 2], 2], [comparison])).toThrow("Constraint:");
+  });
   it("validates admitted custom drafts", () => {
     expect(() =>
       parseCustomDraft(
