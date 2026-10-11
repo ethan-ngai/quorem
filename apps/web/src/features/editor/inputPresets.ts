@@ -22,6 +22,7 @@ export abstract class InputPreset {
   abstract accepts(source: string): boolean;
   protected abstract parseValue(source: string): WireValue;
   parse(source: string): WireValue {
+    if (source.length > 65536) throw new Error("Input exceeds 64 KiB.");
     const value = this.parseValue(source);
     validateTypedValue(this.type, value);
     return value;
@@ -70,9 +71,11 @@ export class BooleanPreset extends InputPreset {
   }
 }
 
-function scalarSource(type: string, source: string): WireValue {
+function scalarSource(type: string, source: string, depth = 0): WireValue {
+  if (depth > 100) throw new Error("Nesting exceeds 100 levels.");
+  if (source.length > 65536) throw new Error("Input exceeds 64 KiB.");
   const optional = innerType(type, "optional");
-  if (optional) return source.trim() === "null" ? null : scalarSource(optional, source);
+  if (optional) return source.trim() === "null" ? null : scalarSource(optional, source, depth + 1);
   const list = innerType(type, "list");
   if (list || type === "TreeNode" || type === "ListNode") {
     if (source.trim() === "null" && !list) return null;
@@ -82,7 +85,7 @@ function scalarSource(type: string, source: string): WireValue {
     const contents = trimmed.slice(1, -1);
     if (!contents.trim()) return [];
     return splitEntries(contents).map((item) =>
-      scalarSource(list ?? (type === "TreeNode" ? "optional<int>" : "int"), item),
+      scalarSource(list ?? (type === "TreeNode" ? "optional<int>" : "int"), item, depth + 1),
     );
   }
   if (type === "str") {
@@ -151,6 +154,7 @@ export class SequencePreset extends InputPreset {
   }
   override toEditorSource(source: string) {
     const trimmed = source.trim();
+    if (trimmed === "null" && (this.type === "TreeNode" || this.type === "ListNode")) return "";
     return trimmed.startsWith("[") && trimmed.endsWith("]") ? trimmed.slice(1, -1) : source;
   }
   override fromEditorSource(source: string) {
@@ -171,13 +175,16 @@ export class NullablePreset extends InputPreset {
   readonly inner: InputPreset;
   constructor(type: string, config?: InputConfig) {
     super(type, config);
-    this.inner = resolveInputPreset(innerType(type, "optional")!);
+    this.inner = resolveInputPreset(innerType(type, "optional")!, config);
   }
   accepts(source: string) {
     return source === "null" || this.inner.accepts(source);
   }
   protected parseValue(source: string) {
-    return scalarSource(this.type, source);
+    if (source.trim() === "null") return null;
+    return this.inner.kind === "text"
+      ? this.inner.parse(JSON.parse(source) as string)
+      : this.inner.parse(source);
   }
   override toEditorSource(source: string) {
     if (source === "null") return source;
@@ -228,7 +235,7 @@ for (const [id, Preset] of Object.entries({
 }
 export function resolveInputPreset(type: string, config?: InputConfig): InputPreset {
   let id: string;
-  if (innerType(type, "optional")) id = "optional";
+  if (innerType(type, "optional")) return new NullablePreset(type, config);
   else if (type === "int" || type === "float") id = "number";
   else if (type === "str") id = "text";
   else if (type === "bool") id = "boolean";

@@ -15,6 +15,8 @@ describe("typed input presets", () => {
     ] as const)
       expect(parseTypedField("float", source)).toBe(expected);
     for (const source of [
+      "9007199254740993-9007199254740992",
+      "9007199254740991+2-9007199254740991",
       "foo",
       "Math.random()",
       "1;2",
@@ -55,7 +57,9 @@ describe("typed input presets", () => {
     expect(parseTypedField("TreeNode", "[1,null,2*4]")).toEqual([1, null, 8]);
     expect(() => parseTypedField("TreeNode", "[1,null,null,2]")).toThrow("orphan");
     expect(() => parseTypedField("ListNode", "[null]")).toThrow();
-    const optional = resolveInputPreset("optional<str>");
+    expect(resolveInputPreset("ListNode").toEditorSource("null")).toBe("");
+    expect(resolveInputPreset("optional<list<int>>", { preset: "sequence" }).kind).toBe("optional");
+    const optional = resolveInputPreset("optional<str>", { preset: "text" });
     expect(optional.toEditorSource('"snow"')).toBe("snow");
     expect(optional.parse(optional.fromEditorSource("null"))).toBe("null");
     expect(optional.parse("null")).toBeNull();
