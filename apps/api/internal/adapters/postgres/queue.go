@@ -167,7 +167,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 			if c.Score == nil || c.Score.Total != 20 || c.Score.Passed < 0 || c.Score.Passed > 20 {
 				return errors.New("incomplete hidden score")
 			}
+			if err = validateHiddenCases(c); err != nil {
+				return err
+			}
 			result.Score = c.Score
+			result.HiddenCases = c.HiddenCases
 			result.Diagnostics = nil
 		} else {
 			result.PublicCases = c.PublicCaseResults
@@ -207,4 +211,31 @@ func (s *Store) ExpiredAttempts(ctx context.Context) ([]string, error) {
 		attempts = append(attempts, attempt)
 	}
 	return attempts, rows.Err()
+}
+
+func validateHiddenCases(c execution.Completion) error {
+	// Older in-flight runners may complete without per-case statuses.
+	if c.HiddenCases == nil {
+		return nil
+	}
+	if c.Score == nil || len(c.HiddenCases) != c.Score.Total {
+		return errors.New("incomplete hidden cases")
+	}
+	passed := 0
+	for i, result := range c.HiddenCases {
+		if result.Index != i {
+			return errors.New("invalid hidden case index")
+		}
+		switch result.Status {
+		case execution.Accepted:
+			passed++
+		case execution.WrongAnswer, execution.TimeLimit:
+		default:
+			return errors.New("invalid hidden case status")
+		}
+	}
+	if passed != c.Score.Passed {
+		return errors.New("inconsistent hidden score")
+	}
+	return nil
 }

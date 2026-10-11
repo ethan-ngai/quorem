@@ -445,6 +445,11 @@ export interface components {
             stdout?: string;
             stderr?: string;
         };
+        HiddenCaseResult: {
+            index: number;
+            /** @enum {string} */
+            status: "accepted" | "wrong_answer" | "time_limit";
+        };
         Submission: {
             /** Format: uuid */
             id: string;
@@ -459,6 +464,7 @@ export interface components {
             updatedAt: string;
             verdict?: components["schemas"]["Verdict"];
             score?: components["schemas"]["Score"];
+            hiddenCases?: components["schemas"]["HiddenCaseResult"][];
             publicCases?: components["schemas"]["PublicCaseResult"][];
             diagnostics?: components["schemas"]["Diagnostic"][];
             infrastructureError?: string;

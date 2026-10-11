@@ -28,6 +28,22 @@ for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
   assert(validateProblem(fixture.problem), `${name}: ${JSON.stringify(validateProblem.errors)}`);
 }
+const validateHidden = ajv.compile({ $ref: `${document.$id}#/$defs/HiddenCaseResult` });
+for (const status of schemas.HiddenCaseResult.properties.status.enum)
+  assert(validateHidden({ index: 0, status }));
+for (const hidden of [
+  { index: -1, status: "accepted" },
+  { index: 0, status: "executed" },
+  ...schemas.Verdict.enum
+    .filter((status) => !schemas.HiddenCaseResult.properties.status.enum.includes(status))
+    .map((status) => ({ index: 0, status })),
+  ...["args", "actual", "expected", "diagnostics", "stdout", "stderr"].map((key) => ({
+    index: 0,
+    status: "accepted",
+    [key]: "hidden-marker",
+  })),
+])
+  assert(!validateHidden(hidden), JSON.stringify(hidden));
 const validateInput = ajv.compile({ $ref: `${document.$id}#/$defs/InputPresetConfig` });
 assert(validateInput({ preset: "sequence", placeholder: "[1, 2]", rows: 8 }));
 for (const input of [
@@ -58,6 +74,21 @@ assert.deepEqual(eventSchema.$defs, schemas, "Event schemas must match OpenAPI")
 const validateEvent = ajv.compile(eventSchema);
 assert(validateEvent(event), JSON.stringify(validateEvent.errors));
 assert(!validateEvent({ ...event, payload: { ...event.payload, source: "private" } }));
+assert(
+  validateEvent({
+    ...event,
+    payload: { ...event.payload, hiddenCases: [{ index: 0, status: "accepted" }] },
+  }),
+);
+assert(
+  !validateEvent({
+    ...event,
+    payload: {
+      ...event.payload,
+      hiddenCases: [{ index: 0, status: "accepted", stdout: "hidden-marker" }],
+    },
+  }),
+);
 assert.equal(
   readFileSync("src/generated.ts", "utf8"),
   await generateContracts(),

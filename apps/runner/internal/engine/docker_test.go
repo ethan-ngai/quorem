@@ -43,9 +43,10 @@ func TestDockerReferenceCorpus(t *testing.T) {
 	for _, f := range fixtures {
 		t.Run(f.Problem.Slug, func(t *testing.T) {
 			result := executeFixture(t, f, f.ReferenceSource, "submit", f.HiddenCases)
-			if result.Verdict != execution.Accepted || result.Score == nil || result.Score.Passed != 20 || len(result.PublicCaseResults) != 0 {
+			if result.Verdict != execution.Accepted || result.Score == nil || result.Score.Passed != 20 || len(result.HiddenCases) != 20 || len(result.PublicCaseResults) != 0 {
 				t.Fatal(result)
 			}
+			assertHiddenCaseScore(t, result)
 		})
 	}
 }
@@ -105,8 +106,9 @@ class Solution:
   return result
 `
 	result := executeFixture(t, f, source, "submit", f.HiddenCases)
+	assertHiddenCaseScore(t, result)
 	data, _ := json.Marshal(result)
-	if result.Verdict != execution.Accepted || result.Score.Passed != 20 || len(result.PublicCaseResults) > 0 || len(result.SafeDiagnostics) > 0 {
+	if result.Verdict != execution.Accepted || result.Score.Passed != 20 || len(result.PublicCaseResults) > 0 || len(result.SafeDiagnostics) > 0 || strings.Contains(string(data), "hidden marker") {
 		t.Fatalf("isolation/freshness/redaction failed %s", data)
 	}
 }
@@ -138,6 +140,7 @@ func TestDockerIncorrectCorpusAndCompletePartialScore(t *testing.T) {
 	}
 	source := f.ReferenceSource + "\nclass Solution:\n def runWidths(self, values):\n  if not values: raise Exception('secret')\n  return solve(values)\n"
 	result := executeFixture(t, f, source, "submit", f.HiddenCases)
+	assertHiddenCaseScore(t, result)
 	if result.Verdict != execution.RuntimeError || result.Score.Passed != 19 || result.Score.Total != 20 {
 		t.Fatal(result)
 	}
@@ -235,5 +238,55 @@ func TestDockerConsoleStreams(t *testing.T) {
 	public := result.PublicCaseResults[0]
 	if public.Stdout != "hello\n" || public.Stderr != "notice\n" || len(public.Diagnostics) != 0 {
 		t.Fatal(public)
+	}
+}
+
+func assertHiddenCaseScore(t *testing.T, result execution.Completion) {
+	t.Helper()
+	if result.Score == nil || len(result.HiddenCases) != result.Score.Total {
+		t.Fatal("incomplete hidden statuses", result)
+	}
+	passed := 0
+	for i, hidden := range result.HiddenCases {
+		if hidden.Index != i {
+			t.Fatal("unexpected hidden index", hidden)
+		}
+		if hidden.Status != execution.Accepted && hidden.Status != execution.WrongAnswer && hidden.Status != execution.TimeLimit {
+			t.Fatal("hidden failure reason leaked", hidden)
+		}
+		if hidden.Status == execution.Accepted {
+			passed++
+		}
+		data, _ := json.Marshal(hidden)
+		var fields map[string]any
+		json.Unmarshal(data, &fields)
+		if len(fields) != 2 {
+			t.Fatal("hidden fields leaked", string(data))
+		}
+	}
+	if passed != result.Score.Passed {
+		t.Fatal("hidden status/score mismatch", result)
+	}
+}
+
+func TestDockerHiddenFailureDetailsOnlyTimeLimit(t *testing.T) {
+	f := dockerTests(t)[0]
+	for _, test := range []struct {
+		source  string
+		verdict execution.Verdict
+		status  execution.Verdict
+	}{
+		{"this is ! syntax", execution.SyntaxError, execution.WrongAnswer},
+		{"class Solution:\n def levelSpreads(self, root): raise Exception('hidden-marker')", execution.RuntimeError, execution.WrongAnswer},
+		{"class Solution:\n def levelSpreads(self, root):\n  while True: pass", execution.TimeLimit, execution.TimeLimit},
+	} {
+		t.Run(string(test.verdict), func(t *testing.T) {
+			result := executeFixture(t, f, test.source, "submit", f.HiddenCases[:1])
+			assertHiddenCaseScore(t, result)
+			encoded, _ := json.Marshal(result)
+			if result.Verdict != test.verdict || result.HiddenCases[0].Status != test.status || strings.Contains(string(encoded), "hidden-marker") {
+				t.Fatal("hidden failure redaction", string(encoded))
+			}
+		})
 	}
 }

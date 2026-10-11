@@ -23,6 +23,7 @@ type Submission struct {
 	Verdict             execution.Verdict            `json:"verdict,omitempty"`
 	Score               *execution.Score             `json:"score,omitempty"`
 	PublicCases         []execution.PublicCaseResult `json:"publicCases,omitempty"`
+	HiddenCases         []execution.HiddenCaseResult `json:"hiddenCases,omitempty"`
 	Diagnostics         []execution.Diagnostic       `json:"diagnostics,omitempty"`
 	InfrastructureError string                       `json:"infrastructureError,omitempty"`
 }

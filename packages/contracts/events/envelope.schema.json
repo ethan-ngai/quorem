@@ -602,6 +602,21 @@
       "required": ["index", "status"],
       "additionalProperties": false
     },
+    "HiddenCaseResult": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": ["accepted", "wrong_answer", "time_limit"]
+        }
+      },
+      "required": ["index", "status"],
+      "additionalProperties": false
+    },
     "Submission": {
       "type": "object",
       "properties": {
@@ -635,6 +650,13 @@
         },
         "score": {
           "$ref": "#/$defs/Score"
+        },
+        "hiddenCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HiddenCaseResult"
+          },
+          "maxItems": 20
         },
         "publicCases": {
           "type": "array",

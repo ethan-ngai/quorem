@@ -18,6 +18,7 @@ export type SubmissionAdmission = components["schemas"]["SubmissionAdmission"];
 export type CreateSubmissionRequest = components["schemas"]["CreateSubmissionRequest"];
 export type SaveDraftRequest = components["schemas"]["SaveDraftRequest"];
 export type SaveDraftResponse = components["schemas"]["SaveDraftResponse"];
+export type HiddenCaseResult = components["schemas"]["HiddenCaseResult"];
 export type PublicCaseResult = components["schemas"]["PublicCaseResult"];
 export type Diagnostic = components["schemas"]["Diagnostic"];
 export type MatchSnapshot = components["schemas"]["MatchSnapshot"];

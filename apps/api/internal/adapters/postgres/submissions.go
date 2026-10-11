@@ -165,6 +165,7 @@ func (s *Store) submission(ctx context.Context, q querier, owner, id string) (ju
 			v.Verdict = result.Verdict
 			v.Score = result.Score
 			v.PublicCases = result.PublicCases
+			v.HiddenCases = result.HiddenCases
 			v.Diagnostics = result.Diagnostics
 			v.InfrastructureError = result.InfrastructureError
 		}

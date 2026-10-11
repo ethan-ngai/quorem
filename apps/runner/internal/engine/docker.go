@@ -88,6 +88,13 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		if status != "accepted" && status != "executed" && result.Verdict == "" {
 			result.Verdict = execution.Verdict(status)
 		}
+		if spec.Kind == "submit" {
+			hiddenStatus := execution.WrongAnswer
+			if status == "accepted" || status == "time_limit" {
+				hiddenStatus = execution.Verdict(status)
+			}
+			result.HiddenCases = append(result.HiddenCases, execution.HiddenCaseResult{Index: i, Status: hiddenStatus})
+		}
 		if spec.Kind == "run" {
 			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
 			if f.Line > 0 {

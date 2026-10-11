@@ -165,13 +165,20 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	completion.AttemptID = fresh.AttemptID
 	completion.Score.Passed = 7
 	completion.Verdict = execution.WrongAnswer
+	for i := 0; i < 20; i++ {
+		status := execution.WrongAnswer
+		if i < 7 {
+			status = execution.Accepted
+		}
+		completion.HiddenCases = append(completion.HiddenCases, execution.HiddenCaseResult{Index: i, Status: status})
+	}
 	completion.SafeDiagnostics = []execution.Diagnostic{{Message: "secret"}}
 	completion.PublicCaseResults = []execution.PublicCaseResult{{Status: "secret"}}
 	if err = store.Complete(ctx, fresh, completion); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = store.Submission(ctx, "alice", second.ID)
-	if got.State != "completed" || got.Score.Passed != 7 || len(got.Diagnostics) != 0 || len(got.PublicCases) != 0 {
+	if got.State != "completed" || got.Score.Passed != 7 || len(got.HiddenCases) != 20 || got.HiddenCases[0].Status != execution.Accepted || got.HiddenCases[7].Status != execution.WrongAnswer || len(got.Diagnostics) != 0 || len(got.PublicCases) != 0 {
 		t.Fatal("completion redaction", got)
 	}
 	if _, err = store.Admit(ctx, "alice", "quota", cmd, "f"); errorCode(err) != "quota_exceeded" {
