@@ -1,8 +1,14 @@
+/** @file matchSync.ts @description Runtime guards and version helpers for match synchronization. @module realtime */
 import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states = new Set(["waiting", "ready", "active", "finalizing", "completed", "cancelled"]);
 const difficulties = new Set(["easy", "medium", "hard"]);
+const submissionStates = new Set(["queued", "running", "completed", "cancelled", "failed"]);
+const outcomeKinds = new Set(["win", "draw", "no_contest", "cancelled"]);
+
+export const MAX_BUFFERED_MATCH_EVENTS = 64;
+export type MatchEventBuffer = { events: EventEnvelope[]; overflow: boolean };
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -17,9 +23,63 @@ function version(value: unknown): bigint | undefined {
   }
 }
 
+function validDate(value: unknown): boolean {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function validScore(value: unknown): boolean {
+  return (
+    record(value) &&
+    Number.isSafeInteger(value.passed) &&
+    Number.isSafeInteger(value.total) &&
+    (value.passed as number) >= 0 &&
+    (value.total as number) >= 0 &&
+    (value.passed as number) <= (value.total as number)
+  );
+}
+
+/** Caps events accumulated during a REST request and forces a fresh snapshot on overflow. */
+export function bufferMatchEvent(buffer: MatchEventBuffer, event: EventEnvelope): void {
+  if (buffer.overflow) return;
+  if (buffer.events.length >= MAX_BUFFERED_MATCH_EVENTS) {
+    buffer.events.length = 0;
+    buffer.overflow = true;
+    return;
+  }
+  buffer.events.push(event);
+}
+
 /** Checks the required public snapshot shape before trusting network JSON. */
 export function isMatchSnapshot(value: unknown, matchId?: string): value is MatchSnapshot {
   if (!record(value)) return false;
+  const participantIds = new Set<string>();
+  if (
+    !Array.isArray(value.participants) ||
+    value.participants.length > 2 ||
+    value.participants.some((participant) => {
+      if (
+        !record(participant) ||
+        typeof participant.userId !== "string" ||
+        !uuidPattern.test(participant.userId) ||
+        typeof participant.displayName !== "string" ||
+        typeof participant.ready !== "boolean" ||
+        (participant.presence !== "online" && participant.presence !== "offline") ||
+        (participant.submissionState !== undefined &&
+          (typeof participant.submissionState !== "string" ||
+            !submissionStates.has(participant.submissionState))) ||
+        (participant.workspaceId !== undefined &&
+          (typeof participant.workspaceId !== "string" ||
+            !uuidPattern.test(participant.workspaceId))) ||
+        (participant.bestScore !== undefined && !validScore(participant.bestScore)) ||
+        participantIds.has(participant.userId)
+      )
+        return true;
+      participantIds.add(participant.userId);
+      return false;
+    })
+  )
+    return false;
+
   return (
     typeof value.id === "string" &&
     uuidPattern.test(value.id) &&
@@ -32,20 +92,24 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     typeof value.difficulty === "string" &&
     difficulties.has(value.difficulty) &&
     [15, 30, 45, 60].includes(value.durationMinutes as number) &&
-    Array.isArray(value.participants) &&
-    value.participants.every(
-      (participant) =>
-        record(participant) &&
-        typeof participant.userId === "string" &&
-        uuidPattern.test(participant.userId) &&
-        typeof participant.displayName === "string" &&
-        typeof participant.ready === "boolean" &&
-        (participant.presence === "online" || participant.presence === "offline"),
-    ) &&
     typeof value.hostUserId === "string" &&
     uuidPattern.test(value.hostUserId) &&
     typeof value.expiresAt === "string" &&
-    Number.isFinite(Date.parse(value.expiresAt))
+    validDate(value.expiresAt) &&
+    (value.startedAt === undefined || validDate(value.startedAt)) &&
+    (value.deadline === undefined || validDate(value.deadline)) &&
+    (value.finalizingAt === undefined || validDate(value.finalizingAt)) &&
+    (value.problemVersionId === undefined ||
+      (typeof value.problemVersionId === "string" && uuidPattern.test(value.problemVersionId))) &&
+    (value.outcome === undefined ||
+      (record(value.outcome) &&
+        typeof value.outcome.kind === "string" &&
+        outcomeKinds.has(value.outcome.kind) &&
+        (value.outcome.winnerUserId === undefined ||
+          (typeof value.outcome.winnerUserId === "string" &&
+            uuidPattern.test(value.outcome.winnerUserId))) &&
+        typeof value.outcome.reason === "string" &&
+        validDate(value.outcome.completedAt)))
   );
 }
 
@@ -111,11 +175,14 @@ export function keepNewestSnapshot(
   if (!previous) return incoming;
   const previousVersion = version(previous.version);
   const incomingVersion = version(incoming.version);
-  return previousVersion !== undefined &&
-    incomingVersion !== undefined &&
-    incomingVersion < previousVersion
-    ? previous
-    : incoming;
+  if (previousVersion === undefined || incomingVersion === undefined) return incoming;
+  if (incomingVersion < previousVersion) return previous;
+  if (
+    incomingVersion === previousVersion &&
+    Date.parse(incoming.serverNow) < Date.parse(previous.serverNow)
+  )
+    return previous;
+  return incoming;
 }
 
 /** Schedules bounded reconnects; injected timers keep lifecycle behavior testable. */
@@ -132,7 +199,7 @@ export function createReconnectScheduler(
     schedule() {
       if (timer !== undefined) return;
       const ceiling = Math.min(10_000, 500 * 2 ** Math.min(retry, 5));
-      const delay = Math.round(ceiling * (0.8 + random() * 0.4));
+      const delay = Math.min(10_000, Math.round(ceiling * (0.8 + random() * 0.4)));
       retry += 1;
       timer = schedule(() => {
         timer = undefined;

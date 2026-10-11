@@ -1,10 +1,13 @@
+/** @file matchSync.test.ts @description Regression coverage for match event guards and ordering. @module realtime */
 import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
+  bufferMatchEvent,
   createReconnectScheduler,
   isMatchSnapshot,
   keepNewestSnapshot,
   mergeMatchEvents,
+  MAX_BUFFERED_MATCH_EVENTS,
   parseMatchEvent,
 } from "./matchSync";
 
@@ -64,6 +67,87 @@ describe("match sync guards and ordering", () => {
       gap: true,
     });
   });
+
+  it("rejects malformed optional fields, duplicate seats, and invalid seat counts", () => {
+    const valid = snapshot("4");
+    expect(isMatchSnapshot({ ...valid, startedAt: "yesterday" }, matchId)).toBe(false);
+    expect(isMatchSnapshot({ ...valid, problemVersionId: "not-a-uuid" }, matchId)).toBe(false);
+    expect(
+      isMatchSnapshot(
+        {
+          ...valid,
+          outcome: { kind: "win", reason: "done", completedAt: valid.serverNow },
+        },
+        matchId,
+      ),
+    ).toBe(true);
+    expect(
+      isMatchSnapshot(
+        {
+          ...valid,
+          outcome: { kind: "unknown", reason: "done", completedAt: valid.serverNow },
+        },
+        matchId,
+      ),
+    ).toBe(false);
+    expect(
+      isMatchSnapshot(
+        {
+          ...valid,
+          participants: [{ ...valid.participants[0]!, bestScore: { passed: 3, total: 2 } }],
+        },
+        matchId,
+      ),
+    ).toBe(false);
+    expect(
+      isMatchSnapshot(
+        {
+          ...valid,
+          participants: [valid.participants[0], valid.participants[0]],
+        },
+        matchId,
+      ),
+    ).toBe(false);
+    expect(
+      isMatchSnapshot(
+        {
+          ...valid,
+          participants: [valid.participants[0], valid.participants[0], valid.participants[0]],
+        },
+        matchId,
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps equal-version snapshots when their server time is older", () => {
+    const fresh: MatchSnapshot = {
+      ...snapshot("7"),
+      serverNow: "2026-10-10T12:00:05Z",
+      participants: [{ userId, displayName: "Alice", ready: true, presence: "online" }],
+    };
+    const stale: MatchSnapshot = {
+      ...snapshot("7"),
+      serverNow: "2026-10-10T12:00:04Z",
+      participants: [{ userId, displayName: "Alice", ready: true, presence: "offline" }],
+    };
+    expect(keepNewestSnapshot(fresh, stale)).toBe(fresh);
+    expect(
+      keepNewestSnapshot(fresh, { ...stale, serverNow: "2026-10-10T12:00:06Z" }),
+    ).toMatchObject({
+      participants: [{ presence: "offline" }],
+    });
+  });
+
+  it("caps buffered events and marks overflow for snapshot recovery", () => {
+    const buffer = { events: [] as EventEnvelope[], overflow: false };
+    for (let index = 1; index <= MAX_BUFFERED_MATCH_EVENTS + 1; index += 1) {
+      bufferMatchEvent(buffer, event(String(index)));
+    }
+    expect(buffer.events).toHaveLength(0);
+    expect(buffer.overflow).toBe(true);
+    bufferMatchEvent(buffer, event("99"));
+    expect(buffer.events).toHaveLength(0);
+  });
 });
 
 describe("match reconnect lifecycle", () => {
@@ -83,5 +167,28 @@ describe("match reconnect lifecycle", () => {
     expect(schedule.mock.calls[1]?.[1]).toBe(600);
     reconnect.stop();
     expect(cancel).toHaveBeenCalledWith(1);
+  });
+
+  it("keeps jittered reconnect delays at or below ten seconds", () => {
+    const connect = vi.fn();
+    const callbacks: Array<() => void> = [];
+    const delays: number[] = [];
+    const reconnect = createReconnectScheduler(
+      connect,
+      (callback, delay) => {
+        callbacks.push(callback);
+        delays.push(delay);
+        return callbacks.length;
+      },
+      vi.fn(),
+      () => 1,
+    );
+
+    for (let attempt = 0; attempt < 9; attempt += 1) {
+      reconnect.schedule();
+      callbacks.shift()?.();
+    }
+    expect(Math.max(...delays)).toBe(10_000);
+    expect(delays.every((delay) => delay <= 10_000)).toBe(true);
   });
 });

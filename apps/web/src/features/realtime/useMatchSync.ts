@@ -1,20 +1,23 @@
-import {
-  createApiClient,
-  type DevelopmentIdentity,
-  type EventEnvelope,
-  type MatchSnapshot,
-} from "@quorem/contracts";
+/** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
+import { createApiClient, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  bufferMatchEvent,
   createReconnectScheduler,
   isMatchSnapshot,
   keepNewestSnapshot,
   mergeMatchEvents,
   parseMatchEvent,
+  type MatchEventBuffer,
 } from "./matchSync";
 
 export type MatchSyncStatus = "connecting" | "live" | "polling";
+type MatchSyncState = MatchEventBuffer & {
+  disposed: boolean;
+  fetching: boolean;
+  gapTimer: number | undefined;
+};
 
 function apiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
@@ -31,11 +34,13 @@ function eventSocketUrl(matchId: string, identity: DevelopmentIdentity) {
 async function fetchMatchSnapshot(
   identity: DevelopmentIdentity,
   matchId: string,
+  signal: AbortSignal,
 ): Promise<MatchSnapshot> {
   const { data, error } = await createApiClient({ baseUrl: apiBaseUrl(), identity }).GET(
     "/v1/matches/{id}",
     {
       params: { path: { id: matchId } },
+      signal,
     },
   );
   if (data === undefined) {
@@ -62,31 +67,35 @@ export function useMatchSync(
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["match", identity, matchId] as const, [identity, matchId]);
   const ownerKey = matchId ? `${identity}:${matchId}` : "";
+  const syncState = useMemo<MatchSyncState>(
+    () => ({ events: [], overflow: false, disposed: false, fetching: false, gapTimer: undefined }),
+    [ownerKey],
+  );
   const [status, setStatus] = useState<MatchSyncStatus>("connecting");
   const [readyOwner, setReadyOwner] = useState("");
   const [transportError, setTransportError] = useState<Error | null>(null);
-  const queuedEvents = useRef<EventEnvelope[]>([]);
-  const fetching = useRef(false);
-  const gapTimer = useRef<number | undefined>(undefined);
 
   const query = useQuery({
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!matchId) throw new Error("Match id is required");
-      fetching.current = true;
+      syncState.fetching = true;
       try {
-        const snapshot = await fetchMatchSnapshot(identity, matchId);
-        const buffered = queuedEvents.current.splice(0);
-        const merged = mergeMatchEvents(snapshot, buffered);
-        if (merged.gap) {
-          window.clearTimeout(gapTimer.current);
-          gapTimer.current = window.setTimeout(() => {
-            void queryClient.invalidateQueries({ queryKey });
-          }, 0);
+        const snapshot = await fetchMatchSnapshot(identity, matchId, signal);
+        if (signal.aborted || syncState.disposed)
+          throw new DOMException("Match query was cancelled", "AbortError");
+        const overflowed = syncState.overflow;
+        const buffered = syncState.events.splice(0);
+        syncState.overflow = false;
+        if (overflowed) {
+          scheduleRecovery();
+          return snapshot;
         }
+        const merged = mergeMatchEvents(snapshot, buffered);
+        if (merged.gap) scheduleRecovery();
         return merged.snapshot;
       } finally {
-        fetching.current = false;
+        syncState.fetching = false;
       }
     },
     enabled: Boolean(matchId) && readyOwner === ownerKey,
@@ -95,17 +104,27 @@ export function useMatchSync(
       keepNewestSnapshot(previous as MatchSnapshot | undefined, incoming as MatchSnapshot),
   });
 
+  function scheduleRecovery() {
+    window.clearTimeout(syncState.gapTimer);
+    syncState.gapTimer = window.setTimeout(() => {
+      void queryClient.invalidateQueries({ queryKey });
+    }, 0);
+  }
+
   const refetch = useCallback(() => query.refetch(), [query.refetch]);
 
   useEffect(() => {
     if (!matchId) {
       setReadyOwner("");
       setStatus("connecting");
-      queuedEvents.current = [];
+      syncState.disposed = true;
+      syncState.events = [];
+      syncState.overflow = false;
       return;
     }
 
     setReadyOwner("");
+    syncState.disposed = false;
     let disposed = false;
     let socket: WebSocket | undefined;
     let connectTimer: number | undefined;
@@ -167,13 +186,13 @@ export function useMatchSync(
           setTransportError(new Error("Match event did not match the contract"));
           return;
         }
-        if (fetching.current) {
-          queuedEvents.current.push(event);
+        if (syncState.fetching) {
+          bufferMatchEvent(syncState, event);
           return;
         }
         const previous = queryClient.getQueryData<MatchSnapshot>(queryKey);
         if (!previous) {
-          queuedEvents.current.push(event);
+          bufferMatchEvent(syncState, event);
           requestRefresh();
           return;
         }
@@ -212,13 +231,15 @@ export function useMatchSync(
     connect();
     return () => {
       disposed = true;
+      syncState.disposed = true;
       window.clearTimeout(connectTimer);
       reconnect.stop();
-      window.clearTimeout(gapTimer.current);
+      window.clearTimeout(syncState.gapTimer);
       socket?.close();
-      queuedEvents.current = [];
+      syncState.events = [];
+      syncState.overflow = false;
     };
-  }, [identity, matchId, ownerKey, queryClient, queryKey, refetch]);
+  }, [identity, matchId, ownerKey, queryClient, queryKey, refetch, syncState]);
 
   return {
     snapshot: query.data,
