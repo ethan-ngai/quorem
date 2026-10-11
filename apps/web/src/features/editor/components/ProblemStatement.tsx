@@ -92,11 +92,26 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
       <section className="problem-section" aria-labelledby="constraints-heading">
         <h2 id="constraints-heading">Constraints:</h2>
         <ul className="constraint-list">
-          {problem.constraints.map((constraint) => (
-            <li key={constraint}>
-              {inlineStatement(formatConstraint(constraint, problem.signature))}
-            </li>
-          ))}
+          {problem.constraints.map((constraint) => {
+            const formatted = formatConstraint(constraint, problem.signature);
+            return (
+              <li key={constraint}>
+                {/<=|>=|[≤≥]/.test(formatted) ? (
+                  <code>
+                    {formatted
+                      .replaceAll("<=", "≤")
+                      .replaceAll(">=", "≥")
+                      .split(/(\^-?\d+)/)
+                      .map((part, index) =>
+                        part.startsWith("^") ? <sup key={index}>{part.slice(1)}</sup> : part,
+                      )}
+                  </code>
+                ) : (
+                  inlineStatement(formatted)
+                )}
+              </li>
+            );
+          })}
         </ul>
       </section>
     </div>

@@ -138,3 +138,5 @@ References: [JetBrains Default and Darcula source](https://github.com/JetBrains/
 Python highlighting follows the installed Lezer grammar: function definitions and calls (including method properties), class definitions, strings, numbers, comments, operators and decorator contexts. Parameter declarations use their parser context. Visible syntax-tree identifier spans recognize literal self/cls and common builtin names; this is lexical recognition, not inferred type/scope information. Builtin accents never replace function/class/parameter declaration or property coloring. Comments use italic style; ordinary identifiers retain the palette foreground.
 
 Editor intelligence popovers use the small text token; documentation scrolls within 260px or 40vh and stays within viewport width. Local keyword/name completion remains available while remote analysis initializes.
+
+Machine constraint expressions share the text-fitting example code treatment: monospace, neutral background, and mathematical ≤/≥ glyphs and superscript powers. Prose constraints retain ordinary text; code-editor ligatures remain disabled.

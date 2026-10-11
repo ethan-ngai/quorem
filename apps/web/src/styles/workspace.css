@@ -1186,7 +1186,8 @@ kbd {
 .example-data > div > span {
   color: var(--color-text-secondary);
 }
-.example-data code {
+.example-data code,
+.constraint-list code {
   display: inline-block;
   justify-self: start;
   width: fit-content;
