@@ -1,0 +1,94 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+:root {
+  color-scheme: light;
+  font-family: "Geist Variable", "Geist Sans", Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  --color-primary: oklch(0.48 0.15 255);
+  --color-brand-secondary: oklch(0.94 0.025 255);
+  --color-brand-accent: oklch(0.43 0.15 255);
+  --color-on-primary: oklch(1 0 0);
+  --color-background: oklch(0.97 0.003 255);
+  --color-surface: oklch(0.985 0.002 255);
+  --color-overlay: oklch(0.95 0.004 255);
+  --color-field: oklch(1 0 0);
+  --color-border: oklch(0.81 0.006 255);
+  --color-text: oklch(0.24 0.006 255);
+  --color-text-secondary: oklch(0.45 0.008 255);
+  --color-text-disabled: oklch(0.59 0.005 255);
+  --color-info: oklch(0.44 0.008 255);
+  --color-success: oklch(0.43 0.1 155);
+  --color-warning: oklch(0.43 0.1 75);
+  --color-error: oklch(0.43 0.1 25);
+  --color-editor-selection: oklch(0.9 0.04 255);
+  --color-editor-active-line: oklch(0.97 0.008 255);
+  --color-editor-keyword: oklch(0.4 0.13 285);
+  --color-editor-string: oklch(0.4 0.08 155);
+  --color-editor-number: oklch(0.42 0.09 60);
+  --color-editor-function: oklch(0.42 0.12 255);
+  --color-editor-comment: oklch(0.45 0.008 255);
+
+  --font-interface: "Geist Variable", "Geist Sans", Arial, sans-serif;
+  --font-code: "JetBrains Mono", Consolas, monospace;
+  --text-xxs: 11px;
+  --text-label: 12px;
+  --text-small: 13px;
+  --text-body: 15px;
+  --text-h3: 19px;
+  --text-h2: 24px;
+  --text-h1: 31px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --workspace-breakpoint: 900px;
+  --statement-max-width: 68ch;
+  --pane-minimum: 280px;
+  --results-initial-height: 240px;
+  --control-height: 36px;
+  --narrow-touch-target: 44px;
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --motion-easing: cubic-bezier(0.2, 0, 0, 1);
+  --focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-primary);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-primary: oklch(0.72 0.12 255);
+  --color-brand-secondary: oklch(0.26 0.035 255);
+  --color-brand-accent: oklch(0.77 0.11 255);
+  --color-on-primary: oklch(0.15 0.006 255);
+  --color-background: oklch(0.16 0.006 255);
+  --color-surface: oklch(0.2 0.006 255);
+  --color-overlay: oklch(0.25 0.008 255);
+  --color-field: oklch(0.18 0.006 255);
+  --color-border: oklch(0.36 0.01 255);
+  --color-text: oklch(0.91 0.004 255);
+  --color-text-secondary: oklch(0.73 0.008 255);
+  --color-text-disabled: oklch(0.52 0.006 255);
+  --color-info: oklch(0.75 0.008 255);
+  --color-success: oklch(0.75 0.1 155);
+  --color-warning: oklch(0.75 0.1 75);
+  --color-error: oklch(0.75 0.1 25);
+  --color-editor-selection: oklch(0.32 0.05 255);
+  --color-editor-active-line: oklch(0.23 0.009 255);
+  --color-editor-keyword: oklch(0.77 0.1 285);
+  --color-editor-string: oklch(0.76 0.08 155);
+  --color-editor-number: oklch(0.77 0.09 60);
+  --color-editor-function: oklch(0.77 0.1 255);
+  --color-editor-comment: oklch(0.7 0.008 255);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
