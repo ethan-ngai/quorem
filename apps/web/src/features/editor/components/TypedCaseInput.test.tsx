@@ -74,6 +74,59 @@ describe("typed case controls", () => {
     expect(nullable).toContain('class="typed-null"');
     expect(nullable).not.toContain('type="checkbox"');
   });
+  it("uses one case rail for recovered results without inventing input association", () => {
+    const markup = renderToStaticMarkup(
+      <TestCases
+        problem={problem}
+        customMode={false}
+        drafts={[]}
+        onDraftsChange={() => {}}
+        submission={{
+          id: "run",
+          workspaceId: "workspace",
+          kind: "run",
+          state: "completed",
+          sourceHash: "source",
+          admittedAt: "2026-10-11T00:00:00Z",
+          updatedAt: "2026-10-11T00:00:01Z",
+          publicCases: [
+            { index: 0, status: "wrong_answer", actual: 90, expected: 18 },
+            { index: 1, status: "accepted", actual: 3, expected: 3 },
+          ],
+        }}
+      />,
+    );
+    expect(markup.match(/class="case-rail"/g)).toHaveLength(1);
+    expect(markup).toContain("Case 2");
+    expect(markup).toContain(">90</code>");
+    expect(markup).toContain(">18</code>");
+    expect(markup).not.toContain("No sample cases available");
+    expect(markup).not.toContain("parameter-name");
+  });
+  it("associates explained samples with metadata-free execution snapshots", () => {
+    const value = { args: [[1]], expected: 18 };
+    const markup = renderToStaticMarkup(
+      <TestCases
+        problem={{ ...problem, examples: [{ ...value, explanation: "Display only" }] }}
+        customMode={false}
+        drafts={[]}
+        onDraftsChange={() => {}}
+        snapshot={{ problemVersionId: problem.id, custom: false, cases: [{ id: "0", value }] }}
+        submission={{
+          id: "run",
+          workspaceId: "workspace",
+          kind: "run",
+          state: "completed",
+          sourceHash: "source",
+          admittedAt: "2026-10-11T00:00:00Z",
+          updatedAt: "2026-10-11T00:00:01Z",
+          publicCases: [{ index: 0, status: "wrong_answer", actual: 90, expected: 18 }],
+        }}
+      />,
+    );
+    expect(markup).toContain(">90</code>");
+    expect(markup.match(/>18<\/code>/g)).toHaveLength(1);
+  });
   it("uses add/remove actions for optional expected output, preserving its input", () => {
     const draft = { id: "case", args: ["[1]"], expectedEnabled: false, expected: "10 * 3" };
     const render = (expectedEnabled: boolean) =>

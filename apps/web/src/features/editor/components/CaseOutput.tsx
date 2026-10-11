@@ -62,8 +62,12 @@ export function CaseOutput({
           tone="verdict-success"
         />
       )}
-      {result.stdout && <ConsoleSection label="Standard output">{result.stdout}</ConsoleSection>}
-      {result.stderr && <ConsoleSection label="Standard error">{result.stderr}</ConsoleSection>}
+      {!!result.stdout?.trim() && (
+        <ConsoleSection label="Standard output">{result.stdout}</ConsoleSection>
+      )}
+      {!!result.stderr?.trim() && (
+        <ConsoleSection label="Standard error">{result.stderr}</ConsoleSection>
+      )}
       {!!result.diagnostics?.length && (
         <ConsoleSection label="Diagnostics">
           {result.diagnostics.map((item, index) => (

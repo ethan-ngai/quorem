@@ -81,7 +81,13 @@ export function useSubmission({
       )
         return;
       const values = parseCustomCases(
-        JSON.stringify(raw.cases.map((item: { value: unknown }) => item.value)),
+        JSON.stringify(
+          raw.cases.map((item: { value: unknown }) =>
+            item.value && typeof item.value === "object"
+              ? { ...item.value, explanation: undefined }
+              : item.value,
+          ),
+        ),
         problem.signature,
       );
       if (
@@ -141,7 +147,10 @@ export function useSubmission({
               custom: customMode,
               cases: (customCases ?? problem.examples).map((value, index) => ({
                 id: customMode ? drafts[index]!.id : String(index),
-                value,
+                value: {
+                  args: value.args,
+                  ...(value.expected !== undefined ? { expected: value.expected } : {}),
+                },
               })),
             }
           : undefined;

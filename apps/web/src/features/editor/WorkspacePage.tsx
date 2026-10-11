@@ -725,7 +725,7 @@ export function WorkspacePage({
                     submission={submission}
                     busy={admissionPending || (execution.isPending && !!execution.submissionId)}
                     error={execution.error}
-                    showCases={!execution.runSnapshot}
+                    showCases={false}
                   />
                 </div>
                 {(["samples", "custom"] as const).map((tab) => (

@@ -23,6 +23,14 @@ describe("case output", () => {
     expect(markup).toContain('aria-label="Standard error"');
     expect(markup).not.toContain("typed-case-error");
   });
+  it("hides absent, empty and whitespace-only console streams", () => {
+    for (const stdout of [undefined, "", " \n\t"]) {
+      const markup = renderToStaticMarkup(
+        <CaseOutput result={{ index: 0, status: "executed", stdout }} />,
+      );
+      expect(markup).not.toContain("Standard output");
+    }
+  });
   it("leaves uncompared output neutral", () => {
     const markup = renderToStaticMarkup(
       <CaseOutput result={{ index: 0, status: "executed", actual: 90 }} />,

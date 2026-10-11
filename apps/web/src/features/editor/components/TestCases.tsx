@@ -30,7 +30,15 @@ export function TestCases({
 }) {
   const [selectedSample, setSelectedSample] = useState(0);
   const [selectedCustomId, setSelectedCustomId] = useState<string>();
-  const sampleIndex = Math.min(selectedSample, Math.max(0, problem.examples.length - 1));
+  // Recovered output without an admission snapshot belongs in this same case rail.
+  const recoveredCases =
+    !snapshot && !customMode && submission?.kind === "run" && submission.state === "completed"
+      ? submission.publicCases
+      : undefined;
+  const sampleIndex = Math.min(
+    selectedSample,
+    Math.max(0, (recoveredCases?.length ?? problem.examples.length) - 1),
+  );
   const customIndex = Math.max(
     0,
     drafts.findIndex((draft) => draft.id === selectedCustomId),
@@ -42,7 +50,9 @@ export function TestCases({
     currentValue =
       customMode && draft
         ? parseCustomDraft(draft, problem.signature, problem.constraints)
-        : example;
+        : example
+          ? { args: example.args, expected: example.expected }
+          : undefined;
   } catch {
     /* An edited invalid draft cannot inherit a previous result. */
   }
@@ -54,7 +64,7 @@ export function TestCases({
   const result =
     submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
       ? submission.publicCases?.[resultIndex]
-      : undefined;
+      : recoveredCases?.[sampleIndex];
   const editedAfterRun =
     customMode &&
     matchingSnapshot?.custom &&
@@ -69,7 +79,7 @@ export function TestCases({
         className="case-rail"
         aria-label={customMode ? "Select custom case" : "Select sample case"}
       >
-        {(customMode ? drafts : problem.examples).map((item, index) => (
+        {(customMode ? drafts : (recoveredCases ?? problem.examples)).map((item, index) => (
           <button
             key={customMode ? (item as CustomCaseDraft).id : index}
             className="case-selector"
@@ -161,7 +171,7 @@ export function TestCases({
               </button>
             )}
           </>
-        ) : example ? (
+        ) : recoveredCases?.length ? null : example ? (
           <>
             {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
               <CaseValue key={index} name={name} value={value} parameter />
@@ -180,7 +190,10 @@ export function TestCases({
           <p className="case-stale">Edited since last run. Run again for this input.</p>
         )}
         {result && (
-          <CaseOutput result={result} showExpected={customMode && !draft?.expectedEnabled} />
+          <CaseOutput
+            result={result}
+            showExpected={!!recoveredCases?.length || (customMode && !draft?.expectedEnabled)}
+          />
         )}
       </div>
     </div>
