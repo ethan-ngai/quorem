@@ -215,3 +215,49 @@ export async function importBrowserDrafts(contents: string, identity: Developmen
   }
   return imported;
 }
+
+export type PendingBrowserDraft = {
+  identity: DevelopmentIdentity;
+  workspaceId: string;
+  version: string;
+  source: string;
+};
+
+/** Coalesces typing writes after paint; lifecycle boundaries flush synchronously. */
+export function createBrowserDraftWriter(
+  onError: (error: unknown, draft: PendingBrowserDraft) => void,
+) {
+  let pending: PendingBrowserDraft | undefined;
+  let frame: number | undefined;
+  let task: ReturnType<typeof setTimeout> | undefined;
+  const flush = () => {
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    if (task !== undefined) clearTimeout(task);
+    frame = undefined;
+    task = undefined;
+    if (!pending) return;
+    const draft = pending;
+    writeBrowserDraft(draft.identity, draft.workspaceId, draft.version, draft.source);
+    pending = undefined;
+  };
+  return {
+    schedule(draft: PendingBrowserDraft) {
+      pending = draft;
+      if (frame !== undefined || task !== undefined) return;
+      frame = requestAnimationFrame(() => {
+        frame = undefined;
+        // A frame callback precedes paint; a following task lets the cursor paint first.
+        task = setTimeout(() => {
+          task = undefined;
+          const draft = pending;
+          try {
+            flush();
+          } catch (error) {
+            if (draft) onError(error, draft);
+          }
+        }, 0);
+      });
+    },
+    flush,
+  };
+}

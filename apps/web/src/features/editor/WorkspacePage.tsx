@@ -37,6 +37,7 @@ import {
   editorSchemeStorageKey,
 } from "./editorSettings";
 import {
+  createBrowserDraftWriter,
   importBrowserDrafts,
   browserDraftScope,
   readBrowserDraft,
@@ -135,6 +136,22 @@ export function WorkspacePage({
     | undefined
   >(undefined);
   const lastQueuedSourceRef = useRef<string | undefined>(undefined);
+  const browserWriterRef = useRef<ReturnType<typeof createBrowserDraftWriter> | undefined>(
+    undefined,
+  );
+  if (!browserWriterRef.current) {
+    browserWriterRef.current = createBrowserDraftWriter((error, draft) => {
+      const context = draftContextRef.current;
+      if (
+        context?.identity === draft.identity &&
+        context.storageId === draft.workspaceId &&
+        context.problemVersionId === draft.version
+      ) {
+        setSaveState("error");
+        setActionError(errorMessage(error));
+      }
+    });
+  }
 
   const problemQuery = useQuery({
     queryKey: ["problem", identity, match?.problemVersionId ?? slug],
@@ -165,6 +182,11 @@ export function WorkspacePage({
     const previousContext = draftContextRef.current;
     if (workspaceQuery.isFetching && previousContext?.key !== nextContext.key) return;
     if (previousContext?.key === nextContext.key) return;
+    try {
+      browserWriterRef.current?.flush();
+    } catch (error) {
+      setActionError(errorMessage(error));
+    }
     if (previousContext && previousContext.key !== nextContext.key && dirtyRef.current) {
       const snapshot = sourceRef.current;
       void writeRecovery(
@@ -238,13 +260,13 @@ export function WorkspacePage({
     dirtyRef.current = true;
     if (!wasDirty) setSaveState("dirty");
     const context = draftContextRef.current;
-    if (context) {
-      try {
-        writeBrowserDraft(context.identity, context.storageId, context.problemVersionId, next);
-      } catch {
-        setSaveState("error");
-      }
-    }
+    if (context)
+      browserWriterRef.current?.schedule({
+        identity: context.identity,
+        workspaceId: context.storageId,
+        version: context.problemVersionId,
+        source: next,
+      });
     window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => void saveNowRef.current(), 750);
   }, []);
@@ -270,7 +292,7 @@ export function WorkspacePage({
       () => {},
     );
     try {
-      writeBrowserDraft(context.identity, context.storageId, context.problemVersionId, snapshot);
+      browserWriterRef.current?.flush();
       await task;
       if (draftContextRef.current?.key !== key) return;
       if (sourceRef.current === snapshot) {
@@ -290,6 +312,12 @@ export function WorkspacePage({
 
   useEffect(() => {
     const preserveDraft = () => {
+      try {
+        browserWriterRef.current?.flush();
+      } catch (error) {
+        setSaveState("error");
+        setActionError(errorMessage(error));
+      }
       const context = draftContextRef.current;
       if (context && dirtyRef.current)
         void writeRecovery(

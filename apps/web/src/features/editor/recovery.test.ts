@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createBrowserDraftWriter,
   browserDraftScope,
   importBrowserDrafts,
   readBrowserDraft,
@@ -71,5 +72,88 @@ describe("browser drafts", () => {
     expect(await importBrowserDrafts(exportFile, "alice")).toBe(0);
     expect(readBrowserDraft("alice", "solo", "version")).toBe("newer local code");
     expect(readBrowserDraft("alice", "solo", "foreign")).toBeUndefined();
+  });
+});
+
+describe("browser draft write scheduling", () => {
+  let frameCallback: FrameRequestCallback | undefined;
+  let write: ReturnType<typeof vi.fn>;
+  const draft = { identity: "alice" as const, workspaceId: "solo", version: "v1", source: "one" };
+  beforeEach(() => {
+    vi.useFakeTimers();
+    frameCallback = undefined;
+    write = vi.fn();
+    vi.stubGlobal("localStorage", { setItem: write });
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        frameCallback = callback;
+        return 1;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("coalesces edits without serialization or storage before cursor paint", () => {
+    const writer = createBrowserDraftWriter(vi.fn());
+    writer.schedule(draft);
+    writer.schedule({ ...draft, source: "two" });
+    expect(write).not.toHaveBeenCalled();
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+    frameCallback?.(0);
+    expect(write).not.toHaveBeenCalled();
+    writer.schedule({ ...draft, source: "latest" });
+    vi.runAllTimers();
+    expect(write).toHaveBeenCalledExactlyOnceWith(
+      "quorem.browser-draft.v1:alice:solo:v1:python",
+      JSON.stringify({ source: "latest" }),
+    );
+  });
+
+  it("flushes pending latest edits immediately for navigation or page closure", () => {
+    const writer = createBrowserDraftWriter(vi.fn());
+    writer.schedule(draft);
+    writer.schedule({ ...draft, source: "" });
+    writer.flush();
+    expect(write).toHaveBeenCalledExactlyOnceWith(
+      "quorem.browser-draft.v1:alice:solo:v1:python",
+      JSON.stringify({ source: "" }),
+    );
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(1);
+    writer.flush();
+    vi.runAllTimers();
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the post-paint task when a lifecycle boundary flushes first", () => {
+    const writer = createBrowserDraftWriter(vi.fn());
+    writer.schedule(draft);
+    frameCallback?.(0);
+    writer.flush();
+    vi.runAllTimers();
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports storage errors while retaining the newest snapshot for retry", () => {
+    const error = new Error("quota exceeded");
+    write.mockImplementationOnce(() => {
+      throw error;
+    });
+    const onError = vi.fn();
+    const writer = createBrowserDraftWriter(onError);
+    writer.schedule(draft);
+    frameCallback?.(0);
+    vi.runAllTimers();
+    expect(onError).toHaveBeenCalledExactlyOnceWith(error, draft);
+    writer.schedule({ ...draft, source: "newer" });
+    writer.flush();
+    expect(write).toHaveBeenLastCalledWith(
+      "quorem.browser-draft.v1:alice:solo:v1:python",
+      JSON.stringify({ source: "newer" }),
+    );
   });
 });

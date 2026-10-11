@@ -3,7 +3,7 @@
 Competitive workspace replaces server drafts with browser-only source/history.
 
 - Practice scope: identity + immutable problem version + Python. Match scope additionally includes the private workspace ID.
-- Latest code saves locally on edits; IndexedDB keeps up to 100 snapshots for 30 days. Empty code is a valid draft.
+- Latest code coalesces into a browser write after cursor paint; page closure, navigation and explicit save flush it synchronously. IndexedDB keeps up to 100 snapshots for 30 days. Empty code is a valid draft.
 - Windows keep independent active buffers. Latest browser write resumes on reload; no remote source replaces an open editor.
 - Existing IndexedDB recovery imports automatically if no current browser draft exists. History restore preserves edits made while a save is pending.
 - API workspaces hold metadata only; Run/Submit retain immutable source snapshots for judging. Draft endpoints/tables and workspace source/revision columns are removed by migration 060.
