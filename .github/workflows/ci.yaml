@@ -7,6 +7,22 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: quorem
+          POSTGRES_PASSWORD: quorem
+          POSTGRES_DB: quorem
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U quorem -d quorem"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      APP_ENV: local
+      QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
+      QUOREM_TEST_DOCKER: "1"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
@@ -22,5 +38,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - run: docker build -f apps/runner/Dockerfile -t quorem-python:local .
       - run: go test ./...
       - run: go vet ./...

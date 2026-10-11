@@ -10,13 +10,15 @@ ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 ENV = os.environ.copy()
 ENV.setdefault("QUOREM_ENV", "development")
+ENV.setdefault("APP_ENV", "local")
+ENV.setdefault("QUOREM_DEV_IDENTITY", "true")
 ENV.setdefault("DATABASE_URL", "postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable")
 ENV.setdefault("API_ADDR", "127.0.0.1:8080")
 ENV.setdefault("LANGUAGE_ADDR", "127.0.0.1:8081")
 ENV.setdefault("WEB_ORIGIN", "http://localhost:5173")
 ENV.setdefault("LANGUAGE_URL", "http://127.0.0.1:8081")
-if ENV["QUOREM_ENV"] != "development":
-    raise SystemExit("make dev requires QUOREM_ENV=development")
+if ENV["QUOREM_ENV"] != "development" or ENV["APP_ENV"] != "local":
+    raise SystemExit("make dev requires QUOREM_ENV=development and APP_ENV=local")
 
 processes = []
 
