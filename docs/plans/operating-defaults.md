@@ -10,6 +10,7 @@ Engineering baseline chosen under delegated judgment. Values are initial enforce
 | Custom input | 64 KiB; up to 20 cases |
 | Hidden suite | 20 equally weighted cases per seed problem/version |
 | Per-case Python process | 2 seconds wall time, 256 MiB memory, 16 process/task limit |
+| Sandbox startup | 10 seconds to trusted harness readiness; failure is infrastructure, not contestant timeout |
 | Case output capture | 64 KiB per stdout/stderr stream; exceeding limit fails that case |
 | Test result value | 64 KiB encoded; bounded node traversal |
 | Submission worker budget | 60 seconds including startup and all 20 cases |

@@ -119,6 +119,9 @@ def encode(kind, value, depth=0, count=None, seen=None):
     return value
 
 def main():
+    # Signal process readiness before contestant execution; Docker startup has its own deadline.
+    sys.__stdout__.write('\0')
+    sys.__stdout__.flush()
     request = json.loads(sys.stdin.buffer.read(400000))
     out, err = Capture(), Capture()
     result = {}

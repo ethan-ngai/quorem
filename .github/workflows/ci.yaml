@@ -56,8 +56,5 @@ jobs:
           go-version-file: go.mod
           cache: true
       - run: docker build -f apps/runner/Dockerfile -t quorem-python:local .
-      # Functional case tests measure a ready runtime; cold-start latency is a separate release gate.
-      - name: Warm sandbox runtime
-        run: docker run --rm --network none --read-only --entrypoint python quorem-python:local -c "pass"
       - run: go test ./...
       - run: go vet ./...
