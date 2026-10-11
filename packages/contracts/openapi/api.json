@@ -1,0 +1,1712 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Quorem API",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080"
+    }
+  ],
+  "security": [
+    {
+      "DevelopmentIdentity": []
+    }
+  ],
+  "paths": {
+    "/v1/problems/{slug}": {
+      "get": {
+        "operationId": "getProblem",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/problem-versions/{id}": {
+      "get": {
+        "operationId": "getProblemVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces": {
+      "post": {
+        "operationId": "createWorkspace",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{id}": {
+      "get": {
+        "operationId": "getWorkspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{id}/draft": {
+      "get": {
+        "operationId": "getDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Draft"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveDraftResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDraftRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{id}/draft-history": {
+      "get": {
+        "operationId": "getDraftHistory",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftHistory"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspaces/{id}/restore": {
+      "post": {
+        "operationId": "restoreDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveDraftResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreDraftRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/submissions": {
+      "post": {
+        "operationId": "createSubmission",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionAdmission"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubmissionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/submissions/{id}": {
+      "get": {
+        "operationId": "getSubmission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Submission"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/submissions/{id}/cancel": {
+      "post": {
+        "operationId": "cancelSubmission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Submission"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches": {
+      "post": {
+        "operationId": "createMatch",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchInvite"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMatchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/join": {
+      "post": {
+        "operationId": "joinMatch",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinMatchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}": {
+      "get": {
+        "operationId": "getMatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/ready": {
+      "post": {
+        "operationId": "readyMatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadyMatchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/forfeit": {
+      "post": {
+        "operationId": "forfeitMatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/leave": {
+      "post": {
+        "operationId": "leaveMatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "DevelopmentIdentity": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Dev-User",
+        "description": "Local development only: alice or bob. Disabled outside development."
+      }
+    },
+    "schemas": {
+      "Language": {
+        "type": "string",
+        "enum": ["python"]
+      },
+      "Difficulty": {
+        "type": "string",
+        "enum": ["easy", "medium", "hard"]
+      },
+      "SubmissionKind": {
+        "type": "string",
+        "enum": ["run", "submit"]
+      },
+      "SubmissionState": {
+        "type": "string",
+        "enum": ["queued", "running", "completed", "cancelled", "failed"]
+      },
+      "Verdict": {
+        "type": "string",
+        "enum": [
+          "accepted",
+          "wrong_answer",
+          "syntax_error",
+          "runtime_error",
+          "time_limit",
+          "memory_limit",
+          "output_limit",
+          "invalid_output"
+        ]
+      },
+      "WireValue": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          {
+            "type": "number",
+            "not": {
+              "type": "integer"
+            }
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WireValue"
+            }
+          }
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "invalid_input",
+                  "unauthenticated",
+                  "forbidden",
+                  "not_found",
+                  "user_busy",
+                  "invalid_transition",
+                  "idempotency_conflict",
+                  "stale_session_save",
+                  "payload_too_large",
+                  "quota_exceeded",
+                  "queue_saturated",
+                  "temporarily_unavailable"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "required": ["code", "message", "requestId"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      },
+      "Parameter": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "type"],
+        "additionalProperties": false
+      },
+      "Signature": {
+        "type": "object",
+        "properties": {
+          "className": {
+            "type": "string",
+            "enum": ["Solution"]
+          },
+          "methodName": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Parameter"
+            }
+          },
+          "returnType": {
+            "type": "string"
+          }
+        },
+        "required": ["className", "methodName", "parameters", "returnType"],
+        "additionalProperties": false
+      },
+      "ExecutionLimits": {
+        "type": "object",
+        "properties": {
+          "wallTimeMs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "memoryBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "outputBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxProcesses": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxCollectionElements": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "maxNestingDepth": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "wallTimeMs",
+          "memoryBytes",
+          "outputBytes",
+          "maxProcesses",
+          "maxCollectionElements",
+          "maxNestingDepth"
+        ],
+        "additionalProperties": false
+      },
+      "CustomCase": {
+        "type": "object",
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WireValue"
+            }
+          },
+          "expected": {
+            "$ref": "#/components/schemas/WireValue"
+          }
+        },
+        "required": ["args"],
+        "additionalProperties": false
+      },
+      "ProblemExample": {
+        "type": "object",
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WireValue"
+            }
+          },
+          "expected": {
+            "$ref": "#/components/schemas/WireValue"
+          },
+          "explanation": {
+            "type": "string"
+          }
+        },
+        "required": ["args", "expected"],
+        "additionalProperties": false
+      },
+      "ProblemVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/Difficulty"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "statementMarkdown": {
+            "type": "string"
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemExample"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "signature": {
+            "$ref": "#/components/schemas/Signature"
+          },
+          "starterSource": {
+            "type": "string"
+          },
+          "runtimeRevision": {
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ExecutionLimits"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "version",
+          "title",
+          "difficulty",
+          "tags",
+          "statementMarkdown",
+          "examples",
+          "constraints",
+          "signature",
+          "starterSource",
+          "runtimeRevision",
+          "limits"
+        ],
+        "additionalProperties": false
+      },
+      "EditorPreferences": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "type": "string",
+            "enum": ["system", "light", "dark"]
+          },
+          "paneRatios": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1
+            }
+          },
+          "codeFontSize": {
+            "type": "integer",
+            "minimum": 12,
+            "maximum": 24
+          },
+          "tabSize": {
+            "type": "integer",
+            "enum": [2, 4]
+          },
+          "wrap": {
+            "type": "boolean"
+          }
+        },
+        "required": ["theme", "paneRatios", "codeFontSize", "tabSize", "wrap"],
+        "additionalProperties": false
+      },
+      "Draft": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["source", "revision", "savedAt"],
+        "additionalProperties": false
+      },
+      "Workspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["solo", "match"]
+          },
+          "problemVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "matchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/Draft"
+          },
+          "preferences": {
+            "$ref": "#/components/schemas/EditorPreferences"
+          }
+        },
+        "required": ["id", "kind", "problemVersionId", "language", "draft", "preferences"],
+        "additionalProperties": false
+      },
+      "CreateWorkspaceRequest": {
+        "type": "object",
+        "properties": {
+          "problemVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          }
+        },
+        "required": ["problemVersionId", "language"],
+        "additionalProperties": false
+      },
+      "SaveDraftRequest": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "editorSessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "saveSequence": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": ["source", "editorSessionId", "saveSequence"],
+        "additionalProperties": false
+      },
+      "SaveDraftResponse": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["revision", "savedAt"],
+        "additionalProperties": false
+      },
+      "DraftHistoryItem": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "source": {
+            "type": "string"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["revision", "source", "savedAt"],
+        "additionalProperties": false
+      },
+      "DraftHistory": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftHistoryItem"
+            }
+          },
+          "nextCursor": {
+            "type": "string"
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "RestoreDraftRequest": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": ["revision"],
+        "additionalProperties": false
+      },
+      "CreateSubmissionRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SubmissionKind"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "customCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomCase"
+            },
+            "maxItems": 20
+          }
+        },
+        "required": ["workspaceId", "kind", "source"],
+        "additionalProperties": false
+      },
+      "SubmissionAdmission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SubmissionState"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "admittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "state", "sourceHash", "admittedAt"],
+        "additionalProperties": false
+      },
+      "Score": {
+        "type": "object",
+        "properties": {
+          "passed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["passed", "total"],
+        "additionalProperties": false
+      },
+      "Diagnostic": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "column": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": ["message"],
+        "additionalProperties": false
+      },
+      "PublicCaseResult": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "executed",
+              "accepted",
+              "wrong_answer",
+              "syntax_error",
+              "runtime_error",
+              "time_limit",
+              "memory_limit",
+              "output_limit",
+              "invalid_output"
+            ]
+          },
+          "actual": {
+            "$ref": "#/components/schemas/WireValue"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/WireValue"
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            }
+          }
+        },
+        "required": ["index", "status"],
+        "additionalProperties": false
+      },
+      "Submission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SubmissionKind"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SubmissionState"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "admittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "score": {
+            "$ref": "#/components/schemas/Score"
+          },
+          "publicCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicCaseResult"
+            }
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            }
+          },
+          "infrastructureError": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "workspaceId", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
+        "additionalProperties": false
+      },
+      "MatchState": {
+        "type": "string",
+        "enum": ["waiting", "ready", "active", "finalizing", "completed", "cancelled"]
+      },
+      "MatchOutcome": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["win", "draw", "no_contest", "cancelled"]
+          },
+          "winnerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["kind", "reason", "completedAt"],
+        "additionalProperties": false
+      },
+      "MatchParticipant": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "presence": {
+            "type": "string",
+            "enum": ["online", "offline"]
+          },
+          "submissionState": {
+            "$ref": "#/components/schemas/SubmissionState"
+          },
+          "bestScore": {
+            "$ref": "#/components/schemas/Score"
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["userId", "displayName", "ready", "presence"],
+        "additionalProperties": false
+      },
+      "MatchSnapshot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MatchState"
+          },
+          "serverNow": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/Difficulty"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "enum": [15, 30, 45, 60]
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchParticipant"
+            }
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finalizingAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "problemVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/MatchOutcome"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "state",
+          "serverNow",
+          "difficulty",
+          "durationMinutes",
+          "participants"
+        ],
+        "additionalProperties": false
+      },
+      "CreateMatchRequest": {
+        "type": "object",
+        "properties": {
+          "difficulty": {
+            "$ref": "#/components/schemas/Difficulty"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "enum": [15, 30, 45, 60]
+          }
+        },
+        "required": ["difficulty", "durationMinutes"],
+        "additionalProperties": false
+      },
+      "MatchInvite": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inviteUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MatchState"
+          }
+        },
+        "required": ["id", "inviteUrl", "state"],
+        "additionalProperties": false
+      },
+      "JoinMatchRequest": {
+        "type": "object",
+        "properties": {
+          "inviteToken": {
+            "type": "string"
+          }
+        },
+        "required": ["inviteToken"],
+        "additionalProperties": false
+      },
+      "ReadyMatchRequest": {
+        "type": "object",
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ready"],
+        "additionalProperties": false
+      },
+      "EventEnvelope": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eventId",
+              "schemaVersion",
+              "aggregateId",
+              "aggregateVersion",
+              "type",
+              "occurredAt",
+              "payload"
+            ],
+            "properties": {
+              "eventId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "schemaVersion": {
+                "const": 1
+              },
+              "aggregateId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "aggregateVersion": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": {
+                "const": "submission.updated"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/Submission"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eventId",
+              "schemaVersion",
+              "aggregateId",
+              "aggregateVersion",
+              "type",
+              "occurredAt",
+              "payload"
+            ],
+            "properties": {
+              "eventId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "schemaVersion": {
+                "const": 1
+              },
+              "aggregateId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "aggregateVersion": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": {
+                "const": "match.updated"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/MatchSnapshot"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eventId",
+              "schemaVersion",
+              "aggregateId",
+              "aggregateVersion",
+              "type",
+              "occurredAt",
+              "payload"
+            ],
+            "properties": {
+              "eventId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "schemaVersion": {
+                "const": 1
+              },
+              "aggregateId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "aggregateVersion": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "type": {
+                "const": "match.completed"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "payload": {
+                "$ref": "#/components/schemas/MatchSnapshot"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

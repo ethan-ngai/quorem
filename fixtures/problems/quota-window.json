@@ -1,0 +1,139 @@
+{
+  "problem": {
+    "id": "3f01edc1-d158-5ff6-a7b9-8b3de1a4c969",
+    "slug": "quota-window",
+    "version": "1",
+    "title": "Quota Window",
+    "difficulty": "hard",
+    "tags": ["strings", "sliding window"],
+    "statementMarkdown": "Return the shortest contiguous substring of `text` containing every character of `quota` with at least its multiplicity. Match characters exactly, including case. Ties choose the earliest substring. Return an empty string if quota is empty or no window exists.",
+    "examples": [
+      {
+        "args": ["AXBCAYBC", "ABC"],
+        "expected": "BCA"
+      },
+      {
+        "args": ["aaabb", "aab"],
+        "expected": "aab"
+      }
+    ],
+    "constraints": ["At most 10,000 collection elements.", "All integers are signed 32-bit."],
+    "signature": {
+      "className": "Solution",
+      "methodName": "quotaWindow",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "str"
+        },
+        {
+          "name": "quota",
+          "type": "str"
+        }
+      ],
+      "returnType": "str"
+    },
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def quotaWindow(self, text: str, quota: str) -> str:\n        pass\n",
+    "runtimeRevision": "python-3.12-v1",
+    "limits": {
+      "wallTimeMs": 2000,
+      "memoryBytes": 268435456,
+      "outputBytes": 65536,
+      "maxProcesses": 16,
+      "maxCollectionElements": 10000,
+      "maxNestingDepth": 100
+    }
+  },
+  "harnessRevision": "quorem-harness-v1",
+  "comparator": "ordered",
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "hiddenCases": [
+    {
+      "args": ["AXBCAYBC", "ABC"],
+      "expected": "BCA"
+    },
+    {
+      "args": ["aaabb", "aab"],
+      "expected": "aab"
+    },
+    {
+      "args": ["", ""],
+      "expected": ""
+    },
+    {
+      "args": ["", "a"],
+      "expected": ""
+    },
+    {
+      "args": ["abc", ""],
+      "expected": ""
+    },
+    {
+      "args": ["abc", "d"],
+      "expected": ""
+    },
+    {
+      "args": ["abc", "abc"],
+      "expected": "abc"
+    },
+    {
+      "args": ["aaaa", "aa"],
+      "expected": "aa"
+    },
+    {
+      "args": ["bbaa", "ab"],
+      "expected": "ba"
+    },
+    {
+      "args": ["AaAa", "AA"],
+      "expected": "AaA"
+    },
+    {
+      "args": ["xyzzx", "zx"],
+      "expected": "zx"
+    },
+    {
+      "args": ["a b a", "a "],
+      "expected": "a "
+    },
+    {
+      "args": ["abcbcba", "bb"],
+      "expected": "bcb"
+    },
+    {
+      "args": ["1230123", "30"],
+      "expected": "30"
+    },
+    {
+      "args": [
+        "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc",
+        "ca"
+      ],
+      "expected": "ca"
+    },
+    {
+      "args": [
+        "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzab",
+        "ab"
+      ],
+      "expected": "ab"
+    },
+    {
+      "args": ["ABC", "abc"],
+      "expected": ""
+    },
+    {
+      "args": ["\u03b1\u03b2\u03b3\u03b2", "\u03b2\u03b3"],
+      "expected": "\u03b2\u03b3"
+    },
+    {
+      "args": ["ab", "aab"],
+      "expected": ""
+    },
+    {
+      "args": ["bbacba", "abc"],
+      "expected": "bac"
+    }
+  ],
+  "referenceSource": "def solve(text, quota):\n    from collections import Counter\n    if not quota: return \"\"\n    need = Counter(quota); missing = len(quota); left = 0; best = None\n    for right, char in enumerate(text):\n        if need[char] > 0: missing -= 1\n        need[char] -= 1\n        while missing == 0:\n            if best is None or right-left+1 < best[1]-best[0]: best = (left,right+1)\n            need[text[left]] += 1\n            if need[text[left]] > 0: missing += 1\n            left += 1\n    return \"\" if best is None else text[best[0]:best[1]]\nclass Solution:\n    def quotaWindow(self, text, quota):\n        return solve(text, quota)\n"
+}

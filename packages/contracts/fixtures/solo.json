@@ -1,0 +1,35 @@
+{
+  "createWorkspace": {
+    "problemVersionId": "10000000-0000-4000-8000-000000000001",
+    "language": "python"
+  },
+  "saveDraft": {
+    "source": "class Solution:\n    pass\n",
+    "editorSessionId": "20000000-0000-4000-8000-000000000001",
+    "saveSequence": "1"
+  },
+  "createSubmission": {
+    "workspaceId": "30000000-0000-4000-8000-000000000001",
+    "kind": "run",
+    "source": "class Solution:\n    pass\n",
+    "customCases": [
+      {
+        "args": [[1, 2, 3]]
+      }
+    ]
+  },
+  "submission": {
+    "id": "40000000-0000-4000-8000-000000000001",
+    "workspaceId": "30000000-0000-4000-8000-000000000001",
+    "kind": "submit",
+    "state": "completed",
+    "sourceHash": "fixture-sha256",
+    "admittedAt": "2026-10-10T12:00:00Z",
+    "updatedAt": "2026-10-10T12:00:01Z",
+    "verdict": "wrong_answer",
+    "score": {
+      "passed": 19,
+      "total": 20
+    }
+  }
+}
