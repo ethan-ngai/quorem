@@ -685,22 +685,6 @@
   padding: 12px;
 }
 
-.ffa-mode-icon {
-  position: relative;
-  display: inline-flex;
-  width: 26px;
-  height: 22px;
-  align-items: start;
-  flex-shrink: 0;
-}
-.ffa-mode-icon > svg:last-child {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  background: var(--color-surface);
-  border-radius: 2px;
-}
-
 .problem-picker-popover {
   width: min(220px, calc(100vw - 32px));
   padding: 8px;

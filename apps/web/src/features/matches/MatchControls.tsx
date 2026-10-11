@@ -9,7 +9,6 @@ import {
   Dices,
   Search,
   Swords,
-  UsersRound,
   BookOpen,
   Shield,
   Info,
@@ -17,6 +16,7 @@ import {
 import { api, requireData } from "../editor/api";
 import { Tooltip } from "../editor/components/Tooltip";
 import { readPreference, writePreference } from "../editor/editorSettings";
+import { FreeForAllIcon } from "./FreeForAllIcon";
 import { Icon } from "../editor/components/Icon";
 
 export function useLocalIdentity() {
@@ -80,10 +80,7 @@ export const defaultMatchSettings: CreateMatchRequest = {
 
 export function ModeIcon({ mode }: { mode: CreateMatchRequest["mode"] }) {
   return mode === "free-for-all" ? (
-    <span className="ffa-mode-icon" aria-hidden="true">
-      <UsersRound size={18} strokeWidth={1.5} />
-      <Swords size={12} strokeWidth={1.5} />
-    </span>
+    <FreeForAllIcon />
   ) : (
     <Swords size={18} strokeWidth={1.5} aria-hidden="true" />
   );

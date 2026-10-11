@@ -1,7 +1,8 @@
+import { ModeIcon } from "../matches/MatchControls";
 import * as Select from "@radix-ui/react-select";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { BookOpen, ChevronDown, Plus, Swords, UsersRound } from "lucide-react";
+import { BookOpen, ChevronDown, Plus } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import { api, requireData } from "../editor/api";
@@ -84,7 +85,7 @@ export function GlobalNav({
           </Select.Root>
           {mode ? (
             <span className="global-mode">
-              {mode === "showdown" ? <Swords size={18} /> : <UsersRound size={18} />}
+              <ModeIcon mode={mode} />
               <span>{mode === "showdown" ? "Showdown" : "Free-for-all"}</span>
             </span>
           ) : (
