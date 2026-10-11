@@ -39,8 +39,8 @@ export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
   const inputs = example ? bindArguments(problem.signature, example.args) : undefined;
   return {
     id: crypto.randomUUID(),
-    args: problem.signature.parameters.map(({ type }, index) =>
-      formatTypedField(type, inputs ? inputs[index]!.value : defaultValue(type)),
+    args: problem.signature.parameters.map(({ type, input }, index) =>
+      formatTypedField(type, inputs ? inputs[index]!.value : defaultValue(type), input),
     ),
     expectedEnabled: false,
     expected: formatTypedField(
@@ -55,9 +55,9 @@ export function parseCustomDraft(
   signature: Signature,
   constraints: Constraint[] = [],
 ): CustomCase {
-  const args = bindArguments(signature, draft.args).map(({ name, type, value, ...parameter }) => {
+  const args = bindArguments(signature, draft.args).map(({ name, type, value, input }) => {
     try {
-      return parseTypedField(type, value, (parameter as { input?: InputConfig }).input);
+      return parseTypedField(type, value, input);
     } catch (error) {
       throw new Error(`${name}: ${(error as Error).message}`);
     }

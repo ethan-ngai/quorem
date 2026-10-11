@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { InputPreset, registerInputPreset, resolveInputPreset } from "./inputPresets";
-import { parseCustomDraft, parseTypedField } from "./customCases";
+import type { ProblemVersion } from "@quorem/contracts";
+import { createCustomDraft, parseCustomDraft, parseTypedField } from "./customCases";
 
 describe("typed input presets", () => {
   it("evaluates bounded arithmetic with Python precedence and division", () => {
@@ -63,6 +64,39 @@ describe("typed input presets", () => {
     expect(optional.toEditorSource('"snow"')).toBe("snow");
     expect(optional.parse(optional.fromEditorSource("null"))).toBe("null");
     expect(optional.parse("null")).toBeNull();
+  });
+
+  it("seeds configured structured strings in their stored representation", () => {
+    const problem: ProblemVersion = {
+      id: "one",
+      slug: "echo",
+      version: "1",
+      title: "Echo",
+      difficulty: "easy",
+      tags: [],
+      statementMarkdown: "Echo",
+      examples: [{ args: ["hello"], expected: "hello" }],
+      constraints: [],
+      signature: {
+        className: "Solution",
+        methodName: "solve",
+        parameters: [{ name: "text", type: "str", input: { preset: "structured" } }],
+        returnType: "str",
+      },
+      starterSource: "",
+      runtimeRevision: "1",
+      limits: {
+        wallTimeMs: 1000,
+        memoryBytes: 128000000,
+        outputBytes: 65536,
+        maxProcesses: 1,
+        maxCollectionElements: 10000,
+        maxNestingDepth: 100,
+      },
+    };
+    const draft = createCustomDraft(problem);
+    expect(draft.args).toEqual(['"hello"']);
+    expect(parseCustomDraft(draft, problem.signature)).toEqual({ args: ["hello"] });
   });
 
   it("supports OO registration while unknown server codecs fail closed", () => {
