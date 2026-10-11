@@ -105,7 +105,7 @@ function editorTheme(theme: EditorTheme): Extension {
         ".cm-gutters": {
           color: "var(--color-text-disabled)",
           backgroundColor: "var(--color-field)",
-          borderRight: "1px solid var(--color-border)",
+          borderRight: "none",
         },
         ".cm-activeLineGutter": { color: "var(--color-text-secondary)" },
         ".cm-tooltip": {

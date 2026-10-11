@@ -1,16 +1,37 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
-import type { DevelopmentIdentity, ProblemVersion, Workspace } from "@quorem/contracts";
+import type {
+  DevelopmentIdentity,
+  MatchSnapshot,
+  ProblemVersion,
+  Workspace,
+} from "@quorem/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { fetchProblem, createWorkspace, restoreDraft, saveDraft } from "./api";
+import {
+  fetchProblem,
+  fetchProblemVersion,
+  fetchWorkspace,
+  createWorkspace,
+  restoreDraft,
+  saveDraft,
+} from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { ResultContent } from "./components/ResultContent";
-import { MatchPreview } from "./components/MatchPreview";
+import { Brand, Icon } from "./components/Icon";
+import { WorkspaceSettings } from "./components/WorkspaceSettings";
+import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
 import { ResizableDivider } from "./components/ResizableDivider";
-import { readPreference, writePreference, type ThemePreference } from "./editorSettings";
+import { readPreference, writePreference } from "./editorSettings";
 import {
   clearOwnerRecovery,
   readLatestRecovery,
@@ -35,7 +56,7 @@ const problemSlugs = [
 ];
 
 const defaultPaneRatio = 40;
-const defaultResultsHeight = 240;
+const defaultResultsHeight = 260;
 
 /** Returns a safe short message for load and save failures. */
 function errorMessage(error: unknown) {
@@ -43,11 +64,27 @@ function errorMessage(error: unknown) {
 }
 
 /** Opens one public problem in the resizable practice workspace. */
-export function WorkspacePage({ slug }: { slug: string }) {
+export function WorkspacePage({
+  slug = "",
+  match,
+  matchWorkspaceId,
+  identity: providedIdentity,
+  onIdentityChange,
+  matchHeader,
+}: {
+  slug?: string;
+  match?: MatchSnapshot;
+  matchWorkspaceId?: string;
+  identity?: DevelopmentIdentity;
+  onIdentityChange?: (identity: DevelopmentIdentity) => void;
+  matchHeader?: ReactNode;
+}) {
   const navigate = useNavigate();
-  const [identity, setIdentity] = useState<DevelopmentIdentity>(() =>
+  const [localIdentity, setLocalIdentity] = useState<DevelopmentIdentity>(() =>
     readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
   );
+  const identity = providedIdentity ?? localIdentity;
+  const setIdentity = onIdentityChange ?? setLocalIdentity;
   const { preference: themePreference, setPreference: setThemePreference, theme } = useTheme();
   const [paneRatio, setPaneRatio] = useState(() =>
     readPreference("quorem.pane-ratio.v1", defaultPaneRatio),
@@ -56,7 +93,7 @@ export function WorkspacePage({ slug }: { slug: string }) {
     readPreference("quorem.results-height.v1", defaultResultsHeight),
   );
   const [activePanel, setActivePanel] = useState<Panel>("code");
-  const [matchPreview, setMatchPreview] = useState(false);
+  const [createMatchOpen, setCreateMatchOpen] = useState(false);
   const [problem, setProblem] = useState<ProblemVersion>();
   const [workspace, setWorkspace] = useState<Workspace>();
   const [source, setSource] = useState("");
@@ -95,13 +132,18 @@ export function WorkspacePage({ slug }: { slug: string }) {
   const lastQueuedSourceRef = useRef<string | undefined>(undefined);
 
   const problemQuery = useQuery({
-    queryKey: ["problem", identity, slug],
-    queryFn: () => fetchProblem(identity, slug),
+    queryKey: ["problem", identity, match?.problemVersionId ?? slug],
+    queryFn: () =>
+      match ? fetchProblemVersion(identity, match.problemVersionId!) : fetchProblem(identity, slug),
+    enabled: match ? !!match.problemVersionId && !!matchWorkspaceId : !!slug,
   });
   const workspaceQuery = useQuery({
-    queryKey: ["workspace", identity, problemQuery.data?.id],
-    queryFn: () => createWorkspace(identity, problemQuery.data!.id),
-    enabled: !!problemQuery.data,
+    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id],
+    queryFn: () =>
+      match
+        ? fetchWorkspace(identity, matchWorkspaceId!)
+        : createWorkspace(identity, problemQuery.data!.id),
+    enabled: match ? !!matchWorkspaceId : !!problemQuery.data,
     staleTime: 0,
     gcTime: 0,
   });
@@ -255,7 +297,9 @@ export function WorkspacePage({ slug }: { slug: string }) {
     editorRef,
     customMode,
     customCasesText,
-    enabled: problem?.slug === slug && draftContextRef.current?.identity === identity,
+    enabled:
+      (match ? match.state === "active" : problem?.slug === slug) &&
+      draftContextRef.current?.identity === identity,
   });
   const submission = execution.submission;
   const submissionBusy = execution.busy;
@@ -354,7 +398,7 @@ export function WorkspacePage({ slug }: { slug: string }) {
   );
 
   const dataMatchesRoute =
-    problemQuery.data?.slug === slug &&
+    (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
     workspaceQuery.data?.problemVersionId === problemQuery.data?.id;
   const dataMatchesState =
     problem?.id === problemQuery.data?.id && workspace?.id === workspaceQuery.data?.id;
@@ -376,30 +420,28 @@ export function WorkspacePage({ slug }: { slug: string }) {
     : "pending";
   const intelligence = useIntelligence(identity, editorDocumentKey, !loading);
 
-  if (!problem || !workspace) {
+  const actionsEnabled = !loading && (!match || match.state === "active");
+  if (!problem || !workspace)
     return (
       <main className="workspace-loading" aria-live="polite">
-        <div className="loading-mark">Q</div>
-        {loadError ? (
+        <Brand />
+        <h1>{loadError ? "Workspace unavailable" : "Opening workspace…"}</h1>
+        {loadError && (
           <>
-            <h1>Problem unavailable</h1>
             <p>{errorMessage(loadError)}</p>
             <button
               className="button button-secondary"
-              type="button"
               onClick={() => {
                 void problemQuery.refetch();
+                void workspaceQuery.refetch();
               }}
             >
               Retry
             </button>
           </>
-        ) : (
-          <p>Opening workspace…</p>
         )}
       </main>
     );
-  }
 
   return (
     <>
@@ -408,7 +450,7 @@ export function WorkspacePage({ slug }: { slug: string }) {
           <p>{loadError ? errorMessage(loadError) : "Opening workspace…"}</p>
           {loadError && (
             <button
-              type="button"
+              className="button button-secondary"
               onClick={() => {
                 void problemQuery.refetch();
                 void workspaceQuery.refetch();
@@ -420,79 +462,118 @@ export function WorkspacePage({ slug }: { slug: string }) {
         </div>
       )}
       <main
-        className="app-shell"
+        className={`app-shell ${match ? "has-match" : ""}`}
         aria-busy={loading}
         style={{ ...workspaceStyle, visibility: loading ? "hidden" : undefined }}
         inert={loading}
       >
         <header className="topbar">
-          <a className="wordmark" href="/run-widths" aria-label="Quorem practice home">
-            <span className="wordmark-mark">Q</span>
-            <span>quorem</span>
-          </a>
-          <div className="topbar-divider" aria-hidden="true" />
-          <label className="problem-select-wrap">
-            <span className="sr-only">Choose problem</span>
-            <select
-              value={slug}
-              onChange={(event) => {
-                void navigate({ to: "/$slug", params: { slug: event.target.value } });
+          <Brand />
+          <nav className="mode-nav" aria-label="Workspace mode">
+            <a href="/run-widths" aria-current={!match ? "page" : undefined}>
+              Practice
+            </a>
+            <button
+              aria-current={match ? "page" : undefined}
+              onClick={async () => {
+                await saveCurrentDraft();
+                setCreateMatchOpen(true);
               }}
             >
-              {problemSlugs.map((item) => (
-                <option value={item} key={item}>
-                  {item.replaceAll("-", " ")}
-                </option>
-              ))}
-            </select>
-            <span className="select-chevron" aria-hidden="true">
-              ⌄
-            </span>
-          </label>
+              Private 1v1
+            </button>
+          </nav>
           <div className="topbar-spacer" />
           <SaveIndicator state={saveState} />
-          <div className="topbar-divider" aria-hidden="true" />
-          <label className="local-user-wrap">
-            <span className="local-user-label">Local user</span>
-            <select
-              aria-label="Local development identity"
-              value={identity}
-              onChange={(event) => {
-                void activeIdentityChanged(event.target.value as DevelopmentIdentity);
-              }}
-            >
-              <option value="alice">Alice</option>
-              <option value="bob">Bob</option>
-            </select>
-          </label>
-          <label className="theme-wrap">
-            <span className="sr-only">Color theme</span>
-            <select
-              aria-label="Color theme"
-              value={themePreference}
-              onChange={(event) => setThemePreference(event.target.value as ThemePreference)}
-            >
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-            <span aria-hidden="true">◐</span>
-          </label>
-          <button
-            className="icon-button history-button"
-            type="button"
-            aria-label="Open draft history"
-            title="Draft history"
-            onClick={() => setHistoryOpen(true)}
-          >
-            ↶
-          </button>
+          <span className="account-label">{identity === "alice" ? "Alice" : "Bob"}</span>
+          <WorkspaceSettings
+            identity={identity}
+            onIdentityChange={(next) => void activeIdentityChanged(next)}
+            theme={themePreference}
+            onThemeChange={setThemePreference}
+            fontSize={fontSize}
+            onFontSizeChange={setFontSize}
+            tabSize={tabSize}
+            onTabSizeChange={setTabSize}
+            wrap={wrap}
+            onWrapChange={setWrap}
+            shortcuts={shortcutsEnabled}
+            onShortcutsChange={setShortcutsEnabled}
+            onHistory={() => setHistoryOpen(true)}
+            onClearRecovery={() => {
+              void clearOwnerRecovery(identity);
+              setLocalRecovery(undefined);
+            }}
+          />
         </header>
+        <div className="workspace-actionbar">
+          {match ? (
+            <div className="workspace-breadcrumb">
+              <Icon name="people" />
+              <span>Match workspace</span>
+              <span className="breadcrumb-rule">/</span>
+              <strong>{problem.title}</strong>
+            </div>
+          ) : (
+            <details className="problem-picker">
+              <summary>
+                <Icon name="code" />
+                <span>{problem.title}</span>
+                <Icon name="chevron" />
+              </summary>
+              <div className="problem-menu">
+                <span className="eyebrow">Practice problems</span>
+                {problemSlugs.map((item, index) => (
+                  <button
+                    key={item}
+                    aria-current={item === slug ? "page" : undefined}
+                    onClick={(event) => {
+                      event.currentTarget.closest("details")?.removeAttribute("open");
+                      void navigate({ to: "/$slug", params: { slug: item } });
+                    }}
+                  >
+                    <span className="problem-index">{String(index + 1).padStart(2, "0")}</span>
+                    {item.replaceAll("-", " ")}
+                    {item === slug && <Icon name="submit" />}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
+          <span className="workspace-action-note">
+            {match ? "Source private · submits irrevocable" : "Python · practice"}
+          </span>
+          <div className="run-actions">
+            {submissionBusy && !(submission?.kind === "submit" && workspace.kind === "match") && (
+              <button className="quiet-button" onClick={() => void execution.cancel()}>
+                Cancel run
+              </button>
+            )}
+            <button
+              className="button button-secondary"
+              disabled={submissionBusy || !actionsEnabled}
+              onClick={() => void run()}
+              title="Run (Ctrl/Cmd+Enter)"
+            >
+              <Icon name="play" />
+              Run
+            </button>
+            <button
+              className="button button-primary"
+              disabled={submissionBusy || !actionsEnabled}
+              onClick={() => void submit()}
+              title="Submit (Ctrl/Cmd+Shift+Enter)"
+            >
+              <Icon name="submit" />
+              Submit
+            </button>
+          </div>
+        </div>
+        {matchHeader && <div className="match-strip">{matchHeader}</div>}
         <nav className="mobile-tabs" aria-label="Workspace panes">
           {(["problem", "code", "results"] as const).map((panel) => (
             <button
               key={panel}
-              type="button"
               aria-current={activePanel === panel ? "page" : undefined}
               onClick={() => setActivePanel(panel)}
             >
@@ -502,96 +583,54 @@ export function WorkspacePage({ slug }: { slug: string }) {
         </nav>
         <div className="workspace-grid" data-active-panel={activePanel}>
           <section className="problem-pane" aria-label="Problem statement">
-            <label className="mobile-problem-select">
-              <span>Choose problem</span>
-              <select
-                value={slug}
-                onChange={(event) => {
-                  void navigate({ to: "/$slug", params: { slug: event.target.value } });
-                }}
-              >
-                {problemSlugs.map((item) => (
-                  <option value={item} key={item}>
-                    {item.replaceAll("-", " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {matchPreview && <MatchPreview />}
+            <div className="pane-label">
+              <span>Problem</span>
+              <span className="mono">
+                {problem.difficulty} / v{problem.version}
+              </span>
+            </div>
             <ProblemStatement problem={problem} />
           </section>
           <ResizableDivider
             axis="x"
             value={paneRatio}
-            minimum={30}
-            maximum={65}
+            minimum={25}
+            maximum={60}
             onChange={setPaneRatio}
           />
-          <section className="coding-pane" aria-label="Python workspace">
+          <section className="coding-pane" aria-label="Code editor">
             <div className="code-toolbar">
               <div className="code-tab">
-                <span className="python-glyph">Py</span>
-                <span>Solution.py</span>
-                <span className="file-dot" aria-label={localDirty ? "Unsaved" : "Saved"} />
+                <Icon name="code" />
+                <span>main.py</span>
+                {localDirty && <span className="file-dot" aria-label="Unsaved" />}
               </div>
               <div className="code-options">
+                <span className="mono">Python 3.12</span>
                 <button
-                  className="quiet-button"
-                  type="button"
+                  className="icon-button"
+                  aria-label="Save draft"
+                  title="Save draft (Ctrl/Cmd+S)"
                   onClick={() => void saveCurrentDraft()}
-                  title="Save now (Ctrl/Cmd+S)"
                 >
-                  Save
+                  <Icon name="submit" />
                 </button>
                 <button
-                  className="quiet-button history-inline"
-                  type="button"
+                  className="icon-button"
+                  aria-label="Open draft history"
+                  title="Draft history"
                   onClick={() => setHistoryOpen(true)}
                 >
-                  History
+                  <Icon name="history" />
                 </button>
-                <label className="compact-option">
-                  <span className="sr-only">Code font size</span>
-                  <select
-                    value={fontSize}
-                    onChange={(event) => setFontSize(Number(event.target.value))}
-                  >
-                    {[12, 13, 14, 15, 16, 18, 20, 22, 24].map((size) => (
-                      <option key={size} value={size}>
-                        {size}px
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="compact-option">
-                  <span className="sr-only">Indent size</span>
-                  <select
-                    value={tabSize}
-                    onChange={(event) => setTabSize(Number(event.target.value) as 2 | 4)}
-                  >
-                    <option value={2}>2 spaces</option>
-                    <option value={4}>4 spaces</option>
-                  </select>
-                </label>
-                <label className="wrap-control">
-                  <input
-                    type="checkbox"
-                    checked={wrap}
-                    onChange={(event) => setWrap(event.target.checked)}
-                  />
-                  <span>Wrap</span>
-                </label>
               </div>
             </div>
             {localRecovery && (
               <div className="recovery-banner" role="status">
-                <span>Local recovery from {new Date(localRecovery.savedAt).toLocaleString()}</span>
-                <button type="button" onClick={() => void recoverLocal()}>
-                  Restore local version
-                </button>
+                <span>Recover draft · {new Date(localRecovery.savedAt).toLocaleString()}</span>
+                <button onClick={() => void recoverLocal()}>Restore</button>
                 <button
-                  className="banner-dismiss"
-                  type="button"
+                  className="icon-button"
                   aria-label="Dismiss local recovery"
                   onClick={() => {
                     setLocalRecovery(undefined);
@@ -600,7 +639,7 @@ export function WorkspacePage({ slug }: { slug: string }) {
                     );
                   }}
                 >
-                  ×
+                  <Icon name="close" />
                 </button>
               </div>
             )}
@@ -620,10 +659,9 @@ export function WorkspacePage({ slug }: { slug: string }) {
               />
             </div>
             <div className="editor-footer">
-              <span>
-                Python 3.12 <span aria-hidden="true">·</span> UTF-8
-              </span>
+              <span className="mono">UTF-8 · {tabSize} spaces</span>
               <span role="status">
+                <i className={`intelligence-dot ${intelligence.status}`} />
                 {intelligence.status === "ready"
                   ? "IntelliSense ready"
                   : intelligence.status === "connecting"
@@ -632,36 +670,11 @@ export function WorkspacePage({ slug }: { slug: string }) {
                       ? "IntelliSense active in another tab"
                       : "IntelliSense unavailable"}
                 {(intelligence.status === "unavailable" || intelligence.status === "replaced") && (
-                  <button type="button" className="quiet-button" onClick={intelligence.retry}>
+                  <button className="quiet-button" onClick={intelligence.retry}>
                     {intelligence.status === "replaced" ? "Use here" : "Retry"}
                   </button>
                 )}
               </span>
-              <div className="editor-footer-controls">
-                <label className="shortcut-toggle">
-                  <input
-                    type="checkbox"
-                    checked={matchPreview}
-                    onChange={(event) => setMatchPreview(event.target.checked)}
-                  />
-                  <span>Match preview</span>
-                </label>
-                <label className="shortcut-toggle">
-                  <input
-                    type="checkbox"
-                    checked={shortcutsEnabled}
-                    onChange={(event) => setShortcutsEnabled(event.target.checked)}
-                  />
-                  <span>Shortcuts</span>
-                </label>
-                <button
-                  className="clear-recovery"
-                  type="button"
-                  onClick={() => void clearOwnerRecovery(identity)}
-                >
-                  Clear local recovery
-                </button>
-              </div>
             </div>
           </section>
           <ResizableDivider
@@ -674,77 +687,50 @@ export function WorkspacePage({ slug }: { slug: string }) {
           <section className="results-pane" aria-label="Execution results">
             <div className="results-toolbar">
               <div className="results-label">
-                <span className="eyebrow">Output</span>
+                <span>Results</span>
                 <span className="result-context">
-                  {submission?.kind === "submit" ? "Hidden suite summary" : "Run results"}
+                  {submission?.kind === "submit"
+                    ? "Full suite"
+                    : customMode
+                      ? "Custom cases"
+                      : "Public examples"}
                 </span>
               </div>
-              <div className="run-actions">
-                {submissionBusy && (
-                  <button
-                    className="button button-secondary cancel-button"
-                    type="button"
-                    onClick={() => void execution.cancel()}
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  disabled={submissionBusy}
-                  onClick={() => void run()}
-                  title="Run (Ctrl/Cmd+Enter)"
-                >
-                  Run
-                </button>
-                <button
-                  className="button button-primary"
-                  type="button"
-                  disabled={submissionBusy}
-                  onClick={() => void submit()}
-                  title="Submit (Ctrl/Cmd+Shift+Enter)"
-                >
-                  Submit
-                </button>
-              </div>
+              <button
+                className="quiet-button"
+                aria-expanded={customMode}
+                onClick={() => setCustomMode((current) => !current)}
+              >
+                {customMode ? "Use examples" : "Custom input"}
+                <Icon name="chevron" />
+              </button>
             </div>
             <div className="results-content" aria-live="polite" aria-atomic="false">
               <ResultContent
                 submission={submission}
                 busy={admissionPending || (execution.isPending && !!execution.submissionId)}
                 error={execution.error}
+                problem={problem}
               />
             </div>
-            {
+            {customMode && (
               <div className="custom-input">
-                <div className="custom-input-heading">
-                  <span>Run inputs</span>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={customMode}
-                      onChange={(event) => setCustomMode(event.target.checked)}
-                    />{" "}
-                    Custom cases
-                  </label>
-                </div>
-                {customMode && (
-                  <>
-                    <textarea
-                      aria-label="Custom cases as JSON"
-                      spellCheck={false}
-                      value={customCasesText}
-                      onChange={(event) => setCustomCasesText(event.target.value)}
-                    />
-                    <p>
-                      Shape: <code>[&#123;"args": [1, "text"]&#125;]</code>. Optional{" "}
-                      <code>expected</code> compares the result.
-                    </p>
-                  </>
-                )}
+                <label htmlFor="custom-cases" className="eyebrow">
+                  Custom cases · JSON
+                </label>
+                <textarea
+                  id="custom-cases"
+                  aria-label="Custom cases as JSON"
+                  spellCheck={false}
+                  value={customCasesText}
+                  onChange={(event) => setCustomCasesText(event.target.value)}
+                />
+                <p>
+                  Use <code>[&#123;"args": [1, "text"]&#125;]</code>. Optional <code>expected</code>{" "}
+                  compares output.
+                </p>
               </div>
-            }
+            )}
             {actionError && (
               <p className="action-error" role="alert">
                 {actionError}
@@ -759,6 +745,9 @@ export function WorkspacePage({ slug }: { slug: string }) {
             onClose={() => setHistoryOpen(false)}
             onRestore={restoreHistory}
           />
+        )}
+        {createMatchOpen && (
+          <CreateMatchDialog identity={identity} onClose={() => setCreateMatchOpen(false)} />
         )}
       </main>
     </>

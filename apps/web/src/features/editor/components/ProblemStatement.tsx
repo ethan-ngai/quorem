@@ -1,4 +1,5 @@
 /** @file ProblemStatement.tsx @description Renders the public problem definition. @module editor */
+import { StatementMarkdown } from "./StatementMarkdown";
 import type { ProblemVersion } from "@quorem/contracts";
 
 /** Shows the statement, public examples, constraints, and signature. */
@@ -6,9 +7,7 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
   return (
     <div className="problem-scroll">
       <div className="problem-heading">
-        <div className="eyebrow">
-          {problem.difficulty} · v{problem.version}
-        </div>
+        <div className="eyebrow">Problem statement</div>
         <h1>{problem.title}</h1>
         <div className="tag-list" aria-label="Problem tags">
           {problem.tags.map((tag) => (
@@ -18,12 +17,15 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
           ))}
         </div>
       </div>
-      <div className="problem-copy">{problem.statementMarkdown}</div>
+      <div className="problem-copy">
+        <StatementMarkdown source={problem.statementMarkdown} />
+      </div>
       <section className="problem-section" aria-labelledby="examples-heading">
         <h2 id="examples-heading">Examples</h2>
         <ol className="example-list">
           {problem.examples.map((example, index) => (
             <li key={index}>
+              <span className="example-number">Example {index + 1}</span>
               <div className="example-line">
                 <span>Input</span>
                 <code>{JSON.stringify(example.args)}</code>

@@ -1,24 +1,39 @@
 /** @file ResultContent.tsx @description Renders safe judge status and public case output. @module editor */
-import type { Submission } from "@quorem/contracts";
+import type { ProblemVersion, Submission } from "@quorem/contracts";
 
 /** Shows a bounded execution result without exposing hidden case data. */
 export function ResultContent({
   submission,
   busy,
   error,
+  problem,
 }: {
   submission?: Submission;
   busy: boolean;
   error?: string;
+  problem?: ProblemVersion;
 }) {
   if (error) return <p className="result-message result-error">{error}</p>;
   if (!submission && busy) return <p className="result-message">Starting a fresh judge job…</p>;
   if (!submission)
     return (
-      <p className="result-message result-empty">
-        Run public examples or submit against the full suite. Results stay attached to the source
-        snapshot that was evaluated.
-      </p>
+      <div className="result-empty">
+        <div className="result-empty-heading">
+          <strong>Ready to run.</strong>
+          <span>Check the public examples before submitting.</span>
+        </div>
+        <div className="ready-cases">
+          {problem?.examples.map((example, index) => (
+            <div key={index}>
+              <span className="mono">{String(index + 1).padStart(2, "0")}</span>
+              <code>{JSON.stringify(example.args)}</code>
+              <span className="expected-label">expected</span>
+              <code>{JSON.stringify(example.expected)}</code>
+            </div>
+          ))}
+        </div>
+        <p>Submit evaluates the full suite. Hidden inputs remain private.</p>
+      </div>
     );
   if (submission.state === "queued" || submission.state === "running") {
     return (

@@ -1,0 +1,56 @@
+/** @file Icon.tsx @description Consistent functional workspace symbols. @module editor */
+import type { SVGProps } from "react";
+
+const paths = {
+  settings: "M4 7h16M4 17h16M8 4v6M16 14v6",
+  chevron: "m8 10 4 4 4-4",
+  play: "m8 5 11 7-11 7Z",
+  submit: "m5 12 4 4L19 6",
+  history: "M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2",
+  close: "m6 6 12 12M6 18 18 6",
+  copy: "M9 9h11v11H9ZM4 15H3V3h12v1",
+  arrow: "M4 12h16m-6-6 6 6-6 6",
+  people:
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M18 8a4 4 0 0 1 0 8m2 5v-2a4 4 0 0 0-3-3M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+  clock: "M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
+  code: "m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16",
+  sun: "M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+};
+
+/** @returns A stroke icon with inherited color and accessible label on its parent. */
+export function Icon({ name, ...props }: SVGProps<SVGSVGElement> & { name: keyof typeof paths }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d={paths[name]} />
+    </svg>
+  );
+}
+
+/** @returns The compact Quorem mark, formed from opposed code brackets. */
+export function Brand() {
+  return (
+    <a className="wordmark" href="/run-widths" aria-label="Quorem home">
+      <svg viewBox="0 0 30 30" width="26" height="26" fill="none" aria-hidden="true">
+        <path
+          d="m11 5-8 10 8 10M19 5l8 10-8 10M17 8l-4 14"
+          stroke="currentColor"
+          strokeWidth="2.4"
+        />
+      </svg>
+      <span>
+        quorem<span className="brand-period">.</span>
+      </span>
+    </a>
+  );
+}

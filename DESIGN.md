@@ -1,6 +1,6 @@
 ---
 name: Quorem Workspace
-description: "A compact, neutral coding workspace with precise typography, thin rules, and restrained blue accents."
+description: "An open coding workspace informed by the portfolio and CUXR: paper and graphite, editorial Geist typography, ruled metadata, and restrained blue actions."
 colors:
   primary: { light: "oklch(0.48 0.15 255)", dark: "oklch(0.72 0.12 255)" }
   brand:
@@ -8,10 +8,10 @@ colors:
     accent: { light: "oklch(0.43 0.15 255)", dark: "oklch(0.77 0.11 255)" }
     onPrimary: { light: "oklch(1 0 0)", dark: "oklch(0.15 0.006 255)" }
   neutral:
-    background: { light: "oklch(0.97 0.003 255)", dark: "oklch(0.16 0.006 255)" }
-    surface: { light: "oklch(0.985 0.002 255)", dark: "oklch(0.20 0.006 255)" }
+    background: { light: "oklch(0.97 0.006 85)", dark: "oklch(0.18 0.004 255)" }
+    surface: { light: "oklch(0.98 0.004 85)", dark: "oklch(0.205 0.005 255)" }
     overlay: { light: "oklch(0.95 0.004 255)", dark: "oklch(0.25 0.008 255)" }
-    field: { light: "oklch(1 0 0)", dark: "oklch(0.18 0.006 255)" }
+    field: { light: "oklch(1 0 0)", dark: "oklch(0.195 0.004 255)" }
     border: { light: "oklch(0.81 0.006 255)", dark: "oklch(0.36 0.01 255)" }
     text:
       primary: { light: "oklch(0.24 0.006 255)", dark: "oklch(0.91 0.004 255)" }
@@ -31,8 +31,8 @@ colors:
     function: { light: "oklch(0.42 0.12 255)", dark: "oklch(0.77 0.10 255)" }
     comment: { light: "oklch(0.45 0.008 255)", dark: "oklch(0.70 0.008 255)" }
 typography:
-  h1: { fontFamily: "Geist Sans, Arial, sans-serif", fontSize: "31px", fontWeight: 600, lineHeight: 1.2, letterSpacing: "-0.025em" }
-  h2: { fontFamily: "Geist Sans, Arial, sans-serif", fontSize: "24px", fontWeight: 600, lineHeight: 1.25, letterSpacing: "-0.02em" }
+  h1: { fontFamily: "Geist Sans, Arial, sans-serif", fontSize: "32px", fontWeight: 550, lineHeight: 1.2, letterSpacing: "-0.025em" }
+  h2: { fontFamily: "Geist Sans, Arial, sans-serif", fontSize: "24px", fontWeight: 550, lineHeight: 1.25, letterSpacing: "-0.02em" }
   h3: { fontFamily: "Geist Sans, Arial, sans-serif", fontSize: "19px", fontWeight: 600, lineHeight: 1.3, letterSpacing: "-0.01em" }
   body: { fontFamily: "Geist Sans, Arial, sans-serif", fontSize: "15px", fontWeight: 400, lineHeight: 1.5 }
   label: { fontFamily: "Geist Sans, Arial, sans-serif", fontSize: "12px", fontWeight: 500, lineHeight: 1.5 }
@@ -46,6 +46,8 @@ elevation:
 ---
 
 ## Overview
+
+Reference translation: preserve the portfolio's Paper/Carbon contrast, precise mono annotations and open ruled indices; use CUXR's Geist hierarchy and purposeful spacing. Scale these to a working IDE. No landing-page headings, card grids, ambient animation, gradients, glass, or decorative registration effects. Statement headings use 32px tightly tracked medium weight; reading copy is 15px with 1.7 line-height. Tags are inline metadata. Editor settings, history, recovery and local identity live in grouped popovers. A dedicated workspace action bar owns Run and Submit. Match status forms a compact ledger above the panes.
 
 System theme is the initial preference; explicit light/dark override persists. The editor remains the focal point. These initial tokens translate confirmed direction; contrast, syntax readability, layout dimensions, and font rendering require actual browser validation before implementation acceptance.
 
@@ -68,7 +70,7 @@ These theme-independent layout tokens extend the YAML schema through this table;
 | problem-pane-initial | 40% |
 | editor-pane-initial | 60% |
 | pane-minimum | 280px |
-| results-initial-height | 240px |
+| results-initial-height | 260px |
 | control-height | 36px |
 | narrow-touch-target | 44px |
 
