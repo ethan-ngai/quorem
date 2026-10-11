@@ -163,7 +163,16 @@ summary::-webkit-details-marker {
   display: none;
 }
 
+.problem-picker summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .problem-picker summary svg {
+  display: block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
   color: var(--color-text-secondary);
 }
 .problem-menu,
@@ -342,20 +351,6 @@ kbd {
   letter-spacing: -0.035em;
   line-height: 1.25;
 }
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-  color: var(--color-text-secondary);
-}
-.problem-tag {
-  padding: 3px 7px;
-  border-radius: var(--radius-sm);
-  background: var(--color-overlay);
-  font-size: 11px;
-}
-
 .problem-copy {
   max-width: var(--statement-max-width);
   font-size: 14px;
@@ -394,11 +389,27 @@ kbd {
 }
 .example-list {
   list-style: none;
-  margin: 26px 0 0;
+  margin: 0;
   padding: 0;
 }
-.example-list li {
-  margin-bottom: 24px;
+.example-list > li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.example-number {
+  padding-top: 3px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.example-content {
+  min-width: 0;
+}
+.example-explanation {
+  min-height: 22px;
+  margin-top: 8px;
 }
 
 .constraint-list code {
@@ -1127,41 +1138,60 @@ kbd {
 .difficulty-hard {
   color: var(--color-error);
 }
-.topic-disclosure {
-  max-width: calc(100% - 58px);
-}
-.topic-disclosure summary {
+.topics-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-height: 26px;
-  padding: 0 7px;
+  padding: 0 4px;
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--color-overlay);
+  background: none;
   color: var(--color-text-secondary);
   font-size: 12px;
 }
-.topic-disclosure summary svg {
-  width: 12px;
-  height: 12px;
+.topics-toggle:hover {
+  background: var(--color-overlay);
+  color: var(--color-text);
 }
-.topic-disclosure[open] summary svg {
-  transform: rotate(180deg);
+.topics-toggle svg {
+  width: 14px;
+  height: 14px;
 }
-.example-list h2 {
-  margin: 0 0 9px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.example-data {
+.topic-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.8;
 }
+.topic-list[data-visible="false"] {
+  visibility: hidden;
+}
+.example-data {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.example-data > div {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+.example-data > div > span {
+  color: var(--color-text-secondary);
+}
 .example-data code {
-  font: 12px/1.8 var(--font-code);
+  display: block;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  font: 12px/1.6 var(--font-code);
   overflow-wrap: anywhere;
 }
-.example-data strong,
 .example-list p strong {
   font-weight: 550;
 }

@@ -1,4 +1,5 @@
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
+import { useId, useState } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon } from "./Icon";
 import type { ProblemVersion } from "@quorem/contracts";
@@ -15,6 +16,9 @@ export function exampleInput(problem: ProblemVersion, args: unknown[]) {
 
 /** Shows the problem directly, with optional topics and named public examples. */
 export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
+  const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
+  const topicsVisible = revealedTopicsFor === problem.id;
+  const topicsId = useId();
   return (
     <div className="problem-scroll">
       <div className="problem-heading">
@@ -24,45 +28,55 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
             {problem.difficulty}
           </span>
           {problem.tags.length > 0 && (
-            <details className="topic-disclosure">
-              <summary>
-                Topics
-                <Icon name="chevron" />
-              </summary>
-              <div className="tag-list" aria-label="Problem topics">
-                {problem.tags.map((tag) => (
-                  <span className="problem-tag" key={tag}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </details>
+            <button
+              className="topics-toggle"
+              aria-label={topicsVisible ? "Hide topics" : "Show topics"}
+              aria-expanded={topicsVisible}
+              aria-controls={topicsId}
+              onClick={() => setRevealedTopicsFor(topicsVisible ? undefined : problem.id)}
+            >
+              <Icon name={topicsVisible ? "eye-off" : "eye"} />
+              Topics
+            </button>
           )}
         </div>
       </div>
       <div className="problem-copy">
         <StatementMarkdown source={problem.statementMarkdown} />
       </div>
-      <ol className="example-list" aria-label="Examples">
-        {problem.examples.map((example, index) => (
-          <li key={index}>
-            <h2>Example {index + 1}:</h2>
-            <div className="example-data">
-              <div>
-                <strong>Input:</strong> <code>{exampleInput(problem, example.args)}</code>
-              </div>
-              <div>
-                <strong>Output:</strong> <code>{JSON.stringify(example.expected)}</code>
-              </div>
-            </div>
-            {example.explanation && (
-              <p>
-                <strong>Explanation:</strong> {inlineStatement(example.explanation)}
-              </p>
-            )}
-          </li>
-        ))}
-      </ol>
+      {problem.examples.length > 0 && (
+        <section className="problem-section" aria-labelledby="examples-heading">
+          <h2 id="examples-heading">Examples</h2>
+          <ol className="example-list">
+            {problem.examples.map((example, index) => (
+              <li key={index} aria-label={`Example ${index + 1}`}>
+                <span className="example-number" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <div className="example-content">
+                  <div className="example-data">
+                    <div>
+                      <span>Input</span>
+                      <code>{exampleInput(problem, example.args)}</code>
+                    </div>
+                    <div>
+                      <span>Output</span>
+                      <code>{JSON.stringify(example.expected)}</code>
+                    </div>
+                  </div>
+                  <div className="example-explanation">
+                    {example.explanation && (
+                      <p>
+                        <strong>Explanation:</strong> {inlineStatement(example.explanation)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       <section className="problem-section" aria-labelledby="constraints-heading">
         <h2 id="constraints-heading">Constraints:</h2>
         <ul className="constraint-list">
@@ -71,6 +85,21 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
           ))}
         </ul>
       </section>
+      {problem.tags.length > 0 && (
+        <section className="problem-section" aria-labelledby={`${topicsId}-heading`}>
+          <h2 id={`${topicsId}-heading`}>Topics</h2>
+          <ul
+            id={topicsId}
+            className="topic-list"
+            data-visible={topicsVisible}
+            aria-hidden={!topicsVisible}
+          >
+            {problem.tags.map((tag) => (
+              <li key={tag}>{tag}</li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

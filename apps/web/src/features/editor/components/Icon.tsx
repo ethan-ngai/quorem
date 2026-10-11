@@ -4,6 +4,9 @@ import type { SVGProps } from "react";
 const paths = {
   settings: "M4 7h16M4 17h16M8 4v6M16 14v6",
   chevron: "m8 10 4 4 4-4",
+  eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+  "eye-off":
+    "m3 3 18 18M10.5 5.1 12 5c6.5 0 10 7 10 7a19 19 0 0 1-3.1 3.8M6.2 6.2A21 21 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.8-1.8M9.9 9.9a3 3 0 0 0 4.2 4.2",
   play: "m8 5 11 7-11 7Z",
   submit: "m5 12 4 4L19 6",
   history: "M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2",
