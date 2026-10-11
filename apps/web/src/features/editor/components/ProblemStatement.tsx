@@ -2,6 +2,7 @@
 import { useId, useState } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon } from "./Icon";
+import { formatConstraint } from "../constraintFormatter";
 import type { ProblemVersion } from "@quorem/contracts";
 
 /** @returns Named argument values in the public function's declared order. */
@@ -92,7 +93,9 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
         <h2 id="constraints-heading">Constraints:</h2>
         <ul className="constraint-list">
           {problem.constraints.map((constraint) => (
-            <li key={constraint}>{inlineStatement(constraint)}</li>
+            <li key={constraint}>
+              {inlineStatement(formatConstraint(constraint, problem.signature))}
+            </li>
           ))}
         </ul>
       </section>
