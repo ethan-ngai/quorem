@@ -6,6 +6,7 @@ Issue #26 updates the private 1v1 flow.
 
 - Centered, animated match creation; segmented difficulty and Radix duration selection.
 - Compact lobby with side-by-side players, icon readiness and animated invitation copying. Settings apply immediately; changed rules reset readiness.
+- Invitation Share and open-seat Invite use Web Share from the click gesture, with clipboard fallback when unsupported. Cancellation is silent; Copy remains available. Native targets depend on the browser/device.
 - In-match score, presence and remaining time share a compact bar above the editor. Forfeit requires confirmation.
 - One active competition per owner remains enforced by server reservations; multiple browser windows remain supported.
 - Browser-only drafts/history; see [migration and backup guidance](browser-drafts.md).

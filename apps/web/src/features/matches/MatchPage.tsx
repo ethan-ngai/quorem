@@ -15,6 +15,7 @@ import { forfeitMatch, leaveMatch, setReady, updateMatchSettings } from "./api";
 import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { CopyFeedbackIcon } from "./CopyFeedbackIcon";
+import { shareInvitation } from "./shareInvitation";
 import { readInvite } from "./commandRecovery";
 import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import "../../styles/workspace.css";
@@ -108,6 +109,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [conceding, setConceding] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -167,6 +169,18 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
   const inviteUrl = readInvite(identity, matchId);
+  const inviteOpponent = async () => {
+    if (!inviteUrl || sharing) return;
+    setSharing(true);
+    setActionError(undefined);
+    try {
+      if ((await shareInvitation(inviteUrl)) === "copied") setCopied(true);
+    } catch {
+      setActionError("Sharing unavailable. Copy the invitation link instead.");
+    } finally {
+      setSharing(false);
+    }
+  };
   const concession = (
     <ConcessionDialog
       open={conceding}
@@ -289,6 +303,18 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     <strong>Open seat</strong>
                     <span>Invite your opponent</span>
                   </div>
+                  {inviteUrl && host && (
+                    <Tooltip content="Share invitation, or copy if sharing is unavailable">
+                      <button
+                        className={`button button-secondary seat-invite ${copied ? "is-copied" : ""}`}
+                        disabled={sharing}
+                        onClick={() => void inviteOpponent()}
+                      >
+                        <Icon name={copied ? "submit" : "share"} />
+                        {copied ? "Copied" : "Invite"}
+                      </button>
+                    </Tooltip>
+                  )}
                 </div>
               )}
             </div>
@@ -363,6 +389,16 @@ export function MatchPage({ matchId }: { matchId: string }) {
                       }
                     >
                       <CopyFeedbackIcon copied={copied} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Share invitation, or copy if sharing is unavailable">
+                    <button
+                      className="icon-button"
+                      aria-label="Share invitation"
+                      disabled={sharing}
+                      onClick={() => void inviteOpponent()}
+                    >
+                      <Icon name="share" />
                     </button>
                   </Tooltip>
                 </div>

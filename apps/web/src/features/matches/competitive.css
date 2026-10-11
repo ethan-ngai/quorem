@@ -74,6 +74,23 @@
 .seat-readiness.is-ready {
   color: var(--color-success);
 }
+.seat-invite {
+  margin-left: auto;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.match-page .seat-invite.is-copied {
+  color: var(--color-success);
+}
+@media (max-width: 520px) {
+  .waiting-seat {
+    flex-wrap: wrap;
+    padding-block: 12px;
+  }
+  .waiting-seat .seat-invite {
+    margin-left: 0;
+  }
+}
 .participant-avatar {
   flex-shrink: 0;
   background: var(--color-overlay);

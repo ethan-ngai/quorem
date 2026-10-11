@@ -2,6 +2,7 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  share: "M12 16V3m-4 4 4-4 4 4M5 12v9h14v-9",
   ready: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM8 12l3 3 5-6",
   flag: "M5 21V3m0 1c5-4 9 4 14 0v9c-5 4-9-4-14 0",
   enter: "M20 5v9H4m5-5-5 5 5 5",
