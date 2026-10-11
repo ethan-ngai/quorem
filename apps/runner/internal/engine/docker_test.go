@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -182,5 +183,45 @@ func TestDockerReapsAbandonedAttempt(t *testing.T) {
 	}
 	if exec.Command("docker", "inspect", name).Run() == nil {
 		t.Fatal("abandoned sandbox survived")
+	}
+}
+
+func TestDockerRuntimeTracebackPublicAndHidden(t *testing.T) {
+	f := dockerTests(t)[0]
+	source := "class Solution:\n def levelSpreads(self, root):\n  raise ValueError('debug-marker')"
+	run := executeFixture(t, f, source, "run", f.Problem.Examples[:1])
+	if run.Verdict != execution.RuntimeError || len(run.PublicCaseResults) != 1 {
+		t.Fatal(run)
+	}
+	diagnostics := run.PublicCaseResults[0].Diagnostics
+	if len(diagnostics) != 1 || !strings.Contains(diagnostics[0].Message, "ValueError: debug-marker") || !strings.Contains(diagnostics[0].Message, "<solution>") {
+		t.Fatal("missing user traceback", diagnostics)
+	}
+	submit := executeFixture(t, f, source, "submit", f.HiddenCases)
+	encoded, _ := json.Marshal(submit)
+	if submit.Verdict != execution.RuntimeError || submit.Score == nil || submit.Score.Passed != 0 || submit.Score.Total != 20 || strings.Contains(string(encoded), "debug-marker") || strings.Contains(string(encoded), "Traceback") {
+		t.Fatal("hidden traceback leaked", string(encoded))
+	}
+}
+func TestDockerExceptionFormattingBudgets(t *testing.T) {
+	f := dockerTests(t)[0]
+	for _, test := range []struct {
+		body string
+		want execution.Verdict
+	}{
+		{"return 'x'*100000", execution.OutputLimit},
+		{"print('x'*100000); return 'message'", execution.OutputLimit},
+		{"while True: pass", execution.TimeLimit},
+	} {
+		source := "class Hostile(Exception):\n def __str__(self):\n  " + test.body + "\nclass Solution:\n def levelSpreads(self, root): raise Hostile()"
+		result := executeFixture(t, f, source, "run", f.Problem.Examples[:1])
+		if result.Verdict != test.want {
+			t.Fatal(result)
+		}
+		for _, diagnostic := range result.PublicCaseResults[0].Diagnostics {
+			if len(diagnostic.Message) > 65536 {
+				t.Fatal("unbounded diagnostic")
+			}
+		}
 	}
 }

@@ -144,8 +144,22 @@ def main():
         result = {'status': 'output_limit'}
     except InvalidOutput:
         result = {'status': 'invalid_output'}
-    except BaseException:
+    except BaseException as error:
         result = {'status': 'runtime_error'}
+        trace = error.__traceback__
+        while trace and trace.tb_frame.f_code.co_filename != '<solution>':
+            trace = trace.tb_next
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                traceback.print_exception(type(error), error, trace, file=err)
+        except OutputLimit:
+            result = {'status': 'output_limit'}
+        except MemoryError:
+            result = {'status': 'memory_limit'}
+        except BaseException:
+            pass
+        if out.size > MAX_OUTPUT or err.size > MAX_OUTPUT:
+            result = {'status': 'output_limit'}
     result['stdout'] = ''.join(out.parts)
     result['stderr'] = ''.join(err.parts)
     sys.__stdout__.write(json.dumps(result, ensure_ascii=False, allow_nan=False))
