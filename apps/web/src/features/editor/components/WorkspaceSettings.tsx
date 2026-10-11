@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
+import { editorSchemes, type EditorScheme } from "../editorPalette";
 import { Icon } from "./Icon";
 
 type SettingsProps = {
@@ -9,6 +10,8 @@ type SettingsProps = {
   onIdentityChange: (identity: DevelopmentIdentity) => void;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
+  editorScheme: EditorScheme;
+  onEditorSchemeChange: (scheme: EditorScheme) => void;
   fontSize: number;
   onFontSizeChange: (size: number) => void;
   tabSize: 2 | 4;
@@ -83,6 +86,20 @@ export function WorkspaceSettings(props: SettingsProps) {
         </fieldset>
         <fieldset>
           <legend>Editor</legend>
+          <label>
+            Editor color scheme
+            <select
+              aria-label="Editor color scheme"
+              value={props.editorScheme}
+              onChange={(event) => props.onEditorSchemeChange(event.target.value as EditorScheme)}
+            >
+              {editorSchemes.map((scheme) => (
+                <option key={scheme.id} value={scheme.id}>
+                  {scheme.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             Indentation
             <select

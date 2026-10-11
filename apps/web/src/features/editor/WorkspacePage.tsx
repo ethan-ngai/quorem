@@ -32,7 +32,12 @@ import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
 import { ResizableDivider } from "./components/ResizableDivider";
-import { readPreference, writePreference } from "./editorSettings";
+import {
+  readPreference,
+  writePreference,
+  readEditorScheme,
+  editorSchemeStorageKey,
+} from "./editorSettings";
 import {
   clearOwnerRecovery,
   readLatestRecovery,
@@ -110,6 +115,7 @@ export function WorkspacePage({
   const [shortcutsEnabled, setShortcutsEnabled] = useState(() =>
     readPreference("quorem.shortcuts.v1", true),
   );
+  const [editorScheme, setEditorScheme] = useState(readEditorScheme);
   const [fontSize, setFontSize] = useState(() => readPreference("quorem.code-font-size.v1", 15));
   const [tabSize, setTabSize] = useState<2 | 4>(() =>
     readPreference<2 | 4>("quorem.tab-size.v1", 4),
@@ -225,6 +231,7 @@ export function WorkspacePage({
   useEffect(() => writePreference("quorem.results-height.v1", resultsHeight), [resultsHeight]);
   useEffect(() => writePreference("quorem.shortcuts.v1", shortcutsEnabled), [shortcutsEnabled]);
   useEffect(() => writePreference("quorem.code-font-size.v1", fontSize), [fontSize]);
+  useEffect(() => writePreference(editorSchemeStorageKey, editorScheme), [editorScheme]);
   useEffect(() => writePreference("quorem.tab-size.v1", tabSize), [tabSize]);
   useEffect(() => writePreference("quorem.wrap.v1", wrap), [wrap]);
 
@@ -556,6 +563,8 @@ export function WorkspacePage({
             onIdentityChange={(next) => void activeIdentityChanged(next)}
             theme={themePreference}
             onThemeChange={setThemePreference}
+            editorScheme={editorScheme}
+            onEditorSchemeChange={setEditorScheme}
             fontSize={fontSize}
             onFontSizeChange={setFontSize}
             tabSize={tabSize}
@@ -661,6 +670,7 @@ export function WorkspacePage({
                   documentUri={virtualDocumentUri}
                   initialSource={source}
                   theme={theme}
+                  colorScheme={editorScheme}
                   fontSize={fontSize}
                   tabSize={tabSize}
                   wrap={wrap}

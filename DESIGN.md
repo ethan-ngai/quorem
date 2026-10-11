@@ -97,7 +97,7 @@ Brief color/opacity/transform feedback clarifies hover, selection, saving, and p
 
 - Buttons: Submit uses primary/onPrimary; Run uses neutral surface/border. Busy state names the existing job rather than silently accepting another.
 - Fields: field background, readable text, visible focus; validation includes explanatory text.
-- Editor: stable cursor/undo, completion list and hover docs use overlay tokens; diagnostics include accessible explanations.
+- Editor: stable cursor/undo; color scheme changes reconfigure visual extensions in place. Completion, brackets and selection use editor-scoped palette colors; diagnostics include accessible explanations.
 - Results: semantic icon/text, source snapshot association retained in data, bounded output, stable space for status transitions.
 - Links: visibly identifiable and keyboard-focusable; use brand accent for navigation links.
 - Status: quiet save indicators; persistent actionable failure messages. Toasts never hold the only recovery action.
@@ -105,3 +105,34 @@ Brief color/opacity/transform feedback clarifies hover, selection, saving, and p
 ## Rules
 
 Use shared CSS custom properties and inherited typography. Match all colors to theme tokens. Preserve keyboard access, WCAG AA contrast, readable zoom, reduced motion, and sensible narrow-screen touch targets. Verify computed contrast in both themes, including syntax and overlays. Keep factual copy and functional labels. Introduce token changes in this document before propagating them into components.
+
+## Editor color schemes
+
+Editor color scheme is independent of the app theme and persists on this device. Workspace follows the app light/dark tokens. JetBrains Light, Darcula and One Dark retain their own light/dark surfaces, gutters, cursor, selection, bracket and tooltip colors. Palette variables are scoped to the CodeMirror editor; they do not recolor navigation or results. Ligatures remain disabled in every scheme.
+
+References: [JetBrains Default and Darcula source](https://github.com/JetBrains/intellij-community/blob/master/platform/platform-resources/src/DefaultColorSchemesManager.xml), [CodeMirror One Dark source](https://github.com/codemirror/theme-one-dark/blob/main/src/one-dark.ts). These are adapted palettes: Low-contrast syntax and gutter colors are adjusted against each scheme's active-line surface for readability; JetBrains Light function definitions receive a brown accent. Workspace inherits existing surface/syntax tokens. Its class accent is #876b13/#e5c07b (light/dark), parameter #815c23/#d7b88b, and builtin/decorator #7c3f8c/#c792ea; self uses the keyword token.
+
+| Editor token | JetBrains Light | Darcula | One Dark |
+| --- | --- | --- | --- |
+| background | #ffffff | #2b2b2b | #282c34 |
+| foreground | #242424 | #a9b7c6 | #abb2bf |
+| gutter | #f0f0f0 | #313335 | #282c34 |
+| gutterText | #666666 | #9d9d9d | #929cad |
+| activeLine | #fffae3 | #323232 | #2c313a |
+| selection | #d4e2ff | #214283 | #3e4451 |
+| cursor | #242424 | #a9b7c6 | #528bff |
+| tooltip | #f7f7f7 | #313335 | #353a42 |
+| border | #d0d0d0 | #515151 | #4b5263 |
+| keyword | #000080 | #e09049 | #c982dd |
+| string | #067d17 | #a3be8c | #98c379 |
+| number | #0000ff | #82aad0 | #d19a66 |
+| function | #7a5600 | #ffc66d | #61afef |
+| class | #7a5600 | #a9b7c6 | #e5c07b |
+| builtin | #660e7a | #a3a3d4 | #56b6c2 |
+| parameter | #705b33 | #d7b88b | #d19a66 |
+| operator | #454545 | #a9b7c6 | #56b6c2 |
+| decorator | #707000 | #bbb529 | #e5c07b |
+| comment | #666666 | #9d9d9d | #929cad |
+| self | #94558d | #e09049 | #e9848b |
+
+Python highlighting follows the installed Lezer grammar: function definitions and calls (including method properties), class definitions, strings, numbers, comments, operators and decorator contexts. Parameter declarations use their parser context. Visible syntax-tree identifier spans recognize literal self/cls and common builtin names; this is lexical recognition, not inferred type/scope information. Builtin accents never replace function/class/parameter declaration or property coloring. Comments use italic style; ordinary identifiers retain the palette foreground.

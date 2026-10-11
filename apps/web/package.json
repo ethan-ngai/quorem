@@ -19,7 +19,7 @@
     "@codemirror/view": "^6.38.6",
     "@fontsource-variable/geist": "^5.2.6",
     "@fontsource/jetbrains-mono": "^5.2.6",
-    "@lezer/highlight": "1.2.3",
+    "@lezer/highlight": "1.2.5",
     "@quorem/contracts": "workspace:*",
     "@quorem/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.2",

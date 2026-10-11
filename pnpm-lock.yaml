@@ -229,8 +229,8 @@ importers:
         specifier: ^5.2.6
         version: 5.3.0
       '@lezer/highlight':
-        specifier: 1.2.3
-        version: 1.2.3
+        specifier: 1.2.5
+        version: 1.2.5
       '@quorem/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -436,9 +436,6 @@ packages:
 
   '@lezer/common@1.5.3':
     resolution: {integrity: sha512-H0iErY4e43LpXbYDyBci5W4v/RwTgGV3YzYOlJPiGZ8RY8w51kVE+xLn1tg3Z6UmSfyETvtsUK3r7YsgDQEI7Q==}
-
-  '@lezer/highlight@1.2.3':
-    resolution: {integrity: sha512-qXdH7UqTvGfdVBINrgKhDsVTJTxactNNxLk7+UMwZhU13lMHaOBlJe9Vqp907ya56Y3+ed2tlqzys7jDkTmW0g==}
 
   '@lezer/highlight@1.2.5':
     resolution: {integrity: sha512-O1GMVKgtf5YspFaRzpmqkVgMtIk2HG9uMAbH6wdAIdNh3TVzCsch/+cRi+6l2//UGDKe6NB9BW3cvuR5ezMQ0w==}
@@ -1952,10 +1949,6 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.6.0
 
   '@lezer/common@1.5.3': {}
-
-  '@lezer/highlight@1.2.3':
-    dependencies:
-      '@lezer/common': 1.5.3
 
   '@lezer/highlight@1.2.5':
     dependencies:
