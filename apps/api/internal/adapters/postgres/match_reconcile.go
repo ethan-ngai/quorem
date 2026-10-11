@@ -51,9 +51,9 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 	best := map[string]int{}
 	latest := map[string]string{}
 	var candidateOwner string
-	var candidateSequence int64
-	uncertain := []int64{}
-	rows, err = tx.Query(ctx, "SELECT owner_id,state,match_sequence,result FROM submissions WHERE match_id=$1 AND kind='submit' ORDER BY match_sequence", m.id)
+	blocked := false
+	uncertainOwners := map[string]bool{}
+	rows, err = tx.Query(ctx, "SELECT owner_id,state,match_sequence,result FROM submissions WHERE match_id=$1 AND kind='submit' ORDER BY admitted_at,match_sequence", m.id)
 	if err != nil {
 		return err
 	}
@@ -79,10 +79,12 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 			}
 			if result.Verdict == "accepted" && result.Score.Passed == result.Score.Total && candidateOwner == "" {
 				candidateOwner = owner
-				candidateSequence = sequence
 			}
 		} else {
-			uncertain = append(uncertain, sequence)
+			uncertainOwners[owner] = true
+			if candidateOwner == "" {
+				blocked = true
+			}
 		}
 	}
 	err = rows.Err()
@@ -99,10 +101,26 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 			}
 		}
 	}
-	blocked := false
-	for _, seq := range uncertain {
-		if candidateOwner == "" || seq < candidateSequence {
-			blocked = true
+	winner := ""
+	high := -1
+	draw := false
+	for owner := range people {
+		score := best[owner]
+		if score > high {
+			high = score
+			winner = owner
+			draw = false
+		} else if score == high {
+			draw = true
+		}
+	}
+	// An unresolved job from the sole leader cannot lower their best score.
+	if candidateOwner == "" && !now.Before(*m.deadline) && !draw {
+		blocked = false
+		for owner := range uncertainOwners {
+			if owner != winner {
+				blocked = true
+			}
 		}
 	}
 	if candidateOwner != "" && !blocked {
@@ -132,19 +150,6 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 				changed = true
 			}
 		} else {
-			winner := ""
-			high := -1
-			draw := false
-			for owner := range people {
-				score := best[owner]
-				if score > high {
-					high = score
-					winner = owner
-					draw = false
-				} else if score == high {
-					draw = true
-				}
-			}
 			kind := "win"
 			if draw {
 				kind = "draw"
@@ -162,7 +167,12 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 	return nil
 }
 func (s *Store) ReconcileMatches(ctx context.Context) error {
-	rows, err := s.Pool.Query(ctx, "SELECT id FROM matches WHERE state NOT IN ('completed','cancelled') ORDER BY id")
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, "SELECT id FROM matches WHERE state NOT IN ('completed','cancelled') ORDER BY reconciled_at,id FOR UPDATE SKIP LOCKED LIMIT 64")
 	if err != nil {
 		return err
 	}
@@ -181,22 +191,16 @@ func (s *Store) ReconcileMatches(ctx context.Context) error {
 		return err
 	}
 	for _, id := range ids {
-		tx, e := s.Pool.Begin(ctx)
+		m, e := lockMatch(ctx, tx, id)
 		if e != nil {
 			return e
 		}
-		m, e := lockMatch(ctx, tx, id)
-		if e == nil {
-			e = s.reconcileMatch(ctx, tx, &m)
+		if e = s.reconcileMatch(ctx, tx, &m); e != nil {
+			return e
 		}
-		if e == nil {
-			e = tx.Commit(ctx)
-		} else {
-			tx.Rollback(ctx)
-		}
-		if e != nil {
+		if _, e = tx.Exec(ctx, "UPDATE matches SET reconciled_at=clock_timestamp() WHERE id=$1", id); e != nil {
 			return e
 		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }

@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -368,5 +370,152 @@ func TestMatchLockDelayedAdmissionRejected(t *testing.T) {
 	var count int
 	if e = s.Pool.QueryRow(ctx, "SELECT count(*) FROM submissions WHERE match_id=$1", id).Scan(&count); e != nil || count != 0 {
 		t.Fatal(count, e)
+	}
+}
+func TestMatchEmptyDeadlineAndInfrastructureFailure(t *testing.T) {
+	for _, failed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "empty_draw", true: "failed_no_contest"}[failed], func(t *testing.T) {
+			s := testStore(t)
+			ctx := context.Background()
+			id, _ := createPair(t, s)
+			if failed {
+				admitMatch(t, s, id, "alice", "submit")
+				for range 3 {
+					job := claimJobs(t, s, 1)[0]
+					if e := s.Complete(ctx, job, execution.Completion{SubmissionID: job.SubmissionID, AttemptID: job.AttemptID, EngineFailure: "private infrastructure details"}); e != nil {
+						t.Fatal(e)
+					}
+					execSQL(t, s, "UPDATE execution_jobs SET available_at=clock_timestamp()")
+				}
+			}
+			execSQL(t, s, "UPDATE matches SET deadline=clock_timestamp()-interval '121 seconds' WHERE id=$1", id)
+			if e := s.ReconcileMatches(ctx); e != nil {
+				t.Fatal(e)
+			}
+			v, e := s.Match(ctx, "alice", id)
+			kind := "draw"
+			if failed {
+				kind = "no_contest"
+			}
+			if e != nil || v.Outcome == nil || v.Outcome.Kind != kind {
+				t.Fatal(v, e)
+			}
+		})
+	}
+}
+func TestMatchEqualAdmissionTimesUseLockedSequence(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	id, _ := createPair(t, s)
+	first := admitMatch(t, s, id, "alice", "submit")
+	admitMatch(t, s, id, "bob", "submit")
+	jobs := claimJobs(t, s, 2)
+	execSQL(t, s, "UPDATE submissions SET admitted_at=(SELECT admitted_at FROM submissions WHERE id=$1) WHERE match_id=$2", first.ID, id)
+	completeScore(t, s, jobs[1], 20)
+	v, e := s.Match(ctx, "alice", id)
+	if e != nil || v.Outcome != nil {
+		t.Fatal(v, e)
+	}
+	completeScore(t, s, jobs[0], 20)
+	v, e = s.Match(ctx, "alice", id)
+	if e != nil || v.Outcome.WinnerUserID != v.HostUserID {
+		t.Fatal(v, e)
+	}
+	var sequence int64
+	if e = s.Pool.QueryRow(ctx, "SELECT match_sequence FROM submissions WHERE id=$1", first.ID).Scan(&sequence); e != nil || sequence != 1 {
+		t.Fatal(sequence, e)
+	}
+}
+func TestMatchCompletionForfeitRaceAndOutboxVersions(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	id, _ := createPair(t, s)
+	admitMatch(t, s, id, "alice", "submit")
+	job := claimJobs(t, s, 1)[0]
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, e := s.ForfeitMatch(ctx, "alice", id, "forfeit")
+		if e != nil {
+			t.Error(e)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		e := s.Complete(ctx, job, execution.Completion{SubmissionID: job.SubmissionID, AttemptID: job.AttemptID, Verdict: execution.Accepted, Score: &execution.Score{Passed: 20, Total: 20}})
+		if e != nil {
+			t.Error(e)
+		}
+	}()
+	wg.Wait()
+	v, e := s.Match(ctx, "alice", id)
+	if e != nil || v.Outcome == nil || v.State != "completed" {
+		t.Fatal(v, e)
+	}
+	if v.Outcome.Reason != "first_correct" && v.Outcome.Reason != "forfeit" {
+		t.Fatal(v)
+	}
+	var outcomes, versions int64
+	if e = s.Pool.QueryRow(ctx, "SELECT count(*) FILTER(WHERE event_type='match.completed'),count(*) FROM match_outbox WHERE match_id=$1", id).Scan(&outcomes, &versions); e != nil || outcomes != 1 || v.Version != strconv.FormatInt(versions, 10) {
+		t.Fatal(outcomes, versions, v.Version, e)
+	}
+	if _, e = s.ForfeitMatch(ctx, "bob", id, ID()); e != nil {
+		t.Fatal(e)
+	}
+	after, e := s.Match(ctx, "alice", id)
+	if e != nil || after.Version != v.Version || *after.Outcome != *v.Outcome {
+		t.Fatal(after, e)
+	}
+}
+func TestMatchEmptyDifficultyAndEncryptedInviteReplay(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	c, e := s.CreateMatch(ctx, "alice", "encrypted", matches.Settings{Difficulty: "hard"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	token := inviteToken(t, c)
+	var stored string
+	if e = s.Pool.QueryRow(ctx, "SELECT response::text FROM match_idempotency WHERE owner_id='alice' AND key='encrypted'").Scan(&stored); e != nil || strings.Contains(stored, token) {
+		t.Fatal("invitation cached in plaintext", e)
+	}
+	reopened, e := Open(ctx, os.Getenv("QUOREM_TEST_DATABASE_URL"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer reopened.Pool.Close()
+	retry, e := reopened.CreateMatch(ctx, "alice", "encrypted", matches.Settings{Difficulty: "hard"})
+	if e != nil || retry.InviteURL != c.InviteURL {
+		t.Fatal("restart changed invite", retry, e)
+	}
+	execSQL(t, s, "DELETE FROM problem_versions WHERE public->>'difficulty'='hard'")
+	if _, e = s.JoinMatch(ctx, "bob", ID(), token); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "temporarily_unavailable" {
+		t.Fatal(e)
+	}
+	v, e := s.Match(ctx, "alice", c.ID)
+	if e != nil || v.ProblemVersionID != "" || v.StartedAt != nil {
+		t.Fatal(v, e)
+	}
+}
+func TestMatchCertainLeaderIgnoresOwnUnresolvedJob(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	id, _ := createPair(t, s)
+	admitMatch(t, s, id, "alice", "submit")
+	job := claimJobs(t, s, 1)[0]
+	completeScore(t, s, job, 19)
+	admitMatch(t, s, id, "alice", "submit")
+	execSQL(t, s, "UPDATE submissions SET state='failed',result='{}' WHERE match_id=$1 AND state='queued'", id)
+	execSQL(t, s, "UPDATE matches SET deadline=clock_timestamp()-interval '1 second' WHERE id=$1", id)
+	v, e := s.Match(ctx, "alice", id)
+	if e != nil || v.Outcome == nil || v.Outcome.Kind != "win" || v.Outcome.WinnerUserID != v.HostUserID {
+		t.Fatal("irrelevant failure blocked certain winner", v, e)
 	}
 }
