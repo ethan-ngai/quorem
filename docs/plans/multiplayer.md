@@ -6,6 +6,12 @@ Confirmed rules: earliest server-received correct submission wins; host selects 
 
 Invite: hashed 256-bit token, 24-hour expiry; authenticated join and atomic two-seat claim. One active match per user. No problem identity before start. Host setting changes clear both ready flags. Pre-start host leaves: cancel; guest leaves: free seat. Active departure is disconnect unless explicit forfeit. Empty difficulty pool returns configuration error, never substitutes difficulty.
 
+## Planned match visibility settings
+
+When creating a match, the host can enable or disable hiding test cases. When hiding is enabled, offer a separate toggle to enable or disable showing stdout from those cases. Defaults: hide test cases, hide stdout. These controls are confirmed requirements, not implemented yet.
+
+Persist the visibility policy on the match, show it to both participants before readiness, and freeze it at start. Pre-start changes clear both ready flags. Enforce the policy in server responses and realtime events, not only the UI. Showing stdout while hiding cases permits contestant-printed input to appear; hiding stdout must omit the stream entirely. Keep stderr and arbitrary diagnostics private for hidden cases; only time-limit failures reveal a reason. Revealed cases use the normal input/expected/actual presentation.
+
 ## Lifecycle
 
 waiting → ready → active → finalizing → completed; cancelled for pre-start abandonment. Exactly two distinct seats; join and readiness transitions atomic. Server fixes problem version, selected duration, start/deadline. Clients display estimated time from server timestamps; server decides whether submission is eligible. Finalizing represents pending eligible submissions, not permission to accept new work after deadline.

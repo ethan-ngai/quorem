@@ -1882,29 +1882,3 @@ kbd {
 .locked-case > span:last-child {
   text-transform: capitalize;
 }
-
-.app-shell.hidden-preview {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 48px minmax(0, 1fr);
-}
-.hidden-preview .preview-label {
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-.hidden-preview .topbar > a:last-child {
-  margin-left: auto;
-}
-.hidden-preview .preview-results {
-  display: grid;
-  width: auto;
-  height: auto;
-  grid-area: auto;
-  grid-column: 1;
-  grid-row: 2;
-  margin: 8px 12px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-.hidden-preview .case-result-summary {
-  max-height: none;
-}
