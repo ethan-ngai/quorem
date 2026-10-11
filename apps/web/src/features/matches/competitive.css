@@ -623,9 +623,9 @@
 .problem-picker-search {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin: 0 0 4px;
-  padding: 8px 12px;
+  padding: 4px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
@@ -634,6 +634,10 @@
   border-color: var(--color-primary);
 }
 .problem-picker-search input {
+  min-height: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 20px;
   min-width: 0;
   width: 100%;
   border: 0;
@@ -733,4 +737,10 @@
 .problem-picker-search input:focus-visible {
   outline: none;
   box-shadow: none;
+}
+
+.problem-picker-search > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
