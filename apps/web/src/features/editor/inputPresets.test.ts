@@ -40,11 +40,14 @@ describe("typed input presets", () => {
     expect(preset.parse(preset.fromEditorSource("10*3, -2"))).toEqual([30, -2]);
     expect(preset.parse("[1, 2]")).toEqual([1, 2]);
     for (const source of ["", "-", "1, (", "1e-"]) expect(preset.accepts(source)).toBe(true);
-    for (const source of ["hello", "1🙂", '"text"', "null"])
+    for (const source of ["1,[2]", "hello", "1🙂", '"text"', "null"])
       expect(preset.accepts(source)).toBe(false);
   });
 
   it("parses nested quoted strings, optional entries and node structures", () => {
+    expect(resolveInputPreset("list<list<int>>").accepts("[1,2],[3]")).toBe(true);
+    expect(resolveInputPreset("list<optional<ListNode>>").accepts("[1,2],null")).toBe(true);
+    expect(resolveInputPreset("list<str>").accepts('"[text]"')).toBe(true);
     expect(parseTypedField("list<list<int>>", "[[2*3], [1+2]]")).toEqual([[6], [3]]);
     expect(parseTypedField("list<str>", '["a,b", "[text]", "雪", "a\\\"b"]')).toEqual([
       "a,b",
@@ -125,7 +128,7 @@ describe("typed input presets", () => {
           className: "Solution",
           methodName: "solve",
           returnType: "int",
-          parameters: [{ name: "n", type: "int", ...{ input: { preset: "test-double" } } }],
+          parameters: [{ name: "n", type: "int", input: { preset: "test-double" } }],
         },
       ),
     ).toEqual({ args: [6] });

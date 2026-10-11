@@ -146,6 +146,12 @@ export class SequencePreset extends InputPreset {
         quoted = true;
       } else outside += character;
     }
+    let child = innerType(this.type, "list");
+    while (child && innerType(child, "optional")) child = innerType(child, "optional");
+    const allowBrackets =
+      child !== undefined &&
+      (innerType(child, "list") !== undefined || child === "TreeNode" || child === "ListNode");
+    if (!allowBrackets && /[\[\]]/.test(outside)) return false;
     const alphabet = `0-9\\s.eE+*/%()\\[\\],-${allowBoolean ? "truefals" : ""}${allowNull ? "nul" : ""}`;
     return new RegExp(`^[${alphabet.replace(",-", ",\\-")}]*$`).test(outside);
   }
