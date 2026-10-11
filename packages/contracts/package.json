@@ -1,0 +1,22 @@
+{
+  "name": "@quorem/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/generated.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript openapi/api.json -o src/generated.ts",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1",
+    "openapi-typescript": "7.13.0"
+  }
+}
