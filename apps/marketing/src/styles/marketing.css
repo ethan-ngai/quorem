@@ -1241,7 +1241,61 @@ summary:focus-visible {
 .hero-workspace {
   min-width: 0;
   width: 100%;
+  max-width: 440px;
+  justify-self: end;
   margin-top: 48px;
+}
+.hero-problem-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 8px 20px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.hero-problem-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.hero-problem-heading small {
+  color: var(--color-success);
+  font-size: 11px;
+}
+.hero-typing-control {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.hero-typing-control:hover {
+  background: var(--color-overlay);
+  color: var(--color-text);
+}
+.hero-typing .preview-code {
+  min-height: 240px;
+}
+.hero-typing[data-typing="true"] .cm-line:last-child::after {
+  content: "";
+  display: inline-block;
+  height: 1.1em;
+  vertical-align: -0.15em;
+  border-left: 1px solid var(--color-text);
+  animation: hero-caret 1s steps(2, jump-none) infinite;
+}
+.hero-typing[data-paused="true"] .cm-line:last-child::after {
+  animation-play-state: paused;
+}
+@keyframes hero-caret {
+  to {
+    opacity: 0;
+  }
 }
 .workspace-demo {
   border: 1px solid var(--color-border);
@@ -1250,54 +1304,6 @@ summary:focus-visible {
   background: var(--color-field);
   box-shadow: var(--marketing-depth);
   font-size: 12px;
-}
-.demo-match-header {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--color-border);
-}
-.demo-match-header .brand-mark {
-  width: 16px;
-  height: 16px;
-}
-.demo-match-header > span:last-child {
-  margin-left: auto;
-  font-family: var(--font-code);
-  color: var(--color-text-secondary);
-}
-.demo-statement {
-  padding: 16px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-.demo-statement > span {
-  font-size: 10px;
-  color: var(--color-text-secondary);
-}
-.demo-statement h2 {
-  font-size: 22px;
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.demo-statement h2 small {
-  font-size: 10px;
-  color: var(--color-success);
-  font-weight: 400;
-  letter-spacing: 0;
-}
-.demo-statement p {
-  margin-top: 8px;
-  font-size: 12px;
-}
-.demo-statement code {
-  display: block;
-  margin-top: 12px;
-  font: 10px var(--font-code);
-  color: var(--color-text-secondary);
 }
 .workspace-demo .preview-editor-toolbar {
   display: flex;
@@ -1349,38 +1355,6 @@ summary:focus-visible {
   background: var(--color-primary);
   color: var(--color-on-primary);
   font-size: 12px;
-}
-.demo-match-score {
-  display: flex;
-  border-top: 1px solid var(--color-border);
-}
-.demo-match-score > span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  padding: 12px;
-  font-size: 11px;
-}
-.demo-match-score > span + span {
-  border-left: 1px solid var(--color-border);
-}
-.demo-match-score small {
-  color: var(--color-text-secondary);
-  font-size: 9px;
-}
-.demo-match-score b {
-  font-weight: 500;
-  margin-left: auto;
-  font-family: var(--font-code);
-}
-.demo-match-score > span:last-child {
-  background: var(--color-brand-secondary);
-}
-.preview-caption {
-  text-align: center;
-  font-size: 11px;
-  margin-top: 16px;
 }
 .lobby-render {
   max-width: 680px;
@@ -1720,6 +1694,7 @@ summary:focus-visible {
 @media (max-width: 1000px) {
   .hero-workspace {
     margin-top: 0;
+    justify-self: start;
   }
 }
 @media (max-width: 700px) {

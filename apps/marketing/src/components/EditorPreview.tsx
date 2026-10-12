@@ -6,7 +6,7 @@ import { Icon } from "../../../web/src/features/editor/components/Icon";
 import { previewProblem, previewSnapshot, previewSubmission, source } from "./previewProblem";
 import { usePreviewSequence } from "./usePreviewSequence";
 /** Shared editor and case output, with read-only illustrative judging. */
-export default function EditorPreview({ variant = "tests" }: { variant?: "hero" | "tests" }) {
+export default function EditorPreview() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const { root, stage } = usePreviewSequence(4, true, 1000);
   const selectedCase = Math.min(Math.max(stage - 2, 0), 2);
@@ -25,31 +25,10 @@ export default function EditorPreview({ variant = "tests" }: { variant?: "hero" 
   return (
     <div
       ref={root}
-      className={`workspace-demo demo-${variant}`}
+      className="workspace-demo demo-tests"
       role="img"
-      aria-label={
-        variant === "hero"
-          ? "Example Two Sum Showdown workspace: read-only Python solution, two sample cases pass and the duplicate-value case fails. Jamie wins with the first correct submission."
-          : "Example Two Sum test run: a cursor runs the Python solution; two cases pass, and the duplicate-value case fails with output [0,0] instead of [0,1]."
-      }
+      aria-label="Example Two Sum test run: a cursor runs the Python solution; two cases pass, and the duplicate-value case fails with output [0,0] instead of [0,1]."
     >
-      {variant === "hero" && (
-        <>
-          <div className="demo-match-header">
-            <span className="brand-mark" />
-            <strong>Showdown</strong>
-            <span>08:34</span>
-          </div>
-          <div className="demo-statement">
-            <span>Problem</span>
-            <h2>
-              Two Sum <small>Easy</small>
-            </h2>
-            <p>Find the two indices whose values add up to the target.</p>
-            <code>nums = [2, 7, 11, 15] · target = 9</code>
-          </div>
-        </>
-      )}
       <div className="demo-readonly" inert>
         <div className="code-toolbar">
           <span className="editor-language">
@@ -59,12 +38,12 @@ export default function EditorPreview({ variant = "tests" }: { variant?: "hero" 
         </div>
         <div className="preview-code">
           <PythonEditor
-            documentKey={`marketing-${variant}`}
-            documentUri={`file:///preview/${variant}.py`}
+            documentKey="marketing-tests"
+            documentUri="file:///preview/tests.py"
             initialSource={source}
             theme={theme}
             colorScheme="workspace"
-            fontSize={variant === "hero" ? 11 : 12}
+            fontSize={12}
             tabSize={4}
             wrap
             readOnly
@@ -125,18 +104,6 @@ export default function EditorPreview({ variant = "tests" }: { variant?: "hero" 
           </div>
         </footer>
       </div>
-      {variant === "hero" && (
-        <div className="demo-match-score">
-          <span>
-            Alex <small>You</small>
-            <b>14 / 20</b>
-          </span>
-          <span>
-            Jamie <small>Winner</small>
-            <b>20 / 20</b>
-          </span>
-        </div>
-      )}
     </div>
   );
 }

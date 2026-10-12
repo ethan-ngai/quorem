@@ -2,6 +2,7 @@
 import "@fontsource-variable/geist";
 import "@quorem/ui/theme.css";
 import "../styles/marketing.css";
+import "../../../web/src/features/matches/competitive.css";
 import workspaceStyles from "../../../web/src/styles/workspace.css?inline";
 import LobbyPreview from "../components/LobbyPreview";
 import SubmissionPreview from "../components/SubmissionPreview";
@@ -12,6 +13,7 @@ import UpcomingModeIllustration from "../components/UpcomingModeIllustration.ast
 import UpcomingFeaturePreview from "../components/UpcomingFeaturePreview.astro";
 import MatchModeIllustration from "../components/MatchModeIllustration.astro";
 import EditorPreview from "../components/EditorPreview";
+import HeroEditorPreview from "../components/HeroEditorPreview";
 import "@fontsource/jetbrains-mono/400.css";
 const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
 ---
@@ -79,7 +81,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
             <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
           </div>
           </div>
-          <div class="hero-workspace"><EditorPreview variant="hero" client:visible /><p class="preview-caption">Example Showdown match</p></div>
+          <div class="hero-workspace"><HeroEditorPreview client:visible /></div>
         </div>
       </section>
       <section class="mode-showcase page-width" aria-label="Match modes" data-reveal>

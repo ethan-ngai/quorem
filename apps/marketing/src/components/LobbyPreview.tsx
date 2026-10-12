@@ -1,5 +1,4 @@
 import { MatchSettings, ModeIcon } from "../../../web/src/features/matches/MatchControls";
-import "../../../web/src/features/matches/competitive.css";
 const catalog = [{ id: "two-sum-preview", title: "Two Sum", difficulty: "easy" }];
 const settings = {
   mode: "free-for-all" as const,

@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 /** Finite demos pause offscreen/hidden; reduced motion shows the final state. */
-export function usePreviewSequence(finalStage: number, autoPlay: boolean, delay: number) {
+export function usePreviewSequence(
+  finalStage: number,
+  autoPlay: boolean,
+  delay: number | ((stage: number) => number),
+  paused = false,
+) {
   const root = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState(finalStage);
   const [visible, setVisible] = useState(false);
@@ -29,9 +34,12 @@ export function usePreviewSequence(finalStage: number, autoPlay: boolean, delay:
     };
   }, [autoPlay, finalStage]);
   useEffect(() => {
-    if (!visible || hidden || reduced || stage >= finalStage) return;
-    const timer = setTimeout(() => setStage((value) => value + 1), delay);
+    if (!visible || hidden || reduced || paused || stage >= finalStage) return;
+    const timer = setTimeout(
+      () => setStage((value) => value + 1),
+      typeof delay === "number" ? delay : delay(stage),
+    );
     return () => clearTimeout(timer);
-  }, [stage, visible, hidden, reduced, delay, finalStage]);
+  }, [stage, visible, hidden, reduced, paused, delay, finalStage]);
   return { root, stage, replay: () => setStage(reduced ? finalStage : 0) };
 }
