@@ -5,7 +5,9 @@ import "../styles/marketing.css";
 import ProductPreview from "../components/ProductPreview.astro";
 import MatchScene from "../components/MatchScene.astro";
 import HeroDots from "../components/HeroDots.astro";
-import BattleHeadline from "../components/BattleHeadline.astro";
+import MatchGeometry from "../components/MatchGeometry.astro";
+import EditorPreview from "../components/EditorPreview";
+import "@fontsource/jetbrains-mono/400.css";
 const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
 ---
 <!doctype html>
@@ -65,7 +67,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
         <HeroDots />
         <div class="hero-top page-width">
           <div class="hero-copy">
-          <BattleHeadline />
+          <h1 id="hero-title">Coding matches.<br /><span>With your friends.</span></h1>
           <div class="hero-intro">
             <p>Invite friends to solve the same coding problem. First correct submission wins.</p>
             <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
@@ -76,30 +78,37 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
       </section>
       <section class="mode-showcase page-width" aria-label="Match modes" data-reveal>
         <article class="mode-preview">
-          <div><h2>Showdown</h2><p>One opponent. One shared problem.</p></div><span class="mode-size">1 v 1</span>
+          <MatchGeometry variant="duel" />
+          <div class="mode-description"><h2>Showdown <span>1 v 1</span></h2><p>Invite a friend. Solve the same problem.<br />First correct submission wins.</p></div>
         </article>
         <article class="mode-preview">
-          <div><h2>Free-for-all</h2><p>Bring a group into the same race.</p></div><span class="mode-size">2–8 players</span>
+          <MatchGeometry variant="group" />
+          <div class="mode-description"><h2>Free-for-all <span>2–8 players</span></h2><p>Share a challenge with the group.<br />Everyone writes their own solution.</p></div>
         </article>
       </section>
-      <section class="match-blueprint page-width" id="matches" aria-labelledby="matches-title">
-        <div class="blueprint-grid">
-          <div class="blueprint-heading" data-reveal><h2 id="matches-title">Set up<br />the match.</h2></div>
-          <div class="blueprint-intro" data-reveal><p>Pick a mode, a challenge and a duration. Share the link with your friends, then start when everyone is ready.</p><a class="quiet-link" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
-          <div class="blueprint-product" data-reveal><ProductPreview alt="Free-for-all lobby with players, game mode, difficulty, problem, duration and host rules." eager /></div>
-          <div class="problem-visual blueprint-visual" aria-hidden="true" data-reveal>
-            <div class="problem-sheet"><div class="difficulty-samples"><span>Easy</span><span>Medium</span><span>Hard</span></div><div class="problem-line"><span>Run Widths</span><small>Easy</small></div><div class="problem-line"><span>Level Spreads</span><small>Medium</small></div><div class="problem-line"><span>Split Load</span><small>Hard</small></div><div class="random-choice">or a random pick</div></div>
-          </div>
-          <article class="problem-copy blueprint-copy" data-reveal><h3>Pick the challenge.</h3><p>Select a specific problem, or choose Random across one or more difficulties. The random problem stays hidden until the match starts.</p><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">↗</span></a></article>
-          <article class="rules-copy blueprint-copy" data-reveal><h3>Set the ground rules.</h3><p>Choose how copy/paste and leaving the window are handled: allow it, warn the player, or announce it to the lobby.</p><p class="secondary-copy">Everyone sees the rules before the match begins.</p></article>
-          <div class="rules-visual blueprint-visual" aria-hidden="true" data-reveal><div class="rule-sheet"><div class="rule-row"><span>Copy / paste</span><span class="rule-policy">Warning</span></div><div class="rule-row"><span>Leaving the window</span><span class="rule-policy">Announce</span></div><div class="rule-connection"></div><div class="rule-notice"><span class="notice-dot"></span>Lobby notice</div></div></div>
+      <section class="feature-section page-width" id="matches" aria-labelledby="matches-title">
+        <div class="feature-heading" data-reveal><h2 id="matches-title">From invitation<br />to first submission.</h2><p>Choose a problem, set the time,<br />and send the link.</p></div>
+        <div class="feature-grid">
+          <article class="feature-panel lobby-panel" data-reveal>
+            <div class="feature-copy"><h3>Set the match rules.</h3><p>Pick the challenge and decide how copy/paste and leaving the window are handled.</p></div>
+            <div class="lobby-stage"><ProductPreview alt="Example Free-for-all lobby showing the shared problem, duration, players and host rules." /></div>
+          </article>
+          <article class="feature-panel challenge-panel" data-reveal>
+            <div class="feature-copy"><h3>Pick a problem.<br />Or leave it to chance.</h3><p>Choose a difficulty. Random problems stay hidden until the match starts.</p></div>
+            <div class="challenge-stack" aria-hidden="true"><div class="challenge-card card-back"><span>Hard</span><strong>Split Load</strong></div><div class="challenge-card card-middle"><span>Medium</span><strong>Level Spreads</strong></div><div class="challenge-card card-front"><span>Easy</span><strong>Run Widths</strong><div class="challenge-code"><i>[</i> 2, 2, 3, 3, 3, 1 <i>]</i></div><div class="challenge-answer">[ 2, 3, 1 ] <span>✓</span></div></div></div>
+            <a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
+          </article>
+          <article class="feature-panel editor-panel" data-reveal>
+            <div class="feature-copy"><h3>Write and test your solution.</h3><p>Write your solution, try your own cases, then submit when you’re ready.</p></div>
+            <div class="editor-stage"><EditorPreview client:visible /><noscript><p>Open practice to try the editor.</p></noscript></div>
+          </article>
+          <article class="feature-panel verdict-panel" data-reveal>
+            <div class="verdict-art" aria-hidden="true"><div class="verdict-lines">{Array.from({length: 12}, (_, i) => <span style={`--line: ${i}`} />)}</div><div class="verdict-stamp"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg></div></div>
+            <div class="feature-copy"><h3>Submissions decide the winner.</h3><p>Submissions decide the match. Test runs are yours to experiment with.</p></div>
+          </article>
         </div>
       </section>
-      <section class="race-section page-width" aria-labelledby="race-title" data-reveal>
-        <h2 id="race-title">Same challenge.<br /><span>Independent solutions.</span></h2>
-        <div class="race-copy"><p>Each player writes their own solution. Only submissions count toward the match; test runs are yours to experiment with.</p><p>The first correct submission wins. At the deadline, the highest passed test count decides. Equal scores draw.</p></div>
-      </section>
-      <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Bring your<br />next challenge.</h2><div class="closing-actions"><a class="button primary-button" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a><a class="quiet-link" href="/practice">Browse practice <span aria-hidden="true">→</span></a></div></section>
+      <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Invite your friends.<br />Pick a problem.</h2><div class="closing-actions"><a class="button primary-button" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a><a class="quiet-link" href="/practice">Browse practice <span aria-hidden="true">→</span></a></div></section>
     </main>
     <footer class="site-footer page-width" data-reveal><a class="brand-logo" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a><span>Private coding matches and practice.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
       <button class="theme-switch" type="button" aria-label="Switch to dark theme" title="Switch theme">

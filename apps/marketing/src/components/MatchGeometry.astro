@@ -1,0 +1,20 @@
+---
+interface Props { variant: "duel" | "group" }
+const { variant } = Astro.props;
+const tiles = variant === "duel"
+  ? [{ x: 80, y: 120 }, { x: 260, y: 120 }]
+  : [{ x: 170, y: 70 }, { x: 80, y: 120 }, { x: 260, y: 120 }, { x: 170, y: 170 }];
+---
+<div class={`match-geometry geometry-${variant}`} aria-hidden="true">
+  <svg viewBox="0 0 520 320" fill="none">
+    <path class="geometry-guide" d="M40 200 260 80l220 120-220 120Z M260 80V20 M40 200v-60 M480 200v-60" />
+    {tiles.map(({x,y}, index) => <g class="geometry-tile" style={`--tile: ${index}`}>
+      <path class="geometry-base" d={`M${x} ${y+40}l90-50 90 50v42l-90 50-90-50Z`} />
+      <path class="geometry-edge" d={`M${x} ${y+40}l90 50 90-50 M${x+90} ${y+90}v42`} />
+      <path class="geometry-top" d={`M${x} ${y}l90-50 90 50v18l-90 50-90-50Z`} />
+      <path class="geometry-edge" d={`M${x} ${y}l90 50 90-50 M${x+90} ${y+50}v18`} />
+      <path class="geometry-code" d={`m${x+65} ${y-5}-15 9 15 9 m50-18 15 9-15 9 m-19-24-12 30`} />
+    </g>)}
+    <path class="geometry-guide" d="M260 260v35 M215 270l45 25 45-25" />
+  </svg>
+</div>

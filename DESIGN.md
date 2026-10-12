@@ -169,7 +169,9 @@ Global navigation shares one 48px row across practice, invitations and lobbies: 
 
 ## Marketing and discovery
 
-Marketing leads with private competitive matches, not editor capabilities. Raycast's "Build the perfect tools" section supplies the visual direction: thin ruled grids, large quiet type, alternating wide visual/narrow copy cells. The mode overview follows the hero as a compact text row, without diagrams. Preserve the flowing asymmetric composition and open spacing from personal-website /mac and CUXR. Factual feature descriptions, no invented testimonials or adoption metrics. Geist section display 56–112px, section headings 36–64px, max width 1280px, section spacing 80–128px, existing neutral/blue palette and 10px radius. Paired actual light/dark lobby captures follow the active theme. Below 700px use a dedicated portrait capture of the responsive lobby; all images fit their container at natural aspect ratio, with no fixed minimum width, arbitrary zoom or horizontal image scrolling. Surgical 560ms, 16px reveal motion; reduced-motion shows content without transforms.
+Marketing leads with private coding matches. Linear's fine isometric linework and Supabase's asymmetric product surfaces inform illustrations of shared problems, independent solutions and test results. Ramp and Raycast inform generous spacing and isolated product detail. Use factual headings and compact descriptions, no slogans, fabricated metrics or decorative figure numbering. Geist display 56–112px, headings 36–64px; width 1280px, section spacing 80–128px. Two open mode illustrations precede an asymmetric feature composition. Product surfaces use 16px corners, 32–48px internal space and soft layered shadows; workspace styling remains unchanged. The live editor preview imports the React app's PythonEditor as a visible-only Astro island; code edits stay in memory and make no backend requests. Actual lobby captures remain static, at natural aspect ratio, with paired themes and portrait sources below 700px.
+
+Marketing depth tokens: illustration stroke mixes text at 35 percent with border; faint geometry uses border. Product shadow light: 0 2px 4px text at 4 percent, 0 24px 64px text at 10 percent; dark: 0 2px 4px black at 12 percent, 0 24px 64px black at 24 percent. Recessed backdrop uses surface/overlay tonal changes and a soft radial white highlight (4 percent dark, 60 percent light). No saturated glow. Feature gap 20px, illustration stage 260px. Hover lifts illustrative layers by 4px over 180ms; reduced motion removes displacement.
 
 Workspace navigation uses a generic menu button and profile icon/popover. Marketing uses expanded Practice/Create match links, collapsing into a hamburger when the header has less than 440px of usable width. Login occupies the right edge, disabled until authentication is implemented; theme switching lives in the footer. Marketing copy describes coding generally rather than positioning the product around a single language. Create match appears only outside match/invite screens. Practice discovery uses compact searchable rows with difficulty/topic filters and accessible title/difficulty sorting; no synthetic solved statuses. Homepage /, catalog /practice, problem /practice/{slug}, competitive workspace /match/{id}.
 
@@ -179,15 +181,15 @@ Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha boun
 
 ### Marketing hero
 
-Architecture B, asymmetric split. Left-aligned three-line Barlow Condensed 800 headline reads Code. Clash. Conquer.; a vertically offset match illustration makes the mechanics visible. Inspired by Notion's playful product storytelling and Stripe's purposeful visual atmosphere, adapted to Quorem's pixel mark and neutral/blue palette. One Create match CTA. Mode summaries follow the viewport.
+Asymmetric split. Left-aligned Geist headline reads Coding matches. With your friends. A vertically offset match illustration explains the mechanics. One Create match CTA. Blue is reserved for actions and meaningful score progress.
 
 | Hero token | Value |
 | --- | --- |
-| display | clamp(80px, 10vw, 144px) |
-| mobile-display | clamp(72px, 18vw, 100px) |
-| display-weight | 800 |
-| display-leading | 0.88 |
-| display-tracking | -0.025em |
+| display | clamp(52px, 5.4vw, 80px) |
+| mobile-display | clamp(44px, 9vw, 64px) |
+| display-weight | 550 |
+| display-leading | 1.06 |
+| display-tracking | -0.06em |
 | header-height | 100px; below 700px 80px |
 | content-gap | clamp(32px, 4vw, 56px) |
 | viewport-padding | clamp(32px, 5vw, 64px) |
@@ -195,14 +197,12 @@ Architecture B, asymmetric split. Left-aligned three-line Barlow Condensed 800 h
 | scene-width | 480px |
 | scene-offset | 88px |
 | scene-radius | 16px |
-| scene-shadow | 0 24px 80px neutral text at 8 percent opacity |
+| scene-shadow | marketing depth token |
 | atmosphere | 12px Swiss dot grid; 2.25px neutral dots, top fade, slow opacity waves |
 | entry-easing | cubic-bezier(0.16, 1, 0.3, 1) |
 | entry-duration | 440ms |
 | entry-stagger | 0/100/220/340ms, completes at 780ms |
 
 The illustration is an example, never a live match or adoption claim. Two player tracks show submitted passed-test counts; Jamie's first correct submission ends the match. One 8.8-second example types code, advances submitted-score bars and ends with Jamie winning. Pause/resume/replay uses a 44px icon control. The visible-time clock pauses offscreen and in hidden tabs. Use opacity/transform only. Reduced motion shows the final scene immediately. Below 1000px the scene moves beneath copy; below 768px heading lines wrap naturally and the scene simplifies its spacing. Preserve 44px targets, theme contrast and no horizontal overflow. All desktop hero content fits at 1440x900, including navigation.
-
-Battle headline: Clash is a blue interactive word with angular crossed swords and a diagonal split through its letters. On entry, hover or activation, blades swing from ±75° through ±36° and settle at ±43° in 680ms. The word separates by 5px at contact; a brief radial spark and slash identify impact. One snappy spring curve, inherited from marketing motion; bounded fine-pointer tilt (8px, 4°), no looping or sound. Native button supports touch and keyboard. Reduced motion cancels the clash and pointer tilt, retaining the swords and readable text. Mobile battle display: clamp(72px, 18vw, 100px). Self-host the upright Latin Barlow Condensed 800 display face; uppercase headline, square-ended lettering, no italic or serif variants. Geist remains the body/interface family. Code/Conquer retain solid neutral text; Clash supplies the sole accent. Match playback and headline use no new runtime dependencies.
 
 Hero Swiss dots follow Ramp’s spring-grid treatment: 150px cursor repulsion, damped return and expanding click ripples. Canvas has no pointer capture; controls keep their native interactions. Offscreen/hidden tabs suspend drawing; reduced motion keeps a static grid.
