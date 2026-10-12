@@ -58,22 +58,22 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
       </div>
     </header>
     <main id="main">
-      <section class="hero page-width" aria-labelledby="hero-title">
-        <div class="hero-top">
-          <h1 id="hero-title" data-reveal>Private coding<br /><span>matches.</span></h1>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-top page-width">
+          <h1 id="hero-title" data-reveal><span>Private coding</span> <span>matches.</span></h1>
           <div class="hero-intro" data-reveal>
-            <p>Showdown for two. Free-for-all for a group. Choose a problem, share the invitation, and race for the first correct solution.</p>
-            <div class="hero-actions"><a class="button primary-button" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a><a class="quiet-link" href="/practice">Practice first <span aria-hidden="true">→</span></a></div>
+            <p>Choose a problem, invite your friends, and compete for the first correct solution.</p>
+            <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
           </div>
         </div>
-        <div class="mode-showcase" data-reveal>
-          <article class="mode-preview">
-            <div><h2>Showdown</h2><p>One opponent. One shared problem.</p></div><span class="mode-size">1 v 1</span>
-          </article>
-          <article class="mode-preview">
-            <div><h2>Free-for-all</h2><p>Bring a group into the same race.</p></div><span class="mode-size">2–8 players</span>
-          </article>
-        </div>
+      </section>
+      <section class="mode-showcase page-width" aria-label="Match modes" data-reveal>
+        <article class="mode-preview">
+          <div><h2>Showdown</h2><p>One opponent. One shared problem.</p></div><span class="mode-size">1 v 1</span>
+        </article>
+        <article class="mode-preview">
+          <div><h2>Free-for-all</h2><p>Bring a group into the same race.</p></div><span class="mode-size">2–8 players</span>
+        </article>
       </section>
       <section class="match-blueprint page-width" id="matches" aria-labelledby="matches-title">
         <div class="blueprint-grid">

@@ -169,10 +169,32 @@ Global navigation shares one 48px row across practice, invitations and lobbies: 
 
 ## Marketing and discovery
 
-Marketing leads with private competitive matches, not editor capabilities. Raycast's "Build the perfect tools" section supplies the visual direction: thin ruled grids, large quiet type, alternating wide visual/narrow copy cells. The hero mode overview is a compact text row, without diagrams. Preserve the flowing asymmetric composition and open spacing from personal-website /mac and CUXR. Factual feature descriptions, no invented testimonials or adoption metrics. Geist display 56–112px, section headings 36–64px, max width 1280px, section spacing 80–128px, existing neutral/blue palette and 10px radius. Paired actual light/dark lobby captures follow the active theme. Below 700px use a dedicated portrait capture of the responsive lobby; all images fit their container at natural aspect ratio, with no fixed minimum width, arbitrary zoom or horizontal image scrolling. Surgical 560ms, 16px reveal motion; reduced-motion shows content without transforms.
+Marketing leads with private competitive matches, not editor capabilities. Raycast's "Build the perfect tools" section supplies the visual direction: thin ruled grids, large quiet type, alternating wide visual/narrow copy cells. The mode overview follows the hero as a compact text row, without diagrams. Preserve the flowing asymmetric composition and open spacing from personal-website /mac and CUXR. Factual feature descriptions, no invented testimonials or adoption metrics. Geist section display 56–112px, section headings 36–64px, max width 1280px, section spacing 80–128px, existing neutral/blue palette and 10px radius. Paired actual light/dark lobby captures follow the active theme. Below 700px use a dedicated portrait capture of the responsive lobby; all images fit their container at natural aspect ratio, with no fixed minimum width, arbitrary zoom or horizontal image scrolling. Surgical 560ms, 16px reveal motion; reduced-motion shows content without transforms.
 
 Workspace navigation uses a generic menu button and profile icon/popover. Marketing uses expanded Practice/Create match links, collapsing into a hamburger when the header has less than 440px of usable width. Login occupies the right edge, disabled until authentication is implemented; theme switching lives in the footer. Marketing copy describes coding generally rather than positioning the product around a single language. Create match appears only outside match/invite screens. Practice discovery uses compact searchable rows with difficulty/topic filters and accessible title/difficulty sorting; no synthetic solved statuses. Homepage /, catalog /practice, problem /practice/{slug}, competitive workspace /match/{id}.
 
 ### Pixel brand mark
 
 Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha bounds. Preserve its pixels and transparent holes; scale with nearest-neighbor or crisp SVG paths. Visible brand links show only the pixel mark, inheriting text color through an SVG mask. Favicons switch all fallback formats between black/white with page theme. Platform icons use neutral square canvases, with dedicated maskable safe-area spacing.
+
+### Marketing hero
+
+Architecture D, typographic poster. A single two-line Geist heading anchors an open viewport; its second line aligns right. Supporting factual copy (maximum 20 words) and one Create match pill sit beneath, separated across the width. Mode summaries begin after the first viewport. Navigation remains compact and unchanged.
+
+| Hero token | Value |
+| --- | --- |
+| display | clamp(64px, 11.6vw, 168px) |
+| mobile-display | clamp(44px, 11vw, 84px) |
+| display-weight | 550; second line 400 |
+| display-leading | 0.94 |
+| display-tracking | -0.065em |
+| header-height | 100px; below 700px 80px |
+| content-gap | clamp(40px, 6vw, 80px) |
+| viewport-padding | clamp(32px, 5vw, 64px) |
+| support-width | 38ch |
+| atmosphere | radial neutral surface tint at 72% 35%, transparent at 65% |
+| entry-easing | cubic-bezier(0.16, 1, 0.3, 1) |
+| entry-duration | 440ms |
+| entry-stagger | 0/100/220/340ms, completes at 780ms |
+
+Use existing neutral and blue action tokens in both themes. Hero fills at least 100dvh including navigation, with all content visible at 1440x900. Below 768px, heading lines align left and supporting copy/action stack; preserve 44px targets and no horizontal overflow. Entry uses opacity/transform only; reduced motion shows everything immediately.

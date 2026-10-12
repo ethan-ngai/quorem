@@ -6,6 +6,12 @@
   --marketing-section: clamp(80px, 10vw, 128px);
   --marketing-spring: linear(0, 0.18 8%, 0.55 20%, 0.84 35%, 1.015 58%, 1.005 78%, 1);
   --marketing-reveal: 560ms;
+  --hero-display: clamp(64px, 11.6vw, 168px);
+  --hero-header-height: 100px;
+  --hero-gap: clamp(40px, 6vw, 80px);
+  --hero-padding: clamp(32px, 5vw, 64px);
+  --hero-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --hero-entry: 440ms;
 }
 * {
   box-sizing: border-box;
@@ -88,7 +94,7 @@ summary:focus-visible {
   container-type: inline-size;
   position: relative;
   z-index: 2;
-  min-height: 100px;
+  min-height: var(--hero-header-height);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -219,29 +225,68 @@ summary:focus-visible {
   transition: background-color var(--motion-fast) var(--motion-easing);
 }
 .hero {
-  padding-top: clamp(48px, 7vw, 104px);
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  margin-top: calc(-1 * var(--hero-header-height));
+  padding-block: calc(var(--hero-header-height) + var(--hero-padding)) var(--hero-padding);
+  display: grid;
+  align-items: center;
+  overflow-x: clip;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse at 72% 35%, var(--color-surface), transparent 65%);
+  pointer-events: none;
 }
 .hero-top {
-  text-align: center;
+  display: grid;
+  gap: var(--hero-gap);
+}
+.hero h1 {
+  font-size: var(--hero-display);
+  font-weight: 550;
+  line-height: 0.94;
+  letter-spacing: -0.065em;
 }
 .hero h1 span {
-  color: var(--color-text-secondary);
+  display: block;
+}
+.hero h1 span + span {
+  text-align: right;
+  font-weight: 400;
 }
 .hero-intro {
-  max-width: 53ch;
-  margin: 28px auto 0;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 32px;
+}
+.hero-intro p {
+  max-width: 38ch;
+  font-size: clamp(16px, 1.25vw, 20px);
 }
 .hero-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 28px;
-  margin-top: 28px;
+  flex-shrink: 0;
+}
+.hero-cta {
+  min-height: 52px;
+  padding-inline: 28px;
+  border-radius: 9999px;
+  transition:
+    transform 500ms var(--hero-easing),
+    background-color 500ms var(--hero-easing);
+}
+.hero-cta:active {
+  transform: translateY(0) scale(0.98);
 }
 .mode-showcase {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 64px;
+  margin-top: 0;
   border-block: 1px solid var(--color-border);
 }
 .mode-preview {
@@ -528,7 +573,7 @@ summary:focus-visible {
   .quiet-link:hover span {
     transform: translateX(3px);
   }
-  .button:hover {
+  .button:hover:not(:active) {
     transform: translateY(-2px);
     background: var(--color-overlay);
   }
@@ -576,21 +621,26 @@ summary:focus-visible {
     gap: 32px;
   }
 }
-@media (max-width: 700px) {
-  .site-header {
-    min-height: 80px;
+@media (max-width: 767px) {
+  .hero h1 {
+    font-size: clamp(44px, 11vw, 84px);
   }
-  .hero-intro {
+  .hero h1 span + span {
     text-align: left;
   }
-  .hero-actions {
-    justify-content: start;
-    gap: 20px;
-    flex-wrap: wrap;
+  .hero-intro {
+    flex-direction: column;
+    align-items: start;
+    gap: 24px;
+  }
+}
+@media (max-width: 700px) {
+  :root {
+    --hero-header-height: 80px;
   }
   .mode-showcase {
     grid-template-columns: 1fr;
-    margin-top: 48px;
+    margin-top: 0;
   }
   .mode-preview {
     padding: 16px 0 24px;
@@ -656,15 +706,18 @@ summary:focus-visible {
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .site-header,
+  .hero::before,
+  .site-header {
+    animation: marketing-enter var(--hero-entry) var(--hero-easing) both;
+  }
   .hero-top h1 {
-    animation: marketing-enter 560ms var(--marketing-spring) both;
+    animation: marketing-enter var(--hero-entry) var(--hero-easing) 100ms both;
   }
-  .hero-intro {
-    animation: marketing-enter 560ms var(--marketing-spring) 80ms both;
+  .hero-intro p {
+    animation: marketing-enter var(--hero-entry) var(--hero-easing) 220ms both;
   }
-  .mode-showcase {
-    animation: marketing-enter 560ms var(--marketing-spring) 160ms both;
+  .hero-actions {
+    animation: marketing-enter var(--hero-entry) var(--hero-easing) 340ms both;
   }
   .site-menu[open] nav {
     animation: marketing-popover 180ms var(--marketing-spring);
