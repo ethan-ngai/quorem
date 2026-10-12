@@ -2902,67 +2902,205 @@ summary:focus-visible {
 }
 #upcoming .social-preview-stage,
 #upcoming .adaptive-preview-stage {
-  height: 420px;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+  height: auto;
   min-height: 0;
-  padding: 0;
-  overflow: clip;
-  mask-image: linear-gradient(black 90%, transparent);
+  padding: 16px 40px 56px 0;
+  overflow: visible;
+  mask-image: none;
 }
 #upcoming .social-product,
 #upcoming .adaptive-product {
-  position: absolute;
-  left: 25%;
-  top: 56px;
-  width: max(600px, 75%);
-  opacity: 0.55;
-  mask-image: linear-gradient(90deg, black 30%, transparent 100%);
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  left: auto;
+  top: auto;
+  width: 100%;
+  min-width: 0;
+  margin-top: 40px;
+  opacity: 1;
+  mask-image: none;
+  overflow: visible;
+  background: var(--color-field);
+  box-shadow: inset 0 1px var(--surface-light);
+}
+/* Reserve empty gutters for fading so verdicts and scores stay fully visible. */
+#upcoming .social-product,
+#upcoming .adaptive-product {
+  --preview-edge: clamp(32px, 6vw, 96px);
+  margin-left: -48px;
+  width: calc(100% + 48px);
+  padding-left: 48px;
+  padding-right: var(--preview-edge);
+  padding-bottom: 48px;
+  mask-image:
+    linear-gradient(90deg, black calc(100% - var(--preview-edge)), transparent),
+    linear-gradient(black calc(100% - 48px), transparent);
+  mask-composite: intersect;
 }
 #upcoming .social-product::after {
   display: none;
 }
 #upcoming .rival-product,
 #upcoming .recommendation-card {
-  position: absolute;
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
   z-index: 2;
-  left: 0;
+  left: auto;
   right: auto;
-  top: 16px;
+  top: auto;
   bottom: auto;
-  width: 340px;
+  width: 100%;
+  min-width: 0;
   margin: 0;
+  padding: 24px;
   background: var(--color-field);
   box-shadow:
-    0 16px 40px var(--surface-shade),
+    0 12px 28px var(--surface-shade),
     inset 0 1px var(--surface-light);
-}
-#upcoming .rival-product {
-  padding: 24px;
 }
 #upcoming .rival-score {
   margin-block: 28px;
 }
-#upcoming .recommendation-card {
-  padding: 24px;
-}
 #upcoming .performance-history {
+  padding: 20px;
   background: transparent;
 }
 #upcoming .performance-history > div {
   max-width: 560px;
+  gap: 0;
 }
 #upcoming .performance-history > div > span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
   padding: 12px 0;
   border-bottom: 1px solid var(--color-border);
-  gap: 16px;
+  gap: 4px 12px;
 }
 #upcoming .performance-history small {
-  margin-left: auto;
+  grid-column: 1;
+  grid-row: 2;
   font-size: 10px;
   color: var(--color-text-secondary);
+}
+#upcoming .performance-history i {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+}
+#upcoming .leaderboard-table,
+#upcoming .leaderboard-header {
+  max-width: 680px;
 }
 #upcoming .history-focus {
   color: var(--color-text);
   background: var(--color-overlay);
+}
+.recommendation-context {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.recommendation-context strong {
+  color: var(--color-text);
+  font-weight: 500;
+}
+.recommendation-context .missed-verdict {
+  color: var(--color-error);
+}
+@media (max-width: 1000px) {
+  #upcoming .social-preview-stage,
+  #upcoming .adaptive-preview-stage {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 16px;
+    padding-right: 32px;
+  }
+  #upcoming .rival-product,
+  #upcoming .recommendation-card {
+    padding: 20px;
+  }
+  #upcoming .leaderboard-row {
+    grid-template-columns: 28px minmax(0, 1fr) 32px 36px;
+    gap: 8px;
+    padding-inline: 12px;
+  }
+  #upcoming .leaderboard-player {
+    gap: 8px;
+  }
+  #upcoming .leaderboard-player small {
+    display: none;
+  }
+  #upcoming .leaderboard-player .product-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 9px;
+  }
+  #upcoming .leaderboard-header {
+    padding-inline: 12px;
+  }
+  #upcoming .product-topbar,
+  #upcoming .product-tabs {
+    padding-inline: 12px;
+  }
+}
+@media (max-width: 620px) {
+  #upcoming .social-preview-stage,
+  #upcoming .adaptive-preview-stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-right: 24px;
+  }
+  #upcoming .rival-product,
+  #upcoming .recommendation-card {
+    width: 94%;
+  }
+  #upcoming .social-product,
+  #upcoming .adaptive-product {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+    width: 94%;
+    margin-top: -12px;
+    margin-left: 0;
+    padding-left: 0;
+    padding-top: 24px;
+  }
+  #upcoming .rival-product {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+  #upcoming .rival-score {
+    margin: 0;
+  }
+  #upcoming .rival-score strong {
+    font-size: 24px;
+  }
+  #upcoming .rival-swords {
+    display: none;
+  }
+  #upcoming .rival-balance,
+  #upcoming .rival-history {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+  #upcoming .recommendation-example {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 12px;
+  }
+  #upcoming .performance-history > div > span {
+    padding-block: 8px;
+  }
 }
 .site-footer {
   display: grid;
@@ -2996,19 +3134,6 @@ summary:focus-visible {
     grid-template-columns: 1fr;
     gap: 16px;
   }
-  #upcoming .social-preview-stage,
-  #upcoming .adaptive-preview-stage {
-    height: 410px;
-  }
-  #upcoming .rival-product,
-  #upcoming .recommendation-card {
-    width: min(320px, 76%);
-    padding: 20px;
-  }
-  #upcoming .social-product,
-  #upcoming .adaptive-product {
-    left: 34%;
-  }
 }
 @media (max-width: 500px) {
   .site-footer {
@@ -3021,21 +3146,11 @@ summary:focus-visible {
   .footer-brand {
     order: 1;
   }
-  #upcoming .rival-product,
-  #upcoming .recommendation-card {
-    width: 86%;
-  }
   #upcoming .feature-copy h3 {
     font-size: 28px;
   }
 }
 
-#upcoming .adaptive-product .performance-history {
-  padding-left: 180px;
-}
-#upcoming .adaptive-product {
-  opacity: 0.7;
-}
 .footer-utilities {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px;
