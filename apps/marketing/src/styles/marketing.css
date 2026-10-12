@@ -156,7 +156,7 @@ summary:focus-visible {
     transform var(--motion-standard) var(--motion-easing),
     background-color var(--motion-standard) var(--motion-easing);
 }
-.button:active {
+.button:active:not(:disabled):not([aria-disabled="true"]) {
   transform: scale(0.98);
 }
 .nav-button {
@@ -1129,13 +1129,17 @@ summary:focus-visible {
   .quiet-link:hover span {
     transform: translateX(3px);
   }
-  .button:hover:not(:active) {
+  .button:hover:not(:active):not(:disabled):not([aria-disabled="true"]) {
     transform: translateY(-2px);
   }
-  .button:not(.primary-button):not(.button-primary):hover:not(:active) {
+  .button:not(.primary-button):not(.button-primary):hover:not(:active):not(:disabled):not(
+      [aria-disabled="true"]
+    ) {
     background: var(--color-overlay);
   }
-  .button:is(.primary-button, .button-primary):hover:not(:active) {
+  .button:is(.primary-button, .button-primary):hover:not(:active):not(:disabled):not(
+      [aria-disabled="true"]
+    ) {
     background: color-mix(in oklch, var(--color-primary) 92%, white);
     color: var(--color-on-primary);
     filter: none;
@@ -3247,4 +3251,15 @@ summary:focus-visible {
     color-mix(in oklch, var(--marketing-highlight) 45%, transparent),
     transparent 55%
   );
+}
+
+.button,
+.workspace-demo .button {
+  transition:
+    transform 240ms var(--hero-easing),
+    background-color var(--motion-standard) var(--motion-easing),
+    color var(--motion-standard) var(--motion-easing);
+}
+.button:is(:disabled, [aria-disabled="true"]) {
+  transform: none;
 }

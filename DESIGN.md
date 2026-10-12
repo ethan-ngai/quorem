@@ -232,3 +232,5 @@ Mode hover motion: a bounded mechanic-specific sequence per card (duel tick race
 Coming soon previews follow a layered wide composition: a clear rival/recommendation panel at left, larger dimmed leaderboard/performance surface behind, and right/bottom masks. Keep reflected light restrained; no glowing stage. Header copy aligns in two columns on desktop. Hover sequences explicitly show service failure before rerouting, failed → running → passing tests, and party signals converging on the arena. Footer spreads Play/Explore across a dedicated half-width grid; theme control belongs with copyright/All rights reserved. Primary hover retains a blue fill through a specific selector.
 
 Editor/lobby walkthrough previews receive a subtle top spotlight, reflected rim and diffuse shadow. Primary hover styling covers both marketing and workspace button variants; neutral hover backgrounds never override blue fills.
+
+Marketing button lift and return use 240ms hero easing. Disabled and aria-disabled controls remain stationary, with no hover fill or press transform. Reduced motion disables transitions.
