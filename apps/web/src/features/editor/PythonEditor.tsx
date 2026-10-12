@@ -52,6 +52,7 @@ type PythonEditorProps = {
   fontSize: number;
   tabSize: 2 | 4;
   wrap: boolean;
+  readOnly?: boolean;
   intelligenceExtensions?: Extension[];
   onSourceChange: (source: string) => void;
 };
@@ -99,9 +100,11 @@ const baseExtensions: Extension[] = [
 ];
 
 /** Reconfigures editor display preferences without resetting history. */
-function editorPreferences(fontSize: number, tabSize: 2 | 4, wrap: boolean) {
+function editorPreferences(fontSize: number, tabSize: 2 | 4, wrap: boolean, readOnly: boolean) {
   return [
     EditorState.tabSize.of(tabSize),
+    EditorState.readOnly.of(readOnly),
+    EditorView.editable.of(!readOnly),
     indentUnit.of(" ".repeat(tabSize)),
     EditorView.theme({
       "&": { fontSize: `${fontSize}px` },
@@ -123,6 +126,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
     fontSize,
     tabSize,
     wrap,
+    readOnly = false,
     intelligenceExtensions = emptyExtensions,
     onSourceChange,
   },
@@ -171,7 +175,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
             if (update.docChanged) callbackRef.current(update.state.doc.toString());
           }),
           themeSlot.current.of(editorColorTheme(colorScheme, theme)),
-          preferencesSlot.current.of(editorPreferences(fontSize, tabSize, wrap)),
+          preferencesSlot.current.of(editorPreferences(fontSize, tabSize, wrap, readOnly)),
           intelligenceSlot.current.of(intelligenceExtensions),
           editorDocumentUri.of(documentUri),
         ],
@@ -194,9 +198,11 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: preferencesSlot.current.reconfigure(editorPreferences(fontSize, tabSize, wrap)),
+      effects: preferencesSlot.current.reconfigure(
+        editorPreferences(fontSize, tabSize, wrap, readOnly),
+      ),
     });
-  }, [fontSize, tabSize, wrap]);
+  }, [fontSize, tabSize, wrap, readOnly]);
 
   useEffect(() => {
     const view = viewRef.current;

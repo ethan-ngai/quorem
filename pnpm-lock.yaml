@@ -207,6 +207,9 @@ importers:
       '@fontsource/jetbrains-mono':
         specifier: 5.2.6
         version: 5.2.6
+      '@quorem/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@quorem/ui':
         specifier: workspace:*
         version: link:../../packages/ui

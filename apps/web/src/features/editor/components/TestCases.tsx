@@ -21,6 +21,7 @@ export function TestCases({
   onDraftsChange,
   submission,
   snapshot,
+  selectedSampleIndex,
 }: {
   problem: ProblemVersion;
   customMode: boolean;
@@ -28,6 +29,7 @@ export function TestCases({
   onDraftsChange: (drafts: CustomCaseDraft[]) => void;
   submission?: Submission;
   snapshot?: RunSnapshot;
+  selectedSampleIndex?: number;
 }) {
   const hiddenCases =
     !customMode && submission?.kind === "submit" && submission.state === "completed"
@@ -41,7 +43,7 @@ export function TestCases({
       ? submission.publicCases
       : undefined;
   const sampleIndex = Math.min(
-    selectedSample,
+    selectedSampleIndex ?? selectedSample,
     Math.max(0, (hiddenCases?.length ?? recoveredCases?.length ?? problem.examples.length) - 1),
   );
   const customIndex = Math.max(

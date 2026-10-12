@@ -2,8 +2,10 @@
 import "@fontsource-variable/geist";
 import "@quorem/ui/theme.css";
 import "../styles/marketing.css";
-import ProductPreview from "../components/ProductPreview.astro";
-import MatchScene from "../components/MatchScene.astro";
+import workspaceStyles from "../../../web/src/styles/workspace.css?inline";
+import LobbyPreview from "../components/LobbyPreview";
+import SubmissionPreview from "../components/SubmissionPreview";
+import ProblemCards from "../components/ProblemCards.astro";
 import HeroDots from "../components/HeroDots.astro";
 import BattleHeadline from "../components/BattleHeadline.astro";
 import UpcomingModeIllustration from "../components/UpcomingModeIllustration.astro";
@@ -41,6 +43,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={socialImage} />
     <meta name="twitter:image:alt" content="Quorem pixel logo — private coding matches and practice." />
+    <style is:inline set:html={`@scope (.workspace-demo) { ${workspaceStyles} }`} />
     <title>Quorem — Private coding matches</title>
     <script is:inline>
       (() => {
@@ -76,7 +79,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
             <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
           </div>
           </div>
-          <MatchScene />
+          <div class="hero-workspace"><EditorPreview variant="hero" client:visible /><p class="preview-caption">Example Showdown match</p></div>
         </div>
       </section>
       <section class="mode-showcase page-width" aria-label="Match modes" data-reveal>
@@ -110,11 +113,11 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
         <div class="feature-grid">
           <article class="feature-panel lobby-panel" data-reveal>
             <div class="feature-copy"><h3>Set the match rules.</h3><p>Pick the challenge and decide how copy/paste and leaving the window are handled.</p></div>
-            <div class="lobby-stage"><ProductPreview alt="Example Free-for-all lobby showing the shared problem, duration, players and host rules." /></div>
+            <div class="lobby-stage"><LobbyPreview /></div>
           </article>
           <article class="feature-panel challenge-panel" data-reveal>
             <div class="feature-copy"><h3>Pick a problem.<br />Or leave it to chance.</h3><p>Choose a difficulty. Random problems stay hidden until the match starts.</p></div>
-            <div class="challenge-stack" aria-hidden="true"><div class="challenge-card card-back"><span>Hard</span><strong>Split Load</strong></div><div class="challenge-card card-middle"><span>Medium</span><strong>Level Spreads</strong></div><div class="challenge-card card-front"><span>Easy</span><strong>Run Widths</strong><div class="challenge-code"><i>[</i> 2, 2, 3, 3, 3, 1 <i>]</i></div><div class="challenge-answer">[ 2, 3, 1 ] <span>✓</span></div></div></div>
+            <ProblemCards />
             <a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
           </article>
           <article class="feature-panel editor-panel" data-reveal>
@@ -122,8 +125,8 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
             <div class="editor-stage"><EditorPreview client:visible /><noscript><p>Open practice to try the editor.</p></noscript></div>
           </article>
           <article class="feature-panel verdict-panel" data-reveal>
-            <div class="verdict-art" aria-hidden="true"><div class="verdict-lines">{Array.from({length: 12}, (_, i) => <span style={`--line: ${i}`} />)}</div><div class="verdict-stamp"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg></div></div>
-            <div class="feature-copy"><h3>Submissions decide the winner.</h3><p>Submissions decide the match. Test runs are yours to experiment with.</p></div>
+            <div class="feature-copy"><h3>Submissions decide the winner.</h3><p>Submit your solution. The first correct submission wins.</p></div>
+            <SubmissionPreview client:visible />
           </article>
         </div>
       </section>

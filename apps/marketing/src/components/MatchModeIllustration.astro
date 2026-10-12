@@ -8,15 +8,15 @@ const players = [
   { name: "Riley", passed: 17 },
 ];
 const description = variant === "duel"
-  ? "Example Showdown: Alex and Jamie solve Run Widths independently. Alex submits 14 of 20 tests passed; Jamie submits the first correct solution and wins."
-  : "Example Free-for-all: Alex, Jamie, Sam and Riley solve Run Widths independently. Jamie submits the first correct solution and wins the group match.";
+  ? "Example Showdown: Alex and Jamie solve Two Sum independently. Alex submits 14 of 20 tests passed; Jamie submits the first correct solution and wins."
+  : "Example Free-for-all: Alex, Jamie, Sam and Riley solve Subsets independently. Jamie submits the first correct solution and wins the group match.";
 ---
 <figure class={`match-mode-art mode-art-${variant}`} role="img" aria-label={description}>
   <svg viewBox="0 0 520 320" fill="none" aria-hidden="true">
     <g class="mode-problem">
       <rect x="177" y="16" width="166" height="40" rx="8" />
       <path d="m197 31-5 5 5 5m13-10 5 5-5 5m-7-12-3 14" />
-      <text x="230" y="41">Run Widths</text>
+      <text x="230" y="41">{variant === "duel" ? "Two Sum" : "Subsets"}</text>
     </g>
     {variant === "duel" ? <>
       <path class="mode-connector" d="M260 56v22M130 106V90a12 12 0 0 1 12-12h236a12 12 0 0 1 12 12v16" />
