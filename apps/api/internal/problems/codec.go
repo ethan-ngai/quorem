@@ -178,6 +178,10 @@ func normalize(typ string, v any, depth int, count *int) (any, error) {
 		if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
 			return nil, fmt.Errorf("expected finite float")
 		}
+		// JSON runtimes differ on signed zero; numeric equality uses one wire form.
+		if f == 0 {
+			return float64(0), nil
+		}
 		return f, nil
 	case "str":
 		s, ok := v.(string)

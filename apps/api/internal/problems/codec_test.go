@@ -106,3 +106,16 @@ func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestFloatSignedZeroParity(t *testing.T) {
+	for _, input := range []string{"0", "-0", "0.0", "-0.0", "-0e100"} {
+		got, err := Normalize("float", json.RawMessage(input))
+		if err != nil || string(got) != "0" {
+			t.Fatal(input, string(got), err)
+		}
+	}
+	got, err := Normalize("list<float>", json.RawMessage("[-0.0,0.0]"))
+	if err != nil || string(got) != "[0,0]" {
+		t.Fatal(string(got), err)
+	}
+}
