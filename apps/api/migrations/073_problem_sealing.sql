@@ -21,8 +21,8 @@ BEGIN
  IF COALESCE(closed,false) THEN
   IF TG_OP='INSERT' THEN
    -- BEFORE INSERT also runs for ON CONFLICT; permit exact seed replay only.
-   EXECUTE format('SELECT EXISTS(SELECT 1 FROM %I.%I t WHERE to_jsonb(t)=$1)',TG_TABLE_SCHEMA,TG_TABLE_NAME)
-    INTO identical USING to_jsonb(NEW);
+   EXECUTE format('SELECT EXISTS(SELECT 1 FROM %I.%I t WHERE t.version_id=$2 AND to_jsonb(t)=$1)',TG_TABLE_SCHEMA,TG_TABLE_NAME)
+    INTO identical USING to_jsonb(NEW),NEW.version_id;
    IF identical THEN RETURN NEW; END IF;
   END IF;
   RAISE EXCEPTION 'Sealed problem content is immutable; create a new version' USING ERRCODE='23514';

@@ -33,3 +33,22 @@ QUOREM_TEST_DOCKER=1 go test ./apps/runner/internal/engine
 Tests run correct and incorrect solutions across all six fixtures, full-suite
 partial scoring, node codecs, syntax/runtime/resource failures, fresh state,
 privacy/isolation probes, forged result frames, cancellation, and orphan cleanup.
+
+Java 21, TypeScript 5.9.3 / Node 22, OCaml 4.13.1 use separate pinned base images:
+
+```sh
+docker build -f apps/runner/Dockerfile.java -t quorem-java:local .
+docker build -f apps/runner/Dockerfile.typescript -t quorem-typescript:local .
+docker build -f apps/runner/Dockerfile.ocaml -t quorem-ocaml:local .
+QUOREM_TEST_DOCKER=1 go test ./apps/runner/internal/engine -parallel 4
+```
+
+Override images with `RUNNER_JAVA_IMAGE`, `RUNNER_TYPESCRIPT_IMAGE`, `RUNNER_OCAML_IMAGE`.
+Queue jobs snapshot language, runtime and harness at admission; mismatched revisions fail closed.
+Fresh sandbox per case; compilation gets a bounded 10-second phase, execution the problem wall-time limit. A submission has a cumulative 60-second compilation budget; exhaustion yields a contestant time-limit verdict and preserves already-passed cases. Syntax errors stop redundant compilation. The worker has a 120-second infrastructure envelope.
+Compilers and solutions share memory, process, output, network, filesystem and CPU restrictions.
+Java/TypeScript expose `Solution` methods, arrays, and `ListNode` / `TreeNode` with `val` fields.
+OCaml exposes functions, lists, optional mutable records (`list_node` with `value,next`; `tree_node` with `value,left,right`).
+Node values use the same JSON linked-list and breadth-first-tree codec as Python.
+Java/TypeScript/OCaml have syntax highlighting; Python alone has remote IntelliSense.
+Docker fixtures prove local compiler/codec behavior; cloud sandbox release validation remains separate.

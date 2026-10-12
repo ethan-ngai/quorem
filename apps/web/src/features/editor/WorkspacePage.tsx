@@ -20,8 +20,15 @@ import {
 } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { MatchRuleNotice, useMatchRules } from "../matches/useMatchRules";
-import { fetchProblem, fetchProblemVersion, fetchWorkspace, createWorkspace } from "./api";
+import {
+  fetchProblem,
+  fetchProblemVersion,
+  fetchWorkspace,
+  createWorkspace,
+  switchMatchLanguage,
+} from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
+import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { TestCases } from "./components/TestCases";
 import { ResultContent } from "./components/ResultContent";
@@ -65,10 +72,13 @@ function errorMessage(error: unknown) {
 }
 
 /** Opens one public problem in the resizable practice workspace. */
+import { useSession } from "../auth/session";
+import { languageLabels, languageFileNames, type EditorLanguage } from "./editorLanguages";
+
 export function WorkspacePage({
   slug = "",
   match,
-  matchWorkspaceId,
+  matchWorkspaceId: providedMatchWorkspaceId,
   identity: providedIdentity,
   onIdentityChange,
   matchHeader,
@@ -83,7 +93,11 @@ export function WorkspacePage({
   const [localIdentity, setLocalIdentity] = useState<DevelopmentIdentity>(() =>
     readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
   );
-  const identity = providedIdentity ?? localIdentity;
+  const account = useSession();
+  const fixtureIdentity = providedIdentity ?? localIdentity;
+  const identity = (
+    account.data?.mode === "managed" ? account.data.user.id : fixtureIdentity
+  ) as DevelopmentIdentity;
   const setIdentity = onIdentityChange ?? setLocalIdentity;
   const { preference: themePreference, setPreference: setThemePreference, theme } = useTheme();
   const [paneRatio, setPaneRatio] = useState(() =>
@@ -96,6 +110,17 @@ export function WorkspacePage({
   const [createMatchOpen, setCreateMatchOpen] = useState(false);
   const [problem, setProblem] = useState<ProblemVersion>();
   const [workspace, setWorkspace] = useState<Workspace>();
+  const [matchSelection, setMatchSelection] = useState<{ matchId: string; workspaceId: string }>();
+  const matchWorkspaceId =
+    matchSelection?.matchId === match?.id
+      ? (matchSelection?.workspaceId ?? providedMatchWorkspaceId)
+      : providedMatchWorkspaceId;
+  const [languageSwitching, setLanguageSwitching] = useState(false);
+  useEffect(() => {
+    if (matchSelection && providedMatchWorkspaceId === matchSelection.workspaceId)
+      setMatchSelection(undefined);
+  }, [providedMatchWorkspaceId, matchSelection]);
+  const [selectedLanguage, setSelectedLanguage] = useState<EditorLanguage>("python");
   const [source, setSource] = useState("");
   const sourceRef = useRef(source);
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -151,12 +176,12 @@ export function WorkspacePage({
     enabled: match ? !!match.problemVersionId && !!matchWorkspaceId : !!slug,
   });
   const workspaceQuery = useQuery({
-    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id],
+    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id, selectedLanguage],
     queryFn: () =>
       match
         ? fetchWorkspace(identity, matchWorkspaceId!)
-        : createWorkspace(identity, problemQuery.data!.id),
-    enabled: match ? !!matchWorkspaceId : !!problemQuery.data,
+        : createWorkspace(identity, problemQuery.data!.id, selectedLanguage),
+    enabled: !!account.data && (match ? !!matchWorkspaceId : !!problemQuery.data),
     staleTime: 0,
     gcTime: 0,
   });
@@ -196,6 +221,8 @@ export function WorkspacePage({
     setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
     const initialSource =
       readBrowserDraft(identity, nextContext.storageId, problemQuery.data.id) ??
+      problemQuery.data.languages?.find((item) => item.language === workspaceQuery.data.language)
+        ?.starterSource ??
       problemQuery.data.starterSource;
     setSource(initialSource);
     sourceRef.current = initialSource;
@@ -232,7 +259,8 @@ export function WorkspacePage({
   }, [workspace, problem, identity]);
 
   useEffect(() => {
-    writePreference("quorem.dev-identity.v1", identity);
+    if (account.data?.mode === "development")
+      writePreference("quorem.dev-identity.v1", fixtureIdentity);
   }, [identity]);
 
   useEffect(() => {
@@ -348,6 +376,8 @@ export function WorkspacePage({
     drafts: customDrafts,
     problem,
     enabled:
+      !!account.data &&
+      !languageSwitching &&
       !matchRules.blocked &&
       canExecuteDocument({
         identity,
@@ -373,6 +403,23 @@ export function WorkspacePage({
   const submission = execution.submission;
   const submissionBusy = execution.busy;
   const admissionPending = execution.admissionPending;
+  const changeLanguage = async (language: EditorLanguage) => {
+    if (languageSwitching || submissionBusy || admissionPending) return;
+    setLanguageSwitching(true);
+    setActionError(undefined);
+    try {
+      await saveCurrentDraft();
+      if (dirtyRef.current) throw new Error("Save the current draft before switching language.");
+      if (match) {
+        const selected = await switchMatchLanguage(identity, match.id, language);
+        setMatchSelection({ matchId: match.id, workspaceId: selected.id });
+      } else setSelectedLanguage(language);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setLanguageSwitching(false);
+    }
+  };
   const run = useCallback(async () => {
     setActivePanel("results");
     await execution.run();
@@ -449,13 +496,20 @@ export function WorkspacePage({
     "--problem-ratio": `${paneRatio}%`,
     "--results-height": `${resultsHeight}px`,
   } as CSSProperties;
-  const virtualDocumentUri = "file:///workspace/main.py";
+  const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
+  const virtualDocumentUri = `file:///workspace/${languageFileNames[documentLanguage]}`;
   const editorDocumentKey = workspace
-    ? `${identity}:${workspace.id}:${workspace.problemVersionId}:python`
+    ? `${identity}:${workspace.id}:${workspace.problemVersionId}:${documentLanguage}`
     : "pending";
-  const intelligence = useIntelligence(identity, editorDocumentKey, !loading);
+  const intelligence = useIntelligence(
+    identity,
+    editorDocumentKey,
+    !loading && documentLanguage === "python",
+  );
 
   const actionsEnabled =
+    !!account.data &&
+    !languageSwitching &&
     !matchRules.blocked &&
     canExecuteDocument({
       identity,
@@ -467,6 +521,16 @@ export function WorkspacePage({
       matchWorkspaceId,
       loaded: !loading,
     });
+  if (!account.isPending && !account.data)
+    return (
+      <main className="workspace-loading">
+        <Brand />
+        <h1>Sign in to practice</h1>
+        <a className="button button-primary" href="/login">
+          Sign in
+        </a>
+      </main>
+    );
   if (!problem || !workspace)
     return (
       <main className="workspace-loading" aria-live="polite">
@@ -578,7 +642,15 @@ export function WorkspacePage({
         </nav>
         <div className="workspace-grid" data-active-panel={activePanel}>
           <section className="problem-pane" aria-label="Problem statement">
-            <ProblemStatement problem={problem} />
+            <ProblemStatement problem={problem}>
+              <EditorialPanel
+                key={`${identity}:${problem.id}`}
+                identity={identity}
+                versionId={problem.id}
+                language={documentLanguage}
+                inMatch={!!match}
+              />
+            </ProblemStatement>
           </section>
           <ResizableDivider
             axis="x"
@@ -590,19 +662,37 @@ export function WorkspacePage({
           <div className="solution-pane">
             <section className="coding-pane" aria-label="Code editor">
               <div className="code-toolbar">
-                <span className="editor-language">
-                  <span className="editor-language-logo" aria-hidden="true" />
-                  Python
-                </span>
+                <label className="editor-language">
+                  <select
+                    aria-label="Solution language"
+                    value={documentLanguage}
+                    disabled={
+                      loading ||
+                      languageSwitching ||
+                      submissionBusy ||
+                      admissionPending ||
+                      (!!match && (match.state !== "active" || matchRules.blocked))
+                    }
+                    onChange={(event) => {
+                      void changeLanguage(event.target.value as EditorLanguage);
+                    }}
+                  >
+                    {(problem.languages ?? [{ language: "python" }]).map((item) => (
+                      <option key={item.language} value={item.language}>
+                        {languageLabels[item.language as EditorLanguage]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="code-options">
-                  {intelligence.status === "paused" && (
+                  {documentLanguage === "python" && intelligence.status === "paused" && (
                     <Tooltip content="IntelliSense follows the focused window automatically.">
                       <span className="intelligence-status" role="status">
                         IntelliSense paused
                       </span>
                     </Tooltip>
                   )}
-                  {intelligence.status === "unavailable" && (
+                  {documentLanguage === "python" && intelligence.status === "unavailable" && (
                     <span className="intelligence-status" role="status">
                       <span>IntelliSense unavailable</span>
                       <button className="quiet-button" onClick={intelligence.retry}>
@@ -614,6 +704,7 @@ export function WorkspacePage({
               </div>
               <div className="editor-frame">
                 <PythonEditor
+                  language={documentLanguage}
                   key={editorDocumentKey}
                   ref={editorRef}
                   documentKey={editorDocumentKey}
@@ -624,7 +715,10 @@ export function WorkspacePage({
                   fontSize={fontSize}
                   tabSize={tabSize}
                   wrap={wrap}
-                  intelligenceExtensions={intelligence.extensions}
+                  readOnly={languageSwitching}
+                  intelligenceExtensions={
+                    documentLanguage === "python" ? intelligence.extensions : undefined
+                  }
                   onSourceChange={updateSource}
                 />
               </div>

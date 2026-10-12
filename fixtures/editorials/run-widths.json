@@ -8,6 +8,31 @@
       "timeComplexity": "O(n)",
       "spaceComplexity": "O(1)",
       "complexityNotes": "n is the number of values. Auxiliary space excludes the O(n) result."
+    },
+    {
+      "language": "java",
+      "source": "class Solution  {\n    public int[] runWidths(int[] values)  {\n        ArrayList<Integer> a=new ArrayList<>();\n        for(int i=0;i<values.length;i++)  {\n            if(i==0||values[i]!=values[i-1])a.add(1);\n            else a.set(a.size()-1,a.get(a.size()-1)+1);\n        }\n        return a.stream().mapToInt(Integer::intValue).toArray();\n    }\n}\n",
+      "explanationMarkdown": "Scan once. Start a new count whenever a value differs from its predecessor; otherwise extend the current run. The output contains exactly one count per maximal run.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n is the input length. The counts builder and conversion buffer can require linear storage."
+    },
+    {
+      "language": "typescript",
+      "source": "class Solution  {\n    runWidths(values:number[]):number[] {\n        const a:number[]=[];\n        values.forEach((v,i)=> {\n            if(i===0||v!==values[i-1])a.push(1);else a[a.length-1]++;\n        }\n        );\n        return a;\n    }\n}\n",
+      "explanationMarkdown": "Scan once. Start a new count whenever a value differs from its predecessor; otherwise extend the current run. The output contains exactly one count per maximal run.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of values. Auxiliary space excludes the O(n) result."
+    },
+    {
+      "language": "ocaml",
+      "source": "let runWidths values = let rec loop prev width acc = function [] -> List.rev (if width=0 then acc else width::acc) | v::rest -> if prev=Some v then loop prev (width+1) acc rest else loop (Some v) 1 (if width=0 then acc else width::acc) rest in loop None 0 [] values\n",
+      "explanationMarkdown": "Scan once. Start a new count whenever a value differs from its predecessor; otherwise extend the current run. The output contains exactly one count per maximal run.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n is the input length. Intermediate lists and reversal require linear auxiliary storage, excluding the returned result."
     }
-  ]
+  ],
+  "versionId": "e91ec728-4597-5dfb-9d19-7c4ba17138b7"
 }

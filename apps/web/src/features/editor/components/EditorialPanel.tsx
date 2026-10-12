@@ -47,7 +47,8 @@ export function EditorialPanel({
 }) {
   const [complexityOpen, setComplexityOpen] = useState(false);
   const [solutionsOpen, setSolutionsOpen] = useState(false);
-  const [chosenLanguage, setChosenLanguage] = useState(language);
+  const [chosenLanguage, setChosenLanguage] = useState<string>();
+  const desiredLanguage = chosenLanguage ?? language;
   const regionId = useId();
   const complexity = useQuery({
     queryKey: ["complexity", identity, versionId],
@@ -61,7 +62,7 @@ export function EditorialPanel({
     enabled: solutionsOpen && !inMatch,
     retry: false,
   });
-  const selected = solutions.data?.find((item) => item.language === chosenLanguage);
+  const selected = solutions.data?.find((item) => item.language === desiredLanguage);
   const selectedComplexity = complexity.data?.find((item) => item.language === language);
   if (inMatch) return null;
   return (
@@ -111,12 +112,12 @@ export function EditorialPanel({
               <label className="editorial-language">
                 Solution language
                 <select
-                  value={chosenLanguage}
+                  value={desiredLanguage}
                   onChange={(event) => setChosenLanguage(event.target.value)}
                 >
-                  {!solutions.data.some((item) => item.language === chosenLanguage) && (
-                    <option value={chosenLanguage}>
-                      {labels[chosenLanguage] ?? chosenLanguage} — unavailable
+                  {!solutions.data.some((item) => item.language === desiredLanguage) && (
+                    <option value={desiredLanguage}>
+                      {labels[desiredLanguage] ?? desiredLanguage} — unavailable
                     </option>
                   )}
                   {solutions.data.map((item) => (

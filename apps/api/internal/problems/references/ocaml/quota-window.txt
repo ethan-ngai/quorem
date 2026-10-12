@@ -1,0 +1,27 @@
+let scalars text =
+    let rec loop index acc =
+        if index=String.length text then Array.of_list (List.rev acc) else
+        let byte=Char.code text.[index] in
+        let width=if byte<128 then 1 else if byte<224 then 2 else if byte<240 then 3 else 4 in
+        loop (index+width) (String.sub text index width::acc)
+    in loop 0 []
+
+let quotaWindow text quota =
+    let chars=scalars text and requested=scalars quota in
+    if Array.length requested=0 then "" else
+    let need=Hashtbl.create 32 in
+    let get c=Option.value (Hashtbl.find_opt need c) ~default:0 in
+    Array.iter (fun c -> Hashtbl.replace need c (get c+1)) requested;
+    let missing=ref (Array.length requested) and left=ref 0 and start=ref 0 and best=ref max_int in
+    Array.iteri (fun right c ->
+        if get c>0 then decr missing;
+        Hashtbl.replace need c (get c-1);
+        while !missing=0 do
+            if right- !left+1< !best then (best:=right- !left+1;start:= !left);
+            let old=chars.(!left) in
+            Hashtbl.replace need old (get old+1);
+            if get old>0 then incr missing;
+            incr left
+        done
+    ) chars;
+    if !best=max_int then "" else String.concat "" (Array.to_list (Array.sub chars !start !best))

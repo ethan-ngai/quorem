@@ -1,0 +1,4 @@
+class Solution {
+runWidths(values:number[]):number[]{const a:number[]=[];values.forEach((v,i)=>{if(i===0||v!==values[i-1])a.push(1);else a[a.length-1]++;});return a;}
+}
+

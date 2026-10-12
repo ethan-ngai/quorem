@@ -58,5 +58,8 @@ jobs:
           go-version-file: go.mod
           cache: true
       - run: docker build -f apps/runner/Dockerfile -t quorem-python:local .
+      - run: docker build -f apps/runner/Dockerfile.java -t quorem-java:local .
+      - run: docker build -f apps/runner/Dockerfile.typescript -t quorem-typescript:local .
+      - run: docker build -f apps/runner/Dockerfile.ocaml -t quorem-ocaml:local .
       - run: go test ./...
       - run: go vet ./...

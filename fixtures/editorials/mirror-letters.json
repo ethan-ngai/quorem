@@ -8,6 +8,31 @@
       "timeComplexity": "O(n)",
       "spaceComplexity": "O(n)",
       "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+    },
+    {
+      "language": "java",
+      "source": "class Solution  {\n    private boolean letter(char c) {\n        return c>='a'&&c<='z'||c>='A'&&c<='Z';\n    }\n    public String mirrorLetters(String text) {\n        char[] a=text.toCharArray();\n        int l=0,r=a.length-1;\n        while(l<r) {\n            if(!letter(a[l]))l++;\n            else if(!letter(a[r]))r--;\n            else {\n                char t=a[l];\n                a[l++]=a[r];\n                a[r--]=t;\n            }\n        }\n        return new String(a);\n    }\n}\n",
+      "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+    },
+    {
+      "language": "typescript",
+      "source": "class Solution  {\n    mirrorLetters(text:string):string {\n        const a=Array.from(text);\n        const letter=(c:string)=>/^[a-zA-Z]$/.test(c);\n        let l=0,r=a.length-1;\n        while(l<r) {\n            if(!letter(a[l]))l++;\n            else if(!letter(a[r]))r--;\n            else {\n                [a[l],a[r]]=[a[r],a[l]];\n                l++;\n                r--;\n            }\n        }\n        return a.join('');\n    }\n}\n",
+      "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+    },
+    {
+      "language": "ocaml",
+      "source": "let mirrorLetters text = let a=Bytes.of_string text in let letter c = c>='a' && c<='z' || c>='A' && c<='Z' in let l=ref 0 and r=ref (Bytes.length a-1) in while !l < !r do if not (letter (Bytes.get a !l)) then incr l else if not (letter (Bytes.get a !r)) then decr r else (let c=Bytes.get a !l in Bytes.set a !l (Bytes.get a !r);Bytes.set a !r c;incr l;decr r) done;Bytes.to_string a\n",
+      "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
     }
-  ]
+  ],
+  "versionId": "7e6af288-c26f-5ab1-beed-1fc6538d31d2"
 }

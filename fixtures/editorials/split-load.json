@@ -8,6 +8,31 @@
       "timeComplexity": "O(n log(S + 1))",
       "spaceComplexity": "O(1)",
       "complexityNotes": "n is the number of loads; S is their sum. The search includes the all-zero case."
+    },
+    {
+      "language": "java",
+      "source": "class Solution  {\n    public int splitLoad(int[] loads,int groups)  {\n        int lo=Arrays.stream(loads).max().orElse(0),hi=Arrays.stream(loads).sum();\n        while(lo<hi) {\n            int mid=lo+(hi-lo)/2,used=1,total=0;\n            for(int load:loads) {\n                if(total+load>mid) {\n                    used++;\n                    total=0;\n                }\n                total+=load;\n            }\n            if(used<=groups)hi=mid;\n            else lo=mid+1;\n        }\n        return lo;\n    }\n}\n",
+      "explanationMarkdown": "Binary-search the maximum allowed group sum between the largest load and the total. A greedy scan uses the fewest groups for that bound. If it uses at most the requested number, nonnegative loads let us split groups further without increasing the maximum; move the upper bound down.",
+      "timeComplexity": "O(n log(S + 1))",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of loads; S is their sum. The search includes the all-zero case."
+    },
+    {
+      "language": "typescript",
+      "source": "class Solution  {\n    splitLoad(loads:number[],groups:number):number {\n        let lo=Math.max(...loads),hi=loads.reduce((a,b)=>a+b,0);\n        while(lo<hi) {\n            const mid=Math.floor((lo+hi)/2);\n            let used=1,total=0;\n            for(const load of loads) {\n                if(total+load>mid) {\n                    used++;\n                    total=0;\n                }\n                total+=load;\n            }\n            if(used<=groups)hi=mid;\n            else lo=mid+1;\n        }\n        return lo;\n    }\n}\n",
+      "explanationMarkdown": "Binary-search the maximum allowed group sum between the largest load and the total. A greedy scan uses the fewest groups for that bound. If it uses at most the requested number, nonnegative loads let us split groups further without increasing the maximum; move the upper bound down.",
+      "timeComplexity": "O(n log(S + 1))",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of loads; S is their sum. The search includes the all-zero case."
+    },
+    {
+      "language": "ocaml",
+      "source": "let splitLoad loads groups = let lo=ref (List.fold_left max 0 loads) and hi=ref (List.fold_left (+) 0 loads) in while !lo < !hi do let mid=(!lo + !hi)/2 in let used=ref 1 and total=ref 0 in List.iter (fun x -> if !total+x>mid then (incr used;total:=0);total:= !total+x) loads; if !used<=groups then hi:=mid else lo:=mid+1 done; !lo\n",
+      "explanationMarkdown": "Binary-search the maximum allowed group sum between the largest load and the total. A greedy scan uses the fewest groups for that bound. If it uses at most the requested number, nonnegative loads let us split groups further without increasing the maximum; move the upper bound down.",
+      "timeComplexity": "O(n log(S + 1))",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of loads; S is their sum. The search includes the all-zero case."
     }
-  ]
+  ],
+  "versionId": "1b3361b0-1fa0-5597-81e4-913b0318ac45"
 }
