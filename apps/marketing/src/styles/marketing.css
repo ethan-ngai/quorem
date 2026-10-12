@@ -321,35 +321,93 @@ summary:focus-visible {
   font-size: 16px;
   margin-top: 16px;
 }
-.match-geometry {
-  height: 260px;
+.match-mode-art {
+  height: 280px;
   margin-bottom: 32px;
 }
-.match-geometry svg {
+.match-mode-art svg {
   width: 100%;
   height: 100%;
   overflow: visible;
   stroke-width: 1;
+  stroke-linecap: round;
   stroke-linejoin: round;
 }
-.geometry-guide {
-  stroke: var(--color-border);
-  stroke-dasharray: 3 5;
+.match-mode-art text {
+  fill: var(--color-text-secondary);
+  stroke: none;
+  font: 18px var(--font-interface);
 }
-.geometry-base,
-.geometry-top {
-  fill: var(--color-background);
+.mode-problem rect {
+  fill: var(--color-surface);
   stroke: var(--marketing-line);
 }
-.geometry-edge {
+.mode-problem path {
+  stroke: var(--color-text-secondary);
+}
+.mode-problem text {
+  fill: var(--color-text);
+}
+.mode-connector,
+.mode-finish-line {
   stroke: var(--color-border);
 }
-.geometry-code {
+.mode-junction {
+  fill: var(--marketing-line);
+}
+.mode-player-ring {
+  fill: var(--color-surface);
   stroke: var(--marketing-line);
+}
+.mode-player-halo {
+  stroke: var(--color-border);
+}
+.mode-person,
+.mode-code-glyph,
+.mode-versus {
+  stroke: var(--marketing-line);
+}
+.mode-player-name {
+  fill: var(--color-text) !important;
+  font-size: 20px !important;
+}
+.mode-score-ticks rect,
+.mode-group-tick {
+  fill: var(--color-overlay);
+}
+.mode-tick-passed {
+  fill: var(--marketing-line) !important;
+}
+.mode-winner .mode-player-ring,
+.mode-winner .mode-person,
+.mode-winner .mode-code-glyph {
+  stroke: var(--color-primary);
+}
+.mode-winner .mode-player-ring {
+  fill: var(--color-brand-secondary);
+}
+.mode-winner .mode-tick-passed {
+  fill: var(--color-primary) !important;
+}
+.mode-score-label,
+.mode-finish-label {
+  font-family: var(--font-code) !important;
+  font-size: 14px !important;
+}
+.mode-winner-label path {
+  stroke: var(--color-primary);
   stroke-width: 1.5;
 }
-.geometry-tile {
-  transition: transform var(--motion-standard) var(--motion-easing);
+.mode-winner-label text {
+  fill: var(--color-primary);
+  font-size: 14px;
+}
+.mode-finish-check circle {
+  fill: var(--color-primary);
+}
+.mode-finish-check path {
+  stroke: var(--color-on-primary);
+  stroke-width: 1.5;
 }
 .feature-section {
   margin-top: var(--marketing-section);
@@ -713,9 +771,6 @@ summary:focus-visible {
   }
 }
 @media (hover: hover) and (pointer: fine) {
-  .mode-preview:hover .geometry-tile {
-    transform: translateY(-4px);
-  }
   .challenge-panel:hover .card-front {
     transform: translateY(-4px) rotateX(12deg) rotateY(-12deg) rotateZ(-8deg);
   }
@@ -764,9 +819,14 @@ summary:focus-visible {
     border-left: 0;
     border-top: 1px solid var(--color-border);
   }
-  .match-geometry {
+  .match-mode-art {
     height: 240px;
     margin-bottom: 16px;
+  }
+  .match-mode-art .mode-score-label,
+  .match-mode-art .mode-finish-label,
+  .match-mode-art .mode-winner-label text {
+    font-size: 18px !important;
   }
   .feature-heading {
     flex-direction: column;
