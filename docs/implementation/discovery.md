@@ -8,7 +8,7 @@ Issue #30; depends on #29. Marketing also implements #16.
 - Navigation menu links Home and Practice. Profile popover contains the local development identity, theme and workspace preferences where available. Create match is hidden on match/invite routes, including loading and failure states.
 - Marketing's Create match link opens creation on the catalog, consuming its query once. Closing/reloading does not reopen it.
 - Catalog searches title, slug and topics; filters by difficulty/topic; sorts by title or difficulty. No unverified solved status. Mobile shows topics beneath each question.
-- Marketing uses paired screenshots of the actual local lobby in desktop/mobile layouts. Capture excludes invitation tokens; both modes use identical fixture content. No AWS/public authentication claims.
+- Marketing server-renders the real lobby controls with fixture content and hydrates shared editor previews. No invitation tokens or AWS/public authentication claims.
 
 ## Validation
 
@@ -17,6 +17,6 @@ Issue #30; depends on #29. Marketing also implements #16.
 
 ## Serving
 
-- `make dev` builds marketing before startup. Rebuild marketing after edits with `vp -C apps/marketing run build`.
+- `make dev` launches live Astro/Vite and React Vite; the homepage, marketing assets and HMR share the React origin. For marketing alone use `vp -C apps/marketing run dev`. Never rebuild/preview between UI edits.
 - `vp run build` assembles `apps/web/dist`: Astro `index.html`, React `app.html`, distinct assets. Preview middleware applies production rewrites.
 - Static deployment must preserve asset paths and rewrite `/practice`, `/practice/*`, `/match/*`, `/invite/*` to `app.html`. Cloud deployment remains a separate milestone.

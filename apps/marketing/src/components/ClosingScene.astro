@@ -1,0 +1,8 @@
+<div class="closing-scene" aria-hidden="true">
+  <div class="closing-light"></div>
+  <div class="closing-grid"></div>
+  <div class="closing-code-plane plane-you"><span>You</span><code><i>class</i> Solution:<br />&nbsp; <i>def</i> climbStairs(self, n):<br />&nbsp;&nbsp; a, b = 1, 1<br />&nbsp;&nbsp; <i>for</i> _ in range(1, n):<br />&nbsp;&nbsp;&nbsp; a, b = b, a + b<br />&nbsp;&nbsp; <i>return</i> b</code></div>
+  <div class="closing-code-plane plane-friend"><span>Your friend</span><code><i>class</i> Solution:<br />&nbsp; <i>def</i> climbStairs(self, n):<br />&nbsp;&nbsp; memo = &#123;0: 1, 1: 1&#125;<br />&nbsp;&nbsp; <i>def</i> ways(k):<br />&nbsp;&nbsp;&nbsp; <i>if</i> k <i>not in</i> memo:<br />&nbsp;&nbsp;&nbsp;&nbsp; memo[k] = ways(k - 1) + ways(k - 2)<br />&nbsp;&nbsp;&nbsp; <i>return</i> memo[k]<br />&nbsp;&nbsp; <i>return</i> ways(n)</code></div>
+  <div class="closing-emblem"><span class="brand-mark"></span></div>
+  <div class="closing-horizon"></div>
+</div>

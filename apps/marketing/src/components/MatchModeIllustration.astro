@@ -1,0 +1,62 @@
+---
+interface Props { variant: "duel" | "group" }
+const { variant } = Astro.props;
+const players = [
+  { name: "Alex", passed: 14 },
+  { name: "Jamie", passed: 20 },
+  { name: "Sam", passed: 11 },
+  { name: "Riley", passed: 17 },
+];
+const description = variant === "duel"
+  ? "Example Showdown: Alex and Jamie solve Two Sum independently. Alex submits 14 of 20 tests passed; Jamie submits the first correct solution and wins."
+  : "Example Free-for-all: Alex, Jamie, Sam and Riley solve Subsets independently. Jamie submits the first correct solution and wins the group match.";
+---
+<figure class={`match-mode-art mode-art-${variant}`} role="img" aria-label={description}>
+  <svg viewBox="0 0 520 320" fill="none" aria-hidden="true">
+    <g class="mode-problem">
+      <rect x="177" y="16" width="166" height="40" rx="8" />
+      <text x="260" y="41" text-anchor="middle">{variant === "duel" ? "Two Sum" : "Subsets"}</text>
+    </g>
+    {variant === "duel" ? <>
+      <path class="mode-connector" d="M260 56v22M130 106V90a12 12 0 0 1 12-12h236a12 12 0 0 1 12 12v16" />
+      <circle class="mode-junction" cx="260" cy="78" r="3" />
+      {players.slice(0,2).map(({name,passed},i) => {
+        const x = i === 0 ? 130 : 390;
+        const winner = passed === 20;
+        return <g class:list={["mode-contestant", {"mode-winner": winner}]} style={`--lane: ${i}`}>
+          <circle class="mode-player-ring" cx={x} cy="142" r="35" />
+          <circle class="mode-player-halo" cx={x} cy="142" r="45" />
+          <circle class="mode-person" cx={x} cy="135" r="8" />
+          <path class="mode-person" d={`M${x-16} 158c0-18 32-18 32 0`} />
+          <text class="mode-player-name" x={x} y="209" text-anchor="middle">{name}</text>
+          <g class="mode-score-ticks">
+            {Array.from({length:20},(_,j) => <rect class:list={{"mode-tick-passed": j < passed}} style={`--tick: ${j}`} x={x-79+j*8} y="230" width="5" height="14" rx="1" />)}
+          </g>
+          <text class="mode-score-label" x={x} y="271" text-anchor="middle">{passed} / 20 tests</text>
+          {winner && <g class="mode-winner-label"><path d={`m${x-49} 296 4 4 7-9`} /><text x={x-27} y="300">First correct</text></g>}
+        </g>;
+      })}
+      <text class="mode-versus" x="260" y="148" text-anchor="middle">vs</text>
+    </> : <>
+      <path class="mode-connector" d="M260 56v19H40a12 12 0 0 0-12 12v177" />
+      <circle class="mode-junction" cx="260" cy="75" r="3" />
+      <text class="mode-finish-label" x="190" y="86">Tests passed</text>
+      <text class="mode-finish-label" x="470" y="86" text-anchor="end">20 / 20</text>
+      <path class="mode-finish-line" d="M474 99v176" />
+      {players.map(({name,passed},i) => {
+        const y = 119+i*48;
+        const winner = passed===20;
+        return <g class:list={["mode-contestant", {"mode-winner": winner}]} style={`--lane: ${i}`}>
+          <path class="mode-connector" d={`M28 ${y}h23`} />
+          <circle class="mode-player-ring" cx="69" cy={y} r="17" />
+          <circle class="mode-person" cx="69" cy={y-4} r="4" />
+          <path class="mode-person" d={`M61 ${y+8}c0-10 16-10 16 0`} />
+          <text class="mode-player-name" x="101" y={y+5}>{name}</text>
+          {Array.from({length:20},(_,j) => <rect class:list={["mode-group-tick",{"mode-tick-passed": j < passed}]} style={`--tick: ${j}`} x={190+j*14} y={y-7} width="9" height="14" rx="1" />)}
+          {winner && <g class="mode-finish-check"><circle cx="474" cy={y} r="10" /><path d={`m469 ${y} 3 3 6-6`} /></g>}
+        </g>;
+      })}
+      <g class="mode-winner-label"><path d="m191 297 4 4 7-9" /><text x="215" y="301">First correct wins</text></g>
+    </>}
+  </svg>
+</figure>

@@ -5,6 +5,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -16,6 +17,8 @@ ENV.setdefault("DATABASE_URL", "postgres://quorem:quorem@localhost:54329/quorem?
 ENV.setdefault("API_ADDR", "127.0.0.1:8080")
 ENV.setdefault("LANGUAGE_ADDR", "127.0.0.1:8081")
 ENV.setdefault("WEB_ORIGIN", "http://localhost:5173")
+ENV.setdefault("QUOREM_MARKETING_BASE", "/_marketing")
+ENV.setdefault("QUOREM_MARKETING_DEV_ORIGIN", "http://127.0.0.1:4321")
 ENV.setdefault("LANGUAGE_URL", "http://127.0.0.1:8081")
 if ENV["QUOREM_ENV"] != "development" or ENV["APP_ENV"] != "local":
     raise SystemExit("make dev requires QUOREM_ENV=development and APP_ENV=local")
@@ -32,7 +35,6 @@ signal.signal(signal.SIGINT, stop)
 try:
     Path(".local/bin").mkdir(parents=True, exist_ok=True)
     for command in [
-        ["vp", "-C", "apps/marketing", "run", "build"],
         ["docker", "compose", "up", "-d", "--wait"],
         ["docker", "build", "-f", "apps/runner/Dockerfile", "-t", "quorem-python:local", "."],
         ["docker", "build", "-f", "apps/language/Dockerfile", "-t", "quorem-language:local", "."],
@@ -41,13 +43,14 @@ try:
     ]:
         subprocess.run(command, check=True, env=ENV)
     for command in [
+        ["vp", "-C", "apps/marketing", "run", "dev", "--port", str(urlparse(ENV["QUOREM_MARKETING_DEV_ORIGIN"]).port or 4321)],
         [".local/bin/api"],
         [".local/bin/runner"],
         ["vp", "run", "--filter", "@quorem/language", "dev"],
-        ["vp", "-C", "apps/web", "dev", "--host", "127.0.0.1", "--port", "5173", "--strictPort"],
+        ["vp", "-C", "apps/web", "dev", "--host", "127.0.0.1", "--port", str(urlparse(ENV["WEB_ORIGIN"]).port or 5173), "--strictPort"],
     ]:
         processes.append(subprocess.Popen(command, env=ENV, start_new_session=True))
-    print("Web http://localhost:5173 | API :8080 | language :8081", flush=True)
+    print(f"Web {ENV['WEB_ORIGIN']} | API :8080 | language :8081", flush=True)
     while all(process.poll() is None for process in processes):
         time.sleep(0.25)
     raise SystemExit(next(process.returncode for process in processes if process.poll() is not None))

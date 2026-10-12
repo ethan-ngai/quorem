@@ -43,7 +43,7 @@ function MatchChoice({
   return (
     <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
       <Select.Trigger className="settings-select" aria-label={label}>
-        <Select.Value />
+        <Select.Value>{options.find((option) => option.value === value)?.label}</Select.Value>
         <Select.Icon>
           <Icon name="chevron" />
         </Select.Icon>
@@ -94,6 +94,7 @@ export function MatchSettings({
   identity,
   participantCount = 0,
   showHostRules = false,
+  catalog,
 }: {
   value: CreateMatchRequest;
   onChange: (value: CreateMatchRequest) => void;
@@ -101,10 +102,17 @@ export function MatchSettings({
   identity: DevelopmentIdentity;
   participantCount?: number;
   showHostRules?: boolean;
+  catalog?: { id: string; title: string; difficulty: string }[];
 }) {
-  const [problems, setProblems] = useState<{ id: string; title: string; difficulty: string }[]>([]);
+  const [problems, setProblems] = useState<{ id: string; title: string; difficulty: string }[]>(
+    catalog ?? [],
+  );
   const [catalogError, setCatalogError] = useState<string>();
   useEffect(() => {
+    if (catalog) {
+      setProblems(catalog);
+      return;
+    }
     let active = true;
     api(identity)
       .GET("/v1/problems")
@@ -121,7 +129,7 @@ export function MatchSettings({
     return () => {
       active = false;
     };
-  }, [identity]);
+  }, [identity, catalog]);
   const pools = value.difficulties ?? [value.difficulty ?? "easy"];
   const [problemPickerOpen, setProblemPickerOpen] = useState(false);
   const [search, setSearch] = useState("");

@@ -5,8 +5,8 @@
       ? document.documentElement.dataset.theme === "dark"
       : media.matches;
     const paths = {
-      ico: dark ? "/favicon-dark.ico" : "/favicon.ico",
-      png: dark ? "/favicon-dark-96x96.png" : "/favicon-96x96.png",
+      ico: dark ? "/favicon-dark.ico?v=2" : "/favicon.ico?v=2",
+      png: dark ? "/favicon-dark-96x96.png?v=2" : "/favicon-96x96.png?v=2",
       svg: dark ? "/favicon-dark.svg" : "/favicon-light.svg",
     };
     document.querySelectorAll("link[data-favicon]").forEach((link) => {
