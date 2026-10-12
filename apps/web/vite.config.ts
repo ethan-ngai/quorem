@@ -68,7 +68,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/_marketing": { target: marketingOrigin, ws: true },
-      "/v1": process.env.QUOREM_API_DEV_ORIGIN ?? "http://127.0.0.1:8080",
+      "/v1": { target: process.env.QUOREM_API_DEV_ORIGIN ?? "http://127.0.0.1:8080", ws: true },
       "/api/auth": process.env.QUOREM_AUTH_DEV_ORIGIN ?? "http://127.0.0.1:8082",
     },
   },
