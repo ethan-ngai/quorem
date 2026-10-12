@@ -1,0 +1,4 @@
+class Solution {
+public int splitLoad(int[] loads,int groups) { int lo=Arrays.stream(loads).max().orElse(0),hi=Arrays.stream(loads).sum(); while(lo<hi){int mid=lo+(hi-lo)/2,used=1,total=0;for(int load:loads){if(total+load>mid){used++;total=0;}total+=load;}if(used<=groups)hi=mid;else lo=mid+1;}return lo; }
+}
+

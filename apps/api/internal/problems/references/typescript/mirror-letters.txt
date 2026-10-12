@@ -1,0 +1,4 @@
+class Solution {
+mirrorLetters(text:string):string{const a=Array.from(text);const letter=(c:string)=>/^[a-zA-Z]$/.test(c);let l=0,r=a.length-1;while(l<r){if(!letter(a[l]))l++;else if(!letter(a[r]))r--;else{[a[l],a[r]]=[a[r],a[l]];l++;r--;}}return a.join('');}
+}
+

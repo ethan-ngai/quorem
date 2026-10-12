@@ -4,16 +4,24 @@ import (
 	"context"
 	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/internal/workspace"
+	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) CreateWorkspace(ctx context.Context, owner, problemID, language string) (workspace.Workspace, error) {
-	if language != "python" {
-		return workspace.Workspace{}, failure("invalid_input", 400, "Only Python is supported")
+	if _, ok := execution.LanguageRuntime(language); !ok {
+		return workspace.Workspace{}, failure("invalid_input", 400, "Unsupported language")
 	}
 	p, err := s.Problem(ctx, problemID, true)
 	if err != nil {
 		return workspace.Workspace{}, err
+	}
+	var supported bool
+	if err = s.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM problem_languages WHERE version_id=$1 AND language=$2)", p.ID, language).Scan(&supported); err != nil {
+		return workspace.Workspace{}, err
+	}
+	if !supported {
+		return workspace.Workspace{}, failure("invalid_input", 400, "Language unavailable for this problem")
 	}
 	var id string
 	err = s.Pool.QueryRow(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,$4) ON CONFLICT(owner_id,problem_version_id,language) WHERE kind='solo' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id", ID(), owner, p.ID, language).Scan(&id)

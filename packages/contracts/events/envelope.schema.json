@@ -4,7 +4,7 @@
   "$defs": {
     "Language": {
       "type": "string",
-      "enum": ["python"]
+      "enum": ["python", "java", "typescript", "ocaml"]
     },
     "Difficulty": {
       "type": "string",

@@ -23,7 +23,12 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { indentationGuides } from "./indentationGuides";
 import { editorColorTheme } from "./editorPalette";
 import type { EditorScheme } from "./editorSchemes";
-import { highlightedPython, pythonSupport, pythonIdentifierAccents } from "./pythonHighlighting";
+import {
+  pythonExtensions,
+  loadLanguageExtensions,
+  languageLabels,
+  type EditorLanguage,
+} from "./editorLanguages";
 
 /** Theme accepted by the shared workspace token set. */
 export type EditorTheme = "light" | "dark";
@@ -44,6 +49,7 @@ export type PythonEditorHandle = {
 
 /** Stable identity and mutable preferences for one Python document. */
 type PythonEditorProps = {
+  language?: EditorLanguage;
   documentKey: string;
   documentUri: string;
   initialSource: string;
@@ -86,17 +92,8 @@ const baseExtensions: Extension[] = [
     // Adjacent identical labels merge local suggestions with richer server documentation.
     compareCompletions: (a, b) => a.label.localeCompare(b.label),
   }),
-  highlightedPython,
-  pythonSupport,
-  pythonIdentifierAccents,
   history(),
   workspaceKeymap,
-  EditorView.contentAttributes.of({
-    "aria-label": "Python solution editor",
-    spellcheck: "false",
-    autocapitalize: "off",
-    autocomplete: "off",
-  }),
 ];
 
 /** Reconfigures editor display preferences without resetting history. */
@@ -118,6 +115,7 @@ function editorPreferences(fontSize: number, tabSize: 2 | 4, wrap: boolean, read
 /** Mounts one CodeMirror view per document key and reconfigures optional features in place. */
 export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(function PythonEditor(
   {
+    language = "python",
     documentKey,
     documentUri,
     initialSource,
@@ -138,6 +136,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
   const themeSlot = useRef(new Compartment());
   const preferencesSlot = useRef(new Compartment());
   const intelligenceSlot = useRef(new Compartment());
+  const languageSlot = useRef(new Compartment());
 
   callbackRef.current = onSourceChange;
 
@@ -171,6 +170,13 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
         doc: initialSource,
         extensions: [
           ...baseExtensions,
+          languageSlot.current.of(language === "python" ? pythonExtensions : []),
+          EditorView.contentAttributes.of({
+            "aria-label": `${languageLabels[language]} solution editor`,
+            spellcheck: "false",
+            autocapitalize: "off",
+            autocomplete: "off",
+          }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) callbackRef.current(update.state.doc.toString());
           }),
@@ -187,6 +193,20 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
       viewRef.current = null;
     };
   }, [documentKey]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    let active = true;
+    void loadLanguageExtensions(language)
+      .then((extensions) => {
+        if (active && view && viewRef.current === view)
+          view.dispatch({ effects: languageSlot.current.reconfigure(extensions) });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [language, documentKey]);
 
   useEffect(() => {
     const view = viewRef.current;
