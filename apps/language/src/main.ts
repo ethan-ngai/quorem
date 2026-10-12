@@ -57,7 +57,12 @@ server.on("upgrade", async (request, socket, head) => {
     return;
   }
   const owner = localIdentity
-    ? authorizeUpgrade(request.socket.remoteAddress, request.headers.origin, url)
+    ? authorizeUpgrade(
+        request.socket.remoteAddress,
+        request.headers.origin,
+        url,
+        process.env.WEB_ORIGIN,
+      )
     : await managedOwner(
         request.headers["sec-websocket-protocol"],
         request.headers.origin,

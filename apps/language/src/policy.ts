@@ -22,9 +22,24 @@ export function authorizeUpgrade(
   address: string | undefined,
   origin: string | undefined,
   url: URL,
+  configuredOrigin?: string,
 ): string | null {
   const local = address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
-  const allowedOrigin = origin === "http://localhost:5173" || origin === "http://127.0.0.1:5173";
+  let localOrigin = false;
+  if (configuredOrigin) {
+    try {
+      const configured = new URL(configuredOrigin);
+      localOrigin =
+        configured.origin === configuredOrigin &&
+        configured.protocol === "http:" &&
+        ["127.0.0.1", "localhost"].includes(configured.hostname) &&
+        origin === configuredOrigin;
+    } catch {
+      localOrigin = false;
+    }
+  }
+  const allowedOrigin =
+    localOrigin || origin === "http://localhost:5173" || origin === "http://127.0.0.1:5173";
   const owner = url.searchParams.get("user");
   if (!local || !allowedOrigin || url.pathname !== "/lsp") return null;
   return owner && ["alice", "bob", "charlie", "dana"].includes(owner) ? owner : null;

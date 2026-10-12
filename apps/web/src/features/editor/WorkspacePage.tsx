@@ -93,8 +93,8 @@ export function WorkspacePage({
   const [localIdentity, setLocalIdentity] = useState<DevelopmentIdentity>(() =>
     readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
   );
-  const account = useSession();
   const fixtureIdentity = providedIdentity ?? localIdentity;
+  const account = useSession(fixtureIdentity);
   const identity = (
     account.data?.mode === "managed" ? account.data.user.id : fixtureIdentity
   ) as DevelopmentIdentity;

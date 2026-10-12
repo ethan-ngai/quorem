@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -38,19 +37,9 @@ func TestAdminQuestionRoutesRejectForgedRoles(t *testing.T) {
 }
 
 func TestAdminQuestionHTTPDraftLifecycle(t *testing.T) {
-	url := os.Getenv("QUOREM_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("disposable PostgreSQL required")
-	}
 	ctx := context.Background()
-	store, err := postgres.Open(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Pool.Close()
-	if err = store.Migrate(ctx, "../../../migrations"); err != nil {
-		t.Fatal(err)
-	}
+	store := streamStore(t)
+	var err error
 	// This test creates a unique subject and draft; it never truncates another package's data.
 	actor := "admin-http-" + postgres.ID()
 	if _, err = store.Pool.Exec(ctx, "INSERT INTO users(id,display_name,role) VALUES($1,'HTTP Admin','admin')", actor); err != nil {
