@@ -1,0 +1,13 @@
+{
+  "slug": "level-spreads",
+  "solutions": [
+    {
+      "language": "python",
+      "source": "class Solution:\n    def levelSpreads(self, root):\n        level = [] if root is None else [root]\n        answer = []\n        while level:\n            low = high = level[0].val\n            next_level = []\n            for node in level:\n                low = min(low, node.val)\n                high = max(high, node.val)\n                if node.left is not None:\n                    next_level.append(node.left)\n                if node.right is not None:\n                    next_level.append(node.right)\n            answer.append(high - low)\n            level = next_level\n        return answer\n",
+      "explanationMarkdown": "Breadth-first traversal processes one level at a time. Compute the minimum and maximum while collecting that level's children, then append their difference. Empty trees produce no levels.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(w)",
+      "complexityNotes": "n is the number of nodes; w is the maximum occupied level width. Auxiliary space excludes the result."
+    }
+  ]
+}

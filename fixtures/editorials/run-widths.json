@@ -1,0 +1,13 @@
+{
+  "slug": "run-widths",
+  "solutions": [
+    {
+      "language": "python",
+      "source": "class Solution:\n    def runWidths(self, values: list[int]) -> list[int]:\n        widths = []\n        for index, value in enumerate(values):\n            if index == 0 or value != values[index - 1]:\n                widths.append(1)\n            else:\n                widths[-1] += 1\n        return widths\n",
+      "explanationMarkdown": "Scan once. Start a new count whenever a value differs from its predecessor; otherwise extend the current run. The output contains exactly one count per maximal run.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of values. Auxiliary space excludes the O(n) result."
+    }
+  ]
+}

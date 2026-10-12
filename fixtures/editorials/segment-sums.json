@@ -1,0 +1,13 @@
+{
+  "slug": "segment-sums",
+  "solutions": [
+    {
+      "language": "python",
+      "source": "from quorem_types import ListNode\n\nclass Solution:\n    def segmentSums(self, head):\n        dummy = ListNode(0)\n        tail = dummy\n        total, active = 0, False\n        while head is not None:\n            if head.val == 0:\n                if active:\n                    tail.next = ListNode(total)\n                    tail = tail.next\n                total, active = 0, False\n            else:\n                total += head.val\n                active = True\n            head = head.next\n        if active:\n            tail.next = ListNode(total)\n        return dummy.next\n",
+      "explanationMarkdown": "Accumulate nonzero values until a zero separator. Track whether the segment contains a value independently of its sum, so a nonempty segment summing to zero is retained. Flush the final segment after the loop.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of input nodes. Auxiliary space excludes the newly allocated result list."
+    }
+  ]
+}

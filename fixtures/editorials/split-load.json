@@ -1,0 +1,13 @@
+{
+  "slug": "split-load",
+  "solutions": [
+    {
+      "language": "python",
+      "source": "class Solution:\n    def splitLoad(self, loads: list[int], groups: int) -> int:\n        lower, upper = max(loads), sum(loads)\n        while lower < upper:\n            bound = (lower + upper) // 2\n            used, running = 1, 0\n            for load in loads:\n                if running + load > bound:\n                    used += 1\n                    running = 0\n                running += load\n            if used <= groups:\n                upper = bound\n            else:\n                lower = bound + 1\n        return lower\n",
+      "explanationMarkdown": "Binary-search the maximum allowed group sum between the largest load and the total. A greedy scan uses the fewest groups for that bound. If it uses at most the requested number, nonnegative loads let us split groups further without increasing the maximum; move the upper bound down.",
+      "timeComplexity": "O(n log(S + 1))",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of loads; S is their sum. The search includes the all-zero case."
+    }
+  ]
+}

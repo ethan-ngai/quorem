@@ -1,0 +1,13 @@
+{
+  "slug": "mirror-letters",
+  "solutions": [
+    {
+      "language": "python",
+      "source": "class Solution:\n    def mirrorLetters(self, text: str) -> str:\n        chars = list(text)\n        left, right = 0, len(chars) - 1\n        def letter(char):\n            return \"A\" <= char <= \"Z\" or \"a\" <= char <= \"z\"\n        while left < right:\n            if not letter(chars[left]):\n                left += 1\n            elif not letter(chars[right]):\n                right -= 1\n            else:\n                chars[left], chars[right] = chars[right], chars[left]\n                left += 1\n                right -= 1\n        return \"\".join(chars)\n",
+      "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+    }
+  ]
+}
