@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"os/exec"
 	"testing"
@@ -24,7 +25,7 @@ func TestDockerJavaColdCompilerRespectsPIDLimitOnLargeHost(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	name := "quorem-java-threads-" + time.Now().Format("150405.000000000")
+	name := "quorem-java-threads-" + rand.Text()
 	defer func() {
 		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
