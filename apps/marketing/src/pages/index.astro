@@ -7,6 +7,7 @@ import MatchScene from "../components/MatchScene.astro";
 import HeroDots from "../components/HeroDots.astro";
 import BattleHeadline from "../components/BattleHeadline.astro";
 import UpcomingModeIllustration from "../components/UpcomingModeIllustration.astro";
+import UpcomingFeaturePreview from "../components/UpcomingFeaturePreview.astro";
 import MatchModeIllustration from "../components/MatchModeIllustration.astro";
 import EditorPreview from "../components/EditorPreview";
 import "@fontsource/jetbrains-mono/400.css";
@@ -123,6 +124,19 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
           <article class="feature-panel verdict-panel" data-reveal>
             <div class="verdict-art" aria-hidden="true"><div class="verdict-lines">{Array.from({length: 12}, (_, i) => <span style={`--line: ${i}`} />)}</div><div class="verdict-stamp"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></svg></div></div>
             <div class="feature-copy"><h3>Submissions decide the winner.</h3><p>Submissions decide the match. Test runs are yours to experiment with.</p></div>
+          </article>
+        </div>
+      </section>
+      <section class="feature-section page-width" aria-labelledby="upcoming-title" data-reveal>
+        <div class="feature-heading"><h2 id="upcoming-title">Coming soon</h2></div>
+        <div class="feature-grid upcoming-feature-grid">
+          <article class="feature-panel social-panel">
+            <div class="feature-copy"><h3>Social <span class="coming-soon">Coming soon</span></h3><p>See where you stand on leaderboards. Track your nemeses and your wins and losses against each other.</p></div>
+            <UpcomingFeaturePreview variant="social" />
+          </article>
+          <article class="feature-panel adaptive-panel">
+            <div class="feature-copy"><h3>Adaptive <span class="coming-soon">Coming soon</span></h3><p>Get problem recommendations based on your past performance, for competitive matches or solo practice.</p></div>
+            <UpcomingFeaturePreview variant="adaptive" />
           </article>
         </div>
       </section>

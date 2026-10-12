@@ -414,7 +414,11 @@ summary:focus-visible {
   stroke: var(--color-on-primary);
   stroke-width: 1.5;
 }
-.mode-description h2 .coming-soon {
+.coming-soon {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
   padding: 4px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -487,6 +491,333 @@ summary:focus-visible {
 }
 .feature-section {
   margin-top: var(--marketing-section);
+}
+.upcoming-feature-grid .feature-copy h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.social-panel {
+  grid-column: span 2;
+}
+.social-preview-stage,
+.adaptive-preview-stage {
+  position: relative;
+  margin: 0;
+  padding: 16px 32px 40px;
+  background: radial-gradient(ellipse at 50% 40%, var(--marketing-highlight), transparent 70%);
+}
+.social-preview-stage {
+  min-height: 640px;
+}
+.product-window {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-field);
+  box-shadow: var(--marketing-depth);
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--color-text);
+}
+.social-product {
+  width: 80%;
+}
+.product-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.product-brand {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.product-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-overlay);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+.self-avatar,
+.recommendation-spark {
+  margin-left: auto;
+}
+.product-tabs {
+  display: flex;
+  gap: 24px;
+  padding-inline: 20px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+.product-tabs span {
+  padding-block: 16px;
+}
+.product-tabs .selected {
+  border-bottom: 2px solid var(--color-primary);
+  color: var(--color-text);
+}
+.leaderboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 20px 16px;
+}
+.leaderboard-header > span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.product-window svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.leaderboard-table {
+  padding-bottom: 16px;
+}
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
+  font-variant-numeric: tabular-nums;
+}
+.leaderboard-row > span:nth-last-child(-n + 2) {
+  text-align: right;
+}
+.table-label {
+  border: 0;
+  padding-block: 8px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.current-player {
+  background: var(--color-brand-secondary);
+}
+.player-rank {
+  color: var(--color-text-secondary);
+  font-family: var(--font-code);
+}
+.leaderboard-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.leaderboard-player small {
+  color: var(--color-primary);
+  font-size: 10px;
+}
+.rival-product {
+  position: absolute;
+  right: 32px;
+  bottom: 40px;
+  width: 264px;
+  padding: 20px;
+}
+.rival-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rival-heading strong,
+.rival-heading div > span {
+  display: block;
+}
+.rival-heading div > span {
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.rival-swords {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+}
+.rival-swords svg {
+  width: 24px;
+  height: 24px;
+}
+.rival-score {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block: 24px 16px;
+}
+.rival-score strong {
+  display: block;
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.rival-score span {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.rival-balance {
+  display: flex;
+  gap: 4px;
+  height: 4px;
+}
+.rival-balance span:first-child {
+  flex: 7;
+  background: var(--color-primary);
+}
+.rival-balance span:last-child {
+  flex: 5;
+  background: var(--color-border);
+}
+.rival-history {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+.rival-history > div {
+  display: flex;
+  gap: 4px;
+}
+.rival-history i {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  font-style: normal;
+  color: var(--color-primary);
+  background: var(--color-brand-secondary);
+}
+.rival-history .lost {
+  color: var(--color-text-secondary);
+  background: var(--color-overlay);
+}
+.adaptive-preview-stage {
+  padding-inline: 24px;
+}
+.recommendation-spark {
+  color: var(--color-primary);
+}
+.performance-history {
+  padding: 20px 16px;
+}
+.preview-label {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.performance-history > div {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.performance-history > div > span {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.performance-history i {
+  font-style: normal;
+  color: var(--color-success);
+}
+.performance-history .unfinished {
+  color: var(--color-text-secondary);
+}
+.recommendation-card {
+  margin: 0 12px 12px;
+  padding: 20px 16px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.recommendation-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary);
+  font-size: 11px;
+}
+.recommendation-label > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.recommendation-card > strong {
+  display: block;
+  margin-top: 16px;
+  font-size: 20px;
+  font-weight: 500;
+}
+.recommendation-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.recommendation-topics > span {
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+.recommendation-card p {
+  margin-top: 16px;
+  font-size: 12px;
+}
+.recommendation-example {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 12px;
+  background: var(--color-field);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+}
+.recommendation-example span {
+  color: var(--color-text-secondary);
+}
+.recommendation-example code {
+  font: 11px var(--font-code);
+}
+.recommendation-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 11px;
+}
+.recommendation-actions > span:first-child {
+  display: flex;
+  flex: 1;
+  justify-content: space-between;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.recommendation-actions b {
+  font-weight: 400;
 }
 .feature-heading {
   display: flex;
@@ -855,6 +1186,12 @@ summary:focus-visible {
   }
 }
 @media (max-width: 1000px) {
+  .upcoming-feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .social-panel {
+    grid-column: auto;
+  }
   .mode-preview {
     padding: 24px 32px 32px;
   }
@@ -925,8 +1262,27 @@ summary:focus-visible {
     grid-template-columns: 1fr;
   }
   .lobby-panel,
-  .editor-panel {
+  .editor-panel,
+  .social-panel {
     grid-column: auto;
+  }
+  .social-preview-stage,
+  .adaptive-preview-stage {
+    padding: 8px 16px 24px;
+  }
+  .social-product {
+    width: 100%;
+  }
+  .leaderboard-row {
+    gap: 8px;
+    grid-template-columns: 32px 1fr 36px 36px;
+    padding-inline: 12px;
+  }
+  .rival-product {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    margin: 16px 0 0 auto;
   }
   .lobby-stage {
     padding: 8px 20px 24px;
