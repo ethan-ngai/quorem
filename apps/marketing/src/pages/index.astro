@@ -3,7 +3,6 @@ import "@fontsource-variable/geist";
 import "@quorem/ui/theme.css";
 import "../styles/marketing.css";
 import ProductPreview from "../components/ProductPreview.astro";
-import CompetitionDiagram from "../components/CompetitionDiagram.astro";
 const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
 ---
 <!doctype html>
@@ -69,11 +68,9 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
         </div>
         <div class="mode-showcase" data-reveal>
           <article class="mode-preview">
-            <CompetitionDiagram mode="showdown" />
             <div><h2>Showdown</h2><p>One opponent. One shared problem.</p></div><span class="mode-size">1 v 1</span>
           </article>
           <article class="mode-preview">
-            <CompetitionDiagram mode="free-for-all" />
             <div><h2>Free-for-all</h2><p>Bring a group into the same race.</p></div><span class="mode-size">2–8 players</span>
           </article>
         </div>

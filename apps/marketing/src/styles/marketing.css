@@ -247,9 +247,9 @@ summary:focus-visible {
 .mode-preview {
   display: grid;
   grid-template-columns: 1fr auto;
-  align-items: end;
+  align-items: center;
   gap: 12px;
-  padding: 24px 32px 28px;
+  padding: 24px 32px;
 }
 .mode-preview + .mode-preview {
   border-left: 1px solid var(--color-border);
@@ -266,44 +266,6 @@ summary:focus-visible {
   font-size: 13px;
   color: var(--color-text-secondary);
   align-self: center;
-}
-.competition-diagram {
-  grid-column: 1/-1;
-  display: block;
-  width: 100%;
-  max-width: 380px;
-  height: auto;
-  margin: 0 auto 12px;
-}
-.diagram-frame {
-  fill: none;
-  stroke: var(--color-border);
-  stroke-width: 1;
-}
-.diagram-wires {
-  fill: none;
-  stroke: var(--color-primary);
-  opacity: 0.5;
-  stroke-width: 1;
-}
-.diagram-problem {
-  fill: var(--color-brand-secondary);
-  stroke: var(--color-primary);
-  stroke-width: 1;
-}
-.diagram-player {
-  fill: var(--color-background);
-  stroke: var(--color-text-secondary);
-  stroke-width: 1;
-  transition:
-    transform var(--motion-standard) var(--marketing-spring),
-    stroke var(--motion-standard);
-  transition-delay: var(--player-delay);
-}
-.diagram-label {
-  fill: var(--color-text-secondary);
-  font-family: var(--font-interface);
-  font-size: 14px;
 }
 .match-blueprint {
   margin-top: var(--marketing-section);
@@ -577,10 +539,6 @@ summary:focus-visible {
   .site-menu summary:hover,
   .site-menu nav a:hover {
     background: var(--color-overlay);
-  }
-  .mode-preview:hover .diagram-player {
-    transform: translateY(-3px);
-    stroke: var(--color-primary);
   }
   .blueprint-visual:hover .problem-sheet,
   .blueprint-visual:hover .rule-sheet {
