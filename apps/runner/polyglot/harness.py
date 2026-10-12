@@ -95,7 +95,8 @@ def prepare(r,lang):
     if lang=='java':
         source='import java.util.*;\n'+JAVA_TYPES+r['source']+'\nclass Main {\n'+JAVA_ENCODER+'\npublic static void main(String[] a)throws Exception { Object v=new '+s['className']+'().'+method+'('+','.join(args)+'); String output;try{output=encode('+json.dumps(ret)+',v,0);}catch(Throwable e){System.err.print("invalid_output");System.exit(42);return;} System.err.print("\\nQUOREM_RESULT:"+output);}}'
         open('/tmp/Main.java','w').write(source)
-        return ['javac','-J-Xmx128m','/tmp/Main.java'], ['java','-Xmx128m','-XX:ActiveProcessorCount=1','-XX:+UseSerialGC','-XX:-UsePerfData','-cp','/tmp','Main']
+        # Compiler JVM shares the PID cap with the trusted supervisor.
+        return ['javac','-J-Xmx128m','-J-XX:ActiveProcessorCount=1','-J-XX:+UseSerialGC','-J-XX:-UsePerfData','/tmp/Main.java'], ['java','-Xmx128m','-XX:ActiveProcessorCount=1','-XX:+UseSerialGC','-XX:-UsePerfData','-cp','/tmp','Main']
     if lang=='typescript':
         source=TS_TYPES+r['source']+'\n'+TS_ENCODER+'\ntry { const v=new '+s['className']+'().'+method+'('+','.join(args)+'); process.stderr.write("\\nQUOREM_RESULT:"+JSON.stringify(encode('+json.dumps(ret)+',v))); } catch(e) { if(e instanceof Error && e.message==="invalid_output")process.exit(42); throw e; }'
         open('/tmp/main.ts','w').write('declare const process:any;\n'+source)
