@@ -1,10 +1,10 @@
 # Multiplayer — after editor foundation
 
-MVP: two independent contestants, one immutable problem, private invites. Host chooses difficulty; server randomly selects from that pool and reveals only at start. Public matchmaking/FFA/parties/shared editing deferred. Identity, wire fields and limits are in auth.md, contracts.md and operating-defaults.md.
+MVP: private invite-based Showdown (two contestants) and Free-for-all (two to eight), one immutable problem. Host chooses a specific public problem or random selection from one or more difficulty pools. Random identity is revealed only at start. Public matchmaking/parties/shared editing deferred. Identity, wire fields and limits are in auth.md, contracts.md and operating-defaults.md.
 
 Confirmed rules: earliest server-received correct submission wins; host selects 15/30/45/60 minutes, default 30. At deadline compare highest hidden-test passed count per player, drawing on equality. Disconnect does not stop the clock or cause automatic forfeiture; reconnect until deadline, explicit forfeit ends participation. Expose connection/readiness, submission status, best passed-test count; source remains private.
 
-Invite: hashed 256-bit token, 24-hour expiry; authenticated join and atomic two-seat claim. One active match per user. No problem identity before start. Host setting changes clear both ready flags. Pre-start host leaves: cancel; guest leaves: free seat. Active departure is disconnect unless explicit forfeit. Empty difficulty pool returns configuration error, never substitutes difficulty.
+Invite: hashed 256-bit token, 24-hour expiry; authenticated join and atomic two-seat claim. One active match per user. No problem identity before start. Host setting changes clear all ready flags, including mode, pool, specific problem and rule edits. Switching to Showdown with more than two participants is rejected. Pre-start host leaves: cancel; guest leaves: free seat. Active departure is disconnect unless explicit forfeit. Empty difficulty pool returns configuration error, never substitutes difficulty.
 
 ## Planned match visibility settings
 
@@ -14,7 +14,7 @@ Persist the visibility policy on the match, show it to both participants before 
 
 ## Lifecycle
 
-waiting → ready → active → finalizing → completed; cancelled for pre-start abandonment. Exactly two distinct seats; join and readiness transitions atomic. Server fixes problem version, selected duration, start/deadline. Clients display estimated time from server timestamps; server decides whether submission is eligible. Finalizing represents pending eligible submissions, not permission to accept new work after deadline.
+waiting → ready → active → finalizing → completed; cancelled for pre-start abandonment. Showdown has two seats and starts when both ready; Free-for-all has up to eight seats and requires an explicit host start with at least two players, all ready. Join and readiness transitions atomic. Server fixes problem version, selected duration, start/deadline. Clients display estimated time from server timestamps; server decides whether submission is eligible. Finalizing represents pending eligible submissions, not permission to accept new work after deadline.
 
 Completion transaction updates once and records event. Rank correct submissions by actual database time sampled after taking the match lock and locked total-order sequence. Use `clock_timestamp()`, never transaction-start `now()`. Eligible iff admission is strictly before deadline; exact-deadline/lock-delayed late requests rejected. Equal timestamps ordered by sequence. Test-only random source injectable.
 
@@ -24,7 +24,7 @@ Reconciliation cancels waiting/ready matches at invite expiry and releases reser
 
 ## Realtime
 
-Private per-match subscription authorized for participants. Broadcast state versions, readiness, safe submission status/best hidden-test count, and outcome; never opponent source or hidden tests. Presence is advisory; durable participant state and match outcomes live in PostgreSQL. Reconnect gets authoritative snapshot; missing events never imply automatic forfeiture. Explicit forfeit requires an authorized idempotent command and immediately concedes any not-yet-completed match; pending submissions cannot reverse the result. Serialize forfeit/completion races in the same match transaction. Replayed forfeits cannot change an already completed outcome.
+Private per-match subscription authorized for participants. Broadcast state versions, readiness, safe submission status/best hidden-test count, and outcome; never opponent source or hidden tests. Presence is advisory; durable participant state and match outcomes live in PostgreSQL. Reconnect gets authoritative snapshot; missing events never imply automatic forfeiture. Explicit forfeit requires an authorized idempotent command. Showdown immediately concedes; Free-for-all excludes that contestant and continues until one remains or the outcome settles. Pending forfeited submissions cannot reverse the result. Serialize forfeit/completion races in the same match transaction. Replayed forfeits cannot change an already completed outcome.
 
 Server performs match transition and submission eligibility checks in transactions with concurrency protection. PubSub delivers updates rather than owning the game. Scheduled expiration/reconciliation handles matches even if browsers disconnect and API instances stop.
 
@@ -36,3 +36,9 @@ Server performs match transition and submission eligibility checks in transactio
 - Match result survives API/realtime restarts; opponent source remains private.
 
 Extension seams: participant collections/configurable rules; ProblemSelector starts with uniform random selection and test-only seeded randomness. Future shared editing uses a separate CRDT protocol, not keystrokes in match events.
+
+## Browser-observed host rules
+
+Each of clipboard and window-focus rules offers Allow, Warning, or Announce to lobby. Defaults allow both. Restricted clipboard events are cancelled in the statement/editor. Blur and hidden events count once per absence. No clipboard content, source, or navigation target is reported. Announcements retain at most twenty events; reports are throttled. Policies freeze at start.
+
+These are browser-observed conduct controls, not tamper-proof anti-cheat. A modified client can bypass observation. Timing, scoring, membership, and admission remain server-authoritative.

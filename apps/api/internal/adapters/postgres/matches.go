@@ -17,6 +17,7 @@ import (
 )
 
 type matchRecord struct {
+	suppressEvent                  bool
 	id, host, state, problem, mode string
 	version                        int64
 	settings                       matches.Settings
@@ -27,18 +28,19 @@ type matchRecord struct {
 
 func lockMatch(ctx context.Context, tx pgx.Tx, id string) (matchRecord, error) {
 	var m matchRecord
-	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
+	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,difficulties,COALESCE(selected_problem_version_id::text,''),rules,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = failure("not_found", 404, "Match not found")
 	}
+	m.settings.Mode = m.mode
 	return m, err
 }
 func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m matchRecord) (matches.Snapshot, error) {
-	v := matches.Snapshot{ID: m.id, Mode: m.mode, Version: strconv.FormatInt(m.version, 10), State: m.state, Settings: m.settings, ExpiresAt: m.expires, StartedAt: m.started, Deadline: m.deadline, FinalizingAt: m.finalizing, ProblemVersionID: m.problem, Participants: []matches.Participant{}}
+	v := matches.Snapshot{ID: m.id, Version: strconv.FormatInt(m.version, 10), State: m.state, Settings: m.settings, ExpiresAt: m.expires, StartedAt: m.started, Deadline: m.deadline, FinalizingAt: m.finalizing, ProblemVersionID: m.problem, Participants: []matches.Participant{}, RuleEvents: []matches.RuleEvent{}}
 	if err := tx.QueryRow(ctx, "SELECT participant_id,clock_timestamp() FROM users WHERE id=$1", m.host).Scan(&v.HostUserID, &v.ServerNow); err != nil {
 		return v, err
 	}
-	rows, err := tx.Query(ctx, `SELECT p.owner_id,u.participant_id,u.display_name,p.ready,p.presence,COALESCE(p.workspace_id::text,''),p.best_passed,COALESCE(p.submission_state,'') FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 ORDER BY p.seat`, m.id)
+	rows, err := tx.Query(ctx, `SELECT p.owner_id,u.participant_id,u.display_name,p.ready,p.presence,COALESCE(p.workspace_id::text,''),p.best_passed,COALESCE(p.submission_state,''),p.forfeited FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 ORDER BY p.seat`, m.id)
 	if err != nil {
 		return v, err
 	}
@@ -48,7 +50,7 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 		var p matches.Participant
 		var seatOwner string
 		var passed int
-		if err = rows.Scan(&seatOwner, &p.UserID, &p.DisplayName, &p.Ready, &p.Presence, &p.WorkspaceID, &passed, &p.SubmissionState); err != nil {
+		if err = rows.Scan(&seatOwner, &p.UserID, &p.DisplayName, &p.Ready, &p.Presence, &p.WorkspaceID, &passed, &p.SubmissionState, &p.Forfeited); err != nil {
 			return v, err
 		}
 		if seatOwner == owner {
@@ -66,6 +68,25 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	}
 	if !member {
 		return v, failure("not_found", 404, "Match not found")
+	}
+	rows.Close()
+	events, e := tx.Query(ctx, `SELECT e.id,u.participant_id,e.kind,e.occurred_at FROM match_rule_events e JOIN users u ON u.id=e.owner_id WHERE e.match_id=$1 ORDER BY e.occurred_at,e.id`, m.id)
+	if e != nil {
+		return v, e
+	}
+	for events.Next() {
+		var event matches.RuleEvent
+		event.Action = "announce"
+		if e = events.Scan(&event.ID, &event.UserID, &event.Kind, &event.OccurredAt); e != nil {
+			events.Close()
+			return v, e
+		}
+		v.RuleEvents = append(v.RuleEvents, event)
+	}
+	e = events.Err()
+	events.Close()
+	if e != nil {
+		return v, e
 	}
 	if len(m.outcome) > 0 {
 		v.Outcome = &matches.Outcome{}
@@ -144,7 +165,15 @@ func (s *Store) matchCommand(ctx context.Context, owner, route, key string, body
 	var prior []byte
 	err = tx.QueryRow(ctx, "SELECT body_hash,response FROM match_idempotency WHERE owner_id=$1 AND route=$2 AND key=$3 AND expires_at>clock_timestamp()", owner, route, key).Scan(&hash, &prior)
 	if err == nil {
-		if hash != fingerprint {
+		legacyMatches := false
+		if settings, ok := body.(matches.Settings); ok && settings.Mode == matches.Showdown && len(settings.Difficulties) == 1 && settings.SelectedProblemVersionID == "" && settings.Rules.Clipboard == "off" && settings.Rules.Focus == "off" {
+			old, _ := json.Marshal(struct {
+				Difficulty      string `json:"difficulty"`
+				DurationMinutes int    `json:"durationMinutes"`
+			}{settings.Difficulty, settings.DurationMinutes})
+			legacyMatches = hash == Hash(old)
+		}
+		if hash != fingerprint && !legacyMatches {
 			return failure("idempotency_conflict", 409, "Key was used for a different command")
 		}
 		if route == "create" {
@@ -197,13 +226,14 @@ func reserveOwner(ctx context.Context, tx pgx.Tx, owner string) error {
 }
 func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings matches.Settings) (matches.Created, error) {
 	var result matches.Created
-	if settings.DurationMinutes == 0 {
-		settings.DurationMinutes = 30
-	}
+	settings = settings.Normalize()
 	if !settings.Valid() {
 		return result, failure("invalid_input", 400, "Invalid match settings")
 	}
 	err := s.matchCommand(ctx, owner, "create", key, settings, func(tx pgx.Tx) (any, error) {
+		if err := validateMatchProblem(ctx, tx, settings); err != nil {
+			return nil, err
+		}
 		if err := reserveOwner(ctx, tx, owner); err != nil {
 			return nil, err
 		}
@@ -212,8 +242,8 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 			return nil, err
 		}
 		encoded := base64.RawURLEncoding.EncodeToString(token)
-		m := matchRecord{id: ID(), state: "waiting", mode: matches.Showdown}
-		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode); err != nil {
+		m := matchRecord{id: ID(), state: "waiting", mode: settings.Mode}
+		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6,$7,NULLIF($8,'')::uuid,$9)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1);", m.id, owner); err != nil {
@@ -260,17 +290,17 @@ func (s *Store) JoinMatch(ctx context.Context, owner, key, token string) (matche
 		if m.host == owner {
 			return nil, failure("invalid_transition", 409, "Host cannot claim guest seat")
 		}
-		var occupied bool
-		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM match_participants WHERE match_id=$1 AND seat=2)", id).Scan(&occupied); err != nil {
+		var seat int
+		if err = tx.QueryRow(ctx, "SELECT CASE WHEN (SELECT count(*) FROM match_participants WHERE match_id=$1)>=$2 THEN 0 ELSE COALESCE(min(n),0) END FROM generate_series(1,8) n WHERE NOT EXISTS(SELECT 1 FROM match_participants WHERE match_id=$1 AND seat=n)", id, m.settings.Capacity()).Scan(&seat); err != nil {
 			return nil, err
 		}
-		if occupied {
+		if seat == 0 {
 			return nil, failure("invalid_transition", 409, "Match is full")
 		}
 		if err = reserveOwner(ctx, tx, owner); err != nil {
 			return nil, err
 		}
-		if _, err = tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,2)", id, owner); err != nil {
+		if _, err = tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,$3)", id, owner, seat); err != nil {
 			return nil, err
 		}
 		if _, err = tx.Exec(ctx, "INSERT INTO match_reservations(owner_id,match_id) VALUES($1,$2)", owner, id); err != nil {
@@ -302,7 +332,7 @@ func (s *Store) mutateMatch(ctx context.Context, owner, id, key, action string, 
 		if err = mutate(tx, &m); err != nil {
 			return nil, err
 		}
-		if !alreadyClosed {
+		if !alreadyClosed && !m.suppressEvent {
 			if err = matchEvent(ctx, tx, &m); err != nil {
 				return nil, err
 			}
@@ -315,7 +345,18 @@ func (s *Store) mutateMatch(ctx context.Context, owner, id, key, action string, 
 			if _, err = tx.Exec(ctx, "DELETE FROM match_participants WHERE match_id=$1 AND owner_id=$2", id, owner); err != nil {
 				return nil, err
 			}
-			v.Participants = v.Participants[:1]
+			var leaving string
+			if err = tx.QueryRow(ctx, "SELECT participant_id FROM users WHERE id=$1", owner).Scan(&leaving); err != nil {
+				return nil, err
+			}
+			people := v.Participants[:0]
+			for _, p := range v.Participants {
+				if p.UserID == leaving {
+					continue
+				}
+				people = append(people, p)
+			}
+			v.Participants = people
 		}
 		return v, nil
 	}, &result)
@@ -337,77 +378,15 @@ func (s *Store) ReadyMatch(ctx context.Context, owner, id, key string, ready boo
 		if readies > 0 {
 			m.state = "ready"
 		}
-		if total == 2 && readies == 2 {
-			rows, err := tx.Query(ctx, "SELECT public FROM (SELECT DISTINCT ON (slug) id,public FROM problem_versions ORDER BY slug,version DESC) latest WHERE public->>'difficulty'=$1 ORDER BY id", m.settings.Difficulty)
-			if err != nil {
-				return err
-			}
-			pool := []problems.Problem{}
-			for rows.Next() {
-				var data []byte
-				var p problems.Problem
-				if err = rows.Scan(&data); err != nil {
-					rows.Close()
-					return err
-				}
-				if err = json.Unmarshal(data, &p); err != nil {
-					rows.Close()
-					return err
-				}
-				pool = append(pool, p)
-			}
-			err = rows.Err()
-			rows.Close()
-			if err != nil {
-				return err
-			}
-			if len(pool) == 0 {
-				return failure("temporarily_unavailable", 503, "Difficulty pool is empty")
-			}
-			choice, err := rand.Int(rand.Reader, big.NewInt(int64(len(pool))))
-			if err != nil {
-				return err
-			}
-			p := pool[choice.Int64()]
-			m.state = "active"
-			m.problem = p.ID
-			if err = tx.QueryRow(ctx, "UPDATE matches SET state='active',problem_version_id=$2,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=$1 RETURNING started_at,deadline", id, p.ID).Scan(&m.started, &m.deadline); err != nil {
-				return err
-			}
-			rows, err = tx.Query(ctx, "SELECT owner_id FROM match_participants WHERE match_id=$1 ORDER BY seat", id)
-			if err != nil {
-				return err
-			}
-			owners := []string{}
-			for rows.Next() {
-				var o string
-				if err = rows.Scan(&o); err != nil {
-					rows.Close()
-					return err
-				}
-				owners = append(owners, o)
-			}
-			err = rows.Err()
-			rows.Close()
-			if err != nil {
-				return err
-			}
-			for _, o := range owners {
-				w := ID()
-				if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)", w, o, p.ID, id); err != nil {
-					return err
-				}
-				if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", id, o, w); err != nil {
-					return err
-				}
-			}
-			return nil
+		if m.mode == matches.Showdown && total == 2 && readies == 2 {
+			return s.startMatch(ctx, tx, m)
 		}
 		_, err := tx.Exec(ctx, "UPDATE matches SET state=$2 WHERE id=$1", id, m.state)
 		return err
 	})
 }
 func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, settings matches.Settings) (matches.Snapshot, error) {
+	settings = settings.Normalize()
 	if !settings.Valid() {
 		return matches.Snapshot{}, failure("invalid_input", 400, "Invalid match settings")
 	}
@@ -418,9 +397,20 @@ func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, 
 		if m.started != nil || m.outcome != nil {
 			return failure("invalid_transition", 409, "Match settings are fixed")
 		}
+		var count int
+		if err := tx.QueryRow(ctx, "SELECT count(*) FROM match_participants WHERE match_id=$1", id).Scan(&count); err != nil {
+			return err
+		}
+		if count > settings.Capacity() {
+			return failure("invalid_transition", 409, "Too many players for this mode")
+		}
+		if err := validateMatchProblem(ctx, tx, settings); err != nil {
+			return err
+		}
 		m.settings = settings
+		m.mode = settings.Mode
 		m.state = "waiting"
-		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes); err != nil {
+		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,mode=$4,difficulties=$5,selected_problem_version_id=NULLIF($6,'')::uuid,rules=$7,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, "UPDATE match_participants SET ready=false WHERE match_id=$1", id)
@@ -458,14 +448,109 @@ func (s *Store) ForfeitMatch(ctx context.Context, owner, id, key string) (matche
 		if m.outcome != nil {
 			return nil
 		}
-		var winner string
-		err := tx.QueryRow(ctx, "SELECT owner_id FROM match_participants WHERE match_id=$1 AND owner_id<>$2", id, owner).Scan(&winner)
-		if errors.Is(err, pgx.ErrNoRows) {
+		if m.started == nil {
 			return finishMatch(ctx, tx, m, "cancelled", "", "forfeit_without_opponent")
 		}
-		if err != nil {
+		if _, err := tx.Exec(ctx, "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id=$2", id, owner); err != nil {
 			return err
 		}
-		return finishMatch(ctx, tx, m, "win", winner, "forfeit")
+		var count int
+		var winner string
+		if err := tx.QueryRow(ctx, "SELECT count(*),COALESCE(min(owner_id),'') FROM match_participants WHERE match_id=$1 AND NOT forfeited", id).Scan(&count, &winner); err != nil {
+			return err
+		}
+		if count == 1 {
+			return finishMatch(ctx, tx, m, "win", winner, "forfeit")
+		}
+		if count == 0 {
+			return finishMatch(ctx, tx, m, "cancelled", "", "forfeit_without_opponent")
+		}
+		return s.reconcileMatch(ctx, tx, m)
+	})
+}
+
+func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error {
+	id := m.id
+	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE ($2<>'' AND id::text=$2) OR ($2='' AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1)) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID)
+	if err != nil {
+		return err
+	}
+	pool := []problems.Problem{}
+	for rows.Next() {
+		var data []byte
+		var p problems.Problem
+		if err = rows.Scan(&data); err != nil {
+			rows.Close()
+			return err
+		}
+		if err = json.Unmarshal(data, &p); err != nil {
+			rows.Close()
+			return err
+		}
+		pool = append(pool, p)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if len(pool) == 0 {
+		return failure("temporarily_unavailable", 503, "Difficulty pool is empty")
+	}
+	choice, err := rand.Int(rand.Reader, big.NewInt(int64(len(pool))))
+	if err != nil {
+		return err
+	}
+	p := pool[choice.Int64()]
+	m.state = "active"
+	m.problem = p.ID
+	if err = tx.QueryRow(ctx, "UPDATE matches SET state='active',problem_version_id=$2,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=$1 RETURNING started_at,deadline", id, p.ID).Scan(&m.started, &m.deadline); err != nil {
+		return err
+	}
+	rows, err = tx.Query(ctx, "SELECT owner_id FROM match_participants WHERE match_id=$1 ORDER BY seat", id)
+	if err != nil {
+		return err
+	}
+	owners := []string{}
+	for rows.Next() {
+		var o string
+		if err = rows.Scan(&o); err != nil {
+			rows.Close()
+			return err
+		}
+		owners = append(owners, o)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, o := range owners {
+		w := ID()
+		if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)", w, o, p.ID, id); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", id, o, w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (s *Store) StartMatch(ctx context.Context, owner, id, key string) (matches.Snapshot, error) {
+	return s.mutateMatch(ctx, owner, id, key, "start", struct{}{}, func(tx pgx.Tx, m *matchRecord) error {
+		if m.host != owner {
+			return failure("forbidden", 403, "Only the host can start")
+		}
+		if m.mode != matches.FreeForAll || (m.state != "waiting" && m.state != "ready") {
+			return failure("invalid_transition", 409, "Match cannot start")
+		}
+		var total, ready int
+		if err := tx.QueryRow(ctx, "SELECT count(*),count(*) FILTER(WHERE ready) FROM match_participants WHERE match_id=$1", id).Scan(&total, &ready); err != nil {
+			return err
+		}
+		if total < 2 || total != ready {
+			return failure("invalid_transition", 409, "All players must be ready")
+		}
+		return s.startMatch(ctx, tx, m)
 	})
 }

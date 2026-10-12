@@ -4,6 +4,28 @@ import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
 import { lobbyWaitingLabel, outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 
 describe("lobby readiness", () => {
+  it("waits for every FFA participant and then an explicit host start", () => {
+    const ffa = {
+      ...snapshot,
+      mode: "free-for-all" as const,
+      participants: [
+        ...snapshot.participants,
+        {
+          userId: developmentUserIds.charlie,
+          displayName: "Charlie",
+          ready: false,
+          presence: "online" as const,
+        },
+      ],
+    };
+    expect(lobbyWaitingLabel(ffa, "alice")).toBe("Waiting for players to ready");
+    expect(
+      lobbyWaitingLabel(
+        { ...ffa, participants: ffa.participants.map((player) => ({ ...player, ready: true })) },
+        "alice",
+      ),
+    ).toBe("Waiting for host to start");
+  });
   it("keeps join status even when the only player is ready", () => {
     for (const ready of [false, true]) {
       const solo = { ...snapshot, participants: [{ ...snapshot.participants[1]!, ready }] };
@@ -39,6 +61,9 @@ const snapshot: MatchSnapshot = {
   mode: "showdown",
   serverNow: "2026-10-10T12:00:00Z",
   difficulty: "easy",
+  difficulties: ["easy"],
+  rules: { clipboard: "off", focus: "off" },
+  ruleEvents: [],
   durationMinutes: 15,
   hostUserId: developmentUserIds.alice,
   expiresAt: "2026-10-10T13:00:00Z",

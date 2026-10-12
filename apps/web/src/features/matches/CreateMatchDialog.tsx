@@ -3,7 +3,7 @@ import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts"
 import { useState } from "react";
 import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
-import { MatchSettings } from "./MatchControls";
+import { MatchSettings, defaultMatchSettings } from "./MatchControls";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 
@@ -16,7 +16,7 @@ export function CreateMatchDialog({
 }) {
   const [open, setOpen] = useState(true);
   const [settings, setSettings] = useState<CreateMatchRequest>(
-    () => pendingCreate(identity)?.payload ?? { difficulty: "easy", durationMinutes: 30 },
+    () => pendingCreate(identity)?.payload ?? defaultMatchSettings,
   );
   const [recentMatch] = useState(() => {
     try {
@@ -37,7 +37,7 @@ export function CreateMatchDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="settings-backdrop" />
         <Dialog.Content
-          className="competitive-dialog"
+          className="competitive-dialog match-creation-dialog"
           onAnimationEnd={(event) => {
             if (event.target === event.currentTarget && !open) onClose();
           }}
@@ -45,11 +45,11 @@ export function CreateMatchDialog({
           <header className="competitive-dialog-heading">
             <div>
               <Dialog.Title>
-                <Icon name="showdown" />
-                Create Showdown
+                <Icon name="people" />
+                Create match
               </Dialog.Title>
-              <Dialog.Description>
-                Invite one opponent. Both players ready to begin.
+              <Dialog.Description className="match-dialog-description">
+                Choose a mode, difficulty and problem.
               </Dialog.Description>
             </div>
             <Tooltip content="Close">
@@ -77,6 +77,7 @@ export function CreateMatchDialog({
           >
             <MatchSettings
               value={settings}
+              identity={identity}
               onChange={setSettings}
               disabled={pending || !!pendingCreate(identity)}
             />
@@ -95,7 +96,7 @@ export function CreateMatchDialog({
                 <span />
               )}
               <button className="button button-primary" disabled={pending}>
-                {pending ? "Creating…" : "Create Showdown"}
+                {pending ? "Creating…" : "Create match"}
                 <Icon name="arrow" />
               </button>
             </footer>

@@ -31,7 +31,7 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		best         int
 	}
 	people := map[string]*progress{}
-	rows, err := tx.Query(ctx, "SELECT owner_id,COALESCE(submission_state,''),best_passed FROM match_participants WHERE match_id=$1", m.id)
+	rows, err := tx.Query(ctx, "SELECT owner_id,COALESCE(submission_state,''),best_passed FROM match_participants WHERE match_id=$1 AND NOT forfeited", m.id)
 	if err != nil {
 		return err
 	}
@@ -65,6 +65,9 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		if err = rows.Scan(&owner, &state, &sequence, &resultData); err != nil {
 			rows.Close()
 			return err
+		}
+		if people[owner] == nil {
+			continue
 		}
 		latest[owner] = state
 		var result judging.Submission

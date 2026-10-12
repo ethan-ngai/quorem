@@ -34,7 +34,14 @@ export function pendingCreate(identity: DevelopmentIdentity) {
   const command = readPendingCommand<CreateMatchRequest>(identity, "create");
   if (
     command &&
-    ["easy", "medium", "hard"].includes(command.payload?.difficulty) &&
+    (command.payload?.mode === undefined ||
+      ["showdown", "free-for-all"].includes(command.payload.mode)) &&
+    (!!command.payload?.selectedProblemVersionId ||
+      (Array.isArray(command.payload?.difficulties) &&
+        command.payload.difficulties.length > 0 &&
+        command.payload.difficulties.every((pool) => ["easy", "medium", "hard"].includes(pool))) ||
+      (typeof command.payload?.difficulty === "string" &&
+        ["easy", "medium", "hard"].includes(command.payload.difficulty))) &&
     [15, 30, 45, 60].includes(command.payload?.durationMinutes)
   )
     return command;

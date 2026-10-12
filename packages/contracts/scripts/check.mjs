@@ -59,6 +59,65 @@ const submissionCommand = ajv.compile({ $ref: `${document.$id}#/$defs/CreateSubm
 assert(!submissionCommand({ ...fixtures.createSubmission, ownerId: "alice" }));
 assert(!submissionCommand({ ...fixtures.createSubmission, workspaceId: undefined }));
 assert(!submissionCommand({ ...fixtures.createSubmission, customCases: [{ args: [2147483648] }] }));
+const validateMatchRequest = ajv.compile({ $ref: `${document.$id}#/$defs/CreateMatchRequest` });
+const problemId = fixtures.submission.id;
+for (const request of [
+  { difficulty: "easy", durationMinutes: 30 },
+  { mode: "free-for-all", difficulties: ["easy", "hard"], durationMinutes: 15 },
+  {
+    selectedProblemVersionId: problemId,
+    durationMinutes: 60,
+    rules: { clipboard: "warning", focus: "announce" },
+  },
+])
+  assert(validateMatchRequest(request), JSON.stringify(validateMatchRequest.errors));
+for (const request of [
+  { durationMinutes: 30 },
+  { difficulties: [], durationMinutes: 30 },
+  { difficulties: ["easy", "easy"], durationMinutes: 30 },
+  { difficulties: ["expert"], durationMinutes: 30 },
+  { selectedProblemVersionId: "private", durationMinutes: 30 },
+  { difficulty: "easy", durationMinutes: 1 },
+  { difficulty: "easy", durationMinutes: 30, mode: "unknown" },
+  { difficulty: "easy", durationMinutes: 30, rules: { focus: "ban" } },
+  { difficulty: "easy", durationMinutes: 30, rules: { clipboard: "cooldown" } },
+  { difficulty: "easy", durationMinutes: 30, rules: { focus: "cooldown" } },
+  { difficulty: "easy", durationMinutes: 30, rules: { clipboard: "off", contents: "private" } },
+])
+  assert(!validateMatchRequest(request), JSON.stringify(request));
+const match = {
+  id: problemId,
+  version: "1",
+  state: "waiting",
+  serverNow: fixtures.submission.updatedAt,
+  expiresAt: fixtures.submission.updatedAt,
+  hostUserId: problemId,
+  mode: "free-for-all",
+  difficulty: "easy",
+  difficulties: ["easy", "medium"],
+  durationMinutes: 30,
+  rules: { clipboard: "warning", focus: "announce" },
+  ruleEvents: [],
+  participants: [{ userId: problemId, displayName: "Alice", ready: false, presence: "online" }],
+};
+const validateMatch = ajv.compile({ $ref: `${document.$id}#/$defs/MatchSnapshot` });
+assert(validateMatch(match), JSON.stringify(validateMatch.errors));
+for (const key of ["mode", "difficulties", "rules", "ruleEvents"])
+  assert(!validateMatch({ ...match, [key]: undefined }), key);
+const ruleEvent = {
+  id: problemId,
+  userId: problemId,
+  kind: "focus",
+  action: "announce",
+  occurredAt: fixtures.submission.updatedAt,
+};
+assert(validateMatch({ ...match, ruleEvents: [ruleEvent] }));
+assert(!validateMatch({ ...match, ruleEvents: Array(21).fill(ruleEvent) }));
+assert(!validateMatch({ ...match, ruleEvents: [{ ...ruleEvent, clipboard: "private" }] }));
+assert(!validateMatch({ ...match, participants: Array(9).fill(match.participants[0]) }));
+const validateRuleRequest = ajv.compile({ $ref: `${document.$id}#/$defs/ReportMatchRuleRequest` });
+assert(validateRuleRequest({ kind: "clipboard" }));
+assert(!validateRuleRequest({ kind: "clipboard", contents: "private" }));
 const eventSchema = JSON.parse(readFileSync("events/envelope.schema.json", "utf8"));
 const event = {
   eventId: fixtures.submission.id,
@@ -72,6 +131,7 @@ const event = {
 assert.deepEqual(eventSchema.$defs, schemas, "Event schemas must match OpenAPI");
 const validateEvent = ajv.compile(eventSchema);
 assert(validateEvent(event), JSON.stringify(validateEvent.errors));
+assert(validateEvent({ ...event, type: "match.updated", payload: match }));
 assert(!validateEvent({ ...event, payload: { ...event.payload, source: "private" } }));
 assert(
   validateEvent({

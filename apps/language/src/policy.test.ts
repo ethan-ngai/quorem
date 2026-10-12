@@ -9,6 +9,23 @@ void test("development owner requires loopback and exact browser origin", () => 
   assert.equal(authorizeUpgrade("203.0.113.1", "http://localhost:5173", url), null);
   assert.equal(authorizeUpgrade("127.0.0.1", "https://untrusted.example", url), null);
   assert.equal(authorizeUpgrade("127.0.0.1", undefined, url), null);
+  for (const user of ["charlie", "dana"])
+    assert.equal(
+      authorizeUpgrade(
+        "127.0.0.1",
+        "http://localhost:5173",
+        new URL(`http://localhost/lsp?user=${user}`),
+      ),
+      user,
+    );
+  assert.equal(
+    authorizeUpgrade(
+      "127.0.0.1",
+      "http://localhost:5173",
+      new URL("http://localhost/lsp?user=unknown"),
+    ),
+    null,
+  );
 });
 
 void test("foreign documents and configuration mutations are rejected", () => {

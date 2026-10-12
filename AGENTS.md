@@ -9,7 +9,7 @@
 - Use Conventional Commits for commits and branch names. Branch format: `<type>/<scope>-<description>` in lowercase kebab-case (e.g. `feat/editor-custom-cases`, `fix/editor-completion`, `docs/quorem-planning`). Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore. No agent/tool prefixes. Use worktrees, dependency-ordered PR stacks, concise GitHub tickets, and agents with explicit ownership/contracts.
 - Provision with Terraform; deploy through GitHub Actions. Keep secrets outside source control.
 - Anchor UI to root `DESIGN.md`; use the design-system skill. Prioritize the editor before other pages.
-- Editor first: CodeMirror 6, Python Solution/ListNode/TreeNode, completion/hover/signatures/diagnostics, real judging, browser-only drafts/history. Then invite-based 1v1. Defer FFA, parties, collaboration, points/leaderboard, social, adaptive selection.
+- Editor first: CodeMirror 6, Python Solution/ListNode/TreeNode, completion/hover/signatures/diagnostics, real judging, browser-only drafts/history. Then invite-based Showdown and Free-for-all. Defer parties, collaboration, points/leaderboard, social, adaptive selection.
 - Ask subjective/blocking questions individually through the question tool; keep the turn open while awaiting answers. Use judgment for routine engineering choices; document defaults and evidence gates.
 - Planning is not implementation authorization. Keep specs, confirmed requirements, defaults, and release gates distinct.
 
