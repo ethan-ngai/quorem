@@ -2908,7 +2908,7 @@ summary:focus-visible {
   gap: 24px;
   height: auto;
   min-height: 0;
-  padding: 16px 40px 56px 0;
+  padding: 16px 40px 24px 0;
   overflow: visible;
   mask-image: none;
 }
@@ -2928,18 +2928,43 @@ summary:focus-visible {
   background: var(--color-field);
   box-shadow: inset 0 1px var(--surface-light);
 }
-/* Reserve empty gutters for fading so verdicts and scores stay fully visible. */
+/* Broad tonal falloff preserves readable records before fading empty edges. */
 #upcoming .social-product,
 #upcoming .adaptive-product {
-  --preview-edge: clamp(32px, 6vw, 96px);
+  --preview-edge: clamp(48px, 8vw, 128px);
   margin-left: -48px;
   width: calc(100% + 48px);
   padding-left: 48px;
   padding-right: var(--preview-edge);
-  padding-bottom: 48px;
+  padding-bottom: 96px;
+  background:
+    radial-gradient(
+      ellipse at 12% 8%,
+      color-mix(in oklch, var(--surface-light) 35%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(
+      110deg,
+      var(--color-field),
+      color-mix(in oklch, var(--color-field) 65%, var(--color-background)) 65%,
+      var(--color-background)
+    );
   mask-image:
-    linear-gradient(90deg, black calc(100% - var(--preview-edge)), transparent),
-    linear-gradient(black calc(100% - 48px), transparent);
+    linear-gradient(
+      90deg,
+      black 0%,
+      rgb(0 0 0 / 0.97) 30%,
+      rgb(0 0 0 / 0.85) calc(100% - var(--preview-edge)),
+      rgb(0 0 0 / 0.4) calc(100% - var(--preview-edge) / 2),
+      transparent
+    ),
+    linear-gradient(
+      black 0%,
+      rgb(0 0 0 / 0.97) 45%,
+      rgb(0 0 0 / 0.85) calc(100% - 96px),
+      rgb(0 0 0 / 0.4) calc(100% - 48px),
+      transparent
+    );
   mask-composite: intersect;
 }
 #upcoming .social-product::after {
@@ -2961,7 +2986,9 @@ summary:focus-visible {
   padding: 24px;
   background: var(--color-field);
   box-shadow:
-    0 12px 28px var(--surface-shade),
+    0 8px 24px color-mix(in oklch, var(--surface-shade) 60%, transparent),
+    0 28px 72px color-mix(in oklch, var(--surface-shade) 45%, transparent),
+    0 48px 128px color-mix(in oklch, var(--surface-shade) 20%, transparent),
     inset 0 1px var(--surface-light);
 }
 #upcoming .rival-score {
@@ -2996,10 +3023,6 @@ summary:focus-visible {
 #upcoming .leaderboard-table,
 #upcoming .leaderboard-header {
   max-width: 680px;
-}
-#upcoming .history-focus {
-  color: var(--color-text);
-  background: var(--color-overlay);
 }
 .recommendation-context {
   display: grid;
@@ -3065,6 +3088,7 @@ summary:focus-visible {
   }
   #upcoming .social-product,
   #upcoming .adaptive-product {
+    --preview-edge: 32px;
     grid-column: 1;
     grid-row: 2;
     justify-self: end;
@@ -3171,4 +3195,29 @@ summary:focus-visible {
   70% {
     stroke: var(--color-primary);
   }
+}
+
+.performance-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.preview-topic {
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+}
+.preview-difficulty.difficulty-easy {
+  color: var(--color-success);
+}
+.preview-difficulty.difficulty-medium {
+  color: var(--color-warning);
+}
+.recommendation-topics > .preview-difficulty {
+  padding-inline: 0;
+  background: transparent;
 }
