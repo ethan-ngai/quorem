@@ -51,6 +51,12 @@ func main() {
 		if err = store.Seed(ctx, fixtures); err != nil {
 			log.Fatal(err)
 		}
+		if err = store.SeedEditorials(ctx, "fixtures/editorials"); err != nil {
+			log.Fatal(err)
+		}
+		if err = store.SealProblemVersions(ctx); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if err = store.Cleanup(ctx); err != nil {
 		log.Fatal(err)

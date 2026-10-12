@@ -28,6 +28,7 @@ import {
   switchMatchLanguage,
 } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
+import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { TestCases } from "./components/TestCases";
 import { ResultContent } from "./components/ResultContent";
@@ -641,7 +642,15 @@ export function WorkspacePage({
         </nav>
         <div className="workspace-grid" data-active-panel={activePanel}>
           <section className="problem-pane" aria-label="Problem statement">
-            <ProblemStatement problem={problem} />
+            <ProblemStatement problem={problem}>
+              <EditorialPanel
+                key={`${identity}:${problem.id}`}
+                identity={identity}
+                versionId={problem.id}
+                language={documentLanguage}
+                inMatch={!!match}
+              />
+            </ProblemStatement>
           </section>
           <ResizableDivider
             axis="x"
