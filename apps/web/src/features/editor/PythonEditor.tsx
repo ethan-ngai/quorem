@@ -20,6 +20,7 @@ import {
   highlightActiveLineGutter,
 } from "@codemirror/view";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { editorStateCache } from "./editorStateCache";
 import { indentationGuides } from "./indentationGuides";
 import { editorColorTheme } from "./editorPalette";
 import type { EditorScheme } from "./editorSchemes";
@@ -166,29 +167,27 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
     if (!mountRef.current) return;
     const view = new EditorView({
       parent: mountRef.current,
-      state: EditorState.create({
-        doc: initialSource,
-        extensions: [
-          ...baseExtensions,
-          languageSlot.current.of(language === "python" ? pythonExtensions : []),
-          EditorView.contentAttributes.of({
-            "aria-label": `${languageLabels[language]} solution editor`,
-            spellcheck: "false",
-            autocapitalize: "off",
-            autocomplete: "off",
-          }),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) callbackRef.current(update.state.doc.toString());
-          }),
-          themeSlot.current.of(editorColorTheme(colorScheme, theme)),
-          preferencesSlot.current.of(editorPreferences(fontSize, tabSize, wrap, readOnly)),
-          intelligenceSlot.current.of(intelligenceExtensions),
-          editorDocumentUri.of(documentUri),
-        ],
-      }),
+      state: editorStateCache.restore(documentKey, initialSource, [
+        ...baseExtensions,
+        languageSlot.current.of(language === "python" ? pythonExtensions : []),
+        EditorView.contentAttributes.of({
+          "aria-label": `${languageLabels[language]} solution editor`,
+          spellcheck: "false",
+          autocapitalize: "off",
+          autocomplete: "off",
+        }),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) callbackRef.current(update.state.doc.toString());
+        }),
+        themeSlot.current.of(editorColorTheme(colorScheme, theme)),
+        preferencesSlot.current.of(editorPreferences(fontSize, tabSize, wrap, readOnly)),
+        intelligenceSlot.current.of(intelligenceExtensions),
+        editorDocumentUri.of(documentUri),
+      ]),
     });
     viewRef.current = view;
     return () => {
+      editorStateCache.save(documentKey, view.state);
       view.destroy();
       viewRef.current = null;
     };
