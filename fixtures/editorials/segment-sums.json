@@ -9,5 +9,6 @@
       "spaceComplexity": "O(1)",
       "complexityNotes": "n is the number of input nodes. Auxiliary space excludes the newly allocated result list."
     }
-  ]
+  ],
+  "versionId": "869f9a71-cb7a-5650-b19c-01115ddeb860"
 }

@@ -22,13 +22,14 @@ func (s *Store) SeedEditorials(ctx context.Context, dir string) error {
 			return err
 		}
 		var seed struct {
+			VersionID string                       `json:"versionId"`
 			Slug      string                       `json:"slug"`
 			Solutions []problems.EditorialSolution `json:"solutions"`
 		}
 		if err = json.Unmarshal(data, &seed); err != nil {
 			return fmt.Errorf("editorial %s: %w", path, err)
 		}
-		p, err := s.Problem(ctx, seed.Slug, false)
+		p, err := s.Problem(ctx, seed.VersionID, true)
 		if err != nil {
 			return err
 		}

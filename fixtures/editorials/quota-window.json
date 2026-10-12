@@ -9,5 +9,6 @@
       "spaceComplexity": "O(k)",
       "complexityNotes": "n and m count text/quota codepoints; k is the number of distinct quota characters. Each boundary crosses each character at most once; result storage is excluded."
     }
-  ]
+  ],
+  "versionId": "d83802b1-ad72-5082-a220-4ff8e2aa572a"
 }
