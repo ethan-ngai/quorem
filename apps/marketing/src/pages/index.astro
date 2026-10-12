@@ -166,9 +166,8 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
       </section>
     </main>
     <footer class="site-footer page-width" data-reveal>
-      <div class="footer-brand"><a class="brand-logo" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a><span>© {new Date().getFullYear()} Quorem</span></div>
+      <div class="footer-brand"><a class="brand-logo" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a><div class="footer-utilities"><span>© {new Date().getFullYear()} Quorem. All rights reserved.</span><ThemeSwitch /></div></div>
       <nav class="footer-sitemap" aria-label="Sitemap"><div><strong>Play</strong><a href="/practice?create=match">Create match</a><a href="/practice">Practice</a></div><div><strong>Explore</strong><a href="#modes">Game modes</a><a href="#matches">How it works</a><a href="#upcoming">Coming soon</a></div></nav>
-      <ThemeSwitch />
     </footer>
     <script>
       document.querySelectorAll(".site-menu a").forEach((link) => link.addEventListener("click", () => {

@@ -1133,8 +1133,8 @@ summary:focus-visible {
     transform: translateY(-2px);
     background: var(--color-overlay);
   }
-  .primary-button:hover {
-    background: var(--color-brand-accent);
+  .button.primary-button:hover:not(:active) {
+    background: color-mix(in oklch, var(--color-primary) 92%, white);
   }
   .theme-switch:hover,
   .site-menu summary:hover,
@@ -2666,5 +2666,394 @@ summary:focus-visible {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+.mode-winner-label path {
+  stroke: var(--color-success);
+}
+.mode-winner-label text {
+  fill: var(--color-success);
+}
+.concept-folder-front {
+  fill: var(--color-field);
+  stroke: var(--marketing-line);
+}
+.concept-test-dot {
+  fill: var(--color-error);
+  stroke: none;
+}
+.concept-test-status .test-failing {
+  fill: var(--color-error);
+}
+.concept-test-status .test-passing {
+  fill: var(--color-success);
+}
+.test-running,
+.test-passing {
+  opacity: 0;
+}
+.party-signal {
+  opacity: 0;
+  fill: var(--color-primary);
+}
+.party-arena-wave {
+  opacity: 0;
+  stroke: var(--color-primary);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .mode-preview:hover .art-tech-stacked .concept-failed {
+    animation: service-fail 1400ms var(--hero-easing) both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-failed rect {
+    animation: service-fail-border 1400ms var(--hero-easing) both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-failure,
+  .mode-preview:hover .art-tech-stacked .concept-service-status {
+    animation: service-error-reveal 1400ms var(--hero-easing) both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-primary-route {
+    animation: primary-route-fail 1400ms var(--hero-easing) both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-active,
+  .mode-preview:hover .art-tech-stacked .concept-cursor {
+    animation-delay: 500ms;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-route {
+    animation-delay: 750ms;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-route-point {
+    animation-delay: 950ms;
+  }
+  .mode-preview:hover .art-codebase-clash .test-failing {
+    animation: test-failing-phase 1600ms linear both;
+  }
+  .mode-preview:hover .art-codebase-clash .test-running {
+    animation: test-running-phase 1600ms linear both;
+  }
+  .mode-preview:hover .art-codebase-clash .test-passing {
+    animation: test-passing-phase 1600ms linear both;
+  }
+  .mode-preview:hover .art-codebase-clash .concept-test-dot {
+    animation: test-status-color 1600ms linear both;
+  }
+  .mode-preview:hover .art-codebase-clash .concept-diff {
+    animation-delay: 300ms;
+  }
+  .mode-preview:hover .art-codebase-clash .concept-added {
+    animation-delay: 650ms;
+  }
+  .mode-preview:hover .art-factions .party-signal {
+    animation: party-signal-travel 750ms var(--hero-easing) both;
+    animation-delay: calc(160ms + var(--signal) * 180ms);
+  }
+  .mode-preview:hover .art-factions .party-arena-wave {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: party-arena-response 950ms var(--hero-easing) 500ms both;
+  }
+  .mode-preview:hover .art-factions .concept-party-boundary {
+    animation: party-ready 1100ms var(--hero-easing) both;
+    animation-delay: calc(var(--party) * 180ms);
+  }
+}
+@keyframes service-fail {
+  0%,
+  15% {
+    opacity: 1;
+  }
+  35%,
+  100% {
+    opacity: 0.55;
+  }
+}
+@keyframes service-fail-border {
+  0%,
+  15% {
+    stroke: var(--color-primary);
+  }
+  35%,
+  100% {
+    stroke: var(--color-error);
+  }
+}
+@keyframes service-error-reveal {
+  0%,
+  18% {
+    opacity: 0;
+  }
+  38%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes primary-route-fail {
+  0%,
+  15% {
+    stroke: var(--color-primary);
+    opacity: 1;
+  }
+  35%,
+  100% {
+    stroke: var(--color-border);
+    opacity: 0.4;
+  }
+}
+@keyframes test-failing-phase {
+  0%,
+  28% {
+    opacity: 1;
+  }
+  38%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes test-running-phase {
+  0%,
+  28% {
+    opacity: 0;
+  }
+  38%,
+  70% {
+    opacity: 1;
+  }
+  80%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes test-passing-phase {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  80%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes test-status-color {
+  0%,
+  28% {
+    fill: var(--color-error);
+  }
+  38%,
+  70% {
+    fill: var(--color-primary);
+  }
+  80%,
+  100% {
+    fill: var(--color-success);
+  }
+}
+@keyframes party-signal-travel {
+  0% {
+    opacity: 0;
+    transform: translate(var(--signal-x), var(--signal-y));
+  }
+  20% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+@keyframes party-arena-response {
+  from {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.65);
+  }
+}
+/* Foreground detail stays clear while a wide rear surface falls away. */
+#upcoming .upcoming-feature-grid {
+  grid-template-columns: 1fr;
+  gap: 56px;
+}
+#upcoming .feature-panel {
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+#upcoming .feature-copy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  padding: 0 0 36px;
+}
+#upcoming .feature-copy h3 {
+  align-self: start;
+  font-size: 32px;
+  justify-content: flex-start;
+  gap: 12px;
+}
+#upcoming .feature-copy p {
+  margin: 0;
+  font-size: 16px;
+}
+#upcoming .social-preview-stage,
+#upcoming .adaptive-preview-stage {
+  height: 420px;
+  min-height: 0;
+  padding: 0;
+  overflow: clip;
+  mask-image: linear-gradient(black 90%, transparent);
+}
+#upcoming .social-product,
+#upcoming .adaptive-product {
+  position: absolute;
+  left: 25%;
+  top: 56px;
+  width: max(600px, 75%);
+  opacity: 0.55;
+  mask-image: linear-gradient(90deg, black 30%, transparent 100%);
+}
+#upcoming .social-product::after {
+  display: none;
+}
+#upcoming .rival-product,
+#upcoming .recommendation-card {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: auto;
+  top: 16px;
+  bottom: auto;
+  width: 340px;
+  margin: 0;
+  background: var(--color-field);
+  box-shadow:
+    0 16px 40px var(--surface-shade),
+    inset 0 1px var(--surface-light);
+}
+#upcoming .rival-product {
+  padding: 24px;
+}
+#upcoming .rival-score {
+  margin-block: 28px;
+}
+#upcoming .recommendation-card {
+  padding: 24px;
+}
+#upcoming .performance-history {
+  background: transparent;
+}
+#upcoming .performance-history > div {
+  max-width: 560px;
+}
+#upcoming .performance-history > div > span {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+  gap: 16px;
+}
+#upcoming .performance-history small {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+#upcoming .history-focus {
+  color: var(--color-text);
+  background: var(--color-overlay);
+}
+.site-footer {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 48px;
+  align-items: start;
+}
+.footer-brand {
+  gap: 36px;
+}
+.footer-utilities {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.footer-utilities .theme-switch {
+  width: 36px;
+  height: 36px;
+}
+.footer-sitemap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin: 0;
+  width: 100%;
+}
+@media (max-width: 740px) {
+  #upcoming .feature-copy {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  #upcoming .social-preview-stage,
+  #upcoming .adaptive-preview-stage {
+    height: 410px;
+  }
+  #upcoming .rival-product,
+  #upcoming .recommendation-card {
+    width: min(320px, 76%);
+    padding: 20px;
+  }
+  #upcoming .social-product,
+  #upcoming .adaptive-product {
+    left: 34%;
+  }
+}
+@media (max-width: 500px) {
+  .site-footer {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .footer-sitemap {
+    order: 0;
+  }
+  .footer-brand {
+    order: 1;
+  }
+  #upcoming .rival-product,
+  #upcoming .recommendation-card {
+    width: 86%;
+  }
+  #upcoming .feature-copy h3 {
+    font-size: 28px;
+  }
+}
+
+#upcoming .adaptive-product .performance-history {
+  padding-left: 180px;
+}
+#upcoming .adaptive-product {
+  opacity: 0.7;
+}
+.footer-utilities {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  width: 100%;
+}
+.concept-party {
+  --party-rest: var(--color-border);
+}
+.concept-party.concept-active {
+  --party-rest: var(--color-primary);
+}
+@keyframes party-ready {
+  0%,
+  100% {
+    stroke: var(--party-rest);
+  }
+  35%,
+  70% {
+    stroke: var(--color-primary);
   }
 }

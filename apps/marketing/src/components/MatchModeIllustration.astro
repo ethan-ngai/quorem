@@ -28,7 +28,6 @@ const description = variant === "duel"
           <circle class="mode-player-halo" cx={x} cy="142" r="45" />
           <circle class="mode-person" cx={x} cy="135" r="8" />
           <path class="mode-person" d={`M${x-16} 158c0-18 32-18 32 0`} />
-          <path class="mode-code-glyph" d={`m${x+32} 164-4 4 4 4m12-8 4 4-4 4m-5-10-3 12`} />
           <text class="mode-player-name" x={x} y="209" text-anchor="middle">{name}</text>
           <g class="mode-score-ticks">
             {Array.from({length:20},(_,j) => <rect class:list={{"mode-tick-passed": j < passed}} style={`--tick: ${j}`} x={x-79+j*8} y="230" width="5" height="14" rx="1" />)}

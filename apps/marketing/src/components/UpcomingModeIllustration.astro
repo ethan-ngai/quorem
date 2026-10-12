@@ -16,12 +16,12 @@ const parties = [
 <figure class={`match-mode-art upcoming-art art-${variant}`} role="img" aria-label={descriptions[variant]}>
   <svg viewBox="0 0 520 320" fill="none" aria-hidden="true">
     {variant === "tech-stacked" && <>
-      <path class="concept-link" d="M139 160h33V87h32m108 0h28v73h30" />
+      <path class="concept-link concept-primary-route" d="M139 160h33V87h32m108 0h28v73h30" />
       <path pathLength="1" class="concept-route" d="M139 160h33v70h32m108 0h28v-70h30" />
       <g class="concept-node"><rect x="29" y="139" width="110" height="42" rx="8" /><text x="84" y="166" text-anchor="middle">Gateway</text></g>
       <g class="concept-node concept-failed"><rect x="204" y="66" width="108" height="42" rx="8" /><text x="258" y="93" text-anchor="middle">Service</text></g>
       <g class="concept-failure"><circle cx="305" cy="65" r="11" /><path d="m301 61 8 8m0-8-8 8" /></g>
-      <text class="concept-small" x="258" y="132" text-anchor="middle">Unavailable</text>
+      <text class="concept-small concept-service-status" x="258" y="132" text-anchor="middle">Unavailable</text>
       <g class="concept-node concept-active"><rect x="204" y="209" width="108" height="42" rx="8" /><text x="258" y="236" text-anchor="middle">Replica</text></g>
       <g class="concept-node"><rect x="370" y="139" width="120" height="42" rx="8" /><text x="430" y="166" text-anchor="middle">Database</text></g>
       <path class="concept-drop" d="M195 200h126v60H195Z" />
@@ -32,6 +32,8 @@ const parties = [
       <path class="concept-link" d="m155 116 65 42m145-42-65 42M260 203v-31" />
       <circle class="concept-arena" cx="260" cy="161" r="32" />
       <text x="260" y="167" text-anchor="middle">vs</text>
+      <circle class="party-arena-wave" cx="260" cy="161" r="32" />
+      {[0,1,2].map(i => <circle class="party-signal" cx="260" cy="161" r="3" style={`--signal: ${i}; --signal-x: ${i === 0 ? -100 : i === 1 ? 100 : 0}px; --signal-y: ${i === 2 ? 70 : -42}px`} />)}
       {parties.map(({x,y,label,active}, i) => <g class:list={["concept-party", {"concept-active":active}]} style={`--party: ${i}; --approach-x: ${i === 0 ? -8 : i === 1 ? 8 : 0}px; --approach-y: ${i === 2 ? 8 : -4}px`}>
         <rect class="concept-party-boundary" x={x-83} y={y-34} width="166" height="68" rx="34" />
         {[-46,0,46].map(offset => <g>
@@ -44,15 +46,14 @@ const parties = [
     </>}
     {variant === "codebase-clash" && <>
       <g class="concept-repository">
-        <path d="M38 66V45h47l12 13h89v26H38Z" />
-        <text x="43" y="113">Existing repo</text>
+        <path d="M38 86V52a8 8 0 0 1 8-8h38a12 12 0 0 1 9 4l10 10h75a8 8 0 0 1 8 8v20" /><path class="concept-folder-front" d="M46 72h132a8 8 0 0 1 8 8l-8 28H38l-8-28a8 8 0 0 1 8-8Z" />
         <path class="concept-link" d="M52 132v116m0-94h23m-23 48h23m-23 46h23" />
         <text class="concept-code" x="84" y="159">src/</text>
         <text class="concept-code" x="84" y="207">service</text>
         <text class="concept-code" x="84" y="253">tests/</text>
       </g>
       <path class="concept-link" d="M160 202h33a16 16 0 0 0 16-16V75h29" />
-      <g class="concept-node"><rect x="238" y="51" width="244" height="46" rx="8" /><circle cx="260" cy="74" r="5" /><text x="278" y="80">Fix failing test</text></g>
+      <g class="concept-node concept-test-status"><rect x="238" y="51" width="244" height="46" rx="8" /><circle class="concept-test-dot" cx="260" cy="74" r="4" /><text class="test-failing" x="278" y="80">1 test failing</text><text class="test-running" x="278" y="80">Running tests</text><text class="test-passing" x="278" y="80">All tests pass</text></g>
       <path pathLength="1" class="concept-route" d="M360 97v28" />
       <g class="concept-diff">
         <rect x="238" y="125" width="244" height="148" rx="8" />
