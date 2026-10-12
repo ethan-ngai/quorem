@@ -6,6 +6,7 @@ import ProductPreview from "../components/ProductPreview.astro";
 import MatchScene from "../components/MatchScene.astro";
 import HeroDots from "../components/HeroDots.astro";
 import BattleHeadline from "../components/BattleHeadline.astro";
+import UpcomingModeIllustration from "../components/UpcomingModeIllustration.astro";
 import MatchModeIllustration from "../components/MatchModeIllustration.astro";
 import EditorPreview from "../components/EditorPreview";
 import "@fontsource/jetbrains-mono/400.css";
@@ -85,6 +86,22 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
         <article class="mode-preview">
           <MatchModeIllustration variant="group" />
           <div class="mode-description"><h2>Free-for-all <span>2–8 players</span></h2><p>Share a challenge with the group.<br />Everyone writes their own solution.</p></div>
+        </article>
+        <article class="mode-preview">
+          <UpcomingModeIllustration variant="tech-stacked" />
+          <div class="mode-description"><h2>Tech Stacked <span class="coming-soon">Coming soon</span></h2><p>Design resilient enterprise systems. Drag blocks, connect nodes, and adapt as situations change.</p></div>
+        </article>
+        <article class="mode-preview">
+          <UpcomingModeIllustration variant="factions" />
+          <div class="mode-description"><h2>Factions <span class="coming-soon">Coming soon</span></h2><p>Bring your party into a match against other parties.</p></div>
+        </article>
+        <article class="mode-preview">
+          <UpcomingModeIllustration variant="codebase-clash" />
+          <div class="mode-description"><h2>Codebase Clash <span class="coming-soon">Coming soon</span></h2><p>Work in an existing repository. Track down a bug or build a new feature.</p></div>
+        </article>
+        <article class="mode-preview">
+          <UpcomingModeIllustration variant="odyssey" />
+          <div class="mode-description"><h2>Odyssey <span class="coming-soon">Coming soon</span></h2><p>Build an object-oriented system across multiple rounds. Extend your design as its states and requirements grow.</p></div>
         </article>
       </section>
       <section class="feature-section page-width" id="matches" aria-labelledby="matches-title">

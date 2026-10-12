@@ -298,13 +298,18 @@ summary:focus-visible {
   min-width: 0;
   padding: 32px 48px 48px;
 }
-.mode-preview + .mode-preview {
+.mode-preview:nth-child(even) {
   border-left: 1px solid var(--color-border);
+}
+.mode-preview:nth-child(n + 3) {
+  border-top: 1px solid var(--color-border);
 }
 .mode-description {
   max-width: 42ch;
 }
 .mode-description h2 {
+  flex-wrap: wrap;
+  gap: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -408,6 +413,77 @@ summary:focus-visible {
 .mode-finish-check path {
   stroke: var(--color-on-primary);
   stroke-width: 1.5;
+}
+.mode-description h2 .coming-soon {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+  white-space: nowrap;
+}
+.concept-link,
+.concept-arena,
+.concept-party-boundary {
+  stroke: var(--color-border);
+}
+.concept-node rect,
+.concept-repository > path:first-child,
+.concept-diff > rect {
+  fill: var(--color-surface);
+  stroke: var(--marketing-line);
+}
+.concept-node text {
+  fill: var(--color-text-secondary);
+}
+.concept-active rect,
+.concept-active .mode-player-ring {
+  fill: var(--color-brand-secondary);
+  stroke: var(--color-primary);
+}
+.concept-active text {
+  fill: var(--color-primary);
+}
+.concept-active .mode-person,
+.concept-route {
+  stroke: var(--color-primary);
+}
+.concept-route-point {
+  fill: var(--color-primary);
+}
+.concept-failed {
+  opacity: 0.55;
+}
+.concept-failure circle {
+  fill: var(--color-surface);
+  stroke: var(--color-error);
+}
+.concept-failure path {
+  stroke: var(--color-error);
+}
+.concept-drop {
+  stroke: var(--color-primary);
+  stroke-dasharray: 3 5;
+  opacity: 0.5;
+}
+.concept-cursor {
+  fill: var(--color-surface);
+  stroke: var(--color-text);
+}
+.upcoming-art .concept-small,
+.upcoming-art .concept-code {
+  font: 14px var(--font-code);
+}
+.concept-code-line {
+  stroke: var(--marketing-line);
+}
+.concept-removed {
+  stroke: var(--color-error);
+}
+.concept-added {
+  stroke: var(--color-success);
+}
+.concept-round {
+  fill: var(--color-text) !important;
 }
 .feature-section {
   margin-top: var(--marketing-section);
@@ -815,9 +891,16 @@ summary:focus-visible {
   .mode-preview {
     padding: 24px 8px 32px;
   }
-  .mode-preview + .mode-preview {
+  .mode-preview:nth-child(even) {
     border-left: 0;
     border-top: 1px solid var(--color-border);
+  }
+  .mode-preview + .mode-preview {
+    border-top: 1px solid var(--color-border);
+  }
+  .upcoming-art .concept-small,
+  .upcoming-art .concept-code {
+    font-size: 18px;
   }
   .match-mode-art {
     height: 240px;
