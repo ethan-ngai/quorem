@@ -14,6 +14,8 @@ import UpcomingFeaturePreview from "../components/UpcomingFeaturePreview.astro";
 import MatchModeIllustration from "../components/MatchModeIllustration.astro";
 import EditorPreview from "../components/EditorPreview";
 import HeroEditorPreview from "../components/HeroEditorPreview";
+import ThemeSwitch from "../components/ThemeSwitch.astro";
+import ClosingScene from "../components/ClosingScene.astro";
 import "@fontsource/jetbrains-mono/400.css";
 const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
 ---
@@ -68,6 +70,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
         <a class="quiet-link" href="/practice?create=match">Create match</a>
       </nav>
       <button class="button nav-button login-button" type="button" disabled title="Login will be available when authentication is ready">Login</button>
+      <ThemeSwitch />
       </div>
     </header>
     <main id="main">
@@ -78,13 +81,13 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
           <BattleHeadline />
           <div class="hero-intro">
             <p>Invite friends to solve the same coding problem. First correct submission wins.</p>
-            <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
+            <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match</a></div>
           </div>
           </div>
           <div class="hero-workspace"><HeroEditorPreview client:visible /></div>
         </div>
       </section>
-      <section class="mode-showcase page-width" aria-label="Match modes" data-reveal>
+      <section id="modes" class="mode-showcase page-width" aria-label="Match modes" data-reveal>
         <article class="mode-preview">
           <MatchModeIllustration variant="duel" />
           <div class="mode-description"><h2>Showdown <span>1 v 1</span></h2><p>Invite a friend. Solve the same problem.<br />First correct submission wins.</p></div>
@@ -132,7 +135,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
           </article>
         </div>
       </section>
-      <section class="feature-section page-width" aria-labelledby="upcoming-title" data-reveal>
+      <section id="upcoming" class="feature-section page-width" aria-labelledby="upcoming-title" data-reveal>
         <div class="feature-heading"><h2 id="upcoming-title">Coming soon</h2></div>
         <div class="feature-grid upcoming-feature-grid">
           <article class="feature-panel social-panel">
@@ -145,13 +148,15 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
           </article>
         </div>
       </section>
-      <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Invite your friends.<br />Pick a problem.</h2><div class="closing-actions"><a class="button primary-button" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a><a class="quiet-link" href="/practice">Browse practice <span aria-hidden="true">→</span></a></div></section>
+      <section class="closing page-width" aria-labelledby="closing-title" data-reveal>
+        <div class="closing-copy"><h2 id="closing-title">Start a match<br />with a friend.</h2><div class="closing-actions"><a class="button primary-button" href="/practice?create=match">Create match</a><a class="button secondary-button" href="/practice">Practice solo</a></div></div>
+        <ClosingScene />
+      </section>
     </main>
-    <footer class="site-footer page-width" data-reveal><a class="brand-logo" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a><span>Private coding matches and practice.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
-      <button class="theme-switch" type="button" aria-label="Switch to dark theme" title="Switch theme">
-        <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></svg>
-        <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z" /></svg>
-      </button>
+    <footer class="site-footer page-width" data-reveal>
+      <div class="footer-brand"><a class="brand-logo" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a><span>© {new Date().getFullYear()} Quorem</span></div>
+      <nav class="footer-sitemap" aria-label="Sitemap"><div><strong>Play</strong><a href="/practice?create=match">Create match</a><a href="/practice">Practice</a></div><div><strong>Explore</strong><a href="#modes">Game modes</a><a href="#matches">How it works</a><a href="#upcoming">Coming soon</a></div></nav>
+      <ThemeSwitch />
     </footer>
     <script>
       document.querySelectorAll(".site-menu a").forEach((link) => link.addEventListener("click", () => {
@@ -171,18 +176,17 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
         if (target instanceof Element && !target.closest(".site-menu")) closeMenus();
       });
       const media = window.matchMedia("(prefers-color-scheme: dark)");
-      const toggle = document.querySelector<HTMLButtonElement>(".theme-switch");
+      const toggles = document.querySelectorAll<HTMLButtonElement>(".theme-switch");
       const updateLabel = () => {
         const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-        toggle?.setAttribute("aria-label", `Switch to ${next} theme`);
-        toggle?.setAttribute("title", `Switch to ${next} theme`);
+        toggles.forEach((toggle) => { toggle.setAttribute("aria-label", `Switch to ${next} theme`); toggle.setAttribute("title", `Switch to ${next} theme`); });
       };
-      toggle?.addEventListener("click", () => {
+      toggles.forEach((toggle) => toggle.addEventListener("click", () => {
         const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
         document.documentElement.dataset.theme = next;
         try { localStorage.setItem("quorem.theme.v1", JSON.stringify(next)); } catch {}
         updateLabel();
-      });
+      }));
       media.addEventListener("change", () => {
         let preference = "system";
         try { preference = JSON.parse(localStorage.getItem("quorem.theme.v1") || '"system"'); } catch {}

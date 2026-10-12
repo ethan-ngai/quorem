@@ -47,7 +47,7 @@ export default function LobbyPreview() {
         />
         <div className="lobby-render-footer">
           <span>3 players ready</span>
-          <span className="demo-primary-action">Start match ↗</span>
+          <span className="demo-primary-action">Start match</span>
         </div>
       </div>
     </div>
