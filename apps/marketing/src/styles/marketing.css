@@ -2457,3 +2457,16 @@ summary:focus-visible {
     );
   }
 }
+
+/* Joined ends stay solid; only the first/last row has an exposed vertical end. */
+@container mode-bento (min-width: 641px) {
+  .mode-row .mode-preview + .mode-preview::after {
+    background: var(--color-border);
+  }
+  .mode-row:first-child .mode-preview + .mode-preview::after {
+    background: linear-gradient(transparent, var(--color-border) 16%);
+  }
+  .mode-row:last-child .mode-preview + .mode-preview::after {
+    background: linear-gradient(var(--color-border) 84%, transparent);
+  }
+}
