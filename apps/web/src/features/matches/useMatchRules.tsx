@@ -1,8 +1,4 @@
-import {
-  developmentUserIds,
-  type DevelopmentIdentity,
-  type MatchSnapshot,
-} from "@quorem/contracts";
+import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, X } from "lucide-react";
@@ -12,7 +8,7 @@ import { Tooltip } from "../editor/components/Tooltip";
 
 export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapshot) {
   const queryClient = useQueryClient();
-  const own = match?.participants.find((player) => player.userId === developmentUserIds[identity]);
+  const own = match?.participants.find((player) => player.userId === participantUserId(identity));
   const active = match?.state === "active" && !!own && !own.forfeited;
   const [notice, setNotice] = useState<{ scope: string; text: string }>();
   const scope = `${identity}:${match?.id}`;

@@ -1,3 +1,4 @@
+import { useSession } from "../auth/session";
 import * as Popover from "@radix-ui/react-popover";
 import * as Select from "@radix-ui/react-select";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
@@ -24,7 +25,15 @@ export function useLocalIdentity() {
     readPreference("quorem.dev-identity.v1", "alice"),
   );
   useEffect(() => writePreference("quorem.dev-identity.v1", identity), [identity]);
-  return { identity, setIdentity };
+  const account = useSession();
+  return {
+    identity: (account.data?.mode === "managed"
+      ? account.data.user.id
+      : account.data?.mode === "development"
+        ? identity
+        : "anonymous") as DevelopmentIdentity,
+    setIdentity,
+  };
 }
 
 function MatchChoice({
