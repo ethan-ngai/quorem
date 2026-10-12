@@ -1813,8 +1813,12 @@ summary:focus-visible {
   justify-content: space-between;
 }
 .hero-run-status {
+  margin-right: 16px;
   color: var(--color-text-secondary);
   font-size: 10px;
+}
+.hero-run-status[data-passed="true"] {
+  color: var(--color-success);
 }
 .demo-action-active {
   box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-primary) 35%, transparent);

@@ -216,3 +216,5 @@ Battle headline: uppercase Barlow Condensed 800, no italic or serif. Clash uses 
 Marketing surface lighting: paired light/shade tokens cast reflected light across card faces and overlapping shadows onto recessed layers. Keep foreground difficulty, topics, sample symbols and controls readable; fade peripheral/back-plane content. Hero input/output symbols are 14px and centered alongside adjacent example groups. Winners use success green. Buttons use the shared small radius, with no northeast arrows. The closer uses two perspective code planes illuminated from the center, fading into a floor grid; its emblem enters once and stays static under reduced motion. Footer includes copyright, a compact sitemap, and a theme switch synchronized with the navbar.
 
 Coming soon Social/Adaptive cards use quarter-strength surface light, shallow 8px/20px shadows and gentle occlusion; no radial stage spotlight. Keep their data clear rather than dramatically lit.
+
+Hero run status reserves 16px before the Run/Submit group; all-passed results use success green, running status remains secondary text.

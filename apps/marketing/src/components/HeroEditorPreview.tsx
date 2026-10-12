@@ -118,7 +118,7 @@ export default function HeroEditorPreview() {
           <pre className="preview-source">{finalSource}</pre>
         </div>
         <footer className="execution-bar demo-execution-bar hero-execution">
-          <span className="hero-run-status">
+          <span className="hero-run-status" data-passed={phase >= 2}>
             {phase === 1 ? "Running…" : phase >= 2 ? "20 / 20 passed" : ""}
           </span>
           <div className="run-actions">
