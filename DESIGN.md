@@ -235,4 +235,4 @@ Editor/lobby walkthrough previews receive a subtle top spotlight, reflected rim 
 
 Marketing button lift and return use 240ms hero easing. Disabled and aria-disabled controls remain stationary, with no hover fill or press transform. Reduced motion disables transitions.
 
-Footer separates brand/navigation from a bottom utility row. Copyright sits left; the labeled Appearance control sits right in a bordered 36px button. Small screens place brand above two navigation columns; the utility row retains left/right alignment.
+Footer separates logo/navigation from a bottom utility row. Copyright sits left; the icon-only theme control sits right in a bordered 36px button. Small screens place brand above two navigation columns; the utility row retains left/right alignment.

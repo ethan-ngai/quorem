@@ -167,7 +167,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
     </main>
     <footer class="site-footer page-width" data-reveal>
       <div class="footer-main">
-        <a class="footer-brand" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span><span>Quorem</span></a>
+        <a class="footer-brand" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a>
         <nav class="footer-sitemap" aria-label="Sitemap">
           <div><strong>Play</strong><a href="/practice?create=match">Create match</a><a href="/practice">Practice</a></div>
           <div><strong>Explore</strong><a href="#modes">Game modes</a><a href="#matches">How it works</a><a href="#upcoming">Coming soon</a></div>
@@ -175,7 +175,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
       </div>
       <div class="footer-bottom">
         <p>© {new Date().getFullYear()} Quorem. <span>All rights reserved.</span></p>
-        <div class="footer-appearance"><span>Appearance</span><ThemeSwitch /></div>
+        <div class="footer-appearance"><ThemeSwitch /></div>
       </div>
     </footer>
     <script>
