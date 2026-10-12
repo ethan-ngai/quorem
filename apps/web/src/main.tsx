@@ -20,6 +20,10 @@ import "@quorem/ui/theme.css";
 import "./styles/global.css";
 import "./features/matches/competitive.css";
 
+const QuestionEditor = lazy(() =>
+  import("./features/admin/QuestionEditor").then((module) => ({ default: module.QuestionEditor })),
+);
+
 const WorkspacePage = lazy(() =>
   import("./features/editor/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
 );
@@ -99,7 +103,23 @@ const loginRoute = createRoute({
   path: "/login",
   component: LoginPage,
 });
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/questions",
+  component: () => (
+    <Suspense
+      fallback={
+        <main className="admin-access" role="status">
+          Opening question editor…
+        </main>
+      }
+    >
+      <QuestionEditor />
+    </Suspense>
+  ),
+});
 const routeTree = rootRoute.addChildren([
+  adminRoute,
   indexRoute,
   loginRoute,
   practiceRoute,

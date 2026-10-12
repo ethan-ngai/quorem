@@ -79,6 +79,14 @@ export function GlobalNav({
                     Home
                   </a>
                 </Popover.Close>
+                {session.data?.user.role === "admin" && (
+                  <Popover.Close asChild>
+                    <a href="/admin/questions">
+                      <BookOpen size={17} />
+                      Question editor
+                    </a>
+                  </Popover.Close>
+                )}
                 <Popover.Close asChild>
                   <a
                     href="/practice"

@@ -189,12 +189,10 @@ func ValidateQuestionPublication(c QuestionContent) error {
 			return fmt.Errorf("hidden case %d: %w", i+1, err)
 		}
 	}
-	// Kept in sync with execution registry pins until multilingual integration lands.
-	pins := map[string][2]string{"python": {execution.RuntimeRevision, execution.HarnessRevision}, "java": {"java-21.0.9-v1", "quorem-java-v1"}, "typescript": {"typescript-5.9.3-node-22.21.1-v1", "quorem-typescript-v1"}, "ocaml": {"ocaml-4.13.1-v1", "quorem-ocaml-v1"}}
 	languages := map[string]bool{}
 	for _, v := range c.Implementations {
-		pin, ok := pins[v.Language]
-		if !ok || languages[v.Language] || pin[0] != v.RuntimeRevision || pin[1] != v.HarnessRevision || strings.TrimSpace(v.StarterSource) == "" || strings.TrimSpace(v.ReferenceSource) == "" {
+		runtime, ok := execution.LanguageRuntime(v.Language)
+		if !ok || languages[v.Language] || runtime.Revision != v.RuntimeRevision || runtime.Harness != v.HarnessRevision || strings.TrimSpace(v.StarterSource) == "" || strings.TrimSpace(v.ReferenceSource) == "" {
 			return fmt.Errorf("invalid or duplicate language implementation")
 		}
 		languages[v.Language] = true
