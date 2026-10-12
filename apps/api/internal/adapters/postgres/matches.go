@@ -17,24 +17,24 @@ import (
 )
 
 type matchRecord struct {
-	id, host, state, problem      string
-	version                       int64
-	settings                      matches.Settings
-	expires                       time.Time
-	started, deadline, finalizing *time.Time
-	outcome                       []byte
+	id, host, state, problem, mode string
+	version                        int64
+	settings                       matches.Settings
+	expires                        time.Time
+	started, deadline, finalizing  *time.Time
+	outcome                        []byte
 }
 
 func lockMatch(ctx context.Context, tx pgx.Tx, id string) (matchRecord, error) {
 	var m matchRecord
-	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,version,difficulty,duration_minutes,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
+	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = failure("not_found", 404, "Match not found")
 	}
 	return m, err
 }
 func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m matchRecord) (matches.Snapshot, error) {
-	v := matches.Snapshot{ID: m.id, Version: strconv.FormatInt(m.version, 10), State: m.state, Settings: m.settings, ExpiresAt: m.expires, StartedAt: m.started, Deadline: m.deadline, FinalizingAt: m.finalizing, ProblemVersionID: m.problem, Participants: []matches.Participant{}}
+	v := matches.Snapshot{ID: m.id, Mode: m.mode, Version: strconv.FormatInt(m.version, 10), State: m.state, Settings: m.settings, ExpiresAt: m.expires, StartedAt: m.started, Deadline: m.deadline, FinalizingAt: m.finalizing, ProblemVersionID: m.problem, Participants: []matches.Participant{}}
 	if err := tx.QueryRow(ctx, "SELECT participant_id,clock_timestamp() FROM users WHERE id=$1", m.host).Scan(&v.HostUserID, &v.ServerNow); err != nil {
 		return v, err
 	}
@@ -212,8 +212,8 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 			return nil, err
 		}
 		encoded := base64.RawURLEncoding.EncodeToString(token)
-		m := matchRecord{id: ID(), state: "waiting"}
-		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting')", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes); err != nil {
+		m := matchRecord{id: ID(), state: "waiting", mode: matches.Showdown}
+		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1);", m.id, owner); err != nil {
@@ -394,7 +394,7 @@ func (s *Store) ReadyMatch(ctx context.Context, owner, id, key string, ready boo
 			}
 			for _, o := range owners {
 				w := ID()
-				if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,source,match_id) VALUES($1,$2,$3,'python','match',$4,$5)", w, o, p.ID, p.StarterSource, id); err != nil {
+				if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)", w, o, p.ID, id); err != nil {
 					return err
 				}
 				if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", id, o, w); err != nil {

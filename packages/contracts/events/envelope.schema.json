@@ -337,24 +337,6 @@
       "required": ["theme", "paneRatios", "codeFontSize", "tabSize", "wrap"],
       "additionalProperties": false
     },
-    "Draft": {
-      "type": "object",
-      "properties": {
-        "source": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        },
-        "savedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": ["source", "revision", "savedAt"],
-      "additionalProperties": false
-    },
     "Workspace": {
       "type": "object",
       "properties": {
@@ -377,14 +359,11 @@
           "type": "string",
           "format": "uuid"
         },
-        "draft": {
-          "$ref": "#/$defs/Draft"
-        },
         "preferences": {
           "$ref": "#/$defs/EditorPreferences"
         }
       },
-      "required": ["id", "kind", "problemVersionId", "language", "draft", "preferences"],
+      "required": ["id", "kind", "problemVersionId", "language", "preferences"],
       "additionalProperties": false
     },
     "CreateWorkspaceRequest": {
@@ -399,85 +378,6 @@
         }
       },
       "required": ["problemVersionId", "language"],
-      "additionalProperties": false
-    },
-    "SaveDraftRequest": {
-      "type": "object",
-      "properties": {
-        "source": {
-          "type": "string",
-          "maxLength": 65536
-        },
-        "editorSessionId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "saveSequence": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        }
-      },
-      "required": ["source", "editorSessionId", "saveSequence"],
-      "additionalProperties": false
-    },
-    "SaveDraftResponse": {
-      "type": "object",
-      "properties": {
-        "revision": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        },
-        "savedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": ["revision", "savedAt"],
-      "additionalProperties": false
-    },
-    "DraftHistoryItem": {
-      "type": "object",
-      "properties": {
-        "revision": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        },
-        "source": {
-          "type": "string"
-        },
-        "savedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": ["revision", "source", "savedAt"],
-      "additionalProperties": false
-    },
-    "DraftHistory": {
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/DraftHistoryItem"
-          }
-        },
-        "nextCursor": {
-          "type": "string"
-        }
-      },
-      "required": ["items"],
-      "additionalProperties": false
-    },
-    "RestoreDraftRequest": {
-      "type": "object",
-      "properties": {
-        "revision": {
-          "type": "string",
-          "pattern": "^(0|[1-9][0-9]*)$"
-        }
-      },
-      "required": ["revision"],
       "additionalProperties": false
     },
     "CreateSubmissionRequest": {
@@ -791,6 +691,10 @@
         "expiresAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["showdown"]
         }
       },
       "required": [
@@ -802,7 +706,8 @@
         "durationMinutes",
         "participants",
         "hostUserId",
-        "expiresAt"
+        "expiresAt",
+        "mode"
       ],
       "additionalProperties": false
     },

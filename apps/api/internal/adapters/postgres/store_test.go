@@ -27,7 +27,7 @@ func testStore(t *testing.T) *Store {
 	if err = store.Migrate(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Pool.Exec(ctx, "TRUNCATE match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,draft_sessions,draft_versions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
+	if _, err = store.Pool.Exec(ctx, "TRUNCATE match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
 		t.Fatal(err)
 	}
 	f, err := problems.LoadFixtures("../../../../../fixtures/problems")
@@ -46,7 +46,7 @@ func errorCode(err error) string {
 	}
 	return ""
 }
-func TestDraftConcurrencyHistoryAndOwner(t *testing.T) {
+func TestWorkspaceReuseAndOwner(t *testing.T) {
 	store := testStore(t)
 	ctx := context.Background()
 	p, err := store.Problem(ctx, "run-widths", false)
@@ -64,40 +64,7 @@ func TestDraftConcurrencyHistoryAndOwner(t *testing.T) {
 	if _, err = store.Workspace(ctx, "bob", w.ID); errorCode(err) != "not_found" {
 		t.Fatal("owner isolation", err)
 	}
-	session := ID()
-	if _, err = store.Save(ctx, "alice", w.ID, "new", session, "2", nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = store.Save(ctx, "alice", w.ID, "stale", session, "1", nil); errorCode(err) != "stale_session_save" {
-		t.Fatal(err)
-	}
-	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if _, e := store.Save(ctx, "alice", w.ID, "tab", ID(), "1", nil); e != nil {
-				t.Error(e)
-			}
-		}()
-	}
-	wg.Wait()
-	history, err := store.History(ctx, "alice", w.ID, 1000, 4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(history.Items) != 4 || history.Items[0].Revision != "9" || history.NextCursor != "6" {
-		t.Fatal(history)
-	}
-	rev := int64(1)
-	restored, err := store.Save(ctx, "alice", w.ID, "", "", "", &rev)
-	if err != nil || restored.Revision != "10" || restored.Source != "new" {
-		t.Fatal(restored, err)
-	}
-	history, err = store.History(ctx, "alice", w.ID, 1000, 100)
-	if err != nil || len(history.Items) != 10 {
-		t.Fatal(history, err)
-	}
+
 }
 func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	store := testStore(t)
@@ -286,7 +253,7 @@ func TestGlobalBackpressureAndCustomValidation(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		user := ID()
 		workspaceID, submissionID, jobID := ID(), ID(), ID()
-		_, err := store.Pool.Exec(ctx, `WITH u AS (INSERT INTO users(id,display_name) VALUES($1,'Load')), w AS (INSERT INTO workspaces(id,owner_id,problem_version_id,language,source) VALUES($2,$1,$3,'python','')), s AS (INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($4,$1,$2,'run','','hash','queued','[]')) INSERT INTO execution_jobs(id,submission_id) VALUES($5,$4)`, user, workspaceID, p.ID, submissionID, jobID)
+		_, err := store.Pool.Exec(ctx, `WITH u AS (INSERT INTO users(id,display_name) VALUES($1,'Load')), w AS (INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($2,$1,$3,'python')), s AS (INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($4,$1,$2,'run','','hash','queued','[]')) INSERT INTO execution_jobs(id,submission_id) VALUES($5,$4)`, user, workspaceID, p.ID, submissionID, jobID)
 		if err != nil {
 			t.Fatal(err)
 		}

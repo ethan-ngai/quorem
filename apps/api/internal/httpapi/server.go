@@ -7,11 +7,9 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -24,7 +22,6 @@ type Server struct {
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-var decimal = regexp.MustCompile(`^[0-9]{1,30}$`)
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -34,10 +31,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/problem-versions/{id}", s.problem)
 	mux.HandleFunc("POST /v1/workspaces", s.createWorkspace)
 	mux.HandleFunc("GET /v1/workspaces/{id}", s.getWorkspace)
-	mux.HandleFunc("GET /v1/workspaces/{id}/draft", s.getDraft)
-	mux.HandleFunc("PUT /v1/workspaces/{id}/draft", s.save)
-	mux.HandleFunc("GET /v1/workspaces/{id}/draft-history", s.history)
-	mux.HandleFunc("POST /v1/workspaces/{id}/restore", s.restore)
 	mux.HandleFunc("POST /v1/submissions", s.admit)
 	mux.HandleFunc("GET /v1/submissions/{id}", s.submission)
 	mux.HandleFunc("POST /v1/submissions/{id}/cancel", s.cancel)
@@ -177,75 +170,7 @@ func (s *Server) getWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, v)
 }
-func (s *Server) getDraft(w http.ResponseWriter, r *http.Request) {
-	v, e := s.Store.Workspace(r.Context(), owner(r), r.PathValue("id"))
-	if e != nil {
-		s.err(w, r, e)
-		return
-	}
-	respond(w, 200, v.Draft)
-}
 func validSource(source string) bool { return utf8.ValidString(source) && len(source) <= 65536 }
-func (s *Server) save(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Source          string `json:"source"`
-		EditorSessionID string `json:"editorSessionId"`
-		SaveSequence    string `json:"saveSequence"`
-	}
-	if !s.decode(w, r, &body, 400000) {
-		return
-	}
-	if !validSource(body.Source) || !uuid.MatchString(body.EditorSessionID) || !decimal.MatchString(body.SaveSequence) {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid source or save sequence", Status: 400})
-		return
-	}
-	v, e := s.Store.Save(r.Context(), owner(r), r.PathValue("id"), body.Source, body.EditorSessionID, body.SaveSequence, nil)
-	if e != nil {
-		s.err(w, r, e)
-		return
-	}
-	respond(w, 200, map[string]any{"revision": v.Revision, "savedAt": v.SavedAt})
-}
-func (s *Server) history(w http.ResponseWriter, r *http.Request) {
-	cursor := int64(math.MaxInt64)
-	limit := 20
-	var err error
-	if q := r.URL.Query().Get("cursor"); q != "" {
-		cursor, err = strconv.ParseInt(q, 10, 64)
-	}
-	if q := r.URL.Query().Get("limit"); q != "" && err == nil {
-		limit, err = strconv.Atoi(q)
-	}
-	if err != nil || cursor < 0 || limit < 1 || limit > 100 {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid pagination", Status: 400})
-		return
-	}
-	v, e := s.Store.History(r.Context(), owner(r), r.PathValue("id"), cursor, limit)
-	if e != nil {
-		s.err(w, r, e)
-		return
-	}
-	respond(w, 200, v)
-}
-func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Revision string `json:"revision"`
-	}
-	if !s.decode(w, r, &body, 4096) {
-		return
-	}
-	rev, e := strconv.ParseInt(body.Revision, 10, 64)
-	if e != nil || rev < 1 {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid revision", Status: 400})
-		return
-	}
-	v, e := s.Store.Save(r.Context(), owner(r), r.PathValue("id"), "", "", "", &rev)
-	if e != nil {
-		s.err(w, r, e)
-		return
-	}
-	respond(w, 200, map[string]any{"revision": v.Revision, "savedAt": v.SavedAt})
-}
 func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 	var body judging.Command
 	if !s.decode(w, r, &body, 600000) {

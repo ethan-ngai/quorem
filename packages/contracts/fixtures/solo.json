@@ -3,11 +3,6 @@
     "problemVersionId": "10000000-0000-4000-8000-000000000001",
     "language": "python"
   },
-  "saveDraft": {
-    "source": "class Solution:\n    pass\n",
-    "editorSessionId": "20000000-0000-4000-8000-000000000001",
-    "saveSequence": "1"
-  },
   "createSubmission": {
     "workspaceId": "30000000-0000-4000-8000-000000000001",
     "kind": "run",

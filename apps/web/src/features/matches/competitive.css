@@ -1,0 +1,494 @@
+/* Competition uses the workspace hierarchy; the editor keeps the available height. */
+.match-page {
+  --interaction-fast: var(--motion-fast);
+  --interaction-reveal: var(--motion-standard);
+  --interaction-ease: var(--motion-easing);
+}
+.match-page .topbar {
+  height: 48px;
+  border-bottom: 1px solid var(--color-border);
+}
+.match-page-content {
+  width: min(640px, calc(100% - 32px));
+  margin: clamp(24px, 7vh, 64px) auto;
+}
+.competitive-lobby-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.competitive-lobby-heading h1,
+.invite-entry h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+.competitive-lobby-heading h1,
+.match-page .workspace-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.competitive-lobby-heading h1 > svg {
+  width: 24px;
+  height: 24px;
+}
+.readiness-action {
+  width: 104px;
+  flex-shrink: 0;
+  justify-content: center;
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+}
+.readiness-labels {
+  display: grid;
+}
+.readiness-option {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  transition:
+    opacity var(--interaction-reveal) var(--interaction-ease),
+    transform var(--interaction-reveal) var(--interaction-ease);
+}
+.readiness-option-ready {
+  opacity: 1;
+  transform: translateY(0);
+}
+.readiness-option-cancel {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.readiness-action[data-ready="true"] .readiness-option-ready {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.readiness-action[data-ready="true"] .readiness-option-cancel {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .readiness-action .readiness-option {
+    transform: none;
+    transition-duration: 1ms;
+  }
+}
+.competitive-lobby-heading p,
+.invite-entry p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.competitive-seats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 20px 0;
+  border-block: 1px solid var(--color-border);
+}
+.competitive-seat {
+  min-width: 0;
+  min-height: 72px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding-right: 16px;
+}
+.competitive-seat + .competitive-seat {
+  border-left: 1px solid var(--color-border);
+  padding-left: 16px;
+  padding-right: 0;
+}
+.competitive-seat > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.competitive-seat strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 550;
+}
+.competitive-seat div > span,
+.seat-readiness {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.seat-readiness {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  transition: color var(--interaction-fast);
+}
+.seat-readiness.is-ready {
+  color: var(--color-success);
+}
+.invitation-actions,
+.competitive-seat > .invitation-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.competitive-seat > .invitation-actions {
+  margin-left: auto;
+}
+@media (max-width: 520px) {
+  .waiting-seat {
+    flex-wrap: wrap;
+    padding-block: 12px;
+  }
+  .waiting-seat .invitation-actions {
+    margin-left: 0;
+  }
+}
+.participant-avatar {
+  flex-shrink: 0;
+  background: var(--color-overlay);
+  border: 0;
+  width: 32px;
+  height: 32px;
+}
+.match-options {
+  display: grid;
+  gap: 16px;
+}
+.match-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.match-option > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.match-option > span svg {
+  width: 16px;
+  height: 16px;
+}
+.match-difficulty {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--color-overlay);
+  border-radius: var(--radius-sm);
+}
+.match-difficulty button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.match-difficulty button[aria-pressed="true"] {
+  background: var(--color-field);
+  color: var(--color-text);
+}
+.match-difficulty button:hover {
+  color: var(--color-text);
+}
+.match-option .settings-select {
+  min-width: 170px;
+}
+.competitive-lobby-settings {
+  margin: 0;
+}
+.competitive-invite {
+  border-top: 1px solid var(--color-border);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.competitive-invite label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+.competitive-invite > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.competitive-invite input {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text-secondary);
+  font: 12px var(--font-code);
+}
+.competitive-lobby-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+}
+.competitive-lobby-footer > span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.competitive-lobby-footer .button {
+  flex-shrink: 0;
+}
+.competitive-lobby-summary {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+.competitive-lobby-summary > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.competitive-lobby-summary dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.competitive-lobby-summary dd {
+  font-size: 14px;
+  text-transform: capitalize;
+  margin: 0;
+}
+.competitive-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 61;
+  width: min(460px, calc(100vw - 32px));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 24px;
+  color: var(--color-text);
+}
+.competitive-dialog-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.competitive-dialog-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0;
+}
+.competitive-dialog-heading p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.competitive-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+}
+.competitive-dialog-actions a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.competitive-dialog[data-state="open"] {
+  animation: competitive-dialog-in 180ms var(--interaction-ease);
+}
+.competitive-dialog[data-state="closed"] {
+  animation: competitive-dialog-out 140ms var(--interaction-ease);
+}
+@keyframes competitive-dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+  }
+}
+@keyframes competitive-dialog-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 4px)) scale(0.98);
+  }
+}
+.competitive-scoreboard {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 48px;
+  padding: 8px 16px;
+}
+.competitive-player-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.competitive-player-score strong {
+  font-weight: 500;
+}
+.competitive-player-score .presence-dot {
+  margin: 0;
+  flex-shrink: 0;
+}
+.competitive-score {
+  font: 13px var(--font-code);
+  background: var(--color-overlay);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.score-judging {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.competitive-clock-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+.competitive-scoreboard .match-clock {
+  font: 16px var(--font-code);
+  gap: 6px;
+  letter-spacing: 0;
+}
+.competitive-outcome {
+  background: var(--color-surface);
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border);
+}
+.competitive-outcome.is-winner strong {
+  color: var(--color-success);
+}
+.invite-symbol {
+  color: var(--color-primary);
+  margin-bottom: 16px;
+}
+.invite-symbol svg {
+  width: 28px;
+  height: 28px;
+}
+.identity-choice .settings-select {
+  min-width: 90px;
+}
+.match-page-content {
+  animation: tooltip-enter var(--interaction-reveal) var(--interaction-ease);
+}
+@media (max-width: 600px) {
+  .competitive-scoreboard {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .competitive-player-score {
+    gap: 6px;
+  }
+  .score-judging {
+    display: none;
+  }
+  .competitive-clock-actions {
+    gap: 6px;
+  }
+  .competitive-clock-actions .sync-label {
+    display: none;
+  }
+  .competitive-lobby-footer {
+    align-items: center;
+  }
+  .competitive-outcome {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .competitive-dialog[data-state] {
+    animation-duration: 1ms;
+  }
+  .match-page-content {
+    animation: none;
+  }
+  @keyframes competitive-dialog-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes competitive-dialog-out {
+    to {
+      opacity: 0;
+    }
+  }
+}
+
+.match-page :is(button, a),
+.competitive-dialog button {
+  transition:
+    background-color var(--interaction-fast),
+    color var(--interaction-fast),
+    opacity var(--interaction-fast),
+    transform var(--interaction-fast);
+}
+.match-page button:active,
+.competitive-dialog button:active {
+  transform: translateY(1px);
+}
+
+.copy-invitation .copy-back {
+  opacity: 1;
+  transition: opacity var(--interaction-reveal) var(--interaction-ease);
+}
+.match-page .copy-invitation.is-copied {
+  color: var(--color-success);
+}
+.copy-invitation.is-copied .copy-back {
+  opacity: 0;
+}
+.seat-readiness {
+  flex-shrink: 0;
+}
+@media (max-width: 420px) {
+  .competitive-seat {
+    gap: 6px;
+    padding-right: 8px;
+  }
+  .competitive-seat + .competitive-seat {
+    padding-left: 8px;
+  }
+  .competitive-seat .participant-avatar {
+    width: 24px;
+    height: 24px;
+  }
+  .competitive-seat strong {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .copy-invitation .copy-back {
+    transition: none;
+  }
+}

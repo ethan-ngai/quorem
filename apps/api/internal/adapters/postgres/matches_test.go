@@ -44,7 +44,7 @@ func createPair(t *testing.T, s *Store) (string, matches.Snapshot) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if v.State != "active" || v.ProblemVersionID == "" || v.DurationMinutes != 30 {
+	if v.Mode != matches.Showdown || v.State != "active" || v.ProblemVersionID == "" || v.DurationMinutes != 30 {
 		t.Fatal(v)
 	}
 	return c.ID, v
@@ -190,7 +190,7 @@ func TestMatchInviteSeatsReadinessPrivacyAndReservations(t *testing.T) {
 		t.Fatal(e)
 	}
 	w, e := s.Workspace(ctx, "alice", own)
-	if e != nil || w.Kind != "match" || w.MatchID != c.ID || w.Draft.Source == "private alice" {
+	if e != nil || w.Kind != "match" || w.MatchID != c.ID {
 		t.Fatal(w, e)
 	}
 	if _, e = s.UpdateMatchSettings(ctx, "alice", c.ID, ID(), matches.Settings{Difficulty: "hard", DurationMinutes: 30}); errorCode(e) != "invalid_transition" {

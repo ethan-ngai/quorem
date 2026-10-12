@@ -7,14 +7,25 @@ import {
 } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
 import { WorkspacePage } from "../editor/WorkspacePage";
+import { Tooltip } from "../editor/components/Tooltip";
 import { Brand, Icon } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch, leaveMatch, setReady, updateMatchSettings } from "./api";
 import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
+import { InvitationActions } from "./InvitationActions";
+import { ReadinessIcon } from "./ReadinessIcon";
+import { ReadyActionIcon } from "./ReadyActionIcon";
+import { shareInvitation } from "./shareInvitation";
 import { readInvite } from "./commandRecovery";
-import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
+import {
+  lobbyWaitingLabel,
+  outcomeLabel,
+  ownParticipant,
+  remainingTime,
+  showdown,
+} from "./matchState";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
@@ -52,43 +63,47 @@ function MatchLedger({
     (participant) => participant.userId !== developmentUserIds[identity],
   );
   return (
-    <div className="match-ledger">
-      <div className="match-ledger-title">
-        <span className="eyebrow">Private 1v1</span>
-        <span className="sync-label">
-          {status === "live"
-            ? "Live"
-            : status === "polling"
-              ? "Reconnecting · polling"
-              : "Connecting…"}
-        </span>
-      </div>
-      <div className="participant-score">
-        <strong>You</strong>
-        <span>{own?.bestScore ? `${own.bestScore.passed}/${own.bestScore.total}` : "—"}</span>
-        <small>Best score</small>
-      </div>
-      <span className="versus">vs</span>
-      <div className="participant-score">
-        <strong>{opponent?.displayName ?? "Opponent"}</strong>
-        <span>
-          {opponent?.bestScore ? `${opponent.bestScore.passed}/${opponent.bestScore.total}` : "—"}
-        </span>
-        <small>
-          <i className={`presence-dot ${opponent?.presence}`} />
-          {opponent?.presence ?? "offline"}
-          {opponent?.submissionState ? ` · ${opponent.submissionState}` : ""}
-        </small>
-      </div>
-      <div className="match-ledger-end">
-        {snapshot.state === "active" || snapshot.state === "finalizing" ? (
-          <>
-            {snapshot.state === "active" ? <MatchClock snapshot={snapshot} /> : null}
-            <button className="quiet-button" onClick={onForfeit}>
-              Forfeit
+    <div className="competitive-scoreboard" aria-label="Match progress">
+      {[own, opponent].map((player, index) => (
+        <div className="competitive-player-score" key={index}>
+          <Tooltip
+            content={player?.presence === "online" ? "Online" : "Disconnected; the clock continues"}
+          >
+            <span
+              className={`presence-dot ${player?.presence ?? "offline"}`}
+              role="img"
+              aria-label={player?.presence ?? "offline"}
+            />
+          </Tooltip>
+          <strong>{index === 0 ? "You" : (player?.displayName ?? "Opponent")}</strong>
+          <Tooltip content="Best submission: cases passed">
+            <span className="competitive-score" tabIndex={0}>
+              {player?.bestScore ? `${player.bestScore.passed}/${player.bestScore.total}` : "—"}
+            </span>
+          </Tooltip>
+          {(player?.submissionState === "running" || player?.submissionState === "queued") && (
+            <span className="score-judging">Judging…</span>
+          )}
+        </div>
+      ))}
+      <div className="competitive-clock-actions">
+        {status !== "live" && (
+          <Tooltip content="Connection interrupted; refreshing match state">
+            <span className="sync-label">Reconnecting…</span>
+          </Tooltip>
+        )}
+        {snapshot.state === "active" ? <MatchClock snapshot={snapshot} /> : null}
+        {(snapshot.state === "active" || snapshot.state === "finalizing") && (
+          <Tooltip content="Forfeit match">
+            <button
+              className="icon-button destructive-icon"
+              aria-label="Forfeit match"
+              onClick={onForfeit}
+            >
+              <Icon name="flag" />
             </button>
-          </>
-        ) : null}
+          </Tooltip>
+        )}
       </div>
     </div>
   );
@@ -102,7 +117,13 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [conceding, setConceding] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
   useEffect(() => {
     if (snapshot?.state === "completed" || snapshot?.state === "cancelled") setConceding(false);
   }, [snapshot?.state]);
@@ -136,7 +157,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
           <IdentityChoice identity={identity} onChange={setIdentity} />
         </header>
         <section className="match-page-content">
-          <span className="eyebrow">Private 1v1</span>
           <h1>{error ? "Match unavailable" : "Opening match…"}</h1>
           {error && (
             <>
@@ -145,7 +165,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                 Retry
               </button>
               <a className="text-link" href="/run-widths">
-                Return to practice →
+                Back to practice
               </a>
             </>
           )}
@@ -157,8 +177,39 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
   const inviteUrl = readInvite(identity, matchId);
-  const concession = conceding ? (
+  const inviteOpponent = async () => {
+    if (!inviteUrl || sharing) return;
+    setSharing(true);
+    setActionError(undefined);
+    try {
+      if ((await shareInvitation(inviteUrl)) === "copied") setCopied(true);
+    } catch {
+      setActionError("Sharing unavailable. Copy the invitation link instead.");
+    } finally {
+      setSharing(false);
+    }
+  };
+  const copyInvitation = async () => {
+    if (!inviteUrl) return;
+    setActionError(undefined);
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+    } catch {
+      setActionError("Copy unavailable. Select and copy the link.");
+    }
+  };
+  const invitationActions = (
+    <InvitationActions
+      copied={copied}
+      sharing={sharing}
+      onCopy={() => void copyInvitation()}
+      onShare={() => void inviteOpponent()}
+    />
+  );
+  const concession = (
     <ConcessionDialog
+      open={conceding}
       pending={pending}
       error={actionError}
       onCancel={() => setConceding(false)}
@@ -169,7 +220,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
         })
       }
     />
-  ) : null;
+  );
   const ledger = (
     <>
       <MatchLedger
@@ -179,14 +230,17 @@ export function MatchPage({ matchId }: { matchId: string }) {
         onForfeit={() => setConceding(true)}
       />
       {snapshot.state !== "active" && (
-        <div className="match-terminal">
+        <div
+          className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === developmentUserIds[identity] ? "is-winner" : ""}`}
+          role="status"
+        >
           <strong>{outcomeLabel(snapshot, identity)}</strong>
           <span>
             {snapshot.state === "finalizing"
               ? "Admitted submissions are still being judged. Scores settle before the final outcome."
               : snapshot.outcome?.reason.replaceAll("_", " ")}
           </span>
-          <a href="/run-widths">Return to practice →</a>
+          <a href="/run-widths">Back to practice</a>
         </div>
       )}
       {error && (
@@ -212,118 +266,27 @@ export function MatchPage({ matchId }: { matchId: string }) {
     <main className="match-page">
       <header className="topbar">
         <Brand />
-        <span className="workspace-mode">Private 1v1</span>
+        <span className="workspace-mode">
+          <Icon name="showdown" />
+          {showdown.name}
+        </span>
         <div className="topbar-spacer" />
         <IdentityChoice identity={identity} onChange={setIdentity} />
       </header>
       <section className="match-page-content">
-        <div className="lobby-heading">
-          <span className="eyebrow">
-            {closed ? "Match closed" : host ? "Your private lobby" : "Private lobby"}
-          </span>
-          <h1>{closed ? outcomeLabel(snapshot, identity) : "Ready when you are."}</h1>
-          <p>
-            {closed
-              ? snapshot.outcome?.reason.replaceAll("_", " ")
-              : "The problem stays hidden until both players are ready. Each player has a private editor."}
-          </p>
-        </div>
-        {!closed && (
-          <>
-            <div className="lobby-participants">
-              {snapshot.participants.map((participant) => (
-                <div className="lobby-participant" key={participant.userId}>
-                  <span className="participant-avatar">{participant.displayName.slice(0, 1)}</span>
-                  <div>
-                    <strong>
-                      {participant.displayName}
-                      {participant.userId === developmentUserIds[identity] ? " (you)" : ""}
-                    </strong>
-                    <span>
-                      {participant.userId === snapshot.hostUserId ? "Host" : "Guest"} ·{" "}
-                      {participant.presence}
-                    </span>
-                  </div>
-                  <span className={`ready-label ${participant.ready ? "is-ready" : ""}`}>
-                    {participant.ready ? "Ready" : "Not ready"}
-                  </span>
-                </div>
-              ))}
-              {snapshot.participants.length < 2 && (
-                <div className="lobby-participant waiting-seat">
-                  <Icon name="people" />
-                  <div>
-                    <strong>Waiting for opponent</strong>
-                    <span>Share your private invitation</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {host ? (
-              <form
-                className="lobby-settings"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void command(() => updateMatchSettings(identity, matchId, settings));
-                }}
-              >
-                <span className="eyebrow">Match settings</span>
-                <MatchSettings value={settings} onChange={setSettings} disabled={pending} />
-                <button
-                  className="button button-secondary"
-                  disabled={
-                    pending ||
-                    (settings.difficulty === snapshot.difficulty &&
-                      settings.durationMinutes === snapshot.durationMinutes)
-                  }
-                >
-                  Update settings
-                </button>
-                <small>Changing settings clears both ready states.</small>
-              </form>
-            ) : (
-              <dl className="lobby-summary">
-                <div>
-                  <dt>Difficulty</dt>
-                  <dd>{snapshot.difficulty}</dd>
-                </div>
-                <div>
-                  <dt>Duration</dt>
-                  <dd>{snapshot.durationMinutes} minutes</dd>
-                </div>
-              </dl>
-            )}
-            {inviteUrl && host && (
-              <div className="invite-link">
-                <label htmlFor="invite-link">Private invite link</label>
-                <div>
-                  <input id="invite-link" value={inviteUrl} readOnly />
-                  <button
-                    className="button button-secondary"
-                    onClick={() =>
-                      void navigator.clipboard
-                        .writeText(inviteUrl)
-                        .then(() => setCopied(true))
-                        .catch(() => setActionError("Copy unavailable. Select and copy the link."))
-                    }
-                  >
-                    <Icon name="copy" />
-                    {copied ? "Copied" : "Copy link"}
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="lobby-actions">
+        <div className="competitive-lobby-heading">
+          <div>
+            <h1>
+              {!closed && <Icon name="showdown" />}
+              {closed ? outcomeLabel(snapshot, identity) : showdown.name}
+            </h1>
+            {closed && <p>{snapshot.outcome?.reason.replaceAll("_", " ")}</p>}
+          </div>
+          {!closed && (
+            <Tooltip content="Leave lobby">
               <button
-                className={`button ${own?.ready ? "button-secondary" : "button-primary"}`}
-                disabled={pending || !own}
-                onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
-              >
-                {pending ? "Updating…" : own?.ready ? "Not ready" : "I'm ready"}
-                <Icon name="submit" />
-              </button>
-              <button
-                className="quiet-button"
+                className="icon-button destructive-icon"
+                aria-label="Leave lobby"
                 disabled={pending}
                 onClick={() =>
                   void command(async () => {
@@ -332,13 +295,130 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   })
                 }
               >
-                Leave lobby
+                <Icon name="output" />
               </button>
-              <span>{status === "live" ? "Live updates" : "Reconnecting · polling"}</span>
+            </Tooltip>
+          )}
+        </div>
+        {!closed && (
+          <>
+            <div className="competitive-seats" aria-label="Players">
+              {snapshot.participants.map((participant) => (
+                <div className="competitive-seat" key={participant.userId}>
+                  <span className="participant-avatar">{participant.displayName.slice(0, 1)}</span>
+                  <div>
+                    <strong>
+                      {participant.userId === developmentUserIds[identity]
+                        ? `${participant.displayName} (you)`
+                        : participant.displayName}
+                    </strong>
+                    <span>{participant.userId === snapshot.hostUserId ? "Host" : "Opponent"}</span>
+                  </div>
+                  <Tooltip content={participant.ready ? "Ready" : "Not ready"}>
+                    <span
+                      className={`seat-readiness ${participant.ready ? "is-ready" : ""}`}
+                      role="img"
+                      aria-label={participant.ready ? "Ready" : "Not ready"}
+                      tabIndex={0}
+                    >
+                      <ReadinessIcon ready={participant.ready} />
+                    </span>
+                  </Tooltip>
+                </div>
+              ))}
+              {snapshot.participants.length < 2 && (
+                <div className="competitive-seat waiting-seat">
+                  <span className="participant-avatar">
+                    <Icon name="people" />
+                  </span>
+                  <div>
+                    <strong>Open seat</strong>
+                    <span>Invite your opponent</span>
+                  </div>
+                  {inviteUrl && host && invitationActions}
+                </div>
+              )}
             </div>
-            <p className="lobby-expiry">
-              Invitation expires {new Date(snapshot.expiresAt).toLocaleString()}
-            </p>
+            {host ? (
+              <div className="competitive-lobby-settings">
+                <MatchSettings
+                  value={settings}
+                  disabled={pending}
+                  onChange={(next) => {
+                    if (
+                      next.difficulty === settings.difficulty &&
+                      next.durationMinutes === settings.durationMinutes
+                    )
+                      return;
+                    setSettings(next);
+                    void command(async () => {
+                      try {
+                        await updateMatchSettings(identity, matchId, next);
+                      } catch (cause) {
+                        setSettings({
+                          difficulty: snapshot.difficulty,
+                          durationMinutes: snapshot.durationMinutes,
+                        });
+                        throw cause;
+                      }
+                    });
+                  }}
+                />
+              </div>
+            ) : (
+              <dl className="competitive-lobby-summary">
+                <div>
+                  <dt>
+                    <Icon name="target" />
+                    Difficulty
+                  </dt>
+                  <dd>{snapshot.difficulty}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Icon name="clock" />
+                    Duration
+                  </dt>
+                  <dd>{snapshot.durationMinutes} minutes</dd>
+                </div>
+              </dl>
+            )}
+            {inviteUrl && host && (
+              <div className="competitive-invite">
+                <label htmlFor="invite-link">
+                  <Icon name="people" />
+                  Invitation
+                </label>
+                <div>
+                  <input
+                    id="invite-link"
+                    value={inviteUrl}
+                    readOnly
+                    onFocus={(event) => event.currentTarget.select()}
+                  />
+                  {invitationActions}
+                </div>
+              </div>
+            )}
+            <footer className="competitive-lobby-footer">
+              <span role="status">
+                {status !== "live" ? "Reconnecting…" : lobbyWaitingLabel(snapshot, identity)}
+              </span>
+              <button
+                className={`button readiness-action ${own?.ready ? "button-secondary" : "button-primary"}`}
+                data-ready={!!own?.ready}
+                aria-label={own?.ready ? "Cancel" : "Ready"}
+                aria-busy={pending}
+                disabled={pending || !own}
+                onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
+              >
+                <ReadyActionIcon ready={!!own?.ready} />
+                <span className="readiness-labels" aria-hidden="true">
+                  <span className="readiness-option readiness-option-ready">Ready</span>
+                  <span className="readiness-option readiness-option-cancel">Cancel</span>
+                </span>
+              </button>
+            </footer>
           </>
         )}
         {(actionError || error) && (
@@ -348,7 +428,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
         )}
         {closed && (
           <a className="text-link" href="/run-widths">
-            Return to practice →
+            Back to practice
           </a>
         )}
       </section>

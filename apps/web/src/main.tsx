@@ -18,6 +18,7 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@quorem/ui/theme.css";
 import "./styles/global.css";
+import "./features/matches/competitive.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

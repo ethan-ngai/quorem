@@ -19,6 +19,7 @@ function snapshot(version: string, state: MatchSnapshot["state"] = "active"): Ma
     id: matchId,
     version,
     state,
+    mode: "showdown",
     serverNow: "2026-10-10T12:00:00Z",
     difficulty: "easy",
     durationMinutes: 15,

@@ -81,6 +81,7 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     return false;
 
   return (
+    value.mode === "showdown" &&
     typeof value.id === "string" &&
     uuidPattern.test(value.id) &&
     (!matchId || value.id === matchId) &&

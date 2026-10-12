@@ -69,54 +69,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/workspaces/{id}/draft": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getDraft"];
-        put: operations["saveDraft"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/workspaces/{id}/draft-history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getDraftHistory"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/workspaces/{id}/restore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["restoreDraft"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/submissions": {
         parameters: {
             query?: never;
@@ -363,12 +315,6 @@ export interface components {
             tabSize: 2 | 4;
             wrap: boolean;
         };
-        Draft: {
-            source: string;
-            revision: string;
-            /** Format: date-time */
-            savedAt: string;
-        };
         Workspace: {
             /** Format: uuid */
             id: string;
@@ -379,37 +325,12 @@ export interface components {
             language: components["schemas"]["Language"];
             /** Format: uuid */
             matchId?: string;
-            draft: components["schemas"]["Draft"];
             preferences: components["schemas"]["EditorPreferences"];
         };
         CreateWorkspaceRequest: {
             /** Format: uuid */
             problemVersionId: string;
             language: components["schemas"]["Language"];
-        };
-        SaveDraftRequest: {
-            source: string;
-            /** Format: uuid */
-            editorSessionId: string;
-            saveSequence: string;
-        };
-        SaveDraftResponse: {
-            revision: string;
-            /** Format: date-time */
-            savedAt: string;
-        };
-        DraftHistoryItem: {
-            revision: string;
-            source: string;
-            /** Format: date-time */
-            savedAt: string;
-        };
-        DraftHistory: {
-            items: components["schemas"]["DraftHistoryItem"][];
-            nextCursor?: string;
-        };
-        RestoreDraftRequest: {
-            revision: string;
         };
         CreateSubmissionRequest: {
             /** Format: uuid */
@@ -516,6 +437,8 @@ export interface components {
             hostUserId: string;
             /** Format: date-time */
             expiresAt: string;
+            /** @enum {string} */
+            mode: "showdown";
         };
         CreateMatchRequest: {
             difficulty: components["schemas"]["Difficulty"];
@@ -732,141 +655,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Workspace"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    getDraft: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Draft"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    saveDraft: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SaveDraftRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SaveDraftResponse"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    getDraftHistory: {
-        parameters: {
-            query?: {
-                cursor?: string;
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DraftHistory"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    restoreDraft: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RestoreDraftRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SaveDraftResponse"];
                 };
             };
             /** @description Safe application error */

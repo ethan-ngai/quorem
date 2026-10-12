@@ -1,7 +1,11 @@
 /** @file Icon.tsx @description Consistent functional workspace symbols. @module editor */
 import type { SVGProps } from "react";
+import { Swords } from "lucide-react";
 
 const paths = {
+  share: "M12 16V3m-4 4 4-4 4 4M5 12v9h14v-9",
+  ready: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM8 12l3 3 5-6",
+  flag: "M5 21V3m0 1c5-4 9 4 14 0v9c-5 4-9-4-14 0",
   enter: "M20 5v9H4m5-5-5 5 5 5",
   keyboard: "M3 6h18v12H3ZM6 9h1m3 0h1m3 0h1m3 0h1M6 12h1m3 0h1m3 0h1m3 0h1M7 15h10",
   save: "M4 3h13l4 4v14H3V3ZM7 3v6h9V3M7 21v-8h10v8",
@@ -38,7 +42,12 @@ const paths = {
 };
 
 /** @returns A stroke icon with inherited color and accessible label on its parent. */
-export function Icon({ name, ...props }: SVGProps<SVGSVGElement> & { name: keyof typeof paths }) {
+export function Icon({
+  name,
+  ...props
+}: SVGProps<SVGSVGElement> & { name: keyof typeof paths | "showdown" }) {
+  if (name === "showdown")
+    return <Swords size={18} strokeWidth={1.5} aria-hidden="true" {...props} />;
   return (
     <svg
       width="18"

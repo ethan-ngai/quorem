@@ -16,7 +16,6 @@ ajv.addSchema(document);
 const fixtures = JSON.parse(readFileSync("fixtures/solo.json", "utf8"));
 for (const [fixture, schema] of Object.entries({
   createWorkspace: "CreateWorkspaceRequest",
-  saveDraft: "SaveDraftRequest",
   createSubmission: "CreateSubmissionRequest",
   submission: "Submission",
 })) {

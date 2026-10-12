@@ -1,12 +1,18 @@
 /** @file PythonEditor.tsx @description Owns the stable CodeMirror document and optional intelligence extensions. @module editor */
-import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import {
+  acceptCompletion,
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+} from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching, foldGutter, foldKeymap, indentUnit } from "@codemirror/language";
 import { lintKeymap } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState, Facet, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, Facet, Prec, type Extension } from "@codemirror/state";
 import {
   EditorView,
+  drawSelection,
   keymap,
   lineNumbers,
   rectangularSelection,
@@ -14,6 +20,7 @@ import {
   highlightActiveLineGutter,
 } from "@codemirror/view";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { indentationGuides } from "./indentationGuides";
 import { editorColorTheme, type EditorScheme } from "./editorPalette";
 import { highlightedPython, pythonSupport, pythonIdentifierAccents } from "./pythonHighlighting";
 
@@ -60,6 +67,10 @@ const workspaceKeymap = keymap.of([
 
 const baseExtensions: Extension[] = [
   lineNumbers(),
+  // Keep cursor placement under editor control instead of Safari's native caret.
+  drawSelection(),
+  indentationGuides,
+  Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])),
   highlightActiveLine(),
   highlightActiveLineGutter(),
   foldGutter(),
@@ -67,6 +78,9 @@ const baseExtensions: Extension[] = [
   rectangularSelection(),
   closeBrackets(),
   autocompletion({
+    updateSyncTime: 0,
+    interactionDelay: 0,
+    maxRenderedOptions: 40,
     // Adjacent identical labels merge local suggestions with richer server documentation.
     compareCompletions: (a, b) => a.label.localeCompare(b.label),
   }),

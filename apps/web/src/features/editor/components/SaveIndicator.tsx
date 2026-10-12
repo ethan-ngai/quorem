@@ -6,11 +6,11 @@ export type SaveState = "saved" | "dirty" | "saving" | "offline" | "error";
 /** Displays a quiet, text-backed save status. */
 export function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry?: () => void }) {
   const label = {
-    saved: "All changes saved",
+    saved: "Saved in this browser",
     dirty: "Unsaved changes",
     saving: "Saving…",
     offline: "Offline · saved locally",
-    error: "Save failed",
+    error: "Browser save failed",
   }[state];
   const actionable = state === "offline" || state === "error";
   const content = (

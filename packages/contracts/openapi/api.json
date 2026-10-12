@@ -166,193 +166,6 @@
         }
       }
     },
-    "/v1/workspaces/{id}/draft": {
-      "get": {
-        "operationId": "getDraft",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Draft"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Safe application error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "operationId": "saveDraft",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SaveDraftResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Safe application error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SaveDraftRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/workspaces/{id}/draft-history": {
-      "get": {
-        "operationId": "getDraftHistory",
-        "parameters": [
-          {
-            "name": "cursor",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DraftHistory"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Safe application error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/workspaces/{id}/restore": {
-      "post": {
-        "operationId": "restoreDraft",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SaveDraftResponse"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Safe application error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RestoreDraftRequest"
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/submissions": {
       "post": {
         "operationId": "createSubmission",
@@ -1182,24 +995,6 @@
         "required": ["theme", "paneRatios", "codeFontSize", "tabSize", "wrap"],
         "additionalProperties": false
       },
-      "Draft": {
-        "type": "object",
-        "properties": {
-          "source": {
-            "type": "string"
-          },
-          "revision": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": ["source", "revision", "savedAt"],
-        "additionalProperties": false
-      },
       "Workspace": {
         "type": "object",
         "properties": {
@@ -1222,14 +1017,11 @@
             "type": "string",
             "format": "uuid"
           },
-          "draft": {
-            "$ref": "#/components/schemas/Draft"
-          },
           "preferences": {
             "$ref": "#/components/schemas/EditorPreferences"
           }
         },
-        "required": ["id", "kind", "problemVersionId", "language", "draft", "preferences"],
+        "required": ["id", "kind", "problemVersionId", "language", "preferences"],
         "additionalProperties": false
       },
       "CreateWorkspaceRequest": {
@@ -1244,85 +1036,6 @@
           }
         },
         "required": ["problemVersionId", "language"],
-        "additionalProperties": false
-      },
-      "SaveDraftRequest": {
-        "type": "object",
-        "properties": {
-          "source": {
-            "type": "string",
-            "maxLength": 65536
-          },
-          "editorSessionId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "saveSequence": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
-          }
-        },
-        "required": ["source", "editorSessionId", "saveSequence"],
-        "additionalProperties": false
-      },
-      "SaveDraftResponse": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": ["revision", "savedAt"],
-        "additionalProperties": false
-      },
-      "DraftHistoryItem": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
-          },
-          "source": {
-            "type": "string"
-          },
-          "savedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": ["revision", "source", "savedAt"],
-        "additionalProperties": false
-      },
-      "DraftHistory": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DraftHistoryItem"
-            }
-          },
-          "nextCursor": {
-            "type": "string"
-          }
-        },
-        "required": ["items"],
-        "additionalProperties": false
-      },
-      "RestoreDraftRequest": {
-        "type": "object",
-        "properties": {
-          "revision": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
-          }
-        },
-        "required": ["revision"],
         "additionalProperties": false
       },
       "CreateSubmissionRequest": {
@@ -1636,6 +1349,10 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["showdown"]
           }
         },
         "required": [
@@ -1647,7 +1364,8 @@
           "durationMinutes",
           "participants",
           "hostUserId",
-          "expiresAt"
+          "expiresAt",
+          "mode"
         ],
         "additionalProperties": false
       },

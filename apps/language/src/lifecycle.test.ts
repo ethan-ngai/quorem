@@ -10,7 +10,7 @@ const execute = promisify(execFile);
 const address = "127.0.0.1:8082";
 
 void test(
-  "explicit takeover serializes owner containers and SIGTERM removes them",
+  "focused-window takeover serializes owner engines and SIGTERM removes them",
   {
     skip: process.env.QUOREM_LANGUAGE_TEST !== "true",
     timeout: 45000,
@@ -121,7 +121,11 @@ void test(
         async () => (await containers()).length === 1,
         "Abrupt disconnect left a container",
       );
+      const stale = await connect("alice", true);
       const rapid = await connect("alice", true);
+      assert.equal(await stale.closed, 4009);
+      await until(async () => (await containers()).length === 1, "Latest focused engine missing");
+      assert.equal(rapid.client.readyState, WebSocket.OPEN);
       rapid.client.terminate();
       await until(
         async () => (await containers()).length === 0,

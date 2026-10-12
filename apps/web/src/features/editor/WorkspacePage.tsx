@@ -19,14 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  fetchProblem,
-  fetchProblemVersion,
-  fetchWorkspace,
-  createWorkspace,
-  restoreDraft,
-  saveDraft,
-} from "./api";
+import { fetchProblem, fetchProblemVersion, fetchWorkspace, createWorkspace } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { TestCases } from "./components/TestCases";
@@ -44,10 +37,14 @@ import {
   editorSchemeStorageKey,
 } from "./editorSettings";
 import {
+  createBrowserDraftWriter,
+  importBrowserDrafts,
+  browserDraftScope,
+  readBrowserDraft,
+  writeBrowserDraft,
   clearOwnerRecovery,
   readLatestRecovery,
   writeRecovery,
-  type RecoverySnapshot,
 } from "./recovery";
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
@@ -111,7 +108,6 @@ export function WorkspacePage({
   const [source, setSource] = useState("");
   const sourceRef = useRef(source);
   const [saveState, setSaveState] = useState<SaveState>("saved");
-  const [localRecovery, setLocalRecovery] = useState<RecoverySnapshot>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customMode, setCustomMode] = useState(false);
   const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
@@ -124,7 +120,6 @@ export function WorkspacePage({
   );
   const [wrap, setWrap] = useState(() => readPreference("quorem.wrap.v1", false));
   const editorRef = useRef<PythonEditorHandle>(null);
-  const saveSequence = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const dirtyRef = useRef(false);
   const editGeneration = useRef(0);
@@ -136,11 +131,27 @@ export function WorkspacePage({
         identity: DevelopmentIdentity;
         workspaceId: string;
         problemVersionId: string;
-        editorSessionId: string;
+        storageId: string;
       }
     | undefined
   >(undefined);
   const lastQueuedSourceRef = useRef<string | undefined>(undefined);
+  const browserWriterRef = useRef<ReturnType<typeof createBrowserDraftWriter> | undefined>(
+    undefined,
+  );
+  if (!browserWriterRef.current) {
+    browserWriterRef.current = createBrowserDraftWriter((error, draft) => {
+      const context = draftContextRef.current;
+      if (
+        context?.identity === draft.identity &&
+        context.storageId === draft.workspaceId &&
+        context.problemVersionId === draft.version
+      ) {
+        setSaveState("error");
+        setActionError(errorMessage(error));
+      }
+    });
+  }
 
   const problemQuery = useQuery({
     queryKey: ["problem", identity, match?.problemVersionId ?? slug],
@@ -166,60 +177,64 @@ export function WorkspacePage({
       identity,
       workspaceId: workspaceQuery.data.id,
       problemVersionId: problemQuery.data.id,
-      editorSessionId: crypto.randomUUID(),
+      storageId: browserDraftScope(workspaceQuery.data),
     };
     const previousContext = draftContextRef.current;
     if (workspaceQuery.isFetching && previousContext?.key !== nextContext.key) return;
     if (previousContext?.key === nextContext.key) return;
+    try {
+      browserWriterRef.current?.flush();
+    } catch (error) {
+      setActionError(errorMessage(error));
+    }
     if (previousContext && previousContext.key !== nextContext.key && dirtyRef.current) {
       const snapshot = sourceRef.current;
       void writeRecovery(
         previousContext.identity,
-        previousContext.workspaceId,
+        previousContext.storageId,
         previousContext.problemVersionId,
         snapshot,
       ).catch(() => undefined);
-      if (snapshot !== lastQueuedSourceRef.current) {
-        const sequence = String(++saveSequence.current);
-        const pendingSave = saveQueue.current.then(() =>
-          saveDraft(previousContext.identity, previousContext.workspaceId, {
-            source: snapshot,
-            editorSessionId: previousContext.editorSessionId,
-            saveSequence: sequence,
-          }),
-        );
-        saveQueue.current = pendingSave.then(
-          () => {},
-          () => {},
-        );
-      }
     }
     window.clearTimeout(saveTimerRef.current);
     draftContextRef.current = nextContext;
-    saveSequence.current = 0;
     lastQueuedSourceRef.current = undefined;
     setProblem(problemQuery.data);
     setWorkspace(workspaceQuery.data);
     setCustomMode(false);
     setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
-    const initialSource = workspaceQuery.data.draft.source;
+    const initialSource =
+      readBrowserDraft(identity, nextContext.storageId, problemQuery.data.id) ??
+      problemQuery.data.starterSource;
     setSource(initialSource);
     sourceRef.current = initialSource;
     dirtyRef.current = false;
     setSaveState("saved");
-    setLocalRecovery(undefined);
   }, [problemQuery.data, workspaceQuery.data, workspaceQuery.isFetching, identity]);
 
   useEffect(() => {
     if (!workspace || !problem || draftContextRef.current?.identity !== identity) return;
     let active = true;
-    void readLatestRecovery(identity, workspace.id, problem.id)
-      .then((snapshot) => {
-        if (active && snapshot && snapshot.source !== sourceRef.current) setLocalRecovery(snapshot);
-      })
-      .catch(() => {
-        if (active) setLocalRecovery(undefined);
-      });
+    const context = draftContextRef.current;
+    const generation = editGeneration.current;
+    const load = async () => {
+      // Preserve older recovery databases without importing server drafts.
+      const snapshot =
+        (await readLatestRecovery(identity, context.storageId, problem.id)) ??
+        (await readLatestRecovery(identity, workspace.id, problem.id));
+      if (
+        active &&
+        snapshot &&
+        editGeneration.current === generation &&
+        readBrowserDraft(identity, context.storageId, problem.id) === undefined
+      ) {
+        setSource(snapshot.source);
+        editorRef.current?.replaceSource(snapshot.source);
+        sourceRef.current = snapshot.source;
+        writeBrowserDraft(identity, context.storageId, problem.id, snapshot.source);
+      }
+    };
+    void load().catch(() => undefined);
     return () => {
       active = false;
     };
@@ -244,6 +259,14 @@ export function WorkspacePage({
     const wasDirty = dirtyRef.current;
     dirtyRef.current = true;
     if (!wasDirty) setSaveState("dirty");
+    const context = draftContextRef.current;
+    if (context)
+      browserWriterRef.current?.schedule({
+        identity: context.identity,
+        workspaceId: context.storageId,
+        version: context.problemVersionId,
+        source: next,
+      });
     window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => void saveNowRef.current(), 750);
   }, []);
@@ -258,22 +281,10 @@ export function WorkspacePage({
       return;
     const snapshot = sourceRef.current;
     if (snapshot === lastQueuedSourceRef.current) return;
-    const sequence = String(++saveSequence.current);
-    const sessionId = context.editorSessionId;
     const key = context.key;
     setSaveState("saving");
-    const recoveryWrite = writeRecovery(
-      context.identity,
-      context.workspaceId,
-      context.problemVersionId,
-      snapshot,
-    ).catch(() => undefined);
     const task = saveQueue.current.then(() =>
-      saveDraft(context.identity, context.workspaceId, {
-        source: snapshot,
-        editorSessionId: sessionId,
-        saveSequence: sequence,
-      }),
+      writeRecovery(context.identity, context.storageId, context.problemVersionId, snapshot),
     );
     lastQueuedSourceRef.current = snapshot;
     saveQueue.current = task.then(
@@ -281,21 +292,19 @@ export function WorkspacePage({
       () => {},
     );
     try {
+      browserWriterRef.current?.flush();
       await task;
-      await recoveryWrite;
       if (draftContextRef.current?.key !== key) return;
       if (sourceRef.current === snapshot) {
         dirtyRef.current = false;
         setSaveState("saved");
-        setLocalRecovery(undefined);
       } else {
         setSaveState("dirty");
       }
     } catch (error) {
-      await recoveryWrite;
       if (draftContextRef.current?.key !== key) return;
       if (lastQueuedSourceRef.current === snapshot) lastQueuedSourceRef.current = undefined;
-      setSaveState(navigator.onLine ? "error" : "offline");
+      setSaveState("error");
       setActionError(errorMessage(error));
     }
   }, [identity, problem, workspace]);
@@ -303,11 +312,17 @@ export function WorkspacePage({
 
   useEffect(() => {
     const preserveDraft = () => {
+      try {
+        browserWriterRef.current?.flush();
+      } catch (error) {
+        setSaveState("error");
+        setActionError(errorMessage(error));
+      }
       const context = draftContextRef.current;
       if (context && dirtyRef.current)
         void writeRecovery(
           context.identity,
-          context.workspaceId,
+          context.storageId,
           context.problemVersionId,
           sourceRef.current,
         ).catch(() => undefined);
@@ -382,29 +397,13 @@ export function WorkspacePage({
   useHotkey(workspaceShortcuts.submit.binding, () => void submit(), hotkeyOptions);
   useHotkey(workspaceShortcuts.save.binding, () => void saveNowRef.current(), hotkeyOptions);
 
-  const recoverLocal = useCallback(async () => {
-    if (
-      !localRecovery ||
-      !workspace ||
-      !problem ||
-      localRecovery.scope !== `${identity}:${workspace.id}:${problem.id}:python`
-    )
-      return;
-    editorRef.current?.replaceSource(localRecovery.source);
-    sourceRef.current = localRecovery.source;
-    dirtyRef.current = true;
-    setSaveState("dirty");
-    setLocalRecovery(undefined);
-  }, [localRecovery, identity, workspace, problem]);
-
   const restoreHistory = useCallback(
-    async (historicalSource: string, revision: string) => {
+    async (historicalSource: string) => {
       if (!workspace) return;
       const context = draftContextRef.current;
       const generation = editGeneration.current;
       await saveCurrentDraft();
       await saveQueue.current;
-      await restoreDraft(identity, workspace.id, revision);
       if (draftContextRef.current !== context) return;
       if (editGeneration.current !== generation) {
         dirtyRef.current = true;
@@ -415,19 +414,28 @@ export function WorkspacePage({
           "Newer local edits were kept. Save to retain them instead of the restored history.",
         );
       }
-      editorRef.current?.replaceSource(historicalSource);
-      sourceRef.current = historicalSource;
       if (context)
-        void writeRecovery(
+        writeBrowserDraft(
           context.identity,
-          context.workspaceId,
+          context.storageId,
           context.problemVersionId,
           historicalSource,
-        ).catch(() => undefined);
-      dirtyRef.current = false;
-      window.clearTimeout(saveTimerRef.current);
-      setLocalRecovery(undefined);
-      setSaveState("saved");
+        );
+      editorRef.current?.replaceSource(historicalSource);
+      sourceRef.current = historicalSource;
+      const restoredGeneration = editGeneration.current;
+      if (context)
+        await writeRecovery(
+          context.identity,
+          context.storageId,
+          context.problemVersionId,
+          historicalSource,
+        );
+      if (editGeneration.current === restoredGeneration) {
+        dirtyRef.current = false;
+        window.clearTimeout(saveTimerRef.current);
+        setSaveState("saved");
+      }
     },
     [identity, workspace, saveCurrentDraft],
   );
@@ -435,12 +443,8 @@ export function WorkspacePage({
   const activeIdentityChanged = useCallback(
     async (next: DevelopmentIdentity) => {
       if (next === identity) return;
-      if (
-        dirtyRef.current &&
-        !window.confirm("There are unsaved changes in this workspace. Switch local user anyway?")
-      )
-        return;
       await saveCurrentDraft();
+      if (dirtyRef.current) return;
       setIdentity(next);
     },
     [identity, saveCurrentDraft, setIdentity],
@@ -543,25 +547,36 @@ export function WorkspacePage({
                 </div>
               </details>
             )}
-            <Tooltip content="Private match">
-              <button
-                className="quiet-button private-match-button"
-                aria-label="Create private match"
-                onClick={async () => {
-                  await saveCurrentDraft();
-                  setCreateMatchOpen(true);
-                }}
-              >
-                <Icon name="people" />
-                <span>Private match</span>
-              </button>
-            </Tooltip>
+            {!match && (
+              <Tooltip content="Showdown">
+                <button
+                  className="quiet-button showdown-button"
+                  aria-label="Create Showdown"
+                  onClick={async () => {
+                    await saveCurrentDraft();
+                    setCreateMatchOpen(true);
+                  }}
+                >
+                  <Icon name="showdown" />
+                  <span>Showdown</span>
+                </button>
+              </Tooltip>
+            )}
           </nav>
           <div className="topbar-spacer" />
           <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
 
           <WorkspaceSettings
             onOpenChange={setSettingsOpen}
+            onImportDrafts={async (file) => {
+              try {
+                await saveCurrentDraft();
+                const imported = await importBrowserDrafts(await file.text(), identity);
+                if (imported > 0) window.location.reload();
+              } catch (error) {
+                setActionError(errorMessage(error));
+              }
+            }}
             identity={identity}
             onIdentityChange={(next) => void activeIdentityChanged(next)}
             theme={themePreference}
@@ -577,7 +592,6 @@ export function WorkspacePage({
             onHistory={() => setHistoryOpen(true)}
             onClearRecovery={() => {
               void clearOwnerRecovery(identity);
-              setLocalRecovery(undefined);
             }}
           />
         </header>
@@ -615,42 +629,23 @@ export function WorkspacePage({
                   Python
                 </span>
                 <div className="code-options">
-                  {(intelligence.status === "unavailable" ||
-                    intelligence.status === "replaced") && (
-                    <span className="intelligence-status" role="status">
-                      <span>
-                        {intelligence.status === "replaced"
-                          ? "Active in another tab"
-                          : "IntelliSense unavailable"}
+                  {intelligence.status === "paused" && (
+                    <Tooltip content="IntelliSense follows the focused window automatically.">
+                      <span className="intelligence-status" role="status">
+                        IntelliSense paused
                       </span>
+                    </Tooltip>
+                  )}
+                  {intelligence.status === "unavailable" && (
+                    <span className="intelligence-status" role="status">
+                      <span>IntelliSense unavailable</span>
                       <button className="quiet-button" onClick={intelligence.retry}>
-                        {intelligence.status === "replaced" ? "Use here" : "Retry"}
+                        Retry
                       </button>
                     </span>
                   )}
                 </div>
               </div>
-              {localRecovery && (
-                <div className="recovery-banner" role="status">
-                  <span>Recover draft · {new Date(localRecovery.savedAt).toLocaleString()}</span>
-                  <button onClick={() => void recoverLocal()}>Restore</button>
-                  <button
-                    className="icon-button"
-                    aria-label="Dismiss local recovery"
-                    onClick={() => {
-                      setLocalRecovery(undefined);
-                      void writeRecovery(
-                        identity,
-                        workspace.id,
-                        problem.id,
-                        sourceRef.current,
-                      ).catch(() => undefined);
-                    }}
-                  >
-                    <Icon name="close" />
-                  </button>
-                </div>
-              )}
               <div className="editor-frame">
                 <PythonEditor
                   key={editorDocumentKey}
