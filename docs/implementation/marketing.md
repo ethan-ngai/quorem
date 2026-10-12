@@ -26,3 +26,5 @@ Verified production at 1440×900 and 390×844 in light/dark: no page overflow or
 - Hero background follows [Ramp](https://ramp.com/) Swiss dots: 12px grid, soft opacity waves, 150px cursor repulsion with spring return, and click ripples. A local Canvas 2D implementation caps DPR at 2, runs idle waves at 30fps, suspends offscreen/hidden, and renders a static reduced-motion fallback. Links and controls do not trigger the field.
 
 - Surface lighting follows the references: reflected rim light, overlapping shadows on rear cards, and peripheral edge fades. The closing section pairs two code planes around the brand mark, with one bounded emblem entrance and a static reduced-motion fallback. Compact sitemap links existing destinations; copyright uses the build year. Hero stays beside copy from 800px; sample groups sit adjacent with centered 14px symbols. No northeast arrows remain in button controls.
+
+- Social/Adaptive lighting is restrained: quarter-strength reflections, shallow shadows, gentle background shading and no stage spotlight.

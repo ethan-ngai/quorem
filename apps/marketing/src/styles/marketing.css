@@ -2183,3 +2183,24 @@ summary:focus-visible {
     bottom: 24px;
   }
 }
+
+/* Upcoming previews use quieter light and shallow depth. */
+.upcoming-feature-grid {
+  --surface-light: rgb(255 255 255 / 0.15);
+  --surface-shade: rgb(39 52 70 / 0.03);
+  --marketing-depth: 0 2px 4px rgb(39 52 70 / 0.03), 0 8px 20px rgb(39 52 70 / 0.05);
+}
+:root[data-theme="dark"] .upcoming-feature-grid {
+  --surface-light: rgb(200 219 255 / 0.025);
+  --surface-shade: rgb(0 0 0 / 0.16);
+  --marketing-depth: 0 2px 4px rgb(0 0 0 / 0.06), 0 8px 20px rgb(0 0 0 / 0.1);
+}
+.upcoming-feature-grid .social-preview-stage,
+.upcoming-feature-grid .adaptive-preview-stage {
+  background: none;
+}
+.upcoming-feature-grid .recommendation-card {
+  box-shadow:
+    0 -4px 12px var(--surface-shade),
+    inset 0 1px var(--surface-light);
+}
