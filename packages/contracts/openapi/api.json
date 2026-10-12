@@ -791,6 +791,102 @@
           }
         }
       }
+    },
+    "/v1/problem-versions/{id}/solutions": {
+      "get": {
+        "operationId": "getSolutions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authored editorial solutions; empty until explicitly published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["items"],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EditorialSolution"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/problem-versions/{id}/complexity": {
+      "get": {
+        "operationId": "getComplexity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authored complexity without solution source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["items"],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EditorialComplexity"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1088,6 +1184,12 @@
           },
           "limits": {
             "$ref": "#/components/schemas/ExecutionLimits"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LanguageImplementation"
+            }
           }
         },
         "required": [
@@ -1963,6 +2065,79 @@
         },
         "required": ["kind"],
         "additionalProperties": false
+      },
+      "LanguageImplementation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["language", "starterSource", "runtimeRevision", "harnessRevision"],
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": ["python", "java", "typescript", "ocaml"]
+          },
+          "starterSource": {
+            "type": "string"
+          },
+          "runtimeRevision": {
+            "type": "string"
+          },
+          "harnessRevision": {
+            "type": "string"
+          }
+        }
+      },
+      "EditorialSolution": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "language",
+          "source",
+          "explanationMarkdown",
+          "timeComplexity",
+          "spaceComplexity",
+          "complexityNotes"
+        ],
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": ["python", "java", "typescript", "ocaml"]
+          },
+          "source": {
+            "type": "string"
+          },
+          "explanationMarkdown": {
+            "type": "string"
+          },
+          "timeComplexity": {
+            "type": "string"
+          },
+          "spaceComplexity": {
+            "type": "string"
+          },
+          "complexityNotes": {
+            "type": "string"
+          }
+        }
+      },
+      "EditorialComplexity": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["language", "timeComplexity", "spaceComplexity", "complexityNotes"],
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": ["python", "java", "typescript", "ocaml"]
+          },
+          "timeComplexity": {
+            "type": "string"
+          },
+          "spaceComplexity": {
+            "type": "string"
+          },
+          "complexityNotes": {
+            "type": "string"
+          }
+        }
       }
     }
   }
