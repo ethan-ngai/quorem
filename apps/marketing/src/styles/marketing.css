@@ -125,7 +125,7 @@ summary:focus-visible {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 14px;
 }
 .brand-navigation {
   display: flex;
@@ -3255,4 +3255,13 @@ summary:focus-visible {
 }
 .button:is(:disabled, [aria-disabled="true"]) {
   transform: none;
+}
+
+.site-header .brand-mark {
+  width: 36px;
+  height: 35px;
+}
+.site-header .theme-switch {
+  width: 28px;
+  height: 32px;
 }

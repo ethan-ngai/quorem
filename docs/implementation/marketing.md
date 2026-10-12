@@ -19,7 +19,7 @@ Verified production at 1440×900 and 390×844 in light/dark: no page overflow or
 ## Brand assets
 
 - `logo-pixel.png`: exact 25x24 transparent-border crop of supplied artwork; all 287 opaque pixels preserved. SVG encodes original pixel runs.
-- Explicit light/dark SVG, PNG and ICO favicons follow page theme via shared `favicon-theme.js` (including manual theme overrides); adaptive SVG remains the no-JavaScript default. Multi-size ICO, 16/32/48/96 PNGs, Apple touch icon, 192/512 app icons, dedicated maskable icon, Safari pinned-tab mask and Windows tile. Platform square/safe-area canvases add space; source logo has none. Nearest-neighbor scaling preserves pixel edges.
+- Explicit light/dark SVG, PNG and ICO favicons follow page theme via shared `favicon-theme.js` (including manual theme overrides); adaptive SVG remains the no-JavaScript default. Multi-size ICO, 16/32/48/96 PNGs, Apple touch icon, 192/512 app icons, dedicated maskable icon, Safari pinned-tab mask and Windows tile. Platform square/safe-area canvases add space; source logo has none. Nearest-neighbor scaling preserves pixel edges. Favicons fill their raster width at 16/32/48/96px; ICO includes all four matching frames. Versioned raster URLs refresh padded browser caches.
 - Both HTML entries reference icons/manifest. Marketing adds a 1200x630 social card. Set `QUOREM_SITE_URL` to deployed origin for absolute Open Graph image URLs; local builds use a same-origin path.
 - Visible branding uses the logo alone in marketing header/footer, workspace navigation and social preview. SVG masks inherit theme text color.
 
