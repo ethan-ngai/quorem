@@ -262,7 +262,7 @@ summary:focus-visible {
   line-height: 0.98;
   letter-spacing: -0.055em;
 }
-.hero h1 span {
+.hero h1 > span {
   display: block;
 }
 .hero-intro {
@@ -631,7 +631,7 @@ summary:focus-visible {
   .hero h1 {
     font-size: clamp(40px, 8.5vw, 64px);
   }
-  .hero h1 span {
+  .hero h1 > span {
     display: inline;
   }
   .hero-intro {

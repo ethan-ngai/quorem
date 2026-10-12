@@ -4,6 +4,7 @@ import "@quorem/ui/theme.css";
 import "../styles/marketing.css";
 import ProductPreview from "../components/ProductPreview.astro";
 import MatchScene from "../components/MatchScene.astro";
+import BattleHeadline from "../components/BattleHeadline.astro";
 const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
 ---
 <!doctype html>
@@ -62,7 +63,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-top page-width">
           <div class="hero-copy">
-          <h1 id="hero-title"><span>Race your friends</span> <span>to the solution.</span></h1>
+          <BattleHeadline />
           <div class="hero-intro">
             <p>Invite friends to solve the same coding problem. First correct submission wins.</p>
             <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>

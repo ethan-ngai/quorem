@@ -1,0 +1,90 @@
+<h1 id="hero-title" class="battle-headline" aria-label="Code. Clash. Conquer.">
+  <span class="battle-line">Code.</span>
+  <span class="battle-line">
+    <button class="battle-clash" type="button" aria-label="Clash swords" title="Clash swords">
+      <span class="clash-word" aria-hidden="true"><span class="word-space">Clash.</span><span class="word-upper">Clash.</span><span class="word-lower">Clash.</span><span class="word-slash"></span></span>
+      <span class="sword-parallax" aria-hidden="true">
+        <svg class="clash-swords" viewBox="0 0 140 140" fill="none">
+          <g class="blade blade-left"><path class="sword-steel" d="M70 7 78 22 76 85 70 92 64 85 62 22Z"/><path class="sword-facet" d="m70 7 8 15-2 63-6 7Z"/><path class="sword-guard" d="M49 88h42v9H49zM66 97h8v23h-8zM63 120h14v9H63z"/></g>
+          <g class="blade blade-right"><path class="sword-steel" d="M70 7 78 22 76 85 70 92 64 85 62 22Z"/><path class="sword-facet" d="m70 7 8 15-2 63-6 7Z"/><path class="sword-guard" d="M49 88h42v9H49zM66 97h8v23h-8zM63 120h14v9H63z"/></g>
+          <g class="clash-sparks" stroke="currentColor" stroke-width="3"><path d="m70 45 0-10m18 18 9-5m-9 26 9 5m-27 2v10m-18-17-9 5m9-26-9-5"/></g>
+        </svg>
+      </span>
+    </button>
+  </span>
+  <span class="battle-line battle-last">Conquer.</span>
+</h1>
+<script>
+  const trigger = document.querySelector<HTMLButtonElement>(".battle-clash")!;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  const finePointer = matchMedia("(hover: hover) and (pointer: fine)");
+  const left = trigger.querySelector<SVGGElement>(".blade-left")!;
+  const right = trigger.querySelector<SVGGElement>(".blade-right")!;
+  const parallax = trigger.querySelector<HTMLElement>(".sword-parallax")!;
+  let animations: Animation[] = [];
+  let pointerFrame = 0;
+  let entryTimer = 0;
+  /** Replay one bounded clash; repeated input never queues animations. */
+  function clash() {
+    if (reduced.matches) return;
+    animations.forEach((animation) => animation.cancel());
+    const timing = { duration: 680, easing: "linear(0, 0.18 8%, 0.55 20%, 0.84 35%, 1.015 58%, 1.005 78%, 1)", fill: "none" as const };
+    animations = [
+      left.animate([{ transform: "rotate(-75deg)" }, { transform: "rotate(-36deg)", offset: 0.52 }, { transform: "rotate(-43deg)" }], timing),
+      right.animate([{ transform: "rotate(75deg)" }, { transform: "rotate(36deg)", offset: 0.52 }, { transform: "rotate(43deg)" }], timing),
+      trigger.querySelector(".word-upper")!.animate([{ transform: "translate(0,0)" }, { transform: "translate(-5px,-2px)", offset: 0.52 }, { transform: "translate(0,0)" }], timing),
+      trigger.querySelector(".word-lower")!.animate([{ transform: "translate(0,0)" }, { transform: "translate(5px,2px)", offset: 0.52 }, { transform: "translate(0,0)" }], timing),
+      trigger.querySelector(".clash-sparks")!.animate([{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "scale(1)", offset: 0.52 }, { opacity: 0, transform: "scale(1.2)" }], timing),
+      trigger.querySelector(".word-slash")!.animate([{ opacity: 0, transform: "rotate(-12deg) scaleX(0)" }, { opacity: 0.7, transform: "rotate(-12deg) scaleX(1)", offset: 0.52 }, { opacity: 0, transform: "rotate(-12deg) scaleX(1)" }], timing),
+    ];
+  }
+  trigger.addEventListener("click", clash);
+  trigger.addEventListener("pointerenter", () => { if (finePointer.matches) clash(); });
+  trigger.addEventListener("pointermove", (event) => {
+    if (reduced.matches || !finePointer.matches) return;
+    cancelAnimationFrame(pointerFrame);
+    pointerFrame = requestAnimationFrame(() => {
+      const bounds = trigger.getBoundingClientRect();
+      const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+      const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+      parallax.style.transform = `translate(${x * 8}px, ${y * 8}px) rotate(${x * 4}deg)`;
+    });
+  });
+  trigger.addEventListener("pointerleave", () => {
+    cancelAnimationFrame(pointerFrame);
+    parallax.style.transform = "none";
+  });
+  reduced.addEventListener("change", () => {
+    if (reduced.matches) {
+      clearTimeout(entryTimer);
+      cancelAnimationFrame(pointerFrame);
+      animations.forEach((animation) => animation.cancel());
+      parallax.style.transform = "none";
+    }
+  });
+  entryTimer = window.setTimeout(clash, 100);
+</script>
+<style>
+  .battle-headline { --battle-sword-size: 1.16em; }
+  .battle-line { display: block; }
+  .battle-last { font-weight: 400; }
+  .battle-clash { display: inline-flex; align-items: center; gap: 0.12em; position: relative; padding: 0; border: 0; background: transparent; color: var(--color-primary); font: inherit; letter-spacing: inherit; line-height: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .battle-clash:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 8px; border-radius: var(--radius-sm); }
+  .clash-word { display: inline-block; position: relative; }
+  .word-space { visibility: hidden; }
+  .word-upper, .word-lower { position: absolute; inset: 0; }
+  .word-upper { clip-path: polygon(0 0,100% 0,100% 43%,0 65%); }
+  .word-lower { clip-path: polygon(0 65%,100% 43%,100% 100%,0 100%); }
+  .word-slash { position: absolute; top: 54%; left: -4%; width: 108%; height: 2px; opacity: 0; background: currentColor; transform: rotate(-12deg); }
+  .sword-parallax { width: var(--battle-sword-size); height: var(--battle-sword-size); display: block; flex-shrink: 0; transition: transform 160ms var(--hero-easing); }
+  .clash-swords { display: block; width: 100%; height: 100%; overflow: visible; }
+  .blade { transform-origin: 70px 76px; }
+  .blade-left { transform: rotate(-43deg); }
+  .blade-right { transform: rotate(43deg); }
+  .sword-steel { fill: var(--color-text); }
+  .sword-facet { fill: var(--color-text-secondary); }
+  .sword-guard { fill: currentColor; }
+  .clash-sparks { opacity: 0; transform-origin: 70px 65px; }
+  @media (max-width: 767px) { .battle-headline { font-size: clamp(56px, 14vw, 84px); } .battle-line { display: block; } }
+  @media (prefers-reduced-motion: reduce) { .sword-parallax { transition: none; } }
+</style>

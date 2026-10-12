@@ -1,17 +1,17 @@
-<figure class="match-scene" aria-label="Illustrated example: two friends solving the same problem. Alex submits a correct solution first.">
+<figure class="match-scene" aria-label="Illustrated example: two friends solving the same problem. Jamie submits a correct solution first.">
   <div class="scene-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="scene-match">
-    <div class="scene-header"><span class="scene-live"></span><span>Showdown</span><span class="scene-clock">08:42</span></div>
+    <div class="scene-header"><span class="scene-live"></span><span>Showdown</span><span class="scene-clock">08:34</span><button class="scene-playback" type="button" aria-label="Replay example match" title="Replay example match" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path class="playback-pause" d="M8 6v12M16 6v12"/><path class="playback-play" d="m9 5 10 7-10 7Z"/></svg></button></div>
     <div class="scene-problem"><span>Shared problem</span><strong>Run Widths</strong><span class="scene-difficulty">Easy</span></div>
     <div class="scene-editor" aria-hidden="true">
       <div class="scene-editor-tab"><span class="scene-file-icon">&lt;/&gt;</span> Your solution <span>Python</span></div>
-      <pre><code><span class="scene-code-line"><i>1</i><b>class</b> Solution:</span><span class="scene-code-line"><i>2</i>    <b>def</b> runWidths(self, nums):</span><span class="scene-code-line"><i>3</i>        widths = []</span><span class="scene-code-line"><i>4</i>        start = <b>0</b></span><span class="scene-code-line"><i>5</i>        <b>for</b> end <b>in</b> range(len(nums)):</span><span class="scene-code-line"><i>6</i>            <span class="scene-code-cursor">▌</span></span></code></pre>
+      <pre><code><span class="scene-code-line"><i>1</i><b>class</b> Solution:</span><span class="scene-code-line"><i>2</i>    <b>def</b> runWidths(self, nums):</span><span class="scene-code-line"><i>3</i><span class="scene-typed" data-code="        widths = []">        widths = []</span></span><span class="scene-code-line"><i>4</i><span class="scene-typed" data-code="        start = 0">        start = 0</span></span><span class="scene-code-line"><i>5</i><span class="scene-typed" data-code="        for end in range(len(nums)):">        for end in range(len(nums)):</span></span><span class="scene-code-line"><i>6</i><span class="scene-typed" data-code="            widths.append(end - start + 1)">            widths.append(end - start + 1)</span><span class="scene-code-cursor">▌</span></span></code></pre>
     </div>
     <div class="scene-race" aria-hidden="true">
-      <div class="scene-player scene-player-you"><span class="scene-avatar">A</span><span>Alex <small>You</small></span><span class="scene-score"><span class="scene-score-before">12 / 20</span><span class="scene-score-after">20 / 20</span></span><div class="scene-track"><span></span></div></div>
-      <div class="scene-player"><span class="scene-avatar">J</span><span>Jamie</span><span class="scene-score">16 / 20</span><div class="scene-track"><span></span></div></div>
+      <div class="scene-player scene-player-you"><span class="scene-avatar">A</span><span>Alex <small>You</small></span><span class="scene-score" data-you-score>12 / 20</span><div class="scene-track"><span></span></div></div>
+      <div class="scene-player scene-player-opponent"><span class="scene-avatar">J</span><span>Jamie</span><span class="scene-score" data-opponent-score>20 / 20</span><div class="scene-track"><span></span></div></div>
     </div>
-    <div class="scene-result"><span class="scene-result-icon" aria-hidden="true">✓</span><span><strong>Alex solved it first.</strong><span>Correct submission · Match complete</span></span></div>
+    <div class="scene-result"><span class="scene-result-icon" aria-hidden="true">✓</span><span><strong data-scene-status>Jamie wins.</strong><span data-scene-detail>First correct submission · Match complete</span></span></div>
   </div>
   <figcaption>Example Showdown match</figcaption>
 </figure>
@@ -179,12 +179,6 @@
   display: grid;
   font-variant-numeric: tabular-nums;
 }
-.scene-score > span {
-  grid-area: 1 / 1;
-}
-.scene-score-before {
-  opacity: 0;
-}
 .scene-track {
   grid-column: 2 / -1;
   margin-top: 5px;
@@ -194,14 +188,12 @@
 .scene-track > span {
   display: block;
   height: 100%;
-  width: 80%;
+  width: 100%;
   background: var(--color-text-secondary);
   transform-origin: left;
 }
-.scene-player-you .scene-track > span {
-  width: 100%;
-  background: var(--color-primary);
-}
+.scene-player-you .scene-track > span { transform: scaleX(0.6); }
+.scene-player-opponent .scene-track > span { background: var(--color-primary); }
 .scene-result {
   display: flex;
   align-items: center;
@@ -264,61 +256,15 @@
     padding: 16px;
   }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .scene-player-you .scene-track > span {
-    animation: scene-progress 3.6s var(--hero-easing) both;
-  }
-  .scene-score-before {
-    animation: scene-before 3.6s both;
-  }
-  .scene-score-after {
-    animation: scene-after 3.6s both;
-  }
-  .scene-result {
-    animation: scene-finish 3.6s var(--hero-easing) both;
-  }
-  @keyframes scene-progress {
-    0%,
-    45% {
-      transform: scaleX(0.6);
-    }
-    75%,
-    100% {
-      transform: scaleX(1);
-    }
-  }
-  @keyframes scene-before {
-    0%,
-    60% {
-      opacity: 1;
-    }
-    61%,
-    100% {
-      opacity: 0;
-    }
-  }
-  @keyframes scene-after {
-    0%,
-    60% {
-      opacity: 0;
-    }
-    61%,
-    100% {
-      opacity: 1;
-    }
-  }
-  @keyframes scene-finish {
-    0%,
-    70% {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    90%,
-    100% {
-      opacity: 1;
-      transform: none;
-    }
-  }
-}
-
+.scene-playback { display: grid; place-items: center; width: 44px; height: 44px; margin: -12px -12px -12px 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.scene-playback[hidden] { display: none; }
+.scene-playback:hover { background: var(--color-overlay); }
+.scene-playback:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -4px; }
+.scene-playback svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.playback-pause { display: none; }
+.scene-playback[data-playing="true"] .playback-pause { display: block; }
+.scene-playback[data-playing="true"] .playback-play { display: none; }
 </style>
+<script>
+  import "../scripts/matchDemo";
+</script>
