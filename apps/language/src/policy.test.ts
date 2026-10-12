@@ -1,7 +1,7 @@
 /** @file policy.test.ts @description Owner and virtual document isolation checks. @module language */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { authorizeUpgrade, documentUri, validateMessage } from "./policy.ts";
+import { authorizeUpgrade, documentUri, validateMessage, hasManagedCredentials } from "./policy.ts";
 
 void test("development owner requires loopback and exact browser origin", () => {
   const url = new URL("http://localhost/lsp?user=alice");
@@ -53,4 +53,13 @@ void test("foreign documents and configuration mutations are rejected", () => {
     ).method,
     "textDocument/hover",
   );
+});
+
+void test("present managed credentials cannot silently select fixture ownership", () => {
+  for (const value of ["", "Bearer ", "Bearer forged", "Basic forged"])
+    assert.equal(hasManagedCredentials(value, undefined), true);
+  for (const value of ["bearer.", "quorem, bearer.", "quorem,bearer.forged"])
+    assert.equal(hasManagedCredentials(undefined, value), true);
+  assert.equal(hasManagedCredentials(undefined, undefined), false);
+  assert.equal(hasManagedCredentials(undefined, "quorem"), false);
 });

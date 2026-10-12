@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -21,7 +22,11 @@ async function renderNavigation(path: string) {
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   await router.load();
-  return renderToStaticMarkup(<RouterProvider router={router} />);
+  return renderToStaticMarkup(
+    <QueryClientProvider client={new QueryClient()}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
 }
 
 describe("global navigation", () => {

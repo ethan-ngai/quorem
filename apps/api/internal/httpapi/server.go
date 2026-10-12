@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"io"
@@ -18,6 +19,8 @@ type Server struct {
 	Store    *postgres.Store
 	Events   realtime.PubSub
 	Presence realtime.Presence
+	Identity identity.Verifier
+	Origins  []string
 	Local    bool
 }
 
@@ -26,6 +29,7 @@ var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]string{"status": "ok"}) })
+	mux.HandleFunc("GET /v1/session", s.session)
 	mux.HandleFunc("GET /v1/problems", s.listProblems)
 	mux.HandleFunc("GET /v1/problems/{slug}", s.problem)
 	mux.HandleFunc("GET /v1/problem-versions/{id}", s.problem)
@@ -53,33 +57,68 @@ func (s *Server) Handler() http.Handler {
 		origin := r.Header.Get("Origin")
 		if origin != "" {
 			u := strings.TrimSuffix(origin, "/")
-			if u != "http://localhost:5173" && u != "http://127.0.0.1:5173" {
+			if !s.allowedOrigin(u) {
 				s.err(w, r, &postgres.Error{Code: "forbidden", Message: "Origin denied", Status: 403})
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Origin", u)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-Dev-User")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-Dev-User, Authorization")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)
 			return
 		}
-		host, _, err := net.SplitHostPort(r.RemoteAddr)
-		if !s.Local || err != nil || !net.ParseIP(host).IsLoopback() {
-			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Local development identity unavailable", Status: 401})
+		r.Header.Del("X-Quorem-Owner")
+		public := r.URL.Path == "/health" || (r.Method == "GET" && (r.URL.Path == "/v1/problems" || strings.HasPrefix(r.URL.Path, "/v1/problems/") || strings.HasPrefix(r.URL.Path, "/v1/problem-versions/")))
+		bearer, credentialErr := requestBearer(r)
+		if credentialErr != nil {
+			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Invalid credentials", Status: 401})
 			return
 		}
-		owner := r.Header.Get("X-Dev-User")
-		if owner == "" {
-			owner = "alice"
-		}
-		if owner != "alice" && owner != "bob" && owner != "charlie" && owner != "dana" {
-			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
+		if bearer != "" && s.Identity == nil {
+			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Managed identity unavailable", Status: 401})
 			return
 		}
-		r.Header.Set("X-Quorem-Owner", owner)
+		if s.Identity != nil && bearer != "" {
+			principal, err := s.Identity.Verify(r.Context(), bearer)
+			if err != nil {
+				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
+				return
+			}
+			r = r.WithContext(identity.With(r.Context(), principal))
+			r.Header.Set("X-Quorem-Owner", principal.UserID)
+		} else if s.Local {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil || !net.ParseIP(host).IsLoopback() {
+				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Local development identity unavailable", Status: 401})
+				return
+			}
+			user := r.Header.Get("X-Dev-User")
+			if user == "" {
+				user = "alice"
+			}
+			if developmentSubject(user) == "" {
+				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
+				return
+			}
+			p := identity.Principal{UserID: user, DisplayName: user, EmailVerified: true, SessionID: "development"}
+			if s.Store != nil {
+				var role string
+				var disabled bool
+				if err := s.Store.Pool.QueryRow(r.Context(), "SELECT display_name,role,disabled FROM users WHERE id=$1", user).Scan(&p.DisplayName, &role, &disabled); err != nil || disabled {
+					s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Identity unavailable", Status: 401})
+					return
+				}
+				p.Admin = role == "admin"
+			}
+			r = r.WithContext(identity.With(r.Context(), p))
+			r.Header.Set("X-Quorem-Owner", user)
+		} else if !public {
+			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
+			return
+		}
 		mux.ServeHTTP(w, r)
 	})
 }
@@ -214,4 +253,63 @@ func (s *Server) cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, v)
+}
+
+func (s *Server) allowedOrigin(origin string) bool {
+	for _, o := range s.Origins {
+		if origin == o {
+			return true
+		}
+	}
+	return s.Local && (origin == "http://localhost:5173" || origin == "http://127.0.0.1:5173" || origin == "http://127.0.0.1:5174")
+}
+func (s *Server) RequireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	p := identity.Subject(r.Context())
+	if p.UserID == "" {
+		s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
+		return false
+	}
+	if !p.Admin {
+		s.err(w, r, &postgres.Error{Code: "forbidden", Message: "Administrator required", Status: 403})
+		return false
+	}
+	return true
+}
+func (s *Server) session(w http.ResponseWriter, r *http.Request) {
+	p := identity.Subject(r.Context())
+	role := "user"
+	if p.Admin {
+		role = "admin"
+	}
+	mode := "managed"
+	if s.Local {
+		mode = "development"
+	}
+	respond(w, 200, map[string]any{"user": map[string]any{"id": p.UserID, "displayName": p.DisplayName, "emailVerified": p.EmailVerified, "role": role}, "mode": mode})
+}
+
+// Empty or malformed credentials never select the development/anonymous fallback.
+func requestBearer(r *http.Request) (string, error) {
+	if values, present := r.Header["Authorization"]; present {
+		if len(values) != 1 || !strings.HasPrefix(values[0], "Bearer ") {
+			return "", identity.ErrUnauthorized
+		}
+		token := strings.TrimPrefix(values[0], "Bearer ")
+		if token == "" || strings.ContainsAny(token, " \t\r\n") {
+			return "", identity.ErrUnauthorized
+		}
+		return token, nil
+	}
+	token := ""
+	for _, protocol := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
+		protocol = strings.TrimSpace(protocol)
+		if strings.HasPrefix(protocol, "bearer.") {
+			candidate := strings.TrimPrefix(protocol, "bearer.")
+			if candidate == "" || token != "" {
+				return "", identity.ErrUnauthorized
+			}
+			token = candidate
+		}
+	}
+	return token, nil
 }
