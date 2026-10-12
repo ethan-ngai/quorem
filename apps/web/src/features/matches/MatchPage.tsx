@@ -1,6 +1,6 @@
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
 import {
-  developmentUserIds,
+  participantUserId,
   type CreateMatchRequest,
   type DevelopmentIdentity,
   type MatchSnapshot,
@@ -182,7 +182,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
     );
   const own = ownParticipant(snapshot, identity);
   const mode = snapshot.mode === "free-for-all" ? freeForAll : showdown;
-  const host = snapshot.hostUserId === developmentUserIds[identity];
+  const host = snapshot.hostUserId === participantUserId(identity);
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
   const inviteUrl = readInvite(identity, matchId);
@@ -260,7 +260,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
       )}
       {snapshot.state !== "active" && (
         <div
-          className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === developmentUserIds[identity] ? "is-winner" : ""}`}
+          className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === participantUserId(identity) ? "is-winner" : ""}`}
           role="status"
         >
           <strong>{outcomeLabel(snapshot, identity)}</strong>
@@ -338,7 +338,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   <span className="participant-avatar">{participant.displayName.slice(0, 1)}</span>
                   <div>
                     <strong>
-                      {participant.userId === developmentUserIds[identity]
+                      {participant.userId === participantUserId(identity)
                         ? `${participant.displayName} (you)`
                         : participant.displayName}
                     </strong>

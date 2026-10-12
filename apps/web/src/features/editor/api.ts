@@ -1,4 +1,5 @@
 /** @file api.ts @description Typed browser requests for public problems and solo workspaces. @module editor */
+import { authenticatedFetch } from "../auth/session";
 import { createApiClient } from "@quorem/contracts";
 import type {
   CustomCase,
@@ -14,6 +15,7 @@ export const api = (identity: DevelopmentIdentity) =>
   createApiClient({
     baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
     identity,
+    fetch: authenticatedFetch,
   });
 
 /** Turns typed API error responses into messages suitable for the workspace. */
@@ -35,9 +37,13 @@ export async function fetchProblem(identity: DevelopmentIdentity, slug: string) 
 }
 
 /** Creates or reuses the owner's solo workspace for a problem version. */
-export async function createWorkspace(identity: DevelopmentIdentity, problemVersionId: string) {
+export async function createWorkspace(
+  identity: DevelopmentIdentity,
+  problemVersionId: string,
+  language: "python" | "java" | "typescript" | "ocaml" = "python",
+) {
   const { data, error } = await api(identity).POST("/v1/workspaces", {
-    body: { problemVersionId, language: "python" },
+    body: { problemVersionId, language: language as "python" },
   });
   return requireData(data as Workspace | undefined, error);
 }
