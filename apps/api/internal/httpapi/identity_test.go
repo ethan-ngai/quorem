@@ -41,3 +41,18 @@ func TestManagedIdentityAndAdmin(t *testing.T) {
 		t.Fatal("accepted fixture production", w.Code)
 	}
 }
+
+func TestPresentCredentialsCannotFallback(t *testing.T) {
+	for _, local := range []bool{false, true} {
+		for _, header := range []struct{ name, value string }{{"Authorization", ""}, {"Authorization", "Bearer "}, {"Authorization", "Basic token"}, {"Authorization", "Bearer forged"}, {"Sec-WebSocket-Protocol", "quorem, bearer."}, {"Sec-WebSocket-Protocol", "quorem, bearer.forged"}} {
+			r := httptest.NewRequest("GET", "/health", nil)
+			r.RemoteAddr = "127.0.0.1:8000"
+			r.Header.Set(header.name, header.value)
+			w := httptest.NewRecorder()
+			(&Server{Local: local}).Handler().ServeHTTP(w, r)
+			if w.Code != 401 {
+				t.Fatalf("local=%t %s=%q accepted %d", local, header.name, header.value, w.Code)
+			}
+		}
+	}
+}

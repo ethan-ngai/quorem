@@ -73,13 +73,10 @@ func (s *Server) Handler() http.Handler {
 		}
 		r.Header.Del("X-Quorem-Owner")
 		public := r.URL.Path == "/health" || (r.Method == "GET" && (r.URL.Path == "/v1/problems" || strings.HasPrefix(r.URL.Path, "/v1/problems/") || strings.HasPrefix(r.URL.Path, "/v1/problem-versions/")))
-		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if bearer == "" {
-			for _, protocol := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
-				if strings.HasPrefix(strings.TrimSpace(protocol), "bearer.") {
-					bearer = strings.TrimPrefix(strings.TrimSpace(protocol), "bearer.")
-				}
-			}
+		bearer, credentialErr := requestBearer(r)
+		if credentialErr != nil {
+			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Invalid credentials", Status: 401})
+			return
 		}
 		if bearer != "" && s.Identity == nil {
 			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Managed identity unavailable", Status: 401})
@@ -290,4 +287,30 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 		mode = "development"
 	}
 	respond(w, 200, map[string]any{"user": map[string]any{"id": p.UserID, "displayName": p.DisplayName, "emailVerified": p.EmailVerified, "role": role}, "mode": mode})
+}
+
+// Empty or malformed credentials never select the development/anonymous fallback.
+func requestBearer(r *http.Request) (string, error) {
+	if values, present := r.Header["Authorization"]; present {
+		if len(values) != 1 || !strings.HasPrefix(values[0], "Bearer ") {
+			return "", identity.ErrUnauthorized
+		}
+		token := strings.TrimPrefix(values[0], "Bearer ")
+		if token == "" || strings.ContainsAny(token, " \t\r\n") {
+			return "", identity.ErrUnauthorized
+		}
+		return token, nil
+	}
+	token := ""
+	for _, protocol := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
+		protocol = strings.TrimSpace(protocol)
+		if strings.HasPrefix(protocol, "bearer.") {
+			candidate := strings.TrimPrefix(protocol, "bearer.")
+			if candidate == "" || token != "" {
+				return "", identity.ErrUnauthorized
+			}
+			token = candidate
+		}
+	}
+	return token, nil
 }
