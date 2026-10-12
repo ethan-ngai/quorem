@@ -29,4 +29,6 @@ Verified production at 1440×900 and 390×844 in light/dark: no page overflow or
 
 - Social/Adaptive lighting is restrained: quarter-strength reflections, shallow shadows, gentle background shading and no stage spotlight.
 
-- Messy bento follows the personal website `/mac` span/reflow approach. Mode rows have offset separators. Walkthrough cards reflow against explicit minimum widths; full-width problem/submission cards become horizontal before stacking on phones. No resize JavaScript or reordered reading sequence.
+- Messy bento follows the personal website `/mac` span/reflow approach. Mode rows have offset separators. Walkthrough cards reflow against explicit minimum widths; full-width problem/submission cards become horizontal before stacking on phones. No resize JavaScript.
+
+- Walkthrough now uses independent columns, placing submissions below setup and the editor below the shorter problem card. No equal-height row stretch; narrow screens visually return to setup/problem/editor/submissions.

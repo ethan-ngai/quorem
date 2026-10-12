@@ -122,26 +122,28 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
       <section class="feature-section page-width" id="matches" aria-labelledby="matches-title">
         <div class="feature-heading" data-reveal><h2 id="matches-title">From invitation<br />to first submission.</h2><p>Choose a problem, set the time,<br />and send the link.</p></div>
         <div class="feature-grid walkthrough-grid">
-          <div class="feature-row">
-          <article class="feature-panel lobby-panel" data-reveal>
+          <div class="walkthrough-layout">
+            <div class="walkthrough-column">
+<article class="feature-panel lobby-panel" data-reveal>
             <div class="feature-copy"><h3>Set the match rules.</h3><p>Pick the challenge and decide how copy/paste and leaving the window are handled.</p></div>
             <div class="lobby-stage"><LobbyPreview /></div>
           </article>
-          <article class="feature-panel challenge-panel" data-reveal>
+<article class="feature-panel verdict-panel" data-reveal>
+            <div class="feature-copy"><h3>Submissions decide the winner.</h3><p>Submit your solution. The first correct submission wins.</p></div>
+            <SubmissionPreview client:visible />
+          </article>
+            </div>
+            <div class="walkthrough-column">
+<article class="feature-panel challenge-panel" data-reveal>
             <div class="feature-copy"><h3>Pick a problem.<br />Or leave it to chance.</h3><p>Choose a difficulty. Random problems stay hidden until the match starts.</p></div>
             <ProblemCards />
             <a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
           </article>
-          </div>
-          <div class="feature-row">
-          <article class="feature-panel editor-panel" data-reveal>
+<article class="feature-panel editor-panel" data-reveal>
             <div class="feature-copy"><h3>Write and test your solution.</h3><p>Write your solution, try your own cases, then submit when you’re ready.</p></div>
             <div class="editor-stage"><EditorPreview client:visible /><noscript><p>Open practice to try the editor.</p></noscript></div>
           </article>
-          <article class="feature-panel verdict-panel" data-reveal>
-            <div class="feature-copy"><h3>Submissions decide the winner.</h3><p>Submit your solution. The first correct submission wins.</p></div>
-            <SubmissionPreview client:visible />
-          </article>
+            </div>
           </div>
         </div>
       </section>

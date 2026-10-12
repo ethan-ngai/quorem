@@ -2234,21 +2234,28 @@ summary:focus-visible {
 .mode-row .mode-preview + .mode-preview {
   border-left: 1px solid var(--color-border);
 }
+/* Independent stacks let the editor start directly below the shorter problem card. */
 .walkthrough-grid {
   display: block;
   container: walkthrough-bento / inline-size;
 }
-.feature-row {
+.walkthrough-layout {
   display: grid;
-  grid-template-columns: minmax(450px, 1.45fr) minmax(360px, 1fr);
+  grid-template-columns: minmax(450px, 1fr) minmax(520px, 1fr);
   gap: var(--marketing-panel-gap);
+  align-items: start;
 }
-.feature-row + .feature-row {
-  margin-top: var(--marketing-panel-gap);
-  grid-template-columns: minmax(520px, 1.6fr) minmax(360px, 1fr);
+.walkthrough-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--marketing-panel-gap);
+  min-width: 0;
 }
-.feature-row > .feature-panel {
+.walkthrough-column > .feature-panel {
   grid-column: auto;
+}
+.walkthrough-column .submission-race {
+  margin: 24px;
 }
 @container mode-bento (max-width: 760px) {
   .mode-row,
@@ -2261,24 +2268,29 @@ summary:focus-visible {
     border-top: 1px solid var(--color-border);
   }
 }
-@container walkthrough-bento (max-width: 920px) {
-  .feature-row + .feature-row {
-    grid-template-columns: 1fr;
+@container walkthrough-bento (max-width: 989px) {
+  .walkthrough-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
   }
-  .feature-row .verdict-panel {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
+  .walkthrough-column {
+    display: contents;
   }
-  .feature-row .submission-race {
-    margin: 24px;
+  .walkthrough-layout .lobby-panel {
+    order: 1;
   }
-}
-@container walkthrough-bento (max-width: 850px) {
-  .feature-row {
-    grid-template-columns: 1fr;
+  .walkthrough-layout .challenge-panel {
+    order: 2;
   }
-  .feature-row .challenge-panel {
+  .walkthrough-layout .editor-panel {
+    order: 3;
+  }
+  .walkthrough-layout .verdict-panel {
+    order: 4;
+  }
+  .walkthrough-layout .challenge-panel,
+  .walkthrough-layout .verdict-panel {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: center;
@@ -2294,8 +2306,8 @@ summary:focus-visible {
   }
 }
 @container walkthrough-bento (max-width: 650px) {
-  .feature-row .challenge-panel,
-  .feature-row .verdict-panel {
+  .walkthrough-layout .challenge-panel,
+  .walkthrough-layout .verdict-panel {
     display: flex;
     flex-direction: column;
     align-items: stretch;

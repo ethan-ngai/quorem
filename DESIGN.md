@@ -219,4 +219,6 @@ Coming soon Social/Adaptive cards use quarter-strength surface light, shallow 8p
 
 Hero run status reserves 16px before the Run/Submit group; all-passed results use success green, running status remains secondary text.
 
-Messy bento: game-mode row splits alternate 1.15:1, 1:1.2 and 1.3:1, producing T-junctions without four-way seams. Walkthrough rows use different splits and minimum content widths: lobby 450px, problems/submissions 360px, editor 520px. Container queries move cards to additional rows before compression; standalone problem/submission cards use horizontal compositions until 650px. Intrinsic heights preserve content and DOM reading order.
+Messy bento: game-mode row splits alternate 1.15:1, 1:1.2 and 1.3:1, producing T-junctions without four-way seams. Walkthrough columns reserve 450px for setup/submissions and 520px for problem/editor; each stack uses intrinsic heights. Container queries move cards onto additional rows before compression; standalone problem/submission cards use horizontal compositions until 650px.
+
+Walkthrough stacks independently: match setup above submissions on the left; problem selection above editor/test on the right. Natural card heights close the empty space under problem selection. Below 990px available width, reflow to setup → problem → editor → submissions, retaining horizontal problem/submission compositions until 650px.
