@@ -196,7 +196,7 @@ Architecture B, asymmetric split. Left-aligned three-line Barlow Condensed 800 h
 | scene-offset | 88px |
 | scene-radius | 16px |
 | scene-shadow | 0 24px 80px neutral text at 8 percent opacity |
-| atmosphere | diagonal blue rules and dotted pixel field, brand tint at low opacity |
+| atmosphere | 12px Swiss dot grid; 2.25px neutral dots, top fade, slow opacity waves |
 | entry-easing | cubic-bezier(0.16, 1, 0.3, 1) |
 | entry-duration | 440ms |
 | entry-stagger | 0/100/220/340ms, completes at 780ms |
@@ -204,3 +204,5 @@ Architecture B, asymmetric split. Left-aligned three-line Barlow Condensed 800 h
 The illustration is an example, never a live match or adoption claim. Two player tracks show submitted passed-test counts; Jamie's first correct submission ends the match. One 8.8-second example types code, advances submitted-score bars and ends with Jamie winning. Pause/resume/replay uses a 44px icon control. The visible-time clock pauses offscreen and in hidden tabs. Use opacity/transform only. Reduced motion shows the final scene immediately. Below 1000px the scene moves beneath copy; below 768px heading lines wrap naturally and the scene simplifies its spacing. Preserve 44px targets, theme contrast and no horizontal overflow. All desktop hero content fits at 1440x900, including navigation.
 
 Battle headline: Clash is a blue interactive word with angular crossed swords and a diagonal split through its letters. On entry, hover or activation, blades swing from ±75° through ±36° and settle at ±43° in 680ms. The word separates by 5px at contact; a brief radial spark and slash identify impact. One snappy spring curve, inherited from marketing motion; bounded fine-pointer tilt (8px, 4°), no looping or sound. Native button supports touch and keyboard. Reduced motion cancels the clash and pointer tilt, retaining the swords and readable text. Mobile battle display: clamp(72px, 18vw, 100px). Self-host the upright Latin Barlow Condensed 800 display face; uppercase headline, square-ended lettering, no italic or serif variants. Geist remains the body/interface family. Code/Conquer retain solid neutral text; Clash supplies the sole accent. Match playback and headline use no new runtime dependencies.
+
+Hero Swiss dots follow Ramp’s spring-grid treatment: 150px cursor repulsion, damped return and expanding click ripples. Canvas has no pointer capture; controls keep their native interactions. Offscreen/hidden tabs suspend drawing; reduced motion keeps a static grid.

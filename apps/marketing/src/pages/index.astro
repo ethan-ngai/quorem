@@ -4,6 +4,7 @@ import "@quorem/ui/theme.css";
 import "../styles/marketing.css";
 import ProductPreview from "../components/ProductPreview.astro";
 import MatchScene from "../components/MatchScene.astro";
+import HeroDots from "../components/HeroDots.astro";
 import BattleHeadline from "../components/BattleHeadline.astro";
 const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
 ---
@@ -61,6 +62,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
     </header>
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
+        <HeroDots />
         <div class="hero-top page-width">
           <div class="hero-copy">
           <BattleHeadline />

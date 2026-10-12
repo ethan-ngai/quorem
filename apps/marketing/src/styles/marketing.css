@@ -234,19 +234,6 @@ summary:focus-visible {
   align-items: center;
   overflow-x: clip;
 }
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(
-    125deg,
-    transparent 55%,
-    color-mix(in oklch, var(--color-primary) 6%, transparent) 55%,
-    transparent 85%
-  );
-  pointer-events: none;
-}
 .hero-top {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
