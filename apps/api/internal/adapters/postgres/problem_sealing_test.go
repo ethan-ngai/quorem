@@ -14,7 +14,15 @@ func TestSealedProblemRejectsChildMutationAndUnsealing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v := p.Languages[0]
+	var v problems.LanguageImplementation
+	for _, language := range p.Languages {
+		if language.Language == "python" {
+			v = language
+		}
+	}
+	if v.Language != "python" {
+		t.Fatal("missing Python implementation")
+	}
 	var reference string
 	if err = s.Pool.QueryRow(ctx, "SELECT reference_source FROM problem_languages WHERE version_id=$1 AND language='python'", p.ID).Scan(&reference); err != nil {
 		t.Fatal(err)

@@ -16,7 +16,7 @@ func TestNormalizedProblemContentAndEditorialIsolation(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	p, err := s.Problem(ctx, "run-widths", false)
-	if err != nil || len(p.Languages) != 1 || p.Languages[0].Language != "python" {
+	if err != nil || len(p.Languages) < 1 {
 		t.Fatal(p, err)
 	}
 	payload, _ := json.Marshal(p)
@@ -41,7 +41,15 @@ func TestNormalizedProblemContentAndEditorialIsolation(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, "UPDATE problem_versions SET title='changed' WHERE id=$1", p.ID); err == nil {
 		t.Fatal("published version mutated")
 	}
-	v := p.Languages[0]
+	var v problems.LanguageImplementation
+	for _, language := range p.Languages {
+		if language.Language == "python" {
+			v = language
+		}
+	}
+	if v.Language != "python" {
+		t.Fatal("missing Python implementation")
+	}
 	if err = s.RegisterImplementations(ctx, p.ID, []problems.LanguageImplementation{v}, map[string]string{"python": "changed-reference"}); errorCode(err) != "immutable_version" {
 		t.Fatal("language changed", err)
 	}
@@ -98,8 +106,12 @@ func TestNormalizedMigrationBackfillsExistingVersions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.Seed(ctx, fixtures); err != nil {
-		t.Fatal(err)
+	for _, fixture := range fixtures {
+		public, _ := json.Marshal(fixture.Problem)
+		private, _ := json.Marshal(fixture)
+		if _, err = pool.Exec(ctx, "INSERT INTO problem_versions(id,slug,version,public,fixture) VALUES($1,$2,$3,$4,$5)", fixture.Problem.ID, fixture.Problem.Slug, fixture.Problem.Version, public, private); err != nil {
+			t.Fatal(err)
+		}
 	}
 	first := fixtures[0]
 	var workspaceID string
