@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"crypto/rand"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"os"
@@ -19,7 +20,7 @@ func executeLanguage(t *testing.T, f worker.Fixture, language, source, kind stri
 	docker := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 		return worker.Spec{Source: source, Kind: kind, Fixture: f, Cases: cases}, nil
 	}}
-	job := execution.Job{Language: language, JobID: "test", SubmissionID: "test", AttemptID: time.Now().Format("150405.000000000"), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()}
+	job := execution.Job{Language: language, JobID: "test", SubmissionID: "test", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()}
 	// Compilation is bounded with contestant execution; its larger envelope is explicit.
 	job.Limits.WallTimeMS = 2000
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
