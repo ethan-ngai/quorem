@@ -179,15 +179,15 @@ Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha boun
 
 ### Marketing hero
 
-Architecture B, asymmetric split. Left-aligned three-line Geist headline reads Code. Clash. Conquer.; a vertically offset match illustration makes the mechanics visible. Inspired by Notion's playful product storytelling and Stripe's purposeful visual atmosphere, adapted to Quorem's pixel mark and neutral/blue palette. One Create match CTA. Mode summaries follow the viewport.
+Architecture B, asymmetric split. Left-aligned three-line Barlow Condensed 800 headline reads Code. Clash. Conquer.; a vertically offset match illustration makes the mechanics visible. Inspired by Notion's playful product storytelling and Stripe's purposeful visual atmosphere, adapted to Quorem's pixel mark and neutral/blue palette. One Create match CTA. Mode summaries follow the viewport.
 
 | Hero token | Value |
 | --- | --- |
-| display | clamp(52px, 7vw, 104px) |
-| mobile-display | clamp(56px, 14vw, 84px) |
-| display-weight | 550 |
-| display-leading | 0.98 |
-| display-tracking | -0.055em |
+| display | clamp(80px, 10vw, 144px) |
+| mobile-display | clamp(72px, 18vw, 100px) |
+| display-weight | 800 |
+| display-leading | 0.88 |
+| display-tracking | -0.025em |
 | header-height | 100px; below 700px 80px |
 | content-gap | clamp(32px, 4vw, 56px) |
 | viewport-padding | clamp(32px, 5vw, 64px) |
@@ -203,4 +203,4 @@ Architecture B, asymmetric split. Left-aligned three-line Geist headline reads C
 
 The illustration is an example, never a live match or adoption claim. Two player tracks show submitted passed-test counts; Jamie's first correct submission ends the match. One 8.8-second example types code, advances submitted-score bars and ends with Jamie winning. Pause/resume/replay uses a 44px icon control. The visible-time clock pauses offscreen and in hidden tabs. Use opacity/transform only. Reduced motion shows the final scene immediately. Below 1000px the scene moves beneath copy; below 768px heading lines wrap naturally and the scene simplifies its spacing. Preserve 44px targets, theme contrast and no horizontal overflow. All desktop hero content fits at 1440x900, including navigation.
 
-Battle headline: Clash is a blue interactive word with angular crossed swords and a diagonal split through its letters. On entry, hover or activation, blades swing from ±75° through ±36° and settle at ±43° in 680ms. The word separates by 5px at contact; a brief radial spark and slash identify impact. One snappy spring curve, inherited from marketing motion; bounded fine-pointer tilt (8px, 4°), no looping or sound. Native button supports touch and keyboard. Reduced motion cancels the clash and pointer tilt, retaining the swords and readable text. Mobile battle display: clamp(56px, 14vw, 84px). Match playback and headline use no new runtime dependencies.
+Battle headline: Clash is a blue interactive word with angular crossed swords and a diagonal split through its letters. On entry, hover or activation, blades swing from ±75° through ±36° and settle at ±43° in 680ms. The word separates by 5px at contact; a brief radial spark and slash identify impact. One snappy spring curve, inherited from marketing motion; bounded fine-pointer tilt (8px, 4°), no looping or sound. Native button supports touch and keyboard. Reduced motion cancels the clash and pointer tilt, retaining the swords and readable text. Mobile battle display: clamp(72px, 18vw, 100px). Self-host the upright Latin Barlow Condensed 800 display face; uppercase headline, square-ended lettering, no italic or serif variants. Geist remains the body/interface family. Code/Conquer retain solid neutral text; Clash supplies the sole accent. Match playback and headline use no new runtime dependencies.

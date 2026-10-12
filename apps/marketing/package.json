@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.6",
+    "@fontsource/barlow-condensed": "5.3.0",
     "@quorem/ui": "workspace:*",
     "astro": "^6.0.0"
   }
