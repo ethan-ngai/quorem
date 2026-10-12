@@ -4,7 +4,6 @@ export function usePreviewSequence(
   finalStage: number,
   autoPlay: boolean,
   delay: number | ((stage: number) => number),
-  paused = false,
 ) {
   const root = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState(finalStage);
@@ -34,12 +33,12 @@ export function usePreviewSequence(
     };
   }, [autoPlay, finalStage]);
   useEffect(() => {
-    if (!visible || hidden || reduced || paused || stage >= finalStage) return;
+    if (!visible || hidden || reduced || stage >= finalStage) return;
     const timer = setTimeout(
       () => setStage((value) => value + 1),
       typeof delay === "number" ? delay : delay(stage),
     );
     return () => clearTimeout(timer);
-  }, [stage, visible, hidden, reduced, paused, delay, finalStage]);
+  }, [stage, visible, hidden, reduced, delay, finalStage]);
   return { root, stage, replay: () => setStage(reduced ? finalStage : 0) };
 }

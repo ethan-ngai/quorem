@@ -1429,26 +1429,6 @@ summary:focus-visible {
 .hero-typing .example-data code {
   font-size: 10px;
 }
-.hero-problem-description > .hero-typing-control {
-  position: absolute;
-  top: 9px;
-  right: 8px;
-}
-.hero-typing-control {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-.hero-typing-control:hover {
-  background: var(--color-overlay);
-  color: var(--color-text);
-}
 .hero-typing .preview-code {
   height: 164px;
   min-height: 0;

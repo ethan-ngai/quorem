@@ -44,9 +44,7 @@ const frameDelay = (stage: number) => frames[stage].delay;
 export default function HeroEditorPreview() {
   const editor = useRef<PythonEditorHandle>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [paused, setPaused] = useState(false);
-  const { root, stage } = usePreviewSequence(frames.length - 1, true, frameDelay, paused);
-  const finished = stage === frames.length - 1;
+  const { root, stage } = usePreviewSequence(frames.length - 1, true, frameDelay);
   const phase = Math.max(0, stage - typingEnd);
   useEffect(() => {
     const sync = () =>
@@ -61,11 +59,7 @@ export default function HeroEditorPreview() {
   }, []);
   useEffect(() => editor.current?.replaceSource(frames[stage].source), [stage]);
   return (
-    <div
-      className="workspace-demo hero-typing"
-      data-typing={stage < typingEnd}
-      data-paused={paused}
-    >
+    <div className="workspace-demo hero-typing" data-typing={stage < typingEnd}>
       <div className="hero-problem-description">
         <h2>
           Climbing Stairs <small>Easy</small>
@@ -94,30 +88,6 @@ export default function HeroEditorPreview() {
             <code>3</code>
           </div>
         </div>
-        <button
-          type="button"
-          className="hero-typing-control"
-          aria-label={paused ? "Resume animation" : "Pause animation"}
-          disabled={finished}
-          style={{ visibility: finished ? "hidden" : "visible" }}
-          onClick={() => setPaused((value) => !value)}
-        >
-          {paused ? (
-            <Icon name="play" />
-          ) : (
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              aria-hidden="true"
-            >
-              <path d="M8 5v14M16 5v14" />
-            </svg>
-          )}
-        </button>
       </div>
       <div
         className="demo-readonly"
