@@ -50,6 +50,7 @@ func (s *Server) Handler() http.Handler {
 		s.mutateMatch(w, r)
 	})
 	s.registerMatchLanguages(mux)
+	s.registerEditorials(mux)
 	s.registerRealtime(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := postgres.ID()

@@ -8,6 +8,30 @@
       "timeComplexity": "O(n)",
       "spaceComplexity": "O(1)",
       "complexityNotes": "n is the number of input nodes. Auxiliary space excludes the newly allocated result list."
+    },
+    {
+      "language": "java",
+      "source": "class Solution  {\n    public ListNode segmentSums(ListNode head) {\n        ListNode dummy=new ListNode(),tail=dummy;\n        int total=0;\n        boolean active=false;\n        while(head!=null) {\n            if(head.val==0) {\n                if(active) {\n                    tail.next=new ListNode(total);\n                    tail=tail.next;\n                }\n                total=0;\n                active=false;\n            }\n            else {\n                total+=head.val;\n                active=true;\n            }\n            head=head.next;\n        }\n        if(active)tail.next=new ListNode(total);\n        return dummy.next;\n    }\n}\n",
+      "explanationMarkdown": "Accumulate nonzero values until a zero separator. Track whether the segment contains a value independently of its sum, so a nonempty segment summing to zero is retained. Flush the final segment after the loop.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of input nodes. Auxiliary space excludes the newly allocated result list."
+    },
+    {
+      "language": "typescript",
+      "source": "class Solution  {\n    segmentSums(head:ListNode|null):ListNode|null {\n        const dummy=new ListNode();\n        let tail=dummy,total=0,active=false;\n        while(head) {\n            if(head.val===0) {\n                if(active) {\n                    tail.next=new ListNode(total);\n                    tail=tail.next;\n                }\n                total=0;\n                active=false;\n            }\n            else {\n                total+=head.val;\n                active=true;\n            }\n            head=head.next;\n        }\n        if(active)tail.next=new ListNode(total);\n        return dummy.next;\n    }\n}\n",
+      "explanationMarkdown": "Accumulate nonzero values until a zero separator. Track whether the segment contains a value independently of its sum, so a nonempty segment summing to zero is retained. Flush the final segment after the loop.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(1)",
+      "complexityNotes": "n is the number of input nodes. Auxiliary space excludes the newly allocated result list."
+    },
+    {
+      "language": "ocaml",
+      "source": "let segmentSums (head:list_node option) = let rec values acc = function None -> List.rev acc | Some (n:list_node) -> values (n.value::acc) n.next in let rec collect total active acc = function [] -> List.rev (if active then total::acc else acc) | 0::xs -> collect 0 false (if active then total::acc else acc) xs | x::xs -> collect (total+x) true acc xs in List.fold_right (fun v tail -> Some {value=v;next=tail}) (collect 0 false [] (values [] head)) None\n",
+      "explanationMarkdown": "Accumulate nonzero values until a zero separator. Track whether the segment contains a value independently of its sum, so a nonempty segment summing to zero is retained. Flush the final segment after the loop.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n is the input length. Intermediate lists and reversal require linear auxiliary storage, excluding the returned result."
     }
   ],
   "versionId": "869f9a71-cb7a-5650-b19c-01115ddeb860"
