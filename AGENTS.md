@@ -6,6 +6,7 @@
 - Build for <1k users. Keep a credible path to 1M+ through bounded workloads, explicit contracts, and measured scaling. Add infrastructure when justified.
 - Keep domain logic provider-neutral. Isolate persistence, realtime, execution, identity, and queue adapters. Allow Redis/ElastiCache without rewriting domain rules.
 - Develop locally with fixtures first. Require AWS credentials only for cloud validation/deployment.
+- Always use a live Vite dev server for local UI iteration; never hand-build or serve `dist`/preview after each edit. React: `vp -C apps/web dev`; marketing: `vp -C apps/marketing run dev` (Astro uses Vite/HMR). Use `make dev` for the integrated local stack. Builds are for production/CI validation, not the editing loop. Confirm the server runs from the intended worktree and give its exact URL; assign distinct ports to concurrent worktrees.
 - Use Conventional Commits for commits and branch names. Branch format: `<type>/<scope>-<description>` in lowercase kebab-case (e.g. `feat/editor-custom-cases`, `fix/editor-completion`, `docs/quorem-planning`). Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore. No agent/tool prefixes. Use worktrees, dependency-ordered PR stacks, concise GitHub tickets, and agents with explicit ownership/contracts.
 - Provision with Terraform; deploy through GitHub Actions. Keep secrets outside source control.
 - Anchor UI to root `DESIGN.md`; use the design-system skill. Prioritize the editor before other pages.
@@ -21,3 +22,12 @@
 - Keep PR descriptions short and Markdown-organized: brief `Changes` and `Validation` sections with bullets. Add `Dependencies` or `Limitations` only when needed. Describe the final change; avoid dense prose, chat history and exhaustive implementation inventories.
 - Fix failing CI before marking ready. Merge only when the user authorizes it, in dependency order; update remaining PR bases and local `main` afterward. Keep workflow instructions on `main` so new chats inherit them.
 - PostgreSQL integration tests truncate data. Point `QUOREM_TEST_DATABASE_URL` only at a separate disposable test database, never the running development database.
+
+## Worktrees and collaboration
+
+- One worktree and conventional branch per independent task. Inspect existing worktrees first; reuse the task's checkout for follow-ups. Base independent work on fresh `origin/main`; dependent work starts from its predecessor's committed branch and records the PR order.
+- Give each agent an exact checkout path, branch, file ownership and integration contract. Separate worktrees for independent or overlapping edits. Sharing a worktree is allowed only with disjoint file ownership; one coordinator owns commits and integration.
+- Worktrees share Git history, not working files or uncommitted edits. Commit small handoff milestones. Dependent agents consume commits by branching from or merging the producer's branch; do not copy files between checkouts or assume another agent's edits are present.
+- Integrate committed branches in dependency order on a coordinator's integration branch. Resolve conflicts there, inspect the combined diff and run relevant checks. Use merges to retain branch history; cherry-pick only selected, explicitly identified commits. Avoid integrating the same change by both methods.
+- Push/update draft PRs; merge into `main` only with user authorization. After merging, refresh remaining PR bases and local `main`. Archive agent-created worktrees after their changes are integrated and no user work depends on them; preserve needed ignored files first.
+- Manual edits belong in the task worktree, which should be named and linked to the user. Reserve the user's files or pause agents editing them. Preserve uncommitted user changes; never reset, reformat, stage or commit them without authorization. The user may contribute to the same branch/PR. Their running dev server must point at that checkout.
