@@ -20,7 +20,13 @@ import {
 } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { MatchRuleNotice, useMatchRules } from "../matches/useMatchRules";
-import { fetchProblem, fetchProblemVersion, fetchWorkspace, createWorkspace } from "./api";
+import {
+  fetchProblem,
+  fetchProblemVersion,
+  fetchWorkspace,
+  createWorkspace,
+  switchMatchLanguage,
+} from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { TestCases } from "./components/TestCases";
@@ -71,7 +77,7 @@ import { languageLabels, languageFileNames, type EditorLanguage } from "./editor
 export function WorkspacePage({
   slug = "",
   match,
-  matchWorkspaceId,
+  matchWorkspaceId: providedMatchWorkspaceId,
   identity: providedIdentity,
   onIdentityChange,
   matchHeader,
@@ -103,6 +109,16 @@ export function WorkspacePage({
   const [createMatchOpen, setCreateMatchOpen] = useState(false);
   const [problem, setProblem] = useState<ProblemVersion>();
   const [workspace, setWorkspace] = useState<Workspace>();
+  const [matchSelection, setMatchSelection] = useState<{ matchId: string; workspaceId: string }>();
+  const matchWorkspaceId =
+    matchSelection?.matchId === match?.id
+      ? (matchSelection?.workspaceId ?? providedMatchWorkspaceId)
+      : providedMatchWorkspaceId;
+  const [languageSwitching, setLanguageSwitching] = useState(false);
+  useEffect(() => {
+    if (matchSelection && providedMatchWorkspaceId === matchSelection.workspaceId)
+      setMatchSelection(undefined);
+  }, [providedMatchWorkspaceId, matchSelection]);
   const [selectedLanguage, setSelectedLanguage] = useState<EditorLanguage>("python");
   const [source, setSource] = useState("");
   const sourceRef = useRef(source);
@@ -360,6 +376,7 @@ export function WorkspacePage({
     problem,
     enabled:
       !!account.data &&
+      !languageSwitching &&
       !matchRules.blocked &&
       canExecuteDocument({
         identity,
@@ -385,6 +402,23 @@ export function WorkspacePage({
   const submission = execution.submission;
   const submissionBusy = execution.busy;
   const admissionPending = execution.admissionPending;
+  const changeLanguage = async (language: EditorLanguage) => {
+    if (languageSwitching || submissionBusy || admissionPending) return;
+    setLanguageSwitching(true);
+    setActionError(undefined);
+    try {
+      await saveCurrentDraft();
+      if (dirtyRef.current) throw new Error("Save the current draft before switching language.");
+      if (match) {
+        const selected = await switchMatchLanguage(identity, match.id, language);
+        setMatchSelection({ matchId: match.id, workspaceId: selected.id });
+      } else setSelectedLanguage(language);
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setLanguageSwitching(false);
+    }
+  };
   const run = useCallback(async () => {
     setActivePanel("results");
     await execution.run();
@@ -474,6 +508,7 @@ export function WorkspacePage({
 
   const actionsEnabled =
     !!account.data &&
+    !languageSwitching &&
     !matchRules.blocked &&
     canExecuteDocument({
       identity,
@@ -622,8 +657,16 @@ export function WorkspacePage({
                   <select
                     aria-label="Solution language"
                     value={documentLanguage}
-                    disabled={!!match || loading}
-                    onChange={(event) => setSelectedLanguage(event.target.value as EditorLanguage)}
+                    disabled={
+                      loading ||
+                      languageSwitching ||
+                      submissionBusy ||
+                      admissionPending ||
+                      (!!match && (match.state !== "active" || matchRules.blocked))
+                    }
+                    onChange={(event) => {
+                      void changeLanguage(event.target.value as EditorLanguage);
+                    }}
                   >
                     {(problem.languages ?? [{ language: "python" }]).map((item) => (
                       <option key={item.language} value={item.language}>
@@ -663,6 +706,7 @@ export function WorkspacePage({
                   fontSize={fontSize}
                   tabSize={tabSize}
                   wrap={wrap}
+                  readOnly={languageSwitching}
                   intelligenceExtensions={
                     documentLanguage === "python" ? intelligence.extensions : undefined
                   }
