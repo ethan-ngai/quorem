@@ -181,7 +181,7 @@ Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha boun
 
 ### Marketing hero
 
-Asymmetric split. Left-aligned Geist headline reads Coding matches. With your friends. A vertically offset match illustration explains the mechanics. One Create match CTA. Blue is reserved for actions and meaningful score progress.
+Asymmetric split. Upright Barlow Condensed 800 headline reads Code. Clash. Conquer., with replayable crossed swords on Clash. A vertically offset match illustration explains the mechanics. One Create match CTA. Blue is reserved for actions and meaningful score progress.
 
 | Hero token | Value |
 | --- | --- |
@@ -206,3 +206,5 @@ Asymmetric split. Left-aligned Geist headline reads Coding matches. With your fr
 The illustration is an example, never a live match or adoption claim. Two player tracks show submitted passed-test counts; Jamie's first correct submission ends the match. One 8.8-second example types code, advances submitted-score bars and ends with Jamie winning. Pause/resume/replay uses a 44px icon control. The visible-time clock pauses offscreen and in hidden tabs. Use opacity/transform only. Reduced motion shows the final scene immediately. Below 1000px the scene moves beneath copy; below 768px heading lines wrap naturally and the scene simplifies its spacing. Preserve 44px targets, theme contrast and no horizontal overflow. All desktop hero content fits at 1440x900, including navigation.
 
 Hero Swiss dots follow Ramp’s spring-grid treatment: 150px cursor repulsion, damped return and expanding click ripples. Canvas has no pointer capture; controls keep their native interactions. Offscreen/hidden tabs suspend drawing; reduced motion keeps a static grid.
+
+Battle headline: uppercase Barlow Condensed 800, no italic or serif. Clash uses the existing 680ms sword animation on entry, hover and activation, with bounded pointer tilt. Reduced motion retains static swords and readable text.

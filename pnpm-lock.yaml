@@ -201,6 +201,9 @@ importers:
       '@fontsource-variable/geist':
         specifier: ^5.2.6
         version: 5.3.0
+      '@fontsource/barlow-condensed':
+        specifier: 5.3.0
+        version: 5.3.0
       '@fontsource/jetbrains-mono':
         specifier: 5.2.6
         version: 5.2.6
@@ -706,6 +709,9 @@ packages:
 
   '@fontsource-variable/geist@5.3.0':
     resolution: {integrity: sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==}
+
+  '@fontsource/barlow-condensed@5.3.0':
+    resolution: {integrity: sha512-RA7MmIx0v3eQ6Gcf74qLVLOwLB0GpPOzx+eU9iG/AmCnSJGcIWYeU8y6CEMGZ210MGwGg5CZhzLkkvyZdTTk1g==}
 
   '@fontsource/jetbrains-mono@5.2.6':
     resolution: {integrity: sha512-nz//dBr99hXZmHp10wgNI00qThWImkzRR5PQjvRM+rpmuHO5rYBJCqPPWufidCvmkkryXx/GOP/lgqsM3R3Org==}
@@ -3825,6 +3831,8 @@ snapshots:
   '@floating-ui/utils@0.2.12': {}
 
   '@fontsource-variable/geist@5.3.0': {}
+
+  '@fontsource/barlow-condensed@5.3.0': {}
 
   '@fontsource/jetbrains-mono@5.2.6': {}
 
