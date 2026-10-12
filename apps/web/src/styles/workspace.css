@@ -16,21 +16,22 @@
   padding: 0 16px;
   background: var(--color-background);
 }
-.wordmark {
+.brand-logo {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
   color: var(--color-text);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.04em;
   text-decoration: none;
 }
-.wordmark svg {
-  color: var(--color-brand-accent);
-}
-.brand-period {
-  color: var(--color-primary);
+.brand-mark {
+  display: inline-block;
+  width: 25px;
+  height: 24px;
+  background: currentColor;
+  mask: url("/logo-pixel.svg") center / contain no-repeat;
 }
 .topbar-spacer {
   flex: 1;
@@ -1068,10 +1069,6 @@ kbd {
   text-decoration: none;
 }
 
-.topbar .wordmark svg {
-  width: 22px;
-  height: 22px;
-}
 .problem-picker summary {
   min-height: 32px;
   padding: 0 8px;
@@ -1340,12 +1337,6 @@ kbd {
   .topbar {
     gap: 6px;
     padding-inline: 10px;
-  }
-  .wordmark {
-    gap: 0;
-  }
-  .app-shell .wordmark > span {
-    display: none;
   }
   .workspace-nav {
     gap: 3px;

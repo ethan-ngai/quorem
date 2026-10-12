@@ -517,40 +517,44 @@ export function WorkspacePage({
           identity={identity}
           slug={match ? undefined : slug}
           mode={match?.mode}
+          onIdentityChange={(next) => void activeIdentityChanged(next)}
+          theme={themePreference}
+          onThemeChange={setThemePreference}
+          preferences={
+            <WorkspaceSettings
+              onOpenChange={setSettingsOpen}
+              onImportDrafts={async (file) => {
+                try {
+                  await saveCurrentDraft();
+                  const imported = await importBrowserDrafts(await file.text(), identity);
+                  if (imported > 0) window.location.reload();
+                } catch (error) {
+                  setActionError(errorMessage(error));
+                }
+              }}
+              identity={identity}
+              onIdentityChange={(next) => void activeIdentityChanged(next)}
+              theme={themePreference}
+              onThemeChange={setThemePreference}
+              editorScheme={editorScheme}
+              onEditorSchemeChange={setEditorScheme}
+              fontSize={fontSize}
+              onFontSizeChange={setFontSize}
+              tabSize={tabSize}
+              onTabSizeChange={setTabSize}
+              wrap={wrap}
+              onWrapChange={setWrap}
+              onHistory={() => setHistoryOpen(true)}
+              onClearRecovery={() => {
+                void clearOwnerRecovery(identity);
+              }}
+            />
+          }
           onCreateMatch={() => {
             void saveCurrentDraft().then(() => setCreateMatchOpen(true));
           }}
         >
           <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
-
-          <WorkspaceSettings
-            onOpenChange={setSettingsOpen}
-            onImportDrafts={async (file) => {
-              try {
-                await saveCurrentDraft();
-                const imported = await importBrowserDrafts(await file.text(), identity);
-                if (imported > 0) window.location.reload();
-              } catch (error) {
-                setActionError(errorMessage(error));
-              }
-            }}
-            identity={identity}
-            onIdentityChange={(next) => void activeIdentityChanged(next)}
-            theme={themePreference}
-            onThemeChange={setThemePreference}
-            editorScheme={editorScheme}
-            onEditorSchemeChange={setEditorScheme}
-            fontSize={fontSize}
-            onFontSizeChange={setFontSize}
-            tabSize={tabSize}
-            onTabSizeChange={setTabSize}
-            wrap={wrap}
-            onWrapChange={setWrap}
-            onHistory={() => setHistoryOpen(true)}
-            onClearRecovery={() => {
-              void clearOwnerRecovery(identity);
-            }}
-          />
         </GlobalNav>
         {matchHeader && (
           <div className="match-strip">

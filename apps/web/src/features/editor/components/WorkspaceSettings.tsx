@@ -6,7 +6,7 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
-import { editorSchemes, type EditorScheme } from "../editorPalette";
+import { editorSchemes, type EditorScheme } from "../editorSchemes";
 import { workspaceShortcuts } from "../workspaceShortcuts";
 import { ShortcutKeys } from "./ShortcutKeys";
 import { Icon } from "./Icon";

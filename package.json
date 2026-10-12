@@ -6,7 +6,7 @@
     "check": "vp check",
     "contracts:generate": "vp -C packages/contracts run generate",
     "contracts:check": "vp -C packages/contracts run check",
-    "build": "vp -C apps/web build"
+    "build": "node scripts/build-site.mjs"
   },
   "devDependencies": {
     "typescript": "6.0.3",

@@ -6,19 +6,25 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  redirect,
 } from "@tanstack/react-router";
-import { StrictMode } from "react";
+import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { MatchPage } from "./features/matches/MatchPage";
 import { InvitePage } from "./features/matches/InvitePage";
-import { WorkspacePage } from "./features/editor/WorkspacePage";
+import { practiceSearch } from "./features/navigation/matchCreationIntent";
+import { PracticeBrowser } from "./features/practice/PracticeBrowser";
 import "@fontsource-variable/geist";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@quorem/ui/theme.css";
 import "./styles/global.css";
 import "./features/matches/competitive.css";
+
+const WorkspacePage = lazy(() =>
+  import("./features/editor/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
+);
+const MatchPage = lazy(() =>
+  import("./features/matches/MatchPage").then((module) => ({ default: module.MatchPage })),
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,24 +37,52 @@ const rootRoute = createRootRoute({ component: Outlet });
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  beforeLoad: () => {
-    throw redirect({ to: "/$slug", params: { slug: "run-widths" } });
-  },
+  component: () => (
+    <a className="text-link" href="/">
+      Open Quorem home
+    </a>
+  ),
+});
+const practiceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/practice",
+  validateSearch: practiceSearch,
+  component: PracticeBrowser,
 });
 const problemRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/$slug",
+  path: "/practice/$slug",
   component: function ProblemRoute() {
     const { slug } = problemRoute.useParams();
-    return <WorkspacePage slug={slug} />;
+    return (
+      <Suspense
+        fallback={
+          <main className="workspace-loading" role="status">
+            Opening workspace…
+          </main>
+        }
+      >
+        <WorkspacePage slug={slug} />
+      </Suspense>
+    );
   },
 });
 const matchRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/matches/$id",
+  path: "/match/$id",
   component: function MatchRoute() {
     const { id } = matchRoute.useParams();
-    return <MatchPage matchId={id} />;
+    return (
+      <Suspense
+        fallback={
+          <main className="workspace-loading" role="status">
+            Opening match…
+          </main>
+        }
+      >
+        <MatchPage matchId={id} />
+      </Suspense>
+    );
   },
 });
 const inviteRoute = createRoute({
@@ -59,7 +93,13 @@ const inviteRoute = createRoute({
     return <InvitePage token={token} />;
   },
 });
-const routeTree = rootRoute.addChildren([indexRoute, problemRoute, matchRoute, inviteRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  practiceRoute,
+  problemRoute,
+  matchRoute,
+  inviteRoute,
+]);
 const router = createRouter({ routeTree, defaultPreload: "intent" });
 
 declare module "@tanstack/react-router" {

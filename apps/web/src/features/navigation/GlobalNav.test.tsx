@@ -1,0 +1,39 @@
+import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
+import { GlobalNav } from "./GlobalNav";
+
+async function renderNavigation(path: string) {
+  const root = createRootRoute();
+  const route = createRoute({
+    getParentRoute: () => root,
+    path,
+    component: () => <GlobalNav identity="alice" />,
+  });
+  const router = createRouter({
+    routeTree: root.addChildren([route]),
+    history: createMemoryHistory({ initialEntries: [path] }),
+  });
+  await router.load();
+  return renderToStaticMarkup(<RouterProvider router={router} />);
+}
+
+describe("global navigation", () => {
+  it("offers creation and named navigation/profile controls in practice", async () => {
+    const html = await renderNavigation("/practice");
+    expect(html).toContain('aria-label="Create match"');
+    expect(html).toContain('aria-label="Navigation"');
+    expect(html).toContain('aria-label="Profile and preferences"');
+    expect(html).toContain('href="/"');
+    expect(html).not.toContain('aria-label="Practice problems"');
+  });
+  it.each(["/match/unavailable", "/invite/token"])("hides creation throughout %s", async (path) => {
+    expect(await renderNavigation(path)).not.toContain('aria-label="Create match"');
+  });
+});

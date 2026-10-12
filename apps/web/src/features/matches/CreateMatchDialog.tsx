@@ -68,7 +68,7 @@ export function CreateMatchDialog({
               setError(undefined);
               try {
                 const invite = await createMatch(identity, settings);
-                window.location.assign(`/matches/${invite.id}`);
+                window.location.assign(`/match/${invite.id}`);
               } catch (cause) {
                 setError(cause instanceof Error ? cause.message : "Could not create match.");
                 setPending(false);
@@ -88,7 +88,7 @@ export function CreateMatchDialog({
             )}
             <footer className="competitive-dialog-actions">
               {recentMatch ? (
-                <a className="text-link" href={`/matches/${recentMatch}`}>
+                <a className="text-link" href={`/match/${recentMatch}`}>
                   <Icon name="history" />
                   Recent match
                 </a>
