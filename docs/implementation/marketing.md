@@ -11,3 +11,9 @@ Issues #16 and #30. Static Astro app in `apps/marketing`; React owns `/practice`
 - `vp -C apps/marketing run build` compiles the static page. Development builds Astro before services start; Vite serves it at the shared origin. Rebuild after marketing edits. `vp run build` assembles the homepage and React entry into one artifact.
 
 Verified desktop and 390px mobile, both themes: image source/dimensions, no horizontal overflow, responsive navigation and visible product content.
+
+## Brand assets
+
+- `logo-pixel.png`: exact 25x24 transparent-border crop of supplied artwork; all 287 opaque pixels preserved. SVG encodes original pixel runs.
+- Adaptive SVG favicon, multi-size ICO, 16/32/48/96 PNGs, Apple touch icon, 192/512 app icons, dedicated maskable icon, Safari pinned-tab mask and Windows tile. Platform square/safe-area canvases add space; source logo has none. Nearest-neighbor scaling preserves pixel edges.
+- Both HTML entries reference icons/manifest. Marketing adds a 1200x630 social card. Set `QUOREM_SITE_URL` to deployed origin for absolute Open Graph image URLs; local builds use a same-origin path.
