@@ -28,3 +28,5 @@ Verified production at 1440×900 and 390×844 in light/dark: no page overflow or
 - Surface lighting follows the references: reflected rim light, overlapping shadows on rear cards, and peripheral edge fades. The closing section pairs two code planes around the brand mark, with one bounded emblem entrance and a static reduced-motion fallback. Compact sitemap links existing destinations; copyright uses the build year. Hero stays beside copy from 800px; sample groups sit adjacent with centered 14px symbols. No northeast arrows remain in button controls.
 
 - Social/Adaptive lighting is restrained: quarter-strength reflections, shallow shadows, gentle background shading and no stage spotlight.
+
+- Messy bento follows the personal website `/mac` span/reflow approach. Mode rows have offset separators. Walkthrough cards reflow against explicit minimum widths; full-width problem/submission cards become horizontal before stacking on phones. No resize JavaScript or reordered reading sequence.

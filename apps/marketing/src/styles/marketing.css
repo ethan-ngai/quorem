@@ -2208,3 +2208,99 @@ summary:focus-visible {
     0 -4px 12px var(--surface-shade),
     inset 0 1px var(--surface-light);
 }
+
+/* Alternating row splits form T-junctions; intrinsic content sets row height. */
+.mode-showcase {
+  display: block;
+  container: mode-bento / inline-size;
+}
+.mode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+}
+.mode-row:nth-child(2) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+}
+.mode-row:nth-child(3) {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+}
+.mode-row + .mode-row {
+  border-top: 1px solid var(--color-border);
+}
+.mode-row .mode-preview {
+  border: 0;
+  padding: 32px clamp(20px, 3vw, 40px) 40px;
+}
+.mode-row .mode-preview + .mode-preview {
+  border-left: 1px solid var(--color-border);
+}
+.walkthrough-grid {
+  display: block;
+  container: walkthrough-bento / inline-size;
+}
+.feature-row {
+  display: grid;
+  grid-template-columns: minmax(450px, 1.45fr) minmax(360px, 1fr);
+  gap: var(--marketing-panel-gap);
+}
+.feature-row + .feature-row {
+  margin-top: var(--marketing-panel-gap);
+  grid-template-columns: minmax(520px, 1.6fr) minmax(360px, 1fr);
+}
+.feature-row > .feature-panel {
+  grid-column: auto;
+}
+@container mode-bento (max-width: 760px) {
+  .mode-row,
+  .mode-row:nth-child(2),
+  .mode-row:nth-child(3) {
+    grid-template-columns: 1fr;
+  }
+  .mode-row .mode-preview + .mode-preview {
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+  }
+}
+@container walkthrough-bento (max-width: 920px) {
+  .feature-row + .feature-row {
+    grid-template-columns: 1fr;
+  }
+  .feature-row .verdict-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+  }
+  .feature-row .submission-race {
+    margin: 24px;
+  }
+}
+@container walkthrough-bento (max-width: 850px) {
+  .feature-row {
+    grid-template-columns: 1fr;
+  }
+  .feature-row .challenge-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+  }
+  .challenge-panel .problem-card-stage {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin-left: 0;
+  }
+  .challenge-panel > .quiet-link {
+    grid-column: 1;
+    align-self: end;
+  }
+}
+@container walkthrough-bento (max-width: 650px) {
+  .feature-row .challenge-panel,
+  .feature-row .verdict-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .challenge-panel .problem-card-stage {
+    margin-left: 24px;
+  }
+}

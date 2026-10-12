@@ -88,6 +88,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
         </div>
       </section>
       <section id="modes" class="mode-showcase page-width" aria-label="Match modes" data-reveal>
+        <div class="mode-row">
         <article class="mode-preview">
           <MatchModeIllustration variant="duel" />
           <div class="mode-description"><h2>Showdown <span>1 v 1</span></h2><p>Invite a friend. Solve the same problem.<br />First correct submission wins.</p></div>
@@ -96,6 +97,8 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
           <MatchModeIllustration variant="group" />
           <div class="mode-description"><h2>Free-for-all <span>2–8 players</span></h2><p>Share a challenge with the group.<br />Everyone writes their own solution.</p></div>
         </article>
+        </div>
+        <div class="mode-row">
         <article class="mode-preview">
           <UpcomingModeIllustration variant="tech-stacked" />
           <div class="mode-description"><h2>Tech Stacked <span class="coming-soon">Coming soon</span></h2><p>Design resilient enterprise systems. Drag blocks, connect nodes, and adapt as situations change.</p></div>
@@ -104,6 +107,8 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
           <UpcomingModeIllustration variant="factions" />
           <div class="mode-description"><h2>Factions <span class="coming-soon">Coming soon</span></h2><p>Bring your party into a match against other parties.</p></div>
         </article>
+        </div>
+        <div class="mode-row">
         <article class="mode-preview">
           <UpcomingModeIllustration variant="codebase-clash" />
           <div class="mode-description"><h2>Codebase Clash <span class="coming-soon">Coming soon</span></h2><p>Work in an existing repository. Track down a bug or build a new feature.</p></div>
@@ -112,10 +117,12 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
           <UpcomingModeIllustration variant="odyssey" />
           <div class="mode-description"><h2>Odyssey <span class="coming-soon">Coming soon</span></h2><p>Build an object-oriented system across multiple rounds. Extend your design as its states and requirements grow.</p></div>
         </article>
-      </section>
+              </div>
+</section>
       <section class="feature-section page-width" id="matches" aria-labelledby="matches-title">
         <div class="feature-heading" data-reveal><h2 id="matches-title">From invitation<br />to first submission.</h2><p>Choose a problem, set the time,<br />and send the link.</p></div>
-        <div class="feature-grid">
+        <div class="feature-grid walkthrough-grid">
+          <div class="feature-row">
           <article class="feature-panel lobby-panel" data-reveal>
             <div class="feature-copy"><h3>Set the match rules.</h3><p>Pick the challenge and decide how copy/paste and leaving the window are handled.</p></div>
             <div class="lobby-stage"><LobbyPreview /></div>
@@ -125,6 +132,8 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
             <ProblemCards />
             <a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
           </article>
+          </div>
+          <div class="feature-row">
           <article class="feature-panel editor-panel" data-reveal>
             <div class="feature-copy"><h3>Write and test your solution.</h3><p>Write your solution, try your own cases, then submit when you’re ready.</p></div>
             <div class="editor-stage"><EditorPreview client:visible /><noscript><p>Open practice to try the editor.</p></noscript></div>
@@ -133,6 +142,7 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
             <div class="feature-copy"><h3>Submissions decide the winner.</h3><p>Submit your solution. The first correct submission wins.</p></div>
             <SubmissionPreview client:visible />
           </article>
+          </div>
         </div>
       </section>
       <section id="upcoming" class="feature-section page-width" aria-labelledby="upcoming-title" data-reveal>

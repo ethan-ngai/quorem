@@ -218,3 +218,5 @@ Marketing surface lighting: paired light/shade tokens cast reflected light acros
 Coming soon Social/Adaptive cards use quarter-strength surface light, shallow 8px/20px shadows and gentle occlusion; no radial stage spotlight. Keep their data clear rather than dramatically lit.
 
 Hero run status reserves 16px before the Run/Submit group; all-passed results use success green, running status remains secondary text.
+
+Messy bento: game-mode row splits alternate 1.15:1, 1:1.2 and 1.3:1, producing T-junctions without four-way seams. Walkthrough rows use different splits and minimum content widths: lobby 450px, problems/submissions 360px, editor 520px. Container queries move cards to additional rows before compression; standalone problem/submission cards use horizontal compositions until 650px. Intrinsic heights preserve content and DOM reading order.
