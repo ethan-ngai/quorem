@@ -1,6 +1,7 @@
 /** @file InvitePage.tsx @description Explicit private invitation acceptance. @module matches */
 import { useState } from "react";
-import { Brand, Icon } from "../editor/components/Icon";
+import { Icon } from "../editor/components/Icon";
+import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
 import { joinMatch } from "./api";
 import { IdentityChoice, useLocalIdentity } from "./MatchControls";
@@ -20,19 +21,15 @@ export function InvitePage({ token }: { token: string }) {
   }
   return (
     <main className="match-page">
-      <header className="topbar">
-        <Brand />
-        <div className="topbar-spacer" />
+      <GlobalNav identity={identity}>
         <IdentityChoice identity={identity} onChange={setIdentity} disabled={pending} />
-      </header>
+      </GlobalNav>
       <section className="match-page-content invite-entry">
         <div className="invite-symbol">
           <Icon name="people" />
         </div>
         <h1>Match invitation</h1>
-        <p>
-          Join the lobby to meet your opponent. The problem appears when both players are ready.
-        </p>
+        <p>Join the lobby to see its mode and rules.</p>
         <button
           className="button button-primary"
           disabled={pending}
@@ -48,7 +45,7 @@ export function InvitePage({ token }: { token: string }) {
             }
           }}
         >
-          {pending ? "Joining…" : `Join as ${identity === "alice" ? "Alice" : "Bob"}`}
+          {pending ? "Joining…" : `Join as ${identity[0].toUpperCase() + identity.slice(1)}`}
           <Icon name="arrow" />
         </button>
         {error && (

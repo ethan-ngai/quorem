@@ -4,6 +4,7 @@ import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states = new Set(["waiting", "ready", "active", "finalizing", "completed", "cancelled"]);
 const difficulties = new Set(["easy", "medium", "hard"]);
+const ruleActions = new Set(["off", "warning", "announce"]);
 const submissionStates = new Set(["queued", "running", "completed", "cancelled", "failed"]);
 const outcomeKinds = new Set(["win", "draw", "no_contest", "cancelled"]);
 
@@ -55,7 +56,7 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
   const participantIds = new Set<string>();
   if (
     !Array.isArray(value.participants) ||
-    value.participants.length > 2 ||
+    value.participants.length > (value.mode === "free-for-all" ? 8 : 2) ||
     value.participants.some((participant) => {
       if (
         !record(participant) ||
@@ -71,6 +72,7 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
           (typeof participant.workspaceId !== "string" ||
             !uuidPattern.test(participant.workspaceId))) ||
         (participant.bestScore !== undefined && !validScore(participant.bestScore)) ||
+        (participant.forfeited !== undefined && typeof participant.forfeited !== "boolean") ||
         participantIds.has(participant.userId)
       )
         return true;
@@ -81,7 +83,33 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     return false;
 
   return (
-    value.mode === "showdown" &&
+    (value.mode === "showdown" || value.mode === "free-for-all") &&
+    Array.isArray(value.difficulties) &&
+    value.difficulties.length >= 1 &&
+    value.difficulties.length <= 3 &&
+    value.difficulties.every((pool) => typeof pool === "string" && difficulties.has(pool)) &&
+    new Set(value.difficulties).size === value.difficulties.length &&
+    record(value.rules) &&
+    typeof value.rules.clipboard === "string" &&
+    ruleActions.has(value.rules.clipboard) &&
+    typeof value.rules.focus === "string" &&
+    ruleActions.has(value.rules.focus) &&
+    (value.selectedProblemVersionId === undefined ||
+      (typeof value.selectedProblemVersionId === "string" &&
+        uuidPattern.test(value.selectedProblemVersionId))) &&
+    Array.isArray(value.ruleEvents) &&
+    value.ruleEvents.length <= 20 &&
+    value.ruleEvents.every(
+      (event) =>
+        record(event) &&
+        typeof event.id === "string" &&
+        uuidPattern.test(event.id) &&
+        typeof event.userId === "string" &&
+        participantIds.has(event.userId) &&
+        (event.kind === "focus" || event.kind === "clipboard") &&
+        event.action === "announce" &&
+        validDate(event.occurredAt),
+    ) &&
     typeof value.id === "string" &&
     uuidPattern.test(value.id) &&
     (!matchId || value.id === matchId) &&

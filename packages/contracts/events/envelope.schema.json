@@ -629,6 +629,9 @@
         "workspaceId": {
           "type": "string",
           "format": "uuid"
+        },
+        "forfeited": {
+          "type": "boolean"
         }
       },
       "required": ["userId", "displayName", "ready", "presence"],
@@ -663,7 +666,9 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/MatchParticipant"
-          }
+          },
+          "minItems": 1,
+          "maxItems": 8
         },
         "startedAt": {
           "type": "string",
@@ -693,8 +698,30 @@
           "format": "date-time"
         },
         "mode": {
+          "$ref": "#/$defs/MatchMode"
+        },
+        "difficulties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Difficulty"
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "selectedProblemVersionId": {
           "type": "string",
-          "enum": ["showdown"]
+          "format": "uuid"
+        },
+        "rules": {
+          "$ref": "#/$defs/MatchRules"
+        },
+        "ruleEvents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MatchRuleEvent"
+          },
+          "maxItems": 20
         }
       },
       "required": [
@@ -707,7 +734,10 @@
         "participants",
         "hostUserId",
         "expiresAt",
-        "mode"
+        "mode",
+        "difficulties",
+        "rules",
+        "ruleEvents"
       ],
       "additionalProperties": false
     },
@@ -720,10 +750,78 @@
         "durationMinutes": {
           "type": "integer",
           "enum": [15, 30, 45, 60]
+        },
+        "mode": {
+          "$ref": "#/$defs/MatchMode"
+        },
+        "difficulties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Difficulty"
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "selectedProblemVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "clipboard": {
+              "$ref": "#/$defs/MatchRuleAction"
+            },
+            "focus": {
+              "$ref": "#/$defs/MatchRuleAction"
+            }
+          },
+          "additionalProperties": false
         }
       },
-      "required": ["difficulty", "durationMinutes"],
-      "additionalProperties": false
+      "required": ["durationMinutes"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "difficulty": {
+                  "$ref": "#/$defs/Difficulty"
+                }
+              },
+              "required": ["difficulty"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "difficulties": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Difficulty"
+                  },
+                  "minItems": 1,
+                  "maxItems": 3,
+                  "uniqueItems": true
+                }
+              },
+              "required": ["difficulties"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "selectedProblemVersionId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": ["selectedProblemVersionId"]
+            }
+          ]
+        }
+      ]
     },
     "MatchInvite": {
       "type": "object",
@@ -1003,6 +1101,67 @@
           "additionalProperties": false
         }
       ]
+    },
+    "MatchMode": {
+      "type": "string",
+      "enum": ["showdown", "free-for-all"]
+    },
+    "MatchRuleAction": {
+      "type": "string",
+      "enum": ["off", "warning", "announce"]
+    },
+    "MatchRuleKind": {
+      "type": "string",
+      "enum": ["clipboard", "focus"]
+    },
+    "MatchRules": {
+      "type": "object",
+      "properties": {
+        "clipboard": {
+          "$ref": "#/$defs/MatchRuleAction"
+        },
+        "focus": {
+          "$ref": "#/$defs/MatchRuleAction"
+        }
+      },
+      "required": ["clipboard", "focus"],
+      "additionalProperties": false
+    },
+    "MatchRuleEvent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "$ref": "#/$defs/MatchRuleKind"
+        },
+        "action": {
+          "type": "string",
+          "const": "announce"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "kind", "action", "occurredAt"],
+      "additionalProperties": false
+    },
+    "ReportMatchRuleRequest": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/MatchRuleKind"
+        }
+      },
+      "required": ["kind"],
+      "additionalProperties": false
     }
   },
   "$ref": "#/$defs/EventEnvelope"

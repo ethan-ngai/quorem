@@ -37,7 +37,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/matches", s.createMatch)
 	mux.HandleFunc("POST /v1/matches/join", s.joinMatch)
 	mux.HandleFunc("GET /v1/matches/{id}", s.getMatch)
-	for _, action := range []string{"ready", "forfeit", "leave"} {
+	for _, action := range []string{"ready", "forfeit", "leave", "start", "rule-events"} {
 		a := action
 		mux.HandleFunc("POST /v1/matches/{id}/"+a, func(w http.ResponseWriter, r *http.Request) { r.SetPathValue("action", a); s.mutateMatch(w, r) })
 	}
@@ -75,7 +75,7 @@ func (s *Server) Handler() http.Handler {
 		if owner == "" {
 			owner = "alice"
 		}
-		if owner != "alice" && owner != "bob" {
+		if owner != "alice" && owner != "bob" && owner != "charlie" && owner != "dana" {
 			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
 			return
 		}

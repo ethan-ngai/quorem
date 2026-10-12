@@ -8,11 +8,17 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { Tooltip } from "../editor/components/Tooltip";
-import { Brand, Icon } from "../editor/components/Icon";
+import { Icon } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
-import { forfeitMatch, leaveMatch, setReady, updateMatchSettings } from "./api";
-import { IdentityChoice, MatchSettings, useLocalIdentity } from "./MatchControls";
+import { forfeitMatch, leaveMatch, setReady, startMatch, updateMatchSettings } from "./api";
+import {
+  IdentityChoice,
+  MatchSettings,
+  ModeIcon,
+  defaultMatchSettings,
+  useLocalIdentity,
+} from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { InvitationActions } from "./InvitationActions";
 import { ReadinessIcon } from "./ReadinessIcon";
@@ -25,7 +31,9 @@ import {
   ownParticipant,
   remainingTime,
   showdown,
+  freeForAll,
 } from "./matchState";
+import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
@@ -59,33 +67,35 @@ function MatchLedger({
   onForfeit: () => void;
 }) {
   const own = ownParticipant(snapshot, identity);
-  const opponent = snapshot.participants.find(
-    (participant) => participant.userId !== developmentUserIds[identity],
-  );
   return (
     <div className="competitive-scoreboard" aria-label="Match progress">
-      {[own, opponent].map((player, index) => (
-        <div className="competitive-player-score" key={index}>
-          <Tooltip
-            content={player?.presence === "online" ? "Online" : "Disconnected; the clock continues"}
-          >
-            <span
-              className={`presence-dot ${player?.presence ?? "offline"}`}
-              role="img"
-              aria-label={player?.presence ?? "offline"}
-            />
-          </Tooltip>
-          <strong>{index === 0 ? "You" : (player?.displayName ?? "Opponent")}</strong>
-          <Tooltip content="Best submission: cases passed">
-            <span className="competitive-score" tabIndex={0}>
-              {player?.bestScore ? `${player.bestScore.passed}/${player.bestScore.total}` : "—"}
-            </span>
-          </Tooltip>
-          {(player?.submissionState === "running" || player?.submissionState === "queued") && (
-            <span className="score-judging">Judging…</span>
-          )}
-        </div>
-      ))}
+      {[own, ...snapshot.participants.filter((player) => player.userId !== own?.userId)].map(
+        (player, index) => (
+          <div className="competitive-player-score" key={index}>
+            <Tooltip
+              content={
+                player?.presence === "online" ? "Online" : "Disconnected; the clock continues"
+              }
+            >
+              <span
+                className={`presence-dot ${player?.presence ?? "offline"}`}
+                role="img"
+                aria-label={player?.presence ?? "offline"}
+              />
+            </Tooltip>
+            <strong>{index === 0 ? "You" : (player?.displayName ?? "Opponent")}</strong>
+            {player?.forfeited && <span className="score-judging">Forfeited</span>}
+            <Tooltip content="Best submission: cases passed">
+              <span className="competitive-score" tabIndex={0}>
+                {player?.bestScore ? `${player.bestScore.passed}/${player.bestScore.total}` : "—"}
+              </span>
+            </Tooltip>
+            {(player?.submissionState === "running" || player?.submissionState === "queued") && (
+              <span className="score-judging">Judging…</span>
+            )}
+          </div>
+        ),
+      )}
       <div className="competitive-clock-actions">
         {status !== "live" && (
           <Tooltip content="Connection interrupted; refreshing match state">
@@ -93,7 +103,7 @@ function MatchLedger({
           </Tooltip>
         )}
         {snapshot.state === "active" ? <MatchClock snapshot={snapshot} /> : null}
-        {(snapshot.state === "active" || snapshot.state === "finalizing") && (
+        {!own?.forfeited && (snapshot.state === "active" || snapshot.state === "finalizing") && (
           <Tooltip content="Forfeit match">
             <button
               className="icon-button destructive-icon"
@@ -127,14 +137,17 @@ export function MatchPage({ matchId }: { matchId: string }) {
   useEffect(() => {
     if (snapshot?.state === "completed" || snapshot?.state === "cancelled") setConceding(false);
   }, [snapshot?.state]);
-  const [settings, setSettings] = useState<CreateMatchRequest>({
-    difficulty: "easy",
-    durationMinutes: 30,
+  const [settings, setSettings] = useState<CreateMatchRequest>(defaultMatchSettings);
+  const snapshotSettings = (match: MatchSnapshot): CreateMatchRequest => ({
+    mode: match.mode,
+    difficulties: match.difficulties ?? [match.difficulty],
+    selectedProblemVersionId: match.selectedProblemVersionId,
+    durationMinutes: match.durationMinutes,
+    rules: match.rules,
   });
   useEffect(() => {
-    if (snapshot)
-      setSettings({ difficulty: snapshot.difficulty, durationMinutes: snapshot.durationMinutes });
-  }, [snapshot?.difficulty, snapshot?.durationMinutes]);
+    if (snapshot) setSettings(snapshotSettings(snapshot));
+  }, [snapshot?.version]);
   const command = async (action: () => Promise<unknown>) => {
     if (pending) return;
     setPending(true);
@@ -151,11 +164,9 @@ export function MatchPage({ matchId }: { matchId: string }) {
   if (!snapshot)
     return (
       <main className="match-page">
-        <header className="topbar">
-          <Brand />
-          <div className="topbar-spacer" />
+        <GlobalNav identity={identity}>
           <IdentityChoice identity={identity} onChange={setIdentity} />
-        </header>
+        </GlobalNav>
         <section className="match-page-content">
           <h1>{error ? "Match unavailable" : "Opening match…"}</h1>
           {error && (
@@ -173,6 +184,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
       </main>
     );
   const own = ownParticipant(snapshot, identity);
+  const mode = snapshot.mode === "free-for-all" ? freeForAll : showdown;
   const host = snapshot.hostUserId === developmentUserIds[identity];
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
@@ -229,6 +241,26 @@ export function MatchPage({ matchId }: { matchId: string }) {
         status={status}
         onForfeit={() => setConceding(true)}
       />
+      {!!snapshot.ruleEvents.length && (
+        <div className="match-rule-announcements" role="log" aria-label="Lobby announcements">
+          {snapshot.ruleEvents.map((event) => (
+            <p key={event.id}>
+              <Icon name="people" />
+              <span>
+                {snapshot.participants.find((player) => player.userId === event.userId)
+                  ?.displayName ?? "Player"}{" "}
+                {event.kind === "clipboard" ? "used copy / paste" : "left the match window"}
+              </span>
+              <time dateTime={event.occurredAt}>
+                {new Date(event.occurredAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </time>
+            </p>
+          ))}
+        </div>
+      )}
       {snapshot.state !== "active" && (
         <div
           className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === developmentUserIds[identity] ? "is-winner" : ""}`}
@@ -264,21 +296,15 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const closed = snapshot.state === "cancelled" || snapshot.state === "completed";
   return (
     <main className="match-page">
-      <header className="topbar">
-        <Brand />
-        <span className="workspace-mode">
-          <Icon name="showdown" />
-          {showdown.name}
-        </span>
-        <div className="topbar-spacer" />
+      <GlobalNav identity={identity} mode={snapshot.mode}>
         <IdentityChoice identity={identity} onChange={setIdentity} />
-      </header>
+      </GlobalNav>
       <section className="match-page-content">
         <div className="competitive-lobby-heading">
           <div>
             <h1>
-              {!closed && <Icon name="showdown" />}
-              {closed ? outcomeLabel(snapshot, identity) : showdown.name}
+              {!closed && <ModeIcon mode={snapshot.mode} />}
+              {closed ? outcomeLabel(snapshot, identity) : mode.name}
             </h1>
             {closed && <p>{snapshot.outcome?.reason.replaceAll("_", " ")}</p>}
           </div>
@@ -302,7 +328,10 @@ export function MatchPage({ matchId }: { matchId: string }) {
         </div>
         {!closed && (
           <>
-            <div className="competitive-seats" aria-label="Players">
+            <div
+              className={`competitive-seats ${snapshot.mode === "free-for-all" ? "ffa-seats" : ""}`}
+              aria-label="Players"
+            >
               {snapshot.participants.map((participant) => (
                 <div className="competitive-seat" key={participant.userId}>
                   <span className="participant-avatar">{participant.displayName.slice(0, 1)}</span>
@@ -312,7 +341,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
                         ? `${participant.displayName} (you)`
                         : participant.displayName}
                     </strong>
-                    <span>{participant.userId === snapshot.hostUserId ? "Host" : "Opponent"}</span>
+                    <span>{participant.userId === snapshot.hostUserId ? "Host" : "Player"}</span>
                   </div>
                   <Tooltip content={participant.ready ? "Ready" : "Not ready"}>
                     <span
@@ -326,14 +355,18 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   </Tooltip>
                 </div>
               ))}
-              {snapshot.participants.length < 2 && (
+              {snapshot.participants.length < (snapshot.mode === "free-for-all" ? 8 : 2) && (
                 <div className="competitive-seat waiting-seat">
                   <span className="participant-avatar">
                     <Icon name="people" />
                   </span>
                   <div>
                     <strong>Open seat</strong>
-                    <span>Invite your opponent</span>
+                    <span>
+                      {snapshot.mode === "free-for-all"
+                        ? `${8 - snapshot.participants.length} seats available`
+                        : "Invite your opponent"}
+                    </span>
                   </div>
                   {inviteUrl && host && invitationActions}
                 </div>
@@ -342,23 +375,19 @@ export function MatchPage({ matchId }: { matchId: string }) {
             {host ? (
               <div className="competitive-lobby-settings">
                 <MatchSettings
+                  showHostRules
                   value={settings}
+                  identity={identity}
+                  participantCount={snapshot.participants.length}
                   disabled={pending}
                   onChange={(next) => {
-                    if (
-                      next.difficulty === settings.difficulty &&
-                      next.durationMinutes === settings.durationMinutes
-                    )
-                      return;
+                    if (JSON.stringify(next) === JSON.stringify(settings)) return;
                     setSettings(next);
                     void command(async () => {
                       try {
                         await updateMatchSettings(identity, matchId, next);
                       } catch (cause) {
-                        setSettings({
-                          difficulty: snapshot.difficulty,
-                          durationMinutes: snapshot.durationMinutes,
-                        });
+                        setSettings(snapshotSettings(snapshot));
                         throw cause;
                       }
                     });
@@ -366,22 +395,16 @@ export function MatchPage({ matchId }: { matchId: string }) {
                 />
               </div>
             ) : (
-              <dl className="competitive-lobby-summary">
-                <div>
-                  <dt>
-                    <Icon name="target" />
-                    Difficulty
-                  </dt>
-                  <dd>{snapshot.difficulty}</dd>
-                </div>
-                <div>
-                  <dt>
-                    <Icon name="clock" />
-                    Duration
-                  </dt>
-                  <dd>{snapshot.durationMinutes} minutes</dd>
-                </div>
-              </dl>
+              <div className="competitive-lobby-settings">
+                <MatchSettings
+                  showHostRules
+                  value={snapshotSettings(snapshot)}
+                  identity={identity}
+                  participantCount={snapshot.participants.length}
+                  disabled
+                  onChange={() => {}}
+                />
+              </div>
             )}
             {inviteUrl && host && (
               <div className="competitive-invite">
@@ -404,20 +427,36 @@ export function MatchPage({ matchId }: { matchId: string }) {
               <span role="status">
                 {status !== "live" ? "Reconnecting…" : lobbyWaitingLabel(snapshot, identity)}
               </span>
-              <button
-                className={`button readiness-action ${own?.ready ? "button-secondary" : "button-primary"}`}
-                data-ready={!!own?.ready}
-                aria-label={own?.ready ? "Cancel" : "Ready"}
-                aria-busy={pending}
-                disabled={pending || !own}
-                onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
-              >
-                <ReadyActionIcon ready={!!own?.ready} />
-                <span className="readiness-labels" aria-hidden="true">
-                  <span className="readiness-option readiness-option-ready">Ready</span>
-                  <span className="readiness-option readiness-option-cancel">Cancel</span>
-                </span>
-              </button>
+              <div className="lobby-ready-actions">
+                <button
+                  className={`button readiness-action ${own?.ready ? "button-secondary" : "button-primary"}`}
+                  data-ready={!!own?.ready}
+                  aria-label={own?.ready ? "Cancel" : "Ready"}
+                  aria-busy={pending}
+                  disabled={pending || !own}
+                  onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
+                >
+                  <ReadyActionIcon ready={!!own?.ready} />
+                  <span className="readiness-labels" aria-hidden="true">
+                    <span className="readiness-option readiness-option-ready">Ready</span>
+                    <span className="readiness-option readiness-option-cancel">Cancel</span>
+                  </span>
+                </button>
+                {host && snapshot.mode === "free-for-all" && (
+                  <button
+                    className="button button-primary"
+                    disabled={
+                      pending ||
+                      snapshot.participants.length < 2 ||
+                      !snapshot.participants.every((player) => player.ready)
+                    }
+                    onClick={() => void command(() => startMatch(identity, matchId))}
+                  >
+                    <Icon name="play" />
+                    Start
+                  </button>
+                )}
+              </div>
             </footer>
           </>
         )}
