@@ -277,6 +277,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/problem-versions/{id}/solutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSolutions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/problem-versions/{id}/complexity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getComplexity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -353,6 +385,7 @@ export interface components {
             starterSource: string;
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
+            languages?: components["schemas"]["LanguageImplementation"][];
         };
         EditorPreferences: {
             /** @enum {string} */
@@ -624,6 +657,29 @@ export interface components {
         };
         ReportMatchRuleRequest: {
             kind: components["schemas"]["MatchRuleKind"];
+        };
+        LanguageImplementation: {
+            /** @enum {string} */
+            language: "python" | "java" | "typescript" | "ocaml";
+            starterSource: string;
+            runtimeRevision: string;
+            harnessRevision: string;
+        };
+        EditorialSolution: {
+            /** @enum {string} */
+            language: "python" | "java" | "typescript" | "ocaml";
+            source: string;
+            explanationMarkdown: string;
+            timeComplexity: string;
+            spaceComplexity: string;
+            complexityNotes: string;
+        };
+        EditorialComplexity: {
+            /** @enum {string} */
+            language: "python" | "java" | "typescript" | "ocaml";
+            timeComplexity: string;
+            spaceComplexity: string;
+            complexityNotes: string;
         };
     };
     responses: never;
@@ -1187,6 +1243,72 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ProblemVersion"][];
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getSolutions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authored editorial solutions; empty until explicitly published */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["EditorialSolution"][];
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getComplexity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authored complexity without solution source */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["EditorialComplexity"][];
                     };
                 };
             };
