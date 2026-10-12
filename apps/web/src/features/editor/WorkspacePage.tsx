@@ -712,6 +712,7 @@ export function WorkspacePage({
                       onDraftsChange={changeCustomDrafts}
                       submission={submission}
                       snapshot={execution.runSnapshot}
+                      busy={admissionPending || (execution.isPending && !!execution.submissionId)}
                     />
                   </div>
                 ))}

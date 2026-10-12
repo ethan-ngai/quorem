@@ -6,40 +6,59 @@ import { createReadStream, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, extname } from "node:path";
 
-/** Keep Astro's static homepage and the workspace on one origin. */
+/** Serve the assembled production artifact; development proxies live Astro/HMR. */
 function marketingPages(): Plugin {
-  const marketing = resolve(fileURLToPath(new URL("../marketing/dist/", import.meta.url)));
   const web = resolve(fileURLToPath(new URL("./dist/", import.meta.url)));
-  const serve =
-    (preview: boolean) => (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-      const path = new URL(req.url ?? "/", "http://localhost").pathname;
-      const app = preview && /^\/(practice|match|invite)(\/|$)/.test(path);
-      if (!app && path !== "/" && !path.startsWith("/_marketing/")) return next();
-      const base = preview ? web : marketing;
-      const file = resolve(base, app ? "app.html" : path === "/" ? "index.html" : `.${path}`);
-      if (!file.startsWith(`${base}/`) || !existsSync(file)) return next();
-      const types: Record<string, string> = {
-        ".css": "text/css",
-        ".js": "text/javascript",
-        ".woff2": "font/woff2",
-        ".woff": "font/woff",
-        ".png": "image/png",
-        ".svg": "image/svg+xml",
-        ".html": "text/html",
-      };
-      res.setHeader("Content-Type", types[extname(file)] ?? "application/octet-stream");
-      createReadStream(file).pipe(res);
+  const serve = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const path = new URL(req.url ?? "/", "http://localhost").pathname;
+    const app = /^\/(practice|match|invite)(\/|$)/.test(path);
+    if (!app && path !== "/" && !path.startsWith("/_marketing/")) return next();
+    const base = web;
+    const file = resolve(base, app ? "app.html" : path === "/" ? "index.html" : `.${path}`);
+    if (!file.startsWith(`${base}/`) || !existsSync(file)) return next();
+    const types: Record<string, string> = {
+      ".css": "text/css",
+      ".js": "text/javascript",
+      ".woff2": "font/woff2",
+      ".woff": "font/woff",
+      ".png": "image/png",
+      ".svg": "image/svg+xml",
+      ".html": "text/html",
     };
+    res.setHeader("Content-Type", types[extname(file)] ?? "application/octet-stream");
+    createReadStream(file).pipe(res);
+  };
   return {
     name: "quorem-marketing",
     configureServer(server) {
-      server.middlewares.use(serve(false));
+      server.middlewares.use(async (req, res, next) => {
+        if (new URL(req.url ?? "/", "http://localhost").pathname !== "/") return next();
+        try {
+          const response = await fetch(
+            `${marketingOrigin}${marketingEntry}${new URL(req.url ?? "/", "http://localhost").search}`,
+          );
+          res.statusCode = response.status;
+          res.setHeader("Content-Type", response.headers.get("Content-Type") ?? "text/html");
+          // Astro 6 emits root-relative island URLs even with a namespaced Vite base.
+          const html = (await response.text()).replace(
+            /(["'])\/(src\/|@id\/|@fs\/|node_modules\/)/g,
+            "$1/_marketing/$2",
+          );
+          res.end(html);
+        } catch {
+          res.statusCode = 503;
+          res.end("Marketing dev server unavailable. Start make dev or the Astro dev server.");
+        }
+      });
     },
     configurePreviewServer(server) {
-      server.middlewares.use(serve(true));
+      server.middlewares.use(serve);
     },
   };
 }
+
+const marketingOrigin = process.env.QUOREM_MARKETING_DEV_ORIGIN ?? "http://127.0.0.1:4321";
+const marketingEntry = `${process.env.QUOREM_MARKETING_BASE ?? "/"}/`.replace(/\/+/g, "/");
 
 export default defineConfig({
   plugins: [marketingPages(), react()],
@@ -48,6 +67,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      "/_marketing": { target: marketingOrigin, ws: true },
       "/v1": "http://127.0.0.1:8080",
     },
   },

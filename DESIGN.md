@@ -169,7 +169,13 @@ Global navigation shares one 48px row across practice, invitations and lobbies: 
 
 ## Marketing and discovery
 
-Marketing leads with private competitive matches, not editor capabilities. Raycast's "Build the perfect tools" section supplies the visual direction: thin ruled grids, large quiet type, alternating wide visual/narrow copy cells. The mode overview follows the hero as a compact text row, without diagrams. Preserve the flowing asymmetric composition and open spacing from personal-website /mac and CUXR. Factual feature descriptions, no invented testimonials or adoption metrics. Geist section display 56–112px, section headings 36–64px, max width 1280px, section spacing 80–128px, existing neutral/blue palette and 10px radius. Paired actual light/dark lobby captures follow the active theme. Below 700px use a dedicated portrait capture of the responsive lobby; all images fit their container at natural aspect ratio, with no fixed minimum width, arbitrary zoom or horizontal image scrolling. Surgical 560ms, 16px reveal motion; reduced-motion shows content without transforms.
+Below the match walkthrough, Coming soon uses two full-width compositions. Social layers a clear head-to-head record over a wider leaderboard; Adaptive layers a problem recommendation over recent performance. Headers place feature titles left and descriptions right, stacking on narrow screens. Rear surfaces use broad multi-stop tonal falloff, then fade empty right/bottom gutters; scores and verdicts stay readable. Foreground shadows use three soft layers rather than a tight dark edge. Performance rows use native difficulty colors and topic pills, without a selected-row highlight. Foreground surfaces retain native corners, neutral fields and readable interface labels. Panels size to content, keeping side-by-side overlap on tablets and offset, lightly overlapping surfaces on phones. Adaptive puts the failed graph problem beside its recommendation; phone rivalry stats use a compact horizontal layout. Each feature carries a Coming soon badge. Records are illustrative, without algorithm claims or availability dates.
+
+Marketing leads with private coding matches. Linear and Raycast inform fine linework and isolated functional details. Mode diagrams must explain the competition: one shared problem, independent contestants, submitted test counts and the first correct winner. Showdown places two contestants opposite each other; Free-for-all uses four parallel contestant lanes. Supabase informs asymmetric product surfaces. Ramp and Raycast inform generous spacing and isolated product detail. Use factual headings and compact descriptions, no slogans, fabricated metrics or decorative figure numbering. Geist display 56–112px, headings 36–64px; width 1280px, section spacing 80–128px. Two open mode illustrations precede an asymmetric feature composition. Product surfaces use 16px corners, 32–48px internal space and soft layered shadows; workspace styling remains unchanged. The hero imports PythonEditor alone; the test preview imports PythonEditor, TestCases and ResultContent as visible-only Astro islands, with the actual workspace stylesheet scoped to the preview. The toolbar uses the app's left-aligned monochrome Python logo and label, without a filename or caret. Sample/Custom case tabs and Run/Submit footer follow WorkspacePage. The editors are read-only and inert. The test card's cursor/run sequence reveals two passing cases and one failing duplicate-value case. Its live Run/Submit buttons restart the illustrative sequence; code and cases remain read-only. Running cases use the shared spinner; selected detail changes fade and shift 4px over 300ms. TestCases supplies the vertical scrollable case rail and independently scrollable right detail. Named inputs, expected output and actual output retain the application's ordering and field styling. Lobby settings use server-rendered MatchSettings with a supplied catalog, without sessions or backend requests. Familiar example problems include Two Sum, Subsets, Trapping Rain Water, Meeting Rooms II, Climbing Stairs and Number of Islands. Problem cards use restrained 2–4 degree tilts, clean stepped layering and an explicit example. The submission card layers two submission receipts along a timeline, with twenty verdict ticks per player and the first correct winner. Its 4.4-second sequence runs once and pauses offscreen or hidden. Mode, problem and replay controls are omitted. Reduced motion shows settled results immediately. App inputs and judging stay unchanged; demo results are illustrative.
+
+Marketing depth tokens: illustration stroke mixes text at 35 percent with border; faint geometry uses border. Product shadow light: 0 2px 4px text at 4 percent, 0 24px 64px text at 10 percent; dark: 0 2px 4px black at 12 percent, 0 24px 64px black at 24 percent. Recessed backdrop uses surface/overlay tonal changes and a soft radial white highlight (4 percent dark, 60 percent light). No saturated glow. Feature gap 20px, illustration stage 280px, SVG viewBox 520×320. Mode graphics use 14–20px labels, 1px neutral strokes, 20 score ticks per contestant and one blue winner accent. Player silhouettes and code glyphs represent separate solutions; opponent source is never shown. Static example results are labeled through the graphic description. Hover lifts challenge layers by 4px over 180ms; reduced motion removes displacement.
+
+Upcoming modes continue the two-column open illustration grid, each with a visible Coming soon badge beside its title. Tech Stacked shows a failed service and a replacement block rerouting traffic; Factions shows three distinct parties facing one another; Codebase Clash links an existing repository and issue to a file diff; Odyssey grows an object model and its lifecycle states over three labeled rounds. These are conceptual previews, with no playable controls, release dates or scoring promises. Badge uses existing overlay/border/secondary-text tokens, 6px corners and 12px type. Illustration labels remain 18px, code labels 14px, with mobile code labels increased to 18px.
 
 Workspace navigation uses a generic menu button and profile icon/popover. Marketing uses expanded Practice/Create match links, collapsing into a hamburger when the header has less than 440px of usable width. Login occupies the right edge, disabled until authentication is implemented; theme switching lives in the footer. Marketing copy describes coding generally rather than positioning the product around a single language. Create match appears only outside match/invite screens. Practice discovery uses compact searchable rows with difficulty/topic filters and accessible title/difficulty sorting; no synthetic solved statuses. Homepage /, catalog /practice, problem /practice/{slug}, competitive workspace /match/{id}.
 
@@ -179,30 +185,56 @@ Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha boun
 
 ### Marketing hero
 
-Architecture B, asymmetric split. Left-aligned three-line Barlow Condensed 800 headline reads Code. Clash. Conquer.; a vertically offset match illustration makes the mechanics visible. Inspired by Notion's playful product storytelling and Stripe's purposeful visual atmosphere, adapted to Quorem's pixel mark and neutral/blue palette. One Create match CTA. Mode summaries follow the viewport.
+Asymmetric split. Upright Barlow Condensed 800 headline reads Code. Clash. Conquer., with replayable crossed swords on Clash. A vertically offset match illustration explains the mechanics. One Create match CTA. Blue is reserved for actions and meaningful score progress.
 
 | Hero token | Value |
 | --- | --- |
-| display | clamp(80px, 10vw, 144px) |
-| mobile-display | clamp(72px, 18vw, 100px) |
-| display-weight | 800 |
-| display-leading | 0.88 |
-| display-tracking | -0.025em |
+| display | clamp(52px, 5.4vw, 80px) |
+| mobile-display | clamp(44px, 9vw, 64px) |
+| display-weight | 550 |
+| display-leading | 1.06 |
+| display-tracking | -0.06em |
 | header-height | 100px; below 700px 80px |
 | content-gap | clamp(32px, 4vw, 56px) |
 | viewport-padding | clamp(32px, 5vw, 64px) |
 | support-width | 36ch |
-| scene-width | 480px |
+| scene-width | 440px |
 | scene-offset | 88px |
 | scene-radius | 16px |
-| scene-shadow | 0 24px 80px neutral text at 8 percent opacity |
+| scene-shadow | marketing depth token |
 | atmosphere | 12px Swiss dot grid; 2.25px neutral dots, top fade, slow opacity waves |
 | entry-easing | cubic-bezier(0.16, 1, 0.3, 1) |
 | entry-duration | 440ms |
 | entry-stagger | 0/100/220/340ms, completes at 780ms |
 
-The illustration is an example, never a live match or adoption claim. Two player tracks show submitted passed-test counts; Jamie's first correct submission ends the match. One 8.8-second example types code, advances submitted-score bars and ends with Jamie winning. Pause/resume/replay uses a 44px icon control. The visible-time clock pauses offscreen and in hidden tabs. Use opacity/transform only. Reduced motion shows the final scene immediately. Below 1000px the scene moves beneath copy; below 768px heading lines wrap naturally and the scene simplifies its spacing. Preserve 44px targets, theme contrast and no horizontal overflow. All desktop hero content fits at 1440x900, including navigation.
-
-Battle headline: Clash is a blue interactive word with angular crossed swords and a diagonal split through its letters. On entry, hover or activation, blades swing from ±75° through ±36° and settle at ±43° in 680ms. The word separates by 5px at contact; a brief radial spark and slash identify impact. One snappy spring curve, inherited from marketing motion; bounded fine-pointer tilt (8px, 4°), no looping or sound. Native button supports touch and keyboard. Reduced motion cancels the clash and pointer tilt, retaining the swords and readable text. Mobile battle display: clamp(72px, 18vw, 100px). Self-host the upright Latin Barlow Condensed 800 display face; uppercase headline, square-ended lettering, no italic or serif variants. Geist remains the body/interface family. Code/Conquer retain solid neutral text; Clash supplies the sole accent. Match playback and headline use no new runtime dependencies.
+The hero is a 440px-wide Climbing Stairs workspace. Show the title, difficulty, always-visible topics, short description and one sample input/output pair, without a Problem eyebrow, topic toggle, constraints or scrolling. PythonEditor types a six-line solution with variable timing, pauses, deletions and corrections. The one-shot sequence then shows Run, both contestants submitting, test counts and the first correct winner; no test-case browser appears in the hero. Run/Submit are illustrative controls. The sequence plays automatically, with no pause/play or replay control. Offscreen/hidden tabs suspend animation and reduced motion shows the final scene. The six-line code area reserves 164px so typing never changes hero height. Below 800px the editor moves beneath copy. Preserve 44px targets, theme contrast and no horizontal overflow.
 
 Hero Swiss dots follow Ramp’s spring-grid treatment: 150px cursor repulsion, damped return and expanding click ripples. Canvas has no pointer capture; controls keep their native interactions. Offscreen/hidden tabs suspend drawing; reduced motion keeps a static grid.
+
+Battle headline: uppercase Barlow Condensed 800, no italic or serif. Clash uses the existing 680ms sword animation on entry, hover and activation, with bounded pointer tilt. Reduced motion retains static swords and readable text.
+
+Marketing surface lighting: paired light/shade tokens cast reflected light across card faces and overlapping shadows onto recessed layers. Keep foreground difficulty, topics, sample symbols and controls readable; fade peripheral/back-plane content. Hero input/output symbols are 14px and centered alongside adjacent example groups. Winners use success green. Buttons use the shared small radius, with no northeast arrows. The closer uses two perspective code planes illuminated from the center, fading into a floor grid; its emblem enters once and stays static under reduced motion. Footer includes copyright, a compact sitemap, and a theme switch synchronized with the navbar.
+
+Coming soon Social/Adaptive cards use quarter-strength surface light, shallow 8px/20px shadows and gentle occlusion; no radial stage spotlight. Keep their data clear rather than dramatically lit.
+
+Hero run status reserves 16px before the Run/Submit group; all-passed results use success green, running status remains secondary text.
+
+Messy bento: game-mode row splits alternate 1.15:1, 1:1.2 and 1.3:1, producing T-junctions without four-way seams. Walkthrough columns share available width; each stack uses intrinsic heights. Container queries move cards onto additional rows before compression; standalone problem/submission cards use horizontal compositions until 650px.
+
+Walkthrough stacks independently: match setup above submissions on the left; problem selection above editor/test on the right. Natural card heights close the empty space under problem selection. Below 661px available width, reflow to setup → problem → editor → submissions, retaining horizontal problem/submission compositions until 650px.
+
+Responsive bento preserves paired columns through tablet widths. Between 661–989px available width, reduce chrome/padding and wrap lobby field labels; stack only below 661px. Mode pairings persist above 640px available width. Social/Adaptive preserve foreground/rear overlap on narrow screens.
+
+Mode section has no outer rules; its internal dividers fade only at exposed ends, remaining solid where they join another divider, without masking content. Hero dots fade out at the bottom and the preview remains right-aligned when stacked. Problem labels omit code glyphs; Adaptive omits the sparkle. Wrong-answer receipts use error red only after judging resolves. Closing contrasts iterative and recursive memoized Climbing Stairs solutions.
+
+Mode hover motion: a bounded mechanic-specific sequence per card (duel tick race, FFA lane fills, replica placement/rerouting, party convergence, code replacement, staged object growth). Shared spring easing, 160–900ms phases, no looping or card displacement. Fine-pointer hover only; reduced motion stays static. Divider-side padding is 28–48px; player counts sit beside titles.
+
+Coming soon previews follow a layered wide composition: a clear rival/recommendation panel at left, larger dimmed leaderboard/performance surface behind, and right/bottom masks. Keep reflected light restrained; no glowing stage. Header copy aligns in two columns on desktop. Hover sequences explicitly show service failure before rerouting, failed → running → passing tests, and party signals converging on the arena. Footer spreads Play/Explore across a dedicated half-width grid; theme control belongs with copyright/All rights reserved. Primary hover retains a blue fill through a specific selector.
+
+Editor/lobby walkthrough previews receive a subtle top spotlight, reflected rim and diffuse shadow. Primary hover styling covers both marketing and workspace button variants; neutral hover backgrounds never override blue fills.
+
+Marketing button lift and return use 240ms hero easing. Disabled and aria-disabled controls remain stationary, with no hover fill or press transform. Reduced motion disables transitions.
+
+Footer separates logo/navigation from a bottom utility row. Copyright sits left; the icon-only theme control sits right in a bordered 36px button. Small screens place brand above two navigation columns; the utility row retains left/right alignment.
+
+Navbar logo is 36x35px within its 44px link; the theme control uses a 28x32px footprint with a 14px action gap. Browser ICO/PNG marks fill the raster width at every size, preserving aspect ratio and pixel edges.

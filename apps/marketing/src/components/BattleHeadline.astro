@@ -69,7 +69,7 @@ import "@fontsource/barlow-condensed/latin-800.css";
 </script>
 <style>
    .battle-headline { --battle-sword-size: 0.98em; font-family: "Barlow Condensed", var(--font-interface); font-size: clamp(80px, 10vw, 144px); font-weight: 800; font-style: normal; line-height: 0.88; letter-spacing: -0.025em; text-transform: uppercase; }
-  .battle-line { display: block; }
+  .battle-line { display: block; color: var(--color-text); }
   .battle-last { font-weight: inherit; }
   .battle-clash { display: inline-flex; align-items: center; gap: 0.12em; position: relative; padding: 0; border: 0; background: transparent; color: var(--color-primary); font: inherit; letter-spacing: inherit; line-height: inherit; text-transform: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .battle-clash:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 8px; border-radius: var(--radius-sm); }
@@ -88,6 +88,6 @@ import "@fontsource/barlow-condensed/latin-800.css";
   .sword-facet { fill: var(--color-text-secondary); }
   .sword-guard { fill: currentColor; }
   .clash-sparks { opacity: 0; transform-origin: 70px 65px; }
-  @media (max-width: 767px) { .battle-headline { font-size: clamp(72px, 18vw, 100px); } .battle-line { display: block; } }
+  @media (max-width: 767px) { .battle-headline { font-size: clamp(72px, 18vw, 100px); } .battle-line { display: block; color: var(--color-text); } }
   @media (prefers-reduced-motion: reduce) { .sword-parallax { transition: none; } }
 </style>
