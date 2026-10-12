@@ -28,7 +28,7 @@ export default function SubmissionPreview() {
             <span key={i} className={stage >= 2 ? (i < 14 ? "passed" : "failed") : "pending"} />
           ))}
         </div>
-        <p>
+        <p data-failed={stage >= 2}>
           {stage >= 2 ? (
             <>
               <Icon name="close" />

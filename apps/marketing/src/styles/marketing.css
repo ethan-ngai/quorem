@@ -2391,3 +2391,69 @@ summary:focus-visible {
     right: 16px;
   }
 }
+
+/* Dividers fade independently of the illustrations and copy. */
+.mode-showcase {
+  border-block: 0;
+}
+.mode-row {
+  position: relative;
+}
+.mode-row + .mode-row {
+  border-top: 0;
+}
+.mode-row + .mode-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-border) 16%,
+    var(--color-border) 84%,
+    transparent
+  );
+  pointer-events: none;
+}
+.mode-row .mode-preview {
+  position: relative;
+}
+.mode-row .mode-preview + .mode-preview {
+  border: 0;
+}
+.mode-row .mode-preview + .mode-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 1px;
+  background: linear-gradient(
+    transparent,
+    var(--color-border) 16%,
+    var(--color-border) 84%,
+    transparent
+  );
+  pointer-events: none;
+}
+.race-receipt p[data-failed="true"] {
+  color: var(--color-error);
+}
+@media (max-width: 799px) {
+  .hero-workspace {
+    justify-self: end;
+  }
+}
+@container mode-bento (max-width: 640px) {
+  .mode-row .mode-preview + .mode-preview::after {
+    inset: 0 0 auto;
+    width: auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-border) 16%,
+      var(--color-border) 84%,
+      transparent
+    );
+  }
+}

@@ -224,3 +224,5 @@ Messy bento: game-mode row splits alternate 1.15:1, 1:1.2 and 1.3:1, producing T
 Walkthrough stacks independently: match setup above submissions on the left; problem selection above editor/test on the right. Natural card heights close the empty space under problem selection. Below 661px available width, reflow to setup → problem → editor → submissions, retaining horizontal problem/submission compositions until 650px.
 
 Responsive bento preserves paired columns through tablet widths. Between 661–989px available width, reduce chrome/padding and wrap lobby field labels; stack only below 661px. Mode pairings persist above 640px available width. Social/Adaptive stay paired from a 740px viewport.
+
+Mode section has no outer rules; its internal dividers fade at both ends without masking content. Hero dots fade out at the bottom and the preview remains right-aligned when stacked. Problem labels omit code glyphs; Adaptive omits the sparkle. Wrong-answer receipts use error red only after judging resolves. Closing contrasts iterative and recursive memoized Climbing Stairs solutions.

@@ -15,8 +15,7 @@ const description = variant === "duel"
   <svg viewBox="0 0 520 320" fill="none" aria-hidden="true">
     <g class="mode-problem">
       <rect x="177" y="16" width="166" height="40" rx="8" />
-      <path d="m197 31-5 5 5 5m13-10 5 5-5 5m-7-12-3 14" />
-      <text x="230" y="41">{variant === "duel" ? "Two Sum" : "Subsets"}</text>
+      <text x="260" y="41" text-anchor="middle">{variant === "duel" ? "Two Sum" : "Subsets"}</text>
     </g>
     {variant === "duel" ? <>
       <path class="mode-connector" d="M260 56v22M130 106V90a12 12 0 0 1 12-12h236a12 12 0 0 1 12 12v16" />
