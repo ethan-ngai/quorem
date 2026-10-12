@@ -1,4 +1,5 @@
 /** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
+import { authenticatedFetch, token } from "../auth/session";
 import { createApiClient, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -36,13 +37,14 @@ async function fetchMatchSnapshot(
   matchId: string,
   signal: AbortSignal,
 ): Promise<MatchSnapshot> {
-  const { data, error } = await createApiClient({ baseUrl: apiBaseUrl(), identity }).GET(
-    "/v1/matches/{id}",
-    {
-      params: { path: { id: matchId } },
-      signal,
-    },
-  );
+  const { data, error } = await createApiClient({
+    baseUrl: apiBaseUrl(),
+    identity,
+    fetch: authenticatedFetch,
+  }).GET("/v1/matches/{id}", {
+    params: { path: { id: matchId } },
+    signal,
+  });
   if (data === undefined) {
     const message =
       typeof error === "object" && error !== null && "error" in error
@@ -139,11 +141,16 @@ export function useMatchSync(
         });
     };
 
-    const connect = () => {
+    const connect = async () => {
       if (disposed) return;
       setStatus("connecting");
       try {
-        socket = new WebSocket(eventSocketUrl(matchId, identity));
+        const bearer = await token();
+        if (disposed) return;
+        socket = new WebSocket(
+          eventSocketUrl(matchId, identity),
+          bearer ? ["quorem", `bearer.${bearer}`] : [],
+        );
       } catch (cause) {
         setTransportError(
           cause instanceof Error ? cause : new Error("Match event connection failed"),
@@ -228,7 +235,7 @@ export function useMatchSync(
       (timer) => window.clearTimeout(timer),
     );
 
-    connect();
+    void connect();
     return () => {
       disposed = true;
       syncState.disposed = true;

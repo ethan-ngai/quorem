@@ -22,6 +22,7 @@ jobs:
     env:
       APP_ENV: local
       QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
+      AUTH_TEST_DATABASE_URL: postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
       QUOREM_TEST_DOCKER: "1"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -33,6 +34,7 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp check
       - run: vp run contracts:check
+      - run: vp -C apps/auth test
       - run: vp -C apps/web test
       - run: vp run build
       - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
