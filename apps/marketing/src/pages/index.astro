@@ -3,6 +3,7 @@ import "@fontsource-variable/geist";
 import "@quorem/ui/theme.css";
 import "../styles/marketing.css";
 import ProductPreview from "../components/ProductPreview.astro";
+import MatchScene from "../components/MatchScene.astro";
 const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
 ---
 <!doctype html>
@@ -60,11 +61,14 @@ const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : 
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-top page-width">
-          <h1 id="hero-title" data-reveal><span>Private coding</span> <span>matches.</span></h1>
-          <div class="hero-intro" data-reveal>
-            <p>Choose a problem, invite your friends, and compete for the first correct solution.</p>
+          <div class="hero-copy">
+          <h1 id="hero-title"><span>Race your friends</span> <span>to the solution.</span></h1>
+          <div class="hero-intro">
+            <p>Invite friends to solve the same coding problem. First correct submission wins.</p>
             <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
           </div>
+          </div>
+          <MatchScene />
         </div>
       </section>
       <section class="mode-showcase page-width" aria-label="Match modes" data-reveal>

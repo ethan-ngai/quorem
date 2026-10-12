@@ -6,9 +6,9 @@
   --marketing-section: clamp(80px, 10vw, 128px);
   --marketing-spring: linear(0, 0.18 8%, 0.55 20%, 0.84 35%, 1.015 58%, 1.005 78%, 1);
   --marketing-reveal: 560ms;
-  --hero-display: clamp(64px, 11.6vw, 168px);
+  --hero-display: clamp(52px, 7vw, 104px);
   --hero-header-height: 100px;
-  --hero-gap: clamp(40px, 6vw, 80px);
+  --hero-gap: clamp(32px, 4vw, 56px);
   --hero-padding: clamp(32px, 5vw, 64px);
   --hero-easing: cubic-bezier(0.16, 1, 0.3, 1);
   --hero-entry: 440ms;
@@ -239,34 +239,40 @@ summary:focus-visible {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: radial-gradient(ellipse at 72% 35%, var(--color-surface), transparent 65%);
+  background: linear-gradient(
+    125deg,
+    transparent 55%,
+    color-mix(in oklch, var(--color-primary) 6%, transparent) 55%,
+    transparent 85%
+  );
   pointer-events: none;
 }
 .hero-top {
   display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: center;
   gap: var(--hero-gap);
+}
+.hero-copy {
+  padding-bottom: 88px;
 }
 .hero h1 {
   font-size: var(--hero-display);
   font-weight: 550;
-  line-height: 0.94;
-  letter-spacing: -0.065em;
+  line-height: 0.98;
+  letter-spacing: -0.055em;
 }
 .hero h1 span {
   display: block;
 }
-.hero h1 span + span {
-  text-align: right;
-  font-weight: 400;
-}
 .hero-intro {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 32px;
+  display: grid;
+  justify-items: start;
+  gap: 28px;
+  margin-top: 32px;
 }
 .hero-intro p {
-  max-width: 38ch;
+  max-width: 36ch;
   font-size: clamp(16px, 1.25vw, 20px);
 }
 .hero-actions {
@@ -623,14 +629,12 @@ summary:focus-visible {
 }
 @media (max-width: 767px) {
   .hero h1 {
-    font-size: clamp(44px, 11vw, 84px);
+    font-size: clamp(40px, 8.5vw, 64px);
   }
-  .hero h1 span + span {
-    text-align: left;
+  .hero h1 span {
+    display: inline;
   }
   .hero-intro {
-    flex-direction: column;
-    align-items: start;
     gap: 24px;
   }
 }
@@ -716,7 +720,8 @@ summary:focus-visible {
   .hero-intro p {
     animation: marketing-enter var(--hero-entry) var(--hero-easing) 220ms both;
   }
-  .hero-actions {
+  .hero-actions,
+  .match-scene {
     animation: marketing-enter var(--hero-entry) var(--hero-easing) 340ms both;
   }
   .site-menu[open] nav {
@@ -757,5 +762,30 @@ summary:focus-visible {
   .reveal-pending {
     opacity: 1;
     transform: none;
+  }
+}
+@media (min-width: 1000px) {
+  .hero {
+    padding-block: calc(var(--hero-header-height) + 32px) 32px;
+  }
+}
+@media (max-width: 999px) {
+  .hero-top {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+  .hero-copy {
+    padding-bottom: 0;
+  }
+  .hero h1 {
+    max-width: 14ch;
+  }
+}
+@media (max-width: 767px) {
+  .hero-top {
+    gap: 40px;
+  }
+  .hero-intro {
+    margin-top: 24px;
   }
 }

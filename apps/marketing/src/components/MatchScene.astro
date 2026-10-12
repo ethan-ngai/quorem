@@ -1,0 +1,324 @@
+<figure class="match-scene" aria-label="Illustrated example: two friends solving the same problem. Alex submits a correct solution first.">
+  <div class="scene-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="scene-match">
+    <div class="scene-header"><span class="scene-live"></span><span>Showdown</span><span class="scene-clock">08:42</span></div>
+    <div class="scene-problem"><span>Shared problem</span><strong>Run Widths</strong><span class="scene-difficulty">Easy</span></div>
+    <div class="scene-editor" aria-hidden="true">
+      <div class="scene-editor-tab"><span class="scene-file-icon">&lt;/&gt;</span> Your solution <span>Python</span></div>
+      <pre><code><span class="scene-code-line"><i>1</i><b>class</b> Solution:</span><span class="scene-code-line"><i>2</i>    <b>def</b> runWidths(self, nums):</span><span class="scene-code-line"><i>3</i>        widths = []</span><span class="scene-code-line"><i>4</i>        start = <b>0</b></span><span class="scene-code-line"><i>5</i>        <b>for</b> end <b>in</b> range(len(nums)):</span><span class="scene-code-line"><i>6</i>            <span class="scene-code-cursor">▌</span></span></code></pre>
+    </div>
+    <div class="scene-race" aria-hidden="true">
+      <div class="scene-player scene-player-you"><span class="scene-avatar">A</span><span>Alex <small>You</small></span><span class="scene-score"><span class="scene-score-before">12 / 20</span><span class="scene-score-after">20 / 20</span></span><div class="scene-track"><span></span></div></div>
+      <div class="scene-player"><span class="scene-avatar">J</span><span>Jamie</span><span class="scene-score">16 / 20</span><div class="scene-track"><span></span></div></div>
+    </div>
+    <div class="scene-result"><span class="scene-result-icon" aria-hidden="true">✓</span><span><strong>Alex solved it first.</strong><span>Correct submission · Match complete</span></span></div>
+  </div>
+  <figcaption>Example Showdown match</figcaption>
+</figure>
+
+<style>
+
+.match-scene {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 88px;
+}
+.scene-orbit {
+  position: absolute;
+  inset: -80px -64px;
+  z-index: -1;
+  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 16px 16px;
+  mask-image: radial-gradient(ellipse, black 30%, transparent 70%);
+}
+.scene-orbit span {
+  position: absolute;
+  inset: 40px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 25%, transparent);
+  transform: rotate(-12deg);
+}
+.scene-orbit span:nth-child(2) {
+  inset: 12px 64px;
+  transform: rotate(12deg);
+}
+.scene-orbit span:nth-child(3) {
+  inset: 72px 12px;
+  transform: rotate(-24deg);
+}
+.scene-match {
+  position: relative;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: 0 24px 80px color-mix(in oklch, var(--color-text) 8%, transparent);
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.scene-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 550;
+}
+.scene-live {
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary);
+}
+.scene-clock {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.scene-problem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  padding: 20px;
+  gap: 4px;
+}
+.scene-problem > span:first-child {
+  grid-column: 1 / -1;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.scene-problem strong {
+  font-size: 20px;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+}
+.scene-difficulty {
+  align-self: center;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.scene-editor {
+  margin-inline: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-field);
+  overflow: hidden;
+}
+.scene-editor-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+}
+.scene-editor-tab > span:last-child {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+}
+.scene-file-icon {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.scene-editor pre {
+  margin: 0;
+  padding: 16px 12px;
+  overflow: hidden;
+  font-size: clamp(9px, 0.85vw, 12px);
+  line-height: 1.8;
+}
+.scene-editor code {
+  font-family: var(--font-code);
+}
+.scene-code-line {
+  display: block;
+  white-space: pre;
+}
+.scene-code-line i {
+  display: inline-block;
+  width: 20px;
+  margin-right: 8px;
+  font-style: normal;
+  color: var(--color-text-secondary);
+}
+.scene-code-line b {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+.scene-code-cursor {
+  color: var(--color-primary);
+}
+.scene-race {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.scene-player {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  font-size: 12px;
+}
+.scene-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: var(--color-overlay);
+  border-radius: var(--radius-sm);
+  font-weight: 550;
+}
+.scene-player-you .scene-avatar {
+  color: var(--color-primary);
+  background: var(--color-brand-secondary);
+}
+.scene-player small {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+.scene-score {
+  display: grid;
+  font-variant-numeric: tabular-nums;
+}
+.scene-score > span {
+  grid-area: 1 / 1;
+}
+.scene-score-before {
+  opacity: 0;
+}
+.scene-track {
+  grid-column: 2 / -1;
+  margin-top: 5px;
+  height: 4px;
+  background: var(--color-overlay);
+}
+.scene-track > span {
+  display: block;
+  height: 100%;
+  width: 80%;
+  background: var(--color-text-secondary);
+  transform-origin: left;
+}
+.scene-player-you .scene-track > span {
+  width: 100%;
+  background: var(--color-primary);
+}
+.scene-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px 12px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-secondary);
+}
+.scene-result-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.scene-result strong {
+  font-size: 12px;
+  font-weight: 550;
+}
+.scene-result > span:last-child {
+  display: grid;
+}
+.scene-result > span:last-child > span {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+.match-scene figcaption {
+  margin-top: 16px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+@media (max-width: 999px) {
+  .match-scene {
+    margin-top: 0;
+    justify-self: end;
+  }
+  .scene-editor pre {
+    font-size: 12px;
+  }
+}
+@media (max-width: 767px) {
+  .match-scene {
+    justify-self: center;
+  }
+  .scene-header {
+    padding: 12px 16px;
+  }
+  .scene-problem {
+    padding: 16px;
+  }
+  .scene-editor pre {
+    font-size: 10px;
+    padding: 12px 8px;
+  }
+  .scene-race {
+    padding: 16px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .scene-player-you .scene-track > span {
+    animation: scene-progress 3.6s var(--hero-easing) both;
+  }
+  .scene-score-before {
+    animation: scene-before 3.6s both;
+  }
+  .scene-score-after {
+    animation: scene-after 3.6s both;
+  }
+  .scene-result {
+    animation: scene-finish 3.6s var(--hero-easing) both;
+  }
+  @keyframes scene-progress {
+    0%,
+    45% {
+      transform: scaleX(0.6);
+    }
+    75%,
+    100% {
+      transform: scaleX(1);
+    }
+  }
+  @keyframes scene-before {
+    0%,
+    60% {
+      opacity: 1;
+    }
+    61%,
+    100% {
+      opacity: 0;
+    }
+  }
+  @keyframes scene-after {
+    0%,
+    60% {
+      opacity: 0;
+    }
+    61%,
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes scene-finish {
+    0%,
+    70% {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    90%,
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+</style>

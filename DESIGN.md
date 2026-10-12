@@ -179,22 +179,26 @@ Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha boun
 
 ### Marketing hero
 
-Architecture D, typographic poster. A single two-line Geist heading anchors an open viewport; its second line aligns right. Supporting factual copy (maximum 20 words) and one Create match pill sit beneath, separated across the width. Mode summaries begin after the first viewport. Navigation remains compact and unchanged.
+Architecture B, asymmetric split. Large left-aligned Geist copy names the competition; a vertically offset match illustration makes the mechanics visible. Inspired by Notion's playful product storytelling and Stripe's purposeful visual atmosphere, adapted to Quorem's pixel mark and neutral/blue palette. One Create match CTA. Mode summaries follow the viewport.
 
 | Hero token | Value |
 | --- | --- |
-| display | clamp(64px, 11.6vw, 168px) |
-| mobile-display | clamp(44px, 11vw, 84px) |
-| display-weight | 550; second line 400 |
-| display-leading | 0.94 |
-| display-tracking | -0.065em |
+| display | clamp(52px, 7vw, 104px) |
+| mobile-display | clamp(40px, 8.5vw, 64px) |
+| display-weight | 550 |
+| display-leading | 0.98 |
+| display-tracking | -0.055em |
 | header-height | 100px; below 700px 80px |
-| content-gap | clamp(40px, 6vw, 80px) |
+| content-gap | clamp(32px, 4vw, 56px) |
 | viewport-padding | clamp(32px, 5vw, 64px) |
-| support-width | 38ch |
-| atmosphere | radial neutral surface tint at 72% 35%, transparent at 65% |
+| support-width | 36ch |
+| scene-width | 480px |
+| scene-offset | 88px |
+| scene-radius | 16px |
+| scene-shadow | 0 24px 80px neutral text at 8 percent opacity |
+| atmosphere | diagonal blue rules and dotted pixel field, brand tint at low opacity |
 | entry-easing | cubic-bezier(0.16, 1, 0.3, 1) |
 | entry-duration | 440ms |
 | entry-stagger | 0/100/220/340ms, completes at 780ms |
 
-Use existing neutral and blue action tokens in both themes. Hero fills at least 100dvh including navigation, with all content visible at 1440x900. Below 768px, heading lines align left and supporting copy/action stack; preserve 44px targets and no horizontal overflow. Entry uses opacity/transform only; reduced motion shows everything immediately.
+The illustration is an example, never a live match or adoption claim. Two player tracks show submitted passed-test counts; Alex's first correct submission ends the match. One 3.6-second reveal shows the outcome, without looping or obscuring content. Use opacity/transform only. Reduced motion shows the final scene immediately. Below 1000px the scene moves beneath copy; below 768px heading lines wrap naturally and the scene simplifies its spacing. Preserve 44px targets, theme contrast and no horizontal overflow. All desktop hero content fits at 1440x900, including navigation.
