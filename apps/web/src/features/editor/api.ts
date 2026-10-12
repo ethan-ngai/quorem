@@ -43,7 +43,7 @@ export async function createWorkspace(
   language: "python" | "java" | "typescript" | "ocaml" = "python",
 ) {
   const { data, error } = await api(identity).POST("/v1/workspaces", {
-    body: { problemVersionId, language: language as "python" },
+    body: { problemVersionId, language },
   });
   return requireData(data as Workspace | undefined, error);
 }
@@ -97,4 +97,17 @@ export async function fetchProblemVersion(identity: DevelopmentIdentity, id: str
     params: { path: { id } },
   });
   return requireData(data as ProblemVersion | undefined, error);
+}
+
+/** Switches the active participant's workspace without admitting stale-language source. */
+export async function switchMatchLanguage(
+  identity: DevelopmentIdentity,
+  matchId: string,
+  language: "python" | "java" | "typescript" | "ocaml",
+) {
+  const { data, error } = await api(identity).POST("/v1/matches/{id}/workspace-language", {
+    params: { path: { id: matchId }, header: { "Idempotency-Key": crypto.randomUUID() } },
+    body: { language },
+  });
+  return requireData(data as Workspace | undefined, error);
 }

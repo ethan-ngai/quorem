@@ -5,6 +5,11 @@ import {
   importBrowserDrafts,
   readBrowserDraft,
   writeBrowserDraft,
+  writeRecovery,
+  readBrowserHistory,
+  readLatestRecovery,
+  scopeKey,
+  type RecoverySnapshot,
 } from "./recovery";
 
 describe("browser drafts", () => {
@@ -14,6 +19,38 @@ describe("browser drafts", () => {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),
     });
+    const snapshots: RecoverySnapshot[] = [];
+    let nextId = 1;
+    const database = {
+      close() {},
+      transaction() {
+        const transaction: { oncomplete?: () => void; objectStore: () => unknown } = {
+          objectStore: () => ({
+            add(snapshot: RecoverySnapshot) {
+              snapshots.push({ ...snapshot, id: nextId++ });
+              queueMicrotask(() => transaction.oncomplete?.());
+            },
+            index: () => ({
+              getAll(scope: string) {
+                const request: { result: RecoverySnapshot[]; onsuccess?: () => void } = {
+                  result: snapshots.filter((snapshot) => snapshot.scope === scope),
+                };
+                queueMicrotask(() => request.onsuccess?.());
+                return request;
+              },
+            }),
+          }),
+        };
+        return transaction;
+      },
+    };
+    vi.stubGlobal("indexedDB", {
+      open() {
+        const request: { result: typeof database; onsuccess?: () => void } = { result: database };
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      },
+    });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -22,6 +59,53 @@ describe("browser drafts", () => {
     const newScope = browserDraftScope({ id: "new-server-id", kind: "solo" });
     writeBrowserDraft("alice", oldScope, "version", "");
     expect(readBrowserDraft("alice", newScope, "version")).toBe("");
+  });
+
+  it("keeps all four language drafts and histories distinct across recreated solo workspaces", async () => {
+    const languages = ["python", "java", "typescript", "ocaml"] as const;
+    const scopes = languages.map((language) =>
+      browserDraftScope({ id: "same-workspace", kind: "solo", language }),
+    );
+    expect(scopes).toEqual(["solo", "solo:java", "solo:typescript", "solo:ocaml"]);
+    expect(new Set(scopes.map((scope) => scopeKey("alice", scope, "same-version"))).size).toBe(4);
+    for (const language of languages) {
+      const scope = browserDraftScope({ id: "old-workspace", kind: "solo", language });
+      writeBrowserDraft("alice", scope, "same-version", `${language} draft`);
+      await writeRecovery("alice", scope, "same-version", `${language} first`);
+      await writeRecovery("alice", scope, "same-version", `${language} latest`);
+    }
+    for (const language of languages) {
+      const scope = browserDraftScope({ id: "new-workspace", kind: "solo", language });
+      expect(readBrowserDraft("alice", scope, "same-version")).toBe(`${language} draft`);
+      expect(
+        (await readBrowserHistory("alice", scope, "same-version")).map(({ source }) => source),
+      ).toEqual([`${language} latest`, `${language} first`]);
+      expect((await readLatestRecovery("alice", scope, "same-version")).source).toBe(
+        `${language} latest`,
+      );
+    }
+    expect(readBrowserDraft("alice", "solo", "same-version")).toBe("python draft");
+    expect(readBrowserDraft("bob", "solo:java", "same-version")).toBeUndefined();
+    expect(await readBrowserHistory("alice", "solo:java", "different-version")).toEqual([]);
+    expect(browserDraftScope({ id: "match-python", kind: "match", language: "python" })).toBe(
+      "match-python",
+    );
+    expect(browserDraftScope({ id: "match-java", kind: "match", language: "java" })).toBe(
+      "match-java",
+    );
+  });
+
+  it("preserves legacy Python drafts and history without inferring another language", async () => {
+    writeBrowserDraft("alice", "solo", "version", "legacy Python buffer");
+    await writeRecovery("alice", "solo", "version", "legacy Python history");
+    const python = browserDraftScope({ id: "new-python", kind: "solo", language: "python" });
+    const java = browserDraftScope({ id: "new-java", kind: "solo", language: "java" });
+    expect(readBrowserDraft("alice", python, "version")).toBe("legacy Python buffer");
+    expect((await readBrowserHistory("alice", python, "version"))[0].source).toBe(
+      "legacy Python history",
+    );
+    expect(readBrowserDraft("alice", java, "version")).toBeUndefined();
+    expect(await readBrowserHistory("alice", java, "version")).toEqual([]);
   });
 
   it("isolates identities, immutable versions, and match workspaces", () => {

@@ -97,6 +97,13 @@ func (s *Store) Seed(ctx context.Context, fixtures []problems.Fixture) error {
 		if err != nil {
 			return err
 		}
+		implementations, references, err := problems.Implementations(f)
+		if err != nil {
+			return err
+		}
+		if err = s.RegisterImplementations(ctx, f.Problem.ID, implementations, references); err != nil {
+			return err
+		}
 	}
 	return nil
 }

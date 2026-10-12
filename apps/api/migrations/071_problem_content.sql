@@ -58,7 +58,7 @@ BEGIN
 END $$;
 CREATE FUNCTION normalize_problem_children() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
- INSERT INTO problem_languages VALUES(NEW.id,'python',NEW.public->>'starterSource',NEW.public->>'runtimeRevision',NEW.fixture->>'harnessRevision',NEW.fixture->>'referenceSource');
+ INSERT INTO problem_languages VALUES(NEW.id,'python',NEW.public->>'starterSource',NEW.public->>'runtimeRevision',CASE WHEN NEW.fixture->>'harnessRevision'='quorem-harness-v1' THEN 'quorem-harness-v2' ELSE NEW.fixture->>'harnessRevision' END,NEW.fixture->>'referenceSource');
  INSERT INTO problem_examples SELECT NEW.id, ordinality-1, value->'args',value->'expected',COALESCE(value->>'explanation','') FROM jsonb_array_elements(NEW.public->'examples') WITH ORDINALITY;
  INSERT INTO problem_test_cases SELECT NEW.id, ordinality-1, value->'args',value->'expected' FROM jsonb_array_elements(NEW.fixture->'hiddenCases') WITH ORDINALITY;
  INSERT INTO problem_tags SELECT NEW.id,value,ordinality-1 FROM jsonb_array_elements_text(NEW.public->'tags') WITH ORDINALITY;
@@ -68,7 +68,7 @@ END $$;
 -- Upgrade existing immutable IDs without touching their workspace/submission references.
 INSERT INTO problems(slug) SELECT DISTINCT slug FROM problem_versions;
 UPDATE problem_versions v SET problem_id=p.id,title=public->>'title',difficulty=public->>'difficulty',statement_markdown=public->>'statementMarkdown',signature=public->'signature',constraints=COALESCE(public->'constraints','[]'),limits=public->'limits',comparator=fixture->>'comparator',attribution=fixture->>'attribution' FROM problems p WHERE p.slug=v.slug;
-INSERT INTO problem_languages SELECT id,'python',public->>'starterSource',public->>'runtimeRevision',fixture->>'harnessRevision',fixture->>'referenceSource' FROM problem_versions;
+INSERT INTO problem_languages SELECT id,'python',public->>'starterSource',public->>'runtimeRevision',CASE WHEN fixture->>'harnessRevision'='quorem-harness-v1' THEN 'quorem-harness-v2' ELSE fixture->>'harnessRevision' END,fixture->>'referenceSource' FROM problem_versions;
 INSERT INTO problem_examples SELECT v.id,e.ordinality-1,e.value->'args',e.value->'expected',COALESCE(e.value->>'explanation','') FROM problem_versions v CROSS JOIN LATERAL jsonb_array_elements(v.public->'examples') WITH ORDINALITY e;
 INSERT INTO problem_test_cases SELECT v.id,e.ordinality-1,e.value->'args',e.value->'expected' FROM problem_versions v CROSS JOIN LATERAL jsonb_array_elements(v.fixture->'hiddenCases') WITH ORDINALITY e;
 INSERT INTO problem_tags SELECT v.id,e.value,e.ordinality-1 FROM problem_versions v CROSS JOIN LATERAL jsonb_array_elements_text(v.public->'tags') WITH ORDINALITY e;
