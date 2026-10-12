@@ -2241,7 +2241,7 @@ summary:focus-visible {
 }
 .walkthrough-layout {
   display: grid;
-  grid-template-columns: minmax(450px, 1fr) minmax(520px, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--marketing-panel-gap);
   align-items: start;
 }
@@ -2257,7 +2257,7 @@ summary:focus-visible {
 .walkthrough-column .submission-race {
   margin: 24px;
 }
-@container mode-bento (max-width: 760px) {
+@container mode-bento (max-width: 640px) {
   .mode-row,
   .mode-row:nth-child(2),
   .mode-row:nth-child(3) {
@@ -2268,7 +2268,7 @@ summary:focus-visible {
     border-top: 1px solid var(--color-border);
   }
 }
-@container walkthrough-bento (max-width: 989px) {
+@container walkthrough-bento (max-width: 660px) {
   .walkthrough-layout {
     display: flex;
     flex-direction: column;
@@ -2314,5 +2314,80 @@ summary:focus-visible {
   }
   .challenge-panel .problem-card-stage {
     margin-left: 24px;
+  }
+}
+
+/* Tighten chrome before giving up the two-column composition. */
+@container walkthrough-bento (min-width: 661px) and (max-width: 989px) {
+  .walkthrough-layout,
+  .walkthrough-column {
+    gap: 12px;
+  }
+  .walkthrough-layout .feature-copy {
+    padding: 24px 20px;
+  }
+  .walkthrough-layout .feature-copy h3 {
+    font-size: 22px;
+  }
+  .walkthrough-layout .feature-copy p {
+    font-size: 14px;
+  }
+  .walkthrough-layout .lobby-stage,
+  .walkthrough-layout .editor-stage {
+    padding: 0 12px 20px;
+  }
+  .walkthrough-layout .lobby-render {
+    padding: 16px 12px;
+  }
+  .walkthrough-layout .match-option {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .walkthrough-layout .match-option > span {
+    flex-basis: 100%;
+  }
+  .walkthrough-layout .problem-card-stage {
+    margin: 16px;
+  }
+  .walkthrough-layout .problem-layer {
+    padding: 12px;
+  }
+  .walkthrough-layout .submission-race {
+    margin: 16px;
+  }
+  .walkthrough-layout .race-receipt {
+    padding: 12px;
+  }
+}
+@container mode-bento (min-width: 641px) and (max-width: 850px) {
+  .mode-row .mode-preview {
+    padding: 24px 16px 32px;
+  }
+  .mode-description h2 {
+    font-size: 23px;
+  }
+  .mode-description p {
+    font-size: 14px;
+  }
+}
+@media (min-width: 740px) and (max-width: 1000px) {
+  .upcoming-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .upcoming-feature-grid .social-panel {
+    grid-column: auto;
+  }
+  .upcoming-feature-grid .feature-copy {
+    padding: 24px 20px;
+  }
+  .upcoming-feature-grid .social-preview-stage,
+  .upcoming-feature-grid .adaptive-preview-stage {
+    padding-inline: 16px;
+  }
+  .upcoming-feature-grid .social-product {
+    width: 100%;
+  }
+  .upcoming-feature-grid .rival-product {
+    right: 16px;
   }
 }
