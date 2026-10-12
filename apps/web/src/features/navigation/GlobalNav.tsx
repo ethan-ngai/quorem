@@ -34,7 +34,7 @@ export function GlobalNav({
   preferences?: ReactNode;
   children?: ReactNode;
 }) {
-  const session = useSession();
+  const session = useSession(identity);
   const [accountError, setAccountError] = useState("");
   const location = useLocation();
   const pathname = location.pathname;

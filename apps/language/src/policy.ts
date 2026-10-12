@@ -66,3 +66,14 @@ function inspectUris(value: unknown): void {
     }
   }
 }
+
+/** Managed credentials never fall back to fixture ownership. */
+export function hasManagedCredentials(
+  authorization: string | undefined,
+  protocols: string | undefined,
+): boolean {
+  return (
+    authorization !== undefined ||
+    (protocols?.split(",").some((value) => value.trim().startsWith("bearer.")) ?? false)
+  );
+}
