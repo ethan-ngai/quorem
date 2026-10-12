@@ -30,7 +30,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer service.Close()
-	docker := &engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local"), Resolve: service.Load}
+	docker := &engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local"), Resolve: service.Load, Images: map[string]string{"java": env("RUNNER_JAVA_IMAGE", "quorem-java:local"), "typescript": env("RUNNER_TYPESCRIPT_IMAGE", "quorem-typescript:local"), "ocaml": env("RUNNER_OCAML_IMAGE", "quorem-ocaml:local")}}
 	var group sync.WaitGroup
 	for i := 0; i < count; i++ {
 		group.Add(1)

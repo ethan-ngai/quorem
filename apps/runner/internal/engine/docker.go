@@ -17,15 +17,21 @@ import (
 )
 
 type Docker struct {
-	Image   string
-	Resolve func(context.Context, execution.Job) (worker.Spec, error)
+	Image            string
+	Images           map[string]string
+	compilationLimit time.Duration
+	Resolve          func(context.Context, execution.Job) (worker.Spec, error)
 }
+
+const compilationBudget = 60 * time.Second
+
 type frame struct {
-	Status string          `json:"status"`
-	Actual json.RawMessage `json:"actual"`
-	Stdout string          `json:"stdout"`
-	Stderr string          `json:"stderr"`
-	Line   int             `json:"line"`
+	compilationTime time.Duration
+	Status          string          `json:"status"`
+	Actual          json.RawMessage `json:"actual"`
+	Stdout          string          `json:"stdout"`
+	Stderr          string          `json:"stderr"`
+	Line            int             `json:"line"`
 }
 type bounded struct {
 	mu       sync.Mutex
@@ -38,20 +44,41 @@ type bounded struct {
 // The trusted harness emits one readiness byte before any contestant code can run.
 type sandboxOutput struct {
 	*bounded
-	ready bool
-	start func()
+	ready        bool
+	initialReady bool
+	firstAt      time.Time
+	finalAt      time.Time
+	markers      int
+	expected     int
+	onInitial    func()
+	start        func()
 }
 
 func (o *sandboxOutput) Write(p []byte) (int, error) {
 	consumed := 0
-	if !o.ready && len(p) > 0 {
+	required := o.expected
+	if required == 0 {
+		required = 1
+	}
+	for !o.ready && len(p) > 0 {
 		if p[0] != 0 {
-			return 0, errors.New("missing sandbox readiness marker")
+			return consumed, errors.New("missing sandbox readiness marker")
 		}
-		o.ready = true
-		o.start()
+		if !o.initialReady {
+			o.firstAt = time.Now()
+			if o.onInitial != nil {
+				o.onInitial()
+			}
+		}
+		o.initialReady = true
+		o.markers++
 		p = p[1:]
-		consumed = 1
+		consumed++
+		if o.markers == required {
+			o.ready = true
+			o.finalAt = time.Now()
+			o.start()
+		}
 	}
 	n, err := o.bounded.Write(p)
 	return n + consumed, err
@@ -69,7 +96,8 @@ func (b *bounded) Write(p []byte) (int, error) {
 }
 func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Completion, error) {
 	result := execution.Completion{SubmissionID: j.SubmissionID, AttemptID: j.AttemptID}
-	if j.RuntimeRevision != execution.RuntimeRevision || j.HarnessRevision != execution.HarnessRevision {
+	runtime, supported := execution.RuntimeForRevision(j.RuntimeRevision, j.HarnessRevision)
+	if !supported || (j.Language != "" && runtime.Language != j.Language) {
 		return result, errors.New("unsupported execution revision")
 	}
 	spec, err := d.Resolve(ctx, j)
@@ -78,13 +106,30 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	}
 	passed := 0
 	allCompared := true
+	var compilationTime time.Duration
+	budget := d.compilationLimit
+	if budget <= 0 {
+		budget = compilationBudget
+	}
+	var fatal *frame
 	for i, c := range spec.Cases {
 		if ctx.Err() != nil {
 			return result, ctx.Err()
 		}
-		f, err := d.runCase(ctx, j, i, spec, c)
-		if err != nil {
-			return result, err
+		var f frame
+		if fatal != nil {
+			f = frame{Status: fatal.Status}
+		} else if runtime.Language != "python" && budget-compilationTime <= time.Millisecond {
+			f = frame{Status: "time_limit"}
+		} else {
+			f, err = d.runCase(ctx, j, i, spec, c, budget-compilationTime)
+			if err != nil {
+				return result, err
+			}
+			compilationTime += f.compilationTime
+			if f.Status == "syntax_error" {
+				fatal = &f
+			}
 		}
 		status := f.Status
 		var actual, expected json.RawMessage
@@ -135,25 +180,57 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	}
 	return result, nil
 }
-func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spec worker.Spec, c worker.Case) (frame, error) {
+func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spec worker.Spec, c worker.Case, compilationRemaining ...time.Duration) (result frame, resultErr error) {
 	ctx, cancelCause := context.WithCancelCause(parent)
 	cancel := func() { cancelCause(context.Canceled) }
 	defer cancel()
 	startupFailure := errors.New("sandbox startup timed out")
 	caseTimeout := errors.New("contestant wall time exceeded")
+	startupDuration := 10 * time.Second
+	if len(compilationRemaining) > 0 && compilationRemaining[0] < startupDuration {
+		startupDuration = compilationRemaining[0]
+	}
 	startup := time.AfterFunc(10*time.Second, func() { cancelCause(startupFailure) })
 	defer startup.Stop()
 	var deadline *time.Timer
 	name := "quorem-" + j.AttemptID + "-" + strconv.Itoa(index)
+	runtime, supported := execution.RuntimeForRevision(j.RuntimeRevision, j.HarnessRevision)
+	if !supported {
+		runtime, _ = execution.LanguageRuntime("python")
+	}
+	image := runtime.Image
+	if configured := d.Images[runtime.Language]; configured != "" {
+		image = configured
+	}
+	if runtime.Language == "python" && d.Image != "" {
+		image = d.Image
+	}
 	request, _ := json.Marshal(map[string]any{"source": spec.Source, "signature": spec.Fixture.Problem.Signature, "args": c.Args})
-	args := []string{"run", "--rm", "-i", "--name", name, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--memory-swap", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--pids-limit", strconv.Itoa(j.Limits.MaxProcesses), "--cpus", "1", "--user", "65534:65534", "--tmpfs", "/tmp:rw,noexec,nosuid,size=16777216", d.Image}
+	args := []string{"run", "--rm", "-i", "--name", name, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--memory-swap", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--pids-limit", strconv.Itoa(j.Limits.MaxProcesses), "--cpus", "1", "--user", "65534:65534", "--tmpfs", "/tmp:rw,noexec,nosuid,size=16777216", image}
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Stdin = bytes.NewReader(request)
-	out := &sandboxOutput{bounded: &bounded{limit: j.Limits.OutputBytes*6 + 1024, cancel: cancel}, start: func() {
+	markers := 1
+	if runtime.Language != "python" {
+		markers = 2
+	}
+	out := &sandboxOutput{expected: markers, onInitial: func() {
+		if runtime.Language != "python" {
+			startup.Reset(startupDuration)
+		}
+	}, bounded: &bounded{limit: j.Limits.OutputBytes*6 + 1024, cancel: cancel}, start: func() {
 		startup.Stop()
 		deadline = time.AfterFunc(time.Duration(j.Limits.WallTimeMS)*time.Millisecond, func() { cancelCause(caseTimeout) })
 	}}
 	stderr := &bounded{limit: j.Limits.OutputBytes, cancel: cancel}
+	defer func() {
+		if runtime.Language != "python" && out.initialReady {
+			if out.ready {
+				result.compilationTime = out.finalAt.Sub(out.firstAt)
+			} else {
+				result.compilationTime = time.Since(out.firstAt)
+			}
+		}
+	}()
 	cmd.Stdout = out
 	cmd.Stderr = stderr
 	err := cmd.Run()
@@ -175,13 +252,16 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 		return frame{Status: "output_limit"}, nil
 	}
 	if errors.Is(context.Cause(ctx), startupFailure) {
+		if out.initialReady {
+			return frame{Status: "time_limit"}, nil
+		}
 		return frame{}, startupFailure
 	}
 	if errors.Is(context.Cause(ctx), caseTimeout) {
 		return frame{Status: "time_limit"}, nil
 	}
 	if !out.ready {
-		return frame{}, errors.New("sandbox failed before harness readiness")
+		return frame{}, errors.New("sandbox failed before harness readiness: " + stderr.buffer.String())
 	}
 	if err != nil {
 		var exit *exec.ExitError
