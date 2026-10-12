@@ -1,59 +1,79 @@
-import type { CSSProperties } from "react";
 import { usePreviewSequence } from "./usePreviewSequence";
-const stages = ["Submission received", "Executing tests", "Comparing results", "Match complete"];
+import { Icon } from "../../../web/src/features/editor/components/Icon";
+
+/** Two independent submissions resolve into the first correct winner, once. */
 export default function SubmissionPreview() {
-  const { root, stage, replay } = usePreviewSequence(3, false, 850);
+  const { root, stage } = usePreviewSequence(4, true, 1100);
   return (
-    <div className="submission-demo" ref={root}>
-      <div className="submission-top">
-        <span>Two Sum</span>
-        <span>Showdown</span>
+    <div
+      className="submission-race workspace-demo"
+      ref={root}
+      data-stage={stage}
+      role="img"
+      aria-label="Example submissions: your solution passes fourteen tests; Jamie passes all twenty and wins with the first correct submission."
+    >
+      <div className="race-timeline" aria-hidden="true">
+        <span />
+        <span />
+        <span />
       </div>
-      <div className="judge-pipeline">
-        {["Received", "Judging", "Result"].map((label, i) => (
-          <div key={label} className={stage > i ? "complete" : stage === i ? "active" : ""}>
-            <span>{stage > i ? "✓" : String(i + 1).padStart(2, "0")}</span>
-            <small>{label}</small>
-          </div>
-        ))}
-      </div>
-      <div className="submission-contestants">
-        {[
-          { name: "Alex", passed: 14 },
-          { name: "Jamie", passed: 20 },
-        ].map(({ name, passed }) => (
-          <div className="submission-contestant" key={name}>
-            <div>
-              <span className="product-avatar">{name[0]}</span>
-              <strong>{name}</strong>
-              <span>{stage < 2 ? "Judging…" : `${passed} / 20`}</span>
-            </div>
-            <div className="submission-test-grid">
-              {Array.from({ length: 20 }, (_, i) => (
-                <span
-                  key={i}
-                  style={{ "--test-index": i } as CSSProperties}
-                  className={
-                    stage >= 2 ? (i < passed ? "passed" : "failed") : stage === 1 ? "pending" : ""
-                  }
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className={`submission-outcome ${stage === 3 ? "settled" : ""}`} aria-live="polite">
-        <span>{stage === 3 ? "✓" : "·"}</span>
-        <div>
-          <strong>{stage === 3 ? "Jamie wins" : stages[stage]}</strong>
-          <small>
-            {stage === 3 ? "First correct submission" : "Each submission is judged independently"}
-          </small>
+      <div className={`race-receipt ${stage >= 1 ? "received" : ""}`}>
+        <div className="race-player">
+          <span className="product-avatar">Y</span>
+          <strong>You</strong>
+          <small>{stage >= 2 ? "14 / 20" : "Submitting…"}</small>
         </div>
+        <div className="race-checks">
+          {Array.from({ length: 20 }, (_, i) => (
+            <span key={i} className={stage >= 2 ? (i < 14 ? "passed" : "failed") : "pending"} />
+          ))}
+        </div>
+        <p>
+          {stage >= 2 ? (
+            <>
+              <Icon name="close" />
+              Wrong answer
+            </>
+          ) : (
+            <>
+              <span className="case-spinner" />
+              Judging solution
+            </>
+          )}
+        </p>
       </div>
-      <button className="submission-replay" type="button" onClick={replay} disabled={stage < 3}>
-        {stage === 3 ? "↻ Replay submission" : "Judging submissions…"}
-      </button>
+      <div className={`race-receipt race-correct ${stage >= 3 ? "received" : ""}`}>
+        <div className="race-player">
+          <span className="product-avatar">J</span>
+          <strong>Jamie</strong>
+          <small>{stage >= 4 ? "20 / 20" : "Submitting…"}</small>
+        </div>
+        <div className="race-checks">
+          {Array.from({ length: 20 }, (_, i) => (
+            <span key={i} className={stage >= 4 ? "passed" : "pending"} />
+          ))}
+        </div>
+        <p>
+          {stage >= 4 ? (
+            <>
+              <Icon name="submit" />
+              Accepted
+            </>
+          ) : (
+            <>
+              <span className="case-spinner" />
+              Judging solution
+            </>
+          )}
+        </p>
+      </div>
+      <div className={`race-winner ${stage === 4 ? "visible" : ""}`}>
+        <span className="race-winner-mark">
+          <Icon name="showdown" />
+        </span>
+        <strong>Jamie wins</strong>
+        <span>First correct submission</span>
+      </div>
     </div>
   );
 }

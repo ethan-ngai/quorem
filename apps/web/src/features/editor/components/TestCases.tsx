@@ -22,6 +22,7 @@ export function TestCases({
   submission,
   snapshot,
   selectedSampleIndex,
+  busy = false,
 }: {
   problem: ProblemVersion;
   customMode: boolean;
@@ -30,16 +31,21 @@ export function TestCases({
   submission?: Submission;
   snapshot?: RunSnapshot;
   selectedSampleIndex?: number;
+  busy?: boolean;
 }) {
   const hiddenCases =
-    !customMode && submission?.kind === "submit" && submission.state === "completed"
+    !busy && !customMode && submission?.kind === "submit" && submission.state === "completed"
       ? submission.hiddenCases
       : undefined;
   const [selectedSample, setSelectedSample] = useState(0);
   const [selectedCustomId, setSelectedCustomId] = useState<string>();
   // Recovered output without an admission snapshot belongs in this same case rail.
   const recoveredCases =
-    !snapshot && !customMode && submission?.kind === "run" && submission.state === "completed"
+    !busy &&
+    !snapshot &&
+    !customMode &&
+    submission?.kind === "run" &&
+    submission.state === "completed"
       ? submission.publicCases
       : undefined;
   const sampleIndex = Math.min(
@@ -65,11 +71,15 @@ export function TestCases({
   }
   const caseId = customMode ? draft?.id : String(sampleIndex);
   const matchingSnapshot = snapshot?.problemVersionId === problem.id ? snapshot : undefined;
+  const pending =
+    (busy || submission?.state === "queued" || submission?.state === "running") &&
+    (submission?.kind === "submit" ? !customMode : customMode === !!matchingSnapshot?.custom);
+  const runningSamples = pending && submission?.kind !== "submit";
   const resultIndex = caseId
     ? associatedResultIndex(matchingSnapshot, customMode, caseId, currentValue)
     : -1;
   const result =
-    submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
+    !pending && submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
       ? submission.publicCases?.[resultIndex]
       : recoveredCases?.[sampleIndex];
   const editedAfterRun =
@@ -81,6 +91,7 @@ export function TestCases({
     onDraftsChange(drafts.map((item) => (item.id === draft?.id ? { ...item, ...change } : item)));
   }
   function caseStatus(index: number) {
+    if (pending) return undefined;
     if (hiddenCases) return hiddenCases[index]?.status;
     if (submission?.kind !== "run" || submission.state !== "completed") return undefined;
     if (recoveredCases) return recoveredCases[index]?.status;
@@ -104,7 +115,7 @@ export function TestCases({
     (_, index) => caseStatus(index),
   );
   return (
-    <div className="case-browser">
+    <div className="case-browser" aria-busy={pending}>
       <div
         className="case-rail"
         aria-label={
@@ -121,11 +132,12 @@ export function TestCases({
               key={customMode ? (item as CustomCaseDraft).id : index}
               className="case-selector"
               aria-pressed={index === (customMode ? customIndex : sampleIndex)}
-              aria-label={`Case ${index + 1}${statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
+              aria-label={`Case ${index + 1}${runningSamples ? ": pending" : statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
               onClick={() =>
                 customMode ? setSelectedCustomId(drafts[index]!.id) : setSelectedSample(index)
               }
             >
+              {runningSamples && <span className="case-spinner" aria-hidden="true" />}
               {statuses[index] && statuses[index] !== "executed" && (
                 <Icon
                   name={hiddenCases ? "lock" : statuses[index] === "accepted" ? "submit" : "close"}
@@ -256,6 +268,20 @@ export function TestCases({
         )}
         {editedAfterRun && (
           <p className="case-stale">Edited since last run. Run again for this input.</p>
+        )}
+        {pending && (
+          <div className="case-loading" role="status">
+            <span className="case-spinner" aria-hidden="true" />
+            <span>
+              {submission?.state === "running"
+                ? submission.kind === "submit"
+                  ? "Judging hidden cases…"
+                  : "Running cases…"
+                : submission?.state === "queued"
+                  ? "Waiting for judge…"
+                  : "Starting…"}
+            </span>
+          </div>
         )}
         {result && (
           <CaseOutput

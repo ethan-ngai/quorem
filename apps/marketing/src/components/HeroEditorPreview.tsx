@@ -37,15 +37,17 @@ erase(1);
 pause(300);
 type("b");
 const finalSource = draft;
+const typingEnd = frames.length - 1;
+frames.push(...[650, 1100, 1000, 1200, 800].map((delay) => ({ source: finalSource, delay })));
 const frameDelay = (stage: number) => frames[stage].delay;
-
 /** A finite, read-only typing scene using the app's mounted CodeMirror editor. */
 export default function HeroEditorPreview() {
   const editor = useRef<PythonEditorHandle>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [paused, setPaused] = useState(false);
-  const { root, stage, replay } = usePreviewSequence(frames.length - 1, true, frameDelay, paused);
+  const { root, stage } = usePreviewSequence(frames.length - 1, true, frameDelay, paused);
   const finished = stage === frames.length - 1;
+  const phase = Math.max(0, stage - typingEnd);
   useEffect(() => {
     const sync = () =>
       setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
@@ -60,30 +62,47 @@ export default function HeroEditorPreview() {
   useEffect(() => editor.current?.replaceSource(frames[stage].source), [stage]);
   return (
     <div
-      ref={root}
       className="workspace-demo hero-typing"
-      data-typing={!finished}
+      data-typing={stage < typingEnd}
       data-paused={paused}
     >
-      <div className="hero-problem-heading">
-        <div>
-          <span>Climbing Stairs</span>
-          <small>Easy</small>
+      <div className="hero-problem-description">
+        <h2>
+          Climbing Stairs <small>Easy</small>
+        </h2>
+        <div className="topic-list" data-visible="true">
+          <span>Dynamic Programming</span>
+          <span>Math</span>
+        </div>
+        <div className="problem-copy">
+          <p>
+            There are <code>n</code> steps to the top. Take one or two steps at a time. Return the
+            number of distinct ways to reach the top.
+          </p>
+        </div>
+        <div className="example-data hero-problem-example">
+          <div>
+            <span className="value-label" aria-label="Sample input">
+              <Icon name="input" />
+            </span>
+            <code>n = 3</code>
+          </div>
+          <div>
+            <span className="value-label" aria-label="Sample output">
+              <Icon name="output" />
+            </span>
+            <code>3</code>
+          </div>
         </div>
         <button
           type="button"
           className="hero-typing-control"
-          aria-label={finished ? "Replay typing" : paused ? "Resume typing" : "Pause typing"}
-          onClick={() => {
-            if (finished) {
-              setPaused(false);
-              replay();
-            } else setPaused((value) => !value);
-          }}
+          aria-label={paused ? "Resume animation" : "Pause animation"}
+          disabled={finished}
+          style={{ visibility: finished ? "hidden" : "visible" }}
+          onClick={() => setPaused((value) => !value)}
         >
-          {finished ? (
-            <Icon name="history" />
-          ) : paused ? (
+          {paused ? (
             <Icon name="play" />
           ) : (
             <svg
@@ -112,7 +131,7 @@ export default function HeroEditorPreview() {
             Python
           </span>
         </div>
-        <div className="preview-code">
+        <div className="preview-code" ref={root}>
           <PythonEditor
             ref={editor}
             documentKey="marketing-hero-stairs"
@@ -128,6 +147,43 @@ export default function HeroEditorPreview() {
           />
           <pre className="preview-source">{finalSource}</pre>
         </div>
+        <footer className="execution-bar demo-execution-bar hero-execution">
+          <span className="hero-run-status">
+            {phase === 1 ? "Running…" : phase >= 2 ? "20 / 20 passed" : ""}
+          </span>
+          <div className="run-actions">
+            <button
+              className={`button button-secondary ${phase === 1 ? "demo-action-active" : ""}`}
+              type="button"
+            >
+              <Icon name="play" />
+              Run
+            </button>
+            <button
+              className={`button button-primary ${phase === 3 ? "demo-action-active" : ""}`}
+              type="button"
+            >
+              <Icon name="submit" />
+              Submit
+            </button>
+          </div>
+        </footer>
+      </div>
+      <div className="hero-scoreboard" aria-label="Example submissions" data-phase={phase}>
+        <div>
+          <span className="product-avatar">Y</span>
+          <span>You</span>
+          <span>{phase >= 4 ? "20 / 20" : phase === 3 ? "Submitting…" : "Writing…"}</span>
+        </div>
+        <div>
+          <span className="product-avatar">J</span>
+          <span>Jamie</span>
+          <span>{phase >= 2 ? "14 / 20" : phase === 1 ? "Submitting…" : "Writing…"}</span>
+        </div>
+        <p className={phase >= 4 ? "hero-winner visible" : "hero-winner"}>
+          <Icon name="submit" />
+          You win<span>First correct submission</span>
+        </p>
       </div>
     </div>
   );

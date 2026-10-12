@@ -8,7 +8,9 @@ import { usePreviewSequence } from "./usePreviewSequence";
 /** Shared editor and case output, with read-only illustrative judging. */
 export default function EditorPreview() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const { root, stage } = usePreviewSequence(4, true, 1000);
+  const { root, stage, replay } = usePreviewSequence(4, true, (step) =>
+    step === 0 ? 220 : step === 1 ? 1700 : 1400,
+  );
   const selectedCase = Math.min(Math.max(stage - 2, 0), 2);
   const submission = previewSubmission(stage);
   useEffect(() => {
@@ -23,12 +25,7 @@ export default function EditorPreview() {
     return () => observer.disconnect();
   }, []);
   return (
-    <div
-      ref={root}
-      className="workspace-demo demo-tests"
-      role="img"
-      aria-label="Example Two Sum test run: a cursor runs the Python solution; two cases pass, and the duplicate-value case fails with output [0,0] instead of [0,1]."
-    >
+    <div ref={root} className="workspace-demo demo-tests" aria-label="Example Two Sum test run">
       <div className="demo-readonly" inert>
         <div className="code-toolbar">
           <span className="editor-language">
@@ -72,7 +69,7 @@ export default function EditorPreview() {
               customMode={false}
             />
           </div>
-          <div className="demo-case-browser">
+          <div className="demo-case-browser" data-case={selectedCase}>
             <TestCases
               problem={previewProblem}
               customMode={false}
@@ -84,26 +81,36 @@ export default function EditorPreview() {
             />
           </div>
         </section>
-        <footer className="execution-bar demo-execution-bar">
-          <div className="run-actions">
-            {stage === 0 && (
-              <span className="demo-cursor" aria-hidden="true">
-                <svg viewBox="0 0 24 28">
-                  <path d="m3 2 1 22 6-5 5 8 4-2-5-8 8-2Z" />
-                </svg>
-              </span>
-            )}
-            <button className="button button-secondary" type="button">
-              <Icon name="play" />
-              Run
-            </button>
-            <button className="button button-primary" type="button">
-              <Icon name="submit" />
-              Submit
-            </button>
-          </div>
-        </footer>
       </div>
+      <footer className="execution-bar demo-execution-bar">
+        <div className="run-actions">
+          {stage === 0 && (
+            <span className="demo-cursor" aria-hidden="true">
+              <svg viewBox="0 0 24 28">
+                <path d="m3 2 1 22 6-5 5 8 4-2-5-8 8-2Z" />
+              </svg>
+            </span>
+          )}
+          <button
+            className="button button-secondary"
+            type="button"
+            onClick={replay}
+            disabled={stage < 4}
+          >
+            <Icon name="play" />
+            Run
+          </button>
+          <button
+            className="button button-primary"
+            type="button"
+            onClick={replay}
+            disabled={stage < 4}
+          >
+            <Icon name="submit" />
+            Submit
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }

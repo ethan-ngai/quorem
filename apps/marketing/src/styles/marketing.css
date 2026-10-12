@@ -1245,23 +1245,54 @@ summary:focus-visible {
   justify-self: end;
   margin-top: 48px;
 }
-.hero-problem-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px 8px 20px;
-  border-bottom: 1px solid var(--color-border);
+.hero-problem-description {
+  position: relative;
+  padding: 20px;
   background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
 }
-.hero-problem-heading > div {
+.hero-problem-description h2 {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 14px;
+  padding-right: 44px;
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.035em;
 }
-.hero-problem-heading small {
+.hero-problem-description h2 small {
   color: var(--color-success);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.hero-typing .problem-copy {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.hero-typing .topic-list {
+  margin: 8px 0 0;
+  min-height: 0;
+}
+.hero-typing .topic-list > span {
+  font-size: 10px;
+  line-height: 20px;
+}
+.hero-typing .problem-copy p {
+  margin-bottom: 12px;
+}
+.hero-typing .hero-problem-example {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.hero-typing .example-data code {
+  font-size: 10px;
+}
+.hero-problem-description > .hero-typing-control {
+  position: absolute;
+  top: 9px;
+  right: 8px;
 }
 .hero-typing-control {
   display: grid;
@@ -1279,7 +1310,8 @@ summary:focus-visible {
   color: var(--color-text);
 }
 .hero-typing .preview-code {
-  min-height: 240px;
+  height: 164px;
+  min-height: 0;
 }
 .hero-typing[data-typing="true"] .cm-line:last-child::after {
   content: "";
@@ -1524,158 +1556,235 @@ summary:focus-visible {
   flex-direction: column;
   justify-content: start;
 }
-.submission-demo {
-  padding: 0 24px 24px;
-  font-size: 12px;
-}
-.submission-top {
-  display: flex;
-  justify-content: space-between;
-  color: var(--color-text-secondary);
-  font-size: 11px;
-  border-block: 1px solid var(--color-border);
-  padding-block: 16px;
-}
-.judge-pipeline {
-  display: flex;
-  justify-content: space-between;
+.submission-race {
   position: relative;
-  margin-block: 28px;
+  margin: auto 24px;
+  padding: 24px 0 32px 18px;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
 }
-.judge-pipeline::before {
-  content: "";
+.race-timeline {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  top: 14px;
-  height: 1px;
+  inset: 24px auto 86px 0;
+  width: 1px;
   background: var(--color-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
-.judge-pipeline > div {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-}
-.judge-pipeline > div > span {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--color-border);
+.race-timeline > span {
+  width: 5px;
+  height: 5px;
+  background: var(--color-text-secondary);
   border-radius: 50%;
+  transform: translateX(-2px);
+}
+.race-receipt {
+  padding: 18px;
+  margin-bottom: 16px;
   background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font: 10px var(--font-code);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--marketing-depth);
+  opacity: 0.3;
+  transform: translateY(8px);
+  transition:
+    opacity 400ms var(--motion-easing),
+    transform 400ms var(--motion-easing),
+    border-color 400ms;
 }
-.judge-pipeline small {
-  font-size: 10px;
-  color: var(--color-text-secondary);
+.race-receipt.received {
+  opacity: 1;
+  transform: none;
 }
-.judge-pipeline .complete > span {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  background: var(--color-brand-secondary);
-}
-.judge-pipeline .active > span {
-  border-color: var(--color-primary);
-}
-.submission-contestants {
-  display: grid;
-  gap: 24px;
-}
-.submission-contestant > div:first-child {
+.race-player {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  font-size: 13px;
 }
-.submission-contestant strong {
-  font-size: 12px;
+.race-player strong {
   font-weight: 500;
 }
-.submission-contestant > div:first-child > span:last-child {
+.race-player small {
   margin-left: auto;
   color: var(--color-text-secondary);
   font: 11px var(--font-code);
 }
-.submission-test-grid {
+.race-checks {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
-  gap: 5px;
-  margin-top: 12px;
+  gap: 4px;
+  margin-block: 18px 14px;
 }
-.submission-test-grid > span {
-  height: 12px;
-  border-radius: 3px;
-  border: 1px solid var(--color-border);
+.race-checks > span {
+  height: 7px;
+  border-radius: 2px;
   background: var(--color-overlay);
-  transition:
-    background 180ms,
-    border-color 180ms;
+  transition: background 240ms var(--motion-easing);
 }
-.submission-test-grid .passed {
-  background: color-mix(in oklch, var(--color-success) 25%, var(--color-surface));
-  border-color: var(--color-success);
+.race-checks .passed {
+  background: color-mix(in oklch, var(--color-success) 45%, var(--color-surface));
 }
-.submission-test-grid .failed {
-  background: color-mix(in oklch, var(--color-error) 25%, var(--color-surface));
-  border-color: var(--color-error);
+.race-checks .failed {
+  background: color-mix(in oklch, var(--color-error) 45%, var(--color-surface));
 }
-.submission-outcome {
+.race-receipt p {
   display: flex;
+  gap: 6px;
   align-items: center;
-  gap: 12px;
-  min-height: 72px;
-  margin-top: 28px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  transition: background 180ms;
+  font-size: 11px;
+  color: var(--color-text-secondary);
 }
-.submission-outcome > span {
-  font-size: 20px;
+.race-receipt p svg {
+  width: 13px;
+  height: 13px;
+}
+.submission-race[data-stage="4"] .race-correct {
+  border-color: color-mix(in oklch, var(--color-primary) 35%, var(--color-border));
+}
+.submission-race[data-stage="4"] .race-correct p {
+  color: var(--color-success);
+}
+.race-winner {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  column-gap: 12px;
+  align-items: center;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 400ms var(--motion-easing),
+    transform 400ms var(--motion-easing);
+}
+.race-winner.visible {
+  opacity: 1;
+  transform: none;
+}
+.race-winner-mark {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-brand-secondary);
   color: var(--color-primary);
 }
-.submission-outcome strong,
-.submission-outcome small {
-  display: block;
-}
-.submission-outcome strong {
-  font-size: 14px;
+.race-winner strong {
+  font-size: 22px;
   font-weight: 500;
+  letter-spacing: -0.03em;
 }
-.submission-outcome small {
-  margin-top: 6px;
-  font-size: 10px;
-  color: var(--color-text-secondary);
-}
-.submission-outcome.settled {
-  background: var(--color-brand-secondary);
-}
-.submission-replay {
-  display: block;
-  width: 100%;
-  margin-top: 16px;
-  padding: 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-field);
-  color: var(--color-text);
-  font: inherit;
+.race-winner > span:last-child {
+  margin-top: 4px;
   font-size: 11px;
-  cursor: pointer;
-  transition: background 180ms;
-}
-.submission-replay:hover {
-  background: var(--color-overlay);
-}
-.submission-replay:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 3px;
-}
-.submission-replay:disabled {
-  cursor: default;
   color: var(--color-text-secondary);
+}
+.hero-execution {
+  justify-content: space-between;
+}
+.hero-run-status {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+.demo-action-active {
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-primary) 35%, transparent);
+}
+.hero-scoreboard {
+  padding: 14px 16px 12px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.hero-scoreboard > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.hero-scoreboard .product-avatar {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+.hero-scoreboard > div > span:last-child {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font: 10px var(--font-code);
+}
+.hero-winner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  min-height: 24px;
+  font-size: 12px;
+  color: var(--color-primary);
+  transition: opacity 300ms var(--motion-easing);
+}
+.hero-winner.visible {
+  opacity: 1;
+}
+.hero-winner > span {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: 9px;
+}
+.demo-tests .case-selector {
+  transition:
+    background-color 220ms var(--motion-easing),
+    color 220ms var(--motion-easing);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .demo-case-browser[data-case="0"] .case-details {
+    animation: case-enter-first 300ms var(--motion-easing);
+  }
+  .demo-case-browser[data-case="1"] .case-details {
+    animation: case-enter-second 300ms var(--motion-easing);
+  }
+  .demo-case-browser[data-case="2"] .case-details {
+    animation: case-enter-third 300ms var(--motion-easing);
+  }
+}
+@keyframes case-enter-first {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes case-enter-second {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes case-enter-third {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .race-receipt,
+  .race-winner {
+    transform: none;
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   .submission-test-grid .pending {
