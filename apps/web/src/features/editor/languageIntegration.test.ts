@@ -17,7 +17,7 @@ const uri = "file:///workspace/main.py";
 const languageURL = process.env.QUOREM_LANGUAGE_TEST_URL ?? "ws://127.0.0.1:8081/lsp";
 
 it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
-  "browser client supplies capabilities, reopens current source and respects owner takeover",
+  "browser client supplies capabilities, reopens current source and resumes source after active-window takeover",
   async () => {
     const connections: {
       socket: WebSocket;

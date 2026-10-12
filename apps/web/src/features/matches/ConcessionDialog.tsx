@@ -1,49 +1,58 @@
-/** @file ConcessionDialog.tsx @description Explicit, modal match concession. @module matches */
-import { useEffect, useRef } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { Icon } from "../editor/components/Icon";
 
-/** @returns A focus-contained confirmation before the irreversible forfeit command. */
 export function ConcessionDialog({
+  open,
   pending,
   error,
   onCancel,
   onConfirm,
 }: {
+  open: boolean;
   pending: boolean;
   error?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
   return (
-    <dialog
-      ref={dialog}
-      className="concession-dialog"
-      aria-labelledby="concession-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!pending) onCancel();
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!value && !pending) onCancel();
       }}
     >
-      <h2 id="concession-title">Concede this match?</h2>
-      <p>Your opponent wins. This cannot be undone.</p>
-      <div className="dialog-actions">
-        <button className="button button-secondary" disabled={pending} onClick={onCancel}>
-          Keep playing
-        </button>
-        <button className="button button-danger" disabled={pending} onClick={onConfirm}>
-          {pending ? "Conceding…" : "Forfeit match"}
-        </button>
-      </div>
-      {error && (
-        <p role="alert" className="result-error">
-          {error}
-        </p>
-      )}
-    </dialog>
+      <Dialog.Portal>
+        <Dialog.Overlay className="settings-backdrop" />
+        <Dialog.Content className="competitive-dialog">
+          <header className="competitive-dialog-heading">
+            <div>
+              <Dialog.Title>
+                <Icon name="flag" />
+                Forfeit match?
+              </Dialog.Title>
+              <Dialog.Description>Your opponent wins. This cannot be undone.</Dialog.Description>
+            </div>
+          </header>
+          <div className="competitive-dialog-actions">
+            <button
+              className="button button-secondary"
+              disabled={pending}
+              onClick={onCancel}
+              autoFocus
+            >
+              Keep playing
+            </button>
+            <button className="button button-danger" disabled={pending} onClick={onConfirm}>
+              {pending ? "Forfeiting…" : "Forfeit match"}
+            </button>
+          </div>
+          {error && (
+            <p role="alert" className="result-error">
+              {error}
+            </p>
+          )}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

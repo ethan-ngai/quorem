@@ -21,6 +21,7 @@ if (!isIP(host) || host !== "127.0.0.1" || !Number.isInteger(port) || port < 1 |
 const execute = promisify(execFile);
 type Session = { client: WebSocket; stop: (code?: number, reason?: string) => Promise<void> };
 const sessions = new Map<string, Session>();
+const admissions = new Map<string, WebSocket>();
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 });
 let shuttingDown = false;
 const server = createServer((request, response) => {
@@ -59,6 +60,7 @@ async function admit(owner: string, client: WebSocket, takeover: boolean): Promi
     client.resume();
     return;
   }
+  admissions.set(owner, client);
   if (prior) {
     try {
       await prior.stop(4009, "Editor session replaced");
@@ -68,11 +70,18 @@ async function admit(owner: string, client: WebSocket, takeover: boolean): Promi
       return;
     }
   }
-  if (shuttingDown || sessions.has(owner) || client.readyState !== WebSocket.OPEN) {
+  // Rapid focus changes can await the same teardown; only the newest window may start.
+  if (
+    shuttingDown ||
+    admissions.get(owner) !== client ||
+    sessions.has(owner) ||
+    client.readyState !== WebSocket.OPEN
+  ) {
     client.close(4009, "Language session unavailable");
     client.resume();
     return;
   }
+  admissions.delete(owner);
   const session = bridge(owner, client);
   sessions.set(owner, session);
 }

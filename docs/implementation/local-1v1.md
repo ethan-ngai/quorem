@@ -33,7 +33,7 @@ Verified 2026-10-11. Builds on the solo checkpoint. Sol 6.1 handled match author
 
 ## Local operation and remaining gates
 
-Use `make dev`, open http://localhost:5173, create Private 1v1, and open its invitation in another tab with Bob selected. Development identity selection is intentionally local-only.
+Use `make dev`, open http://localhost:5173, create Showdown, and open its invitation in another tab with Bob selected. Development identity selection is intentionally local-only.
 
 Invite hashes are durable; create-response replay encrypts the token using `QUOREM_INVITE_KEY` (base64url, 32 bytes) or a generated owner-only local cache file. Preserve that key across restarts. Key loss invalidates old create-response replays; existing invite links still join through their stored hashes.
 

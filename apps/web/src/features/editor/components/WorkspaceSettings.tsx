@@ -2,6 +2,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Select from "@radix-ui/react-select";
 import * as Switch from "@radix-ui/react-switch";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
@@ -27,6 +28,7 @@ type SettingsProps = {
   onWrapChange: (wrap: boolean) => void;
   onHistory: () => void;
   onClearRecovery: () => void;
+  onImportDrafts: (file: File) => Promise<void>;
 };
 
 const sections = [
@@ -35,6 +37,12 @@ const sections = [
   { id: "shortcuts", label: "Shortcuts", icon: "keyboard" },
   { id: "drafts", label: "Drafts", icon: "history" },
   { id: "account", label: "Local account", icon: "people" },
+] as const;
+
+const themes = [
+  { value: "system", label: "System", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
 ] as const;
 
 function Setting({
@@ -186,17 +194,21 @@ export function WorkspaceSettings(props: SettingsProps) {
               </h2>
               {section === "appearance" && (
                 <>
-                  <Setting label="Color theme" description="Follow your device or choose a theme.">
-                    <Choice
-                      label="Color theme"
-                      value={props.theme}
-                      onChange={(value) => props.onThemeChange(value as ThemePreference)}
-                      options={[
-                        { value: "system", label: "System" },
-                        { value: "light", label: "Light" },
-                        { value: "dark", label: "Dark" },
-                      ]}
-                    />
+                  <Setting label="Color theme">
+                    <div className="theme-segments" role="group" aria-label="Color theme">
+                      {themes.map(({ value, label, icon: ThemeIcon }) => (
+                        <Tooltip key={value} content={label}>
+                          <button
+                            type="button"
+                            aria-label={`${label} theme`}
+                            aria-pressed={props.theme === value}
+                            onClick={() => props.onThemeChange(value)}
+                          >
+                            <ThemeIcon size={18} strokeWidth={1.5} aria-hidden="true" />
+                          </button>
+                        </Tooltip>
+                      ))}
+                    </div>
                   </Setting>
                   <Setting label="Editor color scheme">
                     <Choice
@@ -259,7 +271,8 @@ export function WorkspaceSettings(props: SettingsProps) {
               {section === "drafts" && (
                 <>
                   <p className="settings-section-description">
-                    Saved versions and local recovery for this account.
+                    Drafts and history stay in this browser. Other windows keep their own active
+                    code.
                   </p>
                   <button
                     className="settings-action"
@@ -269,15 +282,29 @@ export function WorkspaceSettings(props: SettingsProps) {
                     }}
                   >
                     <Icon name="history" />
-                    Draft history
+                    Browser history
                     <Icon name="arrow" />
                   </button>
+                  <label className="settings-action">
+                    <Icon name="history" />
+                    Import previous drafts
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        if (file) void props.onImportDrafts(file);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
                   <button
                     className="settings-action destructive-icon"
                     onClick={props.onClearRecovery}
                   >
                     <Icon name="trash" />
-                    Clear local recovery
+                    Clear browser drafts
                   </button>
                 </>
               )}

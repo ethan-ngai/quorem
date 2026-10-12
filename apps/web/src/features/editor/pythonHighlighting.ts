@@ -1,6 +1,6 @@
 /** @file pythonHighlighting.ts @description Python parser-context tags and visible lexical identifier accents. @module editor */
 import { globalCompletion, localCompletionSource, pythonLanguage } from "@codemirror/lang-python";
-import type { CompletionSource } from "@codemirror/autocomplete";
+import { completeFromList, ifNotIn, type CompletionSource } from "@codemirror/autocomplete";
 import { syntaxTree } from "@codemirror/language";
 import { Decoration, ViewPlugin, type DecorationSet, type EditorView } from "@codemirror/view";
 import { Tag, styleTags, tags } from "@lezer/highlight";
@@ -22,22 +22,57 @@ export const highlightedPython = pythonLanguage.configure({
 });
 /** Let the server supply symbol kinds; conflicting local kinds prevent completion deduplication. */
 function fallbackCompletion(source: CompletionSource): CompletionSource {
-  return async (context) => {
-    const result = await source(context);
-    return (
-      result && {
-        ...result,
-        options: result.options.map((option) => ({
-          ...option,
-          type: option.type === "keyword" ? option.type : undefined,
-        })),
-      }
-    );
+  const normalize = (result: Awaited<ReturnType<CompletionSource>>) =>
+    result && {
+      ...result,
+      options: result.options.map((option) => ({
+        ...option,
+        type: option.type === "keyword" ? option.type : undefined,
+      })),
+    };
+  return (context) => {
+    const result = source(context);
+    return result instanceof Promise ? result.then(normalize) : normalize(result);
   };
 }
+// The language package supplies block snippets, but omits ordinary statement keywords.
+const statementCompletion = ifNotIn(
+  ["String", "FormatString", "Comment", "PropertyName"],
+  completeFromList(
+    [
+      "and",
+      "as",
+      "assert",
+      "async",
+      "await",
+      "break",
+      "continue",
+      "del",
+      "elif",
+      "else",
+      "except",
+      "finally",
+      "global",
+      "in",
+      "is",
+      "lambda",
+      "nonlocal",
+      "not",
+      "or",
+      "pass",
+      "raise",
+      "return",
+      "with",
+      "yield",
+      "match",
+      "case",
+    ].map((label) => ({ label, type: "keyword" })),
+  ),
+);
 export const pythonSupport = [
   pythonLanguage.data.of({ autocomplete: fallbackCompletion(localCompletionSource) }),
   pythonLanguage.data.of({ autocomplete: fallbackCompletion(globalCompletion) }),
+  pythonLanguage.data.of({ autocomplete: statementCompletion }),
 ];
 
 const builtins = new Set([

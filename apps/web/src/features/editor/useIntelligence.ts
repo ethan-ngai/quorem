@@ -5,10 +5,11 @@ import type { Extension } from "@codemirror/state";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import DOMPurify from "dompurify";
 import { useEffect, useState, useCallback } from "react";
+import { watchEditorActivity } from "./languageActivity";
 import { languageTransport } from "./languageTransport";
 import { PythonLanguageClient } from "./pythonLanguageClient";
 
-type IntelligenceStatus = "connecting" | "ready" | "unavailable" | "replaced";
+type IntelligenceStatus = "connecting" | "ready" | "unavailable" | "paused";
 
 /** Connect one isolated language session per active document. Editing stays available during outages. */
 export function useIntelligence(
@@ -29,26 +30,36 @@ export function useIntelligence(
     }
     let disposed = false;
     let reconnect: ReturnType<typeof setTimeout> | undefined;
+    let initializationDeadline: ReturnType<typeof setTimeout> | undefined;
     let failures = 0;
     let socket: WebSocket | undefined;
     let client: PythonLanguageClient | undefined;
     let transport: ReturnType<typeof languageTransport> | undefined;
-    let takeover = attempt.key === key;
+    let readyExtensions: Extension[] = [];
     setExtensions([]);
 
+    const isActive = () => document.visibilityState === "visible" && document.hasFocus();
+
+    function pause() {
+      clearTimeout(reconnect);
+      // Keep the idle engine warm; another focused window can explicitly replace it.
+      setExtensions([]);
+      setStatus("paused");
+    }
+
     function connect() {
-      if (disposed) return;
+      if (disposed || !isActive() || socket) return;
       setStatus("connecting");
       const url = new URL(import.meta.env.VITE_LANGUAGE_URL ?? "ws://127.0.0.1:8081/lsp");
       url.searchParams.set("user", identity);
-      if (takeover) url.searchParams.set("takeover", "1");
-      takeover = false;
+      url.searchParams.set("takeover", "1");
       const active = new WebSocket(url);
       socket = active;
       const connection = languageTransport(active);
       transport = connection;
       let language: PythonLanguageClient | undefined;
       const deadline = setTimeout(() => active.close(4000, "Connection timeout"), 15000);
+      initializationDeadline = deadline;
       active.addEventListener("open", () => {
         if (disposed || socket !== active) return;
         language = new PythonLanguageClient(
@@ -72,12 +83,15 @@ export function useIntelligence(
             clearTimeout(deadline);
             if (disposed || socket !== active || active.readyState !== WebSocket.OPEN) return;
             failures = 0;
-            setExtensions([
+            readyExtensions = [
               language!.plugin("file:///workspace/main.py", "python"),
               // Preserve local completion state while the language service initializes/reconnects.
               pythonLanguage.data.of({ autocomplete: language!.completionSource }),
-            ]);
-            setStatus("ready");
+            ];
+            if (isActive()) {
+              setExtensions(readyExtensions);
+              setStatus("ready");
+            } else setStatus("paused");
           })
           .catch(() => {
             active.close(4000, "Initialization failed");
@@ -88,17 +102,27 @@ export function useIntelligence(
         connection.dispose();
         language?.disconnect();
         if (disposed || socket !== active) return;
+        socket = undefined;
+        readyExtensions = [];
         setExtensions([]);
-        setStatus(event.code === 4009 ? "replaced" : "unavailable");
-        // A replaced tab must not reconnect automatically and evict the newer editor.
-        if (event.code !== 4009 && failures++ < 3)
+        setStatus(event.code === 4009 || !isActive() ? "paused" : "unavailable");
+        // Replaced windows wait for a real focus event instead of reclaiming the engine.
+        if (event.code !== 4009 && isActive() && failures++ < 3)
           reconnect = setTimeout(connect, 1000 * 2 ** failures);
       });
     }
-    connect();
+    const stopWatching = watchEditorActivity(() => {
+      failures = 0;
+      if (socket?.readyState === WebSocket.OPEN && readyExtensions.length) {
+        setExtensions(readyExtensions);
+        setStatus("ready");
+      } else connect();
+    }, pause);
     return () => {
       disposed = true;
+      stopWatching();
       clearTimeout(reconnect);
+      clearTimeout(initializationDeadline);
       transport?.dispose();
       client?.disconnect();
       socket?.close(1000, "Document closed");

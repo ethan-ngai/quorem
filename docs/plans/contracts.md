@@ -25,13 +25,13 @@ Samples and custom cases are separate case collections with a scrollable left ra
 
 Seed set: six original fixtures, two per difficulty, including list/tree algorithms. Each has 20 hidden cases, public examples, reference solution, typed signature, runtime revision, immutable comparator/limits, attribution. Validate reference acceptance and representative incorrect solutions; public templates and harness/type stubs must agree. Fixture administration stays in Git.
 
-## Workspace/draft endpoints
+## Workspace and browser drafts
 
 - `POST /v1/workspaces`: `{problemVersionId, language}` → owned solo Workspace; reuse unique owner+problem-version+language solo workspace.
-- `GET /v1/workspaces/{id}` → `{id, kind: solo|match, problemVersionId, language, matchId?, draft, preferences}`. Match workspace allocated only at start, initialized from template rather than solo source.
+- `GET /v1/workspaces/{id}` → `{id, kind: solo|match, problemVersionId, language, matchId?, preferences}`. Match workspace allocated only at start, initialized from template rather than solo source.
 - `GET /v1/problems/{slug}` → current public ProblemVersion; `GET /v1/problem-versions/{id}` → immutable public version, but enforce unrevealed-match access separately. No public match snapshot leaks chosen version before start.
-- `PUT /v1/workspaces/{id}/draft`: `{source, editorSessionId, saveSequence}` → `{revision, savedAt}`. Atomic history capture/revision increment. Reject duplicate/older sequence from that same session; writes from different sessions follow server commit order. Do not overwrite the client buffer on save response.
-- `GET /v1/workspaces/{id}/draft-history?cursor&limit` → owned snapshots, default 20/max 100; keyset newest-first. `POST .../restore`: `{revision}` → a new active revision; restore never mutates old snapshots.
+- Draft source/history are browser-only. Practice scope: owner + immutable version + language. Match scope additionally includes private workspace ID. Reload resumes latest local write; concurrent windows retain independent buffers. No draft/save/history/restore HTTP routes.
+
 
 Preferences hold theme (`system|light|dark`), pane ratios, code font size (12–24px), tab size (2|4), wrap flag. Browser-local preference storage first; server preference endpoint optional only when needed, no implicit requirement for cross-device preferences.
 

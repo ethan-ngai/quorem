@@ -1,12 +1,12 @@
-/** @file CreateMatchDialog.tsx @description Creates a private invitation from the practice workspace. @module matches */
+import * as Dialog from "@radix-ui/react-dialog";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings } from "./MatchControls";
 import { Icon } from "../editor/components/Icon";
+import { Tooltip } from "../editor/components/Tooltip";
 
-/** @returns A modal create flow; the server-issued link stays private. */
 export function CreateMatchDialog({
   identity,
   onClose,
@@ -14,7 +14,7 @@ export function CreateMatchDialog({
   identity: DevelopmentIdentity;
   onClose: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(true);
   const [settings, setSettings] = useState<CreateMatchRequest>(
     () => pendingCreate(identity)?.payload ?? { difficulty: "easy", durationMinutes: 30 },
   );
@@ -27,65 +27,81 @@ export function CreateMatchDialog({
   });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
-  useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
   return (
-    <dialog
-      className="match-dialog"
-      ref={dialog}
-      onCancel={onClose}
-      aria-labelledby="create-match-title"
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!pending) setOpen(value);
+      }}
     >
-      <header className="dialog-header">
-        <span className="eyebrow">Private 1v1</span>
-        <button className="icon-button" aria-label="Close" onClick={onClose}>
-          <Icon name="close" />
-        </button>
-      </header>
-      <form
-        className="match-dialog-body"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setPending(true);
-          setError(undefined);
-          try {
-            const invite = await createMatch(identity, settings);
-
-            window.location.assign(`/matches/${invite.id}`);
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Could not create match.");
-            setPending(false);
-          }
-        }}
-      >
-        <h2 id="create-match-title">Invite an opponent.</h2>
-        <p>Same problem. Separate code. The problem appears when both players are ready.</p>
-        <MatchSettings
-          value={settings}
-          onChange={setSettings}
-          disabled={pending || !!pendingCreate(identity)}
-        />
-        {error && (
-          <p className="result-error" role="alert">
-            {error}
-          </p>
-        )}
-        <button className="button button-primary" disabled={pending}>
-          {pending
-            ? "Creating…"
-            : pendingCreate(identity)
-              ? "Retry private match"
-              : "Create private match"}
-          <Icon name="arrow" />
-        </button>
-        {recentMatch && (
-          <a className="text-link" href={`/matches/${recentMatch}`}>
-            Reopen recent match →
-          </a>
-        )}
-        <small>Playing as {identity === "alice" ? "Alice" : "Bob"} · 2 players</small>
-      </form>
-    </dialog>
+      <Dialog.Portal>
+        <Dialog.Overlay className="settings-backdrop" />
+        <Dialog.Content
+          className="competitive-dialog"
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget && !open) onClose();
+          }}
+        >
+          <header className="competitive-dialog-heading">
+            <div>
+              <Dialog.Title>
+                <Icon name="showdown" />
+                Create Showdown
+              </Dialog.Title>
+              <Dialog.Description>
+                Invite one opponent. Both players ready to begin.
+              </Dialog.Description>
+            </div>
+            <Tooltip content="Close">
+              <Dialog.Close asChild>
+                <button className="icon-button" aria-label="Close" disabled={pending}>
+                  <Icon name="close" />
+                </button>
+              </Dialog.Close>
+            </Tooltip>
+          </header>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (pending) return;
+              setPending(true);
+              setError(undefined);
+              try {
+                const invite = await createMatch(identity, settings);
+                window.location.assign(`/matches/${invite.id}`);
+              } catch (cause) {
+                setError(cause instanceof Error ? cause.message : "Could not create match.");
+                setPending(false);
+              }
+            }}
+          >
+            <MatchSettings
+              value={settings}
+              onChange={setSettings}
+              disabled={pending || !!pendingCreate(identity)}
+            />
+            {error && (
+              <p className="result-error" role="alert">
+                {error}
+              </p>
+            )}
+            <footer className="competitive-dialog-actions">
+              {recentMatch ? (
+                <a className="text-link" href={`/matches/${recentMatch}`}>
+                  <Icon name="history" />
+                  Recent match
+                </a>
+              ) : (
+                <span />
+              )}
+              <button className="button button-primary" disabled={pending}>
+                {pending ? "Creating…" : "Create Showdown"}
+                <Icon name="arrow" />
+              </button>
+            </footer>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

@@ -1,9 +1,9 @@
-/** @file MatchControls.tsx @description Shared private match settings and local identity selection. @module matches */
+import * as Select from "@radix-ui/react-select";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useEffect, useState } from "react";
 import { readPreference, writePreference } from "../editor/editorSettings";
+import { Icon } from "../editor/components/Icon";
 
-/** @returns A persisted local account and its setter. */
 export function useLocalIdentity() {
   const [identity, setIdentity] = useState<DevelopmentIdentity>(() =>
     readPreference("quorem.dev-identity.v1", "alice"),
@@ -12,7 +12,50 @@ export function useLocalIdentity() {
   return { identity, setIdentity };
 }
 
-/** @returns Difficulty and duration controls reused by create and host settings. */
+function MatchChoice({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
+      <Select.Trigger className="settings-select" aria-label={label}>
+        <Select.Value />
+        <Select.Icon>
+          <Icon name="chevron" />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          className="settings-select-menu"
+          position="popper"
+          sideOffset={5}
+          collisionPadding={8}
+        >
+          <Select.Viewport>
+            {options.map((option) => (
+              <Select.Item className="settings-select-item" key={option.value} value={option.value}>
+                <Select.ItemText>{option.label}</Select.ItemText>
+                <Select.ItemIndicator>
+                  <Icon name="submit" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
+
 export function MatchSettings({
   value,
   onChange,
@@ -23,45 +66,51 @@ export function MatchSettings({
   disabled?: boolean;
 }) {
   return (
-    <div className="match-settings">
-      <label>
-        Difficulty
-        <select
-          value={value.difficulty}
+    <div className="match-options">
+      <div className="match-option">
+        <span>
+          <Icon name="target" />
+          Difficulty
+        </span>
+        <div className="match-difficulty" role="group" aria-label="Difficulty">
+          {(["easy", "medium", "hard"] as const).map((difficulty) => (
+            <button
+              type="button"
+              key={difficulty}
+              disabled={disabled}
+              aria-pressed={value.difficulty === difficulty}
+              onClick={() => onChange({ ...value, difficulty })}
+            >
+              {difficulty[0].toUpperCase() + difficulty.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="match-option">
+        <span>
+          <Icon name="clock" />
+          Duration
+        </span>
+        <MatchChoice
+          label="Duration"
+          value={String(value.durationMinutes)}
           disabled={disabled}
-          onChange={(e) =>
-            onChange({ ...value, difficulty: e.target.value as CreateMatchRequest["difficulty"] })
-          }
-        >
-          <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
-      <label>
-        Duration
-        <select
-          value={value.durationMinutes}
-          disabled={disabled}
-          onChange={(e) =>
+          onChange={(duration) =>
             onChange({
               ...value,
-              durationMinutes: Number(e.target.value) as CreateMatchRequest["durationMinutes"],
+              durationMinutes: Number(duration) as CreateMatchRequest["durationMinutes"],
             })
           }
-        >
-          {[15, 30, 45, 60].map((minutes) => (
-            <option key={minutes} value={minutes}>
-              {minutes} minutes
-            </option>
-          ))}
-        </select>
-      </label>
+          options={[15, 30, 45, 60].map((minutes) => ({
+            value: String(minutes),
+            label: `${minutes} minutes`,
+          }))}
+        />
+      </div>
     </div>
   );
 }
 
-/** @returns An explicitly labeled local account chooser. */
 export function IdentityChoice({
   identity,
   onChange,
@@ -72,17 +121,18 @@ export function IdentityChoice({
   disabled?: boolean;
 }) {
   return (
-    <label className="identity-choice">
-      Local account
-      <select
-        aria-label="Local development identity"
-        disabled={disabled}
+    <div className="identity-choice">
+      <Icon name="people" />
+      <MatchChoice
+        label="Local development identity"
         value={identity}
-        onChange={(e) => onChange(e.target.value as DevelopmentIdentity)}
-      >
-        <option value="alice">Alice</option>
-        <option value="bob">Bob</option>
-      </select>
-    </label>
+        disabled={disabled}
+        onChange={(value) => onChange(value as DevelopmentIdentity)}
+        options={[
+          { value: "alice", label: "Alice" },
+          { value: "bob", label: "Bob" },
+        ]}
+      />
+    </div>
   );
 }

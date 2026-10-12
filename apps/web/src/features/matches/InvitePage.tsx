@@ -12,6 +12,12 @@ export function InvitePage({ token }: { token: string }) {
   useTheme();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  let existingMatch: string | null = null;
+  try {
+    existingMatch = localStorage.getItem(`quorem.last-match.v1:${identity}`);
+  } catch {
+    /* Storage may be unavailable. */
+  }
   return (
     <main className="match-page">
       <header className="topbar">
@@ -20,11 +26,12 @@ export function InvitePage({ token }: { token: string }) {
         <IdentityChoice identity={identity} onChange={setIdentity} disabled={pending} />
       </header>
       <section className="match-page-content invite-entry">
-        <span className="eyebrow">Private 1v1 invitation</span>
-        <h1>Join the match.</h1>
+        <div className="invite-symbol">
+          <Icon name="people" />
+        </div>
+        <h1>Match invitation</h1>
         <p>
-          Choose your local account, enter the lobby, and get ready. The problem is revealed only
-          after both players are ready.
+          Join the lobby to meet your opponent. The problem appears when both players are ready.
         </p>
         <button
           className="button button-primary"
@@ -49,8 +56,13 @@ export function InvitePage({ token }: { token: string }) {
             {error}
           </p>
         )}
+        {error && existingMatch && (
+          <a className="text-link" href={`/matches/${existingMatch}`}>
+            Open existing match
+          </a>
+        )}
         <a className="text-link" href="/run-widths">
-          Return to practice →
+          Back to practice
         </a>
       </section>
     </main>

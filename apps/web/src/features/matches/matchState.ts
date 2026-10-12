@@ -5,6 +5,20 @@ import {
   type MatchSnapshot,
 } from "@quorem/contracts";
 
+export const showdown = { id: "showdown", name: "Showdown" } as const;
+
+/** @returns The missing participant/readiness action, without implying an absent opponent is ready. */
+export function lobbyWaitingLabel(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
+  const own = ownParticipant(snapshot, identity);
+  const opponent = snapshot.participants.find(
+    (participant) => participant.userId !== developmentUserIds[identity],
+  );
+  if (!opponent) return "Waiting for opponent to join";
+  if (!opponent.ready) return "Waiting for opponent to ready";
+  if (!own?.ready) return "Waiting for you to ready";
+  return "Starting Showdown…";
+}
+
 /** @returns Only the current owner's participant; never an opponent's workspace. */
 export function ownParticipant(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
   return snapshot.participants.find(

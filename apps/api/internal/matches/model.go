@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const Showdown = "showdown"
+
 type Settings struct {
 	Difficulty      string `json:"difficulty"`
 	DurationMinutes int    `json:"durationMinutes"`
@@ -35,6 +37,7 @@ type Outcome struct {
 	CompletedAt  time.Time `json:"completedAt"`
 }
 type Snapshot struct {
+	Mode       string    `json:"mode"`
 	ID         string    `json:"id"`
 	Version    string    `json:"version"`
 	State      string    `json:"state"`
