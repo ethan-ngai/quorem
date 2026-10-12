@@ -1,3 +1,5 @@
+import type { DevelopmentIdentity } from "@quorem/contracts";
+import { readPreference } from "../editor/editorSettings";
 import { useQuery } from "@tanstack/react-query";
 export type Session = {
   user: { id: string; displayName: string; emailVerified: boolean; role: "user" | "admin" };
@@ -31,15 +33,22 @@ export const authenticatedFetch: typeof fetch = async (input, init) => {
   }
   return fetch(request);
 };
-export function useSession() {
+export async function fetchSession(identity: DevelopmentIdentity): Promise<Session | null> {
+  const response = await authenticatedFetch(
+    new Request(new URL("/v1/session", window.location.origin), {
+      headers: { "X-Dev-User": identity },
+    }),
+  );
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error("Account unavailable");
+  return response.json() as Promise<Session>;
+}
+export function useSession(
+  identity: DevelopmentIdentity = readPreference("quorem.dev-identity.v1", "alice"),
+) {
   return useQuery({
-    queryKey: ["auth-session"],
-    queryFn: async () => {
-      const response = await authenticatedFetch("/v1/session");
-      if (response.status === 401) return null;
-      if (!response.ok) throw new Error("Account unavailable");
-      return response.json() as Promise<Session>;
-    },
+    queryKey: ["auth-session", identity],
+    queryFn: () => fetchSession(identity),
     retry: false,
     staleTime: 30_000,
   });

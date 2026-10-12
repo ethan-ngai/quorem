@@ -25,7 +25,7 @@ function apiBaseUrl() {
 }
 
 function eventSocketUrl(matchId: string, identity: DevelopmentIdentity) {
-  const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+  const base = import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
   const url = new URL(`/v1/matches/${encodeURIComponent(matchId)}/events`, base);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("user", identity);

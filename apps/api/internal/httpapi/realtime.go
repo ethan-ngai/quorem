@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 )
@@ -134,7 +135,16 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer disconnect()
+	bearer, _ := requestBearer(r)
 	send := func(notice realtime.Notice) error {
+		if bearer != "" {
+			p, e := s.Identity.Verify(ctx, bearer)
+			if e != nil || p.UserID != user {
+				connection.Close(websocket.StatusPolicyViolation, "Sign in required")
+				return identity.ErrUnauthorized
+			}
+		}
+
 		snapshot, e := s.Store.Match(ctx, user, id)
 		if e != nil {
 			return e

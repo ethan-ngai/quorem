@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { isIP } from "node:net";
 import { WebSocket, WebSocketServer } from "ws";
 import { encodeFrame, FrameDecoder } from "./framing.ts";
-import { authorizeUpgrade, validateMessage } from "./policy.ts";
+import { authorizeUpgrade, validateMessage, hasManagedCredentials } from "./policy.ts";
 import { retryableCleanup } from "./cleanup.ts";
 
 const localIdentity = process.env.QUOREM_DEV_IDENTITY === "true";
@@ -47,6 +47,13 @@ server.on("upgrade", async (request, socket, head) => {
     url = new URL(request.url ?? "/", `http://${address}`);
   } catch {
     socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+    return;
+  }
+  if (
+    localIdentity &&
+    hasManagedCredentials(request.headers.authorization, request.headers["sec-websocket-protocol"])
+  ) {
+    socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     return;
   }
   const owner = localIdentity

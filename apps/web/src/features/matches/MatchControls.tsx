@@ -25,7 +25,7 @@ export function useLocalIdentity() {
     readPreference("quorem.dev-identity.v1", "alice"),
   );
   useEffect(() => writePreference("quorem.dev-identity.v1", identity), [identity]);
-  const account = useSession();
+  const account = useSession(identity);
   return {
     identity: (account.data?.mode === "managed"
       ? account.data.user.id
