@@ -1131,10 +1131,14 @@ summary:focus-visible {
   }
   .button:hover:not(:active) {
     transform: translateY(-2px);
+  }
+  .button:not(.primary-button):not(.button-primary):hover:not(:active) {
     background: var(--color-overlay);
   }
-  .button.primary-button:hover:not(:active) {
+  .button:is(.primary-button, .button-primary):hover:not(:active) {
     background: color-mix(in oklch, var(--color-primary) 92%, white);
+    color: var(--color-on-primary);
+    filter: none;
   }
   .theme-switch:hover,
   .site-menu summary:hover,
@@ -3220,4 +3224,27 @@ summary:focus-visible {
 .recommendation-topics > .preview-difficulty {
   padding-inline: 0;
   background: transparent;
+}
+
+.walkthrough-layout :is(.editor-stage, .lobby-stage) {
+  background: radial-gradient(ellipse at 50% 12%, var(--marketing-highlight), transparent 75%);
+}
+.walkthrough-layout :is(.demo-tests, .lobby-render) {
+  position: relative;
+  box-shadow:
+    0 2px 8px color-mix(in oklch, var(--surface-shade) 45%, transparent),
+    0 20px 56px color-mix(in oklch, var(--surface-shade) 50%, transparent),
+    inset 0 1px var(--surface-light);
+}
+.walkthrough-layout :is(.demo-tests, .lobby-render)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    color-mix(in oklch, var(--marketing-highlight) 45%, transparent),
+    transparent 55%
+  );
 }
