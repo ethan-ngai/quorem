@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
+import { LoginPage } from "./features/auth/LoginPage";
 import { InvitePage } from "./features/matches/InvitePage";
 import { practiceSearch } from "./features/navigation/matchCreationIntent";
 import { PracticeBrowser } from "./features/practice/PracticeBrowser";
@@ -93,8 +94,14 @@ const inviteRoute = createRoute({
     return <InvitePage token={token} />;
   },
 });
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  loginRoute,
   practiceRoute,
   problemRoute,
   matchRoute,

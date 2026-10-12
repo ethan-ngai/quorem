@@ -39,6 +39,10 @@ export const developmentUserIds: Record<DevelopmentIdentity, string> = {
   dana: "00000000-0000-4000-8000-000000000004",
 };
 
+export function participantUserId(identity: string): string {
+  return developmentUserIds[identity as DevelopmentIdentity] ?? identity;
+}
+
 /** @returns Typed client; development identity is explicit. */
 export function createApiClient(
   options: {
