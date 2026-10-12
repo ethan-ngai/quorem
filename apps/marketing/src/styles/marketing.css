@@ -2470,3 +2470,201 @@ summary:focus-visible {
     background: linear-gradient(var(--color-border) 84%, transparent);
   }
 }
+
+.mode-description h2 {
+  justify-content: flex-start;
+  gap: 12px;
+}
+@container mode-bento (min-width: 641px) {
+  .mode-row .mode-preview + .mode-preview {
+    padding-left: clamp(28px, 4vw, 48px);
+  }
+}
+/* Each hover rehearses the illustrated mechanic once, without moving the card. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .mode-preview:hover .mode-art-duel .mode-tick-passed {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    animation: mode-tick-arrive 220ms var(--marketing-spring) both;
+    animation-delay: calc(var(--tick) * 28ms);
+  }
+  .mode-preview:hover .mode-art-duel .mode-winner .mode-tick-passed {
+    animation-delay: calc(var(--tick) * 18ms);
+  }
+  .mode-preview:hover .mode-art-duel .mode-player-halo {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: mode-halo-settle 850ms var(--marketing-spring) both;
+  }
+  .mode-preview:hover .mode-art-duel .mode-winner-label {
+    animation: mode-verdict-arrive 300ms var(--marketing-spring) 620ms both;
+  }
+  .mode-preview:hover .mode-art-group .mode-tick-passed {
+    animation: mode-lane-fill 260ms var(--hero-easing) both;
+    animation-delay: calc(var(--tick) * 20ms + var(--lane) * 80ms);
+  }
+  .mode-preview:hover .mode-art-group .mode-finish-check {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: mode-halo-settle 600ms var(--marketing-spring) 640ms both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-active {
+    animation: mode-replica-place 650ms var(--marketing-spring) both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-cursor {
+    animation: mode-cursor-place 650ms var(--marketing-spring) both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-route {
+    stroke-dasharray: 1;
+    animation: mode-route-draw 650ms var(--hero-easing) 260ms both;
+  }
+  .mode-preview:hover .art-tech-stacked .concept-route-point {
+    animation: mode-traffic 900ms var(--hero-easing) 350ms both;
+  }
+  .mode-preview:hover .art-factions .concept-party {
+    animation: mode-party-converge 680ms var(--marketing-spring) both;
+    animation-delay: calc(var(--party) * 90ms);
+  }
+  .mode-preview:hover .art-factions .concept-arena {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: mode-halo-settle 800ms var(--marketing-spring) 240ms both;
+  }
+  .mode-preview:hover .art-codebase-clash .concept-diff {
+    animation: mode-diff-open 600ms var(--marketing-spring) both;
+  }
+  .mode-preview:hover .art-codebase-clash .concept-removed {
+    animation: mode-old-line 750ms var(--hero-easing) both;
+  }
+  .mode-preview:hover .art-codebase-clash .concept-added {
+    stroke-dasharray: 1;
+    animation: mode-route-draw 550ms var(--hero-easing) 350ms both;
+  }
+  .mode-preview:hover .art-odyssey .concept-tier {
+    animation: mode-tier-grow 500ms var(--marketing-spring) both;
+    animation-delay: calc(var(--tier) * 160ms);
+  }
+  .mode-preview:hover .art-odyssey .concept-route {
+    stroke-dasharray: 1;
+    animation: mode-route-draw 600ms var(--hero-easing) 500ms both;
+  }
+}
+@keyframes mode-tick-arrive {
+  from {
+    opacity: 0.2;
+    transform: scaleY(0.35);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mode-halo-settle {
+  from {
+    opacity: 0.2;
+    transform: scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mode-verdict-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mode-lane-fill {
+  from {
+    opacity: 0.15;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mode-replica-place {
+  from {
+    opacity: 0.35;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mode-cursor-place {
+  0% {
+    transform: translate(12px, 16px);
+  }
+  60% {
+    transform: translate(-3px, -4px);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes mode-route-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes mode-traffic {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mode-party-converge {
+  from {
+    opacity: 0.5;
+    transform: translate(var(--approach-x), var(--approach-y));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mode-diff-open {
+  from {
+    opacity: 0.4;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mode-old-line {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.25;
+  }
+}
+@keyframes mode-tier-grow {
+  from {
+    opacity: 0.15;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

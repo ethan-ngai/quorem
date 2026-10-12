@@ -23,7 +23,7 @@ const description = variant === "duel"
       {players.slice(0,2).map(({name,passed},i) => {
         const x = i === 0 ? 130 : 390;
         const winner = passed === 20;
-        return <g class:list={["mode-contestant", {"mode-winner": winner}]}>
+        return <g class:list={["mode-contestant", {"mode-winner": winner}]} style={`--lane: ${i}`}>
           <circle class="mode-player-ring" cx={x} cy="142" r="35" />
           <circle class="mode-player-halo" cx={x} cy="142" r="45" />
           <circle class="mode-person" cx={x} cy="135" r="8" />
@@ -31,7 +31,7 @@ const description = variant === "duel"
           <path class="mode-code-glyph" d={`m${x+32} 164-4 4 4 4m12-8 4 4-4 4m-5-10-3 12`} />
           <text class="mode-player-name" x={x} y="209" text-anchor="middle">{name}</text>
           <g class="mode-score-ticks">
-            {Array.from({length:20},(_,j) => <rect class:list={{"mode-tick-passed": j < passed}} x={x-79+j*8} y="230" width="5" height="14" rx="1" />)}
+            {Array.from({length:20},(_,j) => <rect class:list={{"mode-tick-passed": j < passed}} style={`--tick: ${j}`} x={x-79+j*8} y="230" width="5" height="14" rx="1" />)}
           </g>
           <text class="mode-score-label" x={x} y="271" text-anchor="middle">{passed} / 20 tests</text>
           {winner && <g class="mode-winner-label"><path d={`m${x-49} 296 4 4 7-9`} /><text x={x-27} y="300">First correct</text></g>}
@@ -47,13 +47,13 @@ const description = variant === "duel"
       {players.map(({name,passed},i) => {
         const y = 119+i*48;
         const winner = passed===20;
-        return <g class:list={["mode-contestant", {"mode-winner": winner}]}>
+        return <g class:list={["mode-contestant", {"mode-winner": winner}]} style={`--lane: ${i}`}>
           <path class="mode-connector" d={`M28 ${y}h23`} />
           <circle class="mode-player-ring" cx="69" cy={y} r="17" />
           <circle class="mode-person" cx="69" cy={y-4} r="4" />
           <path class="mode-person" d={`M61 ${y+8}c0-10 16-10 16 0`} />
           <text class="mode-player-name" x="101" y={y+5}>{name}</text>
-          {Array.from({length:20},(_,j) => <rect class:list={["mode-group-tick",{"mode-tick-passed": j < passed}]} x={190+j*14} y={y-7} width="9" height="14" rx="1" />)}
+          {Array.from({length:20},(_,j) => <rect class:list={["mode-group-tick",{"mode-tick-passed": j < passed}]} style={`--tick: ${j}`} x={190+j*14} y={y-7} width="9" height="14" rx="1" />)}
           {winner && <g class="mode-finish-check"><circle cx="474" cy={y} r="10" /><path d={`m469 ${y} 3 3 6-6`} /></g>}
         </g>;
       })}
