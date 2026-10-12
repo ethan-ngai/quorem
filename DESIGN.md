@@ -175,4 +175,4 @@ Workspace navigation uses a generic menu button and profile icon/popover. Market
 
 ### Pixel brand mark
 
-Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha bounds. Preserve its pixels and transparent holes; scale with nearest-neighbor or crisp SVG paths. Favicon adapts black/white to system theme. Platform icons use neutral square canvases, with dedicated maskable safe-area spacing.
+Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha bounds. Preserve its pixels and transparent holes; scale with nearest-neighbor or crisp SVG paths. Visible brand links show only the pixel mark, inheriting text color through an SVG mask. Favicons switch all fallback formats between black/white with page theme. Platform icons use neutral square canvases, with dedicated maskable safe-area spacing.
