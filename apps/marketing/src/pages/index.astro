@@ -1,0 +1,163 @@
+---
+import "@fontsource-variable/geist";
+import "@quorem/ui/theme.css";
+import "../styles/marketing.css";
+import ProductPreview from "../components/ProductPreview.astro";
+import MatchScene from "../components/MatchScene.astro";
+import HeroDots from "../components/HeroDots.astro";
+import BattleHeadline from "../components/BattleHeadline.astro";
+const socialImage = Astro.site ? new URL("/social-card.png", Astro.site).href : "/social-card.png";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Challenge friends in private coding matches. Choose Showdown or Free-for-all, pick a problem, set the rules and share an invitation." />
+    <meta name="theme-color" content="#f5f5f6" />
+    <link rel="icon" data-favicon="ico" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" data-favicon="png" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" data-favicon="svg" type="image/svg+xml" href="/favicon.svg" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#000000" />
+    <script src="/favicon-theme.js" defer is:inline></script>
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="application-name" content="Quorem" />
+    <meta name="apple-mobile-web-app-title" content="Quorem" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Quorem" />
+    <meta property="og:title" content="Quorem — Private coding matches" />
+    <meta property="og:description" content="Challenge friends in private coding matches. Choose a problem, set the rules and share an invitation." />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Quorem pixel logo — private coding matches and practice." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={socialImage} />
+    <meta name="twitter:image:alt" content="Quorem pixel logo — private coding matches and practice." />
+    <title>Quorem — Private coding matches</title>
+    <script is:inline>
+      (() => {
+        let preference = "system";
+        try { preference = JSON.parse(localStorage.getItem("quorem.theme.v1") || '"system"'); } catch {}
+        document.documentElement.dataset.theme = preference === "dark" || (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header page-width" data-reveal>
+      <div class="brand-navigation">
+      <details class="site-menu"><summary aria-label="Open navigation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg></summary><nav aria-label="Mobile navigation"><a href="/practice">Practice</a><a href="/practice?create=match">Create match</a></nav></details>
+      <a class="brand-logo" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a>
+      </div>
+      <div class="header-actions">
+      <nav class="desktop-navigation" aria-label="Main navigation">
+        <a class="quiet-link" href="/practice">Practice</a>
+        <a class="quiet-link" href="/practice?create=match">Create match</a>
+      </nav>
+      <button class="button nav-button login-button" type="button" disabled title="Login will be available when authentication is ready">Login</button>
+      </div>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <HeroDots />
+        <div class="hero-top page-width">
+          <div class="hero-copy">
+          <BattleHeadline />
+          <div class="hero-intro">
+            <p>Invite friends to solve the same coding problem. First correct submission wins.</p>
+            <div class="hero-actions"><a class="button primary-button hero-cta" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
+          </div>
+          </div>
+          <MatchScene />
+        </div>
+      </section>
+      <section class="mode-showcase page-width" aria-label="Match modes" data-reveal>
+        <article class="mode-preview">
+          <div><h2>Showdown</h2><p>One opponent. One shared problem.</p></div><span class="mode-size">1 v 1</span>
+        </article>
+        <article class="mode-preview">
+          <div><h2>Free-for-all</h2><p>Bring a group into the same race.</p></div><span class="mode-size">2–8 players</span>
+        </article>
+      </section>
+      <section class="match-blueprint page-width" id="matches" aria-labelledby="matches-title">
+        <div class="blueprint-grid">
+          <div class="blueprint-heading" data-reveal><h2 id="matches-title">Set up<br />the match.</h2></div>
+          <div class="blueprint-intro" data-reveal><p>Pick a mode, a challenge and a duration. Share the link with your friends, then start when everyone is ready.</p><a class="quiet-link" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a></div>
+          <div class="blueprint-product" data-reveal><ProductPreview alt="Free-for-all lobby with players, game mode, difficulty, problem, duration and host rules." eager /></div>
+          <div class="problem-visual blueprint-visual" aria-hidden="true" data-reveal>
+            <div class="problem-sheet"><div class="difficulty-samples"><span>Easy</span><span>Medium</span><span>Hard</span></div><div class="problem-line"><span>Run Widths</span><small>Easy</small></div><div class="problem-line"><span>Level Spreads</span><small>Medium</small></div><div class="problem-line"><span>Split Load</span><small>Hard</small></div><div class="random-choice">or a random pick</div></div>
+          </div>
+          <article class="problem-copy blueprint-copy" data-reveal><h3>Pick the challenge.</h3><p>Select a specific problem, or choose Random across one or more difficulties. The random problem stays hidden until the match starts.</p><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">↗</span></a></article>
+          <article class="rules-copy blueprint-copy" data-reveal><h3>Set the ground rules.</h3><p>Choose how copy/paste and leaving the window are handled: allow it, warn the player, or announce it to the lobby.</p><p class="secondary-copy">Everyone sees the rules before the match begins.</p></article>
+          <div class="rules-visual blueprint-visual" aria-hidden="true" data-reveal><div class="rule-sheet"><div class="rule-row"><span>Copy / paste</span><span class="rule-policy">Warning</span></div><div class="rule-row"><span>Leaving the window</span><span class="rule-policy">Announce</span></div><div class="rule-connection"></div><div class="rule-notice"><span class="notice-dot"></span>Lobby notice</div></div></div>
+        </div>
+      </section>
+      <section class="race-section page-width" aria-labelledby="race-title" data-reveal>
+        <h2 id="race-title">Same challenge.<br /><span>Independent solutions.</span></h2>
+        <div class="race-copy"><p>Each player writes their own solution. Only submissions count toward the match; test runs are yours to experiment with.</p><p>The first correct submission wins. At the deadline, the highest passed test count decides. Equal scores draw.</p></div>
+      </section>
+      <section class="closing page-width" aria-labelledby="closing-title" data-reveal><h2 id="closing-title">Bring your<br />next challenge.</h2><div class="closing-actions"><a class="button primary-button" href="/practice?create=match">Create match <span aria-hidden="true">↗</span></a><a class="quiet-link" href="/practice">Browse practice <span aria-hidden="true">→</span></a></div></section>
+    </main>
+    <footer class="site-footer page-width" data-reveal><a class="brand-logo" href="/" aria-label="Quorem home"><span class="brand-mark" aria-hidden="true"></span></a><span>Private coding matches and practice.</span><a class="quiet-link" href="/practice">Browse problems <span aria-hidden="true">→</span></a>
+      <button class="theme-switch" type="button" aria-label="Switch to dark theme" title="Switch theme">
+        <svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></svg>
+        <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z" /></svg>
+      </button>
+    </footer>
+    <script>
+      document.querySelectorAll(".site-menu a").forEach((link) => link.addEventListener("click", () => {
+        const menu = document.querySelector<HTMLDetailsElement>(".site-menu");
+        if (menu) menu.open = false;
+      }));
+      const closeMenus = () => document.querySelectorAll<HTMLDetailsElement>(".site-menu").forEach((menu) => { menu.open = false; });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          const openMenu = document.querySelector<HTMLDetailsElement>(".site-menu[open]");
+          openMenu?.querySelector<HTMLElement>("summary")?.focus();
+          closeMenus();
+        }
+      });
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (target instanceof Element && !target.closest(".site-menu")) closeMenus();
+      });
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      const toggle = document.querySelector<HTMLButtonElement>(".theme-switch");
+      const updateLabel = () => {
+        const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        toggle?.setAttribute("aria-label", `Switch to ${next} theme`);
+        toggle?.setAttribute("title", `Switch to ${next} theme`);
+      };
+      toggle?.addEventListener("click", () => {
+        const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem("quorem.theme.v1", JSON.stringify(next)); } catch {}
+        updateLabel();
+      });
+      media.addEventListener("change", () => {
+        let preference = "system";
+        try { preference = JSON.parse(localStorage.getItem("quorem.theme.v1") || '"system"'); } catch {}
+        if (preference === "system") document.documentElement.dataset.theme = media.matches ? "dark" : "light";
+        updateLabel();
+      });
+      updateLabel();
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.08 });
+        document.querySelectorAll<HTMLElement>("[data-reveal]").forEach((element) => {
+          if (element.getBoundingClientRect().top > window.innerHeight) element.classList.add("reveal-pending");
+          observer.observe(element);
+        });
+      }
+    </script>
+  </body>
+</html>

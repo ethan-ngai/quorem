@@ -166,3 +166,43 @@ Showdown is the canonical mode: database/API ID `showdown`, display name Showdow
 Settings Color theme uses an icon-only System/Light/Dark segmented control: Lucide monitor/sun/moon, tooltip names, pressed-state selection, shared neutral surfaces and hover/press transitions. Omit explanatory helper copy. Touch segments use 44px targets.
 
 Global navigation shares one 48px row across practice, invitations and lobbies: brand, Radix practice picker, Create match or current mode, then contextual account/settings actions. Creation uses a centered bounded scrollable dialog. Shared lobby controls use icon mode segments, a compact headerless searchable Radix problem popover preceded by always-visible Difficulty segments whose adjacent selections share one continuous background, and Radix duration choices. Random uses Lucide Dices. Host rules appear only in the lobby, using Radix conduct choices. Free-for-all uses the monochrome premade [All for one](https://game-icons.net/1x1/lorc/all-for-one.html) icon by Lorc. Free-for-all uses the same compact two-column player rows as Showdown, with open seats inline and subtle dividers, an explicit host Start action, and a horizontally scrollable in-match score row. Conduct warnings use small semantic status rows; public announcements stay bounded and neutral.
+
+## Marketing and discovery
+
+Marketing leads with private competitive matches, not editor capabilities. Raycast's "Build the perfect tools" section supplies the visual direction: thin ruled grids, large quiet type, alternating wide visual/narrow copy cells. The mode overview follows the hero as a compact text row, without diagrams. Preserve the flowing asymmetric composition and open spacing from personal-website /mac and CUXR. Factual feature descriptions, no invented testimonials or adoption metrics. Geist section display 56–112px, section headings 36–64px, max width 1280px, section spacing 80–128px, existing neutral/blue palette and 10px radius. Paired actual light/dark lobby captures follow the active theme. Below 700px use a dedicated portrait capture of the responsive lobby; all images fit their container at natural aspect ratio, with no fixed minimum width, arbitrary zoom or horizontal image scrolling. Surgical 560ms, 16px reveal motion; reduced-motion shows content without transforms.
+
+Workspace navigation uses a generic menu button and profile icon/popover. Marketing uses expanded Practice/Create match links, collapsing into a hamburger when the header has less than 440px of usable width. Login occupies the right edge, disabled until authentication is implemented; theme switching lives in the footer. Marketing copy describes coding generally rather than positioning the product around a single language. Create match appears only outside match/invite screens. Practice discovery uses compact searchable rows with difficulty/topic filters and accessible title/difficulty sorting; no synthetic solved statuses. Homepage /, catalog /practice, problem /practice/{slug}, competitive workspace /match/{id}.
+
+### Pixel brand mark
+
+Use the supplied monochrome pixel artwork, cropped to its exact 25x24 alpha bounds. Preserve its pixels and transparent holes; scale with nearest-neighbor or crisp SVG paths. Visible brand links show only the pixel mark, inheriting text color through an SVG mask. Favicons switch all fallback formats between black/white with page theme. Platform icons use neutral square canvases, with dedicated maskable safe-area spacing.
+
+### Marketing hero
+
+Architecture B, asymmetric split. Left-aligned three-line Barlow Condensed 800 headline reads Code. Clash. Conquer.; a vertically offset match illustration makes the mechanics visible. Inspired by Notion's playful product storytelling and Stripe's purposeful visual atmosphere, adapted to Quorem's pixel mark and neutral/blue palette. One Create match CTA. Mode summaries follow the viewport.
+
+| Hero token | Value |
+| --- | --- |
+| display | clamp(80px, 10vw, 144px) |
+| mobile-display | clamp(72px, 18vw, 100px) |
+| display-weight | 800 |
+| display-leading | 0.88 |
+| display-tracking | -0.025em |
+| header-height | 100px; below 700px 80px |
+| content-gap | clamp(32px, 4vw, 56px) |
+| viewport-padding | clamp(32px, 5vw, 64px) |
+| support-width | 36ch |
+| scene-width | 480px |
+| scene-offset | 88px |
+| scene-radius | 16px |
+| scene-shadow | 0 24px 80px neutral text at 8 percent opacity |
+| atmosphere | 12px Swiss dot grid; 2.25px neutral dots, top fade, slow opacity waves |
+| entry-easing | cubic-bezier(0.16, 1, 0.3, 1) |
+| entry-duration | 440ms |
+| entry-stagger | 0/100/220/340ms, completes at 780ms |
+
+The illustration is an example, never a live match or adoption claim. Two player tracks show submitted passed-test counts; Jamie's first correct submission ends the match. One 8.8-second example types code, advances submitted-score bars and ends with Jamie winning. Pause/resume/replay uses a 44px icon control. The visible-time clock pauses offscreen and in hidden tabs. Use opacity/transform only. Reduced motion shows the final scene immediately. Below 1000px the scene moves beneath copy; below 768px heading lines wrap naturally and the scene simplifies its spacing. Preserve 44px targets, theme contrast and no horizontal overflow. All desktop hero content fits at 1440x900, including navigation.
+
+Battle headline: Clash is a blue interactive word with angular crossed swords and a diagonal split through its letters. On entry, hover or activation, blades swing from ±75° through ±36° and settle at ±43° in 680ms. The word separates by 5px at contact; a brief radial spark and slash identify impact. One snappy spring curve, inherited from marketing motion; bounded fine-pointer tilt (8px, 4°), no looping or sound. Native button supports touch and keyboard. Reduced motion cancels the clash and pointer tilt, retaining the swords and readable text. Mobile battle display: clamp(72px, 18vw, 100px). Self-host the upright Latin Barlow Condensed 800 display face; uppercase headline, square-ended lettering, no italic or serif variants. Geist remains the body/interface family. Code/Conquer retain solid neutral text; Clash supplies the sole accent. Match playback and headline use no new runtime dependencies.
+
+Hero Swiss dots follow Ramp’s spring-grid treatment: 150px cursor repulsion, damped return and expanding click ripples. Canvas has no pointer capture; controls keep their native interactions. Offscreen/hidden tabs suspend drawing; reduced motion keeps a static grid.

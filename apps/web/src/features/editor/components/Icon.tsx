@@ -66,20 +66,11 @@ export function Icon({
   );
 }
 
-/** @returns The compact Quorem mark, formed from opposed code brackets. */
+/** @returns The supplied pixel logo, inheriting the active text color. */
 export function Brand() {
   return (
-    <a className="wordmark" href="/run-widths" aria-label="Quorem home">
-      <svg viewBox="0 0 30 30" width="26" height="26" fill="none" aria-hidden="true">
-        <path
-          d="m11 5-8 10 8 10M19 5l8 10-8 10M17 8l-4 14"
-          stroke="currentColor"
-          strokeWidth="2.4"
-        />
-      </svg>
-      <span>
-        quorem<span className="brand-period">.</span>
-      </span>
+    <a className="brand-logo" href="/" aria-label="Quorem home">
+      <span className="brand-mark" aria-hidden="true" />
     </a>
   );
 }

@@ -1,0 +1,15 @@
+---
+interface Props {
+  alt: string;
+  eager?: boolean;
+}
+const { alt, eager = false } = Astro.props;
+---
+<div class="product-preview">
+  {(["light", "dark"] as const).map(theme => (
+    <picture class={`preview-${theme}`}>
+      <source media="(max-width: 700px)" srcset={`/promo/lobby-mobile-${theme}.png`} width="390" height="706" />
+      <img src={`/promo/lobby-${theme}.png`} alt={alt} width="680" height="550" loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : "auto"} />
+    </picture>
+  ))}
+</div>

@@ -34,7 +34,7 @@ jobs:
       - run: vp check
       - run: vp run contracts:check
       - run: vp -C apps/web test
-      - run: vp build
+      - run: vp run build
       - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
       - name: Language lifecycle and Python capabilities
         env:
