@@ -63,3 +63,16 @@ void test("present managed credentials cannot silently select fixture ownership"
   assert.equal(hasManagedCredentials(undefined, undefined), false);
   assert.equal(hasManagedCredentials(undefined, "quorem"), false);
 });
+
+void test("configured worktree origin remains exact and loopback-only", () => {
+  const url = new URL("http://127.0.0.1/lsp?user=alice");
+  assert.equal(
+    authorizeUpgrade("127.0.0.1", "http://127.0.0.1:5180", url, "http://127.0.0.1:5180"),
+    "alice",
+  );
+  assert.equal(authorizeUpgrade("127.0.0.1", "http://evil.test", url, "http://evil.test"), null);
+  assert.equal(
+    authorizeUpgrade("127.0.0.1", "http://127.0.0.1:5181", url, "http://127.0.0.1:5180"),
+    null,
+  );
+});

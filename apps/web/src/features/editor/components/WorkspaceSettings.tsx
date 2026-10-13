@@ -15,6 +15,8 @@ import { Tooltip } from "./Tooltip";
 type SettingsProps = {
   onOpenChange?: (open: boolean) => void;
   identity: DevelopmentIdentity;
+  developmentIdentity?: boolean;
+  accountName?: string;
   onIdentityChange: (identity: DevelopmentIdentity) => void;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
@@ -310,22 +312,28 @@ export function WorkspaceSettings(props: SettingsProps) {
               )}
               {section === "account" && (
                 <>
-                  <Setting
-                    label="Development identity"
-                    description="Separate drafts and match seats for each account."
-                  >
-                    <Choice
-                      label="Local development identity"
-                      value={props.identity}
-                      onChange={(value) => props.onIdentityChange(value as DevelopmentIdentity)}
-                      options={[
-                        { value: "alice", label: "Alice" },
-                        { value: "bob", label: "Bob" },
-                        { value: "charlie", label: "Charlie" },
-                        { value: "dana", label: "Dana" },
-                      ]}
-                    />
-                  </Setting>
+                  {props.developmentIdentity !== false ? (
+                    <Setting
+                      label="Development identity"
+                      description="Separate drafts and match seats for each account."
+                    >
+                      <Choice
+                        label="Local development identity"
+                        value={props.identity}
+                        onChange={(value) => props.onIdentityChange(value as DevelopmentIdentity)}
+                        options={[
+                          { value: "alice", label: "Alice" },
+                          { value: "bob", label: "Bob" },
+                          { value: "charlie", label: "Charlie" },
+                          { value: "dana", label: "Dana" },
+                        ]}
+                      />
+                    </Setting>
+                  ) : (
+                    <Setting label="Account">
+                      <span>{props.accountName ?? props.identity}</span>
+                    </Setting>
+                  )}
                 </>
               )}
             </section>
