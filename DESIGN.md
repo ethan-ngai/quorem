@@ -245,6 +245,6 @@ Navbar logo is 36x35px within its 44px link; the theme control uses a 28x32px fo
 
 ## Editorial and admin authoring
 
-Editorial controls sit below the problem statement, within its existing scroll area. Complexity and solutions start collapsed; language selection uses the shared field tokens. Explanation uses restricted statement Markdown; source is inert monospace text in an overlay-toned region. Active match workspaces omit editorial controls. Disclosure and language controls keep 44px narrow-screen targets.
+Editorial controls sit below the problem statement, within its existing scroll area. Solutions are temporarily absent from practice. Complexity starts collapsed and uses the same eye/slash icon and control styling as Topics. Big-O and free-variable references in its descriptions render through the restricted LaTeX/KaTeX pipeline. Active match workspaces omit editorial controls. Disclosure and language controls keep 44px narrow-screen targets.
 
 Admin authoring uses the existing 48px navigation, neutral surface, 24px heading and 15px body. A compact draft rail precedes grouped labeled fields; JSON editors are reserved for typed signatures/constraints/cases. Safe preview shares the public statement and editorial components. Save and publish remain explicit; publish confirms validation through inline errors. Existing radii, spacing and color tokens apply.
