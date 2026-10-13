@@ -1,9 +1,9 @@
 /** @file WorkspaceSettings.tsx @description Modal preferences with section navigation and accessible controls. @module editor */
 import * as Dialog from "@radix-ui/react-dialog";
-import * as Select from "@radix-ui/react-select";
 import * as Switch from "@radix-ui/react-switch";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
+import { SelectField } from "../../../ui/SelectField";
 import type { ThemePreference } from "../editorSettings";
 import { editorSchemes, type EditorScheme } from "../editorSchemes";
 import { workspaceShortcuts } from "../workspaceShortcuts";
@@ -58,50 +58,6 @@ function Setting({
       </div>
       {children}
     </div>
-  );
-}
-
-function Choice({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: readonly { value: string; label: string }[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Select.Root value={value} onValueChange={onChange}>
-      <Select.Trigger className="settings-select" aria-label={label}>
-        <Select.Value />
-        <Select.Icon>
-          <Icon name="chevron" />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Content
-          className="settings-select-menu"
-          position="popper"
-          sideOffset={5}
-          collisionPadding={12}
-        >
-          <Select.ScrollUpButton className="select-scroll">↑</Select.ScrollUpButton>
-          <Select.Viewport>
-            {options.map((option) => (
-              <Select.Item className="settings-select-item" key={option.value} value={option.value}>
-                <Select.ItemText>{option.label}</Select.ItemText>
-                <Select.ItemIndicator>
-                  <Icon name="submit" />
-                </Select.ItemIndicator>
-              </Select.Item>
-            ))}
-          </Select.Viewport>
-          <Select.ScrollDownButton className="select-scroll">↓</Select.ScrollDownButton>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
   );
 }
 
@@ -207,7 +163,8 @@ export function WorkspaceSettings(props: SettingsProps) {
                     </div>
                   </Setting>
                   <Setting label="Editor color scheme">
-                    <Choice
+                    <SelectField
+                      className="select-field--settings"
                       label="Editor color scheme"
                       value={props.editorScheme}
                       onChange={(value) => props.onEditorSchemeChange(value as EditorScheme)}
@@ -219,7 +176,8 @@ export function WorkspaceSettings(props: SettingsProps) {
               {section === "editor" && (
                 <>
                   <Setting label="Code size">
-                    <Choice
+                    <SelectField
+                      className="select-field--settings"
                       label="Code font size"
                       value={String(props.fontSize)}
                       onChange={(value) => props.onFontSizeChange(Number(value))}
@@ -230,7 +188,8 @@ export function WorkspaceSettings(props: SettingsProps) {
                     />
                   </Setting>
                   <Setting label="Indentation">
-                    <Choice
+                    <SelectField
+                      className="select-field--settings"
                       label="Indent size"
                       value={String(props.tabSize)}
                       onChange={(value) => props.onTabSizeChange(Number(value) as 2 | 4)}

@@ -1,12 +1,12 @@
 .app-shell {
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: var(--navigation-height) minmax(0, 1fr);
   height: 100dvh;
   overflow: hidden;
   background: var(--color-background);
 }
 .app-shell.has-match {
-  grid-template-rows: 48px auto minmax(0, 1fr);
+  grid-template-rows: var(--navigation-height) auto minmax(0, 1fr);
 }
 .topbar {
   display: flex;
@@ -766,9 +766,6 @@ kbd {
   min-height: 100dvh;
   background: var(--color-background);
 }
-.match-page .topbar {
-  height: 64px;
-}
 .workspace-mode {
   color: var(--color-text-secondary);
   font-size: 12px;
@@ -1241,10 +1238,10 @@ kbd {
 }
 @media (max-width: 900px) {
   .app-shell {
-    grid-template-rows: 48px 40px minmax(0, 1fr);
+    grid-template-rows: var(--navigation-height) 40px minmax(0, 1fr);
   }
   .app-shell.has-match {
-    grid-template-rows: 48px auto 40px minmax(0, 1fr);
+    grid-template-rows: var(--navigation-height) auto 40px minmax(0, 1fr);
   }
   .topbar {
     gap: 8px;
@@ -2012,21 +2009,6 @@ kbd {
   line-height: 1.5;
   color: var(--color-text-secondary);
 }
-.settings-select {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 130px;
-  max-width: 190px;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-field);
-  color: var(--color-text);
-  font-size: 12px;
-  flex-shrink: 0;
-}
 .theme-segments {
   display: flex;
   flex-shrink: 0;
@@ -2059,45 +2041,6 @@ kbd {
     width: 44px;
     height: 44px;
   }
-}
-.settings-select svg {
-  width: 14px;
-  height: 14px;
-  color: var(--color-text-secondary);
-}
-.settings-select-menu {
-  z-index: 80;
-  min-width: var(--radix-select-trigger-width);
-  max-height: var(--radix-select-content-available-height);
-  padding: 4px;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-overlay);
-  color: var(--color-text);
-  box-shadow: 0 6px 20px #0002;
-  animation: tooltip-enter 120ms ease-out;
-}
-.settings-select-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  cursor: pointer;
-  outline: none;
-}
-.settings-select-item[data-highlighted] {
-  background: var(--color-surface);
-}
-.settings-select-item svg {
-  width: 14px;
-  height: 14px;
-}
-.select-scroll {
-  text-align: center;
 }
 .settings-switch {
   width: 34px;
@@ -2194,12 +2137,11 @@ kbd {
 .settings-action svg:first-child {
   margin-left: 0;
 }
-.settings-dialog :is(button, a),
-.settings-select {
+.settings-dialog :is(button, a) {
   transition:
-    background-color 120ms ease,
-    color 120ms ease,
-    opacity 120ms ease;
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    opacity var(--motion-fast);
 }
 .settings-dialog button:active {
   filter: brightness(0.95);
@@ -2253,10 +2195,6 @@ kbd {
     flex-direction: column;
     gap: 10px;
   }
-  .settings-select {
-    max-width: none;
-    width: 100%;
-  }
   .shortcut-tile {
     grid-template-columns: 18px 1fr;
   }
@@ -2268,24 +2206,7 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .settings-dialog,
   .settings-backdrop,
-  .settings-section,
-  .settings-select-menu {
+  .settings-section {
     animation: none;
   }
-}
-
-.editor-language select {
-  color: var(--color-text);
-  background: transparent;
-  border: 0;
-  font: inherit;
-  padding: 4px 20px 4px 0;
-  cursor: pointer;
-}
-.editor-language select:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-.editor-language select:disabled {
-  cursor: default;
 }

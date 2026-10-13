@@ -1,8 +1,7 @@
 /** @file PracticeBrowser.tsx @description Public question catalog with local filtering and sorting. @module practice */
-import * as Select from "@radix-ui/react-select";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Search, X } from "lucide-react";
 import { useState } from "react";
 import type { ProblemVersion } from "@quorem/contracts";
 import { api, requireData } from "../editor/api";
@@ -10,6 +9,7 @@ import { Tooltip } from "../editor/components/Tooltip";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { SelectField } from "../../ui/SelectField";
 import "../../styles/workspace.css";
 import "./practice.css";
 
@@ -44,52 +44,6 @@ export function filterProblems(
       const comparison = order || a.title.localeCompare(b.title) || a.slug.localeCompare(b.slug);
       return descending ? -comparison : comparison;
     });
-}
-
-function Filter({
-  name,
-  value,
-  options,
-  onChange,
-}: {
-  name: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <Select.Root value={value} onValueChange={onChange}>
-      <Select.Trigger className="practice-filter" aria-label={name}>
-        <Select.Value />
-        <Select.Icon>
-          <ChevronDown size={14} />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Content
-          className="practice-filter-menu"
-          position="popper"
-          sideOffset={5}
-          collisionPadding={12}
-        >
-          <Select.Viewport>
-            {options.map((option) => (
-              <Select.Item
-                className="practice-filter-option"
-                value={option.value}
-                key={option.value}
-              >
-                <Select.ItemText>{option.label}</Select.ItemText>
-                <Select.ItemIndicator>
-                  <Check size={14} />
-                </Select.ItemIndicator>
-              </Select.Item>
-            ))}
-          </Select.Viewport>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
-  );
 }
 
 /** @returns Searchable public catalog; request failures retain explicit retry. */
@@ -142,8 +96,9 @@ export function PracticeBrowser() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
-          <Filter
-            name="Difficulty"
+          <SelectField
+            className="select-field--filter"
+            label="Difficulty"
             value={difficulty}
             onChange={setDifficulty}
             options={[
@@ -152,8 +107,9 @@ export function PracticeBrowser() {
             ]}
           />
           {topics.length > 0 && (
-            <Filter
-              name="Topic"
+            <SelectField
+              className="select-field--filter"
+              label="Topic"
               value={topic}
               onChange={setTopic}
               options={[
