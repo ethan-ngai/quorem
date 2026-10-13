@@ -11,6 +11,8 @@ make dev
 
 Open http://localhost:5173 for the Astro homepage; /practice lists questions, /practice/{slug} opens the editor, and /match/{id} opens a match. The supervisor builds language images, starts PostgreSQL, seeds six original problems and real accounts, and starts auth, API, judge, language service and web. Sign in as `alice` (admin) or `bob` using `AUTH_SEED_PASSWORD` from ignored `.local/auth-preview.json`. Guests may read questions/edit code; IntelliSense, Run and Submit require sign-in.
 
+Profile photos use private S3 storage; `make dev` starts Garage at loopback port 53900 with persisted local credentials/data. Missing photos use HTML initials. Workspace settings sits beside the profile button. See [profile storage](docs/implementation/profile-photos.md).
+
 `make check` checks TypeScript, contracts, editor/language/auth tests and Go. `make build` builds apps. `make seed` restores problem data; `make reset` deletes the local database volume and reseeds it. Create a private match as Alice, open its invite in a separate browser profile/private window, sign in as Bob, and ready both players.
 
 Implementation evidence and limitations: [local 1v1 verification](docs/implementation/local-1v1.md), [earlier solo checkpoint](docs/implementation/local-solo.md).

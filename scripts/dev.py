@@ -8,6 +8,7 @@ import signal
 import subprocess
 import time
 from urllib.parse import urlparse
+from garage import prepare_garage
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
@@ -49,6 +50,7 @@ if ENV["QUOREM_DEV_IDENTITY"] != "true" and ENV["AUTH_MODE"] == "password":
         ENV.setdefault(key, value)
 
 processes = []
+local_storage = prepare_garage(ROOT, ENV) if ENV["QUOREM_DEV_IDENTITY"] != "true" else False
 
 
 def stop(_signal, _frame):
@@ -60,7 +62,7 @@ signal.signal(signal.SIGINT, stop)
 try:
     Path(".local/bin").mkdir(parents=True, exist_ok=True)
     for command in [
-        ["docker", "compose", "up", "-d", "--wait"],
+        ["docker", "compose", *(["--profile", "storage"] if local_storage else []), "up", "-d", "--wait"],
         ["docker", "build", "-f", "apps/runner/Dockerfile", "-t", "quorem-python:local", "."],
         *[["docker", "build", "-f", f"apps/runner/Dockerfile.{language}", "-t", f"quorem-{language}:local", "."] for language in ("java", "typescript", "ocaml")],
         ["docker", "build", "-f", "apps/language/Dockerfile", "-t", "quorem-language:local", "."],

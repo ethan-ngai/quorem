@@ -1,8 +1,36 @@
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
+import { Readable } from "node:stream";
 import { toNodeHandler } from "better-auth/node";
 import { auth, config, database } from "./auth.ts";
+import { createProfileHandler } from "./profile.ts";
+import { s3ProfileStorage } from "./profile-storage.ts";
 const handler = toNodeHandler(auth);
+const profileHandler = createProfileHandler({
+  origin: config.origin,
+  session: (headers) => auth.api.getSession({ headers }),
+  storage: s3ProfileStorage(process.env),
+  repository: {
+    async read(id) {
+      const result = await database.query(
+        'SELECT id,name,email,username,image FROM "user" WHERE id=$1',
+        [id],
+      );
+      return result.rows[0];
+    },
+    async replace(id, previous, next) {
+      const result = await database.query(
+        'UPDATE "user" SET image=$3,"updatedAt"=NOW() WHERE id=$1 AND image IS NOT DISTINCT FROM $2 RETURNING id',
+        [id, previous, next],
+      );
+      return result.rowCount === 1;
+    },
+    async contains(image) {
+      const result = await database.query('SELECT 1 FROM "user" WHERE image=$1 LIMIT 1', [image]);
+      return result.rowCount === 1;
+    },
+  },
+});
 const server = createServer(async (req, res) => {
   if (req.url === "/api/auth/quorem-config" && req.method === "GET") {
     res
@@ -34,9 +62,27 @@ const server = createServer(async (req, res) => {
     return;
   }
   try {
+    if (req.url?.startsWith("/api/auth/profile")) {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(req.headers)) {
+        if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+      }
+      const requestOptions: RequestInit & { duplex?: "half" } = { method: req.method, headers };
+      if (!["GET", "HEAD"].includes(req.method ?? "GET")) {
+        requestOptions.body = Readable.toWeb(req) as ReadableStream<Uint8Array>;
+        requestOptions.duplex = "half";
+      }
+      const response = await profileHandler(new Request(config.origin + req.url, requestOptions));
+      if (response) {
+        response.headers.forEach((value, name) => res.setHeader(name, value));
+        res.writeHead(response.status).end(Buffer.from(await response.arrayBuffer()));
+        return;
+      }
+    }
     await handler(req, res);
   } catch {
     res.writeHead(503).end();
   }
 });
+server.requestTimeout = 15000;
 server.listen(Number(process.env.AUTH_PORT ?? 8082), "127.0.0.1");
