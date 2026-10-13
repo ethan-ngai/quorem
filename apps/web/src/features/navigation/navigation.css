@@ -25,7 +25,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-overlay);
-  color: var(--color-text-primary);
+  color: var(--color-text);
   animation: tooltip-enter var(--motion-standard) var(--motion-easing);
 }
 .nav-popover[data-state="closed"] {
@@ -37,7 +37,7 @@
   gap: var(--space-2);
   padding: var(--space-2);
   border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
+  color: var(--color-text);
   text-decoration: none;
   font-size: 14px;
   transition: background var(--motion-fast) var(--motion-easing);
@@ -45,36 +45,6 @@
 .nav-menu a:hover,
 .nav-menu a[aria-current] {
   background: var(--color-surface);
-}
-.nav-profile h2 {
-  margin: var(--space-2);
-  font-size: 14px;
-  font-weight: 600;
-}
-.nav-profile .identity-choice {
-  margin: var(--space-2);
-}
-.nav-profile .identity-choice > svg {
-  display: none;
-}
-.nav-profile .identity-choice .settings-select {
-  flex: 1;
-}
-.nav-theme {
-  display: flex;
-  margin: var(--space-2);
-  gap: var(--space-1);
-}
-.nav-theme button[aria-pressed="true"] {
-  color: var(--color-primary);
-  background: var(--color-surface);
-}
-.nav-preferences {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: var(--space-2);
-  font-size: 14px;
 }
 .nav-menu-trigger svg,
 .nav-profile-trigger svg,
@@ -153,4 +123,224 @@
 
 .nav-profile[data-state="closed"] {
   display: none;
+}
+
+.nav-profile {
+  width: var(--profile-menu-width, 260px);
+  padding: 0;
+  overflow: hidden;
+}
+.account-menu-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--profile-header-padding, 12px);
+}
+.account-menu-identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.account-menu-identity strong {
+  font-size: var(--profile-name-size, 14px);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.account-menu-identity > span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+.account-avatar-large {
+  width: var(--profile-avatar-size, 36px);
+  height: var(--profile-avatar-size, 36px);
+  font-size: 13px;
+}
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account-avatar-tone-1 {
+  color: var(--color-primary);
+  background: var(--color-brand-secondary);
+}
+.account-avatar-tone-2 {
+  color: var(--color-success);
+}
+.account-avatar-tone-3 {
+  color: var(--color-warning);
+}
+.account-menu-rows {
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.account-menu-rows > button,
+.account-menu-rows > a,
+.account-menu-footer > button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--profile-row-height, 34px);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.account-menu-rows svg,
+.account-menu-footer svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.7;
+  flex-shrink: 0;
+}
+.account-menu-rows > button:hover,
+.account-menu-rows > a:hover,
+.account-menu-footer > button:hover {
+  background: var(--color-surface);
+}
+.account-menu-chevron {
+  margin-left: auto;
+  color: var(--color-text-disabled);
+}
+.account-menu-footer {
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.account-menu-footer .account-logout {
+  color: var(--color-error);
+}
+.account-menu-status,
+.account-menu-footer p {
+  margin: var(--space-4);
+  font-size: 14px;
+}
+.account-dialog {
+  position: fixed;
+  z-index: 61;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-overlay);
+  color: var(--color-text);
+}
+.account-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+.account-dialog-header h2 {
+  font-size: 19px;
+  margin: 0 0 var(--space-2);
+}
+.account-dialog-header p,
+.account-photo-editor p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.account-photo-editor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-block: var(--space-6);
+}
+.account-upload {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+.account-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.account-upload:focus-within {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.account-upload.is-disabled {
+  opacity: 0.6;
+}
+.account-photo-editor p {
+  margin-top: var(--space-2);
+  font-size: 12px;
+}
+.account-profile-details {
+  margin: 0;
+}
+.account-profile-details > div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+  font-size: 14px;
+}
+.account-profile-details dt {
+  color: var(--color-text-secondary);
+}
+.account-profile-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.account-error {
+  color: var(--color-error);
+  font-size: 14px;
+}
+.account-theme-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-top: var(--space-6);
+  font-size: 14px;
+}
+[data-theme="light"] .nav-profile,
+[data-theme="light"] .account-dialog {
+  box-shadow: 0 8px 24px oklch(0.2 0 0 / 0.08);
+}
+
+@media (pointer: coarse) {
+  .account-menu-rows > button,
+  .account-menu-rows > a,
+  .account-menu-footer > button {
+    min-height: var(--narrow-touch-target);
+  }
 }

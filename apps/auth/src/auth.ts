@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { jwt, username } from "better-auth/plugins";
 import { config, database } from "./database.ts";
 export { config, database } from "./database.ts";
@@ -25,11 +26,28 @@ export function createAuth(allowSeed = false) {
               domain: config.domain,
               region: config.region,
               userPoolId: config.userPoolId,
-              pkce: true,
             },
           }
         : {},
     session: { cookieCache: { enabled: false } },
+    databaseHooks: {
+      user: {
+        create: { before: async (user) => ({ data: { ...user, image: null } }) },
+        update: {
+          before: async (user, context) => {
+            if (Object.hasOwn(user, "image")) {
+              if (context?.path === "/update-user" && Object.hasOwn(context.body ?? {}, "image"))
+                throw new APIError("BAD_REQUEST", {
+                  message: "Use the profile photo upload endpoint",
+                });
+              // Provider refreshes cannot replace a server-owned S3 photo.
+              const { image: _image, ...data } = user;
+              return { data };
+            }
+          },
+        },
+      },
+    },
     advanced: { useSecureCookies: new URL(config.origin).protocol === "https:" },
     plugins: [
       ...(config.method === "password" ? [username({ immutableUsername: true })] : []),

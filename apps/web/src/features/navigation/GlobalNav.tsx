@@ -1,7 +1,7 @@
-import { useSession, signOut } from "../auth/session";
+import { useSession } from "../auth/session";
 import * as Popover from "@radix-ui/react-popover";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { BookOpen, Home, Menu, Monitor, Moon, Plus, Sun, UserRound } from "lucide-react";
+import { BookOpen, Home, Menu, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
@@ -10,6 +10,7 @@ import { Tooltip } from "../editor/components/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/MatchControls";
 import { isMatchCreationRequest } from "./matchCreationIntent";
+import { AccountMenu } from "./AccountMenu";
 import "./navigation.css";
 
 export function GlobalNav({
@@ -32,7 +33,6 @@ export function GlobalNav({
 }) {
   const session = useSession();
   const actor = (session.data?.user.id ?? identity) as DevelopmentIdentity;
-  const [accountError, setAccountError] = useState("");
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
@@ -129,82 +129,14 @@ export function GlobalNav({
         </nav>
         <div className="topbar-spacer" />
         {children}
-        <Popover.Root>
-          <Tooltip content="Profile and preferences">
-            <Popover.Trigger asChild>
-              <button
-                className="icon-button nav-profile-trigger"
-                aria-label="Profile and preferences"
-              >
-                <UserRound size={18} />
-              </button>
-            </Popover.Trigger>
-          </Tooltip>
-          {/* Keep the nested settings dialog mounted when its popover closes. */}
-          <Popover.Portal forceMount>
-            <Popover.Content
-              forceMount
-              className="nav-popover nav-profile"
-              align="end"
-              sideOffset={8}
-              collisionPadding={8}
-              aria-label="Profile and preferences"
-            >
-              <h2>Account</h2>
-              {session.isPending ? (
-                <p role="status">Checking account…</p>
-              ) : session.isError ? (
-                <p role="alert">Account unavailable. Reload to retry.</p>
-              ) : session.data ? (
-                <>
-                  <p>{session.data.user.displayName}</p>
-                  {session.data.user.role === "admin" ? (
-                    <a href="/admin/questions">Edit questions</a>
-                  ) : null}
-                  <button
-                    className="quiet-button"
-                    onClick={() => {
-                      void signOut().catch(() => setAccountError("Sign out unavailable"));
-                    }}
-                  >
-                    Sign out
-                  </button>
-                  {accountError ? <p role="alert">{accountError}</p> : null}
-                </>
-              ) : (
-                <a href="/login">Sign in</a>
-              )}
-              {onThemeChange && (
-                <div className="nav-theme" role="group" aria-label="Color theme">
-                  {(
-                    [
-                      { value: "system", label: "System", Icon: Monitor },
-                      { value: "light", label: "Light", Icon: Sun },
-                      { value: "dark", label: "Dark", Icon: Moon },
-                    ] as const
-                  ).map(({ value, label, Icon }) => (
-                    <Tooltip key={value} content={label}>
-                      <button
-                        className="icon-button"
-                        aria-label={label}
-                        aria-pressed={theme === value}
-                        onClick={() => onThemeChange(value)}
-                      >
-                        <Icon size={18} />
-                      </button>
-                    </Tooltip>
-                  ))}
-                </div>
-              )}
-              {preferences && (
-                <div className="nav-preferences">
-                  {preferences}
-                  <span>Workspace settings</span>
-                </div>
-              )}
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
+        {preferences}
+        <AccountMenu
+          session={session.data}
+          pending={session.isPending}
+          failed={session.isError}
+          theme={theme}
+          onThemeChange={onThemeChange}
+        />
       </header>
       {creating && <CreateMatchDialog onClose={() => setCreating(false)} identity={actor} />}
     </>
