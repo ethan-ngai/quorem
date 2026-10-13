@@ -12,9 +12,16 @@ it("does not render or fetch editorial code and costs on initial opening", () =>
     </QueryClientProvider>,
   );
   expect(markup).toContain("Show complexity");
-  expect(markup).toContain("Show solutions");
+  expect(markup).not.toContain("solutions");
+  expect(markup).toContain("visibility-icon");
   expect(markup).not.toContain("editorial-source");
   expect(markup).not.toContain("Auxiliary space");
+  expect(
+    client
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey[0]),
+  ).toEqual(["complexity"]);
   expect(
     client
       .getQueryCache()
