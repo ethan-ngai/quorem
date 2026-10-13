@@ -1,9 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { migrateAuth } from "./migrations.ts";
 import { database } from "./database.ts";
 try {
-  await database.query(
-    await readFile(new URL("../migrations/001_auth.sql", import.meta.url), "utf8"),
-  );
+  await migrateAuth(database);
 } finally {
   await database.end();
 }

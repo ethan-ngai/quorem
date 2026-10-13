@@ -24,3 +24,24 @@ describe("auth configuration", () => {
     expect(() => configuration({ ...env, APP_ENV: "production" })).toThrow();
   });
 });
+
+describe("password preview configuration", () => {
+  const local = {
+    ...env,
+    AUTH_MODE: "password",
+    COGNITO_CLIENT_ID: undefined,
+    COGNITO_CLIENT_SECRET: undefined,
+    COGNITO_DOMAIN: undefined,
+    COGNITO_REGION: undefined,
+    COGNITO_USERPOOL_ID: undefined,
+  };
+  it("permits local credentials without Cognito config", () =>
+    expect(configuration(local).method).toBe("password"));
+  it("rejects production and remote credential modes", () => {
+    expect(() =>
+      configuration({ ...local, APP_ENV: "production", AUTH_ORIGIN: "https://localhost" }),
+    ).toThrow();
+    expect(() => configuration({ ...local, AUTH_ORIGIN: "https://example.com" })).toThrow();
+    expect(() => configuration({ ...local, AUTH_MODE: "other" })).toThrow();
+  });
+});

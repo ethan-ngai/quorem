@@ -5,8 +5,6 @@ import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
-import { readPreference } from "../editor/editorSettings";
-import type { DevelopmentIdentity } from "@quorem/contracts";
 import { api, requireData } from "../editor/api";
 import { createDraft, getDraft, listDrafts, publishDraft, saveDraft } from "./api";
 import { blankQuestion } from "./content";
@@ -20,11 +18,7 @@ export function QuestionEditor() {
   const theme = useTheme();
   return (
     <>
-      <GlobalNav
-        identity={readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice")}
-        theme={theme.preference}
-        onThemeChange={theme.setPreference}
-      />
+      <GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />
       {session.isPending ? (
         <main className="admin-access" role="status">
           Checking account…
@@ -64,9 +58,7 @@ function AuthoringWorkspace() {
   const problems = useQuery({
     queryKey: ["admin-problems"],
     queryFn: async () => {
-      const { data, error } = await api(
-        readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
-      ).GET("/v1/problems");
+      const { data, error } = await api().GET("/v1/problems");
       return requireData(data, error).items;
     },
   });

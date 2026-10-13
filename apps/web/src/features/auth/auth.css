@@ -1,0 +1,41 @@
+.auth-page {
+  min-height: 100dvh;
+  padding: var(--space-6);
+}
+.auth-content {
+  max-width: 360px;
+  margin: clamp(48px, 12vh, 128px) auto;
+}
+.auth-content h1 {
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+.auth-content > p {
+  color: var(--color-text-secondary);
+  margin: var(--space-4) 0 var(--space-6);
+}
+.auth-content form,
+.auth-content label {
+  display: grid;
+  gap: var(--space-2);
+}
+.auth-content form {
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+.auth-content input {
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text);
+  font: inherit;
+}
+.auth-content .button {
+  min-height: 44px;
+}
+.auth-content [role="alert"] {
+  color: var(--color-error);
+}

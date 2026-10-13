@@ -2,7 +2,7 @@
 
 Issues: #14, #34–#37. Auth/login precedes admin implementation.
 
-- `/login`: Cognito managed account flow through Better Auth. Application JWTs stay in memory; Go checks live sessions and server-owned roles. No duplicated password store.
+- `/login`: real Better Auth sessions. Local preview uses seeded username/password accounts; deployed login uses Cognito. Application JWTs stay in memory; Go checks live sessions and server-owned roles.
 - `/admin/questions`: create or fork drafts; edit statement/topics/signature/constraints/examples/20 hidden cases, per-language templates/private references/editorials/Big-O definitions. Save explicitly, then publish. Invalid JSON blocks save/preview; publication validates supported codecs/pins/bounds. Draft listing uses 50-row keyset pages; detail is fetched only on opening.
 - Publishing locks the draft and slug, creates a fresh immutable version and all artifacts/editorials, seals it, advances the publication pointer and consumes the draft atomically. Existing workspaces/submissions/matches keep their version IDs. Published drafts are read-only; create next version to edit.
 - Practice and active matches select Python/Java/TypeScript/OCaml independently. Match language changes retain per-language workspaces, private browser drafts and pinned execution revisions; busy/closed/forfeited participants cannot switch.
@@ -11,9 +11,11 @@ Issues: #14, #34–#37. Auth/login precedes admin implementation.
 
 ## Local validation
 
-Run `make dev` for the complete default stack. Worktree UI ports can configure `QUOREM_API_DEV_ORIGIN`, `QUOREM_AUTH_DEV_ORIGIN` and exact loopback `WEB_ORIGIN` for the language gateway.
+Run `make dev` for the complete default stack with authenticated API, realtime and language gateway. Local credentials and service secrets are generated once into ignored `.local/auth-preview.json` (owner-readable permissions). Sign in as `alice` (admin) or `bob` (regular user) using its `AUTH_SEED_PASSWORD`; restart preserves their subjects/passwords. `AUTH_MODE=password` requires explicit local loopback configuration; Cognito is mutually exclusive. Worktree UI ports can configure `WEB_ORIGIN`, `API_ADDR` and `AUTH_SERVICE_URL`.
 
-For an isolated admin demonstration, use a dedicated local database and explicitly grant its seeded actor with `UPDATE users SET role='admin' WHERE id='alice'`. Never grant roles from browser flags or seed administrators automatically. Managed accounts receive their role through the product database after immutable identity binding.
+The guarded local seed grants Alice admin in the product database using immutable issuer/subject bindings. Browser flags never grant roles. Deployed accounts require explicit database grants.
+
+Guests may browse questions and edit code. IntelliSense and execution require sign-in; Run/Submit prompts preserve the current question route. Development identity switches are absent from product UI.
 
 Evidence: fresh/backfill/sealing/atomic rollback/role/revision tests on disposable PostgreSQL; Docker language corpus/codec/limit/isolation tests; web/auth tests and builds; live Vite admin edit/save/preview/publish and multilingual execution/disclosure. Production build does not replace the live editing server.
 

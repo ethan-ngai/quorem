@@ -1,5 +1,3 @@
-import type { DevelopmentIdentity } from "@quorem/contracts";
-import { readPreference } from "../editor/editorSettings";
 import { useQuery } from "@tanstack/react-query";
 export type Session = {
   user: { id: string; displayName: string; emailVerified: boolean; role: "user" | "admin" };
@@ -7,51 +5,87 @@ export type Session = {
 };
 let access: { token: string; until: number } | undefined;
 let pending: Promise<string | undefined> | undefined;
+let generation = 0;
+function resetToken() {
+  generation++;
+  access = undefined;
+  pending = undefined;
+}
 export async function token(): Promise<string | undefined> {
   if (access && access.until > Date.now()) return access.token;
   if (pending) return pending;
-  pending = fetch("/api/auth/token", { credentials: "same-origin" })
+  const requestedGeneration = generation;
+  const request = fetch("/api/auth/token", { credentials: "same-origin" })
     .then(async (response) => {
       if (!response.ok) return undefined;
       const data = (await response.json()) as { token?: string };
+      if (requestedGeneration !== generation) return undefined;
       if (data.token) access = { token: data.token, until: Date.now() + 240_000 };
       return data.token;
     })
     .catch(() => undefined)
     .finally(() => {
-      pending = undefined;
+      if (pending === request) pending = undefined;
     });
-  return pending;
+  pending = request;
+  return request;
 }
 /** Bearer tokens stay in memory; local headers never reach managed requests. */
 export const authenticatedFetch: typeof fetch = async (input, init) => {
   const request = new Request(input, init);
   const bearer = await token();
+  request.headers.delete("X-Dev-User");
   if (bearer) {
-    request.headers.delete("X-Dev-User");
     request.headers.set("Authorization", `Bearer ${bearer}`);
   }
   return fetch(request);
 };
-export async function fetchSession(identity: DevelopmentIdentity): Promise<Session | null> {
+export async function fetchSession(): Promise<Session | null> {
   const response = await authenticatedFetch(
-    new Request(new URL("/v1/session", window.location.origin), {
-      headers: { "X-Dev-User": identity },
-    }),
+    new Request(new URL("/v1/session", window.location.origin)),
   );
   if (response.status === 401) return null;
   if (!response.ok) throw new Error("Account unavailable");
   return response.json() as Promise<Session>;
 }
-export function useSession(
-  identity: DevelopmentIdentity = readPreference("quorem.dev-identity.v1", "alice"),
-) {
+export function useSession() {
   return useQuery({
-    queryKey: ["auth-session", identity],
-    queryFn: () => fetchSession(identity),
+    queryKey: ["auth-session"],
+    queryFn: fetchSession,
     retry: false,
     staleTime: 30_000,
   });
+}
+export async function authMethod(): Promise<"password" | "cognito"> {
+  const response = await fetch("/api/auth/quorem-config", { credentials: "same-origin" });
+  if (!response.ok) throw new Error("Sign in unavailable");
+  const data = (await response.json()) as { method?: string };
+  if (data.method !== "password" && data.method !== "cognito")
+    throw new Error("Sign in unavailable");
+  return data.method;
+}
+export function signInDestination(search: string = location.search ?? ""): string {
+  const requested = new URLSearchParams(search).get("returnTo") ?? "";
+  return /^\/(practice|match|invite|admin)(\/|$)/.test(requested) &&
+    !requested.includes("\\") &&
+    !/[\r\n]/.test(requested)
+    ? requested
+    : "/practice";
+}
+export async function signInWithPassword(username: string, password: string) {
+  const response = await fetch("/api/auth/sign-in/username", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!response.ok) {
+    if (response.status === 429) throw new Error("Too many attempts. Try again shortly.");
+    if (response.status >= 500) throw new Error("Sign in unavailable. Try again.");
+    throw new Error("Incorrect username or password.");
+  }
+  resetToken();
+  location.assign(signInDestination());
 }
 export async function signIn() {
   const response = await fetch("/api/auth/sign-in/social", {
@@ -60,7 +94,7 @@ export async function signIn() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       provider: "cognito",
-      callbackURL: `${location.origin}/practice`,
+      callbackURL: `${location.origin}${signInDestination()}`,
       errorCallbackURL: `${location.origin}/login`,
     }),
   });
@@ -77,6 +111,6 @@ export async function signOut() {
     body: "{}",
   });
   if (!response.ok) throw new Error("Sign out unavailable");
-  access = undefined;
+  resetToken();
   location.assign("/practice");
 }

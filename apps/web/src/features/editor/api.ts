@@ -11,7 +11,7 @@ import type {
 } from "@quorem/contracts";
 
 /** Creates a same-origin client so local requests pass through Vite's API proxy. */
-export const api = (identity: DevelopmentIdentity) =>
+export const api = (identity: DevelopmentIdentity = "anonymous" as DevelopmentIdentity) =>
   createApiClient({
     baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
     identity,

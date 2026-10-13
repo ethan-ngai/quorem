@@ -12,7 +12,7 @@ import { Icon } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch, leaveMatch, setReady, startMatch, updateMatchSettings } from "./api";
-import { MatchSettings, ModeIcon, defaultMatchSettings, useLocalIdentity } from "./MatchControls";
+import { MatchSettings, ModeIcon, defaultMatchSettings, useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { InvitationActions } from "./InvitationActions";
 import { ReadinessIcon } from "./ReadinessIcon";
@@ -115,7 +115,7 @@ function MatchLedger({
 
 /** @returns A fully authoritative match route, revealing the problem only after start. */
 export function MatchPage({ matchId }: { matchId: string }) {
-  const { identity, setIdentity } = useLocalIdentity();
+  const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
   const { snapshot, error, status, refetch } = useMatchSync(identity, matchId);
   const [pending, setPending] = useState(false);
@@ -155,15 +155,22 @@ export function MatchPage({ matchId }: { matchId: string }) {
       setPending(false);
     }
   };
+  if (!account.isPending && !account.data)
+    return (
+      <main className="match-page">
+        <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
+        <section className="match-page-content">
+          <h1>Sign in to join the match</h1>
+          <a className="button button-primary" href="/login">
+            Sign in
+          </a>
+        </section>
+      </main>
+    );
   if (!snapshot)
     return (
       <main className="match-page">
-        <GlobalNav
-          identity={identity}
-          onIdentityChange={setIdentity}
-          theme={preference}
-          onThemeChange={setPreference}
-        />
+        <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
         <section className="match-page-content">
           <h1>{error ? "Match unavailable" : "Opening match…"}</h1>
           {error && (
@@ -286,7 +293,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
         match={snapshot}
         matchWorkspaceId={ownWorkspaceId}
         identity={identity}
-        onIdentityChange={setIdentity}
         matchHeader={ledger}
       />
     );
@@ -296,7 +302,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
       <GlobalNav
         identity={identity}
         mode={snapshot.mode}
-        onIdentityChange={setIdentity}
         theme={preference}
         onThemeChange={setPreference}
       />

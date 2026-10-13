@@ -16,24 +16,12 @@ import {
 } from "lucide-react";
 import { api, requireData } from "../editor/api";
 import { Tooltip } from "../editor/components/Tooltip";
-import { readPreference, writePreference } from "../editor/editorSettings";
 import { FreeForAllIcon } from "./FreeForAllIcon";
 import { Icon } from "../editor/components/Icon";
 
-export function useLocalIdentity() {
-  const [identity, setIdentity] = useState<DevelopmentIdentity>(() =>
-    readPreference("quorem.dev-identity.v1", "alice"),
-  );
-  useEffect(() => writePreference("quorem.dev-identity.v1", identity), [identity]);
-  const account = useSession(identity);
-  return {
-    identity: (account.data?.mode === "managed"
-      ? account.data.user.id
-      : account.data?.mode === "development"
-        ? identity
-        : "anonymous") as DevelopmentIdentity,
-    setIdentity,
-  };
+export function useAccountIdentity() {
+  const account = useSession();
+  return { identity: (account.data?.user.id ?? "anonymous") as DevelopmentIdentity, account };
 }
 
 function MatchChoice({
@@ -378,34 +366,6 @@ export function MatchSettings({
           ))}
         </>
       )}
-    </div>
-  );
-}
-
-export function IdentityChoice({
-  identity,
-  onChange,
-  disabled = false,
-}: {
-  identity: DevelopmentIdentity;
-  onChange: (identity: DevelopmentIdentity) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="identity-choice">
-      <Icon name="people" />
-      <MatchChoice
-        label="Local development identity"
-        value={identity}
-        disabled={disabled}
-        onChange={(value) => onChange(value as DevelopmentIdentity)}
-        options={[
-          { value: "alice", label: "Alice" },
-          { value: "bob", label: "Bob" },
-          { value: "charlie", label: "Charlie" },
-          { value: "dana", label: "Dana" },
-        ]}
-      />
     </div>
   );
 }
