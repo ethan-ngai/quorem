@@ -287,6 +287,12 @@
         },
         "limits": {
           "$ref": "#/$defs/ExecutionLimits"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LanguageImplementation"
+          }
         }
       },
       "required": [
@@ -1162,6 +1168,79 @@
       },
       "required": ["kind"],
       "additionalProperties": false
+    },
+    "LanguageImplementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "starterSource", "runtimeRevision", "harnessRevision"],
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": ["python", "java", "typescript", "ocaml"]
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "runtimeRevision": {
+          "type": "string"
+        },
+        "harnessRevision": {
+          "type": "string"
+        }
+      }
+    },
+    "EditorialSolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "source",
+        "explanationMarkdown",
+        "timeComplexity",
+        "spaceComplexity",
+        "complexityNotes"
+      ],
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": ["python", "java", "typescript", "ocaml"]
+        },
+        "source": {
+          "type": "string"
+        },
+        "explanationMarkdown": {
+          "type": "string"
+        },
+        "timeComplexity": {
+          "type": "string"
+        },
+        "spaceComplexity": {
+          "type": "string"
+        },
+        "complexityNotes": {
+          "type": "string"
+        }
+      }
+    },
+    "EditorialComplexity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "timeComplexity", "spaceComplexity", "complexityNotes"],
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": ["python", "java", "typescript", "ocaml"]
+        },
+        "timeComplexity": {
+          "type": "string"
+        },
+        "spaceComplexity": {
+          "type": "string"
+        },
+        "complexityNotes": {
+          "type": "string"
+        }
+      }
     }
   },
   "$ref": "#/$defs/EventEnvelope"
