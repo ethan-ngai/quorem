@@ -93,8 +93,8 @@ export function WorkspacePage({
   const [localIdentity, setLocalIdentity] = useState<DevelopmentIdentity>(() =>
     readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
   );
-  const account = useSession();
   const fixtureIdentity = providedIdentity ?? localIdentity;
+  const account = useSession(fixtureIdentity);
   const identity = (
     account.data?.mode === "managed" ? account.data.user.id : fixtureIdentity
   ) as DevelopmentIdentity;
@@ -261,7 +261,7 @@ export function WorkspacePage({
   useEffect(() => {
     if (account.data?.mode === "development")
       writePreference("quorem.dev-identity.v1", fixtureIdentity);
-  }, [identity]);
+  }, [fixtureIdentity, account.data?.mode]);
 
   useEffect(() => {
     writePreference("quorem.pane-ratio.v1", paneRatio);
@@ -483,12 +483,13 @@ export function WorkspacePage({
 
   const activeIdentityChanged = useCallback(
     async (next: DevelopmentIdentity) => {
-      if (next === identity) return;
+      if (account.data?.mode !== "development" || next === identity) return;
       await saveCurrentDraft();
       if (dirtyRef.current) return;
+      writePreference("quorem.dev-identity.v1", next);
       setIdentity(next);
     },
-    [identity, saveCurrentDraft, setIdentity],
+    [identity, account.data?.mode, saveCurrentDraft, setIdentity],
   );
 
   const loadError = problemQuery.error ?? workspaceQuery.error;
@@ -597,6 +598,8 @@ export function WorkspacePage({
                 }
               }}
               identity={identity}
+              developmentIdentity={account.data?.mode === "development"}
+              accountName={account.data?.user.displayName}
               onIdentityChange={(next) => void activeIdentityChanged(next)}
               theme={themePreference}
               onThemeChange={setThemePreference}
