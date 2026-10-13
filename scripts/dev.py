@@ -42,6 +42,9 @@ try:
         ["go", "build", "-o", ".local/bin/runner", "./apps/runner/cmd/runner"],
     ]:
         subprocess.run(command, check=True, env=ENV)
+    if ENV["QUOREM_DEV_IDENTITY"] != "true":
+        subprocess.run(["vp", "-C", "apps/auth", "run", "migrate"], check=True, env=ENV)
+        processes.append(subprocess.Popen(["vp", "-C", "apps/auth", "run", "dev"], env=ENV, start_new_session=True))
     for command in [
         ["vp", "-C", "apps/marketing", "run", "dev", "--port", str(urlparse(ENV["QUOREM_MARKETING_DEV_ORIGIN"]).port or 4321)],
         [".local/bin/api"],

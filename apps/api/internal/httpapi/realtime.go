@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 )
@@ -86,14 +87,25 @@ func developmentSubject(user string) string {
 }
 
 func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
-	user := r.URL.Query().Get("user")
-	if user == "" {
-		user = owner(r)
-	}
+	user := owner(r)
 	origin := r.Header.Get("Origin")
-	if !s.Local || developmentSubject(user) == "" || (origin != "http://localhost:5173" && origin != "http://127.0.0.1:5173") {
-		s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Local subscription unavailable", Status: 401})
+	if origin == "" {
+		s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Browser origin required", Status: 401})
 		return
+	}
+	if !s.allowedOrigin(origin) {
+		s.err(w, r, &postgres.Error{Code: "forbidden", Message: "Origin denied", Status: 403})
+		return
+	}
+	// Local fixture selection is never accepted by the managed verifier.
+	if s.Local {
+		if selected := r.URL.Query().Get("user"); selected != "" {
+			if developmentSubject(selected) == "" {
+				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
+				return
+			}
+			user = selected
+		}
 	}
 	id := r.PathValue("id")
 	if !uuid.MatchString(id) {
@@ -104,7 +116,7 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 		s.err(w, r, err)
 		return
 	}
-	connection, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"http://localhost:5173", "http://127.0.0.1:5173"}})
+	connection, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{origin}, Subprotocols: []string{"quorem"}})
 	if err != nil {
 		return
 	}
@@ -117,13 +129,22 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unsubscribe()
-	disconnect, err := s.Presence.Connect(topic, developmentSubject(user))
+	disconnect, err := s.Presence.Connect(topic, presenceSubject(user))
 	if err != nil {
 		connection.Close(websocket.StatusTryAgainLater, "Connection capacity reached")
 		return
 	}
 	defer disconnect()
+	bearer, _ := requestBearer(r)
 	send := func(notice realtime.Notice) error {
+		if bearer != "" {
+			p, e := s.Identity.Verify(ctx, bearer)
+			if e != nil || p.UserID != user {
+				connection.Close(websocket.StatusPolicyViolation, "Sign in required")
+				return identity.ErrUnauthorized
+			}
+		}
+
 		snapshot, e := s.Store.Match(ctx, user, id)
 		if e != nil {
 			return e
@@ -176,4 +197,11 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func presenceSubject(user string) string {
+	if id := developmentSubject(user); id != "" {
+		return id
+	}
+	return user
 }

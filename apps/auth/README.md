@@ -1,0 +1,11 @@
+# Identity service
+
+Better Auth 1.7.7 owns sessions in `quorem_auth`; Cognito owns credentials, verification, reset and Google federation. Better Auth password auth and automatic account linking are disabled. Immutable Better Auth subjects map to internal users; matching emails never link identities.
+
+Copy `.env.example` to `.env`, supply environment secrets, run `vp -C apps/auth run migrate`, then `make auth`. Same-origin reverse proxy routes `/api/auth/*` to port 8082. Set API `QUOREM_DEV_IDENTITY=false`, `AUTH_ORIGIN`, `AUTH_SERVICE_URL=http://127.0.0.1:8082`, `AUTH_INTERNAL_SECRET`; set language `QUOREM_DEV_IDENTITY=false`, `AUTH_ORIGIN`, `API_IDENTITY_URL=http://127.0.0.1:8080`. Browser JWTs stay in memory, expire after five minutes. Go validates EdDSA, issuer, audience, expiry, verification and session identity, then checks live session and server-owned disable/role state. JWKS cache is bounded to five minutes with refresh throttling. Language authorization refreshes every 15 seconds. `/internal/*` is service-only, never proxy publicly.
+
+Configure Cognito authorization code grant, `openid profile email`, callback `${AUTH_ORIGIN}/api/auth/callback/cognito`; register Google through Cognito. Managed login includes signup, verification, reset and federated sign in. Grant admin explicitly in product database `users.role`; never accept browser role flags. Logout clears the Better Auth application session; Go rejects it immediately. Cognito provider SSO may remain until Cognito logout is completed.
+
+`make dev` retains explicitly local loopback fixture identities. Managed mode requires real config; no alternate password store or production development-user fallback. API public problem reads are anonymous. Run mock JWT/security tests with `go test ./apps/api/internal/identity ./apps/api/internal/httpapi`; auth config tests with `vp -C apps/auth test`. Disposable database tests verify immutable mapping, roles and disable behavior. Real Cognito login/Google/verification/reset remains a cloud acceptance gate; configuration/unit tests do not prove those flows.
+
+Sources: [Cognito](https://better-auth.com/docs/authentication/cognito), [JWT](https://better-auth.com/docs/plugins/jwt).

@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -242,5 +245,52 @@ func TestMatchOutboxPublishFailureAndCommitOrder(t *testing.T) {
 	}
 	if e = store.DispatchMatchEvents(ctx, publish); e != nil || count != 3 {
 		t.Fatal("acknowledged event replay", count, e)
+	}
+}
+
+type revocableVerifier struct{ state atomic.Int32 }
+
+func (v *revocableVerifier) Verify(context.Context, string) (identity.Principal, error) {
+	switch v.state.Load() {
+	case 1:
+		return identity.Principal{}, identity.ErrUnauthorized
+	case 2:
+		return identity.Principal{UserID: "bob"}, nil
+	}
+	return identity.Principal{UserID: "alice", SessionID: "managed", EmailVerified: true}, nil
+}
+func TestManagedStreamReauthorizesDelivery(t *testing.T) {
+	for _, state := range []int32{1, 2} {
+		t.Run(fmt.Sprintf("state-%d", state), func(t *testing.T) {
+			store := streamStore(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			created, e := store.CreateMatch(ctx, "alice", postgres.ID(), matches.Settings{Difficulty: "easy", DurationMinutes: 15})
+			if e != nil {
+				t.Fatal(e)
+			}
+			verifier := &revocableVerifier{}
+			events := realtime.NewMemory()
+			defer events.Close()
+			api := &Server{Store: store, Identity: verifier, Events: events, Presence: events, Origins: []string{"http://localhost:5173"}}
+			server := httptest.NewServer(api.Handler())
+			defer server.Close()
+			connection, _, e := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/v1/matches/"+created.ID+"/events", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": []string{"http://localhost:5173"}}, Subprotocols: []string{"quorem", "bearer.signed"}})
+			if e != nil {
+				t.Fatal(e)
+			}
+			defer connection.CloseNow()
+			if _, _, e = connection.Read(ctx); e != nil {
+				t.Fatal(e)
+			}
+			verifier.state.Store(state)
+			if e = events.Publish(ctx, "/matches/"+created.ID, realtime.Notice{AggregateID: created.ID}); e != nil {
+				t.Fatal(e)
+			}
+			_, _, e = connection.Read(ctx)
+			if websocket.CloseStatus(e) != websocket.StatusPolicyViolation {
+				t.Fatalf("revoked/mismatched identity retained stream: %v", e)
+			}
+		})
 	}
 }
