@@ -1,3 +1,8 @@
+.global-nav {
+  height: var(--navigation-height);
+  min-height: var(--navigation-height);
+  flex-shrink: 0;
+}
 .global-nav-links,
 .global-mode,
 .create-match-trigger {

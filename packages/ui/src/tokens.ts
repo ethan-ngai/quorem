@@ -6,6 +6,7 @@ export const workspaceLayout = {
   paneMinimum: 280,
   resultsHeight: 260,
   controlHeight: 32,
+  navigationHeight: 48,
   narrowTouchTarget: 44,
 } as const;
 

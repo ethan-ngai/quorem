@@ -2,11 +2,11 @@
 name: Quorem Workspace
 description: "A compact coding workspace led by Linear: calm tonal surfaces, soft edges, direct problem hierarchy, and restrained blue actions."
 colors:
-  primary: { light: "oklch(0.48 0.15 255)", dark: "oklch(0.72 0.12 255)" }
+  primary: { light: "oklch(0.54 0.22 260)", dark: "oklch(0.68 0.165 260)" }
   brand:
-    primary: { light: "oklch(0.48 0.15 255)", dark: "oklch(0.72 0.12 255)" }
-    secondary: { light: "oklch(0.94 0.025 255)", dark: "oklch(0.26 0.035 255)" }
-    accent: { light: "oklch(0.43 0.15 255)", dark: "oklch(0.77 0.11 255)" }
+    primary: { light: "oklch(0.54 0.22 260)", dark: "oklch(0.68 0.165 260)" }
+    secondary: { light: "oklch(0.94 0.04 260)", dark: "oklch(0.28 0.065 260)" }
+    accent: { light: "oklch(0.50 0.21 260)", dark: "oklch(0.72 0.14 260)" }
     onPrimary: { light: "oklch(1 0 0)", dark: "oklch(0.15 0.006 255)" }
   neutral:
     background: { light: "oklch(0.97 0.003 255)", dark: "oklch(0.18 0.004 255)" }
@@ -19,10 +19,10 @@ colors:
       secondary: { light: "oklch(0.45 0.008 255)", dark: "oklch(0.73 0.008 255)" }
       disabled: { light: "oklch(0.59 0.005 255)", dark: "oklch(0.52 0.006 255)" }
   semantic:
-    info: { light: "oklch(0.44 0.008 255)", dark: "oklch(0.75 0.008 255)" }
-    success: { light: "oklch(0.43 0.10 155)", dark: "oklch(0.75 0.10 155)" }
-    warning: { light: "oklch(0.43 0.10 75)", dark: "oklch(0.75 0.10 75)" }
-    error: { light: "oklch(0.43 0.10 25)", dark: "oklch(0.75 0.10 25)" }
+    info: { light: "oklch(0.52 0.18 260)", dark: "oklch(0.70 0.14 260)" }
+    success: { light: "oklch(0.47 0.12 150)", dark: "oklch(0.73 0.16 150)" }
+    warning: { light: "oklch(0.49 0.10 65)", dark: "oklch(0.78 0.15 75)" }
+    error: { light: "oklch(0.54 0.21 25)", dark: "oklch(0.70 0.19 25)" }
   editor:
     selection: { light: "oklch(0.90 0.04 255)", dark: "oklch(0.32 0.05 255)" }
     activeLine: { light: "oklch(0.97 0.008 255)", dark: "oklch(0.23 0.009 255)" }
@@ -73,6 +73,7 @@ These theme-independent layout tokens extend the YAML schema through this table;
 | pane-minimum | 280px |
 | results-initial-height | 260px |
 | control-height | 32px |
+| navigation-height | 48px |
 | narrow-touch-target | 44px |
 | case-rail-width | clamp(100px, 16%, 140px) |
 | narrow-case-rail-width | 104px |
@@ -248,3 +249,5 @@ Navbar logo is 36x35px within its 44px link; the theme control uses a 28x32px fo
 Editorial controls sit below the problem statement, within its existing scroll area. Solutions are temporarily absent from practice. Complexity starts collapsed and uses the same eye/slash icon and control styling as Topics. Big-O and free-variable references in its descriptions render through the restricted LaTeX/KaTeX pipeline. Active match workspaces omit editorial controls. Disclosure and language controls keep 44px narrow-screen targets.
 
 Admin authoring uses the existing 48px navigation, neutral surface, 24px heading and 15px body. A compact draft rail precedes grouped labeled fields; JSON editors are reserved for typed signatures/constraints/cases. Safe preview shares the public statement and editorial components. Save and publish remain explicit; publish confirms validation through inline errors. Existing radii, spacing and color tokens apply.
+
+Shared navigation owns its 48px height independent of page layout; center 32–34px controls with visible top/bottom breathing room. Language, practice filters and workspace preferences share the Radix SelectField primitive with leading language logos, keyboard/typeahead, portal collision handling and token-based overlay/rows. Menus use 0 6px 20px neutral shadow at 8 percent in light mode, none in dark. Blue and semantic hues use saturated, in-gamut OKLCH accents; preserve at least 4.5:1 for colored text and primary-button labels.
