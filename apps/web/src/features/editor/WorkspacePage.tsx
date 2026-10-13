@@ -12,6 +12,7 @@ import type {
 import { useQuery } from "@tanstack/react-query";
 import {
   useCallback,
+  useMemo,
   useEffect,
   useRef,
   useState,
@@ -72,6 +73,7 @@ function errorMessage(error: unknown) {
 }
 
 /** Opens one public problem in the resizable practice workspace. */
+import { guestWorkspace } from "./guestWorkspace";
 import { useSession } from "../auth/session";
 import { languageLabels, languageFileNames, type EditorLanguage } from "./editorLanguages";
 
@@ -80,25 +82,18 @@ export function WorkspacePage({
   match,
   matchWorkspaceId: providedMatchWorkspaceId,
   identity: providedIdentity,
-  onIdentityChange,
   matchHeader,
 }: {
   slug?: string;
   match?: MatchSnapshot;
   matchWorkspaceId?: string;
   identity?: DevelopmentIdentity;
-  onIdentityChange?: (identity: DevelopmentIdentity) => void;
   matchHeader?: ReactNode;
 }) {
-  const [localIdentity, setLocalIdentity] = useState<DevelopmentIdentity>(() =>
-    readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
-  );
-  const fixtureIdentity = providedIdentity ?? localIdentity;
-  const account = useSession(fixtureIdentity);
-  const identity = (
-    account.data?.mode === "managed" ? account.data.user.id : fixtureIdentity
-  ) as DevelopmentIdentity;
-  const setIdentity = onIdentityChange ?? setLocalIdentity;
+  const account = useSession();
+  const identity = (account.data?.user.id ??
+    providedIdentity ??
+    "anonymous") as DevelopmentIdentity;
   const { preference: themePreference, setPreference: setThemePreference, theme } = useTheme();
   const [paneRatio, setPaneRatio] = useState(() =>
     readPreference("quorem.pane-ratio.v1", defaultPaneRatio),
@@ -120,13 +115,19 @@ export function WorkspacePage({
     if (matchSelection && providedMatchWorkspaceId === matchSelection.workspaceId)
       setMatchSelection(undefined);
   }, [providedMatchWorkspaceId, matchSelection]);
-  const [selectedLanguage, setSelectedLanguage] = useState<EditorLanguage>("python");
+  const [selectedLanguage, setSelectedLanguage] = useState<EditorLanguage>(() => {
+    const saved = readPreference<string>(`quorem.language.v1.${slug}`, "python");
+    return ["python", "java", "typescript", "ocaml"].includes(saved)
+      ? (saved as EditorLanguage)
+      : "python";
+  });
   const [source, setSource] = useState("");
   const sourceRef = useRef(source);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customMode, setCustomMode] = useState(false);
   const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
+  const [signInPrompt, setSignInPrompt] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editorScheme, setEditorScheme] = useState(readEditorScheme);
@@ -186,14 +187,28 @@ export function WorkspacePage({
     gcTime: 0,
   });
 
+  const loadedWorkspace = useMemo(() => {
+    if (account.data) return workspaceQuery.data;
+    if (!account.isPending && !match && problemQuery.data)
+      return guestWorkspace(problemQuery.data, selectedLanguage);
+    return undefined;
+  }, [
+    account.data,
+    account.isPending,
+    match,
+    problemQuery.data,
+    selectedLanguage,
+    workspaceQuery.data,
+  ]);
+
   useEffect(() => {
-    if (!problemQuery.data || !workspaceQuery.data) return;
+    if (!problemQuery.data || !loadedWorkspace) return;
     const nextContext = {
-      key: `${identity}:${workspaceQuery.data.id}:${problemQuery.data.id}`,
+      key: `${identity}:${loadedWorkspace.id}:${problemQuery.data.id}`,
       identity,
-      workspaceId: workspaceQuery.data.id,
+      workspaceId: loadedWorkspace.id,
       problemVersionId: problemQuery.data.id,
-      storageId: browserDraftScope(workspaceQuery.data),
+      storageId: browserDraftScope(loadedWorkspace),
     };
     const previousContext = draftContextRef.current;
     if (workspaceQuery.isFetching && previousContext?.key !== nextContext.key) return;
@@ -216,19 +231,26 @@ export function WorkspacePage({
     draftContextRef.current = nextContext;
     lastQueuedSourceRef.current = undefined;
     setProblem(problemQuery.data);
-    setWorkspace(workspaceQuery.data);
+    setWorkspace(loadedWorkspace);
     setCustomMode(false);
     setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
     const initialSource =
       readBrowserDraft(identity, nextContext.storageId, problemQuery.data.id) ??
-      problemQuery.data.languages?.find((item) => item.language === workspaceQuery.data.language)
+      (account.data
+        ? readBrowserDraft(
+            "anonymous" as DevelopmentIdentity,
+            nextContext.storageId,
+            problemQuery.data.id,
+          )
+        : undefined) ??
+      problemQuery.data.languages?.find((item) => item.language === loadedWorkspace.language)
         ?.starterSource ??
       problemQuery.data.starterSource;
     setSource(initialSource);
     sourceRef.current = initialSource;
     dirtyRef.current = false;
     setSaveState("saved");
-  }, [problemQuery.data, workspaceQuery.data, workspaceQuery.isFetching, identity]);
+  }, [problemQuery.data, loadedWorkspace, workspaceQuery.isFetching, identity, account.data]);
 
   useEffect(() => {
     if (!workspace || !problem || draftContextRef.current?.identity !== identity) return;
@@ -257,11 +279,6 @@ export function WorkspacePage({
       active = false;
     };
   }, [workspace, problem, identity]);
-
-  useEffect(() => {
-    if (account.data?.mode === "development")
-      writePreference("quorem.dev-identity.v1", fixtureIdentity);
-  }, [fixtureIdentity, account.data?.mode]);
 
   useEffect(() => {
     writePreference("quorem.pane-ratio.v1", paneRatio);
@@ -356,12 +373,13 @@ export function WorkspacePage({
 
   const dataMatchesRoute =
     (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
-    workspaceQuery.data?.problemVersionId === problemQuery.data?.id;
+    loadedWorkspace?.problemVersionId === problemQuery.data?.id;
   const dataMatchesState =
-    problem?.id === problemQuery.data?.id && workspace?.id === workspaceQuery.data?.id;
+    problem?.id === problemQuery.data?.id && workspace?.id === loadedWorkspace?.id;
   const loading =
     problemQuery.isPending ||
-    workspaceQuery.isPending ||
+    account.isPending ||
+    (!!account.data && workspaceQuery.isPending) ||
     !dataMatchesRoute ||
     !dataMatchesState ||
     !problem ||
@@ -413,7 +431,10 @@ export function WorkspacePage({
       if (match) {
         const selected = await switchMatchLanguage(identity, match.id, language);
         setMatchSelection({ matchId: match.id, workspaceId: selected.id });
-      } else setSelectedLanguage(language);
+      } else {
+        writePreference(`quorem.language.v1.${slug}`, language);
+        setSelectedLanguage(language);
+      }
     } catch (error) {
       setActionError(errorMessage(error));
     } finally {
@@ -422,12 +443,20 @@ export function WorkspacePage({
   };
   const run = useCallback(async () => {
     setActivePanel("results");
+    if (!account.data) {
+      setSignInPrompt(true);
+      return;
+    }
     await execution.run();
-  }, [execution.run]);
+  }, [execution.run, account.data]);
   const submit = useCallback(async () => {
     setActivePanel("results");
+    if (!account.data) {
+      setSignInPrompt(true);
+      return;
+    }
     if (await execution.submit()) setCustomMode(false);
-  }, [execution.submit]);
+  }, [execution.submit, account.data]);
 
   const hotkeyOptions = {
     enabled: !settingsOpen,
@@ -481,17 +510,6 @@ export function WorkspacePage({
     [identity, workspace, saveCurrentDraft],
   );
 
-  const activeIdentityChanged = useCallback(
-    async (next: DevelopmentIdentity) => {
-      if (account.data?.mode !== "development" || next === identity) return;
-      await saveCurrentDraft();
-      if (dirtyRef.current) return;
-      writePreference("quorem.dev-identity.v1", next);
-      setIdentity(next);
-    },
-    [identity, account.data?.mode, saveCurrentDraft, setIdentity],
-  );
-
   const loadError = problemQuery.error ?? workspaceQuery.error;
   const workspaceStyle = {
     "--problem-ratio": `${paneRatio}%`,
@@ -505,7 +523,7 @@ export function WorkspacePage({
   const intelligence = useIntelligence(
     identity,
     editorDocumentKey,
-    !loading && documentLanguage === "python",
+    !!account.data && !loading && documentLanguage === "python",
   );
 
   const actionsEnabled =
@@ -522,16 +540,6 @@ export function WorkspacePage({
       matchWorkspaceId,
       loaded: !loading,
     });
-  if (!account.isPending && !account.data)
-    return (
-      <main className="workspace-loading">
-        <Brand />
-        <h1>Sign in to practice</h1>
-        <a className="button button-primary" href="/login">
-          Sign in
-        </a>
-      </main>
-    );
   if (!problem || !workspace)
     return (
       <main className="workspace-loading" aria-live="polite">
@@ -582,7 +590,6 @@ export function WorkspacePage({
           identity={identity}
           slug={match ? undefined : slug}
           mode={match?.mode}
-          onIdentityChange={(next) => void activeIdentityChanged(next)}
           theme={themePreference}
           onThemeChange={setThemePreference}
           preferences={
@@ -597,10 +604,6 @@ export function WorkspacePage({
                   setActionError(errorMessage(error));
                 }
               }}
-              identity={identity}
-              developmentIdentity={account.data?.mode === "development"}
-              accountName={account.data?.user.displayName}
-              onIdentityChange={(next) => void activeIdentityChanged(next)}
               theme={themePreference}
               onThemeChange={setThemePreference}
               editorScheme={editorScheme}
@@ -719,6 +722,7 @@ export function WorkspacePage({
                   tabSize={tabSize}
                   wrap={wrap}
                   readOnly={languageSwitching}
+                  completionEnabled={!!account.data}
                   intelligenceExtensions={
                     documentLanguage === "python" ? intelligence.extensions : undefined
                   }
@@ -814,6 +818,14 @@ export function WorkspacePage({
                   </div>
                 ))}
               </div>
+              {signInPrompt && (
+                <p className="action-error" role="alert">
+                  Sign in to run or submit code.{" "}
+                  <a href={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}>
+                    Sign in
+                  </a>
+                </p>
+              )}
               {actionError && (
                 <p className="action-error" role="alert">
                   {actionError}
@@ -833,7 +845,10 @@ export function WorkspacePage({
               <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.run} />}>
                 <button
                   className="button button-secondary"
-                  disabled={submissionBusy || !actionsEnabled}
+                  disabled={
+                    submissionBusy ||
+                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                  }
                   onClick={() => void run()}
                 >
                   <Icon name="play" />
@@ -843,7 +858,10 @@ export function WorkspacePage({
               <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.submit} />}>
                 <button
                   className="button button-primary"
-                  disabled={submissionBusy || !actionsEnabled}
+                  disabled={
+                    submissionBusy ||
+                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                  }
                   onClick={() => void submit()}
                 >
                   <Icon name="submit" />

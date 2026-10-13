@@ -8,33 +8,30 @@ import type { ThemePreference } from "../editor/editorSettings";
 import { Brand } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
-import { IdentityChoice, ModeIcon } from "../matches/MatchControls";
+import { ModeIcon } from "../matches/MatchControls";
 import { isMatchCreationRequest } from "./matchCreationIntent";
 import "./navigation.css";
 
 export function GlobalNav({
-  identity,
+  identity = "anonymous" as DevelopmentIdentity,
   mode,
   onCreateMatch,
-  onIdentityChange,
-  identityDisabled,
   theme,
   onThemeChange,
   preferences,
   children,
 }: {
-  identity: DevelopmentIdentity;
+  identity?: DevelopmentIdentity;
   slug?: string;
   mode?: "showdown" | "free-for-all";
   onCreateMatch?: () => void;
-  onIdentityChange?: (identity: DevelopmentIdentity) => void;
-  identityDisabled?: boolean;
   theme?: ThemePreference;
   onThemeChange?: (theme: ThemePreference) => void;
   preferences?: ReactNode;
   children?: ReactNode;
 }) {
-  const session = useSession(identity);
+  const session = useSession();
+  const actor = (session.data?.user.id ?? identity) as DevelopmentIdentity;
   const [accountError, setAccountError] = useState("");
   const location = useLocation();
   const pathname = location.pathname;
@@ -48,10 +45,15 @@ export function GlobalNav({
       return;
     }
     if (consumedCreation.current) return;
+    if (session.isPending) return;
     consumedCreation.current = true;
+    if (!session.data) {
+      window.location.assign("/login");
+      return;
+    }
     setCreating(true);
     void navigate({ to: "/practice", search: {}, replace: true });
-  }, [pathname, location.search, navigate]);
+  }, [pathname, location.search, navigate, session.isPending, session.data]);
   return (
     <>
       <header className="topbar global-nav">
@@ -110,7 +112,13 @@ export function GlobalNav({
                 <button
                   className="quiet-button create-match-trigger"
                   aria-label="Create match"
-                  onClick={onCreateMatch ?? (() => setCreating(true))}
+                  onClick={() => {
+                    if (!session.data) {
+                      window.location.assign("/login");
+                      return;
+                    }
+                    (onCreateMatch ?? (() => setCreating(true)))();
+                  }}
                 >
                   <Plus size={18} />
                   <span>Create match</span>
@@ -142,35 +150,29 @@ export function GlobalNav({
               collisionPadding={8}
               aria-label="Profile and preferences"
             >
-              <h2>{session.data?.mode === "development" ? "Local account" : "Account"}</h2>
-              {session.data?.mode !== "development" ? (
-                session.data ? (
-                  <>
-                    <p>{session.data.user.displayName}</p>
-                    {session.data.user.role === "admin" ? (
-                      <a href="/admin/questions">Edit questions</a>
-                    ) : null}
-                    <button
-                      className="quiet-button"
-                      onClick={() => {
-                        void signOut().catch(() => setAccountError("Sign out unavailable"));
-                      }}
-                    >
-                      Sign out
-                    </button>
-                    {accountError ? <p role="alert">{accountError}</p> : null}
-                  </>
-                ) : (
-                  <a href="/login">Sign in</a>
-                )
-              ) : onIdentityChange ? (
-                <IdentityChoice
-                  identity={identity}
-                  onChange={onIdentityChange}
-                  disabled={identityDisabled}
-                />
+              <h2>Account</h2>
+              {session.isPending ? (
+                <p role="status">Checking account…</p>
+              ) : session.isError ? (
+                <p role="alert">Account unavailable. Reload to retry.</p>
+              ) : session.data ? (
+                <>
+                  <p>{session.data.user.displayName}</p>
+                  {session.data.user.role === "admin" ? (
+                    <a href="/admin/questions">Edit questions</a>
+                  ) : null}
+                  <button
+                    className="quiet-button"
+                    onClick={() => {
+                      void signOut().catch(() => setAccountError("Sign out unavailable"));
+                    }}
+                  >
+                    Sign out
+                  </button>
+                  {accountError ? <p role="alert">{accountError}</p> : null}
+                </>
               ) : (
-                <p>{identity}</p>
+                <a href="/login">Sign in</a>
               )}
               {onThemeChange && (
                 <div className="nav-theme" role="group" aria-label="Color theme">
@@ -204,7 +206,7 @@ export function GlobalNav({
           </Popover.Portal>
         </Popover.Root>
       </header>
-      {creating && <CreateMatchDialog onClose={() => setCreating(false)} identity={identity} />}
+      {creating && <CreateMatchDialog onClose={() => setCreating(false)} identity={actor} />}
     </>
   );
 }

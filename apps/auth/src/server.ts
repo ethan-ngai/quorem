@@ -4,6 +4,12 @@ import { toNodeHandler } from "better-auth/node";
 import { auth, config, database } from "./auth.ts";
 const handler = toNodeHandler(auth);
 const server = createServer(async (req, res) => {
+  if (req.url === "/api/auth/quorem-config" && req.method === "GET") {
+    res
+      .writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+      .end(JSON.stringify({ method: config.method }));
+    return;
+  }
   if (req.url?.startsWith("/internal/session/")) {
     const supplied = Buffer.from(String(req.headers.authorization ?? ""));
     const expected = Buffer.from(`Bearer ${config.internalSecret}`);

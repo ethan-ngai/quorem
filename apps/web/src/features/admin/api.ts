@@ -1,9 +1,8 @@
 /** @file api.ts @description Admin authoring uses the same verified transport as judging. @module admin */
-import type { QuestionContent, QuestionDraft, DevelopmentIdentity } from "@quorem/contracts";
+import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { api, requireData } from "../editor/api";
 
-import { readPreference } from "../editor/editorSettings";
-const client = () => api(readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"));
+const client = () => api();
 
 /** @returns All administrative drafts; backend checks the live server-owned role. */
 export async function listDrafts(cursor?: string) {

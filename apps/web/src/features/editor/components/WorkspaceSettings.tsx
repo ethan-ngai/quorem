@@ -4,7 +4,6 @@ import * as Select from "@radix-ui/react-select";
 import * as Switch from "@radix-ui/react-switch";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
-import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editorSettings";
 import { editorSchemes, type EditorScheme } from "../editorSchemes";
 import { workspaceShortcuts } from "../workspaceShortcuts";
@@ -14,10 +13,6 @@ import { Tooltip } from "./Tooltip";
 
 type SettingsProps = {
   onOpenChange?: (open: boolean) => void;
-  identity: DevelopmentIdentity;
-  developmentIdentity?: boolean;
-  accountName?: string;
-  onIdentityChange: (identity: DevelopmentIdentity) => void;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
   editorScheme: EditorScheme;
@@ -38,7 +33,6 @@ const sections = [
   { id: "editor", label: "Editor", icon: "code" },
   { id: "shortcuts", label: "Shortcuts", icon: "keyboard" },
   { id: "drafts", label: "Drafts", icon: "history" },
-  { id: "account", label: "Local account", icon: "people" },
 ] as const;
 
 const themes = [
@@ -308,32 +302,6 @@ export function WorkspaceSettings(props: SettingsProps) {
                     <Icon name="trash" />
                     Clear browser drafts
                   </button>
-                </>
-              )}
-              {section === "account" && (
-                <>
-                  {props.developmentIdentity !== false ? (
-                    <Setting
-                      label="Development identity"
-                      description="Separate drafts and match seats for each account."
-                    >
-                      <Choice
-                        label="Local development identity"
-                        value={props.identity}
-                        onChange={(value) => props.onIdentityChange(value as DevelopmentIdentity)}
-                        options={[
-                          { value: "alice", label: "Alice" },
-                          { value: "bob", label: "Bob" },
-                          { value: "charlie", label: "Charlie" },
-                          { value: "dana", label: "Dana" },
-                        ]}
-                      />
-                    </Setting>
-                  ) : (
-                    <Setting label="Account">
-                      <span>{props.accountName ?? props.identity}</span>
-                    </Setting>
-                  )}
                 </>
               )}
             </section>

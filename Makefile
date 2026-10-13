@@ -2,7 +2,7 @@
 
 QUOREM_ENV ?= development
 APP_ENV ?= local
-QUOREM_DEV_IDENTITY ?= true
+QUOREM_DEV_IDENTITY ?= false
 DATABASE_URL ?= postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
 export QUOREM_ENV APP_ENV QUOREM_DEV_IDENTITY DATABASE_URL
 
