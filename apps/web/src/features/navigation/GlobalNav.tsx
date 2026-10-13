@@ -1,3 +1,4 @@
+import { useSession, signOut } from "../auth/session";
 import * as Popover from "@radix-ui/react-popover";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { BookOpen, Home, Menu, Monitor, Moon, Plus, Sun, UserRound } from "lucide-react";
@@ -33,6 +34,8 @@ export function GlobalNav({
   preferences?: ReactNode;
   children?: ReactNode;
 }) {
+  const session = useSession(identity);
+  const [accountError, setAccountError] = useState("");
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
@@ -131,8 +134,28 @@ export function GlobalNav({
               collisionPadding={8}
               aria-label="Profile and preferences"
             >
-              <h2>Local account</h2>
-              {onIdentityChange ? (
+              <h2>{session.data?.mode === "development" ? "Local account" : "Account"}</h2>
+              {session.data?.mode !== "development" ? (
+                session.data ? (
+                  <>
+                    <p>{session.data.user.displayName}</p>
+                    {session.data.user.role === "admin" ? (
+                      <a href="/admin/questions">Edit questions</a>
+                    ) : null}
+                    <button
+                      className="quiet-button"
+                      onClick={() => {
+                        void signOut().catch(() => setAccountError("Sign out unavailable"));
+                      }}
+                    >
+                      Sign out
+                    </button>
+                    {accountError ? <p role="alert">{accountError}</p> : null}
+                  </>
+                ) : (
+                  <a href="/login">Sign in</a>
+                )
+              ) : onIdentityChange ? (
                 <IdentityChoice
                   identity={identity}
                   onChange={onIdentityChange}

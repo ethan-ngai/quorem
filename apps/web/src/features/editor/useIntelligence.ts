@@ -1,4 +1,5 @@
 /** @file useIntelligence.ts @description Disposable Python language sessions. @module editor */
+import { token } from "../auth/session";
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
 import { pythonLanguage } from "@codemirror/lang-python";
 import type { Extension } from "@codemirror/state";
@@ -47,13 +48,15 @@ export function useIntelligence(
       setStatus("paused");
     }
 
-    function connect() {
+    async function connect() {
       if (disposed || !isActive() || socket) return;
       setStatus("connecting");
       const url = new URL(import.meta.env.VITE_LANGUAGE_URL ?? "ws://127.0.0.1:8081/lsp");
       url.searchParams.set("user", identity);
       url.searchParams.set("takeover", "1");
-      const active = new WebSocket(url);
+      const bearer = await token();
+      if (disposed || socket || !isActive()) return;
+      const active = new WebSocket(url, bearer ? ["quorem", `bearer.${bearer}`] : []);
       socket = active;
       const connection = languageTransport(active);
       transport = connection;
@@ -116,7 +119,7 @@ export function useIntelligence(
       if (socket?.readyState === WebSocket.OPEN && readyExtensions.length) {
         setExtensions(readyExtensions);
         setStatus("ready");
-      } else connect();
+      } else void connect();
     }, pause);
     return () => {
       disposed = true;

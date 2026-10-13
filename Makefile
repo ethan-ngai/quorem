@@ -1,4 +1,4 @@
-.PHONY: install dev database seed reset api runner web language check build
+.PHONY: install dev database seed reset api runner web language auth check build
 
 QUOREM_ENV ?= development
 APP_ENV ?= local
@@ -32,12 +32,16 @@ runner:
 web:
 	vp -C apps/web dev --host 127.0.0.1 --port 5173 --strictPort
 
+auth:
+	vp -C apps/auth run dev
+
 language:
 	vp run --filter @quorem/language dev
 
 check:
 	vp check
 	vp run contracts:check
+	vp -C apps/auth test
 	vp -C apps/web test
 	vp run --filter @quorem/language test
 	go test ./...
