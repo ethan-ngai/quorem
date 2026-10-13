@@ -78,7 +78,7 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 	}
 }
 func (s *Service) execute(parent context.Context, engine execution.ExecutionEngine, j execution.Job) {
-	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
 	defer cancel()
 	done := make(chan struct{})
 	watchDone := make(chan struct{})

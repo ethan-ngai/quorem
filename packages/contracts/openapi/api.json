@@ -437,6 +437,71 @@
         }
       }
     },
+    "/v1/matches/{id}/workspace-language": {
+      "post": {
+        "operationId": "switchMatchWorkspaceLanguage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["language"],
+                "properties": {
+                  "language": {
+                    "$ref": "#/components/schemas/Language"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/matches/{id}/ready": {
       "post": {
         "operationId": "readyMatch",
@@ -901,7 +966,7 @@
     "schemas": {
       "Language": {
         "type": "string",
-        "enum": ["python"]
+        "enum": ["python", "java", "typescript", "ocaml"]
       },
       "Difficulty": {
         "type": "string",
