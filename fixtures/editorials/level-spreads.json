@@ -1,0 +1,38 @@
+{
+  "slug": "level-spreads",
+  "solutions": [
+    {
+      "language": "python",
+      "source": "class Solution:\n    def levelSpreads(self, root):\n        level = [] if root is None else [root]\n        answer = []\n        while level:\n            low = high = level[0].val\n            next_level = []\n            for node in level:\n                low = min(low, node.val)\n                high = max(high, node.val)\n                if node.left is not None:\n                    next_level.append(node.left)\n                if node.right is not None:\n                    next_level.append(node.right)\n            answer.append(high - low)\n            level = next_level\n        return answer\n",
+      "explanationMarkdown": "Breadth-first traversal processes one level at a time. Compute the minimum and maximum while collecting that level's children, then append their difference. Empty trees produce no levels.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(w)",
+      "complexityNotes": "n is the number of nodes; w is the maximum occupied level width. Auxiliary space excludes the result."
+    },
+    {
+      "language": "java",
+      "source": "class Solution  {\n    public int[] levelSpreads(TreeNode root) {\n        if(root==null)return new int[0];\n        ArrayDeque<TreeNode> q=new ArrayDeque<>();\n        q.add(root);\n        ArrayList<Integer>a=new ArrayList<>();\n        while(!q.isEmpty()) {\n            int size=q.size(),lo=Integer.MAX_VALUE,hi=Integer.MIN_VALUE;\n            for(int i=0;i<size;i++) {\n                TreeNode n=q.remove();\n                lo=Math.min(lo,n.val);\n                hi=Math.max(hi,n.val);\n                if(n.left!=null)q.add(n.left);\n                if(n.right!=null)q.add(n.right);\n            }\n            a.add(hi-lo);\n        }\n        return a.stream().mapToInt(Integer::intValue).toArray();\n    }\n}\n",
+      "explanationMarkdown": "Breadth-first traversal processes one level at a time. Compute the minimum and maximum while collecting that level's children, then append their difference. Empty trees produce no levels.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(w)",
+      "complexityNotes": "n is the number of nodes; w is the maximum occupied level width. Auxiliary space excludes the result."
+    },
+    {
+      "language": "typescript",
+      "source": "class Solution  {\n    levelSpreads(root:TreeNode|null):number[] {\n        if(!root)return [];\n        let level=[root];\n        const a:number[]=[];\n        while(level.length) {\n            a.push(Math.max(...level.map(n=>n.val))-Math.min(...level.map(n=>n.val)));\n            const next:TreeNode[]=[];\n            for(const n of level) {\n                if(n.left)next.push(n.left);\n                if(n.right)next.push(n.right);\n            }\n            level=next;\n        }\n        return a;\n    }\n}\n",
+      "explanationMarkdown": "Breadth-first traversal processes one level at a time. Compute the minimum and maximum while collecting that level's children, then append their difference. Empty trees produce no levels.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(w)",
+      "complexityNotes": "n is the number of nodes; w is the maximum occupied level width. Auxiliary space excludes the result."
+    },
+    {
+      "language": "ocaml",
+      "source": "let levelSpreads (root:tree_node option) = let rec loop acc level = match level with [] -> List.rev acc | _ -> let lo=List.fold_left (fun v (n:tree_node) -> min v n.value) max_int level and hi=List.fold_left (fun v (n:tree_node) -> max v n.value) min_int level in let next=List.concat_map (fun (n:tree_node) -> List.filter_map Fun.id [n.left;n.right]) level in loop ((hi-lo)::acc) next in match root with None -> [] | Some n -> loop [] [n]\n",
+      "explanationMarkdown": "Breadth-first traversal processes one level at a time. Compute the minimum and maximum while collecting that level's children, then append their difference. Empty trees produce no levels.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(w)",
+      "complexityNotes": "n is the number of nodes; w is the maximum occupied level width. Auxiliary space excludes the result."
+    }
+  ],
+  "versionId": "3f4f998a-7911-5097-91ea-70651bcb363b"
+}

@@ -3,6 +3,9 @@ import createClient from "openapi-fetch";
 import type { components, paths } from "./generated";
 
 export type { components, paths, operations } from "./generated";
+export type EditorialSolution = components["schemas"]["EditorialSolution"];
+export type EditorialComplexity = components["schemas"]["EditorialComplexity"];
+export type LanguageImplementation = components["schemas"]["LanguageImplementation"];
 export type ProblemVersion = components["schemas"]["ProblemVersion"];
 export type Constraint = components["schemas"]["Constraint"];
 export type ConstraintTarget = components["schemas"]["ConstraintTarget"];
