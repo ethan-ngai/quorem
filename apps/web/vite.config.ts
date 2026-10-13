@@ -11,7 +11,7 @@ function marketingPages(): Plugin {
   const web = resolve(fileURLToPath(new URL("./dist/", import.meta.url)));
   const serve = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
-    const app = /^\/(practice|match|invite|login)(\/|$)/.test(path);
+    const app = /^\/(practice|match|invite|login|admin)(\/|$)/.test(path);
     if (!app && path !== "/" && !path.startsWith("/_marketing/")) return next();
     const base = web;
     const file = resolve(base, app ? "app.html" : path === "/" ? "index.html" : `.${path}`);
@@ -69,7 +69,7 @@ export default defineConfig({
     proxy: {
       "/_marketing": { target: marketingOrigin, ws: true },
       "/v1": { target: process.env.QUOREM_API_DEV_ORIGIN ?? "http://127.0.0.1:8080", ws: true },
-      "/api/auth": "http://127.0.0.1:8082",
+      "/api/auth": process.env.QUOREM_AUTH_DEV_ORIGIN ?? "http://127.0.0.1:8082",
     },
   },
 });

@@ -325,6 +325,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/question-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listQuestionDrafts"];
+        put?: never;
+        post: operations["createQuestionDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/question-drafts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getQuestionDraft"];
+        put: operations["updateQuestionDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/question-drafts/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["publishQuestionDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -696,6 +744,77 @@ export interface components {
             timeComplexity: string;
             spaceComplexity: string;
             complexityNotes: string;
+        };
+        AuthoringImplementation: {
+            /** @enum {string} */
+            language: "python" | "java" | "typescript" | "ocaml";
+            starterSource: string;
+            runtimeRevision: string;
+            harnessRevision: string;
+            referenceSource: string;
+        };
+        QuestionProblem: {
+            id: string;
+            slug: string;
+            version: string;
+            title: string;
+            difficulty: components["schemas"]["Difficulty"];
+            tags: string[];
+            statementMarkdown: string;
+            examples: components["schemas"]["ProblemExample"][];
+            constraints: components["schemas"]["Constraint"][];
+            signature: components["schemas"]["Signature"];
+            starterSource: string;
+            runtimeRevision: string;
+            limits: components["schemas"]["ExecutionLimits"];
+            languages: components["schemas"]["LanguageImplementation"][];
+        };
+        QuestionContent: {
+            problem: components["schemas"]["QuestionProblem"];
+            hiddenCases: components["schemas"]["CustomCase"][];
+            comparator: string;
+            attribution: string;
+            implementations: components["schemas"]["AuthoringImplementation"][];
+            solutions: components["schemas"]["EditorialSolution"][];
+        };
+        QuestionDraft: {
+            /** Format: uuid */
+            id: string;
+            revision: string;
+            content: components["schemas"]["QuestionContent"];
+            /** Format: uuid */
+            publishedVersionId?: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        QuestionDraftSummary: {
+            /** Format: uuid */
+            id: string;
+            revision: string;
+            title: string;
+            slug: string;
+            /** Format: uuid */
+            publishedVersionId?: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        QuestionDraftPage: {
+            items: components["schemas"]["QuestionDraftSummary"][];
+            /** Format: uuid */
+            nextCursor?: string;
+        };
+        CreateQuestionDraftRequest: {
+            content: components["schemas"]["QuestionContent"];
+        } | {
+            /** Format: uuid */
+            problemVersionId: string;
+        };
+        UpdateQuestionDraftRequest: {
+            revision: string;
+            content: components["schemas"]["QuestionContent"];
+        };
+        PublishQuestionDraftRequest: {
+            revision: string;
         };
     };
     responses: never;
@@ -1365,6 +1484,171 @@ export interface operations {
                     "application/json": {
                         items: components["schemas"]["EditorialComplexity"][];
                     };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listQuestionDrafts: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDraftPage"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createQuestionDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQuestionDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDraft"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getQuestionDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDraft"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateQuestionDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateQuestionDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDraft"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    publishQuestionDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishQuestionDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDraft"];
                 };
             };
             /** @description Safe application error */

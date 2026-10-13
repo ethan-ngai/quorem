@@ -1241,6 +1241,279 @@
           "type": "string"
         }
       }
+    },
+    "AuthoringImplementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": ["python", "java", "typescript", "ocaml"]
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "runtimeRevision": {
+          "type": "string"
+        },
+        "harnessRevision": {
+          "type": "string"
+        },
+        "referenceSource": {
+          "type": "string",
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "language",
+        "starterSource",
+        "runtimeRevision",
+        "harnessRevision",
+        "referenceSource"
+      ]
+    },
+    "QuestionProblem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "difficulty": {
+          "$ref": "#/$defs/Difficulty"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "statementMarkdown": {
+          "type": "string"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProblemExample"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Constraint"
+          }
+        },
+        "signature": {
+          "$ref": "#/$defs/Signature"
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "runtimeRevision": {
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/ExecutionLimits"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LanguageImplementation"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "version",
+        "title",
+        "difficulty",
+        "tags",
+        "statementMarkdown",
+        "examples",
+        "constraints",
+        "signature",
+        "starterSource",
+        "runtimeRevision",
+        "limits",
+        "languages"
+      ]
+    },
+    "QuestionContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problem": {
+          "$ref": "#/$defs/QuestionProblem"
+        },
+        "hiddenCases": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/CustomCase"
+          }
+        },
+        "comparator": {
+          "type": "string"
+        },
+        "attribution": {
+          "type": "string"
+        },
+        "implementations": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/AuthoringImplementation"
+          }
+        },
+        "solutions": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/EditorialSolution"
+          }
+        }
+      },
+      "required": [
+        "problem",
+        "hiddenCases",
+        "comparator",
+        "attribution",
+        "implementations",
+        "solutions"
+      ]
+    },
+    "QuestionDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "content": {
+          "$ref": "#/$defs/QuestionContent"
+        },
+        "publishedVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "revision", "content", "updatedAt"]
+    },
+    "QuestionDraftSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "publishedVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "revision", "title", "slug", "updatedAt"]
+    },
+    "QuestionDraftPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/QuestionDraftSummary"
+          }
+        },
+        "nextCursor": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": ["items"]
+    },
+    "CreateQuestionDraftRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/QuestionContent"
+            }
+          },
+          "required": ["content"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "problemVersionId": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": ["problemVersionId"]
+        }
+      ]
+    },
+    "UpdateQuestionDraftRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "content": {
+          "$ref": "#/$defs/QuestionContent"
+        }
+      },
+      "required": ["revision", "content"]
+    },
+    "PublishQuestionDraftRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,18}$"
+        }
+      },
+      "required": ["revision"]
     }
   },
   "$ref": "#/$defs/EventEnvelope"
