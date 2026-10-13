@@ -1,5 +1,5 @@
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "./Icon";
 import { Tooltip } from "./Tooltip";
@@ -15,7 +15,13 @@ export function exampleInput(problem: ProblemVersion, args: unknown[]) {
 }
 
 /** Shows the problem directly, with optional topics and named public examples. */
-export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
+export function ProblemStatement({
+  problem,
+  children,
+}: {
+  problem: ProblemVersion;
+  children?: ReactNode;
+}) {
   const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
   const topicsVisible = revealedTopicsFor === problem.id;
   const topicsId = useId();
@@ -109,6 +115,7 @@ export function ProblemStatement({ problem }: { problem: ProblemVersion }) {
           })}
         </ul>
       </section>
+      {children}
     </div>
   );
 }

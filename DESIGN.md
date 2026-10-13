@@ -238,3 +238,9 @@ Marketing button lift and return use 240ms hero easing. Disabled and aria-disabl
 Footer separates logo/navigation from a bottom utility row. Copyright sits left; the icon-only theme control sits right in a bordered 36px button. Small screens place brand above two navigation columns; the utility row retains left/right alignment.
 
 Navbar logo is 36x35px within its 44px link; the theme control uses a 28x32px footprint with a 14px action gap. Browser ICO/PNG marks fill the raster width at every size, preserving aspect ratio and pixel edges.
+
+## Editorial and admin authoring
+
+Editorial controls sit below the problem statement, within its existing scroll area. Complexity and solutions start collapsed; language selection uses the shared field tokens. Explanation uses restricted statement Markdown; source is inert monospace text in an overlay-toned region. Active match workspaces omit editorial controls. Disclosure and language controls keep 44px narrow-screen targets.
+
+Admin authoring uses the existing 48px navigation, neutral surface, 24px heading and 15px body. A compact draft rail precedes grouped labeled fields; JSON editors are reserved for typed signatures/constraints/cases. Safe preview shares the public statement and editorial components. Save and publish remain explicit; publish confirms validation through inline errors. Existing radii, spacing and color tokens apply.
