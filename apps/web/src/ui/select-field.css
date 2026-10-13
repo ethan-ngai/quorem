@@ -1,0 +1,106 @@
+.select-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-small);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+.select-field:hover,
+.select-field[data-state="open"] {
+  background: var(--color-overlay);
+}
+.select-field:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.select-field:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.select-field-chevron {
+  display: flex;
+  margin-left: auto;
+  color: var(--color-text-secondary);
+}
+.select-field--settings {
+  min-width: 130px;
+  max-width: 190px;
+  font-size: 12px;
+}
+.select-field--filter {
+  background: var(--color-surface);
+}
+.select-field--compact {
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  background: transparent;
+}
+.select-field-menu {
+  z-index: 100;
+  min-width: max(144px, var(--radix-select-trigger-width));
+  max-height: min(320px, var(--radix-select-content-available-height));
+  padding: var(--space-1);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-overlay);
+  color: var(--color-text);
+  box-shadow: var(--shadow-overlay);
+}
+.select-field-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-small);
+  cursor: pointer;
+  outline: none;
+}
+.select-field-item[data-highlighted] {
+  background: var(--color-surface);
+}
+.select-field-check {
+  display: flex;
+  justify-content: flex-end;
+  width: 14px;
+  margin-left: auto;
+  color: var(--color-text-secondary);
+}
+.select-field-scroll {
+  display: flex;
+  justify-content: center;
+  height: 24px;
+  color: var(--color-text-secondary);
+}
+.language-logo {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+@media (max-width: 700px), (pointer: coarse) {
+  .select-field,
+  .select-field-item {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .select-field {
+    transition: none;
+  }
+}

@@ -1,4 +1,6 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { SelectField } from "../../ui/SelectField";
+import { LanguageLogo } from "../../ui/LanguageLogo";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
 import { ShortcutHint } from "./components/ShortcutKeys";
@@ -668,28 +670,24 @@ export function WorkspacePage({
           <div className="solution-pane">
             <section className="coding-pane" aria-label="Code editor">
               <div className="code-toolbar">
-                <label className="editor-language">
-                  <select
-                    aria-label="Solution language"
-                    value={documentLanguage}
-                    disabled={
-                      loading ||
-                      languageSwitching ||
-                      submissionBusy ||
-                      admissionPending ||
-                      (!!match && (match.state !== "active" || matchRules.blocked))
-                    }
-                    onChange={(event) => {
-                      void changeLanguage(event.target.value as EditorLanguage);
-                    }}
-                  >
-                    {(problem.languages ?? [{ language: "python" }]).map((item) => (
-                      <option key={item.language} value={item.language}>
-                        {languageLabels[item.language as EditorLanguage]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <SelectField
+                  className="select-field--compact"
+                  label="Solution language"
+                  value={documentLanguage}
+                  disabled={
+                    loading ||
+                    languageSwitching ||
+                    submissionBusy ||
+                    admissionPending ||
+                    (!!match && (match.state !== "active" || matchRules.blocked))
+                  }
+                  onChange={(value) => void changeLanguage(value as EditorLanguage)}
+                  options={(problem.languages ?? [{ language: "python" }]).map((item) => ({
+                    value: item.language,
+                    label: languageLabels[item.language as EditorLanguage],
+                    leading: <LanguageLogo language={item.language as EditorLanguage} />,
+                  }))}
+                />
                 <div className="code-options">
                   {documentLanguage === "python" && intelligence.status === "paused" && (
                     <Tooltip content="IntelliSense follows the focused window automatically.">
