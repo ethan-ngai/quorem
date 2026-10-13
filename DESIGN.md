@@ -87,6 +87,10 @@ Separate panes with thin rules and surface changes. Light-theme popovers/modals 
 
 Work areas use a 10px outer radius; buttons/fields use 6px and overlays use 8px. Reserve full rounding for avatars/status markers. Avoid nested card shells.
 
+### Account menu
+
+Translate the supplied dark account-menu reference into the compact workspace scale: 260px maximum width (viewport minus 16px), 12px identity-header padding, 36px circular avatar with no stroke or shadow, 14px medium-bold name above 12px muted email, 32–36px icon/text action rows (44px for coarse pointers) and subtle dividers. Use overlay/border/text/error tokens; dark has no shadow, light uses subtle overlay elevation. Logout is red after the footer divider. Include only working account/profile/theme/admin actions; no fabricated streak or billing data. Workspace settings is a separate icon immediately left of the profile trigger. Photo-less avatars use deterministic name/username initials in an HTML element with theme-aware tonal fill; never image generation, image URLs or image placeholders.
+
 ## Animation
 
 Theme-independent motion tokens: `motion-fast`: 120ms; `motion-standard`: 180ms; `motion-easing`: cubic-bezier(0.2, 0, 0, 1). Map them to shared CSS custom properties.
