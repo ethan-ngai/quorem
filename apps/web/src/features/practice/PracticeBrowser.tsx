@@ -8,7 +8,7 @@ import type { ProblemVersion } from "@quorem/contracts";
 import { api, requireData } from "../editor/api";
 import { Tooltip } from "../editor/components/Tooltip";
 import { useTheme } from "../editor/useTheme";
-import { useLocalIdentity } from "../matches/MatchControls";
+import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
 import "./practice.css";
@@ -94,7 +94,7 @@ function Filter({
 
 /** @returns Searchable public catalog; request failures retain explicit retry. */
 export function PracticeBrowser() {
-  const { identity, setIdentity } = useLocalIdentity();
+  const { identity } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
   const [search, setSearch] = useState("");
   const [difficulty, setDifficulty] = useState("all");
@@ -125,12 +125,7 @@ export function PracticeBrowser() {
   const SortIcon = descending ? ArrowDown : ArrowUp;
   return (
     <div className="practice-page">
-      <GlobalNav
-        identity={identity}
-        onIdentityChange={setIdentity}
-        theme={preference}
-        onThemeChange={setPreference}
-      />
+      <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
       <main className="practice-browser">
         <div className="practice-heading">
           <h1>Practice</h1>

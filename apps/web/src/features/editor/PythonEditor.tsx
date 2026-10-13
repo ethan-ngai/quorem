@@ -61,6 +61,7 @@ type PythonEditorProps = {
   wrap: boolean;
   readOnly?: boolean;
   intelligenceExtensions?: Extension[];
+  completionEnabled?: boolean;
   onSourceChange: (source: string) => void;
 };
 
@@ -86,16 +87,18 @@ const baseExtensions: Extension[] = [
   bracketMatching(),
   rectangularSelection(),
   closeBrackets(),
-  autocompletion({
-    updateSyncTime: 0,
-    interactionDelay: 0,
-    maxRenderedOptions: 40,
-    // Adjacent identical labels merge local suggestions with richer server documentation.
-    compareCompletions: (a, b) => a.label.localeCompare(b.label),
-  }),
+
   history(),
   workspaceKeymap,
 ];
+
+const completionExtension = autocompletion({
+  updateSyncTime: 0,
+  interactionDelay: 0,
+  maxRenderedOptions: 40,
+  // Adjacent identical labels merge local suggestions with richer server documentation.
+  compareCompletions: (a, b) => a.label.localeCompare(b.label),
+});
 
 /** Reconfigures editor display preferences without resetting history. */
 function editorPreferences(fontSize: number, tabSize: 2 | 4, wrap: boolean, readOnly: boolean) {
@@ -127,6 +130,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
     wrap,
     readOnly = false,
     intelligenceExtensions = emptyExtensions,
+    completionEnabled = true,
     onSourceChange,
   },
   ref,
@@ -137,6 +141,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
   const themeSlot = useRef(new Compartment());
   const preferencesSlot = useRef(new Compartment());
   const intelligenceSlot = useRef(new Compartment());
+  const completionSlot = useRef(new Compartment());
   const languageSlot = useRef(new Compartment());
 
   callbackRef.current = onSourceChange;
@@ -169,6 +174,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
       parent: mountRef.current,
       state: editorStateCache.restore(documentKey, initialSource, [
         ...baseExtensions,
+        completionSlot.current.of(completionEnabled ? completionExtension : []),
         languageSlot.current.of(language === "python" ? pythonExtensions : []),
         EditorView.contentAttributes.of({
           "aria-label": `${languageLabels[language]} solution editor`,
@@ -222,6 +228,12 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
       ),
     });
   }, [fontSize, tabSize, wrap, readOnly]);
+
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: completionSlot.current.reconfigure(completionEnabled ? completionExtension : []),
+    });
+  }, [completionEnabled]);
 
   useEffect(() => {
     const view = viewRef.current;

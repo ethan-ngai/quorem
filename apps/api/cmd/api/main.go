@@ -43,7 +43,7 @@ func main() {
 	if err = store.Migrate(ctx, "apps/api/migrations"); err != nil {
 		log.Fatal(err)
 	}
-	if local {
+	if local || (*seed && env("APP_ENV", "production") == "local") {
 		fixtures, err := problems.LoadFixtures("fixtures/problems")
 		if err != nil {
 			log.Fatal(err)

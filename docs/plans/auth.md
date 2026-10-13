@@ -1,10 +1,10 @@
 # Identity — Better Auth + Cognito
 
-Confirmed: email/password plus social sign-in, Better Auth + Amazon Cognito. Local editor/1v1 use seeded development-only identities first.
+Confirmed: email/password plus social sign-in, Better Auth + Amazon Cognito. Authorized 2026-10-12: replace local identity controls with real credential sessions; seed local username/password accounts for preview.
 
 ## Ownership and topology
 
-`apps/auth` is a small TypeScript service running Better Auth; product API and judge stay Go. Cognito owns email/password signup, verification, password reset, and federated sign-in. Better Auth uses its Cognito provider, stores app sessions/accounts in a separate PostgreSQL auth schema, and issues short-lived application JWTs for Go/language/realtime authorization. Do not also enable Better Auth's own password store: that would create two competing password/account systems.
+`apps/auth` is a small TypeScript service running Better Auth; product API and judge stay Go. Cognito owns deployed email/password signup, verification, password reset, and federated sign-in. Better Auth uses its Cognito provider, stores app sessions/accounts in a separate PostgreSQL auth schema, and issues short-lived application JWTs for Go/language/realtime authorization. Local loopback preview exclusively uses Better Auth's password store with seeded usernames; the two credential modes are mutually exclusive. Local seed verification substitutes for email delivery only in this guarded preview.
 
 Start social sign-in with Google through Cognito. GitHub is a potential later Better Auth direct provider, not assumed to be a native Cognito federation provider. Quorem internal user IDs map immutable issuer/subject/account bindings, never email as the authorization key. Linking requires reauthentication and verified identity; equal emails alone never merge accounts. Anonymous users may inspect public problems; judging, drafts, and matches require an identity.
 

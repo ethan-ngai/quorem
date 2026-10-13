@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { migrateAuth } from "./migrations";
 import { describe, it, expect } from "vitest";
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL;
 describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () => {
@@ -17,9 +17,7 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
       COGNITO_USERPOOL_ID: "us-east-1_mock",
     });
     const { database, config } = await import("./database");
-    await database.query(
-      await readFile(new URL("../migrations/001_auth.sql", import.meta.url), "utf8"),
-    );
+    await migrateAuth(database);
     const { auth } = await import("./auth");
     const id = randomUUID();
     const sessionId = randomUUID();
