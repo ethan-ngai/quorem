@@ -26,7 +26,9 @@ ENV.setdefault("AUTH_MODE", "password")
 ENV.setdefault("AUTH_ORIGIN", ENV["WEB_ORIGIN"])
 ENV.setdefault("AUTH_DATABASE_URL", ENV["DATABASE_URL"])
 ENV.setdefault("AUTH_SERVICE_URL", "http://127.0.0.1:8082")
+ENV.setdefault("AUTH_PORT", str(urlparse(ENV["AUTH_SERVICE_URL"]).port or 8082))
 ENV.setdefault("API_IDENTITY_URL", f"http://{ENV['API_ADDR']}")
+ENV.setdefault("VITE_LANGUAGE_URL", f"ws://{ENV['LANGUAGE_ADDR']}/lsp")
 ENV.setdefault("QUOREM_API_DEV_ORIGIN", f"http://{ENV['API_ADDR']}")
 ENV.setdefault("QUOREM_AUTH_DEV_ORIGIN", ENV["AUTH_SERVICE_URL"])
 if ENV["QUOREM_ENV"] != "development" or ENV["APP_ENV"] != "local":
@@ -80,7 +82,7 @@ try:
         ["vp", "-C", "apps/web", "dev", "--host", "127.0.0.1", "--port", str(urlparse(ENV["WEB_ORIGIN"]).port or 5173), "--strictPort"],
     ]:
         processes.append(subprocess.Popen(command, env=ENV, start_new_session=True))
-    print(f"Web {ENV['WEB_ORIGIN']} | API :8080 | language :8081", flush=True)
+    print(f"Web {ENV['WEB_ORIGIN']} | API {ENV['API_ADDR']} | language {ENV['LANGUAGE_ADDR']}", flush=True)
     while all(process.poll() is None for process in processes):
         time.sleep(0.25)
     raise SystemExit(next(process.returncode for process in processes if process.poll() is not None))

@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { readFile } from "node:fs/promises";
+import { migrateAuth } from "./migrations";
 import { describe, it, expect } from "vitest";
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL;
 describe.skipIf(!databaseURL)("local credential service with disposable PostgreSQL", () => {
@@ -13,11 +13,7 @@ describe.skipIf(!databaseURL)("local credential service with disposable PostgreS
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
     });
     const { database, config } = await import("./database");
-    for (const file of ["001_auth.sql", "002_username.sql"]) {
-      await database.query(
-        await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
-      );
-    }
+    await migrateAuth(database);
     const { auth } = await import("./auth");
     const { seedAccounts } = await import("./seed-accounts");
     const productURL = process.env.PRODUCT_AUTH_TEST_DATABASE_URL;

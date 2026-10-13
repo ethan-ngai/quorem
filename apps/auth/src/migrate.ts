@@ -1,9 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { migrateAuth } from "./migrations.ts";
 import { database } from "./database.ts";
 try {
-  for (const file of ["001_auth.sql", "002_username.sql"]) {
-    await database.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
-  }
+  await migrateAuth(database);
 } finally {
   await database.end();
 }
