@@ -49,6 +49,11 @@ if ENV["QUOREM_DEV_IDENTITY"] != "true" and ENV["AUTH_MODE"] == "password":
     for key, value in json.loads(credential_file.read_text()).items():
         ENV.setdefault(key, value)
 
+local_mail = ENV["QUOREM_DEV_IDENTITY"] != "true" and ENV["AUTH_MODE"] == "password"
+if local_mail:
+    ENV.setdefault("SMTP_HOST", "127.0.0.1")
+    ENV.setdefault("SMTP_PORT", "51025")
+    ENV.setdefault("SMTP_FROM", "Quorem <accounts@quorem.local>")
 processes = []
 local_storage = prepare_garage(ROOT, ENV) if ENV["QUOREM_DEV_IDENTITY"] != "true" else False
 
@@ -62,7 +67,7 @@ signal.signal(signal.SIGINT, stop)
 try:
     Path(".local/bin").mkdir(parents=True, exist_ok=True)
     for command in [
-        ["docker", "compose", *(["--profile", "storage"] if local_storage else []), "up", "-d", "--wait"],
+        ["docker", "compose", *(["--profile", "storage"] if local_storage else []), *(["--profile", "mailer"] if local_mail else []), "up", "-d", "--wait"],
         ["docker", "build", "-f", "apps/runner/Dockerfile", "-t", "quorem-python:local", "."],
         *[["docker", "build", "-f", f"apps/runner/Dockerfile.{language}", "-t", f"quorem-{language}:local", "."] for language in ("java", "typescript", "ocaml")],
         ["docker", "build", "-f", "apps/language/Dockerfile", "-t", "quorem-language:local", "."],
