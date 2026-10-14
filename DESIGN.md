@@ -261,3 +261,9 @@ Admin authoring uses the existing 48px navigation, neutral surface, 24px heading
 Shared navigation owns its 48px height independent of page layout; center 32–34px controls with visible top/bottom breathing room. Language, practice filters and workspace preferences share the Radix SelectField primitive with leading language logos, keyboard/typeahead, portal collision handling and token-based overlay/rows. Menus use 0 6px 20px neutral shadow at 8 percent in light mode, none in dark. Blue and semantic hues use saturated, in-gamut OKLCH accents; preserve at least 4.5:1 for body text and button labels.
 
 Destructive buttons use `color-error-button`: light `oklch(0.55 0.22 27)`, dark inherits error; reserve the brighter semantic error for labels and indicators.
+
+## Sign-in and discovery refresh
+
+Sign-in follows the active workspace theme. Desktop uses a 48/52 showcase/form split with a hairline division and 400px form. The left side reuses the marketing problem-card stack over a restrained original deformed grid, in neutral/blue tones. Below 900px omit the showcase and center the form. Canvas motion pauses for reduced motion, hidden tabs and offscreen content. Use labeled inputs, visible errors, password visibility and capability-aware social/passkey controls; omit unsupported signup/reset/SSO actions. Guests receive a Sign in link instead of an initials avatar.
+
+Practice discovery retains compact Geist typography, shared navigation and select primitives. URL-driven search/filter/sort requests drive server results and bounded pagination; loading, error and empty states occupy the gallery's normal layout. Difficulty uses existing semantic tokens; topic controls remain keyboard-accessible. Do not invent completion statistics or user progress.
