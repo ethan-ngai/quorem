@@ -11,6 +11,7 @@ describe("advertised authentication capabilities", () => {
           method: "password",
           preferredOrigin: "http://localhost:5180",
           passkey: true,
+          registration: false,
           providers: ["google", "fake"],
         }),
       ),
@@ -19,6 +20,7 @@ describe("advertised authentication capabilities", () => {
       method: "password",
       preferredOrigin: "http://localhost:5180",
       passkey: true,
+      registration: false,
       providers: ["google"],
     });
   });
@@ -46,6 +48,7 @@ describe("advertised authentication capabilities", () => {
       method: "cognito",
       preferredOrigin: "https://quorem.example",
       passkey: false,
+      registration: false,
       providers: [],
     });
     vi.stubGlobal(

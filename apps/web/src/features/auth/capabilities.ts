@@ -4,6 +4,7 @@ export type AuthCapabilities = {
   method: "password" | "cognito";
   preferredOrigin: string;
   passkey: boolean;
+  registration: boolean;
   providers: SocialProvider[];
 };
 export type Passkey = { id: string; name?: string | null; createdAt?: string | Date | null };
@@ -34,6 +35,7 @@ export async function fetchAuthCapabilities(): Promise<AuthCapabilities> {
     method: data.method,
     preferredOrigin: safeAuthOrigin(data.preferredOrigin),
     passkey: data.passkey === true,
+    registration: data.registration === true,
     providers: Array.isArray(data.providers)
       ? data.providers.filter(
           (value: unknown): value is SocialProvider =>
@@ -98,4 +100,30 @@ function safeAuthOrigin(value: unknown): string {
   )
     return value;
   throw new Error("Sign in unavailable");
+}
+
+export type Registration = { name: string; username: string; email: string; password: string };
+function verificationCallback(search?: string) {
+  return `${location.origin}/login?verified=1&returnTo=${encodeURIComponent(signInDestination(search))}`;
+}
+export async function registerAccount(account: Registration, search?: string) {
+  const response = await fetch("/api/auth/sign-up/email", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...account, callbackURL: verificationCallback(search) }),
+  });
+  if (!response.ok) {
+    if (response.status === 429) throw new Error("Too many attempts. Try again shortly.");
+    throw new Error("Could not create account. Check your details and try again.");
+  }
+}
+export async function resendVerificationEmail(email: string, search?: string) {
+  const response = await fetch("/api/auth/send-verification-email", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, callbackURL: verificationCallback(search) }),
+  });
+  if (!response.ok) throw new Error("Could not send verification email. Try again shortly.");
 }
