@@ -100,6 +100,8 @@ Brief color/opacity/transform feedback clarifies hover, selection, saving, and p
 
 Shared Radix selects open and close with a 120ms opacity/98%-scale animation anchored to the trigger. The chevron rotates on opening and returns on closing. Reduced motion disables both animations.
 
+The code toolbar reserves 8px above its controls, no bottom padding, and sizes to fit narrow-screen touch targets.
+
 ## Components
 
 - Buttons: Submit uses primary/onPrimary; Run uses neutral surface/border. Busy state names the existing job rather than silently accepting another.

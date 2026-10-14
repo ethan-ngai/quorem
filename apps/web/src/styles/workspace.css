@@ -457,7 +457,7 @@ kbd {
   position: relative;
   grid-area: code;
   display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   background: var(--color-field);
@@ -472,6 +472,9 @@ kbd {
   background: transparent;
 }
 
+.code-toolbar {
+  padding-block: var(--space-2) 0;
+}
 .code-options {
   display: flex;
   align-items: center;
