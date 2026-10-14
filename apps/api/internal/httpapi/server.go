@@ -165,12 +165,17 @@ func (s *Server) decode(w http.ResponseWriter, r *http.Request, v any, limit int
 	return true
 }
 func (s *Server) listProblems(w http.ResponseWriter, r *http.Request) {
-	v, e := s.Store.Problems(r.Context())
+	filter, e := parseProblemFilter(r.URL.Query())
 	if e != nil {
 		s.err(w, r, e)
 		return
 	}
-	respond(w, 200, map[string]any{"items": v})
+	v, e := s.Store.ProblemCatalog(r.Context(), filter)
+	if e != nil {
+		s.err(w, r, e)
+		return
+	}
+	respond(w, 200, v)
 }
 func (s *Server) problem(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

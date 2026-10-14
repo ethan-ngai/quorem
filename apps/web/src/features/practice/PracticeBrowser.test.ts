@@ -1,45 +1,35 @@
-/** @file PracticeBrowser.test.ts @description Catalog filtering and sort behavior. @module practice */
-import type { ProblemVersion } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
-import { filterProblems } from "./PracticeBrowser";
+import { catalogSearch } from "./catalogSearch";
 
-const problems = [
-  {
-    id: "1",
-    slug: "tree-depth",
-    title: "Tree Depth",
-    difficulty: "easy",
-    tags: ["tree", "recursion"],
-  },
-  { id: "2", slug: "array-route", title: "Array Route", difficulty: "hard", tags: ["array"] },
-  { id: "3", slug: "tree-path", title: "Tree Path", difficulty: "medium", tags: ["tree"] },
-] as ProblemVersion[];
-
-describe("practice catalog", () => {
-  it("combines text, difficulty and authoritative topic filters", () => {
+describe("practice URL state", () => {
+  it("preserves valid bookmarked filters and bounded pagination", () => {
     expect(
-      filterProblems(problems, " TREE ", "medium", "tree", "title", false).map((p) => p.slug),
-    ).toEqual(["tree-path"]);
-    expect(
-      filterProblems(problems, "recursion", "all", "all", "title", false).map((p) => p.slug),
-    ).toEqual(["tree-depth"]);
-    expect(filterProblems(problems, "", "hard", "tree", "title", false)).toEqual([]);
+      catalogSearch({
+        q: " tree ",
+        difficulty: "medium",
+        topic: "tree",
+        sort: "difficulty",
+        order: "desc",
+        page: "2",
+      }),
+    ).toEqual({
+      q: "tree",
+      difficulty: "medium",
+      topic: "tree",
+      sort: "difficulty",
+      order: "desc",
+      page: 2,
+    });
   });
-  it("sorts difficulties by rank and reverses title order without mutating the catalog", () => {
+  it("omits defaults and rejects invalid query state", () => {
     expect(
-      filterProblems(problems, "", "all", "all", "difficulty", false).map((p) => p.difficulty),
-    ).toEqual(["easy", "medium", "hard"]);
-    expect(filterProblems(problems, "", "all", "all", "title", true).map((p) => p.title)).toEqual([
-      "Tree Path",
-      "Tree Depth",
-      "Array Route",
-    ]);
-    expect(problems[0]?.slug).toBe("tree-depth");
+      catalogSearch({ q: " ", difficulty: "ALL", topic: [], sort: "sql", order: "asc", page: -1 }),
+    ).toEqual({});
+    expect(catalogSearch({ sort: "title", page: 1 })).toEqual({});
+    expect(catalogSearch({ page: 10001 })).toEqual({});
   });
-  it("uses a title tie-break for difficulty sorting", () => {
-    const sameDifficulty = problems.map((problem) => ({ ...problem, difficulty: "easy" as const }));
-    expect(
-      filterProblems(sameDifficulty, "", "all", "all", "difficulty", false).map((p) => p.title),
-    ).toEqual(["Array Route", "Tree Depth", "Tree Path"]);
+  it("bounds Unicode search length without splitting characters", () => {
+    expect(Array.from(catalogSearch({ q: "😀".repeat(121) }).q!)).toHaveLength(120);
+    expect(Array.from(catalogSearch({ topic: "x".repeat(90) }).topic!)).toHaveLength(80);
   });
 });

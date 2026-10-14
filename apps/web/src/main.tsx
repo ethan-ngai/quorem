@@ -12,6 +12,7 @@ import { createRoot } from "react-dom/client";
 import { LoginPage } from "./features/auth/LoginPage";
 import { InvitePage } from "./features/matches/InvitePage";
 import { practiceSearch } from "./features/navigation/matchCreationIntent";
+import { catalogSearch } from "./features/practice/catalogSearch";
 import { PracticeBrowser } from "./features/practice/PracticeBrowser";
 import "@fontsource-variable/geist";
 import "@fontsource/jetbrains-mono/400.css";
@@ -51,7 +52,7 @@ const indexRoute = createRoute({
 const practiceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/practice",
-  validateSearch: practiceSearch,
+  validateSearch: (search) => ({ ...practiceSearch(search), ...catalogSearch(search) }),
   component: PracticeBrowser,
 });
 const problemRoute = createRoute({
