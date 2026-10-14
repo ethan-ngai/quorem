@@ -6,7 +6,7 @@ export type Session = {
 let access: { token: string; until: number } | undefined;
 let pending: Promise<string | undefined> | undefined;
 let generation = 0;
-function resetToken() {
+export function resetToken() {
   generation++;
   access = undefined;
   pending = undefined;
@@ -66,23 +66,28 @@ export async function authMethod(): Promise<"password" | "cognito"> {
 }
 export function signInDestination(search: string = location.search ?? ""): string {
   const requested = new URLSearchParams(search).get("returnTo") ?? "";
-  return /^\/(practice|match|invite|admin)(\/|$)/.test(requested) &&
+  return /^\/(practice|match|invite|admin)(\/|\?|#|$)/.test(requested) &&
     !requested.includes("\\") &&
     !/[\r\n]/.test(requested)
     ? requested
     : "/practice";
 }
 export async function signInWithPassword(username: string, password: string) {
-  const response = await fetch("/api/auth/sign-in/username", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
+  const response = await fetch(
+    username.includes("@") ? "/api/auth/sign-in/email" : "/api/auth/sign-in/username",
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        username.includes("@") ? { email: username, password } : { username, password },
+      ),
+    },
+  );
   if (!response.ok) {
     if (response.status === 429) throw new Error("Too many attempts. Try again shortly.");
     if (response.status >= 500) throw new Error("Sign in unavailable. Try again.");
-    throw new Error("Incorrect username or password.");
+    throw new Error("Incorrect username, email or password.");
   }
   resetToken();
   location.assign(signInDestination());

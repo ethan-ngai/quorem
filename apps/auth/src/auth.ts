@@ -1,5 +1,6 @@
+import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
+import { createAuthMiddleware, APIError } from "better-auth/api";
 import { jwt, username } from "better-auth/plugins";
 import { config, database } from "./database.ts";
 export { config, database } from "./database.ts";
@@ -16,9 +17,21 @@ export function createAuth(allowSeed = false) {
       disableSignUp: !allowSeed,
       autoSignIn: false,
     },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        // Passkey plugin management routes must share profile mutations' exact origin policy.
+        if (
+          ctx.path.startsWith("/passkey/") &&
+          ctx.method === "POST" &&
+          ctx.headers?.get("origin") !== config.origin
+        )
+          throw new APIError("FORBIDDEN", { message: "Invalid origin" });
+      }),
+    },
     account: { accountLinking: { enabled: false } },
-    socialProviders:
-      config.method === "cognito"
+    socialProviders: {
+      ...config.social,
+      ...(config.method === "cognito"
         ? {
             cognito: {
               clientId: config.clientId,
@@ -28,7 +41,8 @@ export function createAuth(allowSeed = false) {
               userPoolId: config.userPoolId,
             },
           }
-        : {},
+        : {}),
+    },
     session: { cookieCache: { enabled: false } },
     databaseHooks: {
       user: {
@@ -50,6 +64,16 @@ export function createAuth(allowSeed = false) {
     },
     advanced: { useSecureCookies: new URL(config.origin).protocol === "https:" },
     plugins: [
+      ...(config.passkey
+        ? [
+            passkey({
+              rpID: new URL(config.origin).hostname,
+              rpName: "Quorem",
+              origin: config.origin,
+              registration: { requireSession: true },
+            }),
+          ]
+        : []),
       ...(config.method === "password" ? [username({ immutableUsername: true })] : []),
       jwt({
         jwks: {
