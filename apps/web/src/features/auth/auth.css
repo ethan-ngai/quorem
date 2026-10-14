@@ -1,41 +1,287 @@
 .auth-page {
   min-height: 100dvh;
-  padding: var(--space-6);
+  display: grid;
+  grid-template-columns: 48% 52%;
+  position: relative;
+  background: var(--color-background);
+}
+.auth-brand {
+  position: absolute;
+  z-index: 2;
+  top: 24px;
+  left: 32px;
+}
+.auth-form-side {
+  display: grid;
+  place-items: center;
+  padding: 96px 48px 64px;
+  min-width: 0;
 }
 .auth-content {
-  max-width: 360px;
-  margin: clamp(48px, 12vh, 128px) auto;
+  width: 100%;
+  max-width: 400px;
 }
 .auth-content h1 {
-  font-size: 24px;
-  letter-spacing: -0.025em;
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
 }
 .auth-content > p {
   color: var(--color-text-secondary);
-  margin: var(--space-4) 0 var(--space-6);
+  margin: 12px 0 32px;
 }
-.auth-content form,
-.auth-content label {
+.auth-providers {
   display: grid;
-  gap: var(--space-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.auth-content .button {
+  min-height: 44px;
+  gap: 8px;
+  justify-content: center;
+}
+.auth-provider {
+  padding-inline: 10px;
+  background: var(--color-field);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+.auth-provider-symbol {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
+}
+.auth-content .auth-note {
+  font-size: 12px;
+  margin: 10px 0 0;
+  color: var(--color-text-secondary);
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--color-border);
 }
 .auth-content form {
-  gap: var(--space-5);
-  margin-bottom: var(--space-5);
+  display: grid;
+  gap: 8px;
+}
+.auth-content label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.auth-content label:not(:first-child) {
+  margin-top: 16px;
 }
 .auth-content input {
+  width: 100%;
   min-width: 0;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-4);
+  min-height: 48px;
+  padding: 10px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-field);
   color: var(--color-text);
   font: inherit;
 }
-.auth-content .button {
-  min-height: 44px;
+.auth-content input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
+.auth-password {
+  position: relative;
+}
+.auth-password input {
+  padding-right: 48px;
+}
+.auth-password .icon-button {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 44px;
+  height: 44px;
+  color: var(--color-text-secondary);
+}
+.auth-submit {
+  margin-top: 20px;
+  width: 100%;
+}
+.auth-passkey {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-field);
+}
+.auth-browse {
+  display: block;
+  margin-top: 28px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.auth-browse:hover {
+  text-decoration: underline;
+}
+.auth-content .auth-error,
 .auth-content [role="alert"] {
   color: var(--color-error);
+  margin-top: 16px;
+  font-size: 14px;
+}
+.auth-showcase {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  padding: 128px 40px;
+  overflow: hidden;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.auth-grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--color-primary);
+  opacity: 0.12;
+  mask-image: radial-gradient(ellipse at center, black 15%, transparent 72%);
+  pointer-events: none;
+}
+.auth-problem-stack {
+  position: relative;
+  width: min(100%, 480px);
+  padding-top: 120px;
+}
+.auth-problem-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-field);
+  padding: 20px;
+}
+.auth-problem-card > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.auth-problem-card strong {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.auth-problem-card > div:first-child > span {
+  font-size: 12px;
+}
+.auth-problem-back,
+.auth-problem-middle {
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  min-height: 136px;
+}
+.auth-problem-back {
+  transform: rotate(-4deg);
+}
+.auth-problem-middle {
+  top: 58px;
+  left: 8px;
+  right: 8px;
+  transform: rotate(2deg);
+}
+.auth-problem-front {
+  position: relative;
+  box-shadow: 0 16px 40px color-mix(in oklch, var(--color-text) 5%, transparent);
+}
+.auth-problem-front strong {
+  font-size: 30px;
+}
+.auth-topic {
+  display: inline-block;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  padding: 4px 8px;
+  margin-top: 12px;
+}
+.auth-topics {
+  display: flex;
+  gap: 8px;
+}
+.auth-problem-front p {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 24px 0;
+}
+.auth-example {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.auth-example > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.auth-example svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+.auth-example code {
+  padding: 6px 8px;
+  font-family: var(--font-code);
+  font-size: 12px;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  white-space: normal;
+}
+.auth-easy {
+  color: var(--color-success);
+}
+.auth-medium {
+  color: var(--color-warning);
+}
+.auth-hard {
+  color: var(--color-error);
+}
+@media (max-width: 899px) {
+  .auth-page {
+    display: block;
+  }
+  .auth-showcase {
+    display: none;
+  }
+  .auth-form-side {
+    min-height: 100dvh;
+    padding: 112px 24px 48px;
+  }
+  .auth-brand {
+    left: 24px;
+  }
+}
+@media (max-width: 380px) {
+  .auth-providers {
+    grid-template-columns: 1fr;
+  }
+  .auth-content h1 {
+    font-size: 26px;
+  }
 }

@@ -19,6 +19,7 @@ import { useProfile, uploadProfilePhoto, removeProfilePhoto, photoTypes } from "
 import type { ThemePreference } from "../editor/editorSettings";
 import { Tooltip } from "../editor/components/Tooltip";
 import { AccountAvatar } from "./AccountAvatar";
+import { PasskeySettings } from "../auth/PasskeySettings";
 
 type AccountPanel = "profile" | "settings";
 export function AccountMenu({
@@ -41,7 +42,7 @@ export function AccountMenu({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const account = profile.data;
-  const name = account?.name || session?.user.displayName || "Guest";
+  const name = account?.name || session?.user.displayName || "Account";
   function showPanel(next: AccountPanel) {
     setOpen(false);
     setError("");
@@ -59,6 +60,20 @@ export function AccountMenu({
       setSaving(false);
     }
   }
+  const returnTo =
+    typeof location !== "undefined" &&
+    /^\/(practice|match|invite|admin)(\/|$)/.test(location.pathname)
+      ? `${location.pathname}${location.search}`
+      : "";
+  if (!session)
+    return (
+      <a
+        className="button nav-sign-in"
+        href={returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login"}
+      >
+        Sign in
+      </a>
+    );
   return (
     <>
       <Popover.Root open={open} onOpenChange={setOpen}>
@@ -109,7 +124,7 @@ export function AccountMenu({
                     <span>Profile</span>
                     <ChevronRight className="account-menu-chevron" />
                   </button>
-                  {onThemeChange ? (
+                  {session ? (
                     <button onClick={() => showPanel("settings")}>
                       <Settings />
                       <span>Settings</span>
@@ -167,7 +182,7 @@ export function AccountMenu({
                 <Dialog.Description>
                   {panel === "profile"
                     ? "Your account and profile photo."
-                    : "Choose how Quorem appears on this device."}
+                    : "Manage your sign-in methods and appearance."}
                 </Dialog.Description>
               </div>
               <Dialog.Close asChild>
@@ -250,28 +265,33 @@ export function AccountMenu({
                 ) : null}
               </>
             ) : panel === "settings" ? (
-              <div className="account-theme-setting">
-                <span>Color theme</span>
-                <div className="theme-segments" role="group" aria-label="Color theme">
-                  {(
-                    [
-                      { value: "system", label: "System", Icon: Monitor },
-                      { value: "light", label: "Light", Icon: Sun },
-                      { value: "dark", label: "Dark", Icon: Moon },
-                    ] as const
-                  ).map(({ value, label, Icon }) => (
-                    <Tooltip key={value} content={label}>
-                      <button
-                        aria-label={`${label} theme`}
-                        aria-pressed={theme === value}
-                        onClick={() => onThemeChange?.(value)}
-                      >
-                        <Icon size={18} />
-                      </button>
-                    </Tooltip>
-                  ))}
-                </div>
-              </div>
+              <>
+                <PasskeySettings />
+                {onThemeChange ? (
+                  <div className="account-theme-setting">
+                    <span>Color theme</span>
+                    <div className="theme-segments" role="group" aria-label="Color theme">
+                      {(
+                        [
+                          { value: "system", label: "System", Icon: Monitor },
+                          { value: "light", label: "Light", Icon: Sun },
+                          { value: "dark", label: "Dark", Icon: Moon },
+                        ] as const
+                      ).map(({ value, label, Icon }) => (
+                        <Tooltip key={value} content={label}>
+                          <button
+                            aria-label={`${label} theme`}
+                            aria-pressed={theme === value}
+                            onClick={() => onThemeChange?.(value)}
+                          >
+                            <Icon size={18} />
+                          </button>
+                        </Tooltip>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </Dialog.Content>
         </Dialog.Portal>

@@ -349,3 +349,54 @@
     min-height: var(--narrow-touch-target);
   }
 }
+
+.nav-sign-in {
+  white-space: nowrap;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  background: var(--color-field);
+  text-decoration: none;
+}
+.account-passkeys {
+  padding-top: var(--space-6);
+}
+.account-passkeys h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.account-passkeys p {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.account-passkeys ul {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+.account-passkeys li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--color-border);
+  padding: 8px 0;
+  font-size: 14px;
+}
+.account-passkeys .button {
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+}
+.account-passkeys .account-error {
+  color: var(--color-error);
+}
+@media (pointer: coarse) {
+  .nav-sign-in {
+    min-height: 44px;
+  }
+}

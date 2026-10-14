@@ -52,7 +52,14 @@ export function GlobalNav({
       return;
     }
     setCreating(true);
-    void navigate({ to: "/practice", search: {}, replace: true });
+    void navigate({
+      to: "/practice",
+      search: (previous) => {
+        const { create: _create, ...filters } = previous;
+        return filters;
+      },
+      replace: true,
+    });
   }, [pathname, location.search, navigate, session.isPending, session.data]);
   return (
     <>
