@@ -1,9 +1,15 @@
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, EyeOff, Fingerprint } from "lucide-react";
-import { signIn, signInWithPassword } from "./session";
-import { fetchAuthCapabilities, signInWithPasskey, signInWithProvider } from "./capabilities";
+import { ArrowLeft, Eye, EyeOff, Fingerprint } from "lucide-react";
+import { signIn, signInDestination, signInWithPassword } from "./session";
+import {
+  fetchAuthCapabilities,
+  registerAccount,
+  resendVerificationEmail,
+  signInWithPasskey,
+  signInWithProvider,
+} from "./capabilities";
 import { Brand } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { LoginShowcase } from "./LoginShowcase";
@@ -20,6 +26,11 @@ export function LoginPage() {
     const origin = capabilities.data?.preferredOrigin;
     if (origin && origin !== location.origin) location.replace(`${origin}/login${location.search}`);
   }, [capabilities.data?.preferredOrigin]);
+  const [creating, setCreating] = useState(false);
+  const [email, setEmail] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [resent, setResent] = useState(false);
+  const verified = new URLSearchParams(location.search).get("verified") === "1";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
@@ -40,23 +51,90 @@ export function LoginPage() {
   }
   function submit(event: FormEvent) {
     event.preventDefault();
-    void authenticate(() =>
-      capabilities.data?.method === "password"
-        ? signInWithPassword(username.trim(), password)
-        : signIn(),
-    );
+    void authenticate(async () => {
+      if (creating) {
+        if (!capabilities.data?.registration) throw new Error("Account creation is unavailable.");
+        await registerAccount({
+          name: username.trim(),
+          username: username.trim(),
+          email: email.trim(),
+          password,
+        });
+        setSubmittedEmail(email.trim());
+        setPassword("");
+        setVisible(false);
+      } else if (capabilities.data?.method === "password")
+        await signInWithPassword(username.trim(), password);
+      else await signIn();
+    });
   }
   return (
     <main className="auth-page">
+      <a className="auth-back" href={signInDestination()}>
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back
+      </a>
       <div className="auth-brand">
         <Brand />
       </div>
       <LoginShowcase />
       <div className="auth-form-side">
         <section className="auth-content" aria-labelledby="sign-in-title">
-          <h1 id="sign-in-title">Sign in to Quorem</h1>
-          <p>Pick up where you left off.</p>
-          {capabilities.isPending ? (
+          <h1 id="sign-in-title">
+            {submittedEmail
+              ? "Check your email"
+              : creating
+                ? "Create your account"
+                : "Sign in to Quorem"}
+          </h1>
+          <p>
+            {submittedEmail
+              ? `Open the verification link sent to ${submittedEmail}, then sign in.`
+              : creating
+                ? "Start practicing with Quorem."
+                : "Pick up where you left off."}
+          </p>
+          {verified && !creating && !submittedEmail ? (
+            <p className="auth-success" role="status">
+              Email verified. You can sign in now.
+            </p>
+          ) : null}
+          {submittedEmail ? (
+            <div className="auth-verification">
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={busy}
+                onClick={() => {
+                  setSubmittedEmail("");
+                  setCreating(false);
+                  setUsername(email);
+                  setError("");
+                }}
+              >
+                Back to sign in
+              </button>
+              <button
+                type="button"
+                className="quiet-button"
+                disabled={busy}
+                onClick={() =>
+                  void authenticate(async () => {
+                    await resendVerificationEmail(submittedEmail);
+                    setResent(true);
+                  })
+                }
+              >
+                {busy ? "Sending…" : "Resend verification email"}
+              </button>
+              {resent ? <p role="status">Verification email sent.</p> : null}
+              {error ? (
+                <p className="auth-error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+            </div>
+          ) : capabilities.isPending ? (
             <p role="status">Loading sign in…</p>
           ) : capabilities.isError ? (
             <>
@@ -126,26 +204,51 @@ export function LoginPage() {
               <form onSubmit={submit}>
                 {capabilities.data?.method === "password" ? (
                   <>
-                    <label htmlFor="auth-username">Username or email</label>
+                    <label htmlFor="auth-username">
+                      {creating ? "Username" : "Username or email"}
+                    </label>
                     <input
                       id="auth-username"
                       name="username"
                       autoComplete="username"
                       required
-                      maxLength={254}
+                      maxLength={creating ? 30 : 254}
+                      minLength={creating ? 3 : undefined}
+                      pattern={creating ? "[a-zA-Z0-9_]+" : undefined}
+                      title={creating ? "3–30 letters, numbers or underscores" : undefined}
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
                       disabled={busy}
                       autoCapitalize="none"
                       spellCheck={false}
                     />
+                    {creating ? (
+                      <>
+                        <label htmlFor="auth-email">Email</label>
+                        <input
+                          id="auth-email"
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          required
+                          maxLength={254}
+                          disabled={busy}
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                        />
+                      </>
+                    ) : null}
                     <label htmlFor="auth-password">Password</label>
                     <div className="auth-password">
                       <input
                         id="auth-password"
                         name="password"
                         type={visible ? "text" : "password"}
-                        autoComplete="current-password"
+                        autoComplete={creating ? "new-password" : "current-password"}
+                        minLength={creating ? 12 : undefined}
+                        maxLength={creating ? 128 : undefined}
                         required
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
@@ -165,13 +268,20 @@ export function LoginPage() {
                 ) : null}
                 <button className="button button-primary auth-submit" type="submit" disabled={busy}>
                   {busy
-                    ? "Signing in…"
-                    : capabilities.data?.method === "password"
-                      ? "Sign in"
-                      : "Continue to sign in"}
+                    ? creating
+                      ? "Creating account…"
+                      : "Signing in…"
+                    : creating
+                      ? "Create account"
+                      : capabilities.data?.method === "password"
+                        ? "Sign in"
+                        : "Continue to sign in"}
                 </button>
               </form>
-              {capabilities.data?.passkey ? (
+              {creating ? (
+                <p className="auth-note">Use at least 12 characters for your password.</p>
+              ) : null}
+              {!creating && capabilities.data?.passkey ? (
                 <button
                   className="button auth-passkey"
                   disabled={busy || !passkeySupported}
@@ -181,8 +291,27 @@ export function LoginPage() {
                   Sign in with a passkey
                 </button>
               ) : null}
-              {capabilities.data?.passkey && !passkeySupported ? (
+              {!creating && capabilities.data?.passkey && !passkeySupported ? (
                 <p className="auth-note">Passkeys require a supported browser.</p>
+              ) : null}
+              {capabilities.data?.registration ? (
+                <p className="auth-mode-toggle">
+                  {creating ? "Already have an account?" : "New to Quorem?"}{" "}
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    disabled={busy}
+                    onClick={() => {
+                      setCreating(!creating);
+                      setPassword("");
+                      setVisible(false);
+                      setError("");
+                      setResent(false);
+                    }}
+                  >
+                    {creating ? "Sign in" : "Create account"}
+                  </button>
+                </p>
               ) : null}
               {error ? (
                 <p className="auth-error" role="alert">
@@ -191,9 +320,6 @@ export function LoginPage() {
               ) : null}
             </>
           )}
-          <a className="auth-browse" href="/practice">
-            Browse problems
-          </a>
         </section>
       </div>
     </main>
