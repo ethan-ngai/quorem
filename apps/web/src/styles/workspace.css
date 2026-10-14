@@ -141,7 +141,7 @@
   opacity: 0.45;
 }
 .button-danger {
-  background: var(--color-error);
+  background: var(--color-error-button);
   color: var(--color-on-primary);
   border-color: var(--color-error);
 }

@@ -20,9 +20,9 @@ colors:
       disabled: { light: "oklch(0.59 0.005 255)", dark: "oklch(0.52 0.006 255)" }
   semantic:
     info: { light: "oklch(0.52 0.18 260)", dark: "oklch(0.70 0.14 260)" }
-    success: { light: "oklch(0.49 0.15 145)", dark: "oklch(0.73 0.16 150)" }
-    warning: { light: "oklch(0.52 0.10 85)", dark: "oklch(0.78 0.15 75)" }
-    error: { light: "oklch(0.55 0.22 27)", dark: "oklch(0.70 0.19 25)" }
+    success: { light: "oklch(0.58 0.175 145)", dark: "oklch(0.73 0.16 150)" }
+    warning: { light: "oklch(0.78 0.16 100)", dark: "oklch(0.78 0.15 75)" }
+    error: { light: "oklch(0.60 0.23 27)", dark: "oklch(0.70 0.19 25)" }
   editor:
     selection: { light: "oklch(0.90 0.04 255)", dark: "oklch(0.32 0.05 255)" }
     activeLine: { light: "oklch(0.97 0.008 255)", dark: "oklch(0.23 0.009 255)" }
@@ -104,7 +104,7 @@ The code toolbar reserves 8px above its controls, no bottom padding, and sizes t
 
 IntelliSense uses a circular, non-clickable 8px status dot with a steady glow: success green when active, warning yellow when connecting/paused, error red when unavailable. A keyboard-accessible tooltip explains the state.
 
-Semantic text retains AA contrast with saturated classic hues. Light-mode accent tokens brighten indicators and fills: success `oklch(0.66 0.20 145)`, warning `oklch(0.80 0.15 85)`, error `oklch(0.64 0.24 27)`. Dark accents inherit their existing semantic colors. Glow uses 4px/65% and 9px/35% accent shadows; no pulse.
+Light-mode semantic labels favor vivid classic hues; yellow uses a lemon hue rather than amber/brown. Body text and button labels retain AA contrast. Light-mode accent tokens brighten indicators and fills: success `oklch(0.66 0.20 145)`, warning `oklch(0.84 0.17 100)`, error `oklch(0.64 0.24 27)`. Dark accents inherit their existing semantic colors. Glow uses 4px/65% and 9px/35% accent shadows; no pulse.
 
 ## Components
 
@@ -258,4 +258,6 @@ Editorial controls sit below the problem statement, within its existing scroll a
 
 Admin authoring uses the existing 48px navigation, neutral surface, 24px heading and 15px body. A compact draft rail precedes grouped labeled fields; JSON editors are reserved for typed signatures/constraints/cases. Safe preview shares the public statement and editorial components. Save and publish remain explicit; publish confirms validation through inline errors. Existing radii, spacing and color tokens apply.
 
-Shared navigation owns its 48px height independent of page layout; center 32–34px controls with visible top/bottom breathing room. Language, practice filters and workspace preferences share the Radix SelectField primitive with leading language logos, keyboard/typeahead, portal collision handling and token-based overlay/rows. Menus use 0 6px 20px neutral shadow at 8 percent in light mode, none in dark. Blue and semantic hues use saturated, in-gamut OKLCH accents; preserve at least 4.5:1 for colored text and primary-button labels.
+Shared navigation owns its 48px height independent of page layout; center 32–34px controls with visible top/bottom breathing room. Language, practice filters and workspace preferences share the Radix SelectField primitive with leading language logos, keyboard/typeahead, portal collision handling and token-based overlay/rows. Menus use 0 6px 20px neutral shadow at 8 percent in light mode, none in dark. Blue and semantic hues use saturated, in-gamut OKLCH accents; preserve at least 4.5:1 for body text and button labels.
+
+Destructive buttons use `color-error-button`: light `oklch(0.55 0.22 27)`, dark inherits error; reserve the brighter semantic error for labels and indicators.
