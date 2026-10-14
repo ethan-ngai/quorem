@@ -38,6 +38,7 @@ const server = createServer(async (req, res) => {
         method: config.method,
         preferredOrigin: config.origin,
         passkey: config.passkey,
+        registration: config.registration,
         providers: Object.entries(config.social)
           .filter(([, value]) => value)
           .map(([name]) => name),

@@ -70,3 +70,19 @@ describe("passkey and social capabilities", () => {
     ).toEqual({ clientId: "client", clientSecret: "secret" });
   });
 });
+
+describe("local registration mail", () => {
+  it("requires local credential mode and loopback SMTP", () => {
+    expect(
+      configuration({ ...env, AUTH_MODE: "password", SMTP_HOST: "127.0.0.1" }).registration,
+    ).toBe(true);
+    expect(configuration({ ...env, AUTH_MODE: "password" }).registration).toBe(false);
+    expect(() => configuration({ ...env, SMTP_HOST: "127.0.0.1" })).toThrow();
+    expect(() =>
+      configuration({ ...env, AUTH_MODE: "password", SMTP_HOST: "smtp.example.com" }),
+    ).toThrow();
+    expect(() =>
+      configuration({ ...env, AUTH_MODE: "password", SMTP_HOST: "localhost", SMTP_PORT: "0" }),
+    ).toThrow();
+  });
+});
