@@ -98,6 +98,8 @@ Theme-independent motion tokens: `motion-fast`: 120ms; `motion-standard`: 180ms;
 
 Brief color/opacity/transform feedback clarifies hover, selection, saving, and popovers. No ambient animation while coding. Reduced motion removes spatial transitions. Loading/status animation must not move code or result geometry.
 
+Shared Radix selects open and close with a 120ms opacity/98%-scale animation anchored to the trigger. The chevron rotates on opening and returns on closing. Reduced motion disables both animations.
+
 ## Components
 
 - Buttons: Submit uses primary/onPrimary; Run uses neutral surface/border. Busy state names the existing job rather than silently accepting another.

@@ -32,6 +32,10 @@
   display: flex;
   margin-left: auto;
   color: var(--color-text-secondary);
+  transition: transform var(--motion-fast) var(--motion-easing);
+}
+.select-field[data-state="open"] .select-field-chevron {
+  transform: rotate(180deg);
 }
 .select-field--settings {
   min-width: 130px;
@@ -58,6 +62,34 @@
   background: var(--color-overlay);
   color: var(--color-text);
   box-shadow: var(--shadow-overlay);
+  transform-origin: var(--radix-select-content-transform-origin);
+}
+.select-field-menu[data-state="open"] {
+  animation: select-field-open var(--motion-fast) var(--motion-easing);
+}
+.select-field-menu[data-state="closed"] {
+  animation: select-field-close var(--motion-fast) var(--motion-easing);
+  pointer-events: none;
+}
+@keyframes select-field-open {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes select-field-close {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
 }
 .select-field-item {
   display: flex;
@@ -100,7 +132,11 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .select-field {
+  .select-field,
+  .select-field-chevron {
     transition: none;
+  }
+  .select-field-menu {
+    animation: none;
   }
 }
