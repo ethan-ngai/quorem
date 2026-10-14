@@ -20,9 +20,9 @@ colors:
       disabled: { light: "oklch(0.59 0.005 255)", dark: "oklch(0.52 0.006 255)" }
   semantic:
     info: { light: "oklch(0.52 0.18 260)", dark: "oklch(0.70 0.14 260)" }
-    success: { light: "oklch(0.47 0.12 150)", dark: "oklch(0.73 0.16 150)" }
-    warning: { light: "oklch(0.49 0.10 65)", dark: "oklch(0.78 0.15 75)" }
-    error: { light: "oklch(0.54 0.21 25)", dark: "oklch(0.70 0.19 25)" }
+    success: { light: "oklch(0.58 0.175 145)", dark: "oklch(0.73 0.16 150)" }
+    warning: { light: "oklch(0.816894 0.136542 74.39175)", dark: "oklch(0.78 0.15 75)" }
+    error: { light: "oklch(0.60 0.23 27)", dark: "oklch(0.70 0.19 25)" }
   editor:
     selection: { light: "oklch(0.90 0.04 255)", dark: "oklch(0.32 0.05 255)" }
     activeLine: { light: "oklch(0.97 0.008 255)", dark: "oklch(0.23 0.009 255)" }
@@ -97,6 +97,14 @@ Translate the supplied dark account-menu reference into the compact workspace sc
 Theme-independent motion tokens: `motion-fast`: 120ms; `motion-standard`: 180ms; `motion-easing`: cubic-bezier(0.2, 0, 0, 1). Map them to shared CSS custom properties.
 
 Brief color/opacity/transform feedback clarifies hover, selection, saving, and popovers. No ambient animation while coding. Reduced motion removes spatial transitions. Loading/status animation must not move code or result geometry.
+
+Shared Radix selects open and close with a 120ms opacity/98%-scale animation anchored to the trigger. The chevron rotates on opening and returns on closing. Reduced motion disables both animations.
+
+The code toolbar reserves 8px above its controls, no bottom padding, and sizes to fit narrow-screen touch targets.
+
+IntelliSense uses a circular, non-clickable 8px status dot with a steady glow: success green when active, warning yellow when connecting/paused, error red when unavailable. A keyboard-accessible tooltip explains the state.
+
+Light-mode semantic labels favor vivid classic hues; yellow matches the supplied reference text, sampled as `#f7b553`. Body text and button labels retain AA contrast. Light-mode accent tokens brighten indicators and fills: success `oklch(0.66 0.20 145)`, warning inherits the reference yellow, error `oklch(0.64 0.24 27)`. Dark accents inherit their existing semantic colors. Glow uses 4px/65% and 9px/35% accent shadows; no pulse.
 
 ## Components
 
@@ -250,4 +258,6 @@ Editorial controls sit below the problem statement, within its existing scroll a
 
 Admin authoring uses the existing 48px navigation, neutral surface, 24px heading and 15px body. A compact draft rail precedes grouped labeled fields; JSON editors are reserved for typed signatures/constraints/cases. Safe preview shares the public statement and editorial components. Save and publish remain explicit; publish confirms validation through inline errors. Existing radii, spacing and color tokens apply.
 
-Shared navigation owns its 48px height independent of page layout; center 32–34px controls with visible top/bottom breathing room. Language, practice filters and workspace preferences share the Radix SelectField primitive with leading language logos, keyboard/typeahead, portal collision handling and token-based overlay/rows. Menus use 0 6px 20px neutral shadow at 8 percent in light mode, none in dark. Blue and semantic hues use saturated, in-gamut OKLCH accents; preserve at least 4.5:1 for colored text and primary-button labels.
+Shared navigation owns its 48px height independent of page layout; center 32–34px controls with visible top/bottom breathing room. Language, practice filters and workspace preferences share the Radix SelectField primitive with leading language logos, keyboard/typeahead, portal collision handling and token-based overlay/rows. Menus use 0 6px 20px neutral shadow at 8 percent in light mode, none in dark. Blue and semantic hues use saturated, in-gamut OKLCH accents; preserve at least 4.5:1 for body text and button labels.
+
+Destructive buttons use `color-error-button`: light `oklch(0.55 0.22 27)`, dark inherits error; reserve the brighter semantic error for labels and indicators.
