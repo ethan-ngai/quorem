@@ -16,7 +16,7 @@ import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
 
 export function LoginPage() {
-  useTheme();
+  const { preference, setPreference } = useTheme();
   const capabilities = useQuery({
     queryKey: ["auth-capabilities"],
     queryFn: fetchAuthCapabilities,
@@ -24,8 +24,20 @@ export function LoginPage() {
   });
   useEffect(() => {
     const origin = capabilities.data?.preferredOrigin;
-    if (origin && origin !== location.origin) location.replace(`${origin}/login${location.search}`);
-  }, [capabilities.data?.preferredOrigin]);
+    if (!origin) return;
+    const destination = new URL(`/login${location.search}`, origin);
+    if (origin !== location.origin) {
+      destination.searchParams.set("authTheme", preference);
+      location.replace(destination.toString());
+      return;
+    }
+    const requested = destination.searchParams.get("authTheme");
+    if (requested === "light" || requested === "dark" || requested === "system") {
+      setPreference(requested);
+      destination.searchParams.delete("authTheme");
+      history.replaceState(history.state, "", destination.pathname + destination.search);
+    }
+  }, [capabilities.data?.preferredOrigin, preference, setPreference]);
   const [creating, setCreating] = useState(false);
   const [email, setEmail] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");

@@ -9,11 +9,12 @@ Issues #54, #55, #56. Depends on the integrated development preview and shared U
 - Guests see Sign in instead of an initials avatar.
 - Redesign sign-in in the current theme. Desktop shows the marketing problem-card stack on the left over a restrained animated deformed grid; small screens omit it.
 - Implement passkeys and social sign-in. Google/Apple credentials are unavailable for this local milestone.
+- Add a Sign in/Create account mode switch and real local registration with email verification; use a local inbox fixture. Place Back at the top left, replacing Browse problems.
 
 ## Defaults
 
 - Query `q`, `difficulty`, `topic`, `sort`, `order`, `page`, `limit`; bound page size and validate enum values. Search/filter in persistence; use stable ordering and independent filter metadata.
-- Sign-in form has labeled credential fields and password visibility. Provider controls reflect server capabilities; unsupported signup/reset/SSO flows are omitted.
+- Sign-in form has labeled credential fields and password visibility. Provider controls reflect server capabilities; unsupported reset/SSO flows are omitted. Account creation remains unverified until the email verification link is completed.
 - Add passkey enrollment and management to authenticated account settings. Existing credential sessions and explicit account linking boundaries remain intact.
 - Desktop sign-in uses a 48/52 showcase/form split, a 400px form and hairline division. Omit showcase below 900px. Canvas vertex displacement stays subtle; reduced motion and hidden/offscreen states suspend animation.
 
