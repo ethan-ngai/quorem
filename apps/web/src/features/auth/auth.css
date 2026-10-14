@@ -96,15 +96,31 @@
   outline-offset: 2px;
 }
 .auth-password {
-  position: relative;
+  /* Native password focus layers cannot cover the adjacent eye control. */
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+}
+.auth-password:focus-within {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 .auth-password input {
-  padding-right: 48px;
+  flex: 1;
+  width: 0;
+  border: 0;
+  background: transparent;
+  padding-right: 6px;
+}
+.auth-password input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .auth-password .icon-button {
-  position: absolute;
-  right: 2px;
-  top: 2px;
+  flex-shrink: 0;
+  margin-right: 2px;
   width: 44px;
   height: 44px;
   color: var(--color-text-secondary);
@@ -272,27 +288,19 @@
 }
 
 .auth-back {
-  position: absolute;
-  top: 24px;
-  left: 32px;
-  z-index: 2;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding-inline: 8px;
+  gap: 4px;
+  min-height: 28px;
+  margin-bottom: 12px;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 12px;
   text-decoration: none;
   border-radius: var(--radius-sm);
 }
 .auth-back:hover {
   color: var(--color-text);
   background: var(--color-overlay);
-}
-.auth-brand {
-  left: auto;
-  right: 32px;
 }
 .auth-content .auth-success {
   color: var(--color-success);
@@ -318,12 +326,4 @@
 .auth-verification > p {
   color: var(--color-text-secondary);
   font-size: 14px;
-}
-@media (max-width: 899px) {
-  .auth-back {
-    left: 16px;
-  }
-  .auth-brand {
-    right: 24px;
-  }
 }

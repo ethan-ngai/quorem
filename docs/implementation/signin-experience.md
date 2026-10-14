@@ -7,5 +7,5 @@
 - Passkey sign-in and account-settings enrollment/list/removal use real WebAuthn endpoints. Browsers without support get an explanation. Authentication uses the server's canonical origin, preserving the return destination.
 - Signed-out navigation shows Sign in directly, without a guest avatar/menu. Authenticated profile, photo and theme controls remain available.
 - Create account switches the credential form to username/email/password; the username becomes the initial display name. Registration requires the server capability and configured verification delivery. Accepted registration clears the password and shows Check your email, resend, and Back to sign in. Verification returns to sign-in while preserving the safe destination.
-- A top-left Back link returns to the safe requested workspace destination, with Practice as fallback.
+- The logo stays at the top left. A compact Back link above the heading returns to the referring app page with its query parameters, and is hidden on direct/external arrivals.
 - Reset-password, SSO, remember-me and saved-profile flows remain absent until supported by the auth service.

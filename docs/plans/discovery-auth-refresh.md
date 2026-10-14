@@ -9,7 +9,7 @@ Issues #54, #55, #56. Depends on the integrated development preview and shared U
 - Guests see Sign in instead of an initials avatar.
 - Redesign sign-in in the current theme. Desktop shows the marketing problem-card stack on the left over a restrained animated deformed grid; small screens omit it.
 - Implement passkeys and social sign-in. Google/Apple credentials are unavailable for this local milestone.
-- Add a Sign in/Create account mode switch and real local registration with email verification; use a local inbox fixture. Place Back at the top left, replacing Browse problems.
+- Add a Sign in/Create account mode switch and real local registration with email verification; use a local inbox fixture. Keep the logo at the top left; place compact Back above the form heading, returning to the referring app page and hidden on direct arrivals.
 
 ## Defaults
 

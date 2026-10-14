@@ -2,7 +2,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff, Fingerprint } from "lucide-react";
-import { signIn, signInDestination, signInWithPassword } from "./session";
+import { signIn, signInWithPassword } from "./session";
+import { signInReferral } from "./signInReferral";
 import {
   fetchAuthCapabilities,
   registerAccount,
@@ -16,6 +17,9 @@ import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
 
 export function LoginPage() {
+  const [backDestination] = useState(() =>
+    signInReferral(location.search, document.referrer, location.origin),
+  );
   const { preference, setPreference } = useTheme();
   const capabilities = useQuery({
     queryKey: ["auth-capabilities"],
@@ -82,16 +86,18 @@ export function LoginPage() {
   }
   return (
     <main className="auth-page">
-      <a className="auth-back" href={signInDestination()}>
-        <ArrowLeft size={16} aria-hidden="true" />
-        Back
-      </a>
       <div className="auth-brand">
         <Brand />
       </div>
       <LoginShowcase />
       <div className="auth-form-side">
         <section className="auth-content" aria-labelledby="sign-in-title">
+          {backDestination ? (
+            <a className="auth-back" href={backDestination}>
+              <ArrowLeft size={14} aria-hidden="true" />
+              Back
+            </a>
+          ) : null}
           <h1 id="sign-in-title">
             {submittedEmail
               ? "Check your email"
