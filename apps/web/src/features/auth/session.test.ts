@@ -55,6 +55,19 @@ describe("account identity transport", () => {
     );
     expect(assign).toHaveBeenCalledWith("/practice");
   });
+  it("email credentials use the email endpoint without a username field", async () => {
+    vi.stubGlobal("location", { assign: vi.fn() });
+    const fetch = vi.fn(async () => Response.json({ user: { id: "real-user" } }));
+    vi.stubGlobal("fetch", fetch);
+    const { signInWithPassword } = await import("./session");
+    await signInWithPassword("alice@example.test", "example-password");
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/auth/sign-in/email",
+      expect.objectContaining({
+        body: JSON.stringify({ email: "alice@example.test", password: "example-password" }),
+      }),
+    );
+  });
   it("bad passwords do not navigate and show an actionable error", async () => {
     const assign = vi.fn();
     vi.stubGlobal("location", { assign });
@@ -64,7 +77,7 @@ describe("account identity transport", () => {
     );
     const { signInWithPassword } = await import("./session");
     await expect(signInWithPassword("alice", "wrong")).rejects.toThrow(
-      "Incorrect username or password",
+      "Incorrect username, email or password",
     );
     expect(assign).not.toHaveBeenCalled();
   });
@@ -103,6 +116,7 @@ describe("account identity transport", () => {
   it("returns to local work after login without accepting external destinations", async () => {
     const { signInDestination } = await import("./session");
     expect(signInDestination("?returnTo=%2Fpractice%2Frun-widths")).toBe("/practice/run-widths");
+    expect(signInDestination("?returnTo=%2Fpractice%3Fq%3Dtree")).toBe("/practice?q=tree");
     for (const destination of [
       "https://example.com",
       "//example.com",

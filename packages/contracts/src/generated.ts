@@ -1402,14 +1402,22 @@ export interface operations {
     };
     listProblems: {
         parameters: {
-            query?: never;
+            query?: {
+                q?: string;
+                difficulty?: "easy" | "medium" | "hard";
+                topic?: string;
+                sort?: "title" | "difficulty";
+                order?: "asc" | "desc";
+                page?: number;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Latest public problem versions, ordered by title. */
+            /** @description Filtered current public problems with stable pagination and unfiltered topic options. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1417,6 +1425,10 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["ProblemVersion"][];
+                        total: number;
+                        page: number;
+                        limit: number;
+                        topics: string[];
                     };
                 };
             };

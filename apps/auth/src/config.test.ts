@@ -45,3 +45,44 @@ describe("password preview configuration", () => {
     expect(() => configuration({ ...local, AUTH_MODE: "other" })).toThrow();
   });
 });
+
+describe("passkey and social capabilities", () => {
+  it("uses exact application origin for passkeys and defaults to available", () => {
+    expect(configuration(env).passkey).toBe(false);
+    expect(configuration({ ...env, AUTH_ORIGIN: "http://localhost:5174" }).passkey).toBe(true);
+    expect(configuration({ ...env, AUTH_ORIGIN: "https://192.0.2.1" }).passkey).toBe(false);
+    expect(configuration({ ...env, AUTH_ORIGIN: "https://[::1]" }).passkey).toBe(false);
+    expect(configuration({ ...env, AUTH_ORIGIN: "https://quorem.example" }).passkey).toBe(true);
+    expect(configuration({ ...env, AUTH_PASSKEYS: "false" }).passkey).toBe(false);
+    expect(() => configuration({ ...env, AUTH_PASSKEYS: "yes" })).toThrow();
+  });
+  it("does not advertise unconfigured providers and rejects partial credentials", () => {
+    expect(configuration(env).social).toEqual({
+      google: undefined,
+      apple: undefined,
+      github: undefined,
+    });
+    expect(() => configuration({ ...env, GOOGLE_CLIENT_ID: "client" })).toThrow();
+    expect(() => configuration({ ...env, APPLE_CLIENT_SECRET: "secret" })).toThrow();
+    expect(
+      configuration({ ...env, GITHUB_CLIENT_ID: "client", GITHUB_CLIENT_SECRET: "secret" }).social
+        .github,
+    ).toEqual({ clientId: "client", clientSecret: "secret" });
+  });
+});
+
+describe("local registration mail", () => {
+  it("requires local credential mode and loopback SMTP", () => {
+    expect(
+      configuration({ ...env, AUTH_MODE: "password", SMTP_HOST: "127.0.0.1" }).registration,
+    ).toBe(true);
+    expect(configuration({ ...env, AUTH_MODE: "password" }).registration).toBe(false);
+    expect(() => configuration({ ...env, SMTP_HOST: "127.0.0.1" })).toThrow();
+    expect(() =>
+      configuration({ ...env, AUTH_MODE: "password", SMTP_HOST: "smtp.example.com" }),
+    ).toThrow();
+    expect(() =>
+      configuration({ ...env, AUTH_MODE: "password", SMTP_HOST: "localhost", SMTP_PORT: "0" }),
+    ).toThrow();
+  });
+});
