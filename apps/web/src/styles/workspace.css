@@ -60,15 +60,15 @@
 .save-saved i,
 .presence-dot.online,
 .intelligence-dot.ready {
-  background: var(--color-success);
+  background: var(--color-success-accent);
 }
 .save-saving i,
 .save-dirty i {
-  background: var(--color-warning);
+  background: var(--color-warning-accent);
 }
 .save-error i,
 .save-offline i {
-  background: var(--color-error);
+  background: var(--color-error-accent);
 }
 .icon-button {
   display: inline-flex;
@@ -141,7 +141,7 @@
   opacity: 0.45;
 }
 .button-danger {
-  background: var(--color-error);
+  background: var(--color-error-button);
   color: var(--color-on-primary);
   border-color: var(--color-error);
 }
@@ -457,7 +457,7 @@ kbd {
   position: relative;
   grid-area: code;
   display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   background: var(--color-field);
@@ -472,6 +472,9 @@ kbd {
   background: transparent;
 }
 
+.code-toolbar {
+  padding-block: var(--space-2) 0;
+}
 .code-options {
   display: flex;
   align-items: center;
@@ -1204,15 +1207,41 @@ kbd {
   mask-repeat: no-repeat;
 }
 .intelligence-status {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--color-text-secondary);
-  font-size: 11px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-warning-accent);
+  cursor: default;
 }
-.intelligence-status .quiet-button {
-  min-height: 26px;
-  font-size: 11px;
+.intelligence-status[data-status="ready"] {
+  color: var(--color-success-accent);
+}
+.intelligence-status[data-status="unavailable"] {
+  color: var(--color-error-accent);
+}
+.intelligence-status:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.intelligence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  box-shadow:
+    0 0 4px color-mix(in oklch, currentColor 65%, transparent),
+    0 0 9px color-mix(in oklch, currentColor 35%, transparent);
+}
+@media (max-width: 700px), (pointer: coarse) {
+  .intelligence-status {
+    width: 44px;
+    min-height: 44px;
+  }
 }
 .splitter-x:is(:hover, :focus-visible)::after {
   opacity: 1;
@@ -1580,10 +1609,10 @@ kbd {
   background: var(--color-text-disabled);
 }
 .case-state.accepted {
-  background: var(--color-success);
+  background: var(--color-success-accent);
 }
 .case-state.failed {
-  background: var(--color-error);
+  background: var(--color-error-accent);
 }
 .case-verdict {
   font-size: 12px;
