@@ -60,15 +60,15 @@
 .save-saved i,
 .presence-dot.online,
 .intelligence-dot.ready {
-  background: var(--color-success);
+  background: var(--color-success-accent);
 }
 .save-saving i,
 .save-dirty i {
-  background: var(--color-warning);
+  background: var(--color-warning-accent);
 }
 .save-error i,
 .save-offline i {
-  background: var(--color-error);
+  background: var(--color-error-accent);
 }
 .icon-button {
   display: inline-flex;
@@ -1215,13 +1215,14 @@ kbd {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-warning);
+  color: var(--color-warning-accent);
+  cursor: default;
 }
 .intelligence-status[data-status="ready"] {
-  color: var(--color-success);
+  color: var(--color-success-accent);
 }
 .intelligence-status[data-status="unavailable"] {
-  color: var(--color-error);
+  color: var(--color-error-accent);
 }
 .intelligence-status:focus-visible {
   outline: 2px solid var(--color-primary);
@@ -1232,6 +1233,9 @@ kbd {
   height: 8px;
   border-radius: var(--radius-full);
   background: currentColor;
+  box-shadow:
+    0 0 4px color-mix(in oklch, currentColor 65%, transparent),
+    0 0 9px color-mix(in oklch, currentColor 35%, transparent);
 }
 @media (max-width: 700px), (pointer: coarse) {
   .intelligence-status {
@@ -1605,10 +1609,10 @@ kbd {
   background: var(--color-text-disabled);
 }
 .case-state.accepted {
-  background: var(--color-success);
+  background: var(--color-success-accent);
 }
 .case-state.failed {
-  background: var(--color-error);
+  background: var(--color-error-accent);
 }
 .case-verdict {
   font-size: 12px;

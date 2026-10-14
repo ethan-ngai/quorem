@@ -20,9 +20,9 @@ colors:
       disabled: { light: "oklch(0.59 0.005 255)", dark: "oklch(0.52 0.006 255)" }
   semantic:
     info: { light: "oklch(0.52 0.18 260)", dark: "oklch(0.70 0.14 260)" }
-    success: { light: "oklch(0.47 0.12 150)", dark: "oklch(0.73 0.16 150)" }
-    warning: { light: "oklch(0.49 0.10 65)", dark: "oklch(0.78 0.15 75)" }
-    error: { light: "oklch(0.54 0.21 25)", dark: "oklch(0.70 0.19 25)" }
+    success: { light: "oklch(0.49 0.15 145)", dark: "oklch(0.73 0.16 150)" }
+    warning: { light: "oklch(0.52 0.10 85)", dark: "oklch(0.78 0.15 75)" }
+    error: { light: "oklch(0.55 0.22 27)", dark: "oklch(0.70 0.19 25)" }
   editor:
     selection: { light: "oklch(0.90 0.04 255)", dark: "oklch(0.32 0.05 255)" }
     activeLine: { light: "oklch(0.97 0.008 255)", dark: "oklch(0.23 0.009 255)" }
@@ -102,7 +102,9 @@ Shared Radix selects open and close with a 120ms opacity/98%-scale animation anc
 
 The code toolbar reserves 8px above its controls, no bottom padding, and sizes to fit narrow-screen touch targets.
 
-IntelliSense uses an 8px status dot: success green when active, warning yellow when connecting/paused, error red when unavailable. A keyboard-accessible tooltip explains the state; clicking an unavailable Python session retries it.
+IntelliSense uses a circular, non-clickable 8px status dot with a steady glow: success green when active, warning yellow when connecting/paused, error red when unavailable. A keyboard-accessible tooltip explains the state.
+
+Semantic text retains AA contrast with saturated classic hues. Light-mode accent tokens brighten indicators and fills: success `oklch(0.66 0.20 145)`, warning `oklch(0.80 0.15 85)`, error `oklch(0.64 0.24 27)`. Dark accents inherit their existing semantic colors. Glow uses 4px/65% and 9px/35% accent shadows; no pulse.
 
 ## Components
 

@@ -537,7 +537,7 @@ export function WorkspacePage({
           ready: "IntelliSense active",
           connecting: "IntelliSense connecting",
           paused: "IntelliSense paused. Follows the focused window automatically.",
-          unavailable: "IntelliSense unavailable. Click to retry.",
+          unavailable: "IntelliSense unavailable",
         }[intelligenceStatus];
 
   const actionsEnabled =
@@ -702,21 +702,15 @@ export function WorkspacePage({
                 />
                 <div className="code-options">
                   <Tooltip content={intelligenceHint}>
-                    <button
-                      type="button"
+                    <span
+                      role="img"
+                      tabIndex={0}
                       className="intelligence-status"
                       data-status={intelligenceStatus}
                       aria-label={intelligenceHint}
-                      onClick={
-                        account.data &&
-                        documentLanguage === "python" &&
-                        intelligenceStatus === "unavailable"
-                          ? intelligence.retry
-                          : undefined
-                      }
                     >
                       <span className="intelligence-dot" aria-hidden="true" />
-                    </button>
+                    </span>
                   </Tooltip>
                 </div>
               </div>
