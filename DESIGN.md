@@ -21,7 +21,7 @@ colors:
   semantic:
     info: { light: "oklch(0.52 0.18 260)", dark: "oklch(0.70 0.14 260)" }
     success: { light: "oklch(0.58 0.175 145)", dark: "oklch(0.73 0.16 150)" }
-    warning: { light: "oklch(0.78 0.16 100)", dark: "oklch(0.78 0.15 75)" }
+    warning: { light: "oklch(0.816894 0.136542 74.39175)", dark: "oklch(0.78 0.15 75)" }
     error: { light: "oklch(0.60 0.23 27)", dark: "oklch(0.70 0.19 25)" }
   editor:
     selection: { light: "oklch(0.90 0.04 255)", dark: "oklch(0.32 0.05 255)" }
@@ -104,7 +104,7 @@ The code toolbar reserves 8px above its controls, no bottom padding, and sizes t
 
 IntelliSense uses a circular, non-clickable 8px status dot with a steady glow: success green when active, warning yellow when connecting/paused, error red when unavailable. A keyboard-accessible tooltip explains the state.
 
-Light-mode semantic labels favor vivid classic hues; yellow uses a lemon hue rather than amber/brown. Body text and button labels retain AA contrast. Light-mode accent tokens brighten indicators and fills: success `oklch(0.66 0.20 145)`, warning `oklch(0.84 0.17 100)`, error `oklch(0.64 0.24 27)`. Dark accents inherit their existing semantic colors. Glow uses 4px/65% and 9px/35% accent shadows; no pulse.
+Light-mode semantic labels favor vivid classic hues; yellow matches the supplied reference text, sampled as `#f7b553`. Body text and button labels retain AA contrast. Light-mode accent tokens brighten indicators and fills: success `oklch(0.66 0.20 145)`, warning inherits the reference yellow, error `oklch(0.64 0.24 27)`. Dark accents inherit their existing semantic colors. Glow uses 4px/65% and 9px/35% accent shadows; no pulse.
 
 ## Components
 

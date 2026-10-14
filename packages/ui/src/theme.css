@@ -18,10 +18,10 @@
   --color-text-disabled: oklch(0.59 0.005 255);
   --color-info: oklch(0.52 0.18 260);
   --color-success: oklch(0.58 0.175 145);
-  --color-warning: oklch(0.78 0.16 100);
+  --color-warning: oklch(0.816894 0.136542 74.39175);
   --color-error: oklch(0.6 0.23 27);
   --color-success-accent: oklch(0.66 0.2 145);
-  --color-warning-accent: oklch(0.84 0.17 100);
+  --color-warning-accent: var(--color-warning);
   --color-error-accent: oklch(0.64 0.24 27);
   --color-error-button: oklch(0.55 0.22 27);
   --color-editor-selection: oklch(0.9 0.04 255);
