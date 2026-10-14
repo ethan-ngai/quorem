@@ -8,4 +8,5 @@
 - Signed-out navigation shows Sign in directly, without a guest avatar/menu. Authenticated profile, photo and theme controls remain available.
 - Create account switches the credential form to username/email/password; the username becomes the initial display name. Registration requires the server capability and configured verification delivery. Accepted registration clears the password and shows Check your email, resend, and Back to sign in. Verification returns to sign-in while preserving the safe destination.
 - The logo stays at the top left. A compact Back link above the heading returns to the referring app page with its query parameters, and is hidden on direct/external arrivals.
+- Guest match creation carries separate back and post-login destinations. Back cancels the consumed creation intent; successful sign-in resumes the dialog once while retaining catalog filters.
 - Reset-password, SSO, remember-me and saved-profile flows remain absent until supported by the auth service.

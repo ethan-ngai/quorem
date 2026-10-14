@@ -13,6 +13,21 @@ describe("sign-in back referral", () => {
     expect(signInReferral("", `${origin}/`, origin)).toBe("/");
     expect(signInReferral("", `${origin}/practice?q=tree`, origin)).toBe("/practice?q=tree");
   });
+  it("cancels pending match creation while preserving the referring workspace", () => {
+    expect(signInReferral("?returnTo=%2Fpractice%3Fcreate%3Dmatch%26q%3Dtree", "", origin)).toBe(
+      "/practice?q=tree",
+    );
+    expect(signInReferral("", `${origin}/practice?create=match&q=tree`, origin)).toBe(
+      "/practice?q=tree",
+    );
+    expect(
+      signInReferral(
+        "?returnTo=%2Fpractice%3Fcreate%3Dmatch&backTo=%2Fpractice%2Fsplit-load",
+        "",
+        origin,
+      ),
+    ).toBe("/practice/split-load");
+  });
   it("hides on direct, external or auth-only arrivals", () => {
     expect(signInReferral("", "", origin)).toBeNull();
     expect(signInReferral("", "https://other.test/practice", origin)).toBeNull();

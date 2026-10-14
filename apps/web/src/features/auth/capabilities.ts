@@ -1,4 +1,5 @@
 import { resetToken, signInDestination } from "./session";
+import { signInReferral } from "./signInReferral";
 export type SocialProvider = "google" | "apple" | "github";
 export type AuthCapabilities = {
   method: "password" | "cognito";
@@ -104,7 +105,12 @@ function safeAuthOrigin(value: unknown): string {
 
 export type Registration = { name: string; username: string; email: string; password: string };
 function verificationCallback(search?: string) {
-  return `${location.origin}/login?verified=1&returnTo=${encodeURIComponent(signInDestination(search))}`;
+  const callback = new URL("/login", location.origin);
+  callback.searchParams.set("verified", "1");
+  callback.searchParams.set("returnTo", signInDestination(search));
+  const backTo = signInReferral(search ?? location.search, "", location.origin);
+  if (backTo) callback.searchParams.set("backTo", backTo);
+  return callback.toString();
 }
 export async function registerAccount(account: Registration, search?: string) {
   const response = await fetch("/api/auth/sign-up/email", {

@@ -17,9 +17,7 @@ import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
 
 export function LoginPage() {
-  const [backDestination] = useState(() =>
-    signInReferral(location.search, document.referrer, location.origin),
-  );
+  const backDestination = signInReferral(location.search, document.referrer, location.origin);
   const { preference, setPreference } = useTheme();
   const capabilities = useQuery({
     queryKey: ["auth-capabilities"],

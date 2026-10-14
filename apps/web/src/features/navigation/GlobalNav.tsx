@@ -9,7 +9,7 @@ import { Brand } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/MatchControls";
-import { isMatchCreationRequest } from "./matchCreationIntent";
+import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
 import { AccountMenu } from "./AccountMenu";
 import "./navigation.css";
 
@@ -39,6 +39,13 @@ export function GlobalNav({
   const consumedCreation = useRef(false);
   const inMatch = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
   const [creating, setCreating] = useState(false);
+  function signInToCreate() {
+    const destination = matchSignInLocation(
+      window.location.pathname + window.location.search + window.location.hash,
+    );
+    window.history.replaceState(window.history.state, "", destination.backTo);
+    window.location.assign(destination.login);
+  }
   useEffect(() => {
     if (!isMatchCreationRequest(pathname, location.search)) {
       consumedCreation.current = false;
@@ -48,7 +55,7 @@ export function GlobalNav({
     if (session.isPending) return;
     consumedCreation.current = true;
     if (!session.data) {
-      window.location.assign("/login");
+      signInToCreate();
       return;
     }
     setCreating(true);
@@ -121,7 +128,7 @@ export function GlobalNav({
                   aria-label="Create match"
                   onClick={() => {
                     if (!session.data) {
-                      window.location.assign("/login");
+                      signInToCreate();
                       return;
                     }
                     (onCreateMatch ?? (() => setCreating(true)))();
