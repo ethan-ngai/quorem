@@ -31,21 +31,23 @@ async function renderNavigation(path: string, preferences?: ReactNode) {
 }
 
 describe("global navigation", () => {
-  it("offers creation and named navigation/profile controls in practice", async () => {
+  it("offers creation and named navigation/sign-in controls in practice", async () => {
     const html = await renderNavigation("/practice");
     expect(html).toContain('aria-label="Create match"');
     expect(html).toContain('aria-label="Navigation"');
-    expect(html).toContain('aria-label="Profile"');
+    expect(html).toContain('href="/login"');
+    expect(html).not.toContain("Guest");
+    expect(html).not.toContain('aria-label="Profile"');
     expect(html).toContain('href="/"');
     expect(html).not.toContain('aria-label="Practice problems"');
   });
-  it("places workspace settings immediately before the profile trigger", async () => {
+  it("places workspace settings immediately before the sign-in control", async () => {
     const html = await renderNavigation(
       "/practice",
       <button aria-label="Workspace settings">Preferences</button>,
     );
     expect(html.indexOf('aria-label="Workspace settings"')).toBeLessThan(
-      html.indexOf('aria-label="Profile"'),
+      html.indexOf('href="/login"'),
     );
     expect(html).not.toContain("nav-preferences");
   });

@@ -33,9 +33,17 @@ const profileHandler = createProfileHandler({
 });
 const server = createServer(async (req, res) => {
   if (req.url === "/api/auth/quorem-config" && req.method === "GET") {
-    res
-      .writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
-      .end(JSON.stringify({ method: config.method }));
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(
+      JSON.stringify({
+        method: config.method,
+        preferredOrigin: config.origin,
+        passkey: config.passkey,
+        registration: config.registration,
+        providers: Object.entries(config.social)
+          .filter(([, value]) => value)
+          .map(([name]) => name),
+      }),
+    );
     return;
   }
   if (req.url?.startsWith("/internal/session/")) {

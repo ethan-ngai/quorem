@@ -8,6 +8,14 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     services:
+      mailpit:
+        image: axllent/mailpit:v1.27.4@sha256:df6c2541907e1be6fac21f509927cf6ed771617a1f4b361ef66d97bd05593d2d
+        ports:
+          - 51025:1025
+          - 58025:8025
+        options: >-
+          --health-cmd "/mailpit readyz"
+          --health-interval 2s --health-timeout 3s --health-retries 30
       postgres:
         image: postgres:17.6-alpine
         env:
@@ -23,6 +31,7 @@ jobs:
       APP_ENV: local
       QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
       AUTH_TEST_DATABASE_URL: postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
+      AUTH_TEST_MAILPIT_URL: http://127.0.0.1:58025
       QUOREM_TEST_DOCKER: "1"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

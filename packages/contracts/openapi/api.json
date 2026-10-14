@@ -825,7 +825,7 @@
         "operationId": "listProblems",
         "responses": {
           "200": {
-            "description": "Latest public problem versions, ordered by title.",
+            "description": "Filtered current public problems with stable pagination and unfiltered topic options.",
             "content": {
               "application/json": {
                 "schema": {
@@ -836,9 +836,27 @@
                       "items": {
                         "$ref": "#/components/schemas/ProblemVersion"
                       }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "topics": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
-                  "required": ["items"],
+                  "required": ["items", "total", "page", "limit", "topics"],
                   "additionalProperties": false
                 }
               }
@@ -854,7 +872,71 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["easy", "medium", "hard"]
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["title", "difficulty"],
+              "default": "title"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ]
       }
     },
     "/v1/problem-versions/{id}/solutions": {
