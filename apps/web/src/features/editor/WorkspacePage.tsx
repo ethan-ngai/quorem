@@ -527,6 +527,18 @@ export function WorkspacePage({
     editorDocumentKey,
     !!account.data && !loading && documentLanguage === "python",
   );
+  const intelligenceStatus =
+    !account.data || documentLanguage !== "python" ? "unavailable" : intelligence.status;
+  const intelligenceHint = !account.data
+    ? "IntelliSense unavailable. Sign in to enable it."
+    : documentLanguage !== "python"
+      ? "IntelliSense unavailable for this language."
+      : {
+          ready: "IntelliSense active",
+          connecting: "IntelliSense connecting",
+          paused: "IntelliSense paused. Follows the focused window automatically.",
+          unavailable: "IntelliSense unavailable. Click to retry.",
+        }[intelligenceStatus];
 
   const actionsEnabled =
     !!account.data &&
@@ -689,21 +701,23 @@ export function WorkspacePage({
                   }))}
                 />
                 <div className="code-options">
-                  {documentLanguage === "python" && intelligence.status === "paused" && (
-                    <Tooltip content="IntelliSense follows the focused window automatically.">
-                      <span className="intelligence-status" role="status">
-                        IntelliSense paused
-                      </span>
-                    </Tooltip>
-                  )}
-                  {documentLanguage === "python" && intelligence.status === "unavailable" && (
-                    <span className="intelligence-status" role="status">
-                      <span>IntelliSense unavailable</span>
-                      <button className="quiet-button" onClick={intelligence.retry}>
-                        Retry
-                      </button>
-                    </span>
-                  )}
+                  <Tooltip content={intelligenceHint}>
+                    <button
+                      type="button"
+                      className="intelligence-status"
+                      data-status={intelligenceStatus}
+                      aria-label={intelligenceHint}
+                      onClick={
+                        account.data &&
+                        documentLanguage === "python" &&
+                        intelligenceStatus === "unavailable"
+                          ? intelligence.retry
+                          : undefined
+                      }
+                    >
+                      <span className="intelligence-dot" aria-hidden="true" />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
               <div className="editor-frame">

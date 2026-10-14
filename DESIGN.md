@@ -102,6 +102,8 @@ Shared Radix selects open and close with a 120ms opacity/98%-scale animation anc
 
 The code toolbar reserves 8px above its controls, no bottom padding, and sizes to fit narrow-screen touch targets.
 
+IntelliSense uses an 8px status dot: success green when active, warning yellow when connecting/paused, error red when unavailable. A keyboard-accessible tooltip explains the state; clicking an unavailable Python session retries it.
+
 ## Components
 
 - Buttons: Submit uses primary/onPrimary; Run uses neutral surface/border. Busy state names the existing job rather than silently accepting another.
