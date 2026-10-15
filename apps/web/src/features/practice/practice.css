@@ -313,7 +313,8 @@
   color: var(--color-primary);
 }
 .practice-filter-popover {
-  width: min(380px, calc(100vw - 24px));
+  width: max-content;
+  max-width: min(380px, calc(100vw - 24px));
   min-width: 0;
   max-height: var(--radix-popover-content-available-height);
   padding: var(--space-3);
