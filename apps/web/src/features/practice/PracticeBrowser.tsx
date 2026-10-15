@@ -130,16 +130,6 @@ export function PracticeBrowser() {
               }}
             />
           </label>
-          {filtered && (
-            <button
-              type="button"
-              className="practice-clear"
-              aria-label="Clear filters"
-              onClick={clear}
-            >
-              <X size={16} />
-            </button>
-          )}
         </div>
         <div className="practice-filters">
           <CatalogFilter
@@ -157,6 +147,16 @@ export function PracticeBrowser() {
               label: label(value),
             }))}
           />
+          {filtered && (
+            <button
+              type="button"
+              className="practice-clear"
+              aria-label="Clear filters"
+              onClick={clear}
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
         <section
           className="practice-catalog"
