@@ -233,9 +233,6 @@ export function PracticeBrowser() {
                     <th scope="col" className="practice-language-column">
                       Languages
                     </th>
-                    <th scope="col">
-                      <span className="sr-only">Open question</span>
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -292,16 +289,6 @@ export function PracticeBrowser() {
                             )
                             .join(" · ")}
                         </span>
-                      </td>
-                      <td>
-                        <Link
-                          className="practice-open"
-                          to="/practice/$slug"
-                          params={{ slug: problem.slug }}
-                          aria-label={`Open ${problem.title}`}
-                        >
-                          <ChevronRight size={16} />
-                        </Link>
                       </td>
                     </tr>
                   ))}
