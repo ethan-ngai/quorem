@@ -30,7 +30,7 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 		return result, err
 	}
 	defer tx.Rollback(ctx)
-	where := ` WHERE v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=$2) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=$3))`
+	where := ` WHERE v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=ANY(string_to_array($2,','))) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array($3,','))))`
 	args := []any{f.Query, f.Difficulty, f.Topic}
 	err = tx.QueryRow(ctx, `SELECT count(*) FROM problem_versions v JOIN problems p ON p.id=v.problem_id`+where, args...).Scan(&result.Total)
 	if err != nil {
