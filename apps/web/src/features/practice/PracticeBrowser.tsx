@@ -6,7 +6,8 @@ import { api, requireData } from "../editor/api";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
-import { SelectField } from "../../ui/SelectField";
+import { CatalogFilter } from "./CatalogFilter";
+import { addFilter, filterValues } from "./catalogSearch";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
@@ -129,31 +130,20 @@ export function PracticeBrowser() {
               }}
             />
           </label>
-          <SelectField
-            className="select-field--filter"
+          <CatalogFilter
             label="Difficulty"
-            value={search.difficulty ?? "all"}
-            onChange={(value) =>
-              update({
-                difficulty: value === "all" ? undefined : (value as CatalogSearch["difficulty"]),
-              })
-            }
-            options={[
-              { value: "all", label: "All difficulties" },
-              ...["easy", "medium", "hard"].map((value) => ({ value, label: label(value) })),
-            ]}
+            selected={filterValues(search.difficulty)}
+            onChange={(values) => update({ difficulty: values.join(",") || undefined })}
+            options={["easy", "medium", "hard"].map((value) => ({ value, label: label(value) }))}
           />
-          <SelectField
-            className="select-field--filter"
-            label="Topic"
-            value={search.topic ?? "all"}
-            onChange={(value) => update({ topic: value === "all" ? undefined : value })}
-            options={[
-              { value: "all", label: "All topics" },
-              ...[...new Set([...topics, ...(search.topic ? [search.topic] : [])])].map(
-                (value) => ({ value, label: label(value) }),
-              ),
-            ]}
+          <CatalogFilter
+            label="Topics"
+            selected={filterValues(search.topic)}
+            onChange={(values) => update({ topic: values.join(",") || undefined })}
+            options={[...new Set([...topics, ...filterValues(search.topic)])].map((value) => ({
+              value,
+              label: label(value),
+            }))}
           />
           {filtered && (
             <button
@@ -166,6 +156,30 @@ export function PracticeBrowser() {
             </button>
           )}
         </div>
+        {(search.difficulty || search.topic) && (
+          <div className="practice-active-filters" aria-label="Active filters">
+            {(["difficulty", "topic"] as const).flatMap((category) =>
+              filterValues(search[category]).map((value) => (
+                <button
+                  key={`${category}:${value}`}
+                  type="button"
+                  aria-label={`Remove ${label(value)} filter`}
+                  onClick={() =>
+                    update({
+                      [category]:
+                        filterValues(search[category])
+                          .filter((item) => item !== value)
+                          .join(",") || undefined,
+                    })
+                  }
+                >
+                  {label(value)}
+                  <X size={12} aria-hidden="true" />
+                </button>
+              )),
+            )}
+          </div>
+        )}
         <section
           className="practice-catalog"
           aria-label="Practice questions"
@@ -226,7 +240,16 @@ export function PracticeBrowser() {
                 </thead>
                 <tbody>
                   {catalog.data.items.map((problem) => (
-                    <tr key={problem.id}>
+                    <tr
+                      key={problem.id}
+                      onClick={(event) => {
+                        if ((event.target as Element).closest("a, button, input")) return;
+                        const href = `/practice/${problem.slug}`;
+                        if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
+                        else
+                          void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
+                      }}
+                    >
                       <td>
                         <Link to="/practice/$slug" params={{ slug: problem.slug }}>
                           {problem.title}
@@ -235,7 +258,7 @@ export function PracticeBrowser() {
                           {problem.tags.map((tag) => (
                             <button
                               key={tag}
-                              onClick={() => update({ topic: tag })}
+                              onClick={() => update({ topic: addFilter(search.topic, tag) })}
                               aria-label={`Filter by ${label(tag)}`}
                             >
                               {label(tag)}
@@ -244,10 +267,16 @@ export function PracticeBrowser() {
                         </div>
                       </td>
                       <td>
-                        <span className={`practice-difficulty ${problem.difficulty}`}>
-                          <i aria-hidden="true" />
+                        <button
+                          type="button"
+                          className={`practice-difficulty ${problem.difficulty}`}
+                          onClick={() =>
+                            update({ difficulty: addFilter(search.difficulty, problem.difficulty) })
+                          }
+                          aria-label={`Filter by ${label(problem.difficulty)}`}
+                        >
                           {label(problem.difficulty)}
-                        </span>
+                        </button>
                       </td>
                       <td className="practice-language-column">
                         <span>

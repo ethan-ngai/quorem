@@ -40,6 +40,17 @@ func TestProblemCatalogFilteringAndPagination(t *testing.T) {
 		}
 	}
 	f.Query = ""
+	f.Difficulty = "easy,medium"
+	f.Topic = "arrays,linked lists"
+	multiple, multiErr := s.ProblemCatalog(ctx, f)
+	if multiErr != nil || multiple.Total != 2 {
+		t.Fatalf("multi-category filters %+v %v", multiple, multiErr)
+	}
+	for _, item := range multiple.Items {
+		if item.Slug != "run-widths" && item.Slug != "segment-sums" {
+			t.Fatalf("unexpected match %s", item.Slug)
+		}
+	}
 	f.Difficulty = ""
 	f.Topic = ""
 	f.Sort = "difficulty"

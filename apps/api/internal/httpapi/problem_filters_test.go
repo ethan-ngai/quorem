@@ -7,6 +7,18 @@ import (
 )
 
 func TestProblemFilters(t *testing.T) {
+	multi, multiErr := parseProblemFilter(url.Values{"difficulty": {"easy,medium"}, "topic": {"arrays,strings"}})
+	if multiErr != nil || multi.Difficulty != "easy,medium" || multi.Topic != "arrays,strings" {
+		t.Fatalf("multiple filters: %+v %v", multi, multiErr)
+	}
+	for _, value := range []string{"easy,unknown", "easy,", ",medium"} {
+		if _, err := parseProblemFilter(url.Values{"difficulty": {value}}); err == nil {
+			t.Fatalf("accepted invalid list %q", value)
+		}
+	}
+	if _, err := parseProblemFilter(url.Values{"topic": {strings.Repeat("arrays,", 16) + "strings"}}); err == nil {
+		t.Fatal("accepted too many topics")
+	}
 	f, err := parseProblemFilter(url.Values{})
 	if err != nil || f.Page != 1 || f.Limit != 20 || f.Sort != "title" || f.Order != "asc" {
 		t.Fatalf("defaults: %+v %v", f, err)
