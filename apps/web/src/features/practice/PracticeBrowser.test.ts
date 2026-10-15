@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { catalogSearch } from "./catalogSearch";
+import { addFilter, catalogSearch } from "./catalogSearch";
 
 describe("practice URL state", () => {
+  it("adds without replacing or duplicating selected filters", () => {
+    expect(addFilter("easy", "medium")).toBe("easy,medium");
+    expect(addFilter("easy,medium", "easy")).toBe("easy,medium");
+    expect(catalogSearch({ difficulty: "medium,easy,medium", topic: "strings,arrays" })).toEqual({
+      difficulty: "easy,medium",
+      topic: "arrays,strings",
+    });
+  });
   it("preserves valid bookmarked filters and bounded pagination", () => {
     expect(
       catalogSearch({

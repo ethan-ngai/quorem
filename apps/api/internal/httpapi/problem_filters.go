@@ -18,11 +18,28 @@ func parseProblemFilter(q url.Values) (postgres.ProblemFilter, error) {
 			return invalid()
 		}
 	}
-	if utf8.RuneCountInString(f.Query) > 120 || utf8.RuneCountInString(f.Topic) > 80 {
+	if utf8.RuneCountInString(f.Query) > 120 {
 		return invalid()
 	}
-	if f.Difficulty != "" && f.Difficulty != "easy" && f.Difficulty != "medium" && f.Difficulty != "hard" {
-		return invalid()
+	for _, category := range []struct {
+		value      string
+		difficulty bool
+	}{{f.Difficulty, true}, {f.Topic, false}} {
+		if category.value == "" {
+			continue
+		}
+		values := strings.Split(category.value, ",")
+		if len(values) > 16 {
+			return invalid()
+		}
+		for _, value := range values {
+			if value == "" || !utf8.ValidString(value) || strings.ContainsRune(value, 0) || utf8.RuneCountInString(value) > 80 {
+				return invalid()
+			}
+			if category.difficulty && value != "easy" && value != "medium" && value != "hard" {
+				return invalid()
+			}
+		}
 	}
 	if f.Sort == "" {
 		f.Sort = "title"

@@ -1404,7 +1404,9 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
-                difficulty?: "easy" | "medium" | "hard";
+                /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
+                difficulty?: string;
+                /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 topic?: string;
                 sort?: "title" | "difficulty";
                 order?: "asc" | "desc";

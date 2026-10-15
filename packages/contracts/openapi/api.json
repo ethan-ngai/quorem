@@ -887,16 +887,18 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": ["easy", "medium", "hard"]
-            }
+              "maxLength": 1295
+            },
+            "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
           },
           {
             "name": "topic",
             "in": "query",
             "schema": {
               "type": "string",
-              "maxLength": 80
-            }
+              "maxLength": 1295
+            },
+            "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
           },
           {
             "name": "sort",
