@@ -39,7 +39,12 @@ export function CatalogFilter({
               Clear
             </button>
           </div>
-          <div className="practice-filter-choices" role="group" aria-label={label}>
+          <div
+            className="practice-filter-choices"
+            data-layout={options.length > 3 ? "grid" : "row"}
+            role="group"
+            aria-label={label}
+          >
             {options.map((option) => (
               <button
                 key={option.value}
