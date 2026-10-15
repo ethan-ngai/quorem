@@ -130,6 +130,18 @@ export function PracticeBrowser() {
               }}
             />
           </label>
+          {filtered && (
+            <button
+              type="button"
+              className="practice-clear"
+              aria-label="Clear filters"
+              onClick={clear}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <div className="practice-filters">
           <CatalogFilter
             label="Difficulty"
             selected={filterValues(search.difficulty)}
@@ -145,41 +157,7 @@ export function PracticeBrowser() {
               label: label(value),
             }))}
           />
-          {filtered && (
-            <button
-              type="button"
-              className="practice-clear"
-              aria-label="Clear filters"
-              onClick={clear}
-            >
-              <X size={16} />
-            </button>
-          )}
         </div>
-        {(search.difficulty || search.topic) && (
-          <div className="practice-active-filters" aria-label="Active filters">
-            {(["difficulty", "topic"] as const).flatMap((category) =>
-              filterValues(search[category]).map((value) => (
-                <button
-                  key={`${category}:${value}`}
-                  type="button"
-                  aria-label={`Remove ${label(value)} filter`}
-                  onClick={() =>
-                    update({
-                      [category]:
-                        filterValues(search[category])
-                          .filter((item) => item !== value)
-                          .join(",") || undefined,
-                    })
-                  }
-                >
-                  {label(value)}
-                  <X size={12} aria-hidden="true" />
-                </button>
-              )),
-            )}
-          </div>
-        )}
         <section
           className="practice-catalog"
           aria-label="Practice questions"

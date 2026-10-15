@@ -12,7 +12,7 @@ Response retains `items` and adds filtered `total`, `page`, `limit`, and unfilte
 
 ## Browser state
 
-The table uses alternating row backgrounds without an enclosing card. Clicking a row opens its problem; title links retain keyboard and browser link behavior. Clicking difficulty/topic buttons adds that value to existing filters. Checkbox popovers support multiple selections, with counts and removable chips.
+The table uses alternating row backgrounds without an enclosing card. Clicking a row opens its problem; title links retain keyboard and browser link behavior. Clicking difficulty/topic buttons adds that value to existing filters. Always-visible difficulty and topic strips support multiple selections with pressed states; Any clears its group. Choices wrap on smaller screens.
 
 Filters/sort/page live in URL params. Search debounces 250ms and replaces its current history entry; discrete filter/sort/page actions add entries. Back/forward restores controls. Changed filters reset pagination; out-of-range bookmarks canonicalize to the last valid page. Query-key isolation plus abort signals prevent stale results appearing under newer filters. Independent metadata cache keeps topic options available while filtering/loading. Empty, loading and retry states are explicit. Narrow layouts omit the language column and retain question topics and title links.
 
