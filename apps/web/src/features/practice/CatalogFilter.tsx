@@ -15,46 +15,55 @@ export function CatalogFilter({
 }) {
   return (
     <Popover.Root>
-      <Popover.Trigger className="select-field select-field--filter" aria-label={label}>
+      <Popover.Trigger className="select-field practice-filter-trigger" aria-label={label}>
         {label}
-        {selected.length > 0 && <span className="practice-filter-count">{selected.length}</span>}
+        {selected.length > 0 && (
+          <span className="practice-filter-summary">
+            {options.find((option) => option.value === selected[0])?.label}
+            {selected.length > 1 && ` +${selected.length - 1}`}
+          </span>
+        )}
         <ChevronDown size={14} aria-hidden="true" />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className="select-field-menu practice-filter-menu"
-          align="end"
-          sideOffset={5}
+          className="select-field-menu practice-filter-popover"
+          align="start"
+          sideOffset={8}
           collisionPadding={12}
           aria-label={`${label} filters`}
         >
-          <div className="practice-filter-options">
+          <div className="practice-filter-header">
+            <span>{label}</span>
+            <button type="button" disabled={!selected.length} onClick={() => onChange([])}>
+              Clear
+            </button>
+          </div>
+          <div
+            className="practice-filter-choices"
+            data-layout={options.length > 3 ? "grid" : "row"}
+            role="group"
+            aria-label={label}
+          >
             {options.map((option) => (
-              <label key={option.value} className="practice-filter-option">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(option.value)}
-                  disabled={selected.length >= 16 && !selected.includes(option.value)}
-                  onChange={(event) =>
-                    onChange(
-                      event.target.checked
-                        ? [...selected, option.value]
-                        : selected.filter((value) => value !== option.value),
-                    )
-                  }
-                />
+              <button
+                key={option.value}
+                type="button"
+                className={`practice-filter-choice${label === "Difficulty" ? ` practice-filter-choice--${option.value}` : ""}`}
+                aria-pressed={selected.includes(option.value)}
+                disabled={selected.length >= 16 && !selected.includes(option.value)}
+                onClick={() =>
+                  onChange(
+                    selected.includes(option.value)
+                      ? selected.filter((value) => value !== option.value)
+                      : [...selected, option.value],
+                  )
+                }
+              >
                 {option.label}
-              </label>
+              </button>
             ))}
           </div>
-          <button
-            type="button"
-            className="practice-filter-reset"
-            disabled={!selected.length}
-            onClick={() => onChange([])}
-          >
-            Clear {label.toLowerCase()}
-          </button>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

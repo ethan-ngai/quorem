@@ -130,6 +130,8 @@ export function PracticeBrowser() {
               }}
             />
           </label>
+        </div>
+        <div className="practice-filters">
           <CatalogFilter
             label="Difficulty"
             selected={filterValues(search.difficulty)}
@@ -156,30 +158,6 @@ export function PracticeBrowser() {
             </button>
           )}
         </div>
-        {(search.difficulty || search.topic) && (
-          <div className="practice-active-filters" aria-label="Active filters">
-            {(["difficulty", "topic"] as const).flatMap((category) =>
-              filterValues(search[category]).map((value) => (
-                <button
-                  key={`${category}:${value}`}
-                  type="button"
-                  aria-label={`Remove ${label(value)} filter`}
-                  onClick={() =>
-                    update({
-                      [category]:
-                        filterValues(search[category])
-                          .filter((item) => item !== value)
-                          .join(",") || undefined,
-                    })
-                  }
-                >
-                  {label(value)}
-                  <X size={12} aria-hidden="true" />
-                </button>
-              )),
-            )}
-          </div>
-        )}
         <section
           className="practice-catalog"
           aria-label="Practice questions"
@@ -232,9 +210,6 @@ export function PracticeBrowser() {
                     </th>
                     <th scope="col" className="practice-language-column">
                       Languages
-                    </th>
-                    <th scope="col">
-                      <span className="sr-only">Open question</span>
                     </th>
                   </tr>
                 </thead>
@@ -292,16 +267,6 @@ export function PracticeBrowser() {
                             )
                             .join(" · ")}
                         </span>
-                      </td>
-                      <td>
-                        <Link
-                          className="practice-open"
-                          to="/practice/$slug"
-                          params={{ slug: problem.slug }}
-                          aria-label={`Open ${problem.title}`}
-                        >
-                          <ChevronRight size={16} />
-                        </Link>
                       </td>
                     </tr>
                   ))}

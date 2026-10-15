@@ -127,10 +127,6 @@
 .practice-table td:nth-child(2) {
   width: 17%;
 }
-.practice-table td:last-child {
-  width: 48px;
-  padding-left: 0;
-}
 .practice-table tbody tr {
   cursor: pointer;
   transition: background var(--motion-fast);
@@ -138,7 +134,11 @@
 .practice-table tbody tr:nth-child(even) {
   background: var(--color-surface);
 }
-.practice-table tbody tr:is(:hover, :focus-within) {
+.practice-table
+  tbody
+  tr:is(:hover, :focus-within):not(
+    :has(.practice-difficulty:is(:hover, :focus), .practice-topic-list button:is(:hover, :focus))
+  ) {
   background: var(--color-overlay);
 }
 .practice-table a {
@@ -152,7 +152,9 @@
 }
 .practice-difficulty {
   border: 0;
-  padding: 0;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  margin-left: calc(-1 * var(--space-2));
   min-height: 28px;
   background: transparent;
   font: inherit;
@@ -161,6 +163,13 @@
   align-items: center;
   gap: var(--space-2);
   white-space: nowrap;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    box-shadow var(--motion-fast) var(--motion-easing);
+}
+.practice-difficulty:is(:hover, :focus-visible) {
+  background: color-mix(in oklch, currentColor 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, currentColor 35%, transparent);
 }
 .practice-difficulty.easy {
   color: var(--color-success);
@@ -196,18 +205,6 @@
   color: var(--color-text-secondary);
   font-size: var(--text-label);
   line-height: 1.8;
-}
-.practice-open {
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  color: var(--color-text-secondary) !important;
-  border-radius: var(--radius-sm);
-}
-.practice-open:hover {
-  background: var(--color-background);
 }
 .practice-state {
   padding: var(--space-6) var(--space-4);
@@ -277,12 +274,7 @@
   .practice-table td {
     padding: var(--space-3);
   }
-  .practice-table td:last-child {
-    width: 32px;
-    padding-right: var(--space-2);
-  }
-  .practice-table th button,
-  .practice-open {
+  .practice-table th button {
     min-height: var(--narrow-touch-target);
   }
   .practice-topic-list {
@@ -301,72 +293,111 @@
   }
 }
 
-.practice-filter-menu {
-  min-width: 200px;
-  max-height: var(--radix-popover-content-available-height);
-  transform-origin: var(--radix-popover-content-transform-origin);
-}
-.practice-filter-options {
-  max-height: min(280px, calc(var(--radix-popover-content-available-height) - 52px));
-  overflow-y: auto;
-}
-.practice-filter-option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-small);
-  cursor: pointer;
-}
-.practice-filter-option:hover {
-  background: var(--color-surface);
-}
-.practice-filter-option input {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--color-primary);
-}
-.practice-filter-count {
-  color: var(--color-primary);
-  font-size: var(--text-label);
-}
-.practice-filter-reset {
-  width: 100%;
-  padding: var(--space-2);
-  margin-top: var(--space-1);
-  border: 0;
-  border-top: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--text-label);
-  text-align: left;
-}
-.practice-filter-reset:disabled {
-  opacity: 0.4;
-}
-.practice-active-filters {
+.practice-filters {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
 }
-.practice-active-filters button {
-  display: inline-flex;
+.practice-filters > .practice-clear {
+  margin-left: auto;
+}
+.practice-filter-trigger {
+  background: transparent;
+}
+.practice-filter-summary {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-primary);
+}
+.practice-filter-popover {
+  width: max-content;
+  max-width: min(380px, calc(100vw - 24px));
+  min-width: 0;
+  max-height: var(--radix-popover-content-available-height);
+  padding: var(--space-3);
+  overflow-y: auto;
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+.practice-filter-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  margin-bottom: var(--space-3);
   color: var(--color-text-secondary);
-  font-size: var(--text-label);
+  font-size: var(--text-small);
+}
+.practice-filter-header button {
+  border: 0;
+  background: transparent;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.practice-filter-header button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.practice-filter-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.practice-filter-choices[data-layout="grid"] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  gap: var(--space-1);
+}
+.practice-filter-choices[data-layout="grid"] .practice-filter-choice {
+  padding-inline: var(--space-2);
+  text-align: left;
+}
+.practice-filter-choice {
+  min-height: 30px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--text-small);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    border-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+.practice-filter-choice:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.practice-filter-choice[aria-pressed="true"] {
+  color: var(--color-primary);
+  background: color-mix(in oklch, currentColor 10%, transparent);
+  border-color: color-mix(in oklch, currentColor 30%, transparent);
+}
+.practice-filter-choice--easy[aria-pressed="true"] {
+  color: var(--color-success);
+}
+.practice-filter-choice--medium[aria-pressed="true"] {
+  color: var(--color-warning);
+}
+.practice-filter-choice--hard[aria-pressed="true"] {
+  color: var(--color-error);
 }
 @media (max-width: 650px) {
-  .practice-filter-option,
-  .practice-filter-reset,
+  .practice-filter-choice,
   .practice-difficulty {
     min-height: var(--narrow-touch-target);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .practice-filter-choice,
+  .practice-difficulty,
+  .practice-table tbody tr {
+    transition: none;
   }
 }
