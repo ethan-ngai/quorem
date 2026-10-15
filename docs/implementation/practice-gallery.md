@@ -12,9 +12,9 @@ Response retains `items` and adds filtered `total`, `page`, `limit`, and unfilte
 
 ## Browser state
 
-The table uses alternating row backgrounds without an enclosing card. Clicking a row opens its problem; title/action links retain keyboard and browser link behavior. Clicking difficulty/topic buttons adds that value to existing filters. Checkbox popovers support multiple selections, with counts and removable chips.
+The table uses alternating row backgrounds without an enclosing card. Clicking a row opens its problem; title links retain keyboard and browser link behavior. Clicking difficulty/topic buttons adds that value to existing filters. Difficulty and topic popovers support multiple selections through wrapping pressed-state chips. Trigger summaries expose active choices; Clear resets a group. No Any option.
 
-Filters/sort/page live in URL params. Search debounces 250ms and replaces its current history entry; discrete filter/sort/page actions add entries. Back/forward restores controls. Changed filters reset pagination; out-of-range bookmarks canonicalize to the last valid page. Query-key isolation plus abort signals prevent stale results appearing under newer filters. Independent metadata cache keeps topic options available while filtering/loading. Empty, loading and retry states are explicit. Narrow layouts omit the language column and retain question topics and actions.
+Filters/sort/page live in URL params. Search debounces 250ms and replaces its current history entry; discrete filter/sort/page actions add entries. Back/forward restores controls. Changed filters reset pagination; out-of-range bookmarks canonicalize to the last valid page. Query-key isolation plus abort signals prevent stale results appearing under newer filters. Independent metadata cache keeps topic options available while filtering/loading. Empty, loading and retry states are explicit. Narrow layouts omit the language column and retain question topics and title links.
 
 ## Evidence
 
@@ -24,3 +24,5 @@ Filters/sort/page live in URL params. Search debounces 250ms and replaces its cu
 - Initial gallery validation: live worktree Vite at `http://127.0.0.1:5182/practice`, API 8092 on that disposable DB: search updates URL and returns the correct question; topic/back restores filter; full topic options persist; page=999 canonicalizes to page 1.
 
 - Issue #59: live root Vite at `http://localhost:5180/practice`, API 8090: multiple difficulties/topics, additive tag clicks, and non-link row navigation verified.
+
+- Difficulty controls have a semantic hover/focus tint; difficulty/topic interaction suppresses row highlighting. Trailing row arrows are removed.
