@@ -1,0 +1,25 @@
+{
+  "name": "@quorem/auth",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --experimental-strip-types src/server.ts",
+    "migrate": "node --env-file-if-exists=.env --experimental-strip-types src/migrate.ts",
+    "seed": "node --env-file-if-exists=.env --experimental-strip-types src/seed.ts",
+    "test": "vp test"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1150.0",
+    "@better-auth/passkey": "1.7.7",
+    "better-auth": "1.7.7",
+    "nodemailer": "8.0.3",
+    "pg": "8.16.3",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/nodemailer": "7.0.11",
+    "@types/pg": "8.15.6",
+    "vitest": "5.0.3"
+  }
+}

@@ -36,20 +36,38 @@ func (p Problem) SampleCases() []Case {
 	return cases
 }
 
+type LanguageImplementation struct {
+	Language        string `json:"language"`
+	StarterSource   string `json:"starterSource"`
+	RuntimeRevision string `json:"runtimeRevision"`
+	HarnessRevision string `json:"harnessRevision"`
+}
+
+// Editorial content is authored separately from private judge references.
+type EditorialSolution struct {
+	Language            string `json:"language"`
+	Source              string `json:"source"`
+	ExplanationMarkdown string `json:"explanationMarkdown"`
+	TimeComplexity      string `json:"timeComplexity"`
+	SpaceComplexity     string `json:"spaceComplexity"`
+	ComplexityNotes     string `json:"complexityNotes"`
+}
+
 type Problem struct {
-	ID                string           `json:"id"`
-	Slug              string           `json:"slug"`
-	Version           string           `json:"version"`
-	Title             string           `json:"title"`
-	Difficulty        string           `json:"difficulty"`
-	Tags              []string         `json:"tags"`
-	StatementMarkdown string           `json:"statementMarkdown"`
-	Examples          []ProblemExample `json:"examples"`
-	Constraints       []Constraint     `json:"constraints"`
-	Signature         Signature        `json:"signature"`
-	StarterSource     string           `json:"starterSource"`
-	RuntimeRevision   string           `json:"runtimeRevision"`
-	Limits            execution.Limits `json:"limits"`
+	Languages         []LanguageImplementation `json:"languages"`
+	ID                string                   `json:"id"`
+	Slug              string                   `json:"slug"`
+	Version           string                   `json:"version"`
+	Title             string                   `json:"title"`
+	Difficulty        string                   `json:"difficulty"`
+	Tags              []string                 `json:"tags"`
+	StatementMarkdown string                   `json:"statementMarkdown"`
+	Examples          []ProblemExample         `json:"examples"`
+	Constraints       []Constraint             `json:"constraints"`
+	Signature         Signature                `json:"signature"`
+	StarterSource     string                   `json:"starterSource"`
+	RuntimeRevision   string                   `json:"runtimeRevision"`
+	Limits            execution.Limits         `json:"limits"`
 }
 type Fixture struct {
 	Problem         Problem `json:"problem"`

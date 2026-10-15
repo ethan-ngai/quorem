@@ -9,8 +9,10 @@ import {
 } from "@tanstack/react-router";
 import { StrictMode, Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
+import { LoginPage } from "./features/auth/LoginPage";
 import { InvitePage } from "./features/matches/InvitePage";
 import { practiceSearch } from "./features/navigation/matchCreationIntent";
+import { catalogSearch } from "./features/practice/catalogSearch";
 import { PracticeBrowser } from "./features/practice/PracticeBrowser";
 import "@fontsource-variable/geist";
 import "@fontsource/jetbrains-mono/400.css";
@@ -18,6 +20,10 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@quorem/ui/theme.css";
 import "./styles/global.css";
 import "./features/matches/competitive.css";
+
+const QuestionEditor = lazy(() =>
+  import("./features/admin/QuestionEditor").then((module) => ({ default: module.QuestionEditor })),
+);
 
 const WorkspacePage = lazy(() =>
   import("./features/editor/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
@@ -46,7 +52,7 @@ const indexRoute = createRoute({
 const practiceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/practice",
-  validateSearch: practiceSearch,
+  validateSearch: (search) => ({ ...practiceSearch(search), ...catalogSearch(search) }),
   component: PracticeBrowser,
 });
 const problemRoute = createRoute({
@@ -93,8 +99,30 @@ const inviteRoute = createRoute({
     return <InvitePage token={token} />;
   },
 });
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/questions",
+  component: () => (
+    <Suspense
+      fallback={
+        <main className="admin-access" role="status">
+          Opening question editor…
+        </main>
+      }
+    >
+      <QuestionEditor />
+    </Suspense>
+  ),
+});
 const routeTree = rootRoute.addChildren([
+  adminRoute,
   indexRoute,
+  loginRoute,
   practiceRoute,
   problemRoute,
   matchRoute,

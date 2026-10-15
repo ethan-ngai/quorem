@@ -1,7 +1,7 @@
 /** @file policy.test.ts @description Owner and virtual document isolation checks. @module language */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { authorizeUpgrade, documentUri, validateMessage } from "./policy.ts";
+import { authorizeUpgrade, documentUri, validateMessage, hasManagedCredentials } from "./policy.ts";
 
 void test("development owner requires loopback and exact browser origin", () => {
   const url = new URL("http://localhost/lsp?user=alice");
@@ -52,5 +52,27 @@ void test("foreign documents and configuration mutations are rejected", () => {
       }),
     ).method,
     "textDocument/hover",
+  );
+});
+
+void test("present managed credentials cannot silently select fixture ownership", () => {
+  for (const value of ["", "Bearer ", "Bearer forged", "Basic forged"])
+    assert.equal(hasManagedCredentials(value, undefined), true);
+  for (const value of ["bearer.", "quorem, bearer.", "quorem,bearer.forged"])
+    assert.equal(hasManagedCredentials(undefined, value), true);
+  assert.equal(hasManagedCredentials(undefined, undefined), false);
+  assert.equal(hasManagedCredentials(undefined, "quorem"), false);
+});
+
+void test("configured worktree origin remains exact and loopback-only", () => {
+  const url = new URL("http://127.0.0.1/lsp?user=alice");
+  assert.equal(
+    authorizeUpgrade("127.0.0.1", "http://127.0.0.1:5180", url, "http://127.0.0.1:5180"),
+    "alice",
+  );
+  assert.equal(authorizeUpgrade("127.0.0.1", "http://evil.test", url, "http://evil.test"), null);
+  assert.equal(
+    authorizeUpgrade("127.0.0.1", "http://127.0.0.1:5181", url, "http://127.0.0.1:5180"),
+    null,
   );
 });
