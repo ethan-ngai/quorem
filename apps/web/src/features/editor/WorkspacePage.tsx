@@ -1,4 +1,5 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
@@ -38,16 +39,10 @@ import { TestCases } from "./components/TestCases";
 import { ResultContent } from "./components/ResultContent";
 import { customDraftStorageKey, readCustomDrafts, type CustomCaseDraft } from "./customCases";
 import { Brand, Icon } from "./components/Icon";
-import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
 import { ResizableDivider } from "./components/ResizableDivider";
-import {
-  readPreference,
-  writePreference,
-  readEditorScheme,
-  editorSchemeStorageKey,
-} from "./editorSettings";
+import { readPreference, writePreference } from "./editorSettings";
 import {
   createBrowserDraftWriter,
   importBrowserDrafts,
@@ -133,12 +128,16 @@ export function WorkspacePage({
   const [signInPrompt, setSignInPrompt] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [editorScheme, setEditorScheme] = useState(readEditorScheme);
-  const [fontSize, setFontSize] = useState(() => readPreference("quorem.code-font-size.v1", 15));
-  const [tabSize, setTabSize] = useState<2 | 4>(() =>
-    readPreference<2 | 4>("quorem.tab-size.v1", 4),
-  );
-  const [wrap, setWrap] = useState(() => readPreference("quorem.wrap.v1", false));
+  const {
+    editorScheme,
+    onEditorSchemeChange: setEditorScheme,
+    fontSize,
+    onFontSizeChange: setFontSize,
+    tabSize,
+    onTabSizeChange: setTabSize,
+    wrap,
+    onWrapChange: setWrap,
+  } = useLocalEditorPreferences();
   const editorRef = useRef<PythonEditorHandle>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const dirtyRef = useRef(false);
@@ -287,10 +286,6 @@ export function WorkspacePage({
     writePreference("quorem.pane-ratio.v1", paneRatio);
   }, [paneRatio]);
   useEffect(() => writePreference("quorem.results-height.v1", resultsHeight), [resultsHeight]);
-  useEffect(() => writePreference("quorem.code-font-size.v1", fontSize), [fontSize]);
-  useEffect(() => writePreference(editorSchemeStorageKey, editorScheme), [editorScheme]);
-  useEffect(() => writePreference("quorem.tab-size.v1", tabSize), [tabSize]);
-  useEffect(() => writePreference("quorem.wrap.v1", wrap), [wrap]);
 
   const updateSource = useCallback((next: string) => {
     editGeneration.current++;
@@ -607,34 +602,32 @@ export function WorkspacePage({
           mode={match?.mode}
           theme={themePreference}
           onThemeChange={setThemePreference}
-          preferences={
-            <WorkspaceSettings
-              onOpenChange={setSettingsOpen}
-              onImportDrafts={async (file) => {
-                try {
-                  await saveCurrentDraft();
-                  const imported = await importBrowserDrafts(await file.text(), identity);
-                  if (imported > 0) window.location.reload();
-                } catch (error) {
-                  setActionError(errorMessage(error));
-                }
-              }}
-              theme={themePreference}
-              onThemeChange={setThemePreference}
-              editorScheme={editorScheme}
-              onEditorSchemeChange={setEditorScheme}
-              fontSize={fontSize}
-              onFontSizeChange={setFontSize}
-              tabSize={tabSize}
-              onTabSizeChange={setTabSize}
-              wrap={wrap}
-              onWrapChange={setWrap}
-              onHistory={() => setHistoryOpen(true)}
-              onClearRecovery={() => {
-                void clearOwnerRecovery(identity);
-              }}
-            />
-          }
+          workspaceSettings={{
+            onOpenChange: setSettingsOpen,
+            onImportDrafts: async (file) => {
+              try {
+                await saveCurrentDraft();
+                const imported = await importBrowserDrafts(await file.text(), identity);
+                if (imported > 0) window.location.reload();
+              } catch (error) {
+                setActionError(errorMessage(error));
+              }
+            },
+            theme: themePreference,
+            onThemeChange: setThemePreference,
+            editorScheme: editorScheme,
+            onEditorSchemeChange: setEditorScheme,
+            fontSize: fontSize,
+            onFontSizeChange: setFontSize,
+            tabSize: tabSize,
+            onTabSizeChange: setTabSize,
+            wrap: wrap,
+            onWrapChange: setWrap,
+            onHistory: () => setHistoryOpen(true),
+            onClearRecovery: () => {
+              void clearOwnerRecovery(identity);
+            },
+          }}
           onCreateMatch={() => {
             void saveCurrentDraft().then(() => setCreateMatchOpen(true));
           }}

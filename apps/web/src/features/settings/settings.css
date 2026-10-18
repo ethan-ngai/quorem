@@ -1,0 +1,74 @@
+.settings-dialog.unified-settings {
+  width: min(800px, calc(100vw - 32px));
+  height: min(600px, calc(100dvh - 48px));
+}
+.unified-settings .settings-body {
+  grid-template-columns: 184px minmax(0, 1fr);
+}
+.unified-settings .settings-sidebar,
+.unified-settings .settings-section {
+  min-width: 0;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.settings-category-group + .settings-category-group {
+  margin-top: var(--space-5);
+}
+.settings-category-group > span {
+  display: block;
+  margin: var(--space-2) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.unified-settings .settings-sidebar button {
+  min-height: 40px;
+  font-size: var(--text-small);
+}
+.unified-settings .settings-section > h2 {
+  margin-bottom: var(--space-3);
+}
+.settings-local-note {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.settings-security-passkeys {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+.unified-settings .account-photo-editor {
+  padding-top: 0;
+}
+.unified-settings .settings-section:focus-visible {
+  outline-offset: -3px;
+}
+@media (max-width: 600px) {
+  .settings-dialog.unified-settings {
+    width: calc(100vw - 16px);
+    height: min(650px, calc(100dvh - 24px));
+  }
+  .unified-settings .settings-body {
+    grid-template-columns: 132px minmax(0, 1fr);
+  }
+  .unified-settings .settings-sidebar button {
+    min-height: var(--narrow-touch-target);
+    font-size: var(--text-label);
+  }
+  .unified-settings .settings-section {
+    padding: var(--space-4);
+  }
+  .unified-settings .account-photo-editor {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .unified-settings .profile-edit-actions {
+    flex-direction: column;
+  }
+}
+.settings-dialog.unified-settings {
+  box-shadow: none;
+}
+[data-theme="light"] .settings-dialog.unified-settings {
+  box-shadow: 0 8px 24px oklch(0.2 0 0 / 0.08);
+}

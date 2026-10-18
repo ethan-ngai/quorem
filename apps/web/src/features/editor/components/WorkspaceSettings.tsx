@@ -1,8 +1,7 @@
-/** @file WorkspaceSettings.tsx @description Modal preferences with section navigation and accessible controls. @module editor */
-import * as Dialog from "@radix-ui/react-dialog";
+/** @file WorkspaceSettings.tsx @description Shared local preference sections and accessible controls. @module editor */
 import * as Switch from "@radix-ui/react-switch";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { SelectField } from "../../../ui/SelectField";
 import type { ThemePreference } from "../editorSettings";
 import { editorSchemes, type EditorScheme } from "../editorSchemes";
@@ -11,7 +10,7 @@ import { ShortcutKeys } from "./ShortcutKeys";
 import { Icon } from "./Icon";
 import { Tooltip } from "./Tooltip";
 
-type SettingsProps = {
+export type SettingsProps = {
   onOpenChange?: (open: boolean) => void;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
@@ -28,7 +27,7 @@ type SettingsProps = {
   onImportDrafts: (file: File) => Promise<void>;
 };
 
-const sections = [
+export const workspaceSections = [
   { id: "appearance", label: "Appearance", icon: "sun" },
   { id: "editor", label: "Editor", icon: "code" },
   { id: "shortcuts", label: "Shortcuts", icon: "keyboard" },
@@ -82,191 +81,125 @@ function Toggle({
   );
 }
 
-export function WorkspaceSettings(props: SettingsProps) {
-  const [open, setOpen] = useState(false);
-  const sidebar = useRef<HTMLElement>(null);
-  const [section, setSection] = useState<(typeof sections)[number]["id"]>("appearance");
-  const current = sections.find((item) => item.id === section)!;
-  function changeOpen(value: boolean) {
-    setOpen(value);
-    props.onOpenChange?.(value);
-  }
+export type WorkspaceSection = (typeof workspaceSections)[number]["id"];
+
+export function WorkspaceSettingsContent({
+  section,
+  ...props
+}: SettingsProps & { section: WorkspaceSection; onClose?: () => void }) {
   return (
-    <Dialog.Root open={open} onOpenChange={changeOpen}>
-      <Tooltip content="Workspace settings">
-        <Dialog.Trigger asChild>
-          <button className="icon-button" aria-label="Workspace settings">
-            <Icon name="settings" />
-          </button>
-        </Dialog.Trigger>
-      </Tooltip>
-      <Dialog.Portal>
-        <Dialog.Overlay className="settings-backdrop" />
-        <Dialog.Content
-          className="settings-dialog"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            sidebar.current?.querySelector<HTMLButtonElement>("button[aria-current]")?.focus();
-          }}
-        >
-          <header className="settings-header">
-            <div>
-              <Dialog.Title>Settings</Dialog.Title>
-              <Dialog.Description>Preferences save on this device.</Dialog.Description>
-            </div>
-            <Tooltip content="Close settings">
-              <Dialog.Close asChild>
-                <button className="icon-button" aria-label="Close settings">
-                  <Icon name="close" />
-                </button>
-              </Dialog.Close>
-            </Tooltip>
-          </header>
-          <div className="settings-body">
-            <nav className="settings-sidebar" aria-label="Settings sections" ref={sidebar}>
-              {sections.map((item) => (
-                <button
-                  key={item.id}
-                  aria-current={section === item.id ? "page" : undefined}
-                  onClick={() => setSection(item.id)}
-                >
-                  <Icon name={item.icon} />
-                  {item.label}
-                </button>
+    <>
+      {section === "appearance" && (
+        <>
+          <Setting label="Color theme">
+            <div className="theme-segments" role="group" aria-label="Color theme">
+              {themes.map(({ value, label, icon: ThemeIcon }) => (
+                <Tooltip key={value} content={label}>
+                  <button
+                    type="button"
+                    aria-label={`${label} theme`}
+                    aria-pressed={props.theme === value}
+                    onClick={() => props.onThemeChange(value)}
+                  >
+                    <ThemeIcon size={18} strokeWidth={1.5} aria-hidden="true" />
+                  </button>
+                </Tooltip>
               ))}
-            </nav>
-            <section
-              className="settings-section"
-              key={section}
-              aria-labelledby="settings-section-title"
-            >
-              <h2 id="settings-section-title">
-                <Icon name={current.icon} />
-                {current.label}
-              </h2>
-              {section === "appearance" && (
-                <>
-                  <Setting label="Color theme">
-                    <div className="theme-segments" role="group" aria-label="Color theme">
-                      {themes.map(({ value, label, icon: ThemeIcon }) => (
-                        <Tooltip key={value} content={label}>
-                          <button
-                            type="button"
-                            aria-label={`${label} theme`}
-                            aria-pressed={props.theme === value}
-                            onClick={() => props.onThemeChange(value)}
-                          >
-                            <ThemeIcon size={18} strokeWidth={1.5} aria-hidden="true" />
-                          </button>
-                        </Tooltip>
-                      ))}
-                    </div>
-                  </Setting>
-                  <Setting label="Editor color scheme">
-                    <SelectField
-                      className="select-field--settings"
-                      label="Editor color scheme"
-                      value={props.editorScheme}
-                      onChange={(value) => props.onEditorSchemeChange(value as EditorScheme)}
-                      options={editorSchemes.map((s) => ({ value: s.id, label: s.label }))}
-                    />
-                  </Setting>
-                </>
-              )}
-              {section === "editor" && (
-                <>
-                  <Setting label="Code size">
-                    <SelectField
-                      className="select-field--settings"
-                      label="Code font size"
-                      value={String(props.fontSize)}
-                      onChange={(value) => props.onFontSizeChange(Number(value))}
-                      options={[12, 13, 14, 15, 16, 18, 20, 22, 24].map((size) => ({
-                        value: String(size),
-                        label: `${size}px`,
-                      }))}
-                    />
-                  </Setting>
-                  <Setting label="Indentation">
-                    <SelectField
-                      className="select-field--settings"
-                      label="Indent size"
-                      value={String(props.tabSize)}
-                      onChange={(value) => props.onTabSizeChange(Number(value) as 2 | 4)}
-                      options={[
-                        { value: "2", label: "2 spaces" },
-                        { value: "4", label: "4 spaces" },
-                      ]}
-                    />
-                  </Setting>
-                  <Setting label="Wrap long lines" description="Keep long lines within the editor.">
-                    <Toggle
-                      label="Wrap long lines"
-                      checked={props.wrap}
-                      onChange={props.onWrapChange}
-                    />
-                  </Setting>
-                </>
-              )}
-              {section === "shortcuts" && (
-                <>
-                  <div className="shortcut-tiles">
-                    {Object.values(workspaceShortcuts).map((shortcut) => (
-                      <div className="shortcut-tile" key={shortcut.label}>
-                        <Icon name={shortcut.icon} />
-                        <span>{shortcut.label}</span>
-                        <div>
-                          <ShortcutKeys keys={shortcut.keys} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-              {section === "drafts" && (
-                <>
-                  <p className="settings-section-description">
-                    Drafts and history stay in this browser. Other windows keep their own active
-                    code.
-                  </p>
-                  <button
-                    className="settings-action"
-                    onClick={() => {
-                      changeOpen(false);
-                      props.onHistory();
-                    }}
-                  >
-                    <Icon name="history" />
-                    Browser history
-                    <Icon name="arrow" />
-                  </button>
-                  <label className="settings-action">
-                    <Icon name="history" />
-                    Import previous drafts
-                    <input
-                      type="file"
-                      accept="application/json,.json"
-                      className="sr-only"
-                      onChange={(event) => {
-                        const file = event.currentTarget.files?.[0];
-                        if (file) void props.onImportDrafts(file);
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-                  <button
-                    className="settings-action destructive-icon"
-                    onClick={props.onClearRecovery}
-                  >
-                    <Icon name="trash" />
-                    Clear browser drafts
-                  </button>
-                </>
-              )}
-            </section>
+            </div>
+          </Setting>
+          <Setting label="Editor color scheme">
+            <SelectField
+              className="select-field--settings"
+              label="Editor color scheme"
+              value={props.editorScheme}
+              onChange={(value) => props.onEditorSchemeChange(value as EditorScheme)}
+              options={editorSchemes.map((s) => ({ value: s.id, label: s.label }))}
+            />
+          </Setting>
+        </>
+      )}
+      {section === "editor" && (
+        <>
+          <Setting label="Code size">
+            <SelectField
+              className="select-field--settings"
+              label="Code font size"
+              value={String(props.fontSize)}
+              onChange={(value) => props.onFontSizeChange(Number(value))}
+              options={[12, 13, 14, 15, 16, 18, 20, 22, 24].map((size) => ({
+                value: String(size),
+                label: `${size}px`,
+              }))}
+            />
+          </Setting>
+          <Setting label="Indentation">
+            <SelectField
+              className="select-field--settings"
+              label="Indent size"
+              value={String(props.tabSize)}
+              onChange={(value) => props.onTabSizeChange(Number(value) as 2 | 4)}
+              options={[
+                { value: "2", label: "2 spaces" },
+                { value: "4", label: "4 spaces" },
+              ]}
+            />
+          </Setting>
+          <Setting label="Wrap long lines" description="Keep long lines within the editor.">
+            <Toggle label="Wrap long lines" checked={props.wrap} onChange={props.onWrapChange} />
+          </Setting>
+        </>
+      )}
+      {section === "shortcuts" && (
+        <>
+          <div className="shortcut-tiles">
+            {Object.values(workspaceShortcuts).map((shortcut) => (
+              <div className="shortcut-tile" key={shortcut.label}>
+                <Icon name={shortcut.icon} />
+                <span>{shortcut.label}</span>
+                <div>
+                  <ShortcutKeys keys={shortcut.keys} />
+                </div>
+              </div>
+            ))}
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </>
+      )}
+      {section === "drafts" && (
+        <>
+          <p className="settings-section-description">
+            Drafts and history stay in this browser. Other windows keep their own active code.
+          </p>
+          <button
+            className="settings-action"
+            onClick={() => {
+              props.onClose?.();
+              props.onHistory();
+            }}
+          >
+            <Icon name="history" />
+            Browser history
+            <Icon name="arrow" />
+          </button>
+          <label className="settings-action">
+            <Icon name="history" />
+            Import previous drafts
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) void props.onImportDrafts(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+          <button className="settings-action destructive-icon" onClick={props.onClearRecovery}>
+            <Icon name="trash" />
+            Clear browser drafts
+          </button>
+        </>
+      )}
+    </>
   );
 }

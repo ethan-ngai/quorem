@@ -1,7 +1,9 @@
+import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
+import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { useSession } from "../auth/session";
 import * as Popover from "@radix-ui/react-popover";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { BookOpen, Home, Menu, Plus } from "lucide-react";
+import { BookOpen, Home, Menu, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
@@ -19,7 +21,7 @@ export function GlobalNav({
   onCreateMatch,
   theme,
   onThemeChange,
-  preferences,
+  workspaceSettings,
   children,
 }: {
   identity?: DevelopmentIdentity;
@@ -28,9 +30,21 @@ export function GlobalNav({
   onCreateMatch?: () => void;
   theme?: ThemePreference;
   onThemeChange?: (theme: ThemePreference) => void;
-  preferences?: ReactNode;
+  workspaceSettings?: SettingsProps;
   children?: ReactNode;
 }) {
+  const settingsTrigger = useRef<HTMLButtonElement>(null);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("appearance");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  function openSettings(section: SettingsSection) {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+    workspaceSettings?.onOpenChange?.(true);
+  }
+  function closeSettings() {
+    setSettingsOpen(false);
+    workspaceSettings?.onOpenChange?.(false);
+  }
   const session = useSession();
   const actor = (session.data?.user.id ?? identity) as DevelopmentIdentity;
   const location = useLocation();
@@ -143,15 +157,34 @@ export function GlobalNav({
         </nav>
         <div className="topbar-spacer" />
         {children}
-        {preferences}
+        <Tooltip content="Workspace settings">
+          <button
+            className="icon-button"
+            ref={settingsTrigger}
+            aria-label="Workspace settings"
+            onClick={() => openSettings("editor")}
+          >
+            <SlidersHorizontal size={18} />
+          </button>
+        </Tooltip>
         <AccountMenu
           session={session.data}
           pending={session.isPending}
           failed={session.isError}
-          theme={theme}
-          onThemeChange={onThemeChange}
+          onOpenSettings={openSettings}
         />
       </header>
+      <SettingsDialog
+        open={settingsOpen}
+        section={settingsSection}
+        onSectionChange={setSettingsSection}
+        onClose={closeSettings}
+        onReturnFocus={() => settingsTrigger.current?.focus()}
+        session={session.data}
+        workspace={workspaceSettings}
+        theme={theme ?? "system"}
+        onThemeChange={onThemeChange ?? (() => {})}
+      />
       {creating && <CreateMatchDialog onClose={() => setCreating(false)} identity={actor} />}
     </>
   );

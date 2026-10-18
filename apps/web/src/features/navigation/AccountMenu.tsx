@@ -1,66 +1,32 @@
 /** @file AccountMenu.tsx @description Profile menu and accessible account dialogs. @module navigation */
-import { authErrorMessage } from "../auth/errors";
-import * as Dialog from "@radix-ui/react-dialog";
 import * as Popover from "@radix-ui/react-popover";
-import {
-  BookOpen,
-  ChevronRight,
-  LogOut,
-  Monitor,
-  Moon,
-  Settings,
-  Sun,
-  UserRound,
-  X,
-} from "lucide-react";
+import { BookOpen, ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { signOut, type Session } from "../auth/session";
-import { useProfile, uploadProfilePhoto, removeProfilePhoto, photoTypes } from "../auth/profile";
-import type { ThemePreference } from "../editor/editorSettings";
+import { useProfile } from "../auth/profile";
 import { Tooltip } from "../editor/components/Tooltip";
 import { AccountAvatar } from "./AccountAvatar";
-import { ProfileEditor } from "../auth/ProfileEditor";
-import { PasskeySettings } from "../auth/PasskeySettings";
 
-type AccountPanel = "profile" | "settings";
 export function AccountMenu({
   session,
   pending,
   failed,
-  theme,
-  onThemeChange,
+  onOpenSettings,
 }: {
   session?: Session | null;
   pending: boolean;
   failed: boolean;
-  theme?: ThemePreference;
-  onThemeChange?: (theme: ThemePreference) => void;
+  onOpenSettings: (section: "profile" | "appearance") => void;
 }) {
   const profile = useProfile(session?.user.id);
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [panel, setPanel] = useState<AccountPanel | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const account = profile.data;
   const name = account?.name || account?.username || session?.user.displayName || "Account";
-  function showPanel(next: AccountPanel) {
+  function showPanel(next: "profile" | "appearance") {
     setOpen(false);
-    setError("");
-    setPanel(next);
-  }
-  async function changePhoto(file?: File) {
-    setSaving(true);
-    setError("");
-    try {
-      const updated = file ? await uploadProfilePhoto(file) : await removeProfilePhoto();
-      queryClient.setQueryData(["account-profile", session?.user.id], updated);
-    } catch (cause) {
-      setError(authErrorMessage(cause, "Photo update unavailable. Try again."));
-    } finally {
-      setSaving(false);
-    }
+    onOpenSettings(next);
   }
   const returnTo =
     typeof location !== "undefined" &&
@@ -127,7 +93,7 @@ export function AccountMenu({
                     <ChevronRight className="account-menu-chevron" />
                   </button>
                   {session ? (
-                    <button onClick={() => showPanel("settings")}>
+                    <button onClick={() => showPanel("appearance")}>
                       <Settings />
                       <span>Settings</span>
                     </button>
@@ -169,118 +135,6 @@ export function AccountMenu({
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>
-      <Dialog.Root
-        open={panel !== null}
-        onOpenChange={(value) => {
-          if (!value) setPanel(null);
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="settings-backdrop" />
-          <Dialog.Content className="account-dialog">
-            <header className="account-dialog-header">
-              <div>
-                <Dialog.Title>{panel === "profile" ? "Profile" : "Account settings"}</Dialog.Title>
-                <Dialog.Description>
-                  {panel === "profile"
-                    ? "Your account and profile photo."
-                    : "Manage your sign-in methods and appearance."}
-                </Dialog.Description>
-              </div>
-              <Dialog.Close asChild>
-                <button className="icon-button" aria-label="Close account dialog">
-                  <X size={18} />
-                </button>
-              </Dialog.Close>
-            </header>
-            {panel === "profile" ? (
-              <>
-                <div className="account-photo-editor">
-                  <AccountAvatar
-                    name={name}
-                    username={account?.username}
-                    image={account?.image}
-                    large
-                  />
-                  <div>
-                    <label
-                      className={`button button-secondary account-upload${saving ? " is-disabled" : ""}`}
-                    >
-                      {" "}
-                      {saving ? "Updating…" : "Upload photo"}
-                      <input
-                        type="file"
-                        aria-label="Upload profile photo"
-                        accept={photoTypes.join(",")}
-                        disabled={saving}
-                        onChange={(event) => {
-                          const file = event.currentTarget.files?.[0];
-                          if (file) void changePhoto(file);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-                    {account?.image ? (
-                      <button
-                        className="quiet-button"
-                        disabled={saving}
-                        onClick={() => void changePhoto()}
-                      >
-                        Remove photo
-                      </button>
-                    ) : null}
-                    <p>JPEG, PNG or WebP · up to 5 MB</p>
-                  </div>
-                </div>
-                {profile.isPending ? (
-                  <p role="status">Loading profile…</p>
-                ) : profile.isError ? (
-                  <p role="alert">
-                    Profile unavailable.{" "}
-                    <button className="quiet-button" onClick={() => void profile.refetch()}>
-                      Retry
-                    </button>
-                  </p>
-                ) : null}
-                {account && <ProfileEditor profile={account} userId={session.user.id} />}
-                {error ? (
-                  <p className="account-error" role="alert">
-                    {error}
-                  </p>
-                ) : null}
-              </>
-            ) : panel === "settings" ? (
-              <>
-                <PasskeySettings />
-                {onThemeChange ? (
-                  <div className="account-theme-setting">
-                    <span>Color theme</span>
-                    <div className="theme-segments" role="group" aria-label="Color theme">
-                      {(
-                        [
-                          { value: "system", label: "System", Icon: Monitor },
-                          { value: "light", label: "Light", Icon: Sun },
-                          { value: "dark", label: "Dark", Icon: Moon },
-                        ] as const
-                      ).map(({ value, label, Icon }) => (
-                        <Tooltip key={value} content={label}>
-                          <button
-                            aria-label={`${label} theme`}
-                            aria-pressed={theme === value}
-                            onClick={() => onThemeChange?.(value)}
-                          >
-                            <Icon size={18} />
-                          </button>
-                        </Tooltip>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
     </>
   );
 }
