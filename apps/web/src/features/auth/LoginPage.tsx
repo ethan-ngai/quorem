@@ -6,13 +6,15 @@ import { signIn, signInWithPassword } from "./session";
 import { signInReferral } from "./signInReferral";
 import {
   fetchAuthCapabilities,
-  registerAccount,
-  resendVerificationEmail,
+  beginRegistration,
+  registrationStatus,
+  completeRegistration,
   signInWithPasskey,
   signInWithProvider,
 } from "./capabilities";
 import { Brand } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
+import { useCooldown } from "../../ui/useCooldown";
 import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
 
@@ -40,10 +42,32 @@ export function LoginPage() {
       history.replaceState(history.state, "", destination.pathname + destination.search);
     }
   }, [capabilities.data?.preferredOrigin, preference, setPreference]);
-  const [creating, setCreating] = useState(false);
+  const [signupToken] = useState(
+    () => new URLSearchParams(location.search).get("signupToken") ?? "",
+  );
+  const setupRequested = Boolean(signupToken || new URLSearchParams(location.search).get("setup"));
+  const setup = useQuery({
+    queryKey: ["registration-setup", signupToken],
+    queryFn: () => registrationStatus(signupToken || undefined),
+    enabled: setupRequested,
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  useEffect(() => {
+    if (!signupToken) return;
+    const url = new URL(location.href);
+    url.searchParams.delete("signupToken");
+    url.searchParams.set("setup", "1");
+    history.replaceState(history.state, "", url.pathname + url.search);
+  }, [signupToken]);
+  const finishing = Boolean(setup.data && !setup.data.registered);
+  const [creating, setCreating] = useState(
+    setupRequested || new URLSearchParams(location.search).get("create") === "1",
+  );
   const [email, setEmail] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");
-  const [resent, setResent] = useState(false);
+  const resend = useCooldown();
   const verified = new URLSearchParams(location.search).get("verified") === "1";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -68,13 +92,14 @@ export function LoginPage() {
     void authenticate(async () => {
       if (creating) {
         if (!capabilities.data?.registration) throw new Error("Account creation is unavailable.");
-        await registerAccount({
-          name: username.trim(),
-          username: username.trim(),
-          email: email.trim(),
-          password,
-        });
+        if (finishing) {
+          await completeRegistration(setup.data?.email ?? "", username.trim(), password);
+          await signInWithPassword(username.trim(), password);
+          return;
+        }
+        const sent = await beginRegistration(email.trim());
         setSubmittedEmail(email.trim());
+        resend.start(sent.retryAfter);
         setPassword("");
         setVisible(false);
       } else if (capabilities.data?.method === "password")
@@ -97,25 +122,70 @@ export function LoginPage() {
             </a>
           ) : null}
           <h1 id="sign-in-title">
-            {submittedEmail
-              ? "Check your email"
-              : creating
-                ? "Create your account"
-                : "Sign in to Quorem"}
+            {setup.data?.registered
+              ? "Account already exists"
+              : setup.isError
+                ? "Link unavailable"
+                : submittedEmail
+                  ? "Check your email"
+                  : finishing
+                    ? "Finish your account"
+                    : creating
+                      ? "Create your account"
+                      : "Sign in to Quorem"}
           </h1>
           <p>
-            {submittedEmail
-              ? `Open the verification link sent to ${submittedEmail}, then sign in.`
-              : creating
-                ? "Start practicing with Quorem."
-                : "Pick up where you left off."}
+            {setup.data?.registered || setup.isError
+              ? "Continue below to get back into your account."
+              : submittedEmail
+                ? `Check ${submittedEmail} for a setup link. Open it to continue.`
+                : finishing
+                  ? `Email verified: ${setup.data?.email}. Choose your username and password.`
+                  : creating
+                    ? "Verify your email first. Then choose your username and password."
+                    : "Pick up where you left off."}
           </p>
           {verified && !creating && !submittedEmail ? (
             <p className="auth-success" role="status">
               Email verified. You can sign in now.
             </p>
           ) : null}
-          {submittedEmail ? (
+          {setupRequested && setup.isPending ? (
+            <p role="status">Verifying your email…</p>
+          ) : setupRequested && (setup.isError || setup.data?.registered) ? (
+            <div className="auth-verification">
+              <p role="status">
+                {setup.data?.registered
+                  ? "You already have an account. Sign in to continue."
+                  : setup.error?.message}
+              </p>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={() => {
+                  const url = new URL(location.href);
+                  url.searchParams.delete("setup");
+                  location.assign(url.pathname + url.search);
+                }}
+              >
+                Back to sign in
+              </button>
+              {setup.isError && (
+                <button
+                  type="button"
+                  className="quiet-button"
+                  onClick={() => {
+                    const url = new URL(location.href);
+                    url.searchParams.delete("setup");
+                    url.searchParams.set("create", "1");
+                    location.assign(url.pathname + url.search);
+                  }}
+                >
+                  Request a new setup email
+                </button>
+              )}
+            </div>
+          ) : submittedEmail ? (
             <div className="auth-verification">
               <button
                 type="button"
@@ -123,31 +193,48 @@ export function LoginPage() {
                 disabled={busy}
                 onClick={() => {
                   setSubmittedEmail("");
-                  setCreating(false);
-                  setUsername(email);
+                  setCreating(true);
                   setError("");
                 }}
               >
-                Back to sign in
+                Change email
               </button>
               <button
                 type="button"
                 className="quiet-button"
-                disabled={busy}
+                disabled={busy || resend.remaining > 0}
                 onClick={() =>
                   void authenticate(async () => {
-                    await resendVerificationEmail(submittedEmail);
-                    setResent(true);
+                    const sent = await beginRegistration(submittedEmail);
+                    resend.start(sent.retryAfter);
                   })
                 }
               >
-                {busy ? "Sending…" : "Resend verification email"}
+                {busy
+                  ? "Sending…"
+                  : resend.remaining > 0
+                    ? `Resend email in ${resend.remaining}s`
+                    : "Resend verification email"}
               </button>
-              {resent ? <p role="status">Verification email sent.</p> : null}
+
               {error ? (
                 <p className="auth-error" role="alert">
                   {error}
                 </p>
+              ) : null}
+              {finishing && /expired|another tab/.test(error) ? (
+                <button
+                  type="button"
+                  className="quiet-button"
+                  onClick={() => {
+                    const url = new URL(location.href);
+                    url.searchParams.delete("setup");
+                    url.searchParams.set("create", "1");
+                    location.assign(url.pathname + url.search);
+                  }}
+                >
+                  Request a new setup email
+                </button>
               ) : null}
             </div>
           ) : capabilities.isPending ? (
@@ -161,84 +248,120 @@ export function LoginPage() {
             </>
           ) : (
             <>
-              <div className="auth-providers" aria-label="Social sign in">
-                {(["google", "apple", "github"] as const).map((provider) => {
-                  const enabled = capabilities.data?.providers.includes(provider);
-                  return (
-                    <button
-                      key={provider}
-                      type="button"
-                      className="button auth-provider"
-                      disabled={busy || !enabled}
-                      onClick={() => void authenticate(() => signInWithProvider(provider))}
-                      aria-describedby={!enabled ? "auth-provider-note" : undefined}
-                    >
-                      {provider === "github" ? (
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          aria-hidden="true"
+              {!finishing && (
+                <>
+                  <div className="auth-providers" aria-label="Social sign in">
+                    {(["google", "apple", "github"] as const).map((provider) => {
+                      const enabled = capabilities.data?.providers.includes(provider);
+                      return (
+                        <button
+                          key={provider}
+                          type="button"
+                          className="button auth-provider"
+                          disabled={busy || !enabled}
+                          onClick={() => void authenticate(() => signInWithProvider(provider))}
+                          aria-describedby={!enabled ? "auth-provider-note" : undefined}
                         >
-                          <path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.34-3.8-1.34-.52-1.31-1.26-1.66-1.26-1.66-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.5-.29-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.29-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16a10.8 10.8 0 0 1 5.64 0c2.15-1.45 3.1-1.16 3.1-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.64 5.27-5.15 5.55.41.36.77 1.05.77 2.12v3.08c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z" />
-                        </svg>
-                      ) : provider === "google" ? (
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path d="M21.8 12.2c0-.7-.06-1.4-.19-2.1H12v4h5.5a4.7 4.7 0 0 1-2 3.1 6 6 0 1 1-.2-10.1l3-3A10.2 10.2 0 1 0 12 22.2c5.7 0 9.8-4 9.8-10Z" />
-                        </svg>
-                      ) : (
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path d="M17.05 12.54c.02 3.12 2.74 4.16 2.77 4.17-.02.07-.43 1.48-1.43 2.93-.86 1.25-1.75 2.5-3.16 2.52-1.38.03-1.83-.82-3.41-.82-1.57 0-2.07.79-3.38.85-1.36.05-2.39-1.36-3.26-2.6-1.77-2.55-3.12-7.2-1.3-10.34.9-1.56 2.5-2.55 4.24-2.58 1.32-.03 2.57.9 3.38.9.82 0 2.34-1.11 3.95-.94.67.03 2.56.27 3.78 2.06-.1.06-2.26 1.32-2.24 3.85ZM14.45 4.94c.72-.87 1.21-2.08 1.08-3.29-1.04.04-2.3.69-3.05 1.56-.67.77-1.26 2-1.1 3.18 1.16.09 2.35-.59 3.07-1.45Z" />
-                        </svg>
-                      )}
-                      {provider === "google" ? "Google" : provider === "apple" ? "Apple" : "GitHub"}
-                    </button>
-                  );
-                })}
-              </div>
-              {capabilities.data?.providers.length !== 3 ? (
-                <p id="auth-provider-note" className="auth-note">
-                  Unavailable providers aren’t configured yet.
-                </p>
-              ) : null}
-              <div className="auth-divider">
-                <span>or</span>
-              </div>
+                          {provider === "github" ? (
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.34-3.8-1.34-.52-1.31-1.26-1.66-1.26-1.66-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.5-.29-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.29-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16a10.8 10.8 0 0 1 5.64 0c2.15-1.45 3.1-1.16 3.1-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.64 5.27-5.15 5.55.41.36.77 1.05.77 2.12v3.08c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z" />
+                            </svg>
+                          ) : provider === "google" ? (
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M21.8 12.2c0-.7-.06-1.4-.19-2.1H12v4h5.5a4.7 4.7 0 0 1-2 3.1 6 6 0 1 1-.2-10.1l3-3A10.2 10.2 0 1 0 12 22.2c5.7 0 9.8-4 9.8-10Z" />
+                            </svg>
+                          ) : (
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M17.05 12.54c.02 3.12 2.74 4.16 2.77 4.17-.02.07-.43 1.48-1.43 2.93-.86 1.25-1.75 2.5-3.16 2.52-1.38.03-1.83-.82-3.41-.82-1.57 0-2.07.79-3.38.85-1.36.05-2.39-1.36-3.26-2.6-1.77-2.55-3.12-7.2-1.3-10.34.9-1.56 2.5-2.55 4.24-2.58 1.32-.03 2.57.9 3.38.9.82 0 2.34-1.11 3.95-.94.67.03 2.56.27 3.78 2.06-.1.06-2.26 1.32-2.24 3.85ZM14.45 4.94c.72-.87 1.21-2.08 1.08-3.29-1.04.04-2.3.69-3.05 1.56-.67.77-1.26 2-1.1 3.18 1.16.09 2.35-.59 3.07-1.45Z" />
+                            </svg>
+                          )}
+                          {provider === "google"
+                            ? "Google"
+                            : provider === "apple"
+                              ? "Apple"
+                              : "GitHub"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {capabilities.data?.providers.length !== 3 ? (
+                    <p id="auth-provider-note" className="auth-note">
+                      Unavailable providers aren’t configured yet.
+                    </p>
+                  ) : null}
+                  <div className="auth-divider">
+                    <span>or</span>
+                  </div>
+                </>
+              )}
               <form onSubmit={submit}>
                 {capabilities.data?.method === "password" ? (
                   <>
-                    <label htmlFor="auth-username">
-                      {creating ? "Username" : "Username or email"}
-                    </label>
-                    <input
-                      id="auth-username"
-                      name="username"
-                      autoComplete="username"
-                      required
-                      maxLength={creating ? 30 : 254}
-                      minLength={creating ? 3 : undefined}
-                      pattern={creating ? "[a-zA-Z0-9_]+" : undefined}
-                      title={creating ? "3–30 letters, numbers or underscores" : undefined}
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      disabled={busy}
-                      autoCapitalize="none"
-                      spellCheck={false}
-                    />
-                    {creating ? (
+                    {!creating || finishing ? (
+                      <>
+                        <label htmlFor="auth-username">
+                          {creating ? "Username" : "Username or email"}
+                        </label>
+                        <input
+                          id="auth-username"
+                          name="username"
+                          autoComplete="username"
+                          required
+                          maxLength={creating ? 30 : 254}
+                          minLength={creating ? 3 : undefined}
+                          pattern={creating ? "[a-zA-Z0-9_]+" : undefined}
+                          title={creating ? "3–30 letters, numbers or underscores" : undefined}
+                          value={username}
+                          onChange={(event) => setUsername(event.target.value)}
+                          disabled={busy}
+                          autoCapitalize="none"
+                          spellCheck={false}
+                        />
+                        <label htmlFor="auth-password">Password</label>
+                        <div className="auth-password">
+                          <input
+                            id="auth-password"
+                            name="password"
+                            type={visible ? "text" : "password"}
+                            autoComplete={creating ? "new-password" : "current-password"}
+                            minLength={creating ? 12 : undefined}
+                            maxLength={creating ? 128 : undefined}
+                            required
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            disabled={busy}
+                          />
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label={visible ? "Hide password" : "Show password"}
+                            aria-pressed={visible}
+                            onClick={() => setVisible(!visible)}
+                          >
+                            {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                      </>
+                    ) : null}
+                    {creating && !finishing ? (
                       <>
                         <label htmlFor="auth-email">Email</label>
                         <input
@@ -256,45 +379,25 @@ export function LoginPage() {
                         />
                       </>
                     ) : null}
-                    <label htmlFor="auth-password">Password</label>
-                    <div className="auth-password">
-                      <input
-                        id="auth-password"
-                        name="password"
-                        type={visible ? "text" : "password"}
-                        autoComplete={creating ? "new-password" : "current-password"}
-                        minLength={creating ? 12 : undefined}
-                        maxLength={creating ? 128 : undefined}
-                        required
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        disabled={busy}
-                      />
-                      <button
-                        type="button"
-                        className="icon-button"
-                        aria-label={visible ? "Hide password" : "Show password"}
-                        aria-pressed={visible}
-                        onClick={() => setVisible(!visible)}
-                      >
-                        {visible ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
                   </>
                 ) : null}
                 <button className="button button-primary auth-submit" type="submit" disabled={busy}>
                   {busy
                     ? creating
-                      ? "Creating account…"
+                      ? finishing
+                        ? "Creating account…"
+                        : "Sending email…"
                       : "Signing in…"
                     : creating
-                      ? "Create account"
+                      ? finishing
+                        ? "Create account"
+                        : "Continue with email"
                       : capabilities.data?.method === "password"
                         ? "Sign in"
                         : "Continue to sign in"}
                 </button>
               </form>
-              {creating ? (
+              {finishing ? (
                 <p className="auth-note">Use at least 12 characters for your password.</p>
               ) : null}
               {!creating && capabilities.data?.passkey ? (
@@ -310,7 +413,7 @@ export function LoginPage() {
               {!creating && capabilities.data?.passkey && !passkeySupported ? (
                 <p className="auth-note">Passkeys require a supported browser.</p>
               ) : null}
-              {capabilities.data?.registration ? (
+              {capabilities.data?.registration && !finishing ? (
                 <p className="auth-mode-toggle">
                   {creating ? "Already have an account?" : "New to Quorem?"}{" "}
                   <button
@@ -322,7 +425,6 @@ export function LoginPage() {
                       setPassword("");
                       setVisible(false);
                       setError("");
-                      setResent(false);
                     }}
                   >
                     {creating ? "Sign in" : "Create account"}
@@ -333,6 +435,20 @@ export function LoginPage() {
                 <p className="auth-error" role="alert">
                   {error}
                 </p>
+              ) : null}
+              {finishing && /expired|another tab/.test(error) ? (
+                <button
+                  type="button"
+                  className="quiet-button"
+                  onClick={() => {
+                    const url = new URL(location.href);
+                    url.searchParams.delete("setup");
+                    url.searchParams.set("create", "1");
+                    location.assign(url.pathname + url.search);
+                  }}
+                >
+                  Request a new setup email
+                </button>
               ) : null}
             </>
           )}

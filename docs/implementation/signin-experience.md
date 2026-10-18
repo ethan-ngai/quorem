@@ -6,7 +6,7 @@
 - Username/password retains the existing service contract. Password visibility is local; credentials are never persisted. Social providers are capability-aware; absent credentials produce disabled controls with a clear note.
 - Passkey sign-in and account-settings enrollment/list/removal use real WebAuthn endpoints. Browsers without support get an explanation. Authentication uses the server's canonical origin, preserving the return destination.
 - Signed-out navigation shows Sign in directly, without a guest avatar/menu. Authenticated profile, photo and theme controls remain available.
-- Create account switches the credential form to username/email/password; the username becomes the initial display name. Registration requires the server capability and configured verification delivery. Accepted registration clears the password and shows Check your email, resend, and Back to sign in. Verification returns to sign-in while preserving the safe destination.
+- Create account asks only for email, then shows delivery confirmation, Change email and the server-driven resend countdown. The link unlocks username/password setup; successful setup signs in and preserves the safe destination. Expired links offer a new email; verified existing accounts return to sign-in without changes.
 - The logo stays at the top left. A compact Back link above the heading returns to the referring app page with its query parameters, and is hidden on direct/external arrivals.
 - Guest match creation carries separate back and post-login destinations. Back cancels the consumed creation intent; successful sign-in resumes the dialog once while retaining catalog filters.
 - Reset-password, SSO, remember-me and saved-profile flows remain absent until supported by the auth service.

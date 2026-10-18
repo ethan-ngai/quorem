@@ -22,8 +22,8 @@ export function createAuth(allowSeed = false) {
       autoSignIn: false,
     },
     emailVerification: {
-      sendOnSignUp: Boolean(sendVerification),
-      sendOnSignIn: Boolean(sendVerification),
+      sendOnSignUp: false,
+      sendOnSignIn: false,
       autoSignInAfterVerification: false,
       expiresIn: 3600,
       ...(sendVerification
@@ -57,6 +57,14 @@ export function createAuth(allowSeed = false) {
     },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        if (
+          !allowSeed &&
+          config.registration &&
+          ["/sign-up/email", "/send-verification-email", "/verify-email"].includes(ctx.path)
+        )
+          throw new APIError("FORBIDDEN", {
+            message: "Verify your email through account setup first",
+          });
         // Passkey plugin management routes must share profile mutations' exact origin policy.
         if (
           (ctx.path.startsWith("/passkey/") ||

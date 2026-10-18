@@ -4,8 +4,18 @@ import { Readable } from "node:stream";
 import { toNodeHandler } from "better-auth/node";
 import { auth, config, database } from "./auth.ts";
 import { createProfileHandler } from "./profile.ts";
+import { createRegistrationHandler } from "./registration.ts";
+import { verificationMailer } from "./mailer.ts";
 import { s3ProfileStorage } from "./profile-storage.ts";
 const handler = toNodeHandler(auth);
+const registrationHandler =
+  config.registration && config.mail
+    ? createRegistrationHandler({
+        database,
+        origin: config.origin,
+        send: verificationMailer(config.mail),
+      })
+    : undefined;
 const profileHandler = createProfileHandler({
   origin: config.origin,
   session: (headers) => auth.api.getSession({ headers }),
@@ -70,7 +80,10 @@ const server = createServer(async (req, res) => {
     return;
   }
   try {
-    if (req.url?.startsWith("/api/auth/profile")) {
+    if (
+      req.url?.startsWith("/api/auth/profile") ||
+      req.url?.startsWith("/api/auth/registration/")
+    ) {
       const headers = new Headers();
       for (const [name, value] of Object.entries(req.headers)) {
         if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
@@ -80,7 +93,10 @@ const server = createServer(async (req, res) => {
         requestOptions.body = Readable.toWeb(req) as ReadableStream<Uint8Array>;
         requestOptions.duplex = "half";
       }
-      const response = await profileHandler(new Request(config.origin + req.url, requestOptions));
+      const request = new Request(config.origin + req.url, requestOptions);
+      const response = req.url.startsWith("/api/auth/registration/")
+        ? ((await registrationHandler?.(request)) ?? new Response(null, { status: 404 }))
+        : await profileHandler(request);
       if (response) {
         response.headers.forEach((value, name) => res.setHeader(name, value));
         res.writeHead(response.status).end(Buffer.from(await response.arrayBuffer()));

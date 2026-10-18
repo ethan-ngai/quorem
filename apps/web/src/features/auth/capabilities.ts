@@ -112,24 +112,33 @@ function verificationCallback(search?: string) {
   if (backTo) callback.searchParams.set("backTo", backTo);
   return callback.toString();
 }
-export async function registerAccount(account: Registration, search?: string) {
-  const response = await fetch("/api/auth/sign-up/email", {
-    method: "POST",
+async function registrationRequest(path: string, body?: object) {
+  const response = await fetch(`/api/auth/registration/${path}`, {
+    method: body ? "POST" : "GET",
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...account, callbackURL: verificationCallback(search) }),
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
   });
-  if (!response.ok) {
-    if (response.status === 429) throw new Error("Too many attempts. Try again shortly.");
-    throw new Error("Could not create account. Check your details and try again.");
-  }
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message ?? "Account setup unavailable. Try again.");
+  return data;
 }
-export async function resendVerificationEmail(email: string, search?: string) {
-  const response = await fetch("/api/auth/send-verification-email", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, callbackURL: verificationCallback(search) }),
-  });
-  if (!response.ok) throw new Error("Could not send verification email. Try again shortly.");
+export async function beginRegistration(
+  email: string,
+  search?: string,
+): Promise<{ retryAfter: number }> {
+  return registrationRequest("start", { email, callbackURL: verificationCallback(search) });
+}
+export async function registrationStatus(
+  token?: string,
+): Promise<{ email: string; registered: boolean }> {
+  if (token) await registrationRequest("verify", { token });
+  return registrationRequest("status");
+}
+export async function completeRegistration(
+  email: string,
+  username: string,
+  password: string,
+): Promise<void> {
+  await registrationRequest("complete", { email, username, password });
 }

@@ -266,7 +266,7 @@ Destructive buttons use `color-error-button`: light `oklch(0.55 0.22 27)`, dark 
 
 Sign-in follows the active workspace theme. Desktop uses a 48/52 showcase/form split with a hairline division and 400px form. The left side reuses the marketing problem-card stack over a restrained original deformed grid, in neutral/blue tones. Below 900px omit the showcase and center the form. Canvas motion pauses for reduced motion, hidden tabs and offscreen content. Use labeled inputs, visible errors, password visibility and capability-aware social/passkey controls; omit unsupported signup/reset/SSO actions. Guests receive a Sign in link instead of an initials avatar.
 
-Auth keeps the logo at the top left, with a compact 12px Back link directly above the form heading and a Sign in/Create account mode switch. Registration uses labeled account fields and an explicit email-verification confirmation state. Omit unsupported reset/SSO actions.
+Auth keeps the logo at the top left, with a compact 12px Back link directly above the form heading and a Sign in/Create account mode switch. Registration asks only for email before verification, then reveals username/password setup. Show Change email and a server-driven resend cooldown. Keep setup focused on credentials, omitting social controls after email proof. Omit unsupported reset/SSO actions.
 
 Back preserves the referring app page and its query parameters; direct/external arrivals omit it. Password input and visibility control occupy adjacent boxes within one shared focus surface, so native password-field focus cannot obscure the eye.
 
