@@ -1,4 +1,5 @@
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
+import { userFacingErrorMessage } from "../../ui/errors";
 import type { DevelopmentIdentity, ProblemVersion, Workspace } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
@@ -13,7 +14,7 @@ import { submissionStorageKey } from "./editorSettings";
 import type { PythonEditorHandle } from "./PythonEditor";
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Judge request failed. Your code is still here.";
+  return userFacingErrorMessage(error, "Judge request failed. Your code is still here.");
 }
 
 /** Keeps one server job attached to a workspace and recovers it after reload. */

@@ -1,4 +1,5 @@
 /** @file PasskeySettings.tsx @description Authenticated passkey enrollment and removal. @module auth */
+import { authErrorMessage } from "./errors";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Fingerprint } from "lucide-react";
@@ -25,7 +26,7 @@ export function PasskeySettings() {
       await action();
       await keys.refetch();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Passkey update unavailable. Try again.");
+      setError(authErrorMessage(cause, "Passkey update unavailable. Try again."));
     } finally {
       setBusy(false);
     }

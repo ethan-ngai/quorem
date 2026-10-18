@@ -1,4 +1,5 @@
 /** @file QuestionEditor.tsx @description Form-based immutable question authoring. @module admin */
+import { userFacingErrorMessage } from "../../ui/errors";
 import { useEffect, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
@@ -100,7 +101,7 @@ function AuthoringWorkspace() {
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Request failed");
+      setError(userFacingErrorMessage(cause, "Request failed"));
     } finally {
       setBusy(false);
     }
@@ -152,7 +153,9 @@ function AuthoringWorkspace() {
           {drafts.isPending ? (
             <p role="status">Loading drafts…</p>
           ) : drafts.isError ? (
-            <p role="alert">{drafts.error.message}</p>
+            <p role="alert">
+              {userFacingErrorMessage(drafts.error, "Questions unavailable. Please try again.")}
+            </p>
           ) : !draftItems?.length ? (
             <p>No drafts yet.</p>
           ) : (

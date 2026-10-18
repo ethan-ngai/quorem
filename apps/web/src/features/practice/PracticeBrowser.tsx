@@ -169,7 +169,7 @@ export function PracticeBrowser() {
             </div>
           ) : catalog.isError ? (
             <div className="practice-state" role="alert">
-              <p>Questions couldn’t load. {catalog.error.message}</p>
+              <p>Questions couldn’t load. Please try again.</p>
               <button className="practice-retry" onClick={() => void catalog.refetch()}>
                 Retry
               </button>

@@ -1,4 +1,5 @@
 /** @file AccountMenu.tsx @description Profile menu and accessible account dialogs. @module navigation */
+import { authErrorMessage } from "../auth/errors";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Popover from "@radix-ui/react-popover";
 import {
@@ -56,7 +57,7 @@ export function AccountMenu({
       const updated = file ? await uploadProfilePhoto(file) : await removeProfilePhoto();
       queryClient.setQueryData(["account-profile", session?.user.id], updated);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Photo update unavailable. Try again.");
+      setError(authErrorMessage(cause, "Photo update unavailable. Try again."));
     } finally {
       setSaving(false);
     }

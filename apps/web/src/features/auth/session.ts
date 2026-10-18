@@ -1,3 +1,4 @@
+import { AuthError } from "./errors";
 import { useQuery } from "@tanstack/react-query";
 export type Session = {
   user: { id: string; displayName: string; emailVerified: boolean; role: "user" | "admin" };
@@ -45,7 +46,7 @@ export async function fetchSession(): Promise<Session | null> {
     new Request(new URL("/v1/session", window.location.origin)),
   );
   if (response.status === 401) return null;
-  if (!response.ok) throw new Error("Account unavailable");
+  if (!response.ok) throw new AuthError("Account unavailable");
   return response.json() as Promise<Session>;
 }
 export function useSession() {
@@ -58,10 +59,10 @@ export function useSession() {
 }
 export async function authMethod(): Promise<"password" | "cognito"> {
   const response = await fetch("/api/auth/quorem-config", { credentials: "same-origin" });
-  if (!response.ok) throw new Error("Sign in unavailable");
+  if (!response.ok) throw new AuthError("Sign in unavailable");
   const data = (await response.json()) as { method?: string };
   if (data.method !== "password" && data.method !== "cognito")
-    throw new Error("Sign in unavailable");
+    throw new AuthError("Sign in unavailable");
   return data.method;
 }
 export function signInDestination(search: string = location.search ?? ""): string {
@@ -88,11 +89,13 @@ export async function signInWithPassword(username: string, password: string) {
     if (response.status === 403) {
       const error = (await response.json().catch(() => ({}))) as { code?: string };
       if (error.code === "EMAIL_NOT_VERIFIED")
-        throw new Error("Verify your email first. Choose Create account to request a setup link.");
+        throw new AuthError(
+          "Verify your email first. Choose Create account to request a setup link.",
+        );
     }
-    if (response.status === 429) throw new Error("Too many attempts. Try again shortly.");
-    if (response.status >= 500) throw new Error("Sign in unavailable. Try again.");
-    throw new Error("Incorrect username, email or password.");
+    if (response.status === 429) throw new AuthError("Too many attempts. Try again shortly.");
+    if (response.status >= 500) throw new AuthError("Sign in unavailable. Try again.");
+    throw new AuthError("Incorrect username, email or password.");
   }
   resetToken();
   location.assign(signInDestination());
@@ -108,9 +111,10 @@ export async function signIn() {
       errorCallbackURL: `${location.origin}/login`,
     }),
   });
-  if (!response.ok) throw new Error("Sign in unavailable");
+  if (!response.ok) throw new AuthError("Sign in unavailable");
   const data = (await response.json()) as { url?: string };
-  if (!data.url || new URL(data.url).protocol !== "https:") throw new Error("Sign in unavailable");
+  if (!data.url || new URL(data.url).protocol !== "https:")
+    throw new AuthError("Sign in unavailable");
   location.assign(data.url);
 }
 export async function signOut() {
@@ -120,7 +124,7 @@ export async function signOut() {
     headers: { "Content-Type": "application/json" },
     body: "{}",
   });
-  if (!response.ok) throw new Error("Sign out unavailable");
+  if (!response.ok) throw new AuthError("Sign out unavailable");
   resetToken();
   location.assign("/practice");
 }

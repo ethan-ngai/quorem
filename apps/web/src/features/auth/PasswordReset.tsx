@@ -1,3 +1,4 @@
+import { authErrorMessage } from "./errors";
 import { useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { emailInputSchema, emailSchema, passwordSchema } from "@quorem/contracts/auth";
@@ -43,7 +44,7 @@ export function PasswordReset() {
       setConfirmation("");
       setDone(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Reset unavailable.");
+      setError(authErrorMessage(cause, "Reset unavailable."));
     } finally {
       setBusy(false);
     }
@@ -152,7 +153,7 @@ function ResetEmailRequest() {
             })
             .catch((cause) => {
               if (cause instanceof AccountRateLimitError) cooldown.start(cause.retryAfter);
-              setError(cause instanceof Error ? cause.message : "Could not request reset.");
+              setError(authErrorMessage(cause, "Could not request reset."));
             })
             .finally(() => setBusy(false));
         }}

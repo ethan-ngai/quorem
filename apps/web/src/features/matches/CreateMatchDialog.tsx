@@ -1,3 +1,4 @@
+import { userFacingErrorMessage } from "../../ui/errors";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useState } from "react";
@@ -70,7 +71,7 @@ export function CreateMatchDialog({
                 const invite = await createMatch(identity, settings);
                 window.location.assign(`/match/${invite.id}`);
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : "Could not create match.");
+                setError(userFacingErrorMessage(cause, "Could not create match."));
                 setPending(false);
               }
             }}

@@ -1,4 +1,5 @@
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
+import { authErrorMessage, AuthError } from "./errors";
 import {
   accountSetupSchema,
   emailSchema,
@@ -96,7 +97,7 @@ function LoginForm() {
     try {
       await action();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Sign in unavailable. Try again.");
+      setError(authErrorMessage(cause, "Sign in unavailable. Try again."));
     } finally {
       setBusy(false);
     }
@@ -105,7 +106,8 @@ function LoginForm() {
     event.preventDefault();
     void authenticate(async () => {
       if (creating) {
-        if (!capabilities.data?.registration) throw new Error("Account creation is unavailable.");
+        if (!capabilities.data?.registration)
+          throw new AuthError("Account creation is unavailable.");
         if (finishing) {
           const parsed = accountSetupSchema.safeParse({
             email: setup.data?.email,
@@ -113,7 +115,7 @@ function LoginForm() {
             password,
             name,
           });
-          if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+          if (!parsed.success) throw new AuthError(parsed.error.issues[0].message);
           await completeRegistration(
             parsed.data.email,
             parsed.data.username,
@@ -124,7 +126,7 @@ function LoginForm() {
           return;
         }
         const parsed = emailSchema.safeParse(email);
-        if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+        if (!parsed.success) throw new AuthError(parsed.error.issues[0].message);
         const sent = await beginRegistration(parsed.data);
         setSubmittedEmail(email.trim());
         resend.start(sent.retryAfter);
@@ -195,7 +197,10 @@ function LoginForm() {
               <p role="status">
                 {setup.data?.registered
                   ? "You already have an account. Sign in to continue."
-                  : setup.error?.message}
+                  : authErrorMessage(
+                      setup.error,
+                      "Account setup unavailable. Request a new email.",
+                    )}
               </p>
               <button
                 type="button"

@@ -1,4 +1,5 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity; solutions are deferred. @module editor */
+import { userFacingErrorMessage } from "../../../ui/errors";
 import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
@@ -65,7 +66,12 @@ export function EditorialPanel({
           {complexity.isPending ? (
             <p role="status">Loading complexity…</p>
           ) : complexity.isError ? (
-            <p role="alert">{complexity.error.message}</p>
+            <p role="alert">
+              {userFacingErrorMessage(
+                complexity.error,
+                "Complexity unavailable. Please try again.",
+              )}
+            </p>
           ) : selected ? (
             <ComplexityDetails value={selected} />
           ) : (
