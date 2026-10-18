@@ -1,4 +1,5 @@
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
+import { userFacingErrorMessage } from "../../ui/errors";
 import {
   participantUserId,
   type CreateMatchRequest,
@@ -150,7 +151,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
       await action();
       await refetch();
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : "Match request failed.");
+      setActionError(userFacingErrorMessage(cause, "Match request failed."));
     } finally {
       setPending(false);
     }
@@ -175,7 +176,9 @@ export function MatchPage({ matchId }: { matchId: string }) {
           <h1>{error ? "Match unavailable" : "Opening match…"}</h1>
           {error && (
             <>
-              <p role="alert">{error instanceof Error ? error.message : String(error)}</p>
+              <p role="alert">
+                {userFacingErrorMessage(error, "Match unavailable. Please try again.")}
+              </p>
               <button className="button button-secondary" onClick={() => void refetch()}>
                 Retry
               </button>
@@ -468,7 +471,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
         )}
         {(actionError || error) && (
           <p role="alert" className="result-error">
-            {actionError ?? (error instanceof Error ? error.message : String(error))}
+            {actionError ?? userFacingErrorMessage(error, "Match unavailable. Please try again.")}
           </p>
         )}
         {closed && (

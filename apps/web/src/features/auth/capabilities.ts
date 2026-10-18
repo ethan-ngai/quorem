@@ -1,3 +1,4 @@
+import { AuthError, passkeyError, registrationError } from "./errors";
 import { resetToken, signInDestination } from "./session";
 import { signInReferral } from "./signInReferral";
 export type SocialProvider = "google" | "apple" | "github";
@@ -28,10 +29,10 @@ async function authClient() {
 }
 export async function fetchAuthCapabilities(): Promise<AuthCapabilities> {
   const response = await fetch("/api/auth/quorem-config", { credentials: "same-origin" });
-  if (!response.ok) throw new Error("Sign in unavailable");
+  if (!response.ok) throw new AuthError("Sign in unavailable");
   const data = await response.json();
   if (data.method !== "password" && data.method !== "cognito")
-    throw new Error("Sign in unavailable");
+    throw new AuthError("Sign in unavailable");
   return {
     method: data.method,
     preferredOrigin: safeAuthOrigin(data.preferredOrigin),
@@ -48,26 +49,35 @@ export async function fetchAuthCapabilities(): Promise<AuthCapabilities> {
 export function supportsPasskeys() {
   return window.isSecureContext && typeof PublicKeyCredential !== "undefined";
 }
+async function passkeyRequest<T>(action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    throw passkeyError(error);
+  }
+}
 export async function signInWithPasskey(search?: string) {
-  if (!supportsPasskeys()) throw new Error("Passkeys are unavailable in this browser.");
-  const result = await (await authClient()).signIn.passkey();
-  if (result.error) throw new Error(result.error.message || "Passkey sign in cancelled or failed.");
+  if (!supportsPasskeys()) throw new AuthError("Passkeys are unavailable in this browser.");
+  const result = await passkeyRequest(async () => (await authClient()).signIn.passkey());
+  if (result.error) throw passkeyError(result.error);
   resetToken();
   location.assign(signInDestination(search));
 }
 export async function addPasskey(name = "My passkey") {
-  if (!supportsPasskeys()) throw new Error("Passkeys are unavailable in this browser.");
-  const result = await (await authClient()).passkey.addPasskey({ name });
-  if (result.error) throw new Error(result.error.message || "Could not add passkey.");
+  if (!supportsPasskeys()) throw new AuthError("Passkeys are unavailable in this browser.");
+  const result = await passkeyRequest(async () =>
+    (await authClient()).passkey.addPasskey({ name }),
+  );
+  if (result.error) throw passkeyError(result.error);
 }
 export async function listPasskeys(): Promise<Passkey[]> {
   const result = await (await authClient()).passkey.listUserPasskeys();
-  if (result.error) throw new Error(result.error.message || "Could not load passkeys.");
+  if (result.error) throw passkeyError(result.error);
   return result.data ?? [];
 }
 export async function deletePasskey(id: string) {
   const result = await (await authClient()).passkey.deletePasskey({ id });
-  if (result.error) throw new Error(result.error.message || "Could not remove passkey.");
+  if (result.error) throw passkeyError(result.error);
 }
 export async function signInWithProvider(provider: SocialProvider, search?: string) {
   const response = await fetch("/api/auth/sign-in/social", {
@@ -80,9 +90,10 @@ export async function signInWithProvider(provider: SocialProvider, search?: stri
       errorCallbackURL: `${location.origin}/login`,
     }),
   });
-  if (!response.ok) throw new Error("Sign in unavailable");
+  if (!response.ok) throw new AuthError("Sign in unavailable");
   const data = await response.json();
-  if (!data.url || new URL(data.url).protocol !== "https:") throw new Error("Sign in unavailable");
+  if (!data.url || new URL(data.url).protocol !== "https:")
+    throw new AuthError("Sign in unavailable");
   location.assign(data.url);
 }
 
@@ -100,7 +111,7 @@ function safeAuthOrigin(value: unknown): string {
         ["localhost", "127.0.0.1"].includes(current.hostname)))
   )
     return value;
-  throw new Error("Sign in unavailable");
+  throw new AuthError("Sign in unavailable");
 }
 
 export type Registration = { name: string; username: string; email: string; password: string };
@@ -120,7 +131,7 @@ async function registrationRequest(path: string, body?: object) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.message ?? "Account setup unavailable. Try again.");
+  if (!response.ok) throw registrationError(data.message);
   return data;
 }
 export async function beginRegistration(

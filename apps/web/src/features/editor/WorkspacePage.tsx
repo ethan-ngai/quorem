@@ -1,4 +1,5 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { userFacingErrorMessage } from "../../ui/errors";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -71,7 +72,7 @@ const defaultResultsHeight = 260;
 
 /** Returns a safe short message for load and save failures. */
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Something went wrong. Your code is still here.";
+  return userFacingErrorMessage(error, "Something went wrong. Your code is still here.");
 }
 
 /** Opens one public problem in the resizable practice workspace. */

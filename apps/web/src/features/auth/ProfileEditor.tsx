@@ -1,3 +1,4 @@
+import { authErrorMessage } from "./errors";
 import { Pencil } from "lucide-react";
 import { type ReactNode, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -50,7 +51,7 @@ export function ProfileEditor({ profile, userId }: { profile: AccountProfile; us
       setMessage(success);
     } catch (cause) {
       if (cause instanceof AccountRateLimitError) limited?.(cause.retryAfter);
-      setError(cause instanceof Error ? cause.message : "Account update unavailable.");
+      setError(authErrorMessage(cause, "Account update unavailable."));
     } finally {
       setBusy(false);
     }

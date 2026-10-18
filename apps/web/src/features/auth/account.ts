@@ -1,3 +1,4 @@
+import { AuthError } from "./errors";
 import {
   optionalNameSchema,
   usernameSchema,
@@ -5,7 +6,7 @@ import {
   passwordSchema,
 } from "@quorem/contracts/auth";
 
-export class AccountRateLimitError extends Error {
+export class AccountRateLimitError extends AuthError {
   constructor(
     message: string,
     readonly retryAfter: number,
@@ -21,13 +22,20 @@ export async function accountRequest(path: string, body: object) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = (await response.json().catch(() => ({}))) as { message?: string };
+  const data = (await response.json().catch(() => ({}))) as { code?: string };
   if (response.status === 429)
     throw new AccountRateLimitError(
-      data.message ?? "Try again shortly.",
+      "Too many attempts. Try again shortly.",
       Number(response.headers.get("Retry-After") ?? response.headers.get("X-Retry-After")) || 60,
     );
-  if (!response.ok) throw new Error(data.message ?? "Account update unavailable. Try again.");
+  if (!response.ok) {
+    if (data.code === "USERNAME_IS_ALREADY_TAKEN")
+      throw new AuthError("That username is taken. Choose another.");
+    if (response.status === 401) throw new AuthError("Sign in again to update your account.");
+    if (path === "reset-password" && response.status === 400)
+      throw new AuthError("This reset link is invalid or expired. Request a new one.");
+    throw new AuthError("Account update unavailable. Please try again.");
+  }
 }
 export async function updateAccount(name: string, username?: string) {
   await accountRequest("update-user", {

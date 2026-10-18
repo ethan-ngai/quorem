@@ -1,4 +1,5 @@
 /** @file InvitePage.tsx @description Explicit private invitation acceptance. @module matches */
+import { userFacingErrorMessage } from "../../ui/errors";
 import { useState } from "react";
 import { Icon } from "../editor/components/Icon";
 import { GlobalNav } from "../navigation/GlobalNav";
@@ -37,7 +38,7 @@ export function InvitePage({ token }: { token: string }) {
                 const snapshot = await joinMatch(identity, token);
                 window.location.assign(`/match/${snapshot.id}`);
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : "Invitation unavailable.");
+                setError(userFacingErrorMessage(cause, "Invitation unavailable."));
                 setPending(false);
               }
             }}
