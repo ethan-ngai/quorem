@@ -37,3 +37,5 @@ Password reset is available from Profile and Forgot password. Better Auth sends 
 Account integration tests use disposable PostgreSQL and Mailpit: profile validation/ownership, both email-change confirmations, unchanged email before verification, reset policy/replay, old/new credential behavior and session revocation. Auth suites run serially because migrations and integration fixtures share the disposable schema.
 
 The pinned Better Auth plugin context awaits delivery tasks and propagates their failures rather than swallowing them in the default background-task logger. Integration coverage verifies a repeated email-change confirmation returns an explicit 429/Retry-After without sending more mail.
+
+Profile fields are read-only until their pencil is selected. Editing one field reveals focused controls and Cancel; changing/cancelling the active field discards unsaved values. Name/username saves update only the selected field; email verification and password reset are explicit actions within their respective edit states.

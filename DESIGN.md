@@ -277,3 +277,5 @@ The practice table has alternating background/surface rows and no enclosing card
 Difficulty filter buttons use a semantic tint and inset edge on hover/focus, with a quick token-based transition and reduced-motion fallback. Hovering difficulty or topic controls suppresses the row highlight. Omit trailing row arrows; the question title remains the keyboard-accessible navigation link.
 
 Show concise username rules as bullets immediately below signup/profile username fields. Profile contains editable optional name/username, a verified email-change action, and a password-reset email action. Recovery pages share auth branding/theme and expose resend cooldowns and clear success/error states.
+
+Profile fields display read-only values with a pencil action aligned right. Open one field at a time; reveal its input/rules and Save/Cancel only while editing. Email verification and password-reset actions are likewise revealed by their field’s pencil. Cancel restores persisted values.
