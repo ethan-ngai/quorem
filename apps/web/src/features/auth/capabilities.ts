@@ -139,6 +139,7 @@ export async function completeRegistration(
   email: string,
   username: string,
   password: string,
+  name?: string,
 ): Promise<void> {
-  await registrationRequest("complete", { email, username, password });
+  await registrationRequest("complete", { email, username, password, name });
 }

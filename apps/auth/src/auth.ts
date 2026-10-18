@@ -18,7 +18,7 @@ export function createAuth(allowSeed = false) {
       enabled: config.method === "password",
       disableSignUp: !allowSeed && !config.registration,
       requireEmailVerification: !allowSeed,
-      minPasswordLength: 12,
+      minPasswordLength: 8,
       autoSignIn: false,
     },
     emailVerification: {
@@ -135,7 +135,9 @@ export function createAuth(allowSeed = false) {
           expirationTime: "5m",
           definePayload: ({ user, session }) => ({
             emailVerified: user.emailVerified === true,
-            name: user.name,
+            name:
+              user.name ||
+              ("username" in user && typeof user.username === "string" ? user.username : ""),
             sessionId: session.id,
           }),
         },

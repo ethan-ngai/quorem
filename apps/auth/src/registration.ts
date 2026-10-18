@@ -2,6 +2,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import type { Pool } from "pg";
+import { emailSchema, accountSetupSchema } from "@quorem/contracts/auth";
 import { takeRateLimit } from "./rate-limit.ts";
 
 const cookieName = "quorem_registration";
@@ -78,9 +79,9 @@ export function createRegistrationHandler(options: {
       return json(400, { message: "Invalid request" });
     }
     if (path.endsWith("/start")) {
-      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-      if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-        return json(400, { message: "Enter a valid email address." });
+      const parsed = emailSchema.safeParse(body.email);
+      if (!parsed.success) return json(400, { message: "Enter a valid email address." });
+      const email = parsed.data;
       const token = opaque();
       const link = new URL("/login", origin);
       if (typeof body.callbackURL === "string") {
@@ -138,14 +139,9 @@ export function createRegistrationHandler(options: {
         : json(400, { message: "This link expired or was already used. Request a new email." });
     }
     if (path.endsWith("/complete")) {
-      const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
-      const password = typeof body.password === "string" ? body.password : "";
-      if (!/^[a-z0-9_]{3,30}$/.test(username))
-        return json(400, {
-          message: "Use 3–30 letters, numbers or underscores for your username.",
-        });
-      if (password.length < 12 || password.length > 128)
-        return json(400, { message: "Use a password of 12–128 characters." });
+      const parsed = accountSetupSchema.safeParse(body);
+      if (!parsed.success) return json(400, { message: parsed.error.issues[0].message });
+      const { username, password, name } = parsed.data;
       const client = await database.connect();
       try {
         await client.query("BEGIN");
@@ -158,7 +154,7 @@ export function createRegistrationHandler(options: {
           return json(401, { message: "Your setup session expired. Request a new email." });
         }
         const email = proof.rows[0].email;
-        if (body.email !== email) {
+        if (parsed.data.email !== email) {
           await client.query("ROLLBACK");
           return json(409, {
             message: "Account setup changed in another tab. Open your email link again.",
@@ -180,13 +176,13 @@ export function createRegistrationHandler(options: {
           await client.query('DELETE FROM passkey WHERE "userId"=$1', [id]);
           await client.query('DELETE FROM account WHERE "userId"=$1', [id]);
           await client.query(
-            'UPDATE "user" SET name=$2,username=$2,"displayUsername"=$2,"emailVerified"=true,image=NULL,"updatedAt"=NOW() WHERE id=$1',
-            [id, username],
+            'UPDATE "user" SET name=$3,username=$2,"displayUsername"=$2,"emailVerified"=true,image=NULL,"updatedAt"=NOW() WHERE id=$1',
+            [id, username, name],
           );
         } else
           await client.query(
-            'INSERT INTO "user"(id,name,email,"emailVerified",username,"displayUsername","createdAt","updatedAt") VALUES($1,$2,$3,true,$2,$2,NOW(),NOW())',
-            [id, username, email],
+            'INSERT INTO "user"(id,name,email,"emailVerified",username,"displayUsername","createdAt","updatedAt") VALUES($1,$4,$3,true,$2,$2,NOW(),NOW())',
+            [id, username, email, name],
           );
         await client.query(
           'INSERT INTO account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") VALUES($1,$2,\'credential\',$2,$3,NOW(),NOW())',

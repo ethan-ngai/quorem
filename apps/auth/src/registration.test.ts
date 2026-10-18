@@ -35,7 +35,7 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
     const origin = "http://localhost:5180",
       name = `mail${randomUUID().replaceAll("-", "").slice(0, 16)}`,
       email = `${name}@example.test`,
-      password = "a-new-password-long-enough";
+      password = "Abc1234!";
     const messages: string[] = [];
     const smtp = process.env.AUTH_TEST_MAILPIT_URL
       ? verificationMailer({
@@ -96,9 +96,10 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       ]);
       expect(results.map((r) => r.status).sort((a, b) => a - b)).toEqual([200, 401]);
       const user = (
-        await database.query('SELECT id,"emailVerified" FROM "user" WHERE email=$1', [email])
+        await database.query('SELECT id,name,"emailVerified" FROM "user" WHERE email=$1', [email])
       ).rows[0];
       expect(user.emailVerified).toBe(true);
+      expect(user.name).toBe("");
       const stored = (
         await database.query('SELECT password FROM account WHERE "userId"=$1', [user.id])
       ).rows[0].password;
@@ -218,13 +219,21 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       });
       const cookie = proof.headers.get("set-cookie")!.split(";")[0];
       expect(
-        (await call("complete", { username: name, password: "fresh-owner-password-123" }, cookie))
-          .status,
+        (
+          await call(
+            "complete",
+            { username: name, password: "fresh-owner-password-123", name: "Test Person" },
+            cookie,
+          )
+        ).status,
       ).toBe(200);
       expect(
         (await database.query('SELECT "emailVerified" FROM "user" WHERE id=$1', [id])).rows[0]
           .emailVerified,
       ).toBe(true);
+      expect((await database.query('SELECT name FROM "user" WHERE id=$1', [id])).rows[0].name).toBe(
+        "Test Person",
+      );
     } finally {
       await database.query('DELETE FROM "user" WHERE id=$1', [id]);
       await database.query("DELETE FROM registration_email WHERE email=$1", [email]);

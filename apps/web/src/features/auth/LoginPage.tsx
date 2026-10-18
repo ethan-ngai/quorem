@@ -1,4 +1,10 @@
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
+import {
+  accountSetupSchema,
+  emailSchema,
+  emailInputSchema,
+  usernameInputSchema,
+} from "@quorem/contracts/auth";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff, Fingerprint } from "lucide-react";
@@ -69,6 +75,7 @@ export function LoginPage() {
   const [submittedEmail, setSubmittedEmail] = useState("");
   const resend = useCooldown();
   const verified = new URLSearchParams(location.search).get("verified") === "1";
+  const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
@@ -93,11 +100,25 @@ export function LoginPage() {
       if (creating) {
         if (!capabilities.data?.registration) throw new Error("Account creation is unavailable.");
         if (finishing) {
-          await completeRegistration(setup.data?.email ?? "", username.trim(), password);
+          const parsed = accountSetupSchema.safeParse({
+            email: setup.data?.email,
+            username,
+            password,
+            name,
+          });
+          if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+          await completeRegistration(
+            parsed.data.email,
+            parsed.data.username,
+            parsed.data.password,
+            parsed.data.name,
+          );
           await signInWithPassword(username.trim(), password);
           return;
         }
-        const sent = await beginRegistration(email.trim());
+        const parsed = emailSchema.safeParse(email);
+        if (!parsed.success) throw new Error(parsed.error.issues[0].message);
+        const sent = await beginRegistration(parsed.data);
         setSubmittedEmail(email.trim());
         resend.start(sent.retryAfter);
         setPassword("");
@@ -327,14 +348,39 @@ export function LoginPage() {
                           required
                           maxLength={creating ? 30 : 254}
                           minLength={creating ? 3 : undefined}
-                          pattern={creating ? "[a-zA-Z0-9_]+" : undefined}
-                          title={creating ? "3–30 letters, numbers or underscores" : undefined}
+                          pattern={creating ? "[a-z0-9]+" : undefined}
+                          title={creating ? "3–30 lowercase letters or digits" : undefined}
                           value={username}
-                          onChange={(event) => setUsername(event.target.value)}
+                          onChange={(event) => {
+                            if (!finishing) {
+                              setUsername(event.target.value);
+                              return;
+                            }
+                            const value = event.target.value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9]/g, "");
+                            if (usernameInputSchema.safeParse(value).success) setUsername(value);
+                          }}
                           disabled={busy}
                           autoCapitalize="none"
                           spellCheck={false}
                         />
+                        {finishing ? (
+                          <>
+                            <label htmlFor="auth-name">
+                              Name <span>(optional)</span>
+                            </label>
+                            <input
+                              id="auth-name"
+                              name="name"
+                              autoComplete="name"
+                              maxLength={80}
+                              value={name}
+                              onChange={(event) => setName(event.target.value)}
+                              disabled={busy}
+                            />
+                          </>
+                        ) : null}
                         <label htmlFor="auth-password">Password</label>
                         <div className="auth-password">
                           <input
@@ -342,7 +388,7 @@ export function LoginPage() {
                             name="password"
                             type={visible ? "text" : "password"}
                             autoComplete={creating ? "new-password" : "current-password"}
-                            minLength={creating ? 12 : undefined}
+                            minLength={creating ? 8 : undefined}
                             maxLength={creating ? 128 : undefined}
                             required
                             value={password}
@@ -375,7 +421,10 @@ export function LoginPage() {
                           maxLength={254}
                           disabled={busy}
                           value={email}
-                          onChange={(event) => setEmail(event.target.value)}
+                          onChange={(event) => {
+                            if (emailInputSchema.safeParse(event.target.value).success)
+                              setEmail(event.target.value);
+                          }}
                         />
                       </>
                     ) : null}
@@ -398,7 +447,9 @@ export function LoginPage() {
                 </button>
               </form>
               {finishing ? (
-                <p className="auth-note">Use at least 12 characters for your password.</p>
+                <p className="auth-note">
+                  Use at least 8 characters, including one special character.
+                </p>
               ) : null}
               {!creating && capabilities.data?.passkey ? (
                 <button
