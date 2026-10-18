@@ -7,6 +7,9 @@ services:
       - "127.0.0.1:58025:8025"
     environment:
       MP_MAX_MESSAGES: 500
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mailpit-data:/data
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 2s
@@ -48,3 +51,4 @@ services:
 volumes:
   postgres-data:
   garage-data:
+  mailpit-data:

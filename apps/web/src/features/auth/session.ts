@@ -88,7 +88,7 @@ export async function signInWithPassword(username: string, password: string) {
     if (response.status === 403) {
       const error = (await response.json().catch(() => ({}))) as { code?: string };
       if (error.code === "EMAIL_NOT_VERIFIED")
-        throw new Error("Verify your email before signing in. Check your inbox for a new link.");
+        throw new Error("Verify your email first. Choose Create account to request a setup link.");
     }
     if (response.status === 429) throw new Error("Too many attempts. Try again shortly.");
     if (response.status >= 500) throw new Error("Sign in unavailable. Try again.");

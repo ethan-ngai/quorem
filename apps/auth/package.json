@@ -11,6 +11,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",
     "@better-auth/passkey": "1.7.7",
+    "@quorem/contracts": "workspace:*",
     "better-auth": "1.7.7",
     "nodemailer": "8.0.3",
     "pg": "8.16.3",

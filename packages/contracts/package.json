@@ -5,14 +5,16 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/generated.ts"
+    "./schema": "./src/generated.ts",
+    "./auth": "./src/auth.ts"
   },
   "scripts": {
     "generate": "node scripts/generate.mjs",
     "check": "node scripts/check.mjs"
   },
   "dependencies": {
-    "openapi-fetch": "0.17.0"
+    "openapi-fetch": "0.17.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "ajv": "8.18.0",

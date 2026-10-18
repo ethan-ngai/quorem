@@ -18,7 +18,7 @@ export function verificationMailer(config: MailConfiguration) {
         from: config.from,
         to,
         subject: "Verify your Quorem email",
-        text: `Verify your email to finish creating your Quorem account:\n\n${url}\n\nThis link expires in one hour. If you did not request it, ignore this email.`,
+        text: `Verify your email to continue setting up your Quorem account:\n\n${url}\n\nThis link expires in one hour. If you did not request it, ignore this email.`,
       });
     } finally {
       active--;

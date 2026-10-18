@@ -185,6 +185,9 @@ importers:
       '@better-auth/passkey':
         specifier: 1.7.7
         version: 1.7.7(@better-auth/core@1.7.7(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.2)(better-call@1.4.0(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.5))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.2)(better-auth@1.7.7(pg@8.16.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3))(better-call@1.4.0(zod@4.6.5))(nanostores@1.5.5)
+      '@quorem/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       better-auth:
         specifier: 1.7.7
         version: 1.7.7(pg@8.16.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3)
@@ -405,6 +408,9 @@ importers:
       openapi-fetch:
         specifier: 0.17.0
         version: 0.17.0
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       ajv:
         specifier: 8.18.0
