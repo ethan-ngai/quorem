@@ -1,0 +1,75 @@
+.profile-editor {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: 0;
+}
+.account-form {
+  display: grid;
+  gap: var(--space-2);
+}
+.account-form + .account-form {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+}
+.account-form label,
+.account-form h3 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+.account-form input {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text);
+  font: inherit;
+}
+.account-form p,
+.profile-editor > p {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .account-form input,
+  .account-form button {
+    min-height: var(--narrow-touch-target);
+  }
+}
+
+.profile-field {
+  display: grid;
+  gap: var(--space-3);
+}
+.profile-field + .profile-field {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.profile-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.profile-field-heading > div {
+  min-width: 0;
+}
+.profile-field-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.profile-field-value {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-small);
+}
+.profile-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

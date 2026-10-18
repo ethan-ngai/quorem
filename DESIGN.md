@@ -275,3 +275,7 @@ Practice discovery retains compact Geist typography, shared navigation and selec
 The practice table has alternating background/surface rows and no enclosing card. Whole-row pointer navigation complements the title link's keyboard behavior. Difficulty labels have no dot and add to selected difficulties; topic labels add to selected topics. Difficulty and topic triggers open compact popovers with wrapping multi-select chips. Triggers summarize selected choices; each popover provides Clear, without an Any option. Match any selection within each group, with difficulty and topic groups combined. Filter clicks never navigate to the problem.
 
 Difficulty filter buttons use a semantic tint and inset edge on hover/focus, with a quick token-based transition and reduced-motion fallback. Hovering difficulty or topic controls suppresses the row highlight. Omit trailing row arrows; the question title remains the keyboard-accessible navigation link.
+
+Show concise username rules as bullets immediately below signup/profile username fields. Profile contains editable optional name/username, a verified email-change action, and a password-reset email action. Recovery pages share auth branding/theme and expose resend cooldowns and clear success/error states.
+
+Profile fields display read-only values with a pencil action aligned right. Open one field at a time; reveal its input/rules and Save/Cancel only while editing. Email verification and password-reset actions are likewise revealed by their field’s pencil. Cancel restores persisted values.

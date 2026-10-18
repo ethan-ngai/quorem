@@ -2,13 +2,21 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { jwt, username } from "better-auth/plugins";
-import { verificationMailer } from "./mailer.ts";
+import { accountMailer } from "./account-mailer.ts";
+import { takeRateLimit } from "./rate-limit.ts";
+import {
+  emailSchema,
+  usernameSchema,
+  optionalNameSchema,
+  passwordSchema,
+} from "@quorem/contracts/auth";
 import { config, database } from "./database.ts";
 export { config, database } from "./database.ts";
 export function createAuth(allowSeed = false) {
   if (allowSeed && config.method !== "password")
     throw new Error("Seeding requires local password mode");
-  const sendVerification = !allowSeed && config.mail ? verificationMailer(config.mail) : undefined;
+  const sendVerification =
+    !allowSeed && config.mail ? accountMailer(database, config.mail) : undefined;
   return betterAuth({
     baseURL: config.origin,
     secret: config.secret,
@@ -20,6 +28,42 @@ export function createAuth(allowSeed = false) {
       requireEmailVerification: !allowSeed,
       minPasswordLength: 8,
       autoSignIn: false,
+      revokeSessionsOnPasswordReset: true,
+      ...(sendVerification
+        ? {
+            sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
+              await sendVerification(
+                user.email,
+                url,
+                "Reset your Quorem password",
+                "Use this link to choose a new password. Completing the reset signs out all sessions:",
+              );
+            },
+          }
+        : {}),
+    },
+    user: {
+      changeEmail: {
+        enabled: Boolean(sendVerification),
+        ...(sendVerification
+          ? {
+              sendChangeEmailConfirmation: async ({
+                user,
+                url,
+              }: {
+                user: { email: string };
+                url: string;
+              }) => {
+                await sendVerification(
+                  user.email,
+                  url,
+                  "Confirm your Quorem email change",
+                  "Approve this request, then verify the new address using the next email. Your current address stays unchanged until both steps finish:",
+                );
+              },
+            }
+          : {}),
+      },
     },
     emailVerification: {
       sendOnSignUp: false,
@@ -41,7 +85,16 @@ export function createAuth(allowSeed = false) {
                   "callbackURL",
                   `${config.origin}/login?verified=1`,
                 );
-              await sendVerification(user.email, verificationURL.toString());
+              verificationURL.searchParams.set(
+                "callbackURL",
+                `${config.origin}/login?emailChanged=1`,
+              );
+              await sendVerification(
+                user.email,
+                verificationURL.toString(),
+                "Verify your new Quorem email",
+                "Verify this new address to finish changing your Quorem email:",
+              );
             },
           }
         : {}),
@@ -57,14 +110,87 @@ export function createAuth(allowSeed = false) {
     },
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        let emailChangeToken = false;
+        if (ctx.path === "/verify-email") {
+          try {
+            const token = String(ctx.query?.token ?? "");
+            const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+            emailChangeToken = ["change-email-confirmation", "change-email-verification"].includes(
+              payload.requestType,
+            );
+          } catch {
+            /* The verifier rejects malformed signed links. */
+          }
+        }
         if (
           !allowSeed &&
           config.registration &&
-          ["/sign-up/email", "/send-verification-email", "/verify-email"].includes(ctx.path)
+          (["/sign-up/email", "/send-verification-email"].includes(ctx.path) ||
+            (ctx.path === "/verify-email" && !emailChangeToken))
         )
           throw new APIError("FORBIDDEN", {
             message: "Verify your email through account setup first",
           });
+        if (
+          [
+            "/update-user",
+            "/change-email",
+            "/request-password-reset",
+            "/reset-password",
+            "/change-password",
+            "/set-password",
+          ].includes(ctx.path) &&
+          ctx.method === "POST" &&
+          ctx.headers?.get("origin") !== config.origin
+        )
+          throw new APIError("FORBIDDEN", { message: "Invalid origin" });
+        if (ctx.path === "/update-user") {
+          for (const [key, schema] of [
+            ["username", usernameSchema],
+            ["displayUsername", usernameSchema],
+            ["name", optionalNameSchema],
+          ] as const) {
+            if (Object.hasOwn(ctx.body ?? {}, key)) {
+              const result = schema.safeParse(ctx.body[key]);
+              if (!result.success)
+                throw new APIError("BAD_REQUEST", { message: result.error.issues[0].message });
+              ctx.body[key] = result.data;
+            }
+          }
+        }
+        if (["/reset-password", "/change-password", "/set-password"].includes(ctx.path)) {
+          const result = passwordSchema.safeParse(ctx.body?.newPassword);
+          if (!result.success)
+            throw new APIError("BAD_REQUEST", { message: result.error.issues[0].message });
+        }
+        if (["/change-email", "/request-password-reset"].includes(ctx.path)) {
+          const result = emailSchema.safeParse(ctx.body?.newEmail ?? ctx.body?.email);
+          if (!result.success)
+            throw new APIError("BAD_REQUEST", { message: "Enter a valid email address." });
+          if (ctx.path === "/change-email") ctx.body.newEmail = result.data;
+          else ctx.body.email = result.data;
+          // Count requests even for unknown addresses, preserving identical public reset responses.
+          for (const policy of [
+            { limit: 1, seconds: 60 },
+            { limit: 5, seconds: 3600 },
+          ]) {
+            const limit = await takeRateLimit(
+              database,
+              `account:requests:${ctx.path}:${policy.seconds}`,
+              result.data,
+              policy,
+            );
+            if (!limit.allowed) {
+              throw new APIError(
+                "TOO_MANY_REQUESTS",
+                {
+                  message: `Try again in ${limit.retryAfter} seconds.`,
+                },
+                { "Retry-After": String(limit.retryAfter) },
+              );
+            }
+          }
+        }
         // Passkey plugin management routes must share profile mutations' exact origin policy.
         if (
           (ctx.path.startsWith("/passkey/") ||
@@ -112,6 +238,17 @@ export function createAuth(allowSeed = false) {
     },
     advanced: { useSecureCookies: new URL(config.origin).protocol === "https:" },
     plugins: [
+      {
+        id: "await-account-delivery",
+        // Better Auth normally logs/swallow delivery errors; callers must receive failures.
+        init: () => ({
+          context: {
+            runInBackgroundOrAwait: async (task: unknown) => {
+              await task;
+            },
+          },
+        }),
+      },
       ...(config.passkey
         ? [
             passkey({
@@ -122,7 +259,7 @@ export function createAuth(allowSeed = false) {
             }),
           ]
         : []),
-      ...(config.method === "password" ? [username({ immutableUsername: true })] : []),
+      ...(config.method === "password" ? [username({ immutableUsername: false })] : []),
       jwt({
         jwks: {
           keyPairConfig: { alg: "EdDSA", crv: "Ed25519" },
