@@ -21,10 +21,17 @@ import {
 import { Brand } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useCooldown } from "../../ui/useCooldown";
+import { UsernameRules } from "./UsernameRules";
+import { PasswordReset } from "./PasswordReset";
 import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
 
 export function LoginPage() {
+  if (new URLSearchParams(location.search).get("reset") === "1") return <PasswordReset />;
+  return <LoginForm />;
+}
+
+function LoginForm() {
   const backDestination = signInReferral(location.search, document.referrer, location.origin);
   const { preference, setPreference } = useTheme();
   const capabilities = useQuery({
@@ -166,6 +173,16 @@ export function LoginPage() {
                     ? "Verify your email first. Then choose your username and password."
                     : "Pick up where you left off."}
           </p>
+          {new URLSearchParams(location.search).has("emailChanged") && (
+            <p className="auth-success" role="status">
+              Email updated. Your new address is verified.
+            </p>
+          )}
+          {new URLSearchParams(location.search).has("emailChangePending") && (
+            <p role="status">
+              Current address confirmed. Check your new inbox to finish the change.
+            </p>
+          )}
           {verified && !creating && !submittedEmail ? (
             <p className="auth-success" role="status">
               Email verified. You can sign in now.
@@ -342,6 +359,7 @@ export function LoginPage() {
                           {creating ? "Username" : "Username or email"}
                         </label>
                         <input
+                          aria-describedby={finishing ? "signup-username-rules" : undefined}
                           id="auth-username"
                           name="username"
                           autoComplete="username"
@@ -365,6 +383,7 @@ export function LoginPage() {
                           autoCapitalize="none"
                           spellCheck={false}
                         />
+                        {finishing && <UsernameRules id="signup-username-rules" />}
                         {finishing ? (
                           <>
                             <label htmlFor="auth-name">
@@ -446,6 +465,11 @@ export function LoginPage() {
                         : "Continue to sign in"}
                 </button>
               </form>
+              {!creating && capabilities.data?.registration && (
+                <a className="quiet-button" href="/login?reset=1">
+                  Forgot password?
+                </a>
+              )}
               {finishing ? (
                 <p className="auth-note">
                   Use at least 8 characters, including one special character.

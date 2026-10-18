@@ -19,6 +19,7 @@ import { useProfile, uploadProfilePhoto, removeProfilePhoto, photoTypes } from "
 import type { ThemePreference } from "../editor/editorSettings";
 import { Tooltip } from "../editor/components/Tooltip";
 import { AccountAvatar } from "./AccountAvatar";
+import { ProfileEditor } from "../auth/ProfileEditor";
 import { PasskeySettings } from "../auth/PasskeySettings";
 
 type AccountPanel = "profile" | "settings";
@@ -42,7 +43,7 @@ export function AccountMenu({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const account = profile.data;
-  const name = account?.name || session?.user.displayName || "Account";
+  const name = account?.name || account?.username || session?.user.displayName || "Account";
   function showPanel(next: AccountPanel) {
     setOpen(false);
     setError("");
@@ -240,24 +241,7 @@ export function AccountMenu({
                     </button>
                   </p>
                 ) : null}
-                <dl className="account-profile-details">
-                  <div>
-                    <dt>Name</dt>
-                    <dd>{name}</dd>
-                  </div>
-                  {account?.username ? (
-                    <div>
-                      <dt>Username</dt>
-                      <dd>{account.username}</dd>
-                    </div>
-                  ) : null}
-                  {account?.email ? (
-                    <div>
-                      <dt>Email</dt>
-                      <dd>{account.email}</dd>
-                    </div>
-                  ) : null}
-                </dl>
+                {account && <ProfileEditor profile={account} userId={session.user.id} />}
                 {error ? (
                   <p className="account-error" role="alert">
                     {error}
