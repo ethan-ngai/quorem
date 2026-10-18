@@ -1,6 +1,9 @@
+import { PasswordResetSetting } from "./PasswordResetSetting";
 import { authErrorMessage } from "./errors";
-import { Pencil } from "lucide-react";
-import { type ReactNode, useState, type FormEvent } from "react";
+import { Pencil, Check, X, Send } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { Tooltip } from "../editor/components/Tooltip";
+import { type ReactNode, useState, useEffect, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   emailInputSchema,
@@ -10,19 +13,22 @@ import {
   usernameSchema,
 } from "@quorem/contracts/auth";
 import { fetchAuthCapabilities } from "./capabilities";
-import {
-  AccountRateLimitError,
-  updateAccount,
-  requestEmailChange,
-  requestPasswordReset,
-} from "./account";
+import { AccountRateLimitError, updateAccount, requestEmailChange } from "./account";
 import { fetchProfile, type AccountProfile } from "./profile";
 import { resetToken } from "./session";
 import { UsernameRules } from "./UsernameRules";
 import { useCooldown } from "../../ui/useCooldown";
 import "./profile-editor.css";
 
-export function ProfileEditor({ profile, userId }: { profile: AccountProfile; userId: string }) {
+export function ProfileEditor({
+  profile,
+  userId,
+  section = "profile",
+}: {
+  profile: AccountProfile;
+  userId: string;
+  section?: "profile" | "security";
+}) {
   const [editing, setEditing] = useState<"name" | "username" | "email" | "password" | null>(null);
   const [name, setName] = useState(profile.name);
   const [username, setUsername] = useState(profile.username ?? "");
@@ -30,8 +36,7 @@ export function ProfileEditor({ profile, userId }: { profile: AccountProfile; us
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const emailCooldown = useCooldown(),
-    resetCooldown = useCooldown();
+  const emailCooldown = useCooldown();
   const client = useQueryClient();
   const capabilities = useQuery({
     queryKey: ["auth-capabilities"],
@@ -87,165 +92,145 @@ export function ProfileEditor({ profile, userId }: { profile: AccountProfile; us
     }, "Profile saved.");
   }
   const cancel = (
-    <button className="button" type="button" disabled={busy} onClick={() => edit(null)}>
-      Cancel
-    </button>
+    <FieldAction label="Cancel editing" disabled={busy} onClick={() => edit(null)}>
+      <X size={16} />
+    </FieldAction>
   );
   return (
     <div className="profile-editor">
-      <ProfileField
-        label="Name (optional)"
-        value={profile.name || "Not set"}
-        editing={editing === "name"}
-        onEdit={() => edit("name")}
-        disabled={busy}
-      >
-        <form className="account-form" onSubmit={save}>
-          <input
-            aria-label="Name (optional)"
-            autoFocus
-            autoComplete="name"
-            maxLength={80}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
+      {section === "profile" && (
+        <>
+          <ProfileField
+            label="Name (optional)"
+            value={profile.name || "Not set"}
+            editing={editing === "name"}
+            onEdit={() => edit("name")}
             disabled={busy}
-          />
-          <div className="profile-edit-actions">
-            <button className="button button-primary" disabled={busy}>
-              Save name
-            </button>
-            {cancel}
-          </div>
-        </form>
-      </ProfileField>
-      {localCredentials && (
-        <ProfileField
-          label="Username"
-          value={profile.username ?? "Not set"}
-          editing={editing === "username"}
-          onEdit={() => edit("username")}
-          disabled={busy}
-        >
-          <form className="account-form" onSubmit={save}>
-            <input
-              aria-label="Username"
-              autoFocus
-              autoComplete="username"
-              required
-              minLength={3}
-              maxLength={30}
-              aria-describedby="profile-username-rules"
-              value={username}
-              onChange={(event) => {
-                const value = event.target.value.toLowerCase().replace(/[^a-z0-9]/g, "");
-                if (usernameInputSchema.safeParse(value).success) setUsername(value);
-              }}
+          >
+            <form className="account-form" onSubmit={save}>
+              <input
+                aria-label="Name (optional)"
+                autoFocus
+                autoComplete="name"
+                maxLength={80}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                disabled={busy}
+              />
+              <div className="profile-edit-actions">
+                <FieldAction label="Save name" type="submit" disabled={busy}>
+                  <Check size={16} />
+                </FieldAction>
+                {cancel}
+              </div>
+            </form>
+          </ProfileField>
+          {localCredentials && (
+            <ProfileField
+              label="Username"
+              value={profile.username ?? "Not set"}
+              hint={<UsernameRules id="profile-username-rules" />}
+              editing={editing === "username"}
+              onEdit={() => edit("username")}
               disabled={busy}
-            />
-            <UsernameRules id="profile-username-rules" />
-            <div className="profile-edit-actions">
-              <button className="button button-primary" disabled={busy}>
-                Save username
-              </button>
-              {cancel}
-            </div>
-          </form>
-        </ProfileField>
-      )}
-      <ProfileField
-        label="Email"
-        value={profile.email}
-        editing={editing === "email"}
-        onEdit={capabilities.data?.registration ? () => edit("email") : undefined}
-        disabled={busy}
-      >
-        <form
-          className="account-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!emailSchema.safeParse(email).success) {
-              setError("Enter a valid email address.");
-              return;
-            }
-            void run(
-              async () => {
-                await requestEmailChange(email);
-                emailCooldown.start(60);
-                setEditing(null);
-              },
-              "Check your current inbox to approve the change, then verify the new address.",
-              (seconds) => emailCooldown.start(seconds),
-            );
-          }}
-        >
-          <input
-            aria-label="Email"
-            autoFocus
-            type="email"
-            autoComplete="email"
-            required
-            maxLength={254}
-            value={email}
-            onChange={(event) => {
-              if (emailInputSchema.safeParse(event.target.value).success)
-                setEmail(event.target.value);
-            }}
-            disabled={busy}
-          />
-          <div className="profile-edit-actions">
-            <button
-              className="button button-primary"
-              disabled={busy || email === profile.email || emailCooldown.remaining > 0}
             >
-              {emailCooldown.remaining
-                ? `Retry in ${emailCooldown.remaining}s`
-                : "Verify email change"}
-            </button>
-            {cancel}
-          </div>
-        </form>
-      </ProfileField>
-      {capabilities.data?.registration && (
-        <ProfileField
-          label="Password"
-          value="••••••••"
-          editing={editing === "password"}
-          onEdit={() => edit("password")}
-          disabled={busy}
-        >
-          <div className="account-form">
-            <p>
-              We’ll email a reset link to your verified address. Resetting your password signs out
-              all devices.
-            </p>
-            <div className="profile-edit-actions">
-              <button
-                className="button button-primary"
-                type="button"
-                disabled={busy || resetCooldown.remaining > 0}
-                onClick={() =>
-                  void run(
-                    async () => {
-                      await requestPasswordReset(profile.email);
-                      resetCooldown.start(60);
-                    },
-                    "Check your email for a password-reset link.",
-                    (seconds) => resetCooldown.start(seconds),
-                  )
-                }
-              >
-                {resetCooldown.remaining
-                  ? `Retry in ${resetCooldown.remaining}s`
-                  : "Send password-reset link"}
-              </button>
-              {cancel}
-            </div>
-          </div>
-        </ProfileField>
+              <form className="account-form" onSubmit={save}>
+                <input
+                  aria-label="Username"
+                  autoFocus
+                  autoComplete="username"
+                  required
+                  minLength={3}
+                  maxLength={30}
+                  aria-describedby="profile-username-rules"
+                  value={username}
+                  onChange={(event) => {
+                    const value = event.target.value.toLowerCase().replace(/[^a-z0-9]/g, "");
+                    if (usernameInputSchema.safeParse(value).success) setUsername(value);
+                  }}
+                  disabled={busy}
+                />
+                <div className="profile-edit-actions">
+                  <FieldAction label="Save username" type="submit" disabled={busy}>
+                    <Check size={16} />
+                  </FieldAction>
+                  {cancel}
+                </div>
+              </form>
+            </ProfileField>
+          )}
+        </>
       )}
-      {message && <p role="status">{message}</p>}
+      {section === "security" && (
+        <>
+          <ProfileField
+            label="Email"
+            value={profile.email}
+            editing={editing === "email"}
+            onEdit={capabilities.data?.registration ? () => edit("email") : undefined}
+            disabled={busy}
+          >
+            <form
+              className="account-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!emailSchema.safeParse(email).success) {
+                  setError("Enter a valid email address.");
+                  return;
+                }
+                void run(
+                  async () => {
+                    await requestEmailChange(email);
+                    emailCooldown.start(60);
+                    setEditing(null);
+                  },
+                  "Check your current inbox to approve the change, then verify the new address.",
+                  (seconds) => emailCooldown.start(seconds),
+                );
+              }}
+            >
+              <input
+                aria-label="Email"
+                autoFocus
+                type="email"
+                autoComplete="email"
+                required
+                maxLength={254}
+                value={email}
+                onChange={(event) => {
+                  if (emailInputSchema.safeParse(event.target.value).success)
+                    setEmail(event.target.value);
+                }}
+                disabled={busy}
+              />
+              <div className="profile-edit-actions">
+                <FieldAction
+                  type="submit"
+                  label={
+                    emailCooldown.remaining
+                      ? `Retry in ${emailCooldown.remaining}s`
+                      : "Verify email change"
+                  }
+                  disabled={busy || email === profile.email || emailCooldown.remaining > 0}
+                >
+                  <Send size={16} />
+                </FieldAction>
+                {cancel}
+              </div>
+            </form>
+          </ProfileField>
+          {capabilities.data?.registration && (
+            <PasswordResetSetting email={profile.email} disabled={busy} onOpen={() => edit(null)} />
+          )}
+        </>
+      )}
+      {message && (
+        <p className="settings-feedback" role="status">
+          {message}
+        </p>
+      )}
       {error && (
-        <p className="account-error" role="alert">
+        <p className="account-error settings-feedback" role="alert">
           {error}
         </p>
       )}
@@ -253,6 +238,7 @@ export function ProfileEditor({ profile, userId }: { profile: AccountProfile; us
   );
 }
 
+/** Keep the read-only value in flow so editing never changes row geometry. */
 function ProfileField({
   label,
   value,
@@ -260,6 +246,7 @@ function ProfileField({
   onEdit,
   disabled,
   children,
+  hint,
 }: {
   label: string;
   value: string;
@@ -267,27 +254,103 @@ function ProfileField({
   onEdit?: () => void;
   disabled: boolean;
   children: ReactNode;
+  hint?: ReactNode;
 }) {
   return (
     <section className="profile-field">
-      <div className="profile-field-heading">
-        <div>
-          <span className="profile-field-label">{label}</span>
-          {!editing && <p className="profile-field-value">{value}</p>}
-        </div>
-        {!editing && onEdit && (
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={`Edit ${label === "Name (optional)" ? "name" : label.toLowerCase()}`}
-            disabled={disabled}
-            onClick={onEdit}
-          >
-            <Pencil size={16} />
-          </button>
+      <Popover.Root open={editing && Boolean(hint)}>
+        <Popover.Anchor asChild>
+          <div className="profile-field-content" data-editing={editing}>
+            <div className="profile-field-heading">
+              <div>
+                <span className="profile-field-label">{label}</span>
+                <p className="profile-field-value" aria-hidden={editing || undefined}>
+                  {value}
+                </p>
+              </div>
+              {onEdit && (
+                <span className="profile-pencil" inert={editing} aria-hidden={editing || undefined}>
+                  <FieldAction
+                    label={`Edit ${label === "Name (optional)" ? "name" : label.toLowerCase()}`}
+                    disabled={disabled || editing}
+                    onClick={onEdit}
+                  >
+                    <Pencil size={16} />
+                  </FieldAction>
+                </span>
+              )}
+            </div>
+            <EditLayer open={editing}>{children}</EditLayer>
+          </div>
+        </Popover.Anchor>
+        {hint && (
+          <Popover.Portal>
+            <Popover.Content
+              className="nav-popover profile-field-hint"
+              side="bottom"
+              align="start"
+              sideOffset={8}
+              collisionPadding={8}
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
+              {hint}
+            </Popover.Content>
+          </Popover.Portal>
         )}
-      </div>
-      {editing && children}
+      </Popover.Root>
     </section>
   );
+}
+
+function FieldAction({
+  label,
+  children,
+  disabled,
+  type = "button",
+  onClick,
+}: {
+  label: string;
+  children: ReactNode;
+  disabled: boolean;
+  type?: "button" | "submit";
+  onClick?: () => void;
+}) {
+  return (
+    <Tooltip content={label}>
+      <button
+        className="icon-button"
+        aria-label={label}
+        title={disabled ? label : undefined}
+        type={type}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
+}
+
+/** Keep the outgoing layer briefly for its fade; never leave hidden controls interactive. */
+function EditLayer({ open, children }: { open: boolean; children: ReactNode }) {
+  const [present, setPresent] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setPresent(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setPresent(false), 120);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+  return present || open ? (
+    <div
+      className="profile-edit-layer"
+      data-state={open ? "open" : "closed"}
+      inert={!open}
+      aria-hidden={!open || undefined}
+    >
+      {children}
+    </div>
+  ) : null;
 }

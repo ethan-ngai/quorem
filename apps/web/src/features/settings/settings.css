@@ -1,0 +1,319 @@
+.settings-dialog.unified-settings {
+  width: min(800px, calc(100vw - 32px));
+  height: min(600px, calc(100dvh - 48px));
+}
+.unified-settings .settings-body {
+  grid-template-columns: 184px minmax(0, 1fr);
+}
+.unified-settings .settings-sidebar,
+.unified-settings .settings-section {
+  min-width: 0;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.settings-category-group + .settings-category-group {
+  margin-top: var(--space-5);
+}
+.settings-category-group > span {
+  display: block;
+  margin: var(--space-2) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.unified-settings .settings-sidebar button {
+  min-height: 40px;
+  font-size: var(--text-small);
+}
+.unified-settings .settings-section > h2 {
+  margin-bottom: var(--space-3);
+}
+.settings-local-note {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.settings-security-passkeys {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+.unified-settings .account-photo-editor {
+  padding-top: 0;
+}
+.unified-settings .settings-section:focus-visible {
+  outline-offset: -3px;
+}
+@media (max-width: 600px) {
+  .settings-dialog.unified-settings {
+    width: calc(100vw - 16px);
+    height: min(650px, calc(100dvh - 24px));
+  }
+  .unified-settings .settings-body {
+    grid-template-columns: 132px minmax(0, 1fr);
+  }
+  .unified-settings .settings-sidebar button {
+    min-height: var(--narrow-touch-target);
+    font-size: var(--text-label);
+  }
+  .unified-settings .settings-section {
+    padding: var(--space-4);
+  }
+  .unified-settings .account-photo-editor {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .unified-settings .profile-edit-actions {
+    flex-direction: column;
+  }
+}
+.settings-dialog.unified-settings {
+  box-shadow: none;
+}
+[data-theme="light"] .settings-dialog.unified-settings {
+  box-shadow: 0 8px 24px oklch(0.2 0 0 / 0.08);
+}
+
+.unified-settings .settings-feedback {
+  position: fixed;
+  z-index: 64;
+  left: calc(184px + var(--space-6));
+  right: var(--space-6);
+  bottom: var(--space-4);
+  max-height: 100px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+  color: var(--color-text);
+}
+.unified-settings .settings-feedback.account-error {
+  color: var(--color-error);
+}
+
+@media (max-width: 600px) {
+  .unified-settings .settings-feedback {
+    left: calc(132px + var(--space-4));
+    right: var(--space-4);
+  }
+}
+
+/* A restrained settle shares one timing family across all settings state changes. */
+.unified-settings,
+.settings-reset-popover,
+.profile-field-hint {
+  --settings-ease: var(--motion-easing);
+}
+@supports (animation-timing-function: linear(0, 1)) {
+  .unified-settings,
+  .settings-reset-popover,
+  .profile-field-hint {
+    --settings-ease: linear(0, 0.2 12%, 0.56 32%, 0.83 55%, 0.96 78%, 1);
+  }
+}
+.unified-settings .account-photo-editor {
+  min-height: 90px;
+  align-items: center;
+  flex-direction: row;
+}
+.profile-photo-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.profile-photo-pencil {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-overlay);
+  color: var(--color-text);
+  transition:
+    background var(--motion-fast),
+    transform var(--motion-fast) var(--settings-ease);
+}
+.profile-photo-trigger:hover:not(:disabled) .profile-photo-pencil {
+  background: var(--color-surface);
+  transform: translateY(-1px);
+}
+.profile-photo-trigger:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.profile-photo-trigger .account-avatar {
+  animation: settings-state-in var(--motion-standard) var(--settings-ease);
+}
+.unified-settings :is(button, input, .profile-field-value, .profile-pencil) {
+  transition:
+    opacity var(--motion-fast) var(--settings-ease),
+    background-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing),
+    box-shadow var(--motion-fast) var(--motion-easing);
+}
+.profile-pencil {
+  display: inline-flex;
+}
+.profile-field-content[data-editing="true"] :is(.profile-field-value, .profile-pencil) {
+  opacity: 0;
+  pointer-events: none;
+}
+.profile-edit-layer {
+  transition: opacity var(--motion-fast) var(--settings-ease);
+}
+.profile-edit-layer[data-state="open"] {
+  animation: settings-state-in var(--motion-standard) var(--settings-ease);
+}
+.profile-edit-layer[data-state="closed"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.unified-settings .settings-section {
+  animation: settings-state-in var(--motion-standard) var(--settings-ease);
+}
+.unified-settings .settings-feedback {
+  animation: settings-state-in var(--motion-standard) var(--settings-ease);
+}
+.nav-popover.settings-reset-popover {
+  z-index: 65;
+  width: min(340px, calc(100vw - 24px));
+  height: 240px;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.reset-popover-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.reset-popover-heading h3 {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.reset-popover-copy {
+  min-height: 0;
+  overflow-y: auto;
+  animation: settings-state-in var(--motion-standard) var(--settings-ease);
+}
+.reset-popover-copy p {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+  line-height: 1.6;
+}
+.reset-popover-copy strong {
+  color: var(--color-text);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.reset-popover-copy svg {
+  color: var(--color-success);
+  vertical-align: middle;
+}
+.reset-popover-error {
+  margin-top: auto;
+  min-height: 16px;
+  font-size: var(--text-label);
+  color: var(--color-error);
+  overflow-y: auto;
+}
+.reset-popover-error p {
+  margin: 0;
+  animation: settings-state-in var(--motion-standard) var(--settings-ease);
+}
+.settings-reset-popover > .button {
+  width: 100%;
+  min-height: 36px;
+  flex-shrink: 0;
+  transition:
+    opacity var(--motion-fast),
+    background-color var(--motion-fast);
+}
+.settings-spinner {
+  animation: settings-spin 800ms linear infinite;
+}
+@keyframes settings-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes settings-state-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .unified-settings *,
+  .settings-reset-popover,
+  .settings-reset-popover *,
+  .profile-field-hint {
+    animation: none !important;
+    transition: none !important;
+  }
+  .profile-photo-trigger:hover:not(:disabled) .profile-photo-pencil {
+    transform: none;
+  }
+}
+
+.settings-profile-identity {
+  --profile-avatar-size: 128px;
+  display: grid;
+  grid-template-columns: var(--profile-avatar-size) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-6);
+}
+.settings-profile-identity > .profile-editor {
+  min-width: 0;
+}
+.unified-settings .settings-profile-identity .account-photo-editor {
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.settings-profile-identity .profile-photo-trigger {
+  width: var(--profile-avatar-size);
+  height: var(--profile-avatar-size);
+}
+.settings-profile-identity .account-avatar-large {
+  font-size: 36px;
+}
+.settings-profile-identity .profile-photo-pencil {
+  width: 28px;
+  height: 28px;
+  top: 3px;
+  right: 3px;
+}
+@media (max-width: 540px) {
+  .settings-profile-identity {
+    grid-template-columns: minmax(0, 1fr);
+    --profile-avatar-size: 96px;
+  }
+  .unified-settings .settings-profile-identity .account-photo-editor {
+    justify-self: start;
+  }
+  .settings-profile-identity .account-avatar-large {
+    font-size: 28px;
+  }
+}
