@@ -45,56 +45,58 @@ export function ProfileSettings({
   const account = profile.data;
   return (
     <>
-      {section === "profile" && (
-        <div className="account-photo-editor">
-          <Tooltip content="Change profile photo · JPEG, PNG or WebP · up to 5 MB and 16 megapixels.">
-            <button
-              className="profile-photo-trigger"
-              aria-label="Change profile photo"
-              aria-busy={busy}
-              disabled={busy}
-              onClick={() => photoInput.current?.click()}
-            >
-              <AccountAvatar
-                key={account.image || "initials"}
-                name={account.name || account.username || "Account"}
-                username={account.username}
-                image={account.image}
-                large
-              />
-              <span className="profile-photo-pencil" aria-hidden="true">
-                {busy ? (
-                  <LoaderCircle className="settings-spinner" size={12} />
-                ) : (
-                  <Pencil size={12} />
-                )}
-              </span>
-            </button>
-          </Tooltip>
-          <input
-            ref={photoInput}
-            className="sr-only"
-            tabIndex={-1}
-            type="file"
-            aria-label="Choose profile photo"
-            accept={photoTypes.join(",")}
-            disabled={busy}
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              if (file) void changePhoto(file);
-              event.currentTarget.value = "";
-            }}
-          />
-          <div>
-            {account.image && (
-              <button className="quiet-button" disabled={busy} onClick={() => void changePhoto()}>
-                Remove photo
+      <div className={section === "profile" ? "settings-profile-identity" : undefined}>
+        {section === "profile" && (
+          <div className="account-photo-editor">
+            <Tooltip content="Change profile photo · JPEG, PNG or WebP · up to 5 MB and 16 megapixels.">
+              <button
+                className="profile-photo-trigger"
+                aria-label="Change profile photo"
+                aria-busy={busy}
+                disabled={busy}
+                onClick={() => photoInput.current?.click()}
+              >
+                <AccountAvatar
+                  key={account.image || "initials"}
+                  name={account.name || account.username || "Account"}
+                  username={account.username}
+                  image={account.image}
+                  large
+                />
+                <span className="profile-photo-pencil" aria-hidden="true">
+                  {busy ? (
+                    <LoaderCircle className="settings-spinner" size={12} />
+                  ) : (
+                    <Pencil size={12} />
+                  )}
+                </span>
               </button>
-            )}
+            </Tooltip>
+            <input
+              ref={photoInput}
+              className="sr-only"
+              tabIndex={-1}
+              type="file"
+              aria-label="Choose profile photo"
+              accept={photoTypes.join(",")}
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) void changePhoto(file);
+                event.currentTarget.value = "";
+              }}
+            />
+            <div>
+              {account.image && (
+                <button className="quiet-button" disabled={busy} onClick={() => void changePhoto()}>
+                  Remove photo
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-      <ProfileEditor key={section} profile={account} userId={userId} section={section} />
+        )}
+        <ProfileEditor key={section} profile={account} userId={userId} section={section} />
+      </div>
       {section === "security" && (
         <div className="settings-security-passkeys">
           <PasskeySettings />

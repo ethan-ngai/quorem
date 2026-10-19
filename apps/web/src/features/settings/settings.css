@@ -274,3 +274,46 @@
     transform: none;
   }
 }
+
+.settings-profile-identity {
+  --profile-avatar-size: 128px;
+  display: grid;
+  grid-template-columns: var(--profile-avatar-size) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-6);
+}
+.settings-profile-identity > .profile-editor {
+  min-width: 0;
+}
+.unified-settings .settings-profile-identity .account-photo-editor {
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.settings-profile-identity .profile-photo-trigger {
+  width: var(--profile-avatar-size);
+  height: var(--profile-avatar-size);
+}
+.settings-profile-identity .account-avatar-large {
+  font-size: 36px;
+}
+.settings-profile-identity .profile-photo-pencil {
+  width: 28px;
+  height: 28px;
+  top: 3px;
+  right: 3px;
+}
+@media (max-width: 540px) {
+  .settings-profile-identity {
+    grid-template-columns: minmax(0, 1fr);
+    --profile-avatar-size: 96px;
+  }
+  .unified-settings .settings-profile-identity .account-photo-editor {
+    justify-self: start;
+  }
+  .settings-profile-identity .account-avatar-large {
+    font-size: 28px;
+  }
+}
