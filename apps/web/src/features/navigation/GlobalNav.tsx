@@ -33,6 +33,7 @@ export function GlobalNav({
   workspaceSettings?: SettingsProps;
   children?: ReactNode;
 }) {
+  const profileTrigger = useRef<HTMLButtonElement>(null);
   const settingsTrigger = useRef<HTMLButtonElement>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("appearance");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -157,17 +158,20 @@ export function GlobalNav({
         </nav>
         <div className="topbar-spacer" />
         {children}
-        <Tooltip content="Workspace settings">
-          <button
-            className="icon-button"
-            ref={settingsTrigger}
-            aria-label="Workspace settings"
-            onClick={() => openSettings("editor")}
-          >
-            <SlidersHorizontal size={18} />
-          </button>
-        </Tooltip>
+        {workspaceSettings && (
+          <Tooltip content="Workspace settings">
+            <button
+              className="icon-button"
+              ref={settingsTrigger}
+              aria-label="Workspace settings"
+              onClick={() => openSettings("editor")}
+            >
+              <SlidersHorizontal size={18} />
+            </button>
+          </Tooltip>
+        )}
         <AccountMenu
+          triggerRef={profileTrigger}
           session={session.data}
           pending={session.isPending}
           failed={session.isError}
@@ -179,7 +183,7 @@ export function GlobalNav({
         section={settingsSection}
         onSectionChange={setSettingsSection}
         onClose={closeSettings}
-        onReturnFocus={() => settingsTrigger.current?.focus()}
+        onReturnFocus={() => (settingsTrigger.current ?? profileTrigger.current)?.focus()}
         session={session.data}
         workspace={workspaceSettings}
         theme={theme ?? "system"}

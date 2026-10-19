@@ -1,6 +1,6 @@
 # Unified settings
 
-Issue #67. Global navigation owns one Radix dialog for Profile, Security & login and local preferences. The profile-menu Profile entry opens Profile; Settings opens Appearance; the adjacent workspace shortcut opens Editor. The category rail and content pane scroll independently, including narrow/short viewports. Dialog focus starts on the selected category and returns to the shortcut after dismissal; existing dialog motion and reduced-motion rules apply.
+Issue #67. Global navigation owns one Radix dialog for Profile, Security & login and local preferences. The profile-menu Profile entry opens Profile; Settings opens Appearance; the adjacent workspace shortcut appears only in question workspaces and opens Editor. The category rail and content pane scroll independently, including narrow/short viewports. Dialog focus starts on the selected category and returns to the shortcut (or profile button outside a workspace) after dismissal; existing dialog motion and reduced-motion rules apply.
 
 Profile contains photo/name/username. Security & login contains verified email changes, email-link password resets and passkey enrollment/removal. Existing pencil editing, verification, cooldowns and safe errors remain in place. No credential protocol changes.
 

@@ -1,7 +1,7 @@
 /** @file AccountMenu.tsx @description Profile menu and accessible account dialogs. @module navigation */
 import * as Popover from "@radix-ui/react-popover";
 import { BookOpen, ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { signOut, type Session } from "../auth/session";
 import { useProfile } from "../auth/profile";
 import { Tooltip } from "../editor/components/Tooltip";
@@ -12,7 +12,9 @@ export function AccountMenu({
   pending,
   failed,
   onOpenSettings,
+  triggerRef,
 }: {
+  triggerRef?: Ref<HTMLButtonElement>;
   session?: Session | null;
   pending: boolean;
   failed: boolean;
@@ -47,7 +49,11 @@ export function AccountMenu({
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Tooltip content="Profile">
           <Popover.Trigger asChild>
-            <button className="icon-button nav-profile-trigger" aria-label="Profile">
+            <button
+              ref={triggerRef}
+              className="icon-button nav-profile-trigger"
+              aria-label="Profile"
+            >
               <AccountAvatar name={name} username={account?.username} image={account?.image} />
             </button>
           </Popover.Trigger>
