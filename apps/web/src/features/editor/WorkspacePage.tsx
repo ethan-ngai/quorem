@@ -519,16 +519,19 @@ export function WorkspacePage({
   const editorDocumentKey = workspace
     ? `${identity}:${workspace.id}:${workspace.problemVersionId}:${documentLanguage}`
     : "pending";
+  const browserIntelligenceAvailable =
+    documentLanguage === "python" || documentLanguage === "typescript";
   const intelligence = useIntelligence(
     identity,
     editorDocumentKey,
-    !!account.data && !loading && documentLanguage === "python",
+    !!account.data && !loading && browserIntelligenceAvailable,
+    documentLanguage,
   );
   const intelligenceStatus =
-    !account.data || documentLanguage !== "python" ? "unavailable" : intelligence.status;
+    !account.data || !browserIntelligenceAvailable ? "unavailable" : intelligence.status;
   const intelligenceHint = !account.data
     ? "IntelliSense unavailable. Sign in to enable it."
-    : documentLanguage !== "python"
+    : !browserIntelligenceAvailable
       ? "IntelliSense unavailable for this language."
       : {
           ready: "IntelliSense active",
@@ -697,7 +700,7 @@ export function WorkspacePage({
                 />
                 <div className="code-options">
                   {(hostedIntelligenceEnabled ||
-                    (!!account.data && documentLanguage === "python")) && (
+                    (!!account.data && browserIntelligenceAvailable)) && (
                     <Tooltip content={intelligenceHint}>
                       <span
                         role="img"
@@ -728,7 +731,7 @@ export function WorkspacePage({
                   readOnly={languageSwitching}
                   completionEnabled={!!account.data}
                   intelligenceExtensions={
-                    documentLanguage === "python" ? intelligence.extensions : undefined
+                    browserIntelligenceAvailable ? intelligence.extensions : undefined
                   }
                   onSourceChange={updateSource}
                 />
