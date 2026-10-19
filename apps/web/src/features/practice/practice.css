@@ -201,11 +201,7 @@
   color: var(--color-text);
   background: var(--color-overlay);
 }
-.practice-language-column {
-  color: var(--color-text-secondary);
-  font-size: var(--text-label);
-  line-height: 1.8;
-}
+
 .practice-state {
   padding: var(--space-6) var(--space-4);
   text-align: center;
@@ -264,9 +260,7 @@
   .practice-page-button {
     width: var(--narrow-touch-target);
   }
-  .practice-language-column {
-    display: none;
-  }
+
   .practice-table td:first-child {
     width: auto;
   }

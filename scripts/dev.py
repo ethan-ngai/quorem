@@ -73,6 +73,7 @@ try:
         ["docker", "build", "-f", "apps/language/Dockerfile", "-t", "quorem-language:local", "."],
         ["go", "build", "-o", ".local/bin/api", "./apps/api/cmd/api"],
         ["go", "build", "-o", ".local/bin/runner", "./apps/runner/cmd/runner"],
+        ["go", "build", "-o", ".local/bin/language", "./apps/language/cmd/language"],
     ]:
         subprocess.run(command, check=True, env=ENV)
     if ENV["QUOREM_DEV_IDENTITY"] != "true":
@@ -85,7 +86,8 @@ try:
         ["vp", "-C", "apps/marketing", "run", "dev", "--port", str(urlparse(ENV["QUOREM_MARKETING_DEV_ORIGIN"]).port or 4321)],
         [".local/bin/api"],
         [".local/bin/runner"],
-        ["vp", "run", "--filter", "@quorem/language", "dev"],
+        (["vp", "run", "--filter", "@quorem/language", "dev:node"]
+         if ENV.get("LANGUAGE_GATEWAY") == "node" else [".local/bin/language"]),
         ["vp", "-C", "apps/web", "dev", "--host", "127.0.0.1", "--port", str(urlparse(ENV["WEB_ORIGIN"]).port or 5173), "--strictPort"],
     ]:
         processes.append(subprocess.Popen(command, env=ENV, start_new_session=True))

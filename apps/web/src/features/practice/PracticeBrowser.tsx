@@ -208,9 +208,6 @@ export function PracticeBrowser() {
                         Difficulty {sort === "difficulty" && <SortIcon size={13} />}
                       </button>
                     </th>
-                    <th scope="col" className="practice-language-column">
-                      Languages
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -252,21 +249,6 @@ export function PracticeBrowser() {
                         >
                           {label(problem.difficulty)}
                         </button>
-                      </td>
-                      <td className="practice-language-column">
-                        <span>
-                          {(problem.languages ?? [])
-                            .map((item) =>
-                              label(
-                                item.language === "typescript"
-                                  ? "TypeScript"
-                                  : item.language === "ocaml"
-                                    ? "OCaml"
-                                    : item.language,
-                              ),
-                            )
-                            .join(" · ")}
-                        </span>
                       </td>
                     </tr>
                   ))}

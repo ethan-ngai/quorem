@@ -9,7 +9,7 @@ make install
 make dev
 ```
 
-Open http://localhost:5173 for the Astro homepage; /practice lists questions, /practice/{slug} opens the editor, and /match/{id} opens a match. The supervisor builds language images, starts PostgreSQL, seeds six original problems and real accounts, and starts auth, API, judge, language service and web. Sign in as `alice` (admin) or `bob` using `AUTH_SEED_PASSWORD` from ignored `.local/auth-preview.json`. Guests may read questions/edit code; IntelliSense, Run and Submit require sign-in.
+Open http://localhost:5173 for the Astro homepage; /practice lists questions, /practice/{slug} opens the editor, and /match/{id} opens a match. The supervisor builds language images, starts PostgreSQL, seeds six original problems and real accounts, and starts auth, API, judge, Go language gateway and web. Sign in as `alice` (admin) or `bob` using `AUTH_SEED_PASSWORD` from ignored `.local/auth-preview.json`. Guests may read questions/edit code; IntelliSense, Run and Submit require sign-in.
 
 Profile photos use private S3 storage; `make dev` starts Garage at loopback port 53900 with persisted local credentials/data. Missing photos use HTML initials. Workspace settings sits beside the profile button. See [profile storage](docs/implementation/profile-photos.md).
 
@@ -22,3 +22,5 @@ Plans and dependency-ordered tickets: [docs/plans/README.md](docs/plans/README.m
 Public authentication and AWS deployment remain subsequent milestones. Development Docker isolation must pass the documented public sandbox release gate before accepting public code.
 
 `vp run build` assembles marketing and the workspace into `apps/web/dist`. Serve `/` as `index.html`; rewrite `/practice`, `/practice/*`, `/match/*`, and `/invite/*` to `app.html`, and preserve static asset paths. `vp -C apps/web preview` implements these rules locally. Rebuild marketing after changes with `vp -C apps/marketing run build`; `make dev` builds it at startup.
+
+IntelliSense gateway limits, local measurements and deployment/cost estimates: [Go language gateway](docs/implementation/language-gateway.md).
