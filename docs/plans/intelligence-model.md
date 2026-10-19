@@ -26,7 +26,7 @@ For hosted engines: authoritative paid access on every admission, revocation, bo
 
 ## Current implementation status
 
-Browser type-aware engines and billing are not implemented by this decision. Existing syntax/basic editing support remains. The Go prototype currently supports hosted Python only, and is now disabled by default in the browser, gateway and local supervisor. The default editor hides its hosted status indicator; disabled gateways reject `/lsp` before authentication or container allocation.
+Browser type-aware engines and billing are not implemented by this decision. Java and OCaml now default to browser-only keyword/document-word completion using CodeMirror sources; Python and TypeScript retain their bundled completion. This is not type-aware analysis. Guest completion remains disabled. The Go prototype currently supports hosted Python only, and is now disabled by default in the browser, gateway and local supervisor. The default editor hides its hosted status indicator; disabled gateways reject `/lsp` before authentication or container allocation.
 
 Internal opt-in only:
 
