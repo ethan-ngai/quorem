@@ -1,4 +1,5 @@
-/** @file useIntelligence.ts @description Browser-first Python sessions with an optional hosted experiment. @module editor */
+/** @file useIntelligence.ts @description Browser-first language sessions with an optional hosted experiment. @module editor */
+import type { EditorLanguage } from "./editorLanguages";
 import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { token } from "../auth/session";
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
@@ -18,6 +19,7 @@ export function useIntelligence(
   identity: DevelopmentIdentity,
   documentKey: string,
   enabled = true,
+  language: EditorLanguage = "python",
 ) {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [status, setStatus] = useState<IntelligenceStatus>("connecting");
@@ -30,14 +32,22 @@ export function useIntelligence(
       setExtensions([]);
       return;
     }
-    if (!hostedIntelligenceEnabled) {
+    if (language === "typescript" || !hostedIntelligenceEnabled) {
       const controller = new AbortController();
       let dispose: (() => void) | undefined;
       setExtensions([]);
       setStatus("connecting");
-      void import("./browserPythonIntelligence")
-        .then((module) =>
-          module.browserPythonIntelligence(controller.signal, () => {
+      const initialize =
+        language === "typescript"
+          ? import("./browserTypeScriptIntelligence").then(
+              (module) => module.browserTypeScriptIntelligence,
+            )
+          : import("./browserPythonIntelligence").then(
+              (module) => module.browserPythonIntelligence,
+            );
+      void initialize
+        .then((start) =>
+          start(controller.signal, () => {
             if (!controller.signal.aborted) {
               setExtensions([]);
               setStatus("unavailable");
@@ -162,7 +172,7 @@ export function useIntelligence(
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
-  }, [identity, documentKey, key, attempt, enabled]);
+  }, [identity, documentKey, key, attempt, enabled, language]);
 
   return { extensions, status, retry };
 }
