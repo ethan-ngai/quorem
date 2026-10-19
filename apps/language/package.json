@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --experimental-strip-types src/main.ts",
+    "dev": "go run ./cmd/language",
     "check": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/*.test.ts"
+    "test": "node --experimental-strip-types --test src/*.test.ts",
+    "dev:node": "node --experimental-strip-types src/main.ts"
   },
   "dependencies": {
     "ws": "8.22.0"

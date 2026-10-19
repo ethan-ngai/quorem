@@ -49,4 +49,4 @@ check:
 
 build:
 	vp run build
-	go build ./apps/api/cmd/api ./apps/runner/cmd/runner
+	go build ./apps/api/cmd/api ./apps/runner/cmd/runner ./apps/language/cmd/language
