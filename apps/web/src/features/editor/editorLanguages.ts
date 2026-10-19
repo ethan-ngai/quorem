@@ -1,3 +1,4 @@
+import { basicCompletion, javaKeywords } from "./basicCompletion";
 import type { Extension } from "@codemirror/state";
 import { highlightedPython, pythonSupport, pythonIdentifierAccents } from "./pythonHighlighting";
 
@@ -19,8 +20,10 @@ export async function loadLanguageExtensions(language: EditorLanguage): Promise<
   switch (language) {
     case "python":
       return pythonExtensions;
-    case "java":
-      return (await import("@codemirror/lang-java")).java();
+    case "java": {
+      const { java, javaLanguage } = await import("@codemirror/lang-java");
+      return [java(), basicCompletion(javaLanguage, javaKeywords)];
+    }
     case "typescript":
       return (await import("@codemirror/lang-javascript")).javascript({ typescript: true });
     case "ocaml": {
@@ -28,7 +31,10 @@ export async function loadLanguageExtensions(language: EditorLanguage): Promise<
         import("@codemirror/language"),
         import("@codemirror/legacy-modes/mode/mllike"),
       ]);
-      return StreamLanguage.define(oCaml);
+      // Wrap the mode's own word list so suggestions also respect literal/comment context.
+      const { autocomplete, ...languageData } = oCaml.languageData ?? {};
+      const language = StreamLanguage.define({ ...oCaml, languageData });
+      return [language, basicCompletion(language, autocomplete as readonly string[])];
     }
   }
 }

@@ -41,3 +41,46 @@ describe("language-specific editor grammars", () => {
     );
   });
 });
+
+async function suggestions(language: "java" | "ocaml", doc: string, pos = doc.length) {
+  const state = EditorState.create({ doc, extensions: [await loadLanguageExtensions(language)] });
+  const sources = state.languageDataAt<CompletionSource | readonly Completion[]>(
+    "autocomplete",
+    pos,
+  );
+  const results = await Promise.all(
+    sources.map(async (source) =>
+      (typeof source === "function" ? source : completeFromList(source))(
+        new CompletionContext(state, pos, true),
+      ),
+    ),
+  );
+  return results.flatMap((result) => result?.options.map((option) => option.label) ?? []);
+}
+
+describe("basic browser completion", () => {
+  it.each([
+    ["java", "class Solution { int customerCount; void solve() { cust", "return"],
+    ["ocaml", "let customer_count = 1\nlet solve () = cust", "match"],
+  ] as const)(
+    "offers %s keywords and document names without a service",
+    async (language, doc, keyword) => {
+      const labels = await suggestions(language, doc);
+      expect(labels).toContain(keyword);
+      expect(labels).toContain(language === "java" ? "customerCount" : "customer_count");
+      expect(labels).not.toContain(language === "java" ? "match" : "return");
+    },
+  );
+
+  it.each([
+    ["java", 'class Solution { String text = "cust"; }', "cust"],
+    ["java", "// cust", "cust"],
+    ["ocaml", 'let text = "cust"', "cust"],
+    ["ocaml", "(* cust *)", "cust"],
+  ] as const)(
+    "suppresses %s suggestions inside literals/comments: %s",
+    async (language, doc, marker) => {
+      expect(await suggestions(language, doc, doc.indexOf(marker) + marker.length)).toEqual([]);
+    },
+  );
+});
