@@ -72,3 +72,29 @@
 [data-theme="light"] .settings-dialog.unified-settings {
   box-shadow: 0 8px 24px oklch(0.2 0 0 / 0.08);
 }
+
+.unified-settings .settings-feedback {
+  position: fixed;
+  z-index: 64;
+  left: calc(184px + var(--space-6));
+  right: var(--space-6);
+  bottom: var(--space-4);
+  max-height: 100px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+  color: var(--color-text);
+}
+.unified-settings .settings-feedback.account-error {
+  color: var(--color-error);
+}
+
+@media (max-width: 600px) {
+  .unified-settings .settings-feedback {
+    left: calc(132px + var(--space-4));
+    right: var(--space-4);
+  }
+}

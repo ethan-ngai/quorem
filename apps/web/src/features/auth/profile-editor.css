@@ -73,3 +73,74 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+.profile-field-content {
+  position: relative;
+  --field-action-size: 32px;
+  --field-actions-width: 72px;
+}
+.profile-field-content > .account-form {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.profile-field-content .account-form input {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: calc(100% - var(--field-actions-width));
+  height: calc(var(--text-small) * 1.5);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  box-shadow: 0 1px 0 var(--color-border);
+}
+.profile-field-content .account-form input:focus {
+  outline: none;
+  box-shadow: 0 1px 0 var(--color-primary);
+}
+.unified-settings .profile-field-content .profile-edit-actions {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+}
+.profile-field-content .icon-button {
+  width: var(--field-action-size);
+  height: var(--field-action-size);
+  min-height: var(--field-action-size);
+  flex-shrink: 0;
+}
+.profile-reset-description {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  max-width: calc(100% - var(--field-actions-width));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-small);
+  line-height: 1.5;
+}
+.nav-popover.profile-field-hint {
+  z-index: 65;
+  max-width: min(300px, calc(100vw - 32px));
+  padding: var(--space-3);
+}
+.profile-field-hint .username-rules {
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .profile-field-content {
+    --field-action-size: var(--narrow-touch-target);
+    --field-actions-width: 96px;
+  }
+}

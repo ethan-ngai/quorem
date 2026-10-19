@@ -81,10 +81,11 @@ export function PasskeySettings() {
           )}
           <button
             className="button"
+            aria-busy={busy}
             disabled={busy || typeof PublicKeyCredential === "undefined"}
             onClick={() => void update(() => addPasskey("Quorem"))}
           >
-            {busy ? "Updating…" : "Add a passkey"}
+            Add a passkey
           </button>
           {typeof PublicKeyCredential === "undefined" ? (
             <p>Use a browser that supports passkeys.</p>
@@ -92,7 +93,7 @@ export function PasskeySettings() {
         </>
       )}
       {error ? (
-        <p className="account-error" role="alert">
+        <p className="account-error settings-feedback" role="alert">
           {error}
         </p>
       ) : null}

@@ -1,5 +1,7 @@
 import { authErrorMessage } from "./errors";
-import { Pencil } from "lucide-react";
+import { Pencil, Check, X, Send } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { Tooltip } from "../editor/components/Tooltip";
 import { type ReactNode, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -95,9 +97,9 @@ export function ProfileEditor({
     }, "Profile saved.");
   }
   const cancel = (
-    <button className="button" type="button" disabled={busy} onClick={() => edit(null)}>
-      Cancel
-    </button>
+    <FieldAction label="Cancel editing" disabled={busy} onClick={() => edit(null)}>
+      <X size={16} />
+    </FieldAction>
   );
   return (
     <div className="profile-editor">
@@ -121,9 +123,9 @@ export function ProfileEditor({
                 disabled={busy}
               />
               <div className="profile-edit-actions">
-                <button className="button button-primary" disabled={busy}>
-                  Save name
-                </button>
+                <FieldAction label="Save name" type="submit" disabled={busy}>
+                  <Check size={16} />
+                </FieldAction>
                 {cancel}
               </div>
             </form>
@@ -132,6 +134,7 @@ export function ProfileEditor({
             <ProfileField
               label="Username"
               value={profile.username ?? "Not set"}
+              hint={<UsernameRules id="profile-username-rules" />}
               editing={editing === "username"}
               onEdit={() => edit("username")}
               disabled={busy}
@@ -152,11 +155,10 @@ export function ProfileEditor({
                   }}
                   disabled={busy}
                 />
-                <UsernameRules id="profile-username-rules" />
                 <div className="profile-edit-actions">
-                  <button className="button button-primary" disabled={busy}>
-                    Save username
-                  </button>
+                  <FieldAction label="Save username" type="submit" disabled={busy}>
+                    <Check size={16} />
+                  </FieldAction>
                   {cancel}
                 </div>
               </form>
@@ -207,14 +209,17 @@ export function ProfileEditor({
                 disabled={busy}
               />
               <div className="profile-edit-actions">
-                <button
-                  className="button button-primary"
+                <FieldAction
+                  type="submit"
+                  label={
+                    emailCooldown.remaining
+                      ? `Retry in ${emailCooldown.remaining}s`
+                      : "Verify email change"
+                  }
                   disabled={busy || email === profile.email || emailCooldown.remaining > 0}
                 >
-                  {emailCooldown.remaining
-                    ? `Retry in ${emailCooldown.remaining}s`
-                    : "Verify email change"}
-                </button>
+                  <Send size={16} />
+                </FieldAction>
                 {cancel}
               </div>
             </form>
@@ -228,14 +233,15 @@ export function ProfileEditor({
               disabled={busy}
             >
               <div className="account-form">
-                <p>
-                  We’ll email a reset link to your verified address. Resetting your password signs
-                  out all devices.
-                </p>
+                <span className="profile-reset-description">Reset via email</span>
                 <div className="profile-edit-actions">
-                  <button
-                    className="button button-primary"
-                    type="button"
+                  <FieldAction
+                    label={
+                      resetCooldown.remaining
+                        ? `Retry in ${resetCooldown.remaining}s`
+                        : "Send password-reset link"
+                    }
+                    description="Email a reset link to your verified address. Resetting your password signs out all devices."
                     disabled={busy || resetCooldown.remaining > 0}
                     onClick={() =>
                       void run(
@@ -248,10 +254,8 @@ export function ProfileEditor({
                       )
                     }
                   >
-                    {resetCooldown.remaining
-                      ? `Retry in ${resetCooldown.remaining}s`
-                      : "Send password-reset link"}
-                  </button>
+                    <Send size={16} />
+                  </FieldAction>
                   {cancel}
                 </div>
               </div>
@@ -259,9 +263,13 @@ export function ProfileEditor({
           )}
         </>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p className="settings-feedback" role="status">
+          {message}
+        </p>
+      )}
       {error && (
-        <p className="account-error" role="alert">
+        <p className="account-error settings-feedback" role="alert">
           {error}
         </p>
       )}
@@ -269,6 +277,7 @@ export function ProfileEditor({
   );
 }
 
+/** Keep the read-only value in flow so editing never changes row geometry. */
 function ProfileField({
   label,
   value,
@@ -276,6 +285,7 @@ function ProfileField({
   onEdit,
   disabled,
   children,
+  hint,
 }: {
   label: string;
   value: string;
@@ -283,27 +293,84 @@ function ProfileField({
   onEdit?: () => void;
   disabled: boolean;
   children: ReactNode;
+  hint?: ReactNode;
 }) {
   return (
     <section className="profile-field">
-      <div className="profile-field-heading">
-        <div>
-          <span className="profile-field-label">{label}</span>
-          {!editing && <p className="profile-field-value">{value}</p>}
-        </div>
-        {!editing && onEdit && (
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={`Edit ${label === "Name (optional)" ? "name" : label.toLowerCase()}`}
-            disabled={disabled}
-            onClick={onEdit}
-          >
-            <Pencil size={16} />
-          </button>
+      <Popover.Root open={editing && Boolean(hint)}>
+        <Popover.Anchor asChild>
+          <div className="profile-field-content">
+            <div className="profile-field-heading">
+              <div>
+                <span className="profile-field-label">{label}</span>
+                <p
+                  className="profile-field-value"
+                  style={{ visibility: editing ? "hidden" : undefined }}
+                  aria-hidden={editing || undefined}
+                >
+                  {value}
+                </p>
+              </div>
+              {!editing && onEdit && (
+                <FieldAction
+                  label={`Edit ${label === "Name (optional)" ? "name" : label.toLowerCase()}`}
+                  disabled={disabled}
+                  onClick={onEdit}
+                >
+                  <Pencil size={16} />
+                </FieldAction>
+              )}
+            </div>
+            {editing && children}
+          </div>
+        </Popover.Anchor>
+        {hint && (
+          <Popover.Portal>
+            <Popover.Content
+              className="nav-popover profile-field-hint"
+              side="bottom"
+              align="start"
+              sideOffset={8}
+              collisionPadding={8}
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
+              {hint}
+            </Popover.Content>
+          </Popover.Portal>
         )}
-      </div>
-      {editing && children}
+      </Popover.Root>
     </section>
+  );
+}
+
+function FieldAction({
+  label,
+  description,
+  children,
+  disabled,
+  type = "button",
+  onClick,
+}: {
+  label: string;
+  description?: string;
+  children: ReactNode;
+  disabled: boolean;
+  type?: "button" | "submit";
+  onClick?: () => void;
+}) {
+  return (
+    <Tooltip content={description ? `${label}. ${description}` : label}>
+      <button
+        className="icon-button"
+        aria-label={label}
+        title={disabled ? label : undefined}
+        type={type}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }

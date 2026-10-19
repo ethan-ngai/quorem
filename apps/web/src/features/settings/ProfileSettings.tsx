@@ -54,10 +54,11 @@ export function ProfileSettings({
             <label
               className={`button button-secondary account-upload${busy ? " is-disabled" : ""}`}
             >
-              {busy ? "Updating…" : "Upload photo"}
+              Upload photo
               <input
                 type="file"
                 aria-label="Upload profile photo"
+                aria-busy={busy}
                 accept={photoTypes.join(",")}
                 disabled={busy}
                 onChange={(event) => {
@@ -83,7 +84,7 @@ export function ProfileSettings({
         </div>
       )}
       {error && (
-        <p className="account-error" role="alert">
+        <p className="account-error settings-feedback" role="alert">
           {error}
         </p>
       )}
