@@ -79,7 +79,8 @@
   --field-action-size: 32px;
   --field-actions-width: 72px;
 }
-.profile-field-content > .account-form {
+.profile-edit-layer,
+.profile-edit-layer > .account-form {
   position: absolute;
   inset: 0;
   display: block;
@@ -118,17 +119,6 @@
   height: var(--field-action-size);
   min-height: var(--field-action-size);
   flex-shrink: 0;
-}
-.profile-reset-description {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  max-width: calc(100% - var(--field-actions-width));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-small);
-  line-height: 1.5;
 }
 .nav-popover.profile-field-hint {
   z-index: 65;

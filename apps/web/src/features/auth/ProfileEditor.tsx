@@ -1,8 +1,9 @@
+import { PasswordResetSetting } from "./PasswordResetSetting";
 import { authErrorMessage } from "./errors";
 import { Pencil, Check, X, Send } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import { Tooltip } from "../editor/components/Tooltip";
-import { type ReactNode, useState, type FormEvent } from "react";
+import { type ReactNode, useState, useEffect, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   emailInputSchema,
@@ -12,12 +13,7 @@ import {
   usernameSchema,
 } from "@quorem/contracts/auth";
 import { fetchAuthCapabilities } from "./capabilities";
-import {
-  AccountRateLimitError,
-  updateAccount,
-  requestEmailChange,
-  requestPasswordReset,
-} from "./account";
+import { AccountRateLimitError, updateAccount, requestEmailChange } from "./account";
 import { fetchProfile, type AccountProfile } from "./profile";
 import { resetToken } from "./session";
 import { UsernameRules } from "./UsernameRules";
@@ -40,8 +36,7 @@ export function ProfileEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const emailCooldown = useCooldown(),
-    resetCooldown = useCooldown();
+  const emailCooldown = useCooldown();
   const client = useQueryClient();
   const capabilities = useQuery({
     queryKey: ["auth-capabilities"],
@@ -225,41 +220,7 @@ export function ProfileEditor({
             </form>
           </ProfileField>
           {capabilities.data?.registration && (
-            <ProfileField
-              label="Password"
-              value="••••••••"
-              editing={editing === "password"}
-              onEdit={() => edit("password")}
-              disabled={busy}
-            >
-              <div className="account-form">
-                <span className="profile-reset-description">Reset via email</span>
-                <div className="profile-edit-actions">
-                  <FieldAction
-                    label={
-                      resetCooldown.remaining
-                        ? `Retry in ${resetCooldown.remaining}s`
-                        : "Send password-reset link"
-                    }
-                    description="Email a reset link to your verified address. Resetting your password signs out all devices."
-                    disabled={busy || resetCooldown.remaining > 0}
-                    onClick={() =>
-                      void run(
-                        async () => {
-                          await requestPasswordReset(profile.email);
-                          resetCooldown.start(60);
-                        },
-                        "Check your email for a password-reset link.",
-                        (seconds) => resetCooldown.start(seconds),
-                      )
-                    }
-                  >
-                    <Send size={16} />
-                  </FieldAction>
-                  {cancel}
-                </div>
-              </div>
-            </ProfileField>
+            <PasswordResetSetting email={profile.email} disabled={busy} onOpen={() => edit(null)} />
           )}
         </>
       )}
@@ -299,29 +260,27 @@ function ProfileField({
     <section className="profile-field">
       <Popover.Root open={editing && Boolean(hint)}>
         <Popover.Anchor asChild>
-          <div className="profile-field-content">
+          <div className="profile-field-content" data-editing={editing}>
             <div className="profile-field-heading">
               <div>
                 <span className="profile-field-label">{label}</span>
-                <p
-                  className="profile-field-value"
-                  style={{ visibility: editing ? "hidden" : undefined }}
-                  aria-hidden={editing || undefined}
-                >
+                <p className="profile-field-value" aria-hidden={editing || undefined}>
                   {value}
                 </p>
               </div>
-              {!editing && onEdit && (
-                <FieldAction
-                  label={`Edit ${label === "Name (optional)" ? "name" : label.toLowerCase()}`}
-                  disabled={disabled}
-                  onClick={onEdit}
-                >
-                  <Pencil size={16} />
-                </FieldAction>
+              {onEdit && (
+                <span className="profile-pencil" inert={editing} aria-hidden={editing || undefined}>
+                  <FieldAction
+                    label={`Edit ${label === "Name (optional)" ? "name" : label.toLowerCase()}`}
+                    disabled={disabled || editing}
+                    onClick={onEdit}
+                  >
+                    <Pencil size={16} />
+                  </FieldAction>
+                </span>
               )}
             </div>
-            {editing && children}
+            <EditLayer open={editing}>{children}</EditLayer>
           </div>
         </Popover.Anchor>
         {hint && (
@@ -346,21 +305,19 @@ function ProfileField({
 
 function FieldAction({
   label,
-  description,
   children,
   disabled,
   type = "button",
   onClick,
 }: {
   label: string;
-  description?: string;
   children: ReactNode;
   disabled: boolean;
   type?: "button" | "submit";
   onClick?: () => void;
 }) {
   return (
-    <Tooltip content={description ? `${label}. ${description}` : label}>
+    <Tooltip content={label}>
       <button
         className="icon-button"
         aria-label={label}
@@ -373,4 +330,27 @@ function FieldAction({
       </button>
     </Tooltip>
   );
+}
+
+/** Keep the outgoing layer briefly for its fade; never leave hidden controls interactive. */
+function EditLayer({ open, children }: { open: boolean; children: ReactNode }) {
+  const [present, setPresent] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setPresent(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setPresent(false), 120);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+  return present || open ? (
+    <div
+      className="profile-edit-layer"
+      data-state={open ? "open" : "closed"}
+      inert={!open}
+      aria-hidden={!open || undefined}
+    >
+      {children}
+    </div>
+  ) : null;
 }
