@@ -1,4 +1,4 @@
-/** @file useIntelligence.ts @description Disposable Python language sessions. @module editor */
+/** @file useIntelligence.ts @description Browser-first Python sessions with an optional hosted experiment. @module editor */
 import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { token } from "../auth/session";
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
@@ -19,7 +19,6 @@ export function useIntelligence(
   documentKey: string,
   enabled = true,
 ) {
-  const canConnect = enabled && hostedIntelligenceEnabled;
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [status, setStatus] = useState<IntelligenceStatus>("connecting");
   const key = `${identity}:${documentKey}`;
@@ -27,9 +26,40 @@ export function useIntelligence(
   const retry = useCallback(() => setAttempt((value) => ({ key, nonce: value.nonce + 1 })), [key]);
 
   useEffect(() => {
-    if (!canConnect) {
+    if (!enabled) {
       setExtensions([]);
       return;
+    }
+    if (!hostedIntelligenceEnabled) {
+      const controller = new AbortController();
+      let dispose: (() => void) | undefined;
+      setExtensions([]);
+      setStatus("connecting");
+      void import("./browserPythonIntelligence")
+        .then((module) =>
+          module.browserPythonIntelligence(controller.signal, () => {
+            if (!controller.signal.aborted) {
+              setExtensions([]);
+              setStatus("unavailable");
+            }
+          }),
+        )
+        .then((session) => {
+          if (controller.signal.aborted) {
+            session.dispose();
+            return;
+          }
+          dispose = session.dispose;
+          setExtensions(session.extensions);
+          setStatus("ready");
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setStatus("unavailable");
+        });
+      return () => {
+        controller.abort();
+        dispose?.();
+      };
     }
     let disposed = false;
     let reconnect: ReturnType<typeof setTimeout> | undefined;
@@ -132,7 +162,7 @@ export function useIntelligence(
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
-  }, [identity, documentKey, key, attempt, canConnect]);
+  }, [identity, documentKey, key, attempt, enabled]);
 
   return { extensions, status, retry };
 }

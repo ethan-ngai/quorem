@@ -696,7 +696,8 @@ export function WorkspacePage({
                   }))}
                 />
                 <div className="code-options">
-                  {hostedIntelligenceEnabled && (
+                  {(hostedIntelligenceEnabled ||
+                    (!!account.data && documentLanguage === "python")) && (
                     <Tooltip content={intelligenceHint}>
                       <span
                         role="img"
