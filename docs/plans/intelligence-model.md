@@ -26,7 +26,7 @@ For hosted engines: authoritative paid access on every admission, revocation, bo
 
 ## Current implementation status
 
-Browser type-aware engines and billing are not implemented by this decision. Java and OCaml now default to browser-only keyword/document-word completion using CodeMirror sources; Python and TypeScript retain their bundled completion. This is not type-aware analysis. Guest completion remains disabled. The Go prototype currently supports hosted Python only, and is now disabled by default in the browser, gateway and local supervisor. The default editor hides its hosted status indicator; disabled gateways reject `/lsp` before authentication or container allocation.
+Python now uses a local Pyright Worker through CodeMirror LSP for member completion, hover, signatures and diagnostics. TypeScript type-aware Worker integration and billing remain planned. Java and OCaml now default to browser-only keyword/document-word completion using CodeMirror sources; Python and TypeScript retain their bundled completion. This is not type-aware analysis. Guest completion remains disabled. The Go prototype currently supports hosted Python only, and is now disabled by default in the browser, gateway and local supervisor. Python shows its browser engine status; other languages hide hosted status by default. Disabled gateways reject `/lsp` before authentication or container allocation.
 
 Internal opt-in only:
 
@@ -37,3 +37,5 @@ QUOREM_HOSTED_INTELLIGENCE=true make dev
 The local supervisor derives `VITE_HOSTED_INTELLIGENCE=true` from that server flag unless explicitly overridden. Separate web builds need the browser flag explicitly; neither flag is an entitlement. `LANGUAGE_GATEWAY=node` has the same server-side kill switch. Opt-in tests may exercise the held implementation without deploying it.
 
 Sources: [TypeScript Sandbox and Web Workers](https://www.typescriptlang.org/dev/sandbox/), [TypeScript language-service API](https://github.com/microsoft/TypeScript/wiki/Using-the-Language-Service-API), [Eclipse Java language server](https://github.com/eclipse-jdtls/eclipse.jdt.ls), [OCaml editor tooling](https://ocaml.org/docs/set-up-editor). Browser-port viability remains a spike, not established by the native-server docs.
+
+Python browser adapter pins `monaco-pyright-lsp@0.1.7` and imports only its prebuilt Worker asset, not the Monaco editor. The Worker analyzes one virtual document with bundled stdlib stubs and the public harness declarations; Python 3.12, basic type checking. It loads only for an authenticated Python workspace and terminates on document/account changes. Source stays in the browser for analysis. The upstream Worker asset is ~25.4 MB uncompressed, lazy-loaded separately from the editor bundle. This older Pyright port needs maintenance/version and device-budget evaluation before a public release; hosted deployment remains held.
