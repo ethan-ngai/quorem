@@ -22,7 +22,12 @@ void test(
         ? []
         : ["--experimental-strip-types", "src/main.ts"],
       {
-        env: { ...process.env, LANGUAGE_ADDR: address, QUOREM_DEV_IDENTITY: "true" },
+        env: {
+          ...process.env,
+          LANGUAGE_ADDR: address,
+          QUOREM_DEV_IDENTITY: "true",
+          QUOREM_HOSTED_INTELLIGENCE: "true",
+        },
         stdio: ["ignore", "pipe", "pipe"],
       },
     );

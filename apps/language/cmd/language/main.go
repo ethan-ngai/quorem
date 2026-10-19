@@ -42,7 +42,7 @@ func main() {
 			log.Fatal("Invalid idle timeout")
 		}
 	}
-	service, err := gateway.New(gateway.Config{Address: address, WebOrigin: os.Getenv("WEB_ORIGIN"), AuthOrigin: os.Getenv("AUTH_ORIGIN"), IdentityURL: os.Getenv("API_IDENTITY_URL"), DevIdentity: dev, MaxSessions: capacity, IdleTimeout: idle})
+	service, err := gateway.New(gateway.Config{HostedEnabled: os.Getenv("QUOREM_HOSTED_INTELLIGENCE") == "true", Address: address, WebOrigin: os.Getenv("WEB_ORIGIN"), AuthOrigin: os.Getenv("AUTH_ORIGIN"), IdentityURL: os.Getenv("API_IDENTITY_URL"), DevIdentity: dev, MaxSessions: capacity, IdleTimeout: idle})
 	if err != nil {
 		log.Fatal(err)
 	}

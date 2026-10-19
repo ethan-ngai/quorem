@@ -1,5 +1,7 @@
 # Python language intelligence — milestone one
 
+Delivery model superseded by [browser-first IntelliSense](intelligence-model.md): browser engines first, paid hosted engines held behind disabled flags. The capability and isolation requirements below remain.
+
 Confirmed: CodeMirror 6, separate local backend language service, provider-neutral transport. Required: type-aware completion, hover documentation, signature help, syntax/type diagnostics. Definition navigation, references, rename, formatting deferred. Cloud hosting later.
 
 ## Capability spike

@@ -1,10 +1,12 @@
 # Go language gateway prototype
 
+**Deployment held.** The [browser-first model](../plans/intelligence-model.md) supersedes server-first delivery. Hosted analysis is a future paid capability, disabled by default. Cost figures below describe the held prototype, not an approved deployment.
+
 Issue [#70](https://github.com/ethan-ngai/quorem/issues/70). Python parity first; Java, TypeScript and OCaml intelligence remain [#69](https://github.com/ethan-ngai/quorem/issues/69). Their syntax highlighting and judging already work.
 
 ## Local behavior
 
-`make dev` builds/runs `apps/language/cmd/language`, replacing the Node broker. `make language` runs it independently. `LANGUAGE_GATEWAY=node make dev` retains the previous broker for comparison. Both use the existing Python/basedpyright image. This moves orchestration to Go; the analyzer itself still uses Python/Node.
+`QUOREM_HOSTED_INTELLIGENCE=true make dev` builds/runs `apps/language/cmd/language`, replacing the Node broker. `QUOREM_HOSTED_INTELLIGENCE=true make language` runs it independently. Without this opt-in, the supervisor skips image/build/start and a separately started gateway rejects `/lsp`. `LANGUAGE_GATEWAY=node make dev` retains the previous broker for comparison. Both use the existing Python/basedpyright image. This moves orchestration to Go; the analyzer itself still uses Python/Node.
 
 Browser → authenticated WebSocket → Go admission/framing → isolated engine stdin/stdout. `EngineFactory` keeps container creation outside session policy; an ECS or other worker adapter can replace Docker without changing admission rules.
 
@@ -32,7 +34,7 @@ Reproduce parity checks with an isolated fixture gateway (do not point fixture t
 ```sh
 go test -race ./apps/language/...
 go build -o /tmp/quorem-language ./apps/language/cmd/language
-LANGUAGE_ADDR=127.0.0.1:18081 QUOREM_DEV_IDENTITY=true /tmp/quorem-language
+LANGUAGE_ADDR=127.0.0.1:18081 QUOREM_DEV_IDENTITY=true QUOREM_HOSTED_INTELLIGENCE=true /tmp/quorem-language
 # Separate terminal; run these sequentially because both use fixture owner bob.
 QUOREM_LANGUAGE_TEST=true QUOREM_LANGUAGE_TEST_URL=ws://127.0.0.1:18081/lsp QUOREM_LANGUAGE_GATEWAY_BINARY=/tmp/quorem-language vp run --filter @quorem/language test
 QUOREM_LANGUAGE_TEST=true QUOREM_LANGUAGE_TEST_URL=ws://127.0.0.1:18081/lsp vp -C apps/web test src/features/editor/languageIntegration.test.ts

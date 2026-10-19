@@ -20,6 +20,7 @@ import (
 type Config struct {
 	Address, WebOrigin, AuthOrigin, IdentityURL string
 	DevIdentity                                 bool
+	HostedEnabled                               bool
 	MaxSessions                                 int
 	IdleTimeout                                 time.Duration
 	Factory                                     EngineFactory
@@ -69,7 +70,7 @@ func New(config Config) (*Gateway, error) {
 	if config.DevIdentity && (origin.Scheme != "http" || (origin.Hostname() != "localhost" && origin.Hostname() != "127.0.0.1")) {
 		return nil, errors.New("development origin must be loopback")
 	}
-	if !config.DevIdentity && (config.AuthOrigin == "" || config.IdentityURL == "") {
+	if config.HostedEnabled && !config.DevIdentity && (config.AuthOrigin == "" || config.IdentityURL == "") {
 		return nil, errors.New("managed identity configuration required")
 	}
 	if config.Factory == nil {
@@ -155,10 +156,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			status = "draining"
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": status, "service": "language", "gateway": "go", "reservedSessions": count, "capacity": g.config.MaxSessions})
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": status, "service": "language", "gateway": "go", "hostedEnabled": g.config.HostedEnabled, "reservedSessions": count, "capacity": g.config.MaxSessions})
 		return
 	}
 	if r.URL.Path != "/lsp" {
+		http.NotFound(w, r)
+		return
+	}
+	// The server switch is authoritative, regardless of browser flags or credentials.
+	if !g.config.HostedEnabled {
 		http.NotFound(w, r)
 		return
 	}

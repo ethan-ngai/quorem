@@ -53,7 +53,7 @@ func (f *fakeFactory) Start(ctx context.Context, owner string) (Engine, error) {
 func setup(t *testing.T, capacity int, idle time.Duration) (*Gateway, string, *fakeFactory) {
 	t.Helper()
 	f := &fakeFactory{}
-	g, err := New(Config{DevIdentity: true, MaxSessions: capacity, IdleTimeout: idle, Factory: f})
+	g, err := New(Config{HostedEnabled: true, DevIdentity: true, MaxSessions: capacity, IdleTimeout: idle, Factory: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestManagedIdentity(t *testing.T) {
 		_, _ = io.WriteString(w, `{"mode":"managed","user":{"id":"real-owner","emailVerified":true}}`)
 	}))
 	defer identity.Close()
-	g, err := New(Config{WebOrigin: "https://app.example", AuthOrigin: "https://app.example", IdentityURL: identity.URL})
+	g, err := New(Config{HostedEnabled: true, WebOrigin: "https://app.example", AuthOrigin: "https://app.example", IdentityURL: identity.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,3 +304,26 @@ type cleanupSignal struct {
 }
 
 func (e *cleanupSignal) Close() error { err := e.Engine.Close(); close(e.done); return err }
+
+func TestHostedDisabledByDefault(t *testing.T) {
+	factory := &fakeFactory{}
+	g, err := New(Config{Factory: factory})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{"", "?user=alice&takeover=1", "?language=python"} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest("GET", "/lsp"+query, nil)
+		request.Header.Set("Origin", "http://localhost:5173")
+		request.Header.Set("Sec-WebSocket-Protocol", "quorem, bearer.secret")
+		g.ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("disabled status = %d", response.Code)
+		}
+	}
+	factory.mu.Lock()
+	defer factory.mu.Unlock()
+	if factory.starts != 0 || len(g.sessions) != 0 {
+		t.Fatal("disabled gateway allocated a worker")
+	}
+}

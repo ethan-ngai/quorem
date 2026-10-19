@@ -54,6 +54,17 @@ if local_mail:
     ENV.setdefault("SMTP_HOST", "127.0.0.1")
     ENV.setdefault("SMTP_PORT", "51025")
     ENV.setdefault("SMTP_FROM", "Quorem <accounts@quorem.local>")
+hosted_intelligence = ENV.get("QUOREM_HOSTED_INTELLIGENCE") == "true"
+ENV.setdefault("VITE_HOSTED_INTELLIGENCE", "true" if hosted_intelligence else "false")
+language_builds = []
+language_services = []
+if hosted_intelligence:
+    language_builds = [
+        ["docker", "build", "-f", "apps/language/Dockerfile", "-t", "quorem-language:local", "."],
+        ["go", "build", "-o", ".local/bin/language", "./apps/language/cmd/language"],
+    ]
+    language_services = [["vp", "run", "--filter", "@quorem/language", "dev:node"]
+                         if ENV.get("LANGUAGE_GATEWAY") == "node" else [".local/bin/language"]]
 processes = []
 local_storage = prepare_garage(ROOT, ENV) if ENV["QUOREM_DEV_IDENTITY"] != "true" else False
 
@@ -70,10 +81,9 @@ try:
         ["docker", "compose", *(["--profile", "storage"] if local_storage else []), *(["--profile", "mailer"] if local_mail else []), "up", "-d", "--wait"],
         ["docker", "build", "-f", "apps/runner/Dockerfile", "-t", "quorem-python:local", "."],
         *[["docker", "build", "-f", f"apps/runner/Dockerfile.{language}", "-t", f"quorem-{language}:local", "."] for language in ("java", "typescript", "ocaml")],
-        ["docker", "build", "-f", "apps/language/Dockerfile", "-t", "quorem-language:local", "."],
+        *language_builds,
         ["go", "build", "-o", ".local/bin/api", "./apps/api/cmd/api"],
         ["go", "build", "-o", ".local/bin/runner", "./apps/runner/cmd/runner"],
-        ["go", "build", "-o", ".local/bin/language", "./apps/language/cmd/language"],
     ]:
         subprocess.run(command, check=True, env=ENV)
     if ENV["QUOREM_DEV_IDENTITY"] != "true":
@@ -86,12 +96,11 @@ try:
         ["vp", "-C", "apps/marketing", "run", "dev", "--port", str(urlparse(ENV["QUOREM_MARKETING_DEV_ORIGIN"]).port or 4321)],
         [".local/bin/api"],
         [".local/bin/runner"],
-        (["vp", "run", "--filter", "@quorem/language", "dev:node"]
-         if ENV.get("LANGUAGE_GATEWAY") == "node" else [".local/bin/language"]),
+        *language_services,
         ["vp", "-C", "apps/web", "dev", "--host", "127.0.0.1", "--port", str(urlparse(ENV["WEB_ORIGIN"]).port or 5173), "--strictPort"],
     ]:
         processes.append(subprocess.Popen(command, env=ENV, start_new_session=True))
-    print(f"Web {ENV['WEB_ORIGIN']} | API {ENV['API_ADDR']} | language {ENV['LANGUAGE_ADDR']}", flush=True)
+    print(f"Web {ENV['WEB_ORIGIN']} | API {ENV['API_ADDR']} | language {ENV['LANGUAGE_ADDR'] if hosted_intelligence else 'disabled'}", flush=True)
     while all(process.poll() is None for process in processes):
         time.sleep(0.25)
     raise SystemExit(next(process.returncode for process in processes if process.poll() is not None))

@@ -56,6 +56,7 @@ import {
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
 import { useSubmission } from "./useSubmission";
+import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
 import "../../styles/workspace.css";
@@ -695,17 +696,19 @@ export function WorkspacePage({
                   }))}
                 />
                 <div className="code-options">
-                  <Tooltip content={intelligenceHint}>
-                    <span
-                      role="img"
-                      tabIndex={0}
-                      className="intelligence-status"
-                      data-status={intelligenceStatus}
-                      aria-label={intelligenceHint}
-                    >
-                      <span className="intelligence-dot" aria-hidden="true" />
-                    </span>
-                  </Tooltip>
+                  {hostedIntelligenceEnabled && (
+                    <Tooltip content={intelligenceHint}>
+                      <span
+                        role="img"
+                        tabIndex={0}
+                        className="intelligence-status"
+                        data-status={intelligenceStatus}
+                        aria-label={intelligenceHint}
+                      >
+                        <span className="intelligence-dot" aria-hidden="true" />
+                      </span>
+                    </Tooltip>
+                  )}
                 </div>
               </div>
               <div className="editor-frame">

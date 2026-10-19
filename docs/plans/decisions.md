@@ -7,7 +7,7 @@
 | D03 | CodeMirror 6; Python IntelliSense in milestone one (scope D07) | Confirmed |
 | D04 | Python `class Solution` methods with typed starter signatures | Confirmed |
 | D05 | Include ListNode and TreeNode in milestone one | Confirmed |
-| D06 | Separate local backend language service behind an adapter; cloud hosting later | Confirmed |
+| D06 | Browser-first IntelliSense; hosted analysis reserved for paid access, flagged off and deployment held (see intelligence-model.md) | Confirmed 2026-10-19 |
 | D07 | Require type-aware completion, hover, signatures, syntax/type diagnostics; defer navigation, refactoring, formatting | Confirmed |
 | D08 | System theme + manual override; both themes designed | Confirmed |
 | D09 | Problem left, editor right, results below editor; resizable panes | Confirmed |

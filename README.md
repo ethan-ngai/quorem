@@ -1,6 +1,6 @@
 # Quorem
 
-Multiplayer coding practice in Python, Java, TypeScript and OCaml. A practice catalog, Showdown and Free-for-all, isolated judging, browser drafts, Python IntelliSense and admin question authoring.
+Multiplayer coding practice in Python, Java, TypeScript and OCaml. A practice catalog, Showdown and Free-for-all, isolated judging, browser drafts, experimental Python IntelliSense and admin question authoring.
 
 Requires Vite+ (`vp`), Node 24.21.0, Go 1.27.1, Python 3, and running Docker. No AWS credentials.
 
@@ -9,7 +9,7 @@ make install
 make dev
 ```
 
-Open http://localhost:5173 for the Astro homepage; /practice lists questions, /practice/{slug} opens the editor, and /match/{id} opens a match. The supervisor builds language images, starts PostgreSQL, seeds six original problems and real accounts, and starts auth, API, judge, Go language gateway and web. Sign in as `alice` (admin) or `bob` using `AUTH_SEED_PASSWORD` from ignored `.local/auth-preview.json`. Guests may read questions/edit code; IntelliSense, Run and Submit require sign-in.
+Open http://localhost:5173 for the Astro homepage; /practice lists questions, /practice/{slug} opens the editor, and /match/{id} opens a match. The supervisor builds language images, starts PostgreSQL, seeds six original problems and real accounts, and starts auth, API, judge, web, and the optional Go language gateway. Hosted IntelliSense is disabled by default; its browser-first replacement and future paid hosted delivery are [held/planned](docs/plans/intelligence-model.md). Sign in as `alice` (admin) or `bob` using `AUTH_SEED_PASSWORD` from ignored `.local/auth-preview.json`. Guests may read questions/edit code; IntelliSense, Run and Submit require sign-in.
 
 Profile photos use private S3 storage; `make dev` starts Garage at loopback port 53900 with persisted local credentials/data. Missing photos use HTML initials. Workspace settings sits beside the profile button. See [profile storage](docs/implementation/profile-photos.md).
 
