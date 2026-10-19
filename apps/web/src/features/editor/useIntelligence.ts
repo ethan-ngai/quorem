@@ -1,4 +1,5 @@
 /** @file useIntelligence.ts @description Disposable Python language sessions. @module editor */
+import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { token } from "../auth/session";
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
 import { pythonLanguage } from "@codemirror/lang-python";
@@ -18,6 +19,7 @@ export function useIntelligence(
   documentKey: string,
   enabled = true,
 ) {
+  const canConnect = enabled && hostedIntelligenceEnabled;
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [status, setStatus] = useState<IntelligenceStatus>("connecting");
   const key = `${identity}:${documentKey}`;
@@ -25,7 +27,7 @@ export function useIntelligence(
   const retry = useCallback(() => setAttempt((value) => ({ key, nonce: value.nonce + 1 })), [key]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!canConnect) {
       setExtensions([]);
       return;
     }
@@ -130,7 +132,7 @@ export function useIntelligence(
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
-  }, [identity, documentKey, key, attempt, enabled]);
+  }, [identity, documentKey, key, attempt, canConnect]);
 
   return { extensions, status, retry };
 }

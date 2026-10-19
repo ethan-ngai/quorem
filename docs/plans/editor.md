@@ -26,7 +26,7 @@ Loading, empty template, editing, dirty, saving, saved, offline, recovery availa
 
 ## Editor engine and language intelligence
 
-Confirmed: CodeMirror 6 with Python IntelliSense in the first milestone; separate local backend language service behind an adapter, cloud hosting selected later. Required: type-aware completion, hover documentation, signature help, and syntax/type diagnostics. Navigation, refactoring, and formatting are deferred. Basic keyword completion alone does not meet this milestone.
+Confirmed: CodeMirror 6; [browser-first IntelliSense](intelligence-model.md), with hosted engines reserved for paid access and deployment on hold. Required: type-aware completion, hover documentation, signature help, and syntax/type diagnostics. Navigation, refactoring, and formatting are deferred. Basic keyword completion alone does not meet this milestone.
 
 Existing extensions cover highlighting, indentation, bracket handling, folding, undo/history, search, selections, completion UI, and diagnostic display. Python language support provides keyword/builtin completion; this is not type-aware intelligence. Configure problem-specific starter symbols/snippets explicitly without exposing hidden test data.
 

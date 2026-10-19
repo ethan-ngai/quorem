@@ -10,10 +10,11 @@ import { encodeFrame, FrameDecoder } from "./framing.ts";
 import { authorizeUpgrade, validateMessage, hasManagedCredentials } from "./policy.ts";
 import { retryableCleanup } from "./cleanup.ts";
 
+const hostedEnabled = process.env.QUOREM_HOSTED_INTELLIGENCE === "true";
 const localIdentity = process.env.QUOREM_DEV_IDENTITY === "true";
 if (
   (localIdentity && process.env.NODE_ENV === "production") ||
-  (!localIdentity && (!process.env.AUTH_ORIGIN || !process.env.API_IDENTITY_URL))
+  (hostedEnabled && !localIdentity && (!process.env.AUTH_ORIGIN || !process.env.API_IDENTITY_URL))
 )
   throw new Error("Language identity configuration required");
 const address = process.env.LANGUAGE_ADDR ?? "127.0.0.1:8081";
@@ -35,13 +36,19 @@ let shuttingDown = false;
 const server = createServer((request, response) => {
   if (request.url === "/health") {
     response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ status: "ok", service: "language", mode: "local" }));
+    response.end(
+      JSON.stringify({ status: "ok", service: "language", mode: "local", hostedEnabled }),
+    );
   } else {
     response.writeHead(404).end();
   }
 });
 
 server.on("upgrade", async (request, socket, head) => {
+  if (!hostedEnabled) {
+    socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+    return;
+  }
   let url: URL;
   try {
     url = new URL(request.url ?? "/", `http://${address}`);

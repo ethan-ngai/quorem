@@ -57,6 +57,7 @@ jobs:
         env:
           QUOREM_DEV_IDENTITY: "true"
           QUOREM_LANGUAGE_TEST: "true"
+          QUOREM_HOSTED_INTELLIGENCE: "true"
           QUOREM_LANGUAGE_GATEWAY_BINARY: /tmp/quorem-language
         run: |
           /tmp/quorem-language > /tmp/quorem-language.log 2>&1 &
