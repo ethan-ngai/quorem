@@ -13,9 +13,9 @@
 ## Git workflow
 
 - GitHub issues/PRs are the work ledger. Inspect them and Git status/worktrees at task start; link substantive work to an issue.
-- `dev` is the integration branch. Small, scoped changes may be committed and pushed directly to `dev`.
-- Larger changes use feature PRs targeting `dev`; merge promptly after relevant checks pass, without asking for additional approval. Delete merged feature branches once no unmerged dependent work needs them.
-- Prefer stacked PRs for dependencies: base each on its predecessor, record the order, merge bottom-up, and retarget remaining PRs to `dev` as dependencies land. Keep predecessor branches until dependents are retargeted.
+- `dev` is the integration branch. Solo work, regardless of size, commits and pushes directly to `dev` in the existing checkout; no feature branch or PR.
+- Separate feature branches/PRs are required only when multiple agents work concurrently under an orchestrating superagent. Target `dev`; merge promptly after relevant checks pass, without asking for additional approval. Delete merged feature branches once no unmerged dependent work needs them.
+- For concurrent work with dependencies, prefer stacked PRs: base each on its predecessor, record the order, merge bottom-up, and retarget remaining PRs to `dev` as dependencies land. Keep predecessor branches until dependents are retargeted.
 - Keep PR descriptions short: `Changes`, `Validation`; add `Dependencies` or `Limitations` only when needed. Draft only while unfinished.
 - Merging `dev` into `main` requires explicit user authorization. Keep this workflow in `dev`; future tasks start from fresh `origin/dev`.
 - Conventional commits and feature branches: `<type>/<scope>-<description>`, lowercase kebab-case; no agent/tool prefixes.
