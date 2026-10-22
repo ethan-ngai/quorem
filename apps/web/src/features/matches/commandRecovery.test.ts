@@ -1,5 +1,6 @@
 /** @file commandRecovery.test.ts @description Lost-response mutation and invitation recovery. @module matches */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { matchCreationError, RejectedMatchCommand } from "./errors";
 import {
   pendingCreate,
   readInvite,
@@ -20,6 +21,72 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("recoverable match commands", () => {
+  it("unlocks rejected creation and allows a new key and changed settings", async () => {
+    const original = { difficulty: "easy" as const, durationMinutes: 30 as const };
+    let rejectedKey = "";
+    await expect(
+      recoverableCommand(
+        "alice",
+        "create",
+        original,
+        async (_payload, key) => {
+          rejectedKey = key;
+          throw matchCreationError(
+            { error: { code: "user_busy", message: "private detail" } },
+            409,
+          );
+        },
+        true,
+      ),
+    ).rejects.toThrow("You already have an active match");
+    expect(pendingCreate("alice")).toBeUndefined();
+    const changed = { ...original, difficulty: "hard" as const };
+    await recoverableCommand(
+      "alice",
+      "create",
+      changed,
+      async (payload, key) => {
+        expect(key).not.toBe(rejectedKey);
+        expect(payload).toEqual(changed);
+      },
+      true,
+    );
+  });
+  it("retains the key and payload when a server failure leaves creation uncertain", async () => {
+    const original = { difficulty: "easy" as const, durationMinutes: 30 as const };
+    let firstKey = "";
+    await expect(
+      recoverableCommand(
+        "alice",
+        "create",
+        original,
+        async (_payload, key) => {
+          firstKey = key;
+          throw matchCreationError({ error: { code: "user_busy" } }, 503);
+        },
+        true,
+      ),
+    ).rejects.toThrow("safely retry");
+    expect(pendingCreate("alice")?.key).toBe(firstKey);
+    await recoverableCommand(
+      "alice",
+      "create",
+      { ...original, difficulty: "hard" },
+      async (payload, key) => {
+        expect(key).toBe(firstKey);
+        expect(payload).toEqual(original);
+      },
+      true,
+    );
+  });
+  it("never exposes arbitrary service errors or classifies unknown failures as rejected", () => {
+    const error = matchCreationError(
+      { error: { code: "unknown", message: "database password" } },
+      400,
+    );
+    expect(error.message).not.toContain("database password");
+    expect(error).not.toBeInstanceOf(RejectedMatchCommand);
+  });
   it("retries a lost create response with the same key and frozen settings", async () => {
     const original = { difficulty: "hard" as const, durationMinutes: 45 as const };
     const sent: { payload: unknown; key: string }[] = [];

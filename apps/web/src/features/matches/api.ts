@@ -7,6 +7,7 @@ import type {
 } from "@quorem/contracts";
 import { api, requireData } from "../editor/api";
 import { recoverableCommand, rememberInvite } from "./commandRecovery";
+import { matchCreationError } from "./errors";
 
 /** @returns A private lobby; uncertain create responses replay the original payload and key. */
 export function createMatch(identity: DevelopmentIdentity, body: CreateMatchRequest) {
@@ -15,10 +16,11 @@ export function createMatch(identity: DevelopmentIdentity, body: CreateMatchRequ
     "create",
     body,
     async (payload, key) => {
-      const { data, error } = await api(identity).POST("/v1/matches", {
+      const { data, error, response } = await api(identity).POST("/v1/matches", {
         body: payload,
         params: { header: { "Idempotency-Key": key } },
       });
+      if (error !== undefined) throw matchCreationError(error, response.status);
       const invite = requireData(data as MatchInvite | undefined, error);
       rememberInvite(identity, invite);
       return invite;
