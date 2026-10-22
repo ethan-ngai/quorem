@@ -14,6 +14,9 @@ import (
 )
 
 type Principal struct {
+	Guest         bool
+	MatchID       string
+	StrongUntil   int64
 	UserID        string
 	SessionID     string
 	DisplayName   string

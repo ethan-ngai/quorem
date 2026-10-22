@@ -9,7 +9,7 @@ import { requireData } from "../editor/api";
 import { Icon } from "../editor/components/Icon";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
-import { joinMatch } from "./api";
+import { joinMatch, joinAsGuest } from "./api";
 import { ModeIcon, useAccountIdentity } from "./MatchControls";
 import "../../styles/workspace.css";
 
@@ -17,6 +17,7 @@ import "../../styles/workspace.css";
 export function InvitePage({ token }: { token: string }) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
+  const [guestName, setGuestName] = useState("");
   const [pending, setPending] = useState(false);
   const [dismissedToken, setDismissedToken] = useState<string>();
   const [error, setError] = useState<string>();
@@ -35,10 +36,14 @@ export function InvitePage({ token }: { token: string }) {
     refetchInterval: 5000,
   });
   const lobby = preview.data;
-  const full = !!lobby && lobby.participantCount >= lobby.capacity;
+  const accountUser = account.data?.kind !== "guest" && !!account.data;
+  const resumeGuest = account.data?.kind === "guest" && account.data.matchId === lobby?.id;
+  const guestAllowed = lobby?.accessMode === "guests_allowed";
+  const full =
+    !!lobby && !resumeGuest && (lobby.admissionLocked || lobby.participantCount >= lobby.capacity);
   const loginURL = `/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`;
   async function accept() {
-    if (pending || !account.data || !lobby || full) return;
+    if (pending || !accountUser || !lobby || full) return;
     setPending(true);
     setError(undefined);
     try {
@@ -46,6 +51,23 @@ export function InvitePage({ token }: { token: string }) {
       window.location.assign(`/match/${snapshot.id}`);
     } catch (cause) {
       setError(userFacingErrorMessage(cause, "Could not join this lobby. Please try again."));
+      setPending(false);
+      void preview.refetch();
+    }
+  }
+  async function continueGuest() {
+    if (resumeGuest) {
+      window.location.assign(`/match/${account.data!.matchId}`);
+      return;
+    }
+    if (pending || !lobby || !guestName.trim()) return;
+    setPending(true);
+    setError(undefined);
+    try {
+      const match = await joinAsGuest(token, guestName.trim());
+      window.location.assign(`/match/${match.id}`);
+    } catch (cause) {
+      setError(userFacingErrorMessage(cause, "Guest access unavailable."));
       setPending(false);
       void preview.refetch();
     }
@@ -95,7 +117,13 @@ export function InvitePage({ token }: { token: string }) {
               </div>
               <div className="competitive-seat">
                 <div>
-                  <strong>{full ? "Lobby full" : "Open seats"}</strong>
+                  <strong>
+                    {lobby.admissionLocked
+                      ? "Admission locked"
+                      : full
+                        ? "Lobby full"
+                        : "Open seats"}
+                  </strong>
                   <span>{lobby.capacity - lobby.participantCount} available</span>
                 </div>
               </div>
@@ -128,9 +156,11 @@ export function InvitePage({ token }: { token: string }) {
             </dl>
             <footer className="competitive-lobby-footer">
               <span>
-                {full
-                  ? "This lobby has no open seats."
-                  : "Accept the invitation to join this lobby."}
+                {lobby.admissionLocked
+                  ? "The host has locked admission."
+                  : full
+                    ? "This lobby has no open seats."
+                    : "Accept the invitation to join this lobby."}
               </span>
               {account.isError ? (
                 <button className="button button-secondary" onClick={() => void account.refetch()}>
@@ -165,22 +195,40 @@ export function InvitePage({ token }: { token: string }) {
                   <header className="competitive-dialog-heading">
                     <div>
                       <Dialog.Title>
-                        {account.data ? "Join this lobby?" : "Sign in to join"}
+                        {accountUser || guestAllowed || resumeGuest
+                          ? "Join this lobby?"
+                          : "Sign in to join"}
                       </Dialog.Title>
                       <Dialog.Description>
-                        {account.data
-                          ? `Join as ${account.data.user.displayName}.`
-                          : "This lobby requires an account. Sign in to join."}
+                        {accountUser
+                          ? `Join as ${account.data!.user.displayName}.`
+                          : resumeGuest
+                            ? `Return as ${account.data!.user.displayName} (guest).`
+                            : guestAllowed
+                              ? "Sign in or choose a display name to continue as a guest."
+                              : "This lobby requires an account. Sign in to join."}
                       </Dialog.Description>
                     </div>
                   </header>
+                  {!accountUser && guestAllowed && !resumeGuest && (
+                    <label className="guest-name-field">
+                      Display name
+                      <input
+                        maxLength={40}
+                        autoComplete="nickname"
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        disabled={pending}
+                      />
+                    </label>
+                  )}
                   <div className="competitive-dialog-actions">
                     <Dialog.Close asChild>
                       <button className="button button-secondary" disabled={pending}>
                         View lobby
                       </button>
                     </Dialog.Close>
-                    {account.data ? (
+                    {accountUser ? (
                       <button
                         className="button button-primary"
                         disabled={pending}
@@ -189,9 +237,24 @@ export function InvitePage({ token }: { token: string }) {
                         {pending ? "Joining…" : "Join lobby"}
                       </button>
                     ) : (
-                      <a className="button button-primary" href={loginURL}>
-                        Sign in
-                      </a>
+                      <div className="guest-entry-actions">
+                        <a className="button button-secondary" href={loginURL}>
+                          Sign in
+                        </a>
+                        {(guestAllowed || resumeGuest) && (
+                          <button
+                            className="button button-primary"
+                            disabled={pending || (!resumeGuest && !guestName.trim())}
+                            onClick={() => void continueGuest()}
+                          >
+                            {pending
+                              ? "Joining…"
+                              : resumeGuest
+                                ? "Return to lobby"
+                                : "Continue as guest"}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </Dialog.Content>

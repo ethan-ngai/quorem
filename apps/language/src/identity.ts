@@ -21,8 +21,12 @@ export async function managedOwner(
     const data = (await response.json()) as {
       user?: { id?: string; emailVerified?: boolean };
       mode?: string;
+      capabilities?: { hostedIntelligence?: boolean };
     };
-    return data.mode === "managed" && data.user?.emailVerified === true && data.user.id
+    return data.capabilities?.hostedIntelligence === true &&
+      data.mode === "managed" &&
+      data.user?.emailVerified === true &&
+      data.user.id
       ? data.user.id
       : null;
   } catch {

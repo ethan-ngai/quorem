@@ -1316,6 +1316,217 @@
           }
         }
       }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/guest-sessions": {
+      "post": {
+        "operationId": "bootstrapGuest",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "HttpOnly guest credential issued; no membership granted"
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/match-invites/{token}/guest": {
+      "post": {
+        "operationId": "joinAsGuest",
+        "security": [
+          {
+            "GuestSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/rotate-invite": {
+      "post": {
+        "operationId": "rotateInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchInvite"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/guests/{guest}/remove": {
+      "post": {
+        "operationId": "removeGuest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guest",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1325,6 +1536,12 @@
         "in": "header",
         "name": "X-Dev-User",
         "description": "Local development only: alice, bob, charlie or dana. Disabled outside development."
+      },
+      "GuestSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "quorem_guest",
+        "description": "HttpOnly server-issued guest credential; restricted to admitted room membership, never an account credential."
       }
     },
     "schemas": {
@@ -1964,6 +2181,9 @@
           },
           "forfeited": {
             "type": "boolean"
+          },
+          "guest": {
+            "type": "boolean"
           }
         },
         "required": ["userId", "displayName", "ready", "presence"],
@@ -2054,6 +2274,28 @@
               "$ref": "#/components/schemas/MatchRuleEvent"
             },
             "maxItems": 20
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": ["accounts_only", "guests_allowed"]
+          },
+          "admissionLocked": {
+            "type": "boolean"
+          },
+          "guestBudget": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["jobsRemaining", "secondsRemaining"],
+            "properties": {
+              "jobsRemaining": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "secondsRemaining": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
           }
         },
         "required": [
@@ -2110,6 +2352,13 @@
               }
             },
             "additionalProperties": false
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": ["accounts_only", "guests_allowed"]
+          },
+          "admissionLocked": {
+            "type": "boolean"
           }
         },
         "required": ["durationMinutes"],
@@ -2877,8 +3126,51 @@
           "capacity": {
             "type": "integer",
             "enum": [2, 8]
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": ["accounts_only", "guests_allowed"]
+          },
+          "admissionLocked": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
+      },
+      "Capabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hostGuests": {
+            "type": "boolean"
+          },
+          "hostedIntelligence": {
+            "type": "boolean"
+          },
+          "experimental": {
+            "type": "boolean"
+          },
+          "guestJobs": {
+            "type": "integer"
+          },
+          "guestSeconds": {
+            "type": "integer"
+          },
+          "guestConcurrency": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hostGuests",
+          "hostedIntelligence",
+          "experimental",
+          "guestJobs",
+          "guestSeconds",
+          "guestConcurrency"
+        ]
       }
     }
   }

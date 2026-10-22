@@ -28,7 +28,7 @@ type matchRecord struct {
 
 func lockMatch(ctx context.Context, tx pgx.Tx, id string) (matchRecord, error) {
 	var m matchRecord
-	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,difficulties,COALESCE(selected_problem_version_id::text,''),rules,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
+	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,difficulties,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = failure("not_found", 404, "Match not found")
 	}
@@ -40,7 +40,7 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	if err := tx.QueryRow(ctx, "SELECT participant_id,clock_timestamp() FROM users WHERE id=$1", m.host).Scan(&v.HostUserID, &v.ServerNow); err != nil {
 		return v, err
 	}
-	rows, err := tx.Query(ctx, `SELECT p.owner_id,u.participant_id,u.display_name,p.ready,p.presence,COALESCE(p.workspace_id::text,''),p.best_passed,COALESCE(p.submission_state,''),p.forfeited FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 ORDER BY p.seat`, m.id)
+	rows, err := tx.Query(ctx, `SELECT p.owner_id,u.participant_id,u.display_name,p.ready,p.presence,COALESCE(p.workspace_id::text,''),p.best_passed,COALESCE(p.submission_state,''),p.forfeited,u.kind='guest' FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 ORDER BY p.seat`, m.id)
 	if err != nil {
 		return v, err
 	}
@@ -50,7 +50,7 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 		var p matches.Participant
 		var seatOwner string
 		var passed int
-		if err = rows.Scan(&seatOwner, &p.UserID, &p.DisplayName, &p.Ready, &p.Presence, &p.WorkspaceID, &passed, &p.SubmissionState, &p.Forfeited); err != nil {
+		if err = rows.Scan(&seatOwner, &p.UserID, &p.DisplayName, &p.Ready, &p.Presence, &p.WorkspaceID, &passed, &p.SubmissionState, &p.Forfeited, &p.Guest); err != nil {
 			return v, err
 		}
 		if seatOwner == owner {
@@ -88,6 +88,12 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	if e != nil {
 		return v, e
 	}
+	if m.settings.AccessMode == "guests_allowed" {
+		v.GuestBudget = &matches.GuestBudget{}
+		if err = tx.QueryRow(ctx, `SELECT GREATEST(0,m.guest_job_limit-count(u.submission_id) FILTER(WHERE u.settled_at IS NULL OR u.charged_seconds>0)),GREATEST(0,m.guest_seconds_limit-COALESCE(sum(COALESCE(u.charged_seconds,u.reserved_seconds)),0)) FROM matches m LEFT JOIN guest_execution_usage u ON u.match_id=m.id WHERE m.id=$1 GROUP BY m.id`, m.id).Scan(&v.GuestBudget.JobsRemaining, &v.GuestBudget.SecondsRemaining); err != nil {
+			return v, err
+		}
+	}
 	if len(m.outcome) > 0 {
 		v.Outcome = &matches.Outcome{}
 		err = json.Unmarshal(m.outcome, v.Outcome)
@@ -122,6 +128,9 @@ func finishMatch(ctx context.Context, tx pgx.Tx, m *matchRecord, kind, winner, r
 	}
 	m.outcome, _ = json.Marshal(matches.Outcome{Kind: kind, WinnerUserID: winnerID, Reason: reason, CompletedAt: now})
 	if _, err := tx.Exec(ctx, "UPDATE matches SET state=$2,outcome=$3 WHERE id=$1", m.id, m.state, m.outcome); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, "UPDATE guest_sessions SET expires_at=LEAST(expires_at,clock_timestamp()+interval '2 hours') WHERE match_id=$1", m.id); err != nil {
 		return err
 	}
 	_, err := tx.Exec(ctx, "DELETE FROM match_reservations WHERE match_id=$1", m.id)
@@ -180,13 +189,23 @@ func (s *Store) matchCommand(ctx context.Context, owner, route, key string, body
 		return err
 	}
 	data, _ := json.Marshal(body)
+	if settings, ok := body.(matches.Settings); ok && settings.AccessMode == "accounts_only" && !settings.AdmissionLocked {
+		data, _ = json.Marshal(struct {
+			Mode                     string        `json:"mode"`
+			Difficulties             []string      `json:"difficulties"`
+			SelectedProblemVersionID string        `json:"selectedProblemVersionId,omitempty"`
+			Rules                    matches.Rules `json:"rules"`
+			Difficulty               string        `json:"difficulty"`
+			DurationMinutes          int           `json:"durationMinutes"`
+		}{settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.Difficulty, settings.DurationMinutes})
+	}
 	fingerprint := Hash(data)
 	var hash string
 	var prior []byte
 	err = tx.QueryRow(ctx, "SELECT body_hash,response FROM match_idempotency WHERE owner_id=$1 AND route=$2 AND key=$3 AND expires_at>clock_timestamp()", owner, route, key).Scan(&hash, &prior)
 	if err == nil {
 		legacyMatches := false
-		if settings, ok := body.(matches.Settings); ok && settings.Mode == matches.Showdown && len(settings.Difficulties) == 1 && settings.SelectedProblemVersionID == "" && settings.Rules.Clipboard == "off" && settings.Rules.Focus == "off" {
+		if settings, ok := body.(matches.Settings); ok && settings.AccessMode == "accounts_only" && !settings.AdmissionLocked && settings.Mode == matches.Showdown && len(settings.Difficulties) == 1 && settings.SelectedProblemVersionID == "" && settings.Rules.Clipboard == "off" && settings.Rules.Focus == "off" {
 			old, _ := json.Marshal(struct {
 				Difficulty      string `json:"difficulty"`
 				DurationMinutes int    `json:"durationMinutes"`
@@ -196,7 +215,7 @@ func (s *Store) matchCommand(ctx context.Context, owner, route, key string, body
 		if hash != fingerprint && !legacyMatches {
 			return failure("idempotency_conflict", 409, "Key was used for a different command")
 		}
-		if route == "create" {
+		if route == "create" || route == "rotate" {
 			prior, err = s.decryptInviteResponse(prior)
 			if err != nil {
 				return err
@@ -216,7 +235,7 @@ func (s *Store) matchCommand(ctx context.Context, owner, route, key string, body
 		return err
 	}
 	storedResponse := response
-	if route == "create" {
+	if route == "create" || route == "rotate" {
 		storedResponse, err = s.encryptInviteResponse(response)
 		if err != nil {
 			return err
@@ -254,6 +273,9 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 		if err := validateMatchProblem(ctx, tx, settings); err != nil {
 			return nil, err
 		}
+		if err := requireGuestHosting(ctx, tx, owner, settings.AccessMode); err != nil {
+			return nil, err
+		}
 		if err := reserveOwner(ctx, tx, owner); err != nil {
 			return nil, err
 		}
@@ -263,7 +285,7 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 		}
 		encoded := base64.RawURLEncoding.EncodeToString(token)
 		m := matchRecord{id: ID(), state: "waiting", mode: settings.Mode}
-		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6,$7,NULLIF($8,'')::uuid,$9)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules); err != nil {
+		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6,$7,NULLIF($8,'')::uuid,$9,$10,$11)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1);", m.id, owner); err != nil {
@@ -285,7 +307,7 @@ func (s *Store) PreviewInvite(ctx context.Context, token string) (matches.Invite
 	if err != nil || len(raw) != 32 {
 		return preview, failure("not_found", 404, "Invitation unavailable")
 	}
-	err = s.Pool.QueryRow(ctx, `SELECT mode,difficulties,duration_minutes,rules,(SELECT count(*) FROM match_participants p WHERE p.match_id=m.id) FROM matches m WHERE invite_hash=$1 AND expires_at>clock_timestamp() AND state IN ('waiting','ready')`, Hash([]byte(token))).Scan(&preview.Mode, &preview.Difficulties, &preview.DurationMinutes, &preview.Rules, &preview.ParticipantCount)
+	err = s.Pool.QueryRow(ctx, `SELECT id,admission_locked,access_mode,mode,difficulties,duration_minutes,rules,(SELECT count(*) FROM match_participants p WHERE p.match_id=m.id) FROM matches m WHERE invite_hash=$1 AND expires_at>clock_timestamp() AND state IN ('waiting','ready')`, Hash([]byte(token))).Scan(&preview.ID, &preview.AdmissionLocked, &preview.AccessMode, &preview.Mode, &preview.Difficulties, &preview.DurationMinutes, &preview.Rules, &preview.ParticipantCount)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return preview, failure("not_found", 404, "Invitation unavailable")
 	}
@@ -322,6 +344,9 @@ func (s *Store) JoinMatch(ctx context.Context, owner, key, token string) (matche
 		}
 		if m.state != "waiting" && m.state != "ready" {
 			return nil, failure("invalid_transition", 409, "Invite is closed")
+		}
+		if m.settings.AdmissionLocked {
+			return nil, failure("invalid_transition", 409, "Lobby admission is locked")
 		}
 		if m.host == owner {
 			return nil, failure("invalid_transition", 409, "Host cannot claim guest seat")
@@ -443,10 +468,22 @@ func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, 
 		if err := validateMatchProblem(ctx, tx, settings); err != nil {
 			return err
 		}
+		if err := requireGuestHosting(ctx, tx, owner, settings.AccessMode); err != nil {
+			return err
+		}
+		if settings.AccessMode == "accounts_only" {
+			var guests bool
+			if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 AND u.kind='guest')", id).Scan(&guests); err != nil {
+				return err
+			}
+			if guests {
+				return failure("invalid_transition", 409, "Remove guests before disabling guest access")
+			}
+		}
 		m.settings = settings
 		m.mode = settings.Mode
 		m.state = "waiting"
-		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,mode=$4,difficulties=$5,selected_problem_version_id=NULLIF($6,'')::uuid,rules=$7,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules); err != nil {
+		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,mode=$4,difficulties=$5,selected_problem_version_id=NULLIF($6,'')::uuid,rules=$7,access_mode=$8,admission_locked=$9,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, "UPDATE match_participants SET ready=false WHERE match_id=$1", id)
@@ -506,6 +543,9 @@ func (s *Store) ForfeitMatch(ctx context.Context, owner, id, key string) (matche
 }
 
 func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error {
+	if err := requireGuestHosting(ctx, tx, m.host, m.settings.AccessMode); err != nil {
+		return err
+	}
 	id := m.id
 	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE ($2<>'' AND id::text=$2) OR ($2='' AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1)) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID)
 	if err != nil {

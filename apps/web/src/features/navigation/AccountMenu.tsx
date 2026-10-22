@@ -21,7 +21,7 @@ export function AccountMenu({
   failed: boolean;
   onOpenSettings: (section: "profile" | "appearance") => void;
 }) {
-  const profile = useProfile(session?.user.id);
+  const profile = useProfile(session?.kind === "guest" ? undefined : session?.user.id);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   useErrorNotification(error);
@@ -37,6 +37,8 @@ export function AccountMenu({
     /^\/(practice|match|invite|admin)(\/|$)/.test(location.pathname)
       ? `${location.pathname}${location.search}`
       : "";
+  if (session?.kind === "guest")
+    return <span className="guest-account-label">{session.user.displayName} · Guest</span>;
   if (!session)
     return (
       <a

@@ -1,4 +1,5 @@
 /** @file api.ts @description Typed browser requests for public problems and solo workspaces. @module editor */
+import { UserFacingError } from "../../ui/errors";
 import { authenticatedFetch } from "../auth/session";
 import { createApiClient } from "@quorem/contracts";
 import type {
@@ -25,6 +26,18 @@ export function requireData<T>(data: T | undefined, error: unknown): T {
     typeof error === "object" && error !== null && "error" in error
       ? String((error as { error: { message?: string } }).error.message ?? "Request failed")
       : "Request failed";
+  const code =
+    error && typeof error === "object" && "error" in error
+      ? (error.error as { code?: string })?.code
+      : undefined;
+  const safeMessages: Record<string, string> = {
+    step_up_required: "Sign in with a verified passkey again before publishing.",
+    entitlement_required: "Guest hosting requires an eligible plan or internal access.",
+    quota_exceeded: "Execution allowance reached. Please try again later.",
+    rate_limited: "Too many requests or another guest run is active. Try again shortly.",
+    room_full: "This lobby is full.",
+  };
+  if (code && safeMessages[code]) throw new UserFacingError(safeMessages[code]);
   throw new Error(message);
 }
 

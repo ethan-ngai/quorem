@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/ethan-ngai/quorem/apps/api/internal/access"
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
@@ -19,13 +20,17 @@ import (
 )
 
 type Server struct {
-	NotifyExecution func(context.Context, string) error
-	Store           Repository
-	Events          realtime.PubSub
-	Presence        realtime.Presence
-	Identity        identity.Verifier
-	Origins         []string
-	Local           bool
+	PublicGuestRequest func(context.Context, string) (bool, error)
+	GuestCreation      bool
+	GuestAdmission     bool
+	GuestExecution     bool
+	NotifyExecution    func(context.Context, string) error
+	Store              Repository
+	Events             realtime.PubSub
+	Presence           realtime.Presence
+	Identity           identity.Verifier
+	Origins            []string
+	Local              bool
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -34,6 +39,9 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /v1/session", s.session)
+	mux.HandleFunc("GET /v1/capabilities", s.getCapabilities)
+	mux.HandleFunc("POST /v1/guest-sessions", s.bootstrapGuest)
+	mux.HandleFunc("POST /v1/match-invites/{token}/guest", s.joinGuest)
 	mux.HandleFunc("GET /v1/problems", s.listProblems)
 	mux.HandleFunc("GET /v1/problems/{slug}", s.problem)
 	mux.HandleFunc("GET /v1/problem-versions/{id}", s.problem)
@@ -46,6 +54,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/matches/current", s.currentMatch)
 	mux.HandleFunc("GET /v1/match-invites/{token}", s.previewInvite)
 	mux.HandleFunc("POST /v1/matches/join", s.joinMatch)
+	mux.HandleFunc("POST /v1/matches/{id}/rotate-invite", s.rotateInvite)
+	mux.HandleFunc("POST /v1/matches/{id}/guests/{guest}/remove", s.removeGuest)
 	mux.HandleFunc("GET /v1/matches/{id}", s.getMatch)
 	for _, action := range []string{"ready", "forfeit", "leave", "start", "rule-events"} {
 		a := action
@@ -81,6 +91,19 @@ func (s *Server) Handler() http.Handler {
 		}
 		r.Header.Del("X-Quorem-Owner")
 		public := r.URL.Path == "/health" || (r.Method == "GET" && (r.URL.Path == "/v1/problems" || strings.HasPrefix(r.URL.Path, "/v1/problems/") || strings.HasPrefix(r.URL.Path, "/v1/problem-versions/") || strings.HasPrefix(r.URL.Path, "/v1/match-invites/")))
+		public = public || (r.Method == "POST" && (r.URL.Path == "/v1/guest-sessions" || (strings.HasPrefix(r.URL.Path, "/v1/match-invites/") && strings.HasSuffix(r.URL.Path, "/guest"))))
+		if s.PublicGuestRequest != nil && (strings.HasPrefix(r.URL.Path, "/v1/match-invites/") || r.URL.Path == "/v1/guest-sessions") {
+			peer, _, _ := net.SplitHostPort(r.RemoteAddr)
+			allowed, err := s.PublicGuestRequest(r.Context(), peer)
+			if err != nil {
+				s.err(w, r, err)
+				return
+			}
+			if !allowed {
+				s.err(w, r, &application.Error{Code: "rate_limited", Status: 429, Message: "Too many invitation requests; try again shortly"})
+				return
+			}
+		}
 		bearer, credentialErr := requestBearer(r)
 		if credentialErr != nil {
 			s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Invalid credentials", Status: 401})
@@ -98,6 +121,25 @@ func (s *Server) Handler() http.Handler {
 			}
 			r = r.WithContext(identity.With(r.Context(), principal))
 			r.Header.Set("X-Quorem-Owner", principal.UserID)
+		} else if cookie, e := r.Cookie(guestCookie); e == nil && s.Store != nil {
+			p, e := s.Store.GuestIdentity(r.Context(), cookie.Value)
+			if e != nil {
+				if !public {
+					http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+					s.err(w, r, &application.Error{Code: "unauthenticated", Status: 401, Message: "Guest session expired"})
+					return
+				}
+			} else {
+				if r.Method != "GET" && !s.guestOrigin(w, r) {
+					return
+				}
+				if !guestRoute(r, p, public) {
+					s.err(w, r, &application.Error{Code: "forbidden", Status: 403, Message: "Guest access is limited to your match"})
+					return
+				}
+				r = r.WithContext(identity.With(r.Context(), p))
+				r.Header.Set("X-Quorem-Owner", p.UserID)
+			}
 		} else if s.Local {
 			host, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil || !net.ParseIP(host).IsLoopback() {
@@ -224,6 +266,10 @@ func (s *Server) getWorkspace(w http.ResponseWriter, r *http.Request) {
 }
 func validSource(source string) bool { return utf8.ValidString(source) && len(source) <= 65536 }
 func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
+	if identity.Subject(r.Context()).Guest && !s.GuestExecution {
+		s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest execution is temporarily paused"})
+		return
+	}
 	var body judging.Command
 	if !s.decode(w, r, &body, 600000) {
 		return
@@ -305,7 +351,20 @@ func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 	if s.Local {
 		mode = "development"
 	}
-	respond(w, 200, map[string]any{"user": map[string]any{"id": p.UserID, "displayName": p.DisplayName, "emailVerified": p.EmailVerified, "role": role}, "mode": mode})
+	kind := "account"
+	if p.Guest {
+		kind = "guest"
+	}
+	caps := access.Capabilities{}
+	if !p.Guest && s.Store != nil {
+		var err error
+		caps, err = s.Store.Capabilities(r.Context(), p.UserID)
+		if err != nil {
+			s.err(w, r, err)
+			return
+		}
+	}
+	respond(w, 200, map[string]any{"capabilities": caps, "strongUntil": p.StrongUntil, "kind": kind, "matchId": p.MatchID, "user": map[string]any{"id": p.UserID, "displayName": p.DisplayName, "emailVerified": p.EmailVerified, "role": role}, "mode": mode})
 }
 
 // Empty or malformed credentials never select the development/anonymous fallback.

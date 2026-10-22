@@ -1,6 +1,17 @@
 import { AuthError } from "./errors";
 import { useQuery } from "@tanstack/react-query";
 export type Session = {
+  kind?: "account" | "guest";
+  matchId?: string;
+  strongUntil?: number;
+  capabilities?: {
+    hostGuests: boolean;
+    hostedIntelligence: boolean;
+    experimental: boolean;
+    guestJobs: number;
+    guestSeconds: number;
+    guestConcurrency: number;
+  };
   user: { id: string; displayName: string; emailVerified: boolean; role: "user" | "admin" };
   mode: "managed" | "development";
 };

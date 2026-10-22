@@ -57,6 +57,9 @@ export function MatchSettings({
   showHostRules?: boolean;
   catalog?: { id: string; title: string; difficulty: string }[];
 }) {
+  const session = useSession();
+  const canHostGuests =
+    session.data?.kind !== "guest" && session.data?.capabilities?.hostGuests === true;
   const [problems, setProblems] = useState<{ id: string; title: string; difficulty: string }[]>(
     catalog ?? [],
   );
@@ -138,6 +141,54 @@ export function MatchSettings({
           ))}
         </div>
       </div>
+      <div className="match-option">
+        <span>
+          <Shield />
+          Guest access
+        </span>
+        <Tooltip
+          content={
+            canHostGuests
+              ? "Allow invited participants to join without an account."
+              : "Guest hosting requires an eligible plan."
+          }
+        >
+          <button
+            className="button button-secondary"
+            type="button"
+            aria-label="Allow guests"
+            aria-pressed={value.accessMode === "guests_allowed"}
+            disabled={disabled || !canHostGuests}
+            onClick={() =>
+              onChange({
+                ...value,
+                accessMode:
+                  value.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
+              })
+            }
+          >
+            {value.accessMode === "guests_allowed" ? "Guests allowed" : "Accounts only"}
+          </button>
+        </Tooltip>
+      </div>
+      {showHostRules && (
+        <div className="match-option">
+          <span>
+            <Shield />
+            Lobby admission
+          </span>
+          <button
+            className="button button-secondary"
+            type="button"
+            aria-label="Lock lobby"
+            aria-pressed={value.admissionLocked === true}
+            disabled={disabled}
+            onClick={() => onChange({ ...value, admissionLocked: !value.admissionLocked })}
+          >
+            {value.admissionLocked ? "Locked" : "Open"}
+          </button>
+        </div>
+      )}
       <div className="match-option difficulty-option">
         <span>
           <Gauge />

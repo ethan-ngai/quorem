@@ -189,13 +189,16 @@ export function WorkspacePage({
       match
         ? fetchWorkspace(identity, matchWorkspaceId!)
         : createWorkspace(identity, problemQuery.data!.id, selectedLanguage),
-    enabled: !!account.data && (match ? !!matchWorkspaceId : !!problemQuery.data),
+    enabled:
+      !!account.data &&
+      (account.data.kind !== "guest" || !!match) &&
+      (match ? !!matchWorkspaceId : !!problemQuery.data),
     staleTime: 0,
     gcTime: 0,
   });
 
   const loadedWorkspace = useMemo(() => {
-    if (account.data) return workspaceQuery.data;
+    if (account.data && (account.data.kind !== "guest" || match)) return workspaceQuery.data;
     if (!account.isPending && !match && problemQuery.data)
       return guestWorkspace(problemQuery.data, selectedLanguage);
     return undefined;
@@ -379,10 +382,11 @@ export function WorkspacePage({
     loadedWorkspace?.problemVersionId === problemQuery.data?.id;
   const dataMatchesState =
     problem?.id === problemQuery.data?.id && workspace?.id === loadedWorkspace?.id;
+  const serverWorkspace = !!account.data && (account.data.kind !== "guest" || !!match);
   const loading =
     problemQuery.isPending ||
     account.isPending ||
-    (!!account.data && workspaceQuery.isPending) ||
+    (serverWorkspace && workspaceQuery.isPending) ||
     !dataMatchesRoute ||
     !dataMatchesState ||
     !problem ||
@@ -397,7 +401,7 @@ export function WorkspacePage({
     drafts: customDrafts,
     problem,
     enabled:
-      !!account.data &&
+      serverWorkspace &&
       !languageSwitching &&
       !matchRules.blocked &&
       canExecuteDocument({
@@ -445,23 +449,23 @@ export function WorkspacePage({
     }
   };
   const run = useCallback(async () => {
-    if (!account.data) {
+    if (!account.data || (account.data.kind === "guest" && !match)) {
       signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
     setActivePanel("results");
     await execution.run();
-  }, [execution.run, account.data]);
+  }, [execution.run, account.data, match]);
   const submit = useCallback(async () => {
-    if (!account.data) {
+    if (!account.data || (account.data.kind === "guest" && !match)) {
       signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
     setActivePanel("results");
     if (await execution.submit()) setCustomMode(false);
-  }, [execution.submit, account.data]);
+  }, [execution.submit, account.data, match]);
 
   const hotkeyOptions = {
     enabled: !settingsOpen && !signInPrompt,
@@ -530,21 +534,24 @@ export function WorkspacePage({
   const intelligence = useIntelligence(
     identity,
     editorDocumentKey,
-    !!account.data && !loading && browserIntelligenceAvailable,
+    !!account.data && account.data.kind !== "guest" && !loading && browserIntelligenceAvailable,
     documentLanguage,
   );
   const intelligenceStatus =
-    !account.data || !browserIntelligenceAvailable ? "unavailable" : intelligence.status;
-  const intelligenceHint = !account.data
-    ? "IntelliSense unavailable. Sign in to enable it."
-    : !browserIntelligenceAvailable
-      ? "IntelliSense unavailable for this language."
-      : {
-          ready: "IntelliSense active",
-          connecting: "IntelliSense connecting",
-          paused: "IntelliSense paused. Follows the focused window automatically.",
-          unavailable: "IntelliSense unavailable",
-        }[intelligenceStatus];
+    !account.data || account.data.kind === "guest" || !browserIntelligenceAvailable
+      ? "unavailable"
+      : intelligence.status;
+  const intelligenceHint =
+    !account.data || account.data.kind === "guest"
+      ? "IntelliSense unavailable. Sign in to enable it."
+      : !browserIntelligenceAvailable
+        ? "IntelliSense unavailable for this language."
+        : {
+            ready: "IntelliSense active",
+            connecting: "IntelliSense connecting",
+            paused: "IntelliSense paused. Follows the focused window automatically.",
+            unavailable: "IntelliSense unavailable",
+          }[intelligenceStatus];
 
   const actionsEnabled =
     !!account.data &&
@@ -735,7 +742,7 @@ export function WorkspacePage({
                   tabSize={tabSize}
                   wrap={wrap}
                   readOnly={languageSwitching}
-                  completionEnabled={!!account.data}
+                  completionEnabled={!!account.data && account.data.kind !== "guest"}
                   intelligenceExtensions={
                     browserIntelligenceAvailable ? intelligence.extensions : undefined
                   }
@@ -847,7 +854,7 @@ export function WorkspacePage({
                   className="button button-secondary"
                   disabled={
                     submissionBusy ||
-                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                    (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
                   }
                   onClick={() => void run()}
                 >
@@ -860,7 +867,7 @@ export function WorkspacePage({
                   className="button button-primary"
                   disabled={
                     submissionBusy ||
-                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                    (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
                   }
                   onClick={() => void submit()}
                 >
