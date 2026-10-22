@@ -15,6 +15,42 @@ import (
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
+func TestActiveMatchMembershipAndExpiry(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if v, err := s.ActiveMatch(ctx, "alice"); err != nil || v != nil {
+		t.Fatalf("no reservation: %+v %v", v, err)
+	}
+	created, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulty: "easy", DurationMinutes: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "alice"); err != nil || v == nil || v.ID != created.ID {
+		t.Fatalf("host membership: %+v %v", v, err)
+	}
+	if _, err := s.JoinMatch(ctx, "bob", ID(), inviteToken(t, created)); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "bob"); err != nil || v == nil || v.ID != created.ID {
+		t.Fatalf("joined membership: %+v %v", v, err)
+	}
+	if v, err := s.ActiveMatch(ctx, "charlie"); err != nil || v != nil {
+		t.Fatalf("other owner: %+v %v", v, err)
+	}
+	if _, err := s.LeaveMatch(ctx, "bob", created.ID, ID()); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "bob"); err != nil || v != nil {
+		t.Fatalf("departed membership: %+v %v", v, err)
+	}
+	if _, err := s.Pool.Exec(ctx, "UPDATE matches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "alice"); err != nil || v != nil {
+		t.Fatalf("expired membership: %+v %v", v, err)
+	}
+}
+
 func inviteToken(t *testing.T, c matches.Created) string {
 	t.Helper()
 	u, e := url.Parse(c.InviteURL)

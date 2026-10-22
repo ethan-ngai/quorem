@@ -127,6 +127,26 @@ func finishMatch(ctx context.Context, tx pgx.Tx, m *matchRecord, kind, winner, r
 	_, err := tx.Exec(ctx, "DELETE FROM match_reservations WHERE match_id=$1", m.id)
 	return err
 }
+
+// ActiveMatch uses the authoritative reservation, then reconciles expiry/outcomes.
+func (s *Store) ActiveMatch(ctx context.Context, owner string) (*matches.Snapshot, error) {
+	var id string
+	err := s.Pool.QueryRow(ctx, `SELECT r.match_id FROM match_reservations r JOIN match_participants p ON p.match_id=r.match_id AND p.owner_id=r.owner_id WHERE r.owner_id=$1 AND NOT p.forfeited`, owner).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	v, err := s.Match(ctx, owner, id)
+	if err != nil {
+		return nil, err
+	}
+	if v.State == "completed" || v.State == "cancelled" {
+		return nil, nil
+	}
+	return &v, nil
+}
 func (s *Store) Match(ctx context.Context, owner, id string) (matches.Snapshot, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {

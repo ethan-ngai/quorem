@@ -43,6 +43,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/submissions/{id}", s.submission)
 	mux.HandleFunc("POST /v1/submissions/{id}/cancel", s.cancel)
 	mux.HandleFunc("POST /v1/matches", s.createMatch)
+	mux.HandleFunc("GET /v1/matches/current", s.currentMatch)
 	mux.HandleFunc("POST /v1/matches/join", s.joinMatch)
 	mux.HandleFunc("GET /v1/matches/{id}", s.getMatch)
 	for _, action := range []string{"ready", "forfeit", "leave", "start", "rule-events"} {

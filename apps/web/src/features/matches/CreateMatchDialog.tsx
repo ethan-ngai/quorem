@@ -1,15 +1,13 @@
 import { userFacingErrorMessage } from "../../ui/errors";
 import * as Dialog from "@radix-ui/react-dialog";
-import type { CreateMatchRequest, DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
-import { useQuery } from "@tanstack/react-query";
+import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useState } from "react";
 import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
-import { api, requireData } from "../editor/api";
-import { activeMatchReturnLabel } from "./matchState";
+import { useActiveMatch } from "./useActiveMatch";
 
 export function CreateMatchDialog({
   identity,
@@ -22,33 +20,9 @@ export function CreateMatchDialog({
   const [settings, setSettings] = useState<CreateMatchRequest>(
     () => pendingCreate(identity)?.payload ?? defaultMatchSettings,
   );
-  const [recentMatch] = useState(() => {
-    try {
-      return localStorage.getItem(`quorem.last-match.v1:${identity}`);
-    } catch {
-      return null;
-    }
-  });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
-  const activeMatch = useQuery({
-    queryKey: ["return-match", identity, recentMatch],
-    enabled: !!recentMatch,
-    queryFn: async ({ signal }) => {
-      const { data, error } = await api(identity).GET("/v1/matches/{id}", {
-        params: { path: { id: recentMatch! } },
-        signal,
-      });
-      return requireData(data as MatchSnapshot | undefined, error);
-    },
-    retry: false,
-    refetchInterval: 5000,
-    staleTime: 0,
-  });
-  const returnLabel =
-    activeMatch.isFetchedAfterMount && !activeMatch.isError && activeMatch.data
-      ? activeMatchReturnLabel(activeMatch.data, identity)
-      : null;
+  const activeMatch = useActiveMatch(identity);
   return (
     <Dialog.Root
       open={open}
@@ -68,10 +42,12 @@ export function CreateMatchDialog({
             <div>
               <Dialog.Title>
                 <Icon name="people" />
-                Create match
+                {activeMatch.match ? "You already have an active match" : "Create match"}
               </Dialog.Title>
               <Dialog.Description className="match-dialog-description">
-                Choose a mode, difficulty and problem.
+                {activeMatch.match
+                  ? "Return to continue. Finish or leave this match before creating another."
+                  : "Choose a mode, difficulty and problem."}
               </Dialog.Description>
             </div>
             <Tooltip content="Close">
@@ -82,47 +58,61 @@ export function CreateMatchDialog({
               </Dialog.Close>
             </Tooltip>
           </header>
-          <form
-            onSubmit={async (event) => {
-              event.preventDefault();
-              if (pending) return;
-              setPending(true);
-              setError(undefined);
-              try {
-                const invite = await createMatch(identity, settings);
-                window.location.assign(`/match/${invite.id}`);
-              } catch (cause) {
-                setError(userFacingErrorMessage(cause, "Could not create match."));
-                setPending(false);
-              }
-            }}
-          >
-            <MatchSettings
-              value={settings}
-              identity={identity}
-              onChange={setSettings}
-              disabled={pending || !!pendingCreate(identity)}
-            />
-            {error && (
-              <p className="result-error" role="alert">
-                {error}
-              </p>
-            )}
-            <footer className="competitive-dialog-actions">
-              {returnLabel && activeMatch.data ? (
-                <a className="text-link" href={`/match/${activeMatch.data.id}`}>
-                  <Icon name="history" />
-                  {returnLabel}
-                </a>
-              ) : (
-                <span />
-              )}
-              <button className="button button-primary" disabled={pending}>
-                {pending ? "Creating…" : "Create match"}
-                <Icon name="arrow" />
+          {activeMatch.checking ? (
+            <p role="status">Checking your active match…</p>
+          ) : activeMatch.failed ? (
+            <div>
+              <p role="alert">Could not check your active match.</p>
+              <button
+                className="button button-secondary"
+                onClick={() => void activeMatch.refresh()}
+              >
+                Try again
               </button>
-            </footer>
-          </form>
+            </div>
+          ) : activeMatch.match ? (
+            <div className="competitive-dialog-actions">
+              <a className="button button-primary" href={`/match/${activeMatch.match.id}`}>
+                {activeMatch.label}
+              </a>
+            </div>
+          ) : (
+            <form
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (pending) return;
+                setPending(true);
+                setError(undefined);
+                try {
+                  const invite = await createMatch(identity, settings);
+                  window.location.assign(`/match/${invite.id}`);
+                } catch (cause) {
+                  setError(userFacingErrorMessage(cause, "Could not create match."));
+                  void activeMatch.refresh();
+                  setPending(false);
+                }
+              }}
+            >
+              <MatchSettings
+                value={settings}
+                identity={identity}
+                onChange={setSettings}
+                disabled={pending || !!pendingCreate(identity)}
+              />
+              {error && (
+                <p className="result-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <footer className="competitive-dialog-actions">
+                <span />
+                <button className="button button-primary" disabled={pending}>
+                  {pending ? "Creating…" : "Create match"}
+                  <Icon name="arrow" />
+                </button>
+              </footer>
+            </form>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

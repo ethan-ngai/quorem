@@ -3,7 +3,7 @@ import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { useSession } from "../auth/session";
 import * as Popover from "@radix-ui/react-popover";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { BookOpen, Home, Menu, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, BookOpen, Home, Menu, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
@@ -11,6 +11,7 @@ import { Brand } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/MatchControls";
+import { useActiveMatch } from "../matches/useActiveMatch";
 import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
 import { AccountMenu } from "./AccountMenu";
 import "./navigation.css";
@@ -48,6 +49,8 @@ export function GlobalNav({
   }
   const session = useSession();
   const actor = (session.data?.user.id ?? identity) as DevelopmentIdentity;
+  const activeMatch = useActiveMatch(actor, !!session.data);
+  const checkingMatch = session.isPending || activeMatch.checking;
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
@@ -68,9 +71,14 @@ export function GlobalNav({
     }
     if (consumedCreation.current) return;
     if (session.isPending) return;
+    if (session.data && (activeMatch.checking || activeMatch.failed)) return;
     consumedCreation.current = true;
     if (!session.data) {
       signInToCreate();
+      return;
+    }
+    if (activeMatch.match) {
+      window.location.assign(`/match/${activeMatch.match.id}`);
       return;
     }
     setCreating(true);
@@ -82,7 +90,16 @@ export function GlobalNav({
       },
       replace: true,
     });
-  }, [pathname, location.search, navigate, session.isPending, session.data]);
+  }, [
+    pathname,
+    location.search,
+    navigate,
+    session.isPending,
+    session.data,
+    activeMatch.checking,
+    activeMatch.failed,
+    activeMatch.match,
+  ]);
   return (
     <>
       <header className="topbar global-nav">
@@ -136,11 +153,36 @@ export function GlobalNav({
               <span>{mode === "showdown" ? "Showdown" : "Free-for-all"}</span>
             </span>
           ) : (
-            !inMatch && (
-              <Tooltip content="Create match">
+            !inMatch &&
+            (activeMatch.match ? (
+              <Tooltip content="Finish or leave your current match before creating another.">
+                <a
+                  className="quiet-button active-match-trigger"
+                  aria-label={activeMatch.label ?? undefined}
+                  href={`/match/${activeMatch.match.id}`}
+                >
+                  <ArrowRight size={18} />
+                  <span>{activeMatch.label}</span>
+                </a>
+              </Tooltip>
+            ) : (
+              <Tooltip
+                content={
+                  activeMatch.failed
+                    ? "Could not check your active match. Try again shortly."
+                    : "Create match"
+                }
+              >
                 <button
                   className="quiet-button create-match-trigger"
-                  aria-label="Create match"
+                  disabled={checkingMatch || activeMatch.failed}
+                  aria-label={
+                    checkingMatch
+                      ? "Checking active match"
+                      : activeMatch.failed
+                        ? "Match status unavailable"
+                        : "Create match"
+                  }
                   onClick={() => {
                     if (!session.data) {
                       signInToCreate();
@@ -150,10 +192,16 @@ export function GlobalNav({
                   }}
                 >
                   <Plus size={18} />
-                  <span>Create match</span>
+                  <span>
+                    {checkingMatch
+                      ? "Checking match…"
+                      : activeMatch.failed
+                        ? "Match status unavailable"
+                        : "Create match"}
+                  </span>
                 </button>
               </Tooltip>
-            )
+            ))
           )}
         </nav>
         <div className="topbar-spacer" />

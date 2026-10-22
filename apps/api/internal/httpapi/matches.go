@@ -56,6 +56,15 @@ func (s *Server) getMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, s.withPresence(v))
 }
+func (s *Server) currentMatch(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Store.ActiveMatch(r.Context(), owner(r))
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	respond(w, http.StatusOK, v)
+}
 func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 	key := s.matchKey(w, r)
 	if key == "" {

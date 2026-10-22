@@ -1242,6 +1242,40 @@
           }
         }
       }
+    },
+    "/v1/matches/current": {
+      "get": {
+        "operationId": "getCurrentMatch",
+        "responses": {
+          "200": {
+            "description": "Current authorized match, or null when none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MatchSnapshot"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

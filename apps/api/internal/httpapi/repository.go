@@ -33,6 +33,7 @@ type ExecutionRepository interface {
 	CancelWithKey(context.Context, string, string, string) (judging.Submission, error)
 }
 type MatchRepository interface {
+	ActiveMatch(context.Context, string) (*matches.Snapshot, error)
 	CreateMatch(context.Context, string, string, matches.Settings) (matches.Created, error)
 	JoinMatch(context.Context, string, string, string) (matches.Snapshot, error)
 	Match(context.Context, string, string) (matches.Snapshot, error)
