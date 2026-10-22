@@ -255,7 +255,7 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 		if err := matchEvent(ctx, tx, &m); err != nil {
 			return nil, err
 		}
-		return matches.Created{ID: m.id, State: m.state, InviteURL: "http://localhost:5173/invite/" + encoded}, nil
+		return matches.Created{ID: m.id, State: m.state, InviteURL: "/invite/" + encoded}, nil
 	}, &result)
 	return result, err
 }

@@ -9,6 +9,7 @@ import {
 } from "./commandRecovery";
 
 beforeEach(() => {
+  vi.stubGlobal("window", { location: { origin: "http://localhost:5180" } });
   const values = new Map<string, string>();
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => values.get(key) ?? null,
@@ -57,9 +58,19 @@ describe("recoverable match commands", () => {
       inviteUrl: "http://localhost:5173/invite/secret",
       state: "waiting",
     });
-    expect(readInvite("alice", "private")).toContain("/invite/secret");
+    expect(readInvite("alice", "private")).toBe("http://localhost:5180/invite/secret");
     expect(readInvite("bob", "private")).toBeNull();
   });
+  it.each(["http://localhost:5180", "https://quorem.example"])(
+    "resolves new and legacy invitations on %s after reload",
+    (origin) => {
+      vi.stubGlobal("window", { location: { origin } });
+      for (const saved of ["/invite/secret", "http://localhost:5173/invite/secret"]) {
+        localStorage.setItem("quorem.match-invite.v1:alice:private", saved);
+        expect(readInvite("alice", "private")).toBe(`${origin}/invite/secret`);
+      }
+    },
+  );
   it("starts a new key when readiness intent changes", async () => {
     const keys: string[] = [];
     const request = async (_body: { ready: boolean }, key: string): Promise<void> => {

@@ -87,10 +87,14 @@ export function rememberInvite(identity: DevelopmentIdentity, invite: MatchInvit
   }
 }
 
-/** @returns Only an invitation saved by the current local owner. */
+/** @returns The owner's saved invitation resolved against the current app origin. */
 export function readInvite(identity: DevelopmentIdentity, matchId: string) {
   try {
-    return localStorage.getItem(`quorem.match-invite.v1:${identity}:${matchId}`);
+    const saved = localStorage.getItem(`quorem.match-invite.v1:${identity}:${matchId}`);
+    if (!saved) return null;
+    // Older API responses stored absolute localhost links; retain only their route.
+    const invite = new URL(saved, window.location.origin);
+    return new URL(`${invite.pathname}${invite.search}${invite.hash}`, window.location.origin).href;
   } catch {
     return null;
   }
