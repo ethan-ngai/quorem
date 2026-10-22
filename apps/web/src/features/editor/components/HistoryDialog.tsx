@@ -1,4 +1,5 @@
 /** @file HistoryDialog.tsx @description Loads and restores browser draft revisions. @module editor */
+import { Notifications, useErrorNotification } from "../../../ui/Notifications";
 import { userFacingErrorMessage } from "../../../ui/errors";
 import type { DevelopmentIdentity, Workspace } from "@quorem/contracts";
 import { useQuery } from "@tanstack/react-query";
@@ -28,6 +29,7 @@ export function HistoryDialog({
   });
   const [restoringRevision, setRestoringRevision] = useState<string>();
   const [restoreError, setRestoreError] = useState<string>();
+  useErrorNotification(restoreError, "draft-history");
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = dialog.current;
@@ -66,11 +68,7 @@ export function HistoryDialog({
         {historyQuery.error ? (
           <p className="dialog-state result-error">{errorMessage(historyQuery.error)}</p>
         ) : null}
-        {restoreError && (
-          <p className="dialog-state result-error" role="alert">
-            {restoreError}
-          </p>
-        )}
+
         <ol className="history-list">
           {historyQuery.data?.map((item) => (
             <li key={String(item.id)}>
@@ -104,6 +102,7 @@ export function HistoryDialog({
         {historyQuery.data?.length === 0 ? (
           <p className="dialog-state">No previous saves yet.</p>
         ) : null}
+        <Notifications id="draft-history" />
       </dialog>
     </div>
   );

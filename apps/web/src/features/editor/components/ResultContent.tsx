@@ -81,12 +81,7 @@ export function ResultContent({
     customMode !== (submission.kind === "run" && runWasCustom)
   )
     return null;
-  if (error)
-    return (
-      <p className="result-message result-error" role="alert">
-        {error}
-      </p>
-    );
+  if (error) return null;
   if (busy)
     return (
       <p className="result-message" role="status">

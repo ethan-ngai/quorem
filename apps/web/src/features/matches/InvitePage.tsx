@@ -1,4 +1,5 @@
 /** @file InvitePage.tsx @description Explicit private invitation acceptance. @module matches */
+import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useState } from "react";
 import { Icon } from "../editor/components/Icon";
@@ -14,6 +15,7 @@ export function InvitePage({ token }: { token: string }) {
   const { preference, setPreference } = useTheme();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  useErrorNotification(error);
   return (
     <main className="match-page">
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
@@ -51,11 +53,7 @@ export function InvitePage({ token }: { token: string }) {
             <Icon name="arrow" />
           </button>
         )}
-        {error && (
-          <p className="result-error" role="alert">
-            {error}
-          </p>
-        )}
+
         <a className="text-link" href="/practice">
           Back to practice
         </a>

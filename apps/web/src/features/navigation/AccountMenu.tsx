@@ -1,4 +1,5 @@
 /** @file AccountMenu.tsx @description Profile menu and accessible account dialogs. @module navigation */
+import { useErrorNotification } from "../../ui/Notifications";
 import * as Popover from "@radix-ui/react-popover";
 import { BookOpen, ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
 import { useState, type Ref } from "react";
@@ -23,6 +24,7 @@ export function AccountMenu({
   const profile = useProfile(session?.user.id);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
+  useErrorNotification(error);
   const [saving, setSaving] = useState(false);
   const account = profile.data;
   const name = account?.name || account?.username || session?.user.displayName || "Account";
@@ -126,7 +128,6 @@ export function AccountMenu({
                     <LogOut />
                     <span>Log out</span>
                   </button>
-                  {error ? <p role="alert">{error}</p> : null}
                 </div>
               </>
             ) : (

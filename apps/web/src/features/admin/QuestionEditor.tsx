@@ -1,4 +1,5 @@
 /** @file QuestionEditor.tsx @description Form-based immutable question authoring. @module admin */
+import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useEffect, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -68,6 +69,7 @@ function AuthoringWorkspace() {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useErrorNotification(error);
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
   const [cloneId, setCloneId] = useState("");
@@ -294,11 +296,7 @@ function AuthoringWorkspace() {
               )}
             </>
           )}
-          {error && (
-            <p className="admin-error" role="alert">
-              {error}
-            </p>
-          )}
+
           {notice && (
             <p className="admin-notice" role="status">
               {notice}

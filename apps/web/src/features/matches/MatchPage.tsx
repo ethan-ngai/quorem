@@ -1,4 +1,5 @@
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
+import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import {
   participantUserId,
@@ -121,6 +122,10 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const { snapshot, error, status, refetch } = useMatchSync(identity, matchId);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  useErrorNotification(actionError);
+  useErrorNotification(
+    snapshot && error ? "Connection interrupted. Refreshing match state." : undefined,
+  );
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [conceding, setConceding] = useState(false);
@@ -230,7 +235,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
     <ConcessionDialog
       open={conceding}
       pending={pending}
-      error={actionError}
       onCancel={() => setConceding(false)}
       onConfirm={() =>
         void command(async () => {
@@ -282,11 +286,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
           <a href="/practice">Back to practice</a>
         </div>
       )}
-      {error && (
-        <p className="sync-error" role="status">
-          Connection interrupted. Refreshing authoritative state.
-        </p>
-      )}
+
       {concession}
     </>
   );
@@ -469,11 +469,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
             </footer>
           </>
         )}
-        {(actionError || error) && (
-          <p role="alert" className="result-error">
-            {actionError ?? userFacingErrorMessage(error, "Match unavailable. Please try again.")}
-          </p>
-        )}
+
         {closed && (
           <a className="text-link" href="/practice">
             Back to practice

@@ -1,3 +1,4 @@
+import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
@@ -22,6 +23,7 @@ export function CreateMatchDialog({
   );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  useErrorNotification(error);
   const activeMatch = useActiveMatch(identity);
   return (
     <Dialog.Root
@@ -99,11 +101,7 @@ export function CreateMatchDialog({
                 onChange={setSettings}
                 disabled={pending || !!pendingCreate(identity)}
               />
-              {error && (
-                <p className="result-error" role="alert">
-                  {error}
-                </p>
-              )}
+
               <footer className="competitive-dialog-actions">
                 <span />
                 <button className="button button-primary" disabled={pending}>

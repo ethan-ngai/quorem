@@ -1,4 +1,5 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import * as Dialog from "@radix-ui/react-dialog";
 import { userFacingErrorMessage } from "../../ui/errors";
@@ -130,6 +131,7 @@ export function WorkspacePage({
   const [signInPrompt, setSignInPrompt] = useState(false);
   const signInPromptOrigin = useRef<HTMLElement | null>(null);
   const [actionError, setActionError] = useState<string>();
+  useErrorNotification(actionError);
   const [historyOpen, setHistoryOpen] = useState(false);
   const {
     editorScheme,
@@ -829,11 +831,6 @@ export function WorkspacePage({
                   </div>
                 ))}
               </div>
-              {actionError && (
-                <p className="action-error" role="alert">
-                  {actionError}
-                </p>
-              )}
             </section>
           </div>
           <footer className="execution-bar" aria-label="Execution actions">

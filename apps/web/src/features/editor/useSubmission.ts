@@ -1,4 +1,5 @@
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
+import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import type { DevelopmentIdentity, ProblemVersion, Workspace } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +42,7 @@ export function useSubmission({
   const [active, setActive] = useState<{ scope: string; id: string }>();
   const [admissionPending, setAdmissionPending] = useState(false);
   const [error, setError] = useState<string>();
+  useErrorNotification(error);
   const [runSnapshot, setRunSnapshot] = useState<{
     scope: string;
     submissionId: string;
