@@ -1589,7 +1589,7 @@ summary:focus-visible {
   font-size: 11px;
   color: var(--color-text-secondary);
 }
-.lobby-render .settings-select {
+.lobby-render .select-field {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1601,7 +1601,7 @@ summary:focus-visible {
   color: var(--color-text);
   font-size: 12px;
 }
-.lobby-render .settings-select svg,
+.lobby-render .select-field svg,
 .lobby-render .icon-button svg {
   width: 16px;
   height: 16px;
@@ -1614,7 +1614,7 @@ summary:focus-visible {
 .lobby-render .match-difficulty button:disabled {
   opacity: 1;
 }
-.lobby-render .match-option .settings-select {
+.lobby-render .match-option .match-choice {
   max-width: 210px;
   min-width: 150px;
 }
