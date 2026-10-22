@@ -21,6 +21,9 @@ func inviteToken(t *testing.T, c matches.Created) string {
 	if e != nil {
 		t.Fatal(e)
 	}
+	if u.IsAbs() || u.Host != "" || !strings.HasPrefix(u.Path, "/invite/") {
+		t.Fatal("expected origin-relative invitation path")
+	}
 	return strings.TrimPrefix(u.Path, "/invite/")
 }
 func createPair(t *testing.T, s *Store) (string, matches.Snapshot) {
