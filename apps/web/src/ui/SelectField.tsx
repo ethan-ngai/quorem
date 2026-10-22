@@ -27,7 +27,7 @@ export function SelectField({
     <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
       <Select.Trigger className={`select-field ${className}`} aria-label={label}>
         {selected?.leading}
-        <Select.Value />
+        <Select.Value>{selected?.label}</Select.Value>
         <Select.Icon className="select-field-chevron">
           <ChevronDown size={14} aria-hidden="true" />
         </Select.Icon>

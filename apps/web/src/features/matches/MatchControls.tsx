@@ -1,6 +1,6 @@
 import { useSession } from "../auth/session";
 import * as Popover from "@radix-ui/react-popover";
-import * as Select from "@radix-ui/react-select";
+import { SelectField } from "../../ui/SelectField";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -22,50 +22,6 @@ import { Icon } from "../editor/components/Icon";
 export function useAccountIdentity() {
   const account = useSession();
   return { identity: (account.data?.user.id ?? "anonymous") as DevelopmentIdentity, account };
-}
-
-function MatchChoice({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
-      <Select.Trigger className="settings-select" aria-label={label}>
-        <Select.Value>{options.find((option) => option.value === value)?.label}</Select.Value>
-        <Select.Icon>
-          <Icon name="chevron" />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Content
-          className="settings-select-menu"
-          position="popper"
-          sideOffset={5}
-          collisionPadding={8}
-        >
-          <Select.Viewport>
-            {options.map((option) => (
-              <Select.Item className="settings-select-item" key={option.value} value={option.value}>
-                <Select.ItemText>{option.label}</Select.ItemText>
-                <Select.ItemIndicator>
-                  <Icon name="submit" />
-                </Select.ItemIndicator>
-              </Select.Item>
-            ))}
-          </Select.Viewport>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
-  );
 }
 
 export const defaultMatchSettings: CreateMatchRequest = {
@@ -228,7 +184,7 @@ export function MatchSettings({
           <Popover.Trigger asChild>
             <button
               type="button"
-              className="settings-select problem-picker-trigger"
+              className="select-field match-choice problem-picker-trigger"
               disabled={disabled}
               aria-label="Problem"
             >
@@ -237,7 +193,9 @@ export function MatchSettings({
                 {selectedProblem?.title ??
                   (value.selectedProblemVersionId ? "Selected problem" : "Random")}
               </span>
-              <Icon name="chevron" />
+              <span className="select-field-chevron">
+                <Icon name="chevron" />
+              </span>
             </button>
           </Popover.Trigger>
           <Popover.Portal>
@@ -318,7 +276,8 @@ export function MatchSettings({
           <Icon name="clock" />
           Duration
         </span>
-        <MatchChoice
+        <SelectField
+          className="match-choice"
           label="Duration"
           value={String(value.durationMinutes)}
           disabled={disabled}
@@ -351,7 +310,8 @@ export function MatchSettings({
                 {rule === "clipboard" ? <Clipboard /> : <Focus />}
                 {rule === "clipboard" ? "Copy / paste" : "Leaving the window"}
               </span>
-              <MatchChoice
+              <SelectField
+                className="match-choice"
                 label={rule === "clipboard" ? "Copy and paste rule" : "Window focus rule"}
                 value={rules[rule] ?? "off"}
                 disabled={disabled}
