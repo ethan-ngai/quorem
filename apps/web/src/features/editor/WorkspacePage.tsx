@@ -1,5 +1,6 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
+import * as Dialog from "@radix-ui/react-dialog";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
@@ -127,6 +128,7 @@ export function WorkspacePage({
   const [customMode, setCustomMode] = useState(false);
   const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
   const [signInPrompt, setSignInPrompt] = useState(false);
+  const signInPromptOrigin = useRef<HTMLElement | null>(null);
   const [actionError, setActionError] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
   const {
@@ -441,24 +443,26 @@ export function WorkspacePage({
     }
   };
   const run = useCallback(async () => {
-    setActivePanel("results");
     if (!account.data) {
+      signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
+    setActivePanel("results");
     await execution.run();
   }, [execution.run, account.data]);
   const submit = useCallback(async () => {
-    setActivePanel("results");
     if (!account.data) {
+      signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
+    setActivePanel("results");
     if (await execution.submit()) setCustomMode(false);
   }, [execution.submit, account.data]);
 
   const hotkeyOptions = {
-    enabled: !settingsOpen,
+    enabled: !settingsOpen && !signInPrompt,
     ignoreInputs: false,
     requireReset: true,
   };
@@ -825,14 +829,6 @@ export function WorkspacePage({
                   </div>
                 ))}
               </div>
-              {signInPrompt && (
-                <p className="action-error" role="alert">
-                  Sign in to run or submit code.{" "}
-                  <a href={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}>
-                    Sign in
-                  </a>
-                </p>
-              )}
               {actionError && (
                 <p className="action-error" role="alert">
                   {actionError}
@@ -878,6 +874,39 @@ export function WorkspacePage({
             </div>
           </footer>
         </div>
+        <Dialog.Root open={signInPrompt} onOpenChange={setSignInPrompt}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="settings-backdrop" />
+            <Dialog.Content
+              className="competitive-dialog"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                signInPromptOrigin.current?.focus();
+              }}
+            >
+              <header className="competitive-dialog-heading">
+                <div>
+                  <Dialog.Title>Sign in to run tests</Dialog.Title>
+                  <Dialog.Description>
+                    Sign in to run tests and submit solutions. You can keep editing without an
+                    account.
+                  </Dialog.Description>
+                </div>
+              </header>
+              <div className="competitive-dialog-actions">
+                <Dialog.Close asChild>
+                  <button className="button button-secondary">Keep editing</button>
+                </Dialog.Close>
+                <a
+                  className="button button-primary"
+                  href={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`}
+                >
+                  Sign in
+                </a>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
         {historyOpen && (
           <HistoryDialog
             identity={identity}
