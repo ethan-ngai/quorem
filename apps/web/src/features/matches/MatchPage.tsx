@@ -19,16 +19,10 @@ import { ConcessionDialog } from "./ConcessionDialog";
 import { InvitationActions } from "./InvitationActions";
 import { ReadinessIcon } from "./ReadinessIcon";
 import { ReadyActionIcon } from "./ReadyActionIcon";
+import { ModeText } from "./ModeText";
 import { shareInvitation } from "./shareInvitation";
 import { readInvite } from "./commandRecovery";
-import {
-  lobbyWaitingLabel,
-  outcomeLabel,
-  ownParticipant,
-  remainingTime,
-  showdown,
-  freeForAll,
-} from "./matchState";
+import { lobbyWaitingLabel, outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
 
@@ -196,7 +190,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
       </main>
     );
   const own = ownParticipant(snapshot, identity);
-  const mode = snapshot.mode === "free-for-all" ? freeForAll : showdown;
   const host = snapshot.hostUserId === participantUserId(identity);
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
@@ -312,8 +305,25 @@ export function MatchPage({ matchId }: { matchId: string }) {
         <div className="competitive-lobby-heading">
           <div>
             <h1>
-              {!closed && <ModeIcon mode={snapshot.mode} />}
-              {closed ? outcomeLabel(snapshot, identity) : mode.name}
+              {closed ? (
+                outcomeLabel(snapshot, identity)
+              ) : (
+                <ModeText
+                  mode={snapshot.mode}
+                  showdown={
+                    <>
+                      <ModeIcon mode="showdown" />
+                      Showdown
+                    </>
+                  }
+                  freeForAll={
+                    <>
+                      <ModeIcon mode="free-for-all" />
+                      Free-for-all
+                    </>
+                  }
+                />
+              )}
             </h1>
             {closed && <p>{snapshot.outcome?.reason.replaceAll("_", " ")}</p>}
           </div>
@@ -372,9 +382,11 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   <div>
                     <strong>Open seat</strong>
                     <span>
-                      {snapshot.mode === "free-for-all"
-                        ? `${8 - snapshot.participants.length} seats available`
-                        : "Invite your opponent"}
+                      <ModeText
+                        mode={snapshot.mode}
+                        showdown="Invite your opponent"
+                        freeForAll={`${8 - snapshot.participants.length} seats available`}
+                      />
                     </span>
                   </div>
                   {inviteUrl && host && invitationActions}
@@ -434,7 +446,9 @@ export function MatchPage({ matchId }: { matchId: string }) {
             )}
             <footer className="competitive-lobby-footer">
               <span role="status">
-                {status !== "live" ? "Reconnecting…" : lobbyWaitingLabel(snapshot, identity)}
+                <span className="mode-text-enter" key={snapshot.mode}>
+                  {status !== "live" ? "Reconnecting…" : lobbyWaitingLabel(snapshot, identity)}
+                </span>
               </span>
               <div className="lobby-ready-actions">
                 <button
@@ -451,19 +465,29 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     <span className="readiness-option readiness-option-cancel">Cancel</span>
                   </span>
                 </button>
-                {host && snapshot.mode === "free-for-all" && (
-                  <button
-                    className="button button-primary"
-                    disabled={
-                      pending ||
-                      snapshot.participants.length < 2 ||
-                      !snapshot.participants.every((player) => player.ready)
-                    }
-                    onClick={() => void command(() => startMatch(identity, matchId))}
+                {host && (
+                  <span
+                    className="lobby-start-slot"
+                    data-visible={snapshot.mode === "free-for-all"}
+                    aria-hidden={snapshot.mode !== "free-for-all"}
+                    inert={snapshot.mode !== "free-for-all"}
                   >
-                    <Icon name="play" />
-                    Start
-                  </button>
+                    <span className="lobby-start-slot-inner">
+                      <button
+                        className="button button-primary"
+                        disabled={
+                          snapshot.mode !== "free-for-all" ||
+                          pending ||
+                          snapshot.participants.length < 2 ||
+                          !snapshot.participants.every((player) => player.ready)
+                        }
+                        onClick={() => void command(() => startMatch(identity, matchId))}
+                      >
+                        <Icon name="play" />
+                        Start
+                      </button>
+                    </span>
+                  </span>
                 )}
               </div>
             </footer>
