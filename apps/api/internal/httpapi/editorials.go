@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 )
 
 func (s *Server) registerEditorials(mux *http.ServeMux) {
@@ -13,18 +13,17 @@ func (s *Server) registerEditorials(mux *http.ServeMux) {
 
 func (s *Server) allowEditorial(w http.ResponseWriter, r *http.Request) bool {
 	if !uuid.MatchString(r.PathValue("id")) {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid problem ID", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid problem ID", Status: 400})
 		return false
 	}
 	// Practice routes cannot bypass a participant's active-match spoiler gate.
-	var active bool
-	err := s.Store.Pool.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM match_participants p JOIN matches m ON m.id=p.match_id WHERE p.owner_id=$1 AND m.problem_version_id::text=$2 AND m.state IN ('active','finalizing'))`, owner(r), r.PathValue("id")).Scan(&active)
+	active, err := s.Store.HasActiveMatchProblem(r.Context(), owner(r), r.PathValue("id"))
 	if err != nil {
 		s.err(w, r, err)
 		return false
 	}
 	if active {
-		s.err(w, r, &postgres.Error{Code: "forbidden", Message: "Editorial unavailable during an active match", Status: 403})
+		s.err(w, r, &application.Error{Code: "forbidden", Message: "Editorial unavailable during an active match", Status: 403})
 		return false
 	}
 	return true

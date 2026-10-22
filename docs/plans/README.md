@@ -1,6 +1,6 @@
 # Quorem planning
 
-Status: review-ready planning baseline. Confirmed requirements are binding; engineering defaults use delegated judgment. Evidence gates are assigned to implementation tickets. No product implementation or cloud provisioning yet.
+Status: original planning baseline with subsequent implementation updates. Confirmed requirements are binding unless superseded by a later recorded decision. For current provider boundaries and supported adapters, read [provider adapters](../implementation/platform-adapters.md) and root [AGENTS.md](../../AGENTS.md). Cloud deployment remains a separate evidence gate.
 
 ## Confirmed
 
@@ -14,8 +14,8 @@ Status: review-ready planning baseline. Confirmed requirements are binding; engi
 - Drafts: browser-only drafts/history; independent windows, latest local write resumes on reload. Run examples/custom input; Submit safe verdict/counts/error summaries. One active-or-queued job per user; reject additional work.
 - Development-only identities first. Real 1v1 starts with private invites, not public matchmaking.
 - MVP subsequently includes real 1v1 with a LeetCode-style workspace.
-- Go; Astro marketing; React + TanStack Router; Vite+; modern vanilla CSS; Terraform; GitHub Actions. Better Auth + Cognito through a small TypeScript auth service; public email/password and social sign-in.
-- Local development first; six original seeded problems. AWS us-east-1: Lambda API, Aurora Serverless v2, AppSync Events. $100/month cost gate; pgvector deferred until intelligent selection.
+- Go; Astro marketing; React + TanStack Router; Vite+; modern vanilla CSS; Terraform; GitHub Actions. Better Auth through a small TypeScript auth service, optional Cognito upstream; public email/password and social sign-in.
+- Local development first; six original seeded problems. PostgreSQL across providers; independently selected AWS/Cloudflare adapters and mixed deployments. Earlier AWS us-east-1/Lambda/Aurora/AppSync assumptions are deployment candidates, not mandatory application dependencies. $100/month cost gate; pgvector deferred until intelligent selection.
 - Initial workload validation: 20 matches/40 coding sessions; 2 execution requests/sec burst. This is a measured capacity target, not a guarantee of sustained use within budget.
 - Visual references: Linear, Notion, Vercel; local personal-website and CUXR repositories.
 - Eventual: FFA, parties, collaborative editing, points, leaderboard, social, adaptive selection. These require extension seams, not MVP implementations.
@@ -25,6 +25,7 @@ Status: review-ready planning baseline. Confirmed requirements are binding; engi
 | Spec | Scope |
 | --- | --- |
 | [Architecture](architecture.md) | Boundaries, contracts, storage, scaling |
+| [Provider adapters](../implementation/platform-adapters.md) | Current ports, AWS/Cloudflare capability matrix, configuration and validation gates |
 | [Contracts](contracts.md) | Wire schemas, HTTP errors, events, codec rules |
 | [Editor](editor.md) | First milestone, UI states, drafts, accessibility |
 | [Python intelligence](intelligence.md) | Language service, sessions, type declarations, capability checks |

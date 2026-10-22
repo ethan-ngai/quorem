@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"net/http"
 )
@@ -9,7 +9,7 @@ import (
 func (s *Server) matchKey(w http.ResponseWriter, r *http.Request) string {
 	key := r.Header.Get("Idempotency-Key")
 	if key == "" || len(key) > 128 {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Status: 400, Message: "Idempotency-Key required"})
+		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Idempotency-Key required"})
 		return ""
 	}
 	return key
@@ -83,7 +83,7 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if body.Ready == nil {
-			s.err(w, r, &postgres.Error{Code: "invalid_input", Status: 400, Message: "Ready is required"})
+			s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Ready is required"})
 			return
 		}
 		v, e = s.Store.ReadyMatch(r.Context(), owner(r), id, key, *body.Ready)
@@ -104,7 +104,7 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 			v, e = s.Store.LeaveMatch(r.Context(), owner(r), id, key)
 		}
 	default:
-		s.err(w, r, &postgres.Error{Code: "not_found", Status: 404, Message: "Route not found"})
+		s.err(w, r, &application.Error{Code: "not_found", Status: 404, Message: "Route not found"})
 		return
 	}
 	if e != nil {

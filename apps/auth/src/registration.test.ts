@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { migrateAuth } from "./migrations";
 import { createRegistrationHandler } from "./registration";
 import { verificationMailer } from "./mailer";
+import { smtpEmail } from "./adapters/smtp-email";
 
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL;
 async function clearLimits(database: Pool, email: string) {
@@ -38,11 +39,13 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       password = "Abc1234!";
     const messages: string[] = [];
     const smtp = process.env.AUTH_TEST_MAILPIT_URL
-      ? verificationMailer({
-          host: "127.0.0.1",
-          port: 51025,
-          from: "Quorem <accounts@quorem.local>",
-        })
+      ? verificationMailer(
+          smtpEmail({
+            host: "127.0.0.1",
+            port: 51025,
+            from: "Quorem <accounts@quorem.local>",
+          }),
+        )
       : undefined;
     const handler = createRegistrationHandler({
       database,

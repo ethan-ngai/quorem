@@ -7,17 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type ProblemFilter struct {
-	Query, Difficulty, Topic, Sort, Order string
-	Page, Limit                           int
-}
-type ProblemPage struct {
-	Items  []problems.Problem `json:"items"`
-	Total  int                `json:"total"`
-	Page   int                `json:"page"`
-	Limit  int                `json:"limit"`
-	Topics []string           `json:"topics"`
-}
+type ProblemFilter = problems.ProblemFilter
+type ProblemPage = problems.ProblemPage
 
 // A stable snapshot keeps the page, count and unfiltered topic options consistent.
 func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPage, error) {

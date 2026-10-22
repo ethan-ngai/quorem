@@ -1,27 +1,31 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
 type Server struct {
-	Store    *postgres.Store
-	Events   realtime.PubSub
-	Presence realtime.Presence
-	Identity identity.Verifier
-	Origins  []string
-	Local    bool
+	NotifyExecution func(context.Context, string) error
+	Store           Repository
+	Events          realtime.PubSub
+	Presence        realtime.Presence
+	Identity        identity.Verifier
+	Origins         []string
+	Local           bool
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -54,14 +58,14 @@ func (s *Server) Handler() http.Handler {
 	s.registerEditorials(mux)
 	s.registerRealtime(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := postgres.ID()
+		id := application.ID()
 		w.Header().Set("X-Request-ID", id)
 		w.Header().Set("Cache-Control", "no-store")
 		origin := r.Header.Get("Origin")
 		if origin != "" {
 			u := strings.TrimSuffix(origin, "/")
 			if !s.allowedOrigin(u) {
-				s.err(w, r, &postgres.Error{Code: "forbidden", Message: "Origin denied", Status: 403})
+				s.err(w, r, &application.Error{Code: "forbidden", Message: "Origin denied", Status: 403})
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Origin", u)
@@ -77,17 +81,17 @@ func (s *Server) Handler() http.Handler {
 		public := r.URL.Path == "/health" || (r.Method == "GET" && (r.URL.Path == "/v1/problems" || strings.HasPrefix(r.URL.Path, "/v1/problems/") || strings.HasPrefix(r.URL.Path, "/v1/problem-versions/")))
 		bearer, credentialErr := requestBearer(r)
 		if credentialErr != nil {
-			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Invalid credentials", Status: 401})
+			s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Invalid credentials", Status: 401})
 			return
 		}
 		if bearer != "" && s.Identity == nil {
-			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Managed identity unavailable", Status: 401})
+			s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Managed identity unavailable", Status: 401})
 			return
 		}
 		if s.Identity != nil && bearer != "" {
 			principal, err := s.Identity.Verify(r.Context(), bearer)
 			if err != nil {
-				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
+				s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
 				return
 			}
 			r = r.WithContext(identity.With(r.Context(), principal))
@@ -95,7 +99,7 @@ func (s *Server) Handler() http.Handler {
 		} else if s.Local {
 			host, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil || !net.ParseIP(host).IsLoopback() {
-				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Local development identity unavailable", Status: 401})
+				s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Local development identity unavailable", Status: 401})
 				return
 			}
 			user := r.Header.Get("X-Dev-User")
@@ -103,23 +107,22 @@ func (s *Server) Handler() http.Handler {
 				user = "alice"
 			}
 			if developmentSubject(user) == "" {
-				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
+				s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
 				return
 			}
 			p := identity.Principal{UserID: user, DisplayName: user, EmailVerified: true, SessionID: "development"}
 			if s.Store != nil {
-				var role string
-				var disabled bool
-				if err := s.Store.Pool.QueryRow(r.Context(), "SELECT display_name,role,disabled FROM users WHERE id=$1", user).Scan(&p.DisplayName, &role, &disabled); err != nil || disabled {
-					s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Identity unavailable", Status: 401})
+				resolved, err := s.Store.DevelopmentIdentity(r.Context(), user)
+				if err != nil {
+					s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Identity unavailable", Status: 401})
 					return
 				}
-				p.Admin = role == "admin"
+				p = resolved
 			}
 			r = r.WithContext(identity.With(r.Context(), p))
 			r.Header.Set("X-Quorem-Owner", user)
 		} else if !public {
-			s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
+			s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
 			return
 		}
 		mux.ServeHTTP(w, r)
@@ -132,7 +135,7 @@ func respond(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 func (s *Server) err(w http.ResponseWriter, r *http.Request, err error) {
-	var typed *postgres.Error
+	var typed *application.Error
 	code, message, status := "temporarily_unavailable", "Service unavailable", 503
 	if errors.As(err, &typed) {
 		code, message, status = typed.Code, typed.Message, typed.Status
@@ -159,7 +162,7 @@ func (s *Server) decode(w http.ResponseWriter, r *http.Request, v any, limit int
 		if errors.As(err, &max) {
 			status, code = 413, "payload_too_large"
 		}
-		s.err(w, r, &postgres.Error{Code: code, Message: "Invalid request body", Status: status})
+		s.err(w, r, &application.Error{Code: code, Message: "Invalid request body", Status: status})
 		return false
 	}
 	return true
@@ -199,7 +202,7 @@ func (s *Server) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !uuid.MatchString(body.ProblemVersionID) {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid problem ID", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid problem ID", Status: 400})
 		return
 	}
 	v, e := s.Store.CreateWorkspace(r.Context(), owner(r), body.ProblemVersionID, body.Language)
@@ -226,14 +229,21 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get("Idempotency-Key")
 	custom, _ := json.Marshal(body.CustomCases)
 	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > 65536 || len(body.CustomCases) > 20 || (body.CustomCases != nil && len(body.CustomCases) == 0) {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid execution command", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid execution command", Status: 400})
 		return
 	}
 	canonical, _ := json.Marshal(body)
-	v, e := s.Store.Admit(r.Context(), owner(r), key, body, postgres.Hash(canonical))
+	v, e := s.Store.Admit(r.Context(), owner(r), key, body, application.Hash(canonical))
 	if e != nil {
 		s.err(w, r, e)
 		return
+	}
+	if s.NotifyExecution != nil && v.ExecutionJobID != "" {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		if err := s.NotifyExecution(ctx, v.ExecutionJobID); err != nil {
+			log.Print("Execution notification unavailable; database polling will recover")
+		}
+		cancel()
 	}
 	respond(w, 202, map[string]any{"id": v.ID, "state": v.State, "sourceHash": v.SourceHash, "admittedAt": v.AdmittedAt})
 }
@@ -248,7 +258,7 @@ func (s *Server) submission(w http.ResponseWriter, r *http.Request) {
 func (s *Server) cancel(w http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get("Idempotency-Key")
 	if key == "" || len(key) > 128 {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Idempotency-Key required", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Idempotency-Key required", Status: 400})
 		return
 	}
 	var body struct{}
@@ -274,11 +284,11 @@ func (s *Server) allowedOrigin(origin string) bool {
 func (s *Server) RequireAdmin(w http.ResponseWriter, r *http.Request) bool {
 	p := identity.Subject(r.Context())
 	if p.UserID == "" {
-		s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
+		s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
 		return false
 	}
 	if !p.Admin {
-		s.err(w, r, &postgres.Error{Code: "forbidden", Message: "Administrator required", Status: 403})
+		s.err(w, r, &application.Error{Code: "forbidden", Message: "Administrator required", Status: 403})
 		return false
 	}
 	return true

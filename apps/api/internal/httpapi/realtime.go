@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
@@ -90,18 +90,18 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 	user := owner(r)
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Browser origin required", Status: 401})
+		s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Browser origin required", Status: 401})
 		return
 	}
 	if !s.allowedOrigin(origin) {
-		s.err(w, r, &postgres.Error{Code: "forbidden", Message: "Origin denied", Status: 403})
+		s.err(w, r, &application.Error{Code: "forbidden", Message: "Origin denied", Status: 403})
 		return
 	}
 	// Local fixture selection is never accepted by the managed verifier.
 	if s.Local {
 		if selected := r.URL.Query().Get("user"); selected != "" {
 			if developmentSubject(selected) == "" {
-				s.err(w, r, &postgres.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
+				s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
 				return
 			}
 			user = selected
@@ -109,7 +109,7 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if !uuid.MatchString(id) {
-		s.err(w, r, &postgres.Error{Code: "not_found", Message: "Match not found", Status: 404})
+		s.err(w, r, &application.Error{Code: "not_found", Message: "Match not found", Status: 404})
 		return
 	}
 	if _, err := s.Store.Match(r.Context(), user, id); err != nil {
@@ -155,7 +155,7 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 			eventType = "match.completed"
 		}
 		if notice.ID == "" {
-			notice.ID = postgres.ID()
+			notice.ID = application.ID()
 			notice.OccurredAt = snapshot.ServerNow
 		}
 		envelope := map[string]any{"eventId": notice.ID, "schemaVersion": 1, "aggregateId": id, "aggregateVersion": snapshot.Version, "type": eventType, "occurredAt": notice.OccurredAt, "payload": snapshot}

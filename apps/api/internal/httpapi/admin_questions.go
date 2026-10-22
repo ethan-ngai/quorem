@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 )
@@ -20,7 +20,7 @@ func (s *Server) adminDraftRequest(w http.ResponseWriter, r *http.Request) bool 
 		return false
 	}
 	if id := r.PathValue("id"); id != "" && !uuid.MatchString(id) {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid draft ID", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid draft ID", Status: 400})
 		return false
 	}
 	return true
@@ -31,7 +31,7 @@ func (s *Server) listQuestionDrafts(w http.ResponseWriter, r *http.Request) {
 	}
 	cursor := r.URL.Query().Get("cursor")
 	if cursor != "" && !uuid.MatchString(cursor) {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid cursor", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid cursor", Status: 400})
 		return
 	}
 	page, err := s.Store.QuestionDrafts(r.Context(), cursor)
@@ -53,7 +53,7 @@ func (s *Server) createQuestionDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if (request.Content == nil) == (request.ProblemVersionID == "") {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Provide content or problemVersionId", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Provide content or problemVersionId", Status: 400})
 		return
 	}
 	var content problems.QuestionContent
@@ -61,7 +61,7 @@ func (s *Server) createQuestionDraft(w http.ResponseWriter, r *http.Request) {
 		content = *request.Content
 	} else {
 		if !uuid.MatchString(request.ProblemVersionID) {
-			s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Invalid problem version", Status: 400})
+			s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid problem version", Status: 400})
 			return
 		}
 		var err error
@@ -101,7 +101,7 @@ func (s *Server) updateQuestionDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.Content == nil {
-		s.err(w, r, &postgres.Error{Code: "invalid_input", Message: "Content required", Status: 400})
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Content required", Status: 400})
 		return
 	}
 	draft, err := s.Store.UpdateQuestionDraft(r.Context(), identity.Subject(r.Context()).UserID, r.PathValue("id"), request.Revision, *request.Content)

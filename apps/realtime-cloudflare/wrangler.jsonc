@@ -1,0 +1,7 @@
+{
+  "name": "quorem-realtime",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-22",
+  "durable_objects": { "bindings": [{ "name": "MATCH_RELAYS", "class_name": "MatchRelay" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MatchRelay"] }],
+}

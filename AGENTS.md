@@ -2,10 +2,10 @@
 
 - Be concise. Use `vp` for TypeScript tooling.
 - Monorepo: deployable apps in `apps/`; shared packages in `packages/`.
-- Stack: Go API/judge; Astro marketing; React + TanStack Router + Vite+; modern vanilla CSS; PostgreSQL/Aurora Serverless v2; Terraform; GitHub Actions. Better Auth + Cognito live behind an isolated TypeScript auth service.
+- Stack: Go API/judge; Astro marketing; React + TanStack Router + Vite+; modern vanilla CSS; PostgreSQL; Terraform; GitHub Actions. Better Auth lives behind an isolated TypeScript auth service; Cognito is an optional upstream provider. AWS and Cloudflare adapters are selected per capability.
 - Build for <1k users. Keep a credible path to 1M+ through bounded workloads, explicit contracts, and measured scaling. Add infrastructure when justified.
 - Keep domain logic provider-neutral. Isolate persistence, realtime, execution, identity, and queue adapters. Allow Redis/ElastiCache without rewriting domain rules.
-- Develop locally with fixtures first. Require AWS credentials only for cloud validation/deployment.
+- Develop locally with fixtures first. Require provider credentials only for cloud validation/deployment.
 - Always use a live Vite dev server for local UI iteration; never hand-build or serve `dist`/preview after each edit. React: `vp -C apps/web dev`; marketing: `vp -C apps/marketing run dev` (Astro uses Vite/HMR). Use `make dev` for the integrated local stack. Builds are for production/CI validation, not the editing loop. Confirm the server runs from the intended worktree and give its exact URL; assign distinct ports to concurrent worktrees.
 - Use Conventional Commits for commits and branch names. Branch format: `<type>/<scope>-<description>` in lowercase kebab-case (e.g. `feat/editor-custom-cases`, `fix/editor-completion`, `docs/quorem-planning`). Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore. No agent/tool prefixes. Use branches, dependency-ordered PR stacks, concise GitHub tickets, and agents with explicit ownership/contracts.
 - Provision with Terraform; deploy through GitHub Actions. Keep secrets outside source control.
@@ -13,6 +13,15 @@
 - Editor first: CodeMirror 6, Python Solution/ListNode/TreeNode, completion/hover/signatures/diagnostics, real judging, browser-only drafts/history. Then invite-based Showdown and Free-for-all. Defer parties, collaboration, points/leaderboard, social, adaptive selection.
 - Ask subjective/blocking questions individually through the question tool; keep the turn open while awaiting answers. Use judgment for routine engineering choices; document defaults and evidence gates.
 - Planning is not implementation authorization. Keep specs, confirmed requirements, defaults, and release gates distinct.
+
+## Architecture rules
+
+- Before backend/infrastructure work, read [architecture](docs/plans/architecture.md) and [provider adapters](docs/implementation/platform-adapters.md). These rules supersede older AWS-only deployment assumptions in planning documents.
+- PostgreSQL is the supported database across providers. Application policy, HTTP handlers and domain types must not import provider SDKs, PostgreSQL adapters or driver types. Use consumer-owned repository contracts, application-owned errors and domain DTOs; assemble concrete adapters in entrypoints/composition modules. `worker/postgres.go` is a composition facade, not worker policy.
+- Select infrastructure independently per capability: identity, job notifications, realtime, object storage, email and execution. Mixed providers are valid. Avoid a universal cloud interface or global provider switch; provider-specific runtime bindings/protocols belong in adapters/deployment shells.
+- Preserve PostgreSQL transaction boundaries, authoritative leases, attempt fencing and transactional match outbox. Queue messages only wake workers; retain polling recovery. Realtime transports carry notices, never authoritative outcomes. Provider swaps must preserve authorization and revocation checks.
+- Extend existing ports only for demonstrated application needs. Keep SDK values, credentials, resource identifiers and provider errors inside adapters. Document semantic differences and unsupported capabilities; never claim compute/sandbox equivalence from a common interface.
+- Add contract/failure tests for new adapters and retain `internal/architecture` import-boundary tests. Use disposable test databases and local emulators first. Live provider verification, Terraform provisioning, cost/load evidence and deployment remain separate release gates. Keep the adapter guide/configuration matrix current when changing boundaries.
 
 ## Task workflow
 

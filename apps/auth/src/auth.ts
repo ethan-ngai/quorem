@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { jwt, username } from "better-auth/plugins";
 import { accountMailer } from "./account-mailer.ts";
+import { verificationMail } from "./infrastructure.ts";
 import { takeRateLimit } from "./rate-limit.ts";
 import {
   emailSchema,
@@ -13,10 +14,10 @@ import {
 import { config, database } from "./database.ts";
 export { config, database } from "./database.ts";
 export function createAuth(allowSeed = false) {
-  if (allowSeed && config.method !== "password")
+  if (allowSeed && (config.method !== "password" || !config.localPassword))
     throw new Error("Seeding requires local password mode");
   const sendVerification =
-    !allowSeed && config.mail ? accountMailer(database, config.mail) : undefined;
+    !allowSeed && verificationMail ? accountMailer(database, verificationMail) : undefined;
   return betterAuth({
     baseURL: config.origin,
     secret: config.secret,
@@ -228,7 +229,7 @@ export function createAuth(allowSeed = false) {
                 throw new APIError("BAD_REQUEST", {
                   message: "Use the profile photo upload endpoint",
                 });
-              // Provider refreshes cannot replace a server-owned S3 photo.
+              // Provider refreshes cannot replace a server-owned photo.
               const { image: _image, ...data } = user;
               return { data };
             }

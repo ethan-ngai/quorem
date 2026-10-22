@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { platformConfiguration } from "./platform-config.ts";
 export function configuration(env: NodeJS.ProcessEnv) {
   const required = (key: string) => {
     const value = env[key];
@@ -21,11 +22,29 @@ export function configuration(env: NodeJS.ProcessEnv) {
   if (secret.length < 32) throw new Error("BETTER_AUTH_SECRET must have at least 32 characters");
   const method = env.AUTH_MODE ?? "cognito";
   if (method !== "cognito" && method !== "password") throw new Error("Invalid AUTH_MODE");
+  const platform = platformConfiguration(env);
+  if (platform.mail && !env.AUTH_EMAIL_DRIVER && method !== "password")
+    throw new Error("Legacy local SMTP requires password mode");
+  const localPassword =
+    env.APP_ENV === "local" && ["localhost", "127.0.0.1"].includes(url.hostname);
+  if (
+    env.AUTH_PASSWORD_PRODUCTION !== undefined &&
+    !["true", "false"].includes(env.AUTH_PASSWORD_PRODUCTION)
+  )
+    throw new Error("AUTH_PASSWORD_PRODUCTION must be true or false");
   if (
     method === "password" &&
-    (env.APP_ENV !== "local" || !["localhost", "127.0.0.1"].includes(url.hostname))
+    !localPassword &&
+    !(
+      env.AUTH_PASSWORD_PRODUCTION === "true" &&
+      url.protocol === "https:" &&
+      platform.mail &&
+      (platform.mail.driver === "cloudflare" || platform.mail.requireTLS)
+    )
   )
-    throw new Error("Password mode requires explicit local loopback origin");
+    throw new Error(
+      "Production password mode requires HTTPS, explicit opt-in and external email delivery",
+    );
   const provider = (key: string) => (method === "cognito" ? required(key) : "");
   const pair = (prefix: string) => {
     const clientId = env[`${prefix}_CLIENT_ID`];
@@ -39,21 +58,11 @@ export function configuration(env: NodeJS.ProcessEnv) {
   const github = pair("GITHUB");
   if (env.AUTH_PASSKEYS !== undefined && !["true", "false"].includes(env.AUTH_PASSKEYS))
     throw new Error("AUTH_PASSKEYS must be true or false");
-  let mail: { host: string; port: number; from: string } | undefined;
-  if (env.SMTP_HOST) {
-    if (
-      method !== "password" ||
-      env.APP_ENV !== "local" ||
-      !["localhost", "127.0.0.1"].includes(env.SMTP_HOST)
-    )
-      throw new Error("SMTP registration requires explicit local loopback password mode");
-    const port = Number(env.SMTP_PORT ?? "51025");
-    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid SMTP_PORT");
-    mail = { host: env.SMTP_HOST, port, from: env.SMTP_FROM ?? "Quorem <accounts@quorem.local>" };
-  }
   return {
-    registration: Boolean(mail),
-    mail,
+    registration: method === "password" && Boolean(platform.mail),
+    mail: platform.mail,
+    avatars: platform.avatars,
+    localPassword,
     passkey: env.AUTH_PASSKEYS !== "false" && isIP(url.hostname.replace(/^\[|\]$/g, "")) === 0,
     social: { google, apple, github },
     method,

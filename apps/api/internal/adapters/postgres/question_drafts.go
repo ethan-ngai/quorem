@@ -5,31 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 )
 
-type QuestionDraft struct {
-	ID                 string                   `json:"id"`
-	Revision           string                   `json:"revision"`
-	Content            problems.QuestionContent `json:"content"`
-	PublishedVersionID string                   `json:"publishedVersionId,omitempty"`
-	UpdatedAt          time.Time                `json:"updatedAt"`
-}
-type QuestionDraftSummary struct {
-	ID                 string    `json:"id"`
-	Revision           string    `json:"revision"`
-	Title              string    `json:"title"`
-	Slug               string    `json:"slug"`
-	PublishedVersionID string    `json:"publishedVersionId,omitempty"`
-	UpdatedAt          time.Time `json:"updatedAt"`
-}
-type QuestionDraftPage struct {
-	Items      []QuestionDraftSummary `json:"items"`
-	NextCursor string                 `json:"nextCursor,omitempty"`
-}
+type QuestionDraft = problems.QuestionDraft
+type QuestionDraftSummary = problems.QuestionDraftSummary
+type QuestionDraftPage = problems.QuestionDraftPage
 
 const draftColumns = "id::text,revision::text,content,COALESCE(published_version_id::text,''),updated_at"
 

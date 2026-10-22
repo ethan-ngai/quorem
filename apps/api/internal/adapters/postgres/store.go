@@ -2,10 +2,9 @@ package postgres
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
@@ -17,24 +16,14 @@ type Store struct {
 	Pool      *pgxpool.Pool
 	inviteKey []byte
 }
-type Error struct {
-	Code    string
-	Message string
-	Status  int
-}
 
-func (e *Error) Error() string                              { return e.Message }
-func failure(code string, status int, message string) error { return &Error{code, message, status} }
-func ID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	b[6] = b[6]&15 | 64
-	b[8] = b[8]&63 | 128
-	s := hex.EncodeToString(b)
-	return s[:8] + "-" + s[8:12] + "-" + s[12:16] + "-" + s[16:20] + "-" + s[20:]
+// Compatibility aliases keep adapter callers source-compatible during migration.
+type Error = application.Error
+
+func failure(code string, status int, message string) error {
+	return &application.Error{Code: code, Status: status, Message: message}
 }
+func ID() string { return application.ID() }
 func Open(ctx context.Context, url string) (*Store, error) {
 	p, err := pgxpool.New(ctx, url)
 	if err != nil {

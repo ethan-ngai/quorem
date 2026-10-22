@@ -4,10 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/eventbus"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
 	"github.com/ethan-ngai/quorem/apps/api/internal/httpapi"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"github.com/ethan-ngai/quorem/internal/delivery"
 	"log"
 	"net"
 	"net/http"
@@ -89,6 +91,19 @@ func main() {
 			}
 			return store.ResolveIdentity(ctx, c)
 		}}
+	}
+	queue, err := delivery.FromEnv(ctx, os.Getenv)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if queue != nil {
+		api.NotifyExecution = func(ctx context.Context, jobID string) error {
+			return queue.Publish(ctx, delivery.Notification{JobID: jobID})
+		}
+	}
+	api.Events, err = eventbus.FromEnv(ctx, os.Getenv)
+	if err != nil {
+		log.Fatal(err)
 	}
 	api.StartRealtime(ctx)
 	go func() {

@@ -13,6 +13,7 @@ type Command struct {
 	CustomCases []problems.Case `json:"customCases,omitempty"`
 }
 type Submission struct {
+	ExecutionJobID      string                       `json:"-"`
 	ID                  string                       `json:"id"`
 	WorkspaceID         string                       `json:"workspaceId"`
 	Kind                string                       `json:"kind"`

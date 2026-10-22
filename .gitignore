@@ -13,3 +13,6 @@ __pycache__/
 .DS_Store
 .local/
 .astro/
+
+.wrangler/
+.dev.vars
