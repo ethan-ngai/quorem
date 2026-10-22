@@ -1,12 +1,15 @@
 import { userFacingErrorMessage } from "../../ui/errors";
 import * as Dialog from "@radix-ui/react-dialog";
-import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
+import type { CreateMatchRequest, DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
+import { api, requireData } from "../editor/api";
+import { activeMatchReturnLabel } from "./matchState";
 
 export function CreateMatchDialog({
   identity,
@@ -28,6 +31,24 @@ export function CreateMatchDialog({
   });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const activeMatch = useQuery({
+    queryKey: ["return-match", identity, recentMatch],
+    enabled: !!recentMatch,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await api(identity).GET("/v1/matches/{id}", {
+        params: { path: { id: recentMatch! } },
+        signal,
+      });
+      return requireData(data as MatchSnapshot | undefined, error);
+    },
+    retry: false,
+    refetchInterval: 5000,
+    staleTime: 0,
+  });
+  const returnLabel =
+    activeMatch.isFetchedAfterMount && !activeMatch.isError && activeMatch.data
+      ? activeMatchReturnLabel(activeMatch.data, identity)
+      : null;
   return (
     <Dialog.Root
       open={open}
@@ -88,10 +109,10 @@ export function CreateMatchDialog({
               </p>
             )}
             <footer className="competitive-dialog-actions">
-              {recentMatch ? (
-                <a className="text-link" href={`/match/${recentMatch}`}>
+              {returnLabel && activeMatch.data ? (
+                <a className="text-link" href={`/match/${activeMatch.data.id}`}>
                   <Icon name="history" />
-                  Recent match
+                  {returnLabel}
                 </a>
               ) : (
                 <span />

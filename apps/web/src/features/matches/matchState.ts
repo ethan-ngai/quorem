@@ -4,6 +4,16 @@ import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from 
 export const freeForAll = { id: "free-for-all", name: "Free-for-all" } as const;
 export const showdown = { id: "showdown", name: "Showdown" } as const;
 
+/** @returns A return label only for a current, non-forfeited member of a live match. */
+export function activeMatchReturnLabel(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
+  const participant = ownParticipant(snapshot, identity);
+  if (!participant || participant.forfeited) return null;
+  if (snapshot.state === "waiting" || snapshot.state === "ready") return "Return to active lobby";
+  if (snapshot.state === "active" || snapshot.state === "finalizing")
+    return "Return to active match";
+  return null;
+}
+
 /** @returns The missing participant/readiness action, without implying an absent opponent is ready. */
 export function lobbyWaitingLabel(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
   const own = ownParticipant(snapshot, identity);
