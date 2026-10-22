@@ -204,7 +204,7 @@
 .match-difficulty button:hover {
   color: var(--color-text);
 }
-.match-option .settings-select {
+.match-option .match-choice {
   min-width: 170px;
 }
 .competitive-lobby-settings {
@@ -555,10 +555,10 @@
 .match-difficulty button[aria-pressed="true"]:disabled {
   opacity: 1;
 }
-.match-option .settings-select {
+.match-option .match-choice {
   max-width: 250px;
 }
-.match-option .settings-select > span:first-child {
+.match-option .match-choice > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
