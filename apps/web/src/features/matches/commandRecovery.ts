@@ -1,5 +1,6 @@
 /** @file commandRecovery.ts @description Owner-scoped mutation retry keys and private invitation recovery. @module matches */
 import type { CreateMatchRequest, DevelopmentIdentity, MatchInvite } from "@quorem/contracts";
+import { RejectedMatchCommand } from "./errors";
 
 type PendingCommand<T> = { key: string; payload: T };
 const volatilePending = new Map<string, PendingCommand<unknown>>();
@@ -67,7 +68,20 @@ export async function recoverableCommand<TPayload, TResult>(
   } catch {
     /* The current invocation still sends a valid idempotency key. */
   }
-  const result = await request(command.payload, command.key);
+  let result: TResult;
+  try {
+    result = await request(command.payload, command.key);
+  } catch (error) {
+    if (error instanceof RejectedMatchCommand) {
+      volatilePending.delete(storageKey(identity, operation));
+      try {
+        localStorage.removeItem(storageKey(identity, operation));
+      } catch {
+        /* Storage may be unavailable; the in-memory command is still released. */
+      }
+    }
+    throw error;
+  }
   volatilePending.delete(storageKey(identity, operation));
   try {
     localStorage.removeItem(storageKey(identity, operation));
