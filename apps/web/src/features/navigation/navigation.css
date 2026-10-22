@@ -5,7 +5,8 @@
 }
 .global-nav-links,
 .global-mode,
-.create-match-trigger {
+.create-match-trigger,
+.active-match-trigger {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -21,6 +22,10 @@
 }
 .create-match-trigger {
   white-space: nowrap;
+}
+.active-match-trigger {
+  white-space: nowrap;
+  text-decoration: none;
 }
 .nav-popover {
   z-index: 40;
@@ -77,7 +82,8 @@
     gap: var(--space-2);
   }
   .global-mode span,
-  .create-match-trigger span {
+  .create-match-trigger span,
+  .active-match-trigger span {
     display: none;
   }
   .nav-theme .icon-button {
