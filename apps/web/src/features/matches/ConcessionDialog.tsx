@@ -4,13 +4,11 @@ import { Icon } from "../editor/components/Icon";
 export function ConcessionDialog({
   open,
   pending,
-  error,
   onCancel,
   onConfirm,
 }: {
   open: boolean;
   pending: boolean;
-  error?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -46,11 +44,6 @@ export function ConcessionDialog({
               {pending ? "Forfeiting…" : "Forfeit match"}
             </button>
           </div>
-          {error && (
-            <p role="alert" className="result-error">
-              {error}
-            </p>
-          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

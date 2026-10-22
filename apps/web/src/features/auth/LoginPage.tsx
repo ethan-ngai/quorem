@@ -1,4 +1,5 @@
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
+import { useErrorNotification } from "../../ui/Notifications";
 import { authErrorMessage, AuthError } from "./errors";
 import {
   accountSetupSchema,
@@ -88,6 +89,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState("");
+  useErrorNotification(error);
   const [busy, setBusy] = useState(false);
   const passkeySupported = typeof PublicKeyCredential !== "undefined";
   async function authenticate(action: () => Promise<unknown>) {
@@ -260,11 +262,6 @@ function LoginForm() {
                     : "Resend verification email"}
               </button>
 
-              {error ? (
-                <p className="auth-error" role="alert">
-                  {error}
-                </p>
-              ) : null}
               {finishing && /expired|another tab/.test(error) ? (
                 <button
                   type="button"
@@ -511,11 +508,7 @@ function LoginForm() {
                   </button>
                 </p>
               ) : null}
-              {error ? (
-                <p className="auth-error" role="alert">
-                  {error}
-                </p>
-              ) : null}
+
               {finishing && /expired|another tab/.test(error) ? (
                 <button
                   type="button"

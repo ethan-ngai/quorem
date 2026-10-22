@@ -20,6 +20,12 @@ const result: Submission = {
 };
 
 describe("result presentation boundaries", () => {
+  it("does not insert a transient error banner or show an old verdict after admission fails", () => {
+    const markup = renderToStaticMarkup(
+      <ResultContent submission={result} busy={false} error="Request failed" />,
+    );
+    expect(markup).toBe("");
+  });
   it("shows a run summary only in its admitted collection", () => {
     const run: Submission = {
       ...result,

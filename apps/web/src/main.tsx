@@ -8,6 +8,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { StrictMode, Suspense, lazy } from "react";
+import { Notifications } from "./ui/Notifications";
 import { createRoot } from "react-dom/client";
 import { LoginPage } from "./features/auth/LoginPage";
 import { InvitePage } from "./features/matches/InvitePage";
@@ -140,6 +141,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Notifications />
     </QueryClientProvider>
   </StrictMode>,
 );

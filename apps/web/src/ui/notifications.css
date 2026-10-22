@@ -1,0 +1,26 @@
+[data-sonner-toaster] {
+  z-index: 100;
+  font-family: var(--font-interface);
+}
+
+[data-sonner-toaster] [data-sonner-toast].app-toast {
+  --normal-bg: var(--color-overlay);
+  --normal-text: var(--color-text);
+  --normal-border: var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: auto;
+}
+
+[data-sonner-toast].app-toast[data-type="error"] [data-icon] {
+  color: var(--color-error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toaster] [data-sonner-toast] {
+    transition: none;
+    animation: none;
+  }
+}

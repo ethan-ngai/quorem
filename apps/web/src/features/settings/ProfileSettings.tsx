@@ -1,3 +1,4 @@
+import { useErrorNotification } from "../../ui/Notifications";
 import { Pencil, LoaderCircle } from "lucide-react";
 import { Tooltip } from "../editor/components/Tooltip";
 import { useRef, useState } from "react";
@@ -20,6 +21,7 @@ export function ProfileSettings({
   const client = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useErrorNotification(error);
   async function changePhoto(file?: File) {
     setBusy(true);
     setError("");
@@ -101,11 +103,6 @@ export function ProfileSettings({
         <div className="settings-security-passkeys">
           <PasskeySettings />
         </div>
-      )}
-      {error && (
-        <p className="account-error settings-feedback" role="alert">
-          {error}
-        </p>
       )}
     </>
   );
