@@ -278,6 +278,9 @@
   text-transform: capitalize;
   margin: 0;
 }
+.competitive-lobby-summary .invite-preview-problem {
+  text-transform: none;
+}
 .competitive-dialog {
   position: fixed;
   top: 50%;

@@ -1514,6 +1514,45 @@
         }
       },
       "required": ["revision"]
+    },
+    "InvitePreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "difficulties",
+        "durationMinutes",
+        "rules",
+        "participantCount",
+        "capacity"
+      ],
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/MatchMode"
+        },
+        "difficulties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Difficulty"
+          }
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "enum": [15, 30, 45, 60]
+        },
+        "rules": {
+          "$ref": "#/$defs/MatchRules"
+        },
+        "participantCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "capacity": {
+          "type": "integer",
+          "enum": [2, 8]
+        }
+      }
     }
   },
   "$ref": "#/$defs/EventEnvelope"

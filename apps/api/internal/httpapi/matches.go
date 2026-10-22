@@ -6,6 +6,17 @@ import (
 	"net/http"
 )
 
+func (s *Server) previewInvite(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Store.PreviewInvite(r.Context(), r.PathValue("token"))
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	respond(w, http.StatusOK, v)
+}
+
 func (s *Server) matchKey(w http.ResponseWriter, r *http.Request) string {
 	key := r.Header.Get("Idempotency-Key")
 	if key == "" || len(key) > 128 {

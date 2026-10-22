@@ -44,6 +44,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/submissions/{id}/cancel", s.cancel)
 	mux.HandleFunc("POST /v1/matches", s.createMatch)
 	mux.HandleFunc("GET /v1/matches/current", s.currentMatch)
+	mux.HandleFunc("GET /v1/match-invites/{token}", s.previewInvite)
 	mux.HandleFunc("POST /v1/matches/join", s.joinMatch)
 	mux.HandleFunc("GET /v1/matches/{id}", s.getMatch)
 	for _, action := range []string{"ready", "forfeit", "leave", "start", "rule-events"} {
@@ -79,7 +80,7 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		r.Header.Del("X-Quorem-Owner")
-		public := r.URL.Path == "/health" || (r.Method == "GET" && (r.URL.Path == "/v1/problems" || strings.HasPrefix(r.URL.Path, "/v1/problems/") || strings.HasPrefix(r.URL.Path, "/v1/problem-versions/")))
+		public := r.URL.Path == "/health" || (r.Method == "GET" && (r.URL.Path == "/v1/problems" || strings.HasPrefix(r.URL.Path, "/v1/problems/") || strings.HasPrefix(r.URL.Path, "/v1/problem-versions/") || strings.HasPrefix(r.URL.Path, "/v1/match-invites/")))
 		bearer, credentialErr := requestBearer(r)
 		if credentialErr != nil {
 			s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Invalid credentials", Status: 401})
