@@ -13,6 +13,7 @@ export async function migrateAuth(database: Pool) {
       "003_passkey.sql",
       "004_email_registration.sql",
       "005_rate_limits.sql",
+      "006_session_assurance.sql",
     ]) {
       await client.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
     }

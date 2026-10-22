@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"net/http"
 )
@@ -32,6 +33,10 @@ func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	var body matches.Settings
 	if !s.decode(w, r, &body, 4096) {
+		return
+	}
+	if body.AccessMode == "guests_allowed" && !s.GuestCreation {
+		s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest hosting is temporarily paused"})
 		return
 	}
 	v, e := s.Store.CreateMatch(r.Context(), owner(r), key, body)
@@ -112,6 +117,10 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 		if !s.decode(w, r, &body, 4096) {
 			return
 		}
+		if body.AccessMode == "guests_allowed" && !s.GuestCreation {
+			s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest hosting is temporarily paused"})
+			return
+		}
 		v, e = s.Store.UpdateMatchSettings(r.Context(), owner(r), id, key, body)
 	case "forfeit", "leave":
 		var body struct{}
@@ -130,6 +139,9 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 	if e != nil {
 		s.err(w, r, e)
 		return
+	}
+	if r.PathValue("action") == "leave" && v.StartedAt == nil && identity.Subject(r.Context()).Guest {
+		http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}
 	respond(w, 200, s.withPresence(v))
 }

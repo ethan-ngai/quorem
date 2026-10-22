@@ -13,6 +13,7 @@ import {
 } from "@quorem/contracts/auth";
 import { config, database } from "./database.ts";
 export { config, database } from "./database.ts";
+const verifiedPasskeyRequests = new WeakSet<object>();
 export function createAuth(allowSeed = false) {
   if (allowSeed && (config.method !== "password" || !config.localPassword))
     throw new Error("Seeding requires local password mode");
@@ -110,6 +111,21 @@ export function createAuth(allowSeed = false) {
       },
     },
     hooks: {
+      after: createAuthMiddleware(async (ctx) => {
+        const session = ctx.context.newSession?.session;
+        if (
+          ctx.path === "/passkey/verify-authentication" &&
+          ctx.request &&
+          verifiedPasskeyRequests.has(ctx.request) &&
+          session
+        ) {
+          await database.query(
+            "INSERT INTO session_assurance(session_id) VALUES($1) ON CONFLICT(session_id) DO UPDATE SET strong_at=clock_timestamp()",
+            [session.id],
+          );
+          verifiedPasskeyRequests.delete(ctx.request);
+        }
+      }),
       before: createAuthMiddleware(async (ctx) => {
         let emailChangeToken = false;
         if (ctx.path === "/verify-email") {
@@ -257,6 +273,16 @@ export function createAuth(allowSeed = false) {
               rpName: "Quorem",
               origin: config.origin,
               registration: { requireSession: true },
+              authentication: {
+                afterVerification: async ({ ctx, verification }) => {
+                  if (
+                    verification.verified &&
+                    verification.authenticationInfo.userVerified &&
+                    ctx.request
+                  )
+                    verifiedPasskeyRequests.add(ctx.request);
+                },
+              },
             }),
           ]
         : []),

@@ -638,6 +638,9 @@
         },
         "forfeited": {
           "type": "boolean"
+        },
+        "guest": {
+          "type": "boolean"
         }
       },
       "required": ["userId", "displayName", "ready", "presence"],
@@ -728,6 +731,28 @@
             "$ref": "#/$defs/MatchRuleEvent"
           },
           "maxItems": 20
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": ["accounts_only", "guests_allowed"]
+        },
+        "admissionLocked": {
+          "type": "boolean"
+        },
+        "guestBudget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jobsRemaining", "secondsRemaining"],
+          "properties": {
+            "jobsRemaining": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "secondsRemaining": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       },
       "required": [
@@ -784,6 +809,13 @@
             }
           },
           "additionalProperties": false
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": ["accounts_only", "guests_allowed"]
+        },
+        "admissionLocked": {
+          "type": "boolean"
         }
       },
       "required": ["durationMinutes"],
@@ -1551,8 +1583,51 @@
         "capacity": {
           "type": "integer",
           "enum": [2, 8]
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": ["accounts_only", "guests_allowed"]
+        },
+        "admissionLocked": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
         }
       }
+    },
+    "Capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hostGuests": {
+          "type": "boolean"
+        },
+        "hostedIntelligence": {
+          "type": "boolean"
+        },
+        "experimental": {
+          "type": "boolean"
+        },
+        "guestJobs": {
+          "type": "integer"
+        },
+        "guestSeconds": {
+          "type": "integer"
+        },
+        "guestConcurrency": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hostGuests",
+        "hostedIntelligence",
+        "experimental",
+        "guestJobs",
+        "guestSeconds",
+        "guestConcurrency"
+      ]
     }
   },
   "$ref": "#/$defs/EventEnvelope"

@@ -156,7 +156,7 @@ func TestManagedIdentity(t *testing.T) {
 			w.WriteHeader(401)
 			return
 		}
-		_, _ = io.WriteString(w, `{"mode":"managed","user":{"id":"real-owner","emailVerified":true}}`)
+		_, _ = io.WriteString(w, `{"capabilities":{"hostedIntelligence":true},"mode":"managed","user":{"id":"real-owner","emailVerified":true}}`)
 	}))
 	defer identity.Close()
 	g, err := New(Config{HostedEnabled: true, WebOrigin: "https://app.example", AuthOrigin: "https://app.example", IdentityURL: identity.URL})

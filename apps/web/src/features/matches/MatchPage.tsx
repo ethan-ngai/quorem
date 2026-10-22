@@ -13,7 +13,15 @@ import { Tooltip } from "../editor/components/Tooltip";
 import { Icon } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
-import { forfeitMatch, leaveMatch, setReady, startMatch, updateMatchSettings } from "./api";
+import {
+  forfeitMatch,
+  leaveMatch,
+  setReady,
+  startMatch,
+  updateMatchSettings,
+  rotateInvite,
+  removeGuest,
+} from "./api";
 import { MatchSettings, ModeIcon, defaultMatchSettings, useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { InvitationActions } from "./InvitationActions";
@@ -134,6 +142,8 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const [settings, setSettings] = useState<CreateMatchRequest>(defaultMatchSettings);
   const snapshotSettings = (match: MatchSnapshot): CreateMatchRequest => ({
     mode: match.mode,
+    accessMode: match.accessMode,
+    admissionLocked: match.admissionLocked,
     difficulties: match.difficulties ?? [match.difficulty],
     selectedProblemVersionId: match.selectedProblemVersionId,
     durationMinutes: match.durationMinutes,
@@ -357,11 +367,23 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   <div>
                     <strong>
                       {participant.userId === participantUserId(identity)
-                        ? `${participant.displayName} (you)`
-                        : participant.displayName}
+                        ? `${participant.displayName}${participant.guest ? " (guest)" : ""} (you)`
+                        : `${participant.displayName}${participant.guest ? " (guest)" : ""}`}
                     </strong>
                     <span>{participant.userId === snapshot.hostUserId ? "Host" : "Player"}</span>
                   </div>
+                  {host && participant.guest && (
+                    <button
+                      className="quiet-button"
+                      disabled={pending}
+                      aria-label={`Remove guest ${participant.displayName}`}
+                      onClick={() =>
+                        void command(() => removeGuest(identity, matchId, participant.userId))
+                      }
+                    >
+                      Remove
+                    </button>
+                  )}
                   <Tooltip content={participant.ready ? "Ready" : "Not ready"}>
                     <span
                       className={`seat-readiness ${participant.ready ? "is-ready" : ""}`}
@@ -429,6 +451,17 @@ export function MatchPage({ matchId }: { matchId: string }) {
             )}
             {inviteUrl && host && (
               <div className="competitive-invite">
+                <button
+                  className="quiet-button"
+                  disabled={pending}
+                  onClick={() =>
+                    void command(async () => {
+                      await rotateInvite(identity, matchId);
+                    })
+                  }
+                >
+                  Rotate invitation
+                </button>
                 <label htmlFor="invite-link">
                   <Icon name="people" />
                   Invitation
@@ -443,6 +476,13 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   {invitationActions}
                 </div>
               </div>
+            )}
+            {snapshot.guestBudget && (
+              <p className="sync-label" role="status">
+                Guest room allowance: {snapshot.guestBudget.jobsRemaining} runs/submissions ·{" "}
+                {Math.floor(snapshot.guestBudget.secondsRemaining / 60)} execution minutes
+                remaining. Host monthly limits also apply.
+              </p>
             )}
             <footer className="competitive-lobby-footer">
               <span role="status">

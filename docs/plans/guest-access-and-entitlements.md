@@ -1,8 +1,8 @@
 # Guest access, host budgets and internal privileges
 
-Status: implementation plan. Ledger: [#83](https://github.com/ethan-ngai/quorem/issues/83). Practice sign-in popup: [#84](https://github.com/ethan-ngai/quorem/issues/84), implemented with this plan; remaining phases require implementation authorization. Related: authoring #37, hosted intelligence #69, infrastructure #15.
+Status: phases 0–5 implemented for a bounded local pilot; operational acceptance gates below remain. Ledger: [#83](https://github.com/ethan-ngai/quorem/issues/83). Practice sign-in popup: [#84](https://github.com/ethan-ngai/quorem/issues/84), implemented. Core access implementation: [#91](https://github.com/ethan-ngai/quorem/issues/91). Related: authoring #37, hosted intelligence #69, infrastructure #15.
 
-Regular invitation preview and account-aware acceptance dialogs are implemented in [#90](https://github.com/ethan-ngai/quorem/issues/90): anonymous users sign in over the read-only lobby; authenticated users explicitly confirm joining. Guest-enabled hosting, guest identity and Continue as guest remain future phases.
+Regular invitation preview and account-aware acceptance dialogs are implemented in [#90](https://github.com/ethan-ngai/quorem/issues/90): anonymous users sign in over the read-only lobby; authenticated users explicitly confirm joining. Guest-enabled hosting, scoped guest identity and Continue as guest are implemented in #91.
 
 ## Product contract
 
@@ -14,7 +14,7 @@ Regular invitation preview and account-aware acceptance dialogs are implemented 
 - Admin authoring permissions, premium benefits and resource overrides are separate. No `admin => bypass all checks` rule.
 - Monthly guest-room counts are optional commercial allowances, never the sole cost control. Prices and numeric paid allowances follow usage measurements.
 
-## Current implementation
+## Original implementation baseline
 
 - `apps/api/internal/identity/identity.go`: verified-account JWT verification and principal; preserve strict verification and malformed-credential rejection.
 - `apps/api/internal/adapters/postgres/identity.go`: immutable issuer/subject binding to product user; live server-owned role/disabled checks. `users.role` already supports `admin`.
@@ -128,7 +128,7 @@ Use fair scheduling across sponsors, then rooms/participants, with bounded per-h
 | 8 | Subscription adapter and customer allowances | Metering/pilot; verified signed webhook, replay/out-of-order handling, source-specific revoke, expiry/downgrade tests; Terraform/GitHub Actions deployment |
 | 9 | Interview workspace | Guest foundation; observer/interviewer permissions and disclosed source visibility first; collaborative editing/presence/conflict handling separately |
 
-One issue per implementation phase when scheduling work, linked to #83; dependency order above is the work ledger. Solo implementation stays on `dev`. No concurrent agents/worktrees required. Large planning scope does not authorize building these phases now.
+One issue per implementation phase when scheduling work, linked to #83; dependency order above is the work ledger. Solo implementation stays on `dev`. No concurrent agents/worktrees required. Core phases 1–5 were authorized subsequently and implemented in #91; later product/capacity phases remain gated.
 
 ## Validation and operations
 
@@ -151,3 +151,18 @@ Exact prices, included execution budgets, classroom maximum seats and supported 
 - `vp test apps/web/src/features/editor/guestWorkspace.test.ts apps/web/src/features/auth/session.test.ts apps/web/src/features/auth/signInReferral.test.ts`: 14 tests pass.
 - Live Vite/HMR: `http://127.0.0.1:5180/practice/mirror-letters`; listener cwd `/Users/engai/CS/Projects/quorem/apps/web`. Separate guest-origin tab preserved the signed-in localhost session.
 - Run/Submit buttons and Meta+Enter / Meta+Shift+Enter open the accessible modal. Keep editing and Escape dismiss, restore the originating control, and preserve the existing draft. Sign-in link retains the workspace destination. Broader guest-lobby/backend acceptance gates remain future work.
+
+## Core implementation status (2026-10-22, #91)
+
+- Server-owned account/guest principals; separate role, feature grants and bounded quotas. Alice is the loopback-only admin/internal fixture; Bob remains free. No privileges granted to other existing accounts.
+- Guest room setting, public safe preview, explicit account acceptance and named guest continuation over the lobby. HttpOnly/SameSite credentials, hashed storage, room scope, refresh reuse, Origin checks and live REST/WebSocket membership rechecks.
+- Host admission locking, invitation rotation and pre-start guest removal. Current capacity remains two/eight seats; each room permits at most 32 issued guest identities, including departed/removed guests. Shared links cannot establish human identity after cookie deletion.
+- Atomic guest reservations: 120 accepted charged jobs / 7,200 seconds per room; 1,200 jobs / 72,000 seconds per sponsor UTC calendar month; two unfinished sponsor guest jobs by default. Existing participant/global limits remain. Individual internal overrides max 10,000 jobs, 600,000 seconds and eight concurrent jobs. These are pilot ceilings, not advertised classroom guarantees.
+- Each job reserves 60 seconds; existing three-attempt policy is retained. Fenced settlement records attempt duration, refunds cancellation/infrastructure failures and releases reservation once. All attempts count toward a separate 3x sponsor platform allowance, bounding refunded retries. Current telemetry measures bounded worker-attempt wall time, not provider CPU billing.
+- Private exact-user operator CLI, atomic append-only audit, idempotent source-specific grants/revocations and quota overrides. Admin and internal benefits remain independent. Publishing requires a session created by a server-verified, user-verified passkey ceremony within ten minutes; password sessions cannot elevate. Positive authenticator ceremony requires hardware/runtime validation; negative step-up rejection is tested.
+- Three independent flags (`GUEST_CREATION_ENABLED`, `GUEST_ADMISSION_ENABLED`, `GUEST_EXECUTION_ENABLED`) default false outside `APP_ENV=local`. Pausing execution preserves existing results. Public invite/bootstrap traffic has shared PostgreSQL minute buckets: 6,000 global / 1,200 connection-peer; arbitrary forwarded IP headers are ignored.
+- Hourly cleanup clears guest submission source, results and custom inputs after seven days; anonymizes expired guest display names. Credential access expires after two idle hours, two hours after match finish, and within 24 hours absolute. Browser-local drafts are outside server cleanup.
+
+Validation: full affected Go suite with disposable PostgreSQL passed, including seat races, duplicate joins, guest revocation, scoped routes, CSRF/invalid bearer, reservation cancellation/fenced settlement and negative step-up checks. Web/auth: 268 passed, 11 skipped. Contracts and Vite+ lint/types passed. Live anonymous guest join reached the lobby at `http://127.0.0.1:5180`; listener checkout `/Users/engai/CS/Projects/quorem/apps/web`. When Docker/PostgreSQL stopped responding, validation moved to separate native PostgreSQL databases on 127.0.0.1:54339. The complete affected Go integration suite passed again, including added grant-expiry, source-specific revoke, quota replay/ceilings, request buckets, retries, cancellation and retention checks. Isolated live Vite/HMR at http://127.0.0.1:5181 verified guest refresh without duplicate seats, readiness, match workspace entry, Run admission, cancellation/refund and guest practice sign-in popup. Operator CLI inspection verified Alice identity binding and capabilities. Real Docker sandbox execution and positive hardware passkey elevation remain blocked/unverified.
+
+Remaining operational gates: source-free accounting/identity deletion after retention, backup retention, production database-role separation/operator credential provisioning, positive passkey ceremony, retry/crash/load evidence, fair scheduling under saturation and real runner cost measurements. Billing/subscriptions, expanded TA capacity, guest conversion and collaborative interview roles remain phases 6–9; no production deployment or capacity claim is made.

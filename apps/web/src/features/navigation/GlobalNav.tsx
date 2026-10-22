@@ -74,7 +74,7 @@ export function GlobalNav({
     if (session.isPending) return;
     if (session.data && (activeMatch.checking || activeMatch.failed)) return;
     consumedCreation.current = true;
-    if (!session.data) {
+    if (!session.data || session.data.kind === "guest") {
       signInToCreate();
       return;
     }
@@ -173,7 +173,9 @@ export function GlobalNav({
                 content={
                   activeMatch.failed
                     ? "Could not check your active match. Try again shortly."
-                    : "Create match"
+                    : session.data?.kind === "guest"
+                      ? "Sign in to create a match"
+                      : "Create match"
                 }
               >
                 <button
@@ -184,10 +186,12 @@ export function GlobalNav({
                       ? "Checking active match"
                       : activeMatch.failed
                         ? "Match status unavailable"
-                        : "Create match"
+                        : session.data?.kind === "guest"
+                          ? "Sign in to create a match"
+                          : "Create match"
                   }
                   onClick={() => {
-                    if (!session.data) {
+                    if (!session.data || session.data.kind === "guest") {
                       signInToCreate();
                       return;
                     }
@@ -200,7 +204,9 @@ export function GlobalNav({
                       ? "Checking match…"
                       : activeMatch.failed
                         ? "Match status unavailable"
-                        : "Create match"}
+                        : session.data?.kind === "guest"
+                          ? "Sign in to create a match"
+                          : "Create match"}
                   </span>
                 </button>
               </Tooltip>

@@ -826,3 +826,27 @@
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
+.guest-name-field {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.guest-name-field input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--color-field);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+}
+.guest-entry-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.guest-account-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}

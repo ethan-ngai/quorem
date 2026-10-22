@@ -1,3 +1,5 @@
+import { createApiClient } from "@quorem/contracts";
+import { UserFacingError } from "../../ui/errors";
 /** @file api.ts @description Typed recoverable private match commands. @module matches */
 import type {
   CreateMatchRequest,
@@ -106,4 +108,37 @@ export async function reportRuleEvent(
     params: { path: { id }, header: { "Idempotency-Key": crypto.randomUUID() } },
   });
   return requireData(data as MatchSnapshot | undefined, error);
+}
+
+/** Guest credentials stay in HttpOnly cookies; retries resume the same admitted seat. */
+export async function joinAsGuest(inviteToken: string, name: string) {
+  const session = await fetch("/v1/guest-sessions", { method: "POST", credentials: "same-origin" });
+  if (!session.ok) throw new UserFacingError("Guest access unavailable. Please try again.");
+  const { data, error } = await createApiClient({ baseUrl: window.location.origin }).POST(
+    "/v1/match-invites/{token}/guest",
+    { params: { path: { token: inviteToken } }, body: { name } },
+  );
+  if (error)
+    throw new UserFacingError(
+      "Could not join as a guest. The lobby may be full, locked or no longer accepting guests.",
+    );
+  return requireData(data, error);
+}
+export async function rotateInvite(identity: DevelopmentIdentity, id: string) {
+  return recoverableCommand(identity, `rotate:${id}`, {}, async (_body, key) => {
+    const { data, error } = await api(identity).POST("/v1/matches/{id}/rotate-invite", {
+      params: { path: { id }, header: { "Idempotency-Key": key } },
+    });
+    const invite = requireData(data, error);
+    rememberInvite(identity, invite);
+    return invite;
+  });
+}
+export async function removeGuest(identity: DevelopmentIdentity, id: string, guest: string) {
+  return recoverableCommand(identity, `remove:${id}:${guest}`, {}, async (_body, key) => {
+    const { data, error } = await api(identity).POST("/v1/matches/{id}/guests/{guest}/remove", {
+      params: { path: { id, guest }, header: { "Idempotency-Key": key } },
+    });
+    return requireData(data, error);
+  });
 }

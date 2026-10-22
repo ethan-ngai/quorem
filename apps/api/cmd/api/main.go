@@ -13,8 +13,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -66,7 +68,19 @@ func main() {
 	if *seed {
 		return
 	}
-	api := &httpapi.Server{Store: store, Local: local, Origins: strings.Split(os.Getenv("AUTH_ORIGIN"), ",")}
+	pilotDefault := "false"
+	if env("APP_ENV", "production") == "local" {
+		pilotDefault = "true"
+	}
+	api := &httpapi.Server{Store: store, Local: local, Origins: strings.Split(os.Getenv("AUTH_ORIGIN"), ","), GuestCreation: env("GUEST_CREATION_ENABLED", pilotDefault) == "true", GuestAdmission: env("GUEST_ADMISSION_ENABLED", pilotDefault) == "true", GuestExecution: env("GUEST_EXECUTION_ENABLED", pilotDefault) == "true"}
+	if env("APP_ENV", "production") == "local" {
+		for _, o := range api.Origins {
+			if u, e := url.Parse(o); e == nil && u.Hostname() == "localhost" {
+				api.Origins = append(api.Origins, u.Scheme+"://127.0.0.1:"+u.Port())
+			}
+		}
+	}
+	api.PublicGuestRequest = store.GuestRequestAllowed
 	if !local {
 		issuer := os.Getenv("AUTH_ORIGIN")
 		secret := os.Getenv("AUTH_INTERNAL_SECRET")
@@ -89,7 +103,11 @@ func main() {
 			if response.StatusCode != 204 {
 				return identity.Principal{}, fmt.Errorf("session unavailable")
 			}
-			return store.ResolveIdentity(ctx, c)
+			p, e := store.ResolveIdentity(ctx, c)
+			if at, e2 := strconv.ParseInt(response.Header.Get("X-Auth-Strong-At"), 10, 64); e2 == nil && at <= time.Now().Unix() && at > time.Now().Add(-10*time.Minute).Unix() {
+				p.StrongUntil = at + 600
+			}
+			return p, e
 		}}
 	}
 	queue, err := delivery.FromEnv(ctx, os.Getenv)
@@ -105,6 +123,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := store.Cleanup(ctx); err != nil && ctx.Err() == nil {
+					log.Print("Retention cleanup unavailable")
+				}
+			}
+		}
+	}()
 	api.StartRealtime(ctx)
 	go func() {
 		ticker := time.NewTicker(time.Second)
