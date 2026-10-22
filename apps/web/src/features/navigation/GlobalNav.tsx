@@ -11,6 +11,7 @@ import { Brand } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/MatchControls";
+import { ModeText } from "../matches/ModeText";
 import { useActiveMatch } from "../matches/useActiveMatch";
 import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
 import { AccountMenu } from "./AccountMenu";
@@ -149,8 +150,10 @@ export function GlobalNav({
           </Popover.Root>
           {mode ? (
             <span className="global-mode">
-              <ModeIcon mode={mode} />
-              <span>{mode === "showdown" ? "Showdown" : "Free-for-all"}</span>
+              <span key={mode} className="mode-icon-enter">
+                <ModeIcon mode={mode} />
+              </span>
+              <ModeText mode={mode} showdown="Showdown" freeForAll="Free-for-all" />
             </span>
           ) : (
             !inMatch &&

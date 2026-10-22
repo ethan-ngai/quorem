@@ -86,6 +86,9 @@
   .active-match-trigger span {
     display: none;
   }
+  .global-mode .mode-icon-enter {
+    display: inline-flex;
+  }
   .nav-theme .icon-button {
     width: 44px;
     height: 44px;
