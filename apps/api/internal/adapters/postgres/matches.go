@@ -279,6 +279,22 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 	}, &result)
 	return result, err
 }
+func (s *Store) PreviewInvite(ctx context.Context, token string) (matches.InvitePreview, error) {
+	var preview matches.InvitePreview
+	raw, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil || len(raw) != 32 {
+		return preview, failure("not_found", 404, "Invitation unavailable")
+	}
+	err = s.Pool.QueryRow(ctx, `SELECT mode,difficulties,duration_minutes,rules,(SELECT count(*) FROM match_participants p WHERE p.match_id=m.id) FROM matches m WHERE invite_hash=$1 AND expires_at>clock_timestamp() AND state IN ('waiting','ready')`, Hash([]byte(token))).Scan(&preview.Mode, &preview.Difficulties, &preview.DurationMinutes, &preview.Rules, &preview.ParticipantCount)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return preview, failure("not_found", 404, "Invitation unavailable")
+	}
+	preview.Capacity = 2
+	if preview.Mode == matches.FreeForAll {
+		preview.Capacity = 8
+	}
+	return preview, err
+}
 func (s *Store) JoinMatch(ctx context.Context, owner, key, token string) (matches.Snapshot, error) {
 	var result matches.Snapshot
 	raw, err := base64.RawURLEncoding.DecodeString(token)

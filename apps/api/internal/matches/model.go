@@ -8,6 +8,16 @@ import (
 const Showdown = "showdown"
 const FreeForAll = "free-for-all"
 
+// InvitePreview discloses lobby settings only, never participant identities or problem content.
+type InvitePreview struct {
+	Mode             string   `json:"mode"`
+	Difficulties     []string `json:"difficulties"`
+	DurationMinutes  int      `json:"durationMinutes"`
+	Rules            Rules    `json:"rules"`
+	ParticipantCount int      `json:"participantCount"`
+	Capacity         int      `json:"capacity"`
+}
+
 type Rules struct {
 	Clipboard string `json:"clipboard"`
 	Focus     string `json:"focus"`

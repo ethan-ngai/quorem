@@ -176,6 +176,8 @@ Lobby headings name the game mode without instructional subtitles. Settings appl
 
 Mode-dependent titles and seat copy crossfade over the 120ms fast token with at most 2px displacement. The Start action uses the same timing to fade and collapse its slot; its hidden control is inert immediately. Retain label geometry during crossfades, keep pending locks immediate, and remove motion for reduced-motion preferences.
 
+Invitation entry shows the real read-only lobby settings and seat count behind an automatically opened dialog. Signed-out regular invitations explain that an account is required and offer Sign in; signed-in users explicitly confirm Join lobby. View lobby dismisses without joining and preserves a way to reopen. Preserve the invitation destination through sign-in. Invalid/closed/full invitations never offer a join action. Preview omits player identities, invite controls and problem identity.
+
 Invitation links pair Copy and native Share icon actions. The open seat mirrors the identical Copy/Share icon pair, tooltips and synchronized copy feedback; unsupported sharing copies the link with existing green feedback. Cancelling the share sheet is silent; failures retain manual copy recovery.
 
 Showdown is the canonical mode: database/API ID `showdown`, display name Showdown, monochrome [Lucide Swords](https://lucide.dev/icons/swords) icon. Lobby Ready/Cancel share a fixed 104px action width; the check morphs into a cross and back, while overlaid labels crossfade and move 6px in opposite directions over 180ms. Reduced motion removes displacement. Readiness morphs clock hands into a green check and back in 180ms, without displacement or reduced-motion animation. Waiting text follows opponent presence first, then unready participants.

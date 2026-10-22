@@ -389,6 +389,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/match-invites/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewMatchInvite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -831,6 +847,16 @@ export interface components {
         };
         PublishQuestionDraftRequest: {
             revision: string;
+        };
+        InvitePreview: {
+            mode: components["schemas"]["MatchMode"];
+            difficulties: components["schemas"]["Difficulty"][];
+            /** @enum {integer} */
+            durationMinutes: 15 | 30 | 45 | 60;
+            rules: components["schemas"]["MatchRules"];
+            participantCount: number;
+            /** @enum {integer} */
+            capacity: 2 | 8;
         };
     };
     responses: never;
@@ -1708,6 +1734,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MatchSnapshot"] | null;
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    previewMatchInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read-only lobby settings; grants no membership or execution access */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitePreview"];
                 };
             };
             /** @description Safe application error */

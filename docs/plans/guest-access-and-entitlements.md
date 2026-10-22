@@ -2,6 +2,8 @@
 
 Status: implementation plan. Ledger: [#83](https://github.com/ethan-ngai/quorem/issues/83). Practice sign-in popup: [#84](https://github.com/ethan-ngai/quorem/issues/84), implemented with this plan; remaining phases require implementation authorization. Related: authoring #37, hosted intelligence #69, infrastructure #15.
 
+Regular invitation preview and account-aware acceptance dialogs are implemented in [#90](https://github.com/ethan-ngai/quorem/issues/90): anonymous users sign in over the read-only lobby; authenticated users explicitly confirm joining. Guest-enabled hosting, guest identity and Continue as guest remain future phases.
+
 ## Product contract
 
 - Free accounts retain ordinary lobby hosting with signed-in participants and existing resource limits.

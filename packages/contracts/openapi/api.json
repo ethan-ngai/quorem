@@ -1276,6 +1276,46 @@
           }
         }
       }
+    },
+    "/v1/match-invites/{token}": {
+      "get": {
+        "operationId": "previewMatchInvite",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 43,
+              "maxLength": 43
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only lobby settings; grants no membership or execution access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2800,6 +2840,45 @@
           }
         },
         "required": ["revision"]
+      },
+      "InvitePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "difficulties",
+          "durationMinutes",
+          "rules",
+          "participantCount",
+          "capacity"
+        ],
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "difficulties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Difficulty"
+            }
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "enum": [15, 30, 45, 60]
+          },
+          "rules": {
+            "$ref": "#/components/schemas/MatchRules"
+          },
+          "participantCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8
+          },
+          "capacity": {
+            "type": "integer",
+            "enum": [2, 8]
+          }
+        }
       }
     }
   }

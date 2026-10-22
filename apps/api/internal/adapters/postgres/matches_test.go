@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"os"
 	"strconv"
@@ -14,6 +15,45 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
+
+func TestInvitePreviewSettingsWithoutMembershipOrPrivateData(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	created, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulty: "easy", DurationMinutes: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := inviteToken(t, created)
+	v, err := s.PreviewInvite(ctx, token)
+	if err != nil || v.Mode != "showdown" || v.ParticipantCount != 1 || v.Capacity != 2 || v.DurationMinutes != 30 {
+		t.Fatalf("preview: %+v %v", v, err)
+	}
+	data, _ := json.Marshal(v)
+	for _, private := range []string{token, "ownerId", "userId", "displayName", "problemVersionId", "source", "inviteHash"} {
+		if strings.Contains(string(data), private) {
+			t.Fatalf("preview leaked %s", private)
+		}
+	}
+	var seats int
+	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM match_participants WHERE match_id=$1", created.ID).Scan(&seats); err != nil || seats != 1 {
+		t.Fatalf("preview claimed seat: %d %v", seats, err)
+	}
+	if _, err := s.PreviewInvite(ctx, "invalid"); errorCode(err) != "not_found" {
+		t.Fatalf("invalid token: %v", err)
+	}
+	if _, err := s.JoinMatch(ctx, "bob", ID(), token); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.PreviewInvite(ctx, token); err != nil || v.ParticipantCount != v.Capacity {
+		t.Fatalf("full lobby: %+v %v", v, err)
+	}
+	if _, err := s.Pool.Exec(ctx, "UPDATE matches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PreviewInvite(ctx, token); errorCode(err) != "not_found" {
+		t.Fatalf("expired token: %v", err)
+	}
+}
 
 func TestActiveMatchMembershipAndExpiry(t *testing.T) {
 	s := testStore(t)
