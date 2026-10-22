@@ -3,6 +3,14 @@ import createClient from "openapi-fetch";
 import type { components, paths } from "./generated";
 
 export type { components, paths, operations } from "./generated";
+export type QuestionContent = components["schemas"]["QuestionContent"];
+export type QuestionDraft = components["schemas"]["QuestionDraft"];
+export type QuestionDraftSummary = components["schemas"]["QuestionDraftSummary"];
+export type QuestionDraftPage = components["schemas"]["QuestionDraftPage"];
+export type AuthoringImplementation = components["schemas"]["AuthoringImplementation"];
+export type EditorialSolution = components["schemas"]["EditorialSolution"];
+export type EditorialComplexity = components["schemas"]["EditorialComplexity"];
+export type LanguageImplementation = components["schemas"]["LanguageImplementation"];
 export type ProblemVersion = components["schemas"]["ProblemVersion"];
 export type Constraint = components["schemas"]["Constraint"];
 export type ConstraintTarget = components["schemas"]["ConstraintTarget"];
@@ -35,6 +43,10 @@ export const developmentUserIds: Record<DevelopmentIdentity, string> = {
   charlie: "00000000-0000-4000-8000-000000000003",
   dana: "00000000-0000-4000-8000-000000000004",
 };
+
+export function participantUserId(identity: string): string {
+  return developmentUserIds[identity as DevelopmentIdentity] ?? identity;
+}
 
 /** @returns Typed client; development identity is explicit. */
 export function createApiClient(

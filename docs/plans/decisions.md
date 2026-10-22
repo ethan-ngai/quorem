@@ -7,7 +7,7 @@
 | D03 | CodeMirror 6; Python IntelliSense in milestone one (scope D07) | Confirmed |
 | D04 | Python `class Solution` methods with typed starter signatures | Confirmed |
 | D05 | Include ListNode and TreeNode in milestone one | Confirmed |
-| D06 | Separate local backend language service behind an adapter; cloud hosting later | Confirmed |
+| D06 | Browser-first IntelliSense; hosted analysis reserved for paid access, flagged off and deployment held (see intelligence-model.md) | Confirmed 2026-10-19 |
 | D07 | Require type-aware completion, hover, signatures, syntax/type diagnostics; defer navigation, refactoring, formatting | Confirmed |
 | D08 | System theme + manual override; both themes designed | Confirmed |
 | D09 | Problem left, editor right, results below editor; resizable panes | Confirmed |
@@ -53,9 +53,13 @@ User delegated routine technical choices. Defaults below are implementation requ
 - Local containers only for trusted development. Public runner target: isolated Linux sandbox with gVisor on a dedicated EC2 worker host, bounded per-job/per-case resources and no sandbox network/secrets. Host/controller separation and isolation checks are release gates; microVM adapter remains an upgrade seam.
 - Cognito owns passwords/verification/reset; Better Auth owns application sessions and JWT issuance. Start social federation with Google through Cognito. GitHub can use Better Auth's direct adapter later; no new OIDC bridge solely for GitHub. Account linking is explicit and verified, never based only on equal email strings.
 - Single origin routes for workspace/API/auth; separate static marketing deployment. Short-lived access JWTs in memory; secure HTTP-only session cookies; no persistent browser token storage.
-- Seed fixtures managed in Git; no admin CMS in MVP. Fixed score-suite version, fresh Solution/input per case, trusted comparator outside sandbox.
+- Initial seed fixtures managed in Git. Admin question editing and immutable publication now authorized in [problem expansion](problem-expansion.md). Fixed score-suite version, fresh Solution/input per case, trusted comparator outside sandbox.
 - Numeric limits, latency targets, retention, and deployment gates: [operating defaults](operating-defaults.md). Security, auth and cost gates need evidence before public release; local work proceeds without cloud credentials.
 
 ## Evidence gates, not interview blockers
 
 Validate language-server capabilities, sandbox isolation, cloud cost, database connection behavior, and real adapter parity during their assigned tickets. Update the ADR if evidence invalidates a default. Product scope changes require the user's input; routine fixes within the confirmed scope do not.
+
+## Authorized expansion — 2026-10-12
+
+Java, TypeScript and OCaml join Python; normalized content, authored complexity disclosure, editorial solutions and authenticated admin authoring follow [the implementation order](problem-expansion.md). Earlier Python-first decisions describe the initial milestone.

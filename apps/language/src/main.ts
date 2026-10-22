@@ -1,4 +1,5 @@
 /** @file main.ts @description Local WebSocket-to-isolated-Python-LSP adapter. @module language */
+import { managedOwner } from "./identity.ts";
 import { spawn, execFile } from "node:child_process";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
@@ -6,12 +7,16 @@ import { promisify } from "node:util";
 import { isIP } from "node:net";
 import { WebSocket, WebSocketServer } from "ws";
 import { encodeFrame, FrameDecoder } from "./framing.ts";
-import { authorizeUpgrade, validateMessage } from "./policy.ts";
+import { authorizeUpgrade, validateMessage, hasManagedCredentials } from "./policy.ts";
 import { retryableCleanup } from "./cleanup.ts";
 
-if (process.env.NODE_ENV === "production" || process.env.QUOREM_DEV_IDENTITY !== "true") {
-  throw new Error("Local language adapter requires explicit development identity mode");
-}
+const hostedEnabled = process.env.QUOREM_HOSTED_INTELLIGENCE === "true";
+const localIdentity = process.env.QUOREM_DEV_IDENTITY === "true";
+if (
+  (localIdentity && process.env.NODE_ENV === "production") ||
+  (hostedEnabled && !localIdentity && (!process.env.AUTH_ORIGIN || !process.env.API_IDENTITY_URL))
+)
+  throw new Error("Language identity configuration required");
 const address = process.env.LANGUAGE_ADDR ?? "127.0.0.1:8081";
 const [host, portText] = address.split(":");
 const port = Number(portText);
@@ -22,18 +27,28 @@ const execute = promisify(execFile);
 type Session = { client: WebSocket; stop: (code?: number, reason?: string) => Promise<void> };
 const sessions = new Map<string, Session>();
 const admissions = new Map<string, WebSocket>();
-const sockets = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 });
+const sockets = new WebSocketServer({
+  noServer: true,
+  maxPayload: 2 * 1024 * 1024,
+  handleProtocols: (protocols) => (protocols.has("quorem") ? "quorem" : false),
+});
 let shuttingDown = false;
 const server = createServer((request, response) => {
   if (request.url === "/health") {
     response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ status: "ok", service: "language", mode: "local" }));
+    response.end(
+      JSON.stringify({ status: "ok", service: "language", mode: "local", hostedEnabled }),
+    );
   } else {
     response.writeHead(404).end();
   }
 });
 
-server.on("upgrade", (request, socket, head) => {
+server.on("upgrade", async (request, socket, head) => {
+  if (!hostedEnabled) {
+    socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+    return;
+  }
   let url: URL;
   try {
     url = new URL(request.url ?? "/", `http://${address}`);
@@ -41,7 +56,25 @@ server.on("upgrade", (request, socket, head) => {
     socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
     return;
   }
-  const owner = authorizeUpgrade(request.socket.remoteAddress, request.headers.origin, url);
+  if (
+    localIdentity &&
+    hasManagedCredentials(request.headers.authorization, request.headers["sec-websocket-protocol"])
+  ) {
+    socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+    return;
+  }
+  const owner = localIdentity
+    ? authorizeUpgrade(
+        request.socket.remoteAddress,
+        request.headers.origin,
+        url,
+        process.env.WEB_ORIGIN,
+      )
+    : await managedOwner(
+        request.headers["sec-websocket-protocol"],
+        request.headers.origin,
+        url.pathname,
+      );
   if (!owner || shuttingDown) {
     socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
     return;
@@ -49,6 +82,18 @@ server.on("upgrade", (request, socket, head) => {
   sockets.handleUpgrade(request, socket, head, (client) => {
     client.pause();
     client.on("error", () => {});
+    if (!localIdentity) {
+      const check = setInterval(() => {
+        void managedOwner(
+          request.headers["sec-websocket-protocol"],
+          request.headers.origin,
+          url.pathname,
+        ).then((current) => {
+          if (current !== owner) client.close(1008, "Sign in required");
+        });
+      }, 15000);
+      client.once("close", () => clearInterval(check));
+    }
     void admit(owner, client, url.searchParams.get("takeover") === "1");
   });
 });

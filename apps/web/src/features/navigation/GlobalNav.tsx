@@ -1,54 +1,88 @@
+import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
+import type { SettingsProps } from "../editor/components/WorkspaceSettings";
+import { useSession } from "../auth/session";
 import * as Popover from "@radix-ui/react-popover";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { BookOpen, Home, Menu, Monitor, Moon, Plus, Sun, UserRound } from "lucide-react";
+import { BookOpen, Home, Menu, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
 import { Brand } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
-import { IdentityChoice, ModeIcon } from "../matches/MatchControls";
-import { isMatchCreationRequest } from "./matchCreationIntent";
+import { ModeIcon } from "../matches/MatchControls";
+import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
+import { AccountMenu } from "./AccountMenu";
 import "./navigation.css";
 
 export function GlobalNav({
-  identity,
+  identity = "anonymous" as DevelopmentIdentity,
   mode,
   onCreateMatch,
-  onIdentityChange,
-  identityDisabled,
   theme,
   onThemeChange,
-  preferences,
+  workspaceSettings,
   children,
 }: {
-  identity: DevelopmentIdentity;
+  identity?: DevelopmentIdentity;
   slug?: string;
   mode?: "showdown" | "free-for-all";
   onCreateMatch?: () => void;
-  onIdentityChange?: (identity: DevelopmentIdentity) => void;
-  identityDisabled?: boolean;
   theme?: ThemePreference;
   onThemeChange?: (theme: ThemePreference) => void;
-  preferences?: ReactNode;
+  workspaceSettings?: SettingsProps;
   children?: ReactNode;
 }) {
+  const profileTrigger = useRef<HTMLButtonElement>(null);
+  const settingsTrigger = useRef<HTMLButtonElement>(null);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("appearance");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  function openSettings(section: SettingsSection) {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+    workspaceSettings?.onOpenChange?.(true);
+  }
+  function closeSettings() {
+    setSettingsOpen(false);
+    workspaceSettings?.onOpenChange?.(false);
+  }
+  const session = useSession();
+  const actor = (session.data?.user.id ?? identity) as DevelopmentIdentity;
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
   const consumedCreation = useRef(false);
   const inMatch = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
   const [creating, setCreating] = useState(false);
+  function signInToCreate() {
+    const destination = matchSignInLocation(
+      window.location.pathname + window.location.search + window.location.hash,
+    );
+    window.history.replaceState(window.history.state, "", destination.backTo);
+    window.location.assign(destination.login);
+  }
   useEffect(() => {
     if (!isMatchCreationRequest(pathname, location.search)) {
       consumedCreation.current = false;
       return;
     }
     if (consumedCreation.current) return;
+    if (session.isPending) return;
     consumedCreation.current = true;
+    if (!session.data) {
+      signInToCreate();
+      return;
+    }
     setCreating(true);
-    void navigate({ to: "/practice", search: {}, replace: true });
-  }, [pathname, location.search, navigate]);
+    void navigate({
+      to: "/practice",
+      search: (previous) => {
+        const { create: _create, ...filters } = previous;
+        return filters;
+      },
+      replace: true,
+    });
+  }, [pathname, location.search, navigate, session.isPending, session.data]);
   return (
     <>
       <header className="topbar global-nav">
@@ -76,6 +110,14 @@ export function GlobalNav({
                     Home
                   </a>
                 </Popover.Close>
+                {session.data?.user.role === "admin" && (
+                  <Popover.Close asChild>
+                    <a href="/admin/questions">
+                      <BookOpen size={17} />
+                      Question editor
+                    </a>
+                  </Popover.Close>
+                )}
                 <Popover.Close asChild>
                   <a
                     href="/practice"
@@ -99,7 +141,13 @@ export function GlobalNav({
                 <button
                   className="quiet-button create-match-trigger"
                   aria-label="Create match"
-                  onClick={onCreateMatch ?? (() => setCreating(true))}
+                  onClick={() => {
+                    if (!session.data) {
+                      signInToCreate();
+                      return;
+                    }
+                    (onCreateMatch ?? (() => setCreating(true)))();
+                  }}
                 >
                   <Plus size={18} />
                   <span>Create match</span>
@@ -110,70 +158,38 @@ export function GlobalNav({
         </nav>
         <div className="topbar-spacer" />
         {children}
-        <Popover.Root>
-          <Tooltip content="Profile and preferences">
-            <Popover.Trigger asChild>
-              <button
-                className="icon-button nav-profile-trigger"
-                aria-label="Profile and preferences"
-              >
-                <UserRound size={18} />
-              </button>
-            </Popover.Trigger>
-          </Tooltip>
-          {/* Keep the nested settings dialog mounted when its popover closes. */}
-          <Popover.Portal forceMount>
-            <Popover.Content
-              forceMount
-              className="nav-popover nav-profile"
-              align="end"
-              sideOffset={8}
-              collisionPadding={8}
-              aria-label="Profile and preferences"
+        {workspaceSettings && (
+          <Tooltip content="Workspace settings">
+            <button
+              className="icon-button"
+              ref={settingsTrigger}
+              aria-label="Workspace settings"
+              onClick={() => openSettings("editor")}
             >
-              <h2>Local account</h2>
-              {onIdentityChange ? (
-                <IdentityChoice
-                  identity={identity}
-                  onChange={onIdentityChange}
-                  disabled={identityDisabled}
-                />
-              ) : (
-                <p>{identity}</p>
-              )}
-              {onThemeChange && (
-                <div className="nav-theme" role="group" aria-label="Color theme">
-                  {(
-                    [
-                      { value: "system", label: "System", Icon: Monitor },
-                      { value: "light", label: "Light", Icon: Sun },
-                      { value: "dark", label: "Dark", Icon: Moon },
-                    ] as const
-                  ).map(({ value, label, Icon }) => (
-                    <Tooltip key={value} content={label}>
-                      <button
-                        className="icon-button"
-                        aria-label={label}
-                        aria-pressed={theme === value}
-                        onClick={() => onThemeChange(value)}
-                      >
-                        <Icon size={18} />
-                      </button>
-                    </Tooltip>
-                  ))}
-                </div>
-              )}
-              {preferences && (
-                <div className="nav-preferences">
-                  {preferences}
-                  <span>Workspace settings</span>
-                </div>
-              )}
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
+              <SlidersHorizontal size={18} />
+            </button>
+          </Tooltip>
+        )}
+        <AccountMenu
+          triggerRef={profileTrigger}
+          session={session.data}
+          pending={session.isPending}
+          failed={session.isError}
+          onOpenSettings={openSettings}
+        />
       </header>
-      {creating && <CreateMatchDialog onClose={() => setCreating(false)} identity={identity} />}
+      <SettingsDialog
+        open={settingsOpen}
+        section={settingsSection}
+        onSectionChange={setSettingsSection}
+        onClose={closeSettings}
+        onReturnFocus={() => (settingsTrigger.current ?? profileTrigger.current)?.focus()}
+        session={session.data}
+        workspace={workspaceSettings}
+        theme={theme ?? "system"}
+        onThemeChange={onThemeChange ?? (() => {})}
+      />
+      {creating && <CreateMatchDialog onClose={() => setCreating(false)} identity={actor} />}
     </>
   );
 }

@@ -2,17 +2,16 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 	"time"
 )
 
-func Hash(data []byte) string { h := sha256.Sum256(data); return hex.EncodeToString(h[:]) }
+func Hash(data []byte) string { return application.Hash(data) }
 func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command, bodyHash string) (judging.Submission, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -37,10 +36,11 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		return judging.Submission{}, err
 	}
 	var fixtureData []byte
+	var language, runtimeRevision, harnessRevision string
 	var matchID string
 	var matchSequence *int64
 	var admissionTime any
-	err = tx.QueryRow(ctx, "SELECT p.fixture,COALESCE(w.match_id::text,'') FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData, &matchID)
+	err = tx.QueryRow(ctx, "SELECT p.fixture,COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Workspace not found")
 	}
@@ -129,7 +129,8 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()))", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime); err != nil {
 		return judging.Submission{}, err
 	}
-	if _, err = tx.Exec(ctx, "INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", ID(), id); err != nil {
+	jobID := ID()
+	if _, err = tx.Exec(ctx, "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,$3,$4,$5)", jobID, id, language, runtimeRevision, harnessRevision); err != nil {
 		return judging.Submission{}, err
 	}
 	if _, err = tx.Exec(ctx, "INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES($1,$2,$3,$4,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at", owner, key, bodyHash, id); err != nil {
@@ -152,6 +153,9 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		return result, err
 	}
 	err = tx.Commit(ctx)
+	if err == nil {
+		result.ExecutionJobID = jobID
+	}
 	return result, err
 }
 

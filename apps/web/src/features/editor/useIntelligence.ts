@@ -1,4 +1,7 @@
-/** @file useIntelligence.ts @description Disposable Python language sessions. @module editor */
+/** @file useIntelligence.ts @description Browser-first language sessions with an optional hosted experiment. @module editor */
+import type { EditorLanguage } from "./editorLanguages";
+import { hostedIntelligenceEnabled } from "./intelligenceConfig";
+import { token } from "../auth/session";
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
 import { pythonLanguage } from "@codemirror/lang-python";
 import type { Extension } from "@codemirror/state";
@@ -16,6 +19,7 @@ export function useIntelligence(
   identity: DevelopmentIdentity,
   documentKey: string,
   enabled = true,
+  language: EditorLanguage = "python",
 ) {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [status, setStatus] = useState<IntelligenceStatus>("connecting");
@@ -27,6 +31,45 @@ export function useIntelligence(
     if (!enabled) {
       setExtensions([]);
       return;
+    }
+    if (language === "typescript" || !hostedIntelligenceEnabled) {
+      const controller = new AbortController();
+      let dispose: (() => void) | undefined;
+      setExtensions([]);
+      setStatus("connecting");
+      const initialize =
+        language === "typescript"
+          ? import("./browserTypeScriptIntelligence").then(
+              (module) => module.browserTypeScriptIntelligence,
+            )
+          : import("./browserPythonIntelligence").then(
+              (module) => module.browserPythonIntelligence,
+            );
+      void initialize
+        .then((start) =>
+          start(controller.signal, () => {
+            if (!controller.signal.aborted) {
+              setExtensions([]);
+              setStatus("unavailable");
+            }
+          }),
+        )
+        .then((session) => {
+          if (controller.signal.aborted) {
+            session.dispose();
+            return;
+          }
+          dispose = session.dispose;
+          setExtensions(session.extensions);
+          setStatus("ready");
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setStatus("unavailable");
+        });
+      return () => {
+        controller.abort();
+        dispose?.();
+      };
     }
     let disposed = false;
     let reconnect: ReturnType<typeof setTimeout> | undefined;
@@ -47,13 +90,15 @@ export function useIntelligence(
       setStatus("paused");
     }
 
-    function connect() {
+    async function connect() {
       if (disposed || !isActive() || socket) return;
       setStatus("connecting");
       const url = new URL(import.meta.env.VITE_LANGUAGE_URL ?? "ws://127.0.0.1:8081/lsp");
       url.searchParams.set("user", identity);
       url.searchParams.set("takeover", "1");
-      const active = new WebSocket(url);
+      const bearer = await token();
+      if (disposed || socket || !isActive()) return;
+      const active = new WebSocket(url, bearer ? ["quorem", `bearer.${bearer}`] : []);
       socket = active;
       const connection = languageTransport(active);
       transport = connection;
@@ -116,7 +161,7 @@ export function useIntelligence(
       if (socket?.readyState === WebSocket.OPEN && readyExtensions.length) {
         setExtensions(readyExtensions);
         setStatus("ready");
-      } else connect();
+      } else void connect();
     }, pause);
     return () => {
       disposed = true;
@@ -127,7 +172,7 @@ export function useIntelligence(
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
-  }, [identity, documentKey, key, attempt, enabled]);
+  }, [identity, documentKey, key, attempt, enabled, language]);
 
   return { extensions, status, retry };
 }

@@ -4,9 +4,9 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
-  --color-primary: oklch(0.48 0.15 255);
-  --color-brand-secondary: oklch(0.94 0.025 255);
-  --color-brand-accent: oklch(0.43 0.15 255);
+  --color-primary: oklch(0.54 0.22 260);
+  --color-brand-secondary: oklch(0.94 0.04 260);
+  --color-brand-accent: oklch(0.5 0.21 260);
   --color-on-primary: oklch(1 0 0);
   --color-background: oklch(0.97 0.003 255);
   --color-surface: oklch(0.985 0.002 255);
@@ -16,10 +16,14 @@
   --color-text: oklch(0.24 0.006 255);
   --color-text-secondary: oklch(0.45 0.008 255);
   --color-text-disabled: oklch(0.59 0.005 255);
-  --color-info: oklch(0.44 0.008 255);
-  --color-success: oklch(0.43 0.1 155);
-  --color-warning: oklch(0.43 0.1 75);
-  --color-error: oklch(0.43 0.1 25);
+  --color-info: oklch(0.52 0.18 260);
+  --color-success: oklch(0.58 0.175 145);
+  --color-warning: oklch(0.816894 0.136542 74.39175);
+  --color-error: oklch(0.6 0.23 27);
+  --color-success-accent: oklch(0.66 0.2 145);
+  --color-warning-accent: var(--color-warning);
+  --color-error-accent: oklch(0.64 0.24 27);
+  --color-error-button: oklch(0.55 0.22 27);
   --color-editor-selection: oklch(0.9 0.04 255);
   --color-editor-active-line: oklch(0.97 0.008 255);
   --color-editor-keyword: oklch(0.4 0.13 285);
@@ -46,11 +50,14 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
+  --radius-full: 9999px;
   --workspace-breakpoint: 900px;
   --statement-max-width: 68ch;
   --pane-minimum: 280px;
   --results-initial-height: 260px;
   --control-height: 32px;
+  --navigation-height: 48px;
+  --shadow-overlay: 0 6px 20px oklch(0.2 0 0 / 0.08);
   --narrow-touch-target: 44px;
   --motion-fast: 120ms;
   --motion-standard: 180ms;
@@ -59,10 +66,11 @@
 }
 
 :root[data-theme="dark"] {
+  --shadow-overlay: none;
   color-scheme: dark;
-  --color-primary: oklch(0.72 0.12 255);
-  --color-brand-secondary: oklch(0.26 0.035 255);
-  --color-brand-accent: oklch(0.77 0.11 255);
+  --color-primary: oklch(0.68 0.165 260);
+  --color-brand-secondary: oklch(0.28 0.065 260);
+  --color-brand-accent: oklch(0.72 0.14 260);
   --color-on-primary: oklch(0.15 0.006 255);
   --color-background: oklch(0.18 0.004 255);
   --color-surface: oklch(0.205 0.005 255);
@@ -72,10 +80,14 @@
   --color-text: oklch(0.91 0.004 255);
   --color-text-secondary: oklch(0.73 0.008 255);
   --color-text-disabled: oklch(0.52 0.006 255);
-  --color-info: oklch(0.75 0.008 255);
-  --color-success: oklch(0.75 0.1 155);
-  --color-warning: oklch(0.75 0.1 75);
-  --color-error: oklch(0.75 0.1 25);
+  --color-info: oklch(0.7 0.14 260);
+  --color-success: oklch(0.73 0.16 150);
+  --color-warning: oklch(0.78 0.15 75);
+  --color-error: oklch(0.7 0.19 25);
+  --color-success-accent: var(--color-success);
+  --color-warning-accent: var(--color-warning);
+  --color-error-accent: var(--color-error);
+  --color-error-button: var(--color-error);
   --color-editor-selection: oklch(0.32 0.05 255);
   --color-editor-active-line: oklch(0.23 0.009 255);
   --color-editor-keyword: oklch(0.77 0.1 285);

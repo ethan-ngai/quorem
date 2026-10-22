@@ -47,8 +47,8 @@ export function TypedCaseInput({
   if (touched && !error) {
     try {
       preset.parse(value);
-    } catch (cause) {
-      error = (cause as Error).message;
+    } catch {
+      error = "Check the value matches the expected input format.";
     }
   }
   const errorId = `${id}-error`;

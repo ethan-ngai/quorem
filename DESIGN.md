@@ -2,11 +2,11 @@
 name: Quorem Workspace
 description: "A compact coding workspace led by Linear: calm tonal surfaces, soft edges, direct problem hierarchy, and restrained blue actions."
 colors:
-  primary: { light: "oklch(0.48 0.15 255)", dark: "oklch(0.72 0.12 255)" }
+  primary: { light: "oklch(0.54 0.22 260)", dark: "oklch(0.68 0.165 260)" }
   brand:
-    primary: { light: "oklch(0.48 0.15 255)", dark: "oklch(0.72 0.12 255)" }
-    secondary: { light: "oklch(0.94 0.025 255)", dark: "oklch(0.26 0.035 255)" }
-    accent: { light: "oklch(0.43 0.15 255)", dark: "oklch(0.77 0.11 255)" }
+    primary: { light: "oklch(0.54 0.22 260)", dark: "oklch(0.68 0.165 260)" }
+    secondary: { light: "oklch(0.94 0.04 260)", dark: "oklch(0.28 0.065 260)" }
+    accent: { light: "oklch(0.50 0.21 260)", dark: "oklch(0.72 0.14 260)" }
     onPrimary: { light: "oklch(1 0 0)", dark: "oklch(0.15 0.006 255)" }
   neutral:
     background: { light: "oklch(0.97 0.003 255)", dark: "oklch(0.18 0.004 255)" }
@@ -19,10 +19,10 @@ colors:
       secondary: { light: "oklch(0.45 0.008 255)", dark: "oklch(0.73 0.008 255)" }
       disabled: { light: "oklch(0.59 0.005 255)", dark: "oklch(0.52 0.006 255)" }
   semantic:
-    info: { light: "oklch(0.44 0.008 255)", dark: "oklch(0.75 0.008 255)" }
-    success: { light: "oklch(0.43 0.10 155)", dark: "oklch(0.75 0.10 155)" }
-    warning: { light: "oklch(0.43 0.10 75)", dark: "oklch(0.75 0.10 75)" }
-    error: { light: "oklch(0.43 0.10 25)", dark: "oklch(0.75 0.10 25)" }
+    info: { light: "oklch(0.52 0.18 260)", dark: "oklch(0.70 0.14 260)" }
+    success: { light: "oklch(0.58 0.175 145)", dark: "oklch(0.73 0.16 150)" }
+    warning: { light: "oklch(0.816894 0.136542 74.39175)", dark: "oklch(0.78 0.15 75)" }
+    error: { light: "oklch(0.60 0.23 27)", dark: "oklch(0.70 0.19 25)" }
   editor:
     selection: { light: "oklch(0.90 0.04 255)", dark: "oklch(0.32 0.05 255)" }
     activeLine: { light: "oklch(0.97 0.008 255)", dark: "oklch(0.23 0.009 255)" }
@@ -73,6 +73,7 @@ These theme-independent layout tokens extend the YAML schema through this table;
 | pane-minimum | 280px |
 | results-initial-height | 260px |
 | control-height | 32px |
+| navigation-height | 48px |
 | narrow-touch-target | 44px |
 | case-rail-width | clamp(100px, 16%, 140px) |
 | narrow-case-rail-width | 104px |
@@ -87,11 +88,23 @@ Separate panes with thin rules and surface changes. Light-theme popovers/modals 
 
 Work areas use a 10px outer radius; buttons/fields use 6px and overlays use 8px. Reserve full rounding for avatars/status markers. Avoid nested card shells.
 
+### Account menu
+
+Translate the supplied dark account-menu reference into the compact workspace scale: 260px maximum width (viewport minus 16px), 12px identity-header padding, 36px circular avatar with no stroke or shadow, 14px medium-bold name above 12px muted email, 32–36px icon/text action rows (44px for coarse pointers) and subtle dividers. Use overlay/border/text/error tokens; dark has no shadow, light uses subtle overlay elevation. Logout is red after the footer divider. Include only working account/profile/theme/admin actions; no fabricated streak or billing data. Workspace settings is a separate icon immediately left of the profile trigger. Photo-less avatars use deterministic name/username initials in an HTML element with theme-aware tonal fill; never image generation, image URLs or image placeholders.
+
 ## Animation
 
 Theme-independent motion tokens: `motion-fast`: 120ms; `motion-standard`: 180ms; `motion-easing`: cubic-bezier(0.2, 0, 0, 1). Map them to shared CSS custom properties.
 
 Brief color/opacity/transform feedback clarifies hover, selection, saving, and popovers. No ambient animation while coding. Reduced motion removes spatial transitions. Loading/status animation must not move code or result geometry.
+
+Shared Radix selects open and close with a 120ms opacity/98%-scale animation anchored to the trigger. The chevron rotates on opening and returns on closing. Reduced motion disables both animations.
+
+The code toolbar reserves 8px above its controls, no bottom padding, and sizes to fit narrow-screen touch targets.
+
+IntelliSense uses a circular, non-clickable 8px status dot with a steady glow: success green when active, warning yellow when connecting/paused, error red when unavailable. A keyboard-accessible tooltip explains the state.
+
+Light-mode semantic labels favor vivid classic hues; yellow matches the supplied reference text, sampled as `#f7b553`. Body text and button labels retain AA contrast. Light-mode accent tokens brighten indicators and fills: success `oklch(0.66 0.20 145)`, warning inherits the reference yellow, error `oklch(0.64 0.24 27)`. Dark accents inherit their existing semantic colors. Glow uses 4px/65% and 9px/35% accent shadows; no pulse.
 
 ## Components
 
@@ -153,7 +166,7 @@ Case rails use green checks/red crosses for associated results; stale edits clea
 
 Workspace hints use Radix Tooltip with a 100 ms hover delay, immediate keyboard focus, collision-aware portals, and subtle reduced-motion-safe fades. Use semantic icons with tooltip labels for example input, output, and explanation; keep explanation prose visible.
 
-Settings use a centered Radix Dialog: 700px maximum width, 460px bounded height, a 160px independently scrollable section rail, and scrollable detail pane. A subtle dark backdrop fades with the modal; 180ms opening and 140ms closing use opacity/scale, with reduced-motion support. Use Radix Select for choices and Switch for booleans. Appearance, Editor, Shortcuts, Drafts, and Local account retain existing persistence. Shortcut tiles use interface type and symbolic key caps (⌘, ⇧, ↵), retaining accessible key names from the same definitions used by TanStack Hotkeys; shortcuts are always enabled, with workspace actions paused while settings is open.
+Settings use a centered Radix Dialog: 700px maximum width, 460px bounded height, a 160px independently scrollable section rail, and scrollable detail pane. A subtle dark backdrop fades with the modal; 180ms opening and 140ms closing use opacity/scale, with reduced-motion support. Use Radix Select for choices and Switch for booleans. Appearance, Editor, Shortcuts and Drafts retain existing persistence. Account identity and sign-out live in the profile menu; product UI never exposes fixture identity controls. Guests can inspect questions and edit code; IntelliSense requires a session, and Run/Submit offers sign-in with a return route. Shortcut tiles use interface type and symbolic key caps (⌘, ⇧, ↵), retaining accessible key names from the same definitions used by TanStack Hotkeys; shortcuts are always enabled, with workspace actions paused while settings is open.
 
 Competitive screens reuse the workspace scale: 48px navigation, 24px lobby heading, players side by side in a compact row divided by subtle rules, and readiness actions visible without scrolling at typical laptop/mobile heights. Creation uses an animated centered Radix Dialog; difficulty uses mutually exclusive segmented buttons and duration/account use Radix Select. Keep factual copy, interface typography for status, monospace only for machine values, and icon tooltips for copy/leave/forfeit. During play, a 48px score-and-clock bar replaces the oversized ledger. Hide normal connection chatter; retain reconnect feedback. Browser drafts replace server autosave; concurrent windows keep independent live buffers, with the latest browser save used on reload.
 
@@ -238,3 +251,37 @@ Marketing button lift and return use 240ms hero easing. Disabled and aria-disabl
 Footer separates logo/navigation from a bottom utility row. Copyright sits left; the icon-only theme control sits right in a bordered 36px button. Small screens place brand above two navigation columns; the utility row retains left/right alignment.
 
 Navbar logo is 36x35px within its 44px link; the theme control uses a 28x32px footprint with a 14px action gap. Browser ICO/PNG marks fill the raster width at every size, preserving aspect ratio and pixel edges.
+
+## Editorial and admin authoring
+
+Editorial controls sit below the problem statement, within its existing scroll area. Solutions are temporarily absent from practice. Complexity starts collapsed and uses the same eye/slash icon and control styling as Topics. Big-O and free-variable references in its descriptions render through the restricted LaTeX/KaTeX pipeline. Active match workspaces omit editorial controls. Disclosure and language controls keep 44px narrow-screen targets.
+
+Admin authoring uses the existing 48px navigation, neutral surface, 24px heading and 15px body. A compact draft rail precedes grouped labeled fields; JSON editors are reserved for typed signatures/constraints/cases. Safe preview shares the public statement and editorial components. Save and publish remain explicit; publish confirms validation through inline errors. Existing radii, spacing and color tokens apply.
+
+Shared navigation owns its 48px height independent of page layout; center 32–34px controls with visible top/bottom breathing room. Language, practice filters and workspace preferences share the Radix SelectField primitive with leading language logos, keyboard/typeahead, portal collision handling and token-based overlay/rows. Menus use 0 6px 20px neutral shadow at 8 percent in light mode, none in dark. Blue and semantic hues use saturated, in-gamut OKLCH accents; preserve at least 4.5:1 for body text and button labels.
+
+Destructive buttons use `color-error-button`: light `oklch(0.55 0.22 27)`, dark inherits error; reserve the brighter semantic error for labels and indicators.
+
+## Sign-in and discovery refresh
+
+Sign-in follows the active workspace theme. Desktop uses a 48/52 showcase/form split with a hairline division and 400px form. The left side reuses the marketing problem-card stack over a restrained original deformed grid, in neutral/blue tones. Below 900px omit the showcase and center the form. Canvas motion pauses for reduced motion, hidden tabs and offscreen content. Use labeled inputs, visible errors, password visibility and capability-aware social/passkey controls; omit unsupported signup/reset/SSO actions. Guests receive a Sign in link instead of an initials avatar.
+
+Auth keeps the logo at the top left, with a compact 12px Back link directly above the form heading and a Sign in/Create account mode switch. Registration asks only for email before verification, then reveals username/password setup and a blank optional Name field. Show Change email and a server-driven resend cooldown. Keep setup focused on credentials, omitting social controls after email proof. Omit unsupported reset/SSO actions.
+
+Back preserves the referring app page and its query parameters; direct/external arrivals omit it. Password input and visibility control occupy adjacent boxes within one shared focus surface, so native password-field focus cannot obscure the eye.
+
+Practice discovery retains compact Geist typography, shared navigation and select primitives. URL-driven search/filter/sort requests drive server results and bounded pagination; loading, error and empty states occupy the gallery's normal layout. Difficulty uses existing semantic tokens; topic controls remain keyboard-accessible. Do not invent completion statistics or user progress.
+
+The practice table has alternating background/surface rows and no enclosing card. Whole-row pointer navigation complements the title link's keyboard behavior. Difficulty labels have no dot and add to selected difficulties; topic labels add to selected topics. Difficulty and topic triggers open compact popovers with wrapping multi-select chips. Triggers summarize selected choices; each popover provides Clear, without an Any option. Match any selection within each group, with difficulty and topic groups combined. Filter clicks never navigate to the problem.
+
+Difficulty filter buttons use a semantic tint and inset edge on hover/focus, with a quick token-based transition and reduced-motion fallback. Hovering difficulty or topic controls suppresses the row highlight. Omit trailing row arrows; the question title remains the keyboard-accessible navigation link.
+
+Show concise username rules as bullets immediately below signup/profile username fields. Profile contains editable optional name/username, a verified email-change action, and a password-reset email action. Recovery pages share auth branding/theme and expose resend cooldowns and clear success/error states.
+
+Profile fields display read-only values with a pencil action aligned right. Open one field at a time; replace its value in place with an input and compact, labeled save/cancel icons while editing. Keep the resting value in layout so row dimensions and following sections never shift; float username guidance below the input and present operation feedback without adding flow content. Email verification and password-reset actions are likewise revealed by their field’s pencil. Cancel restores persisted values.
+
+Settings use one shared dialog with independently scrollable category navigation on the left and settings content on the right. Group Profile and Security & login under Account; Appearance, Editor, Shortcuts and workspace Drafts under On this device. Profile retains photo/name/username pencil editing; email, password-reset and passkey actions belong to Security & login. The profile-menu Profile button opens the same dialog directly; the navigation shortcut appears only in question workspaces and opens Editor. Editor preferences and theme stay browser-local, using the existing storage keys. Preserve the two-pane layout on small screens with a compact rail, readable wrapping labels and 44px targets.
+
+Profile photo editing uses the avatar itself as the upload trigger, with a small circular pencil at its top-right corner. Its tooltip includes accepted formats, 5 MB and 16 MP limits; the image stays circular and borderless. Password reset opens a bounded anchored confirmation with destination address, unchanged-password/session guidance, explicit send, sent confirmation and resend cooldown. Settings categories, edit/value layers, overlays, status feedback and disabled/loading states use short opacity/color transitions from one timing family. Outgoing edit controls become inert immediately and unmount after the fade; retain row geometry and disable motion for reduced-motion preferences.
+
+Profile identity places a 128px circular avatar beside stacked Name/Username fields. At narrow widths (540px viewport and below), use a 96px avatar above the fields. Retain the top-right pencil, restrictions tooltip and fixed edit-row geometry.

@@ -7,3 +7,19 @@ overrides:
 allowBuilds:
   esbuild: true
   sharp: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - "@aws-sdk/checksums@3.1001.3"
+  - "@aws-sdk/client-s3@3.1150.0"
+  - "@aws-sdk/core@3.978.3"
+  - "@aws-sdk/credential-provider-env@3.972.74"
+  - "@aws-sdk/credential-provider-http@3.972.76"
+  - "@aws-sdk/credential-provider-ini@3.973.19"
+  - "@aws-sdk/credential-provider-login@3.972.81"
+  - "@aws-sdk/credential-provider-node@3.972.86"
+  - "@aws-sdk/credential-provider-process@3.972.74"
+  - "@aws-sdk/credential-provider-sso@3.973.18"
+  - "@aws-sdk/credential-provider-web-identity@3.972.80"
+  - "@aws-sdk/middleware-sdk-s3@3.972.79"
+  - "@aws-sdk/nested-clients@3.997.48"
+  - "@aws-sdk/token-providers@3.1150.0"

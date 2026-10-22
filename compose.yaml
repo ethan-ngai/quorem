@@ -1,4 +1,38 @@
 services:
+  mailpit:
+    image: axllent/mailpit:v1.27.4@sha256:df6c2541907e1be6fac21f509927cf6ed771617a1f4b361ef66d97bd05593d2d
+    profiles: [mailer]
+    ports:
+      - "127.0.0.1:51025:1025"
+      - "127.0.0.1:58025:8025"
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mailpit-data:/data
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  garage:
+    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+    profiles: [storage]
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_DEFAULT_ACCESS_KEY: ${AVATAR_S3_ACCESS_KEY_ID:-}
+      GARAGE_DEFAULT_SECRET_KEY: ${AVATAR_S3_SECRET_ACCESS_KEY:-}
+      GARAGE_DEFAULT_BUCKET: ${AVATAR_S3_BUCKET:-quorem-avatars}
+    ports:
+      - "127.0.0.1:53900:3900"
+    volumes:
+      - ./.local/garage.toml:/etc/garage.toml:ro
+      - garage-data:/var/lib/garage
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
   postgres:
     image: postgres:17.6-alpine
     environment:
@@ -16,3 +50,5 @@ services:
       retries: 30
 volumes:
   postgres-data:
+  garage-data:
+  mailpit-data:

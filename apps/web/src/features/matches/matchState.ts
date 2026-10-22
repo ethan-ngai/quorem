@@ -1,9 +1,5 @@
 /** @file matchState.ts @description Participant selection and authoritative match display rules. @module matches */
-import {
-  developmentUserIds,
-  type DevelopmentIdentity,
-  type MatchSnapshot,
-} from "@quorem/contracts";
+import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 
 export const freeForAll = { id: "free-for-all", name: "Free-for-all" } as const;
 export const showdown = { id: "showdown", name: "Showdown" } as const;
@@ -12,7 +8,7 @@ export const showdown = { id: "showdown", name: "Showdown" } as const;
 export function lobbyWaitingLabel(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
   const own = ownParticipant(snapshot, identity);
   const opponents = snapshot.participants.filter(
-    (participant) => participant.userId !== developmentUserIds[identity],
+    (participant) => participant.userId !== participantUserId(identity),
   );
   if (!opponents.length) return "Waiting for opponent to join";
   if (opponents.some((participant) => !participant.ready))
@@ -26,7 +22,7 @@ export function lobbyWaitingLabel(snapshot: MatchSnapshot, identity: Development
 /** @returns Only the current owner's participant; never an opponent's workspace. */
 export function ownParticipant(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
   return snapshot.participants.find(
-    (participant) => participant.userId === developmentUserIds[identity],
+    (participant) => participant.userId === participantUserId(identity),
   );
 }
 
@@ -50,7 +46,7 @@ export function outcomeLabel(snapshot: MatchSnapshot, identity: DevelopmentIdent
   if (outcome.kind === "no_contest") return "No contest";
   if (outcome.kind === "cancelled") return "Match cancelled";
   const winner = snapshot.participants.find((player) => player.userId === outcome.winnerUserId);
-  return outcome.winnerUserId === developmentUserIds[identity]
+  return outcome.winnerUserId === participantUserId(identity)
     ? "You won"
     : snapshot.mode === "free-for-all"
       ? `${winner?.displayName ?? "Another player"} won`

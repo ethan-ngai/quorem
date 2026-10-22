@@ -1,0 +1,136 @@
+.profile-editor {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: 0;
+}
+.account-form {
+  display: grid;
+  gap: var(--space-2);
+}
+.account-form + .account-form {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+}
+.account-form label,
+.account-form h3 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+.account-form input {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text);
+  font: inherit;
+}
+.account-form p,
+.profile-editor > p {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .account-form input,
+  .account-form button {
+    min-height: var(--narrow-touch-target);
+  }
+}
+
+.profile-field {
+  display: grid;
+  gap: var(--space-3);
+}
+.profile-field + .profile-field {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.profile-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.profile-field-heading > div {
+  min-width: 0;
+}
+.profile-field-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.profile-field-value {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-small);
+}
+.profile-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.profile-field-content {
+  position: relative;
+  --field-action-size: 32px;
+  --field-actions-width: 72px;
+}
+.profile-edit-layer,
+.profile-edit-layer > .account-form {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.profile-field-content .account-form input {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: calc(100% - var(--field-actions-width));
+  height: calc(var(--text-small) * 1.5);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--text-small);
+  line-height: 1.5;
+  box-shadow: 0 1px 0 var(--color-border);
+}
+.profile-field-content .account-form input:focus {
+  outline: none;
+  box-shadow: 0 1px 0 var(--color-primary);
+}
+.unified-settings .profile-field-content .profile-edit-actions {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+}
+.profile-field-content .icon-button {
+  width: var(--field-action-size);
+  height: var(--field-action-size);
+  min-height: var(--field-action-size);
+  flex-shrink: 0;
+}
+.nav-popover.profile-field-hint {
+  z-index: 65;
+  max-width: min(300px, calc(100vw - 32px));
+  padding: var(--space-3);
+}
+.profile-field-hint .username-rules {
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .profile-field-content {
+    --field-action-size: var(--narrow-touch-target);
+    --field-actions-width: 96px;
+  }
+}

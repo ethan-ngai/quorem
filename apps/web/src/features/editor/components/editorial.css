@@ -1,0 +1,21 @@
+.editorial-section {
+  margin: var(--space-5) 0;
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+}
+.editorial-complexity dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.editorial-complexity dl div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.editorial-complexity dd {
+  margin: 0;
+}
+.editorial-complexity dt {
+  color: var(--color-text-secondary);
+}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
@@ -29,7 +30,7 @@ func executeFixture(t *testing.T, f worker.Fixture, source, kind string, cases [
 	docker := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 		return worker.Spec{Source: source, Kind: kind, Fixture: f, Cases: cases}, nil
 	}}
-	j := execution.Job{JobID: "test", SubmissionID: "test", AttemptID: time.Now().Format("150405.000000000"), RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
+	j := execution.Job{JobID: "test", SubmissionID: "test", AttemptID: rand.Text(), RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	result, err := docker.Execute(ctx, j)
@@ -151,7 +152,7 @@ func TestDockerCancellationTearsDown(t *testing.T) {
 	docker := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 		return worker.Spec{Source: "class Solution:\n def levelSpreads(self, root):\n  while True: pass", Kind: "run", Fixture: f, Cases: f.Problem.SampleCases()[:1]}, nil
 	}}
-	attempt := "cancel-" + time.Now().Format("150405.000000000")
+	attempt := "cancel-" + rand.Text()
 	job := execution.Job{SubmissionID: "cancel", AttemptID: attempt, RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
 	go func() { time.Sleep(300 * time.Millisecond); cancel() }()
 	if _, err := docker.Execute(ctx, job); err == nil {
@@ -173,7 +174,7 @@ func TestDockerForgedProtocolIsContestantFailure(t *testing.T) {
 }
 func TestDockerReapsAbandonedAttempt(t *testing.T) {
 	dockerTests(t)
-	attempt := "abandoned-" + time.Now().Format("150405.000000000")
+	attempt := "abandoned-" + rand.Text()
 	name := "quorem-" + attempt + "-0"
 	if err := exec.Command("docker", "run", "-d", "--name", name, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", "268435456", "--pids-limit", "16", "--entrypoint", "python", "quorem-python:local", "-c", "while True: pass").Run(); err != nil {
 		t.Fatal(err)

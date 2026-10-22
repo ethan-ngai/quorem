@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { WebSocket } from "ws";
 
 const execute = promisify(execFile);
-const address = "127.0.0.1:8082";
+const address = "127.0.0.1:18082";
 
 void test(
   "focused-window takeover serializes owner engines and SIGTERM removes them",
@@ -16,10 +16,21 @@ void test(
     timeout: 45000,
   },
   async () => {
-    const service = spawn(process.execPath, ["--experimental-strip-types", "src/main.ts"], {
-      env: { ...process.env, LANGUAGE_ADDR: address, QUOREM_DEV_IDENTITY: "true" },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const service = spawn(
+      process.env.QUOREM_LANGUAGE_GATEWAY_BINARY ?? process.execPath,
+      process.env.QUOREM_LANGUAGE_GATEWAY_BINARY
+        ? []
+        : ["--experimental-strip-types", "src/main.ts"],
+      {
+        env: {
+          ...process.env,
+          LANGUAGE_ADDR: address,
+          QUOREM_DEV_IDENTITY: "true",
+          QUOREM_HOSTED_INTELLIGENCE: "true",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
     let output = "";
     service.stdout.on("data", (data: Buffer) => {
       output += data.toString();

@@ -26,6 +26,7 @@ func DefaultLimits() Limits {
 }
 
 type Job struct {
+	Language         string `json:"language"`
 	JobID            string `json:"jobId"`
 	SubmissionID     string `json:"submissionId"`
 	AttemptID        string `json:"attemptId"`

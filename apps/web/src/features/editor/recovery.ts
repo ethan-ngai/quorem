@@ -34,12 +34,16 @@ export function scopeKey(
   workspaceId: string,
   problemVersionId: string,
 ) {
+  // Retain the legacy suffix; non-Python languages live in the workspace scope.
   return `${identity}:${workspaceId}:${problemVersionId}:python`;
 }
 
 /** Stable practice scope; match workspaces keep separate private drafts. */
-export function browserDraftScope(workspace: { id: string; kind: string }) {
-  return workspace.kind === "solo" ? "solo" : workspace.id;
+export function browserDraftScope(workspace: { id: string; kind: string; language?: string }) {
+  if (workspace.kind !== "solo") return workspace.id;
+  return workspace.language && workspace.language !== "python"
+    ? `solo:${workspace.language}`
+    : "solo";
 }
 
 const latestPrefix = "quorem.browser-draft.v1:";
@@ -204,10 +208,16 @@ export async function importBrowserDrafts(contents: string, identity: Developmen
       typeof item.problemVersionId !== "string" ||
       typeof item.source !== "string" ||
       item.source.length > 65536 ||
-      (item.kind !== "solo" && item.kind !== "match")
+      (item.kind !== "solo" && item.kind !== "match") ||
+      (item.language !== undefined &&
+        !["python", "java", "typescript", "ocaml"].includes(item.language))
     )
       throw new Error("Invalid draft export entry.");
-    const scope = browserDraftScope({ id: item.workspaceId, kind: item.kind });
+    const scope = browserDraftScope({
+      id: item.workspaceId,
+      kind: item.kind,
+      language: item.language,
+    });
     if (readBrowserDraft(identity, scope, item.problemVersionId) !== undefined) continue;
     writeBrowserDraft(identity, scope, item.problemVersionId, item.source);
     await writeRecovery(identity, scope, item.problemVersionId, item.source);

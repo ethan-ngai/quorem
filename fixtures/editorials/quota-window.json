@@ -1,0 +1,38 @@
+{
+  "slug": "quota-window",
+  "solutions": [
+    {
+      "language": "python",
+      "source": "from collections import Counter\n\nclass Solution:\n    def quotaWindow(self, text: str, quota: str) -> str:\n        if not quota:\n            return \"\"\n        need = Counter(quota)\n        missing, left = len(quota), 0\n        best_start, best_length = 0, len(text) + 1\n        for right, char in enumerate(text):\n            if char in need:\n                if need[char] > 0:\n                    missing -= 1\n                need[char] -= 1\n            while missing == 0:\n                length = right - left + 1\n                if length < best_length:\n                    best_start, best_length = left, length\n                char = text[left]\n                if char in need:\n                    need[char] += 1\n                    if need[char] > 0:\n                        missing += 1\n                left += 1\n        return \"\" if best_length > len(text) else text[best_start:best_start + best_length]\n",
+      "explanationMarkdown": "Maintain character deficits and the total number still missing. Expand the right boundary until the quota is met, then shrink the left boundary while it remains met. Update the best only for a strictly shorter window, preserving the earliest tie.",
+      "timeComplexity": "O(n + m)",
+      "spaceComplexity": "O(k)",
+      "complexityNotes": "n and m count text/quota codepoints; k is the number of distinct quota characters. Each boundary crosses each character at most once; result storage is excluded."
+    },
+    {
+      "language": "java",
+      "source": "class Solution  {\n    public String quotaWindow(String text,String quota) {\n        int[] chars=text.codePoints().toArray(), requested=quota.codePoints().toArray();\n        if(requested.length==0)return \"\";\n        HashMap<Integer,Integer> need=new HashMap<>();\n        for(int c:requested)need.put(c,need.getOrDefault(c,0)+1);\n        int missing=requested.length,left=0,start=0,best=Integer.MAX_VALUE;\n        for(int right=0;right<chars.length;right++) {\n            int c=chars[right];\n            if(need.getOrDefault(c,0)>0)missing--;\n            need.put(c,need.getOrDefault(c,0)-1);\n            while(missing==0) {\n                if(right-left+1<best) {\n                    best=right-left+1;\n                    start=left;\n                }\n                int old=chars[left++];\n                need.put(old,need.getOrDefault(old,0)+1);\n                if(need.get(old)>0)missing++;\n            }\n        }\n        return best==Integer.MAX_VALUE?\"\":new String(chars,start,best);\n    }\n}\n",
+      "explanationMarkdown": "Maintain character deficits and the total number still missing. Expand the right boundary until the quota is met, then shrink the left boundary while it remains met. Update the best only for a strictly shorter window, preserving the earliest tie.",
+      "timeComplexity": "O(n + m)",
+      "spaceComplexity": "O(n + m)",
+      "complexityNotes": "n and m count text/quota codepoints. This implementation retains character buffers and counts while preserving Unicode characters; result storage is excluded."
+    },
+    {
+      "language": "typescript",
+      "source": "class Solution  {\n    quotaWindow(text:string,quota:string):string {\n        if(!quota)return '';\n        const chars=Array.from(text),need=new Map<string,number>();\n        for(const c of quota)need.set(c,(need.get(c)??0)+1);\n        let missing=Array.from(quota).length,left=0,start=0,best=Infinity;\n        for(let right=0;right<chars.length;right++) {\n            const c=chars[right];\n            if((need.get(c)??0)>0)missing--;\n            need.set(c,(need.get(c)??0)-1);\n            while(missing===0) {\n                if(right-left+1<best) {\n                    best=right-left+1;\n                    start=left;\n                }\n                const old=chars[left++];\n                need.set(old,(need.get(old)??0)+1);\n                if(need.get(old)!>0)missing++;\n            }\n        }\n        return best===Infinity?'':chars.slice(start,start+best).join('');\n    }\n}\n",
+      "explanationMarkdown": "Maintain character deficits and the total number still missing. Expand the right boundary until the quota is met, then shrink the left boundary while it remains met. Update the best only for a strictly shorter window, preserving the earliest tie.",
+      "timeComplexity": "O(n + m)",
+      "spaceComplexity": "O(n + m)",
+      "complexityNotes": "n and m count text/quota codepoints. This implementation retains character buffers and counts while preserving Unicode characters; result storage is excluded."
+    },
+    {
+      "language": "ocaml",
+      "source": "let scalars text =\n    let rec loop index acc =\n        if index=String.length text then Array.of_list (List.rev acc) else\n        let byte=Char.code text.[index] in\n        let width=if byte<128 then 1 else if byte<224 then 2 else if byte<240 then 3 else 4 in\n        loop (index+width) (String.sub text index width::acc)\n    in loop 0 []\n\nlet quotaWindow text quota =\n    let chars=scalars text and requested=scalars quota in\n    if Array.length requested=0 then \"\" else\n    let need=Hashtbl.create 32 in\n    let get c=Option.value (Hashtbl.find_opt need c) ~default:0 in\n    Array.iter (fun c -> Hashtbl.replace need c (get c+1)) requested;\n    let missing=ref (Array.length requested) and left=ref 0 and start=ref 0 and best=ref max_int in\n    Array.iteri (fun right c ->\n        if get c>0 then decr missing;\n        Hashtbl.replace need c (get c-1);\n        while !missing=0 do\n            if right- !left+1< !best then (best:=right- !left+1;start:= !left);\n            let old=chars.(!left) in\n            Hashtbl.replace need old (get old+1);\n            if get old>0 then incr missing;\n            incr left\n        done\n    ) chars;\n    if !best=max_int then \"\" else String.concat \"\" (Array.to_list (Array.sub chars !start !best))\n",
+      "explanationMarkdown": "Maintain character deficits and the total number still missing. Expand the right boundary until the quota is met, then shrink the left boundary while it remains met. Update the best only for a strictly shorter window, preserving the earliest tie.",
+      "timeComplexity": "O(n + m)",
+      "spaceComplexity": "O(n + m)",
+      "complexityNotes": "n and m count text/quota codepoints. This implementation retains character buffers and counts while preserving Unicode characters; result storage is excluded."
+    }
+  ],
+  "versionId": "d83802b1-ad72-5082-a220-4ff8e2aa572a"
+}

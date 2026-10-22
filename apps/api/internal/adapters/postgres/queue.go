@@ -23,10 +23,10 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 	var data []byte
 	var cancelled bool
 	var attempts int
-	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,p.public,s.cancel_requested,j.attempts
+	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,p.public,s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
  FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id
  WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running')
- ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &data, &cancelled, &attempts)
+ ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, nil
 	}
@@ -57,8 +57,6 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 		return j, err
 	}
 	j.AttemptID = ID()
-	j.RuntimeRevision = p.RuntimeRevision
-	j.HarnessRevision = execution.HarnessRevision
 	j.SourceRef = j.SubmissionID
 	j.SuiteRef = p.ID
 	j.Limits = p.Limits

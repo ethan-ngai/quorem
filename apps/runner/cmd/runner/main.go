@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/apps/runner/internal/engine"
+	"github.com/ethan-ngai/quorem/internal/delivery"
 	"log"
 	"os"
 	"os/signal"
@@ -25,12 +26,16 @@ func main() {
 	if err != nil || count < 1 || count > 8 {
 		log.Fatal("Invalid runner concurrency")
 	}
-	service, err := worker.Open(ctx, env("DATABASE_URL", "postgres://quorem:quorem@127.0.0.1:54329/quorem?sslmode=disable"))
+	queue, err := delivery.FromEnv(ctx, os.Getenv)
+	if err != nil {
+		log.Fatal("Invalid delivery configuration")
+	}
+	service, err := worker.Open(ctx, env("DATABASE_URL", "postgres://quorem:quorem@127.0.0.1:54329/quorem?sslmode=disable"), worker.WithQueue(queue))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer service.Close()
-	docker := &engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local"), Resolve: service.Load}
+	docker := &engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local"), Resolve: service.Load, Images: map[string]string{"java": env("RUNNER_JAVA_IMAGE", "quorem-java:local"), "typescript": env("RUNNER_TYPESCRIPT_IMAGE", "quorem-typescript:local"), "ocaml": env("RUNNER_OCAML_IMAGE", "quorem-ocaml:local")}}
 	var group sync.WaitGroup
 	for i := 0; i < count; i++ {
 		group.Add(1)

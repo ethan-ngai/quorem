@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/jackc/pgx/v5"
 	"time"
 )
@@ -26,34 +27,28 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		}
 		return nil
 	}
-	type progress struct {
-		owner, state string
-		best         int
-	}
-	people := map[string]*progress{}
+	people := map[string]matches.Progress{}
+	owners := []string{}
 	rows, err := tx.Query(ctx, "SELECT owner_id,COALESCE(submission_state,''),best_passed FROM match_participants WHERE match_id=$1 AND NOT forfeited", m.id)
 	if err != nil {
 		return err
 	}
 	for rows.Next() {
-		var p progress
-		if err = rows.Scan(&p.owner, &p.state, &p.best); err != nil {
+		var owner string
+		var p matches.Progress
+		if err = rows.Scan(&owner, &p.State, &p.BestPassed); err != nil {
 			rows.Close()
 			return err
 		}
-		people[p.owner] = &p
+		people[owner] = p
+		owners = append(owners, owner)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return err
 	}
-	best := map[string]int{}
-	latest := map[string]string{}
-	var candidateOwner string
-	blocked := false
-	uncertainOwners := map[string]bool{}
-	earlierUncertainOwners := map[string]bool{}
+	submissions := []matches.SubmissionProgress{}
 	rows, err = tx.Query(ctx, "SELECT owner_id,state,match_sequence,result FROM submissions WHERE match_id=$1 AND kind='submit' ORDER BY admitted_at,match_sequence", m.id)
 	if err != nil {
 		return err
@@ -66,10 +61,9 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 			rows.Close()
 			return err
 		}
-		if people[owner] == nil {
+		if _, exists := people[owner]; !exists {
 			continue
 		}
-		latest[owner] = state
 		var result judging.Submission
 		if len(resultData) > 0 {
 			if err = json.Unmarshal(resultData, &result); err != nil {
@@ -77,103 +71,36 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 				return err
 			}
 		}
-		if state == "completed" && result.Score != nil {
-			if result.Score.Passed > best[owner] {
-				best[owner] = result.Score.Passed
-			}
-			if result.Verdict == "accepted" && result.Score.Passed == result.Score.Total && candidateOwner == "" {
-				candidateOwner = owner
-			}
-		} else {
-			uncertainOwners[owner] = true
-			if candidateOwner == "" {
-				earlierUncertainOwners[owner] = true
-				blocked = true
-			}
-		}
+		submissions = append(submissions, matches.SubmissionProgress{Owner: owner, State: state, Verdict: result.Verdict, Score: result.Score})
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return err
 	}
+	decision := matches.Reconcile(now, *m.deadline, m.finalizing, owners, submissions)
 	changed := false
-	for owner, p := range people {
-		if p.best != best[owner] || p.state != latest[owner] {
+	for owner, p := range decision.Progress {
+		if people[owner] != p {
 			changed = true
-			if _, err = tx.Exec(ctx, "UPDATE match_participants SET best_passed=$3,submission_state=NULLIF($4,'') WHERE match_id=$1 AND owner_id=$2", m.id, owner, best[owner], latest[owner]); err != nil {
+			if _, err = tx.Exec(ctx, "UPDATE match_participants SET best_passed=$3,submission_state=NULLIF($4,'') WHERE match_id=$1 AND owner_id=$2", m.id, owner, p.BestPassed, p.State); err != nil {
 				return err
 			}
 		}
 	}
-	winner := ""
-	high := -1
-	draw := false
-	for owner := range people {
-		score := best[owner]
-		if score > high {
-			high = score
-			winner = owner
-			draw = false
-		} else if score == high {
-			draw = true
-		}
-	}
-	// An unresolved job from the sole leader cannot lower their best score.
-	if candidateOwner == "" && !now.Before(*m.deadline) && !draw {
-		blocked = false
-		for owner := range uncertainOwners {
-			if owner != winner {
-				blocked = true
-			}
-		}
-	}
-	// Earlier work from the candidate's owner cannot change the winning owner.
-	if candidateOwner != "" {
-		blocked = false
-		for owner := range earlierUncertainOwners {
-			if owner != candidateOwner {
-				blocked = true
-			}
-		}
-	}
-	if candidateOwner != "" && !blocked {
-		if err = finishMatch(ctx, tx, m, "win", candidateOwner, "first_correct"); err != nil {
+	if m.finalizing == nil && decision.FinalizingAt != nil {
+		m.finalizing = decision.FinalizingAt
+		m.state = "finalizing"
+		if _, err = tx.Exec(ctx, "UPDATE matches SET state='finalizing',finalizing_at=$2 WHERE id=$1", m.id, m.finalizing); err != nil {
 			return err
 		}
 		changed = true
-	} else if !now.Before(*m.deadline) || candidateOwner != "" || m.finalizing != nil {
-		if m.finalizing == nil {
-			// Deadline finalization begins at the persisted deadline, even after a restart.
-			at := now
-			if !now.Before(*m.deadline) {
-				at = *m.deadline
-			}
-			m.finalizing = &at
-			m.state = "finalizing"
-			if _, err = tx.Exec(ctx, "UPDATE matches SET state='finalizing',finalizing_at=$2 WHERE id=$1", m.id, at); err != nil {
-				return err
-			}
-			changed = true
+	}
+	if outcome := decision.Outcome; outcome != nil {
+		if err = finishMatch(ctx, tx, m, outcome.Kind, outcome.WinnerUserID, outcome.Reason); err != nil {
+			return err
 		}
-		if blocked {
-			if !now.Before(m.finalizing.Add(2 * time.Minute)) {
-				if err = finishMatch(ctx, tx, m, "no_contest", "", "unresolved_eligible_work"); err != nil {
-					return err
-				}
-				changed = true
-			}
-		} else {
-			kind := "win"
-			if draw {
-				kind = "draw"
-				winner = ""
-			}
-			if err = finishMatch(ctx, tx, m, kind, winner, "deadline_score"); err != nil {
-				return err
-			}
-			changed = true
-		}
+		changed = true
 	}
 	if changed {
 		return matchEvent(ctx, tx, m)

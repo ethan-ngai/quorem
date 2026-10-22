@@ -12,7 +12,7 @@ apps/runner/           Isolated judge worker entrypoint
 packages/contracts/   OpenAPI/event schemas, generated TypeScript clients
 packages/ui/          Shared CSS tokens/components when reuse exists
 fixtures/problems/    Original/licensed, versioned seed problems
-infra/terraform/      AWS resources, environments, reusable modules
+infra/terraform/      Planned provider-specific deployment modules (not yet implemented)
 docs/adr/             Confirmed decisions and migration triggers
 docs/plans/           Domain specs and implementation handoffs
 ```
@@ -66,3 +66,7 @@ Backend EventPublisher is provider-neutral; browser RealtimeTransport translates
 Initial: one region, PostgreSQL, stateless API instances, bounded runner concurrency, indexed queries, durable jobs, backpressure. Confirmed public workload: 20 simultaneous matches/40 coding sessions and a 2 execution-request/sec burst; benchmark parameters and latency goals are in operating-defaults.md. One million registered users remains a growth target, not validated concurrency capacity.
 
 Measure DB connections/query latency, oldest queued job, runner utilization, API latency/errors, active sockets, fanout, and spend. Add connection control, cache, distributed queue, partitioning, runner pools, or additional regions based on evidence. Preserve match-local serialization, retry safety, quotas, and admission control under horizontal scale. Load-test a declared workload; do not claim 1M-user readiness from interfaces alone.
+
+## Provider portability implementation
+
+PostgreSQL remains the supported persistence engine. Capability-specific AWS/Cloudflare adapters and independent configuration are documented in [platform-adapters](../implementation/platform-adapters.md), tracked in #76. Runtime shells may differ without changing domain rules; cloud-native queue/realtime/object/email APIs are isolated from HTTP and match policy. Deployment/sandbox equivalence is a separate validation gate.

@@ -1,4 +1,8 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
+import { userFacingErrorMessage } from "../../ui/errors";
+import { SelectField } from "../../ui/SelectField";
+import { LanguageLogo } from "../../ui/LanguageLogo";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
 import { ShortcutHint } from "./components/ShortcutKeys";
@@ -12,6 +16,7 @@ import type {
 import { useQuery } from "@tanstack/react-query";
 import {
   useCallback,
+  useMemo,
   useEffect,
   useRef,
   useState,
@@ -20,23 +25,24 @@ import {
 } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { MatchRuleNotice, useMatchRules } from "../matches/useMatchRules";
-import { fetchProblem, fetchProblemVersion, fetchWorkspace, createWorkspace } from "./api";
+import {
+  fetchProblem,
+  fetchProblemVersion,
+  fetchWorkspace,
+  createWorkspace,
+  switchMatchLanguage,
+} from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
+import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { TestCases } from "./components/TestCases";
 import { ResultContent } from "./components/ResultContent";
 import { customDraftStorageKey, readCustomDrafts, type CustomCaseDraft } from "./customCases";
 import { Brand, Icon } from "./components/Icon";
-import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
 import { ResizableDivider } from "./components/ResizableDivider";
-import {
-  readPreference,
-  writePreference,
-  readEditorScheme,
-  editorSchemeStorageKey,
-} from "./editorSettings";
+import { readPreference, writePreference } from "./editorSettings";
 import {
   createBrowserDraftWriter,
   importBrowserDrafts,
@@ -50,6 +56,7 @@ import {
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
 import { useSubmission } from "./useSubmission";
+import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
 import "../../styles/workspace.css";
@@ -61,30 +68,31 @@ const defaultResultsHeight = 260;
 
 /** Returns a safe short message for load and save failures. */
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Something went wrong. Your code is still here.";
+  return userFacingErrorMessage(error, "Something went wrong. Your code is still here.");
 }
 
 /** Opens one public problem in the resizable practice workspace. */
+import { guestWorkspace } from "./guestWorkspace";
+import { useSession } from "../auth/session";
+import { languageLabels, languageFileNames, type EditorLanguage } from "./editorLanguages";
+
 export function WorkspacePage({
   slug = "",
   match,
-  matchWorkspaceId,
+  matchWorkspaceId: providedMatchWorkspaceId,
   identity: providedIdentity,
-  onIdentityChange,
   matchHeader,
 }: {
   slug?: string;
   match?: MatchSnapshot;
   matchWorkspaceId?: string;
   identity?: DevelopmentIdentity;
-  onIdentityChange?: (identity: DevelopmentIdentity) => void;
   matchHeader?: ReactNode;
 }) {
-  const [localIdentity, setLocalIdentity] = useState<DevelopmentIdentity>(() =>
-    readPreference<DevelopmentIdentity>("quorem.dev-identity.v1", "alice"),
-  );
-  const identity = providedIdentity ?? localIdentity;
-  const setIdentity = onIdentityChange ?? setLocalIdentity;
+  const account = useSession();
+  const identity = (account.data?.user.id ??
+    providedIdentity ??
+    "anonymous") as DevelopmentIdentity;
   const { preference: themePreference, setPreference: setThemePreference, theme } = useTheme();
   const [paneRatio, setPaneRatio] = useState(() =>
     readPreference("quorem.pane-ratio.v1", defaultPaneRatio),
@@ -96,20 +104,41 @@ export function WorkspacePage({
   const [createMatchOpen, setCreateMatchOpen] = useState(false);
   const [problem, setProblem] = useState<ProblemVersion>();
   const [workspace, setWorkspace] = useState<Workspace>();
+  const [matchSelection, setMatchSelection] = useState<{ matchId: string; workspaceId: string }>();
+  const matchWorkspaceId =
+    matchSelection?.matchId === match?.id
+      ? (matchSelection?.workspaceId ?? providedMatchWorkspaceId)
+      : providedMatchWorkspaceId;
+  const [languageSwitching, setLanguageSwitching] = useState(false);
+  useEffect(() => {
+    if (matchSelection && providedMatchWorkspaceId === matchSelection.workspaceId)
+      setMatchSelection(undefined);
+  }, [providedMatchWorkspaceId, matchSelection]);
+  const [selectedLanguage, setSelectedLanguage] = useState<EditorLanguage>(() => {
+    const saved = readPreference<string>(`quorem.language.v1.${slug}`, "python");
+    return ["python", "java", "typescript", "ocaml"].includes(saved)
+      ? (saved as EditorLanguage)
+      : "python";
+  });
   const [source, setSource] = useState("");
   const sourceRef = useRef(source);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customMode, setCustomMode] = useState(false);
   const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
+  const [signInPrompt, setSignInPrompt] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [editorScheme, setEditorScheme] = useState(readEditorScheme);
-  const [fontSize, setFontSize] = useState(() => readPreference("quorem.code-font-size.v1", 15));
-  const [tabSize, setTabSize] = useState<2 | 4>(() =>
-    readPreference<2 | 4>("quorem.tab-size.v1", 4),
-  );
-  const [wrap, setWrap] = useState(() => readPreference("quorem.wrap.v1", false));
+  const {
+    editorScheme,
+    onEditorSchemeChange: setEditorScheme,
+    fontSize,
+    onFontSizeChange: setFontSize,
+    tabSize,
+    onTabSizeChange: setTabSize,
+    wrap,
+    onWrapChange: setWrap,
+  } = useLocalEditorPreferences();
   const editorRef = useRef<PythonEditorHandle>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const dirtyRef = useRef(false);
@@ -151,24 +180,38 @@ export function WorkspacePage({
     enabled: match ? !!match.problemVersionId && !!matchWorkspaceId : !!slug,
   });
   const workspaceQuery = useQuery({
-    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id],
+    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id, selectedLanguage],
     queryFn: () =>
       match
         ? fetchWorkspace(identity, matchWorkspaceId!)
-        : createWorkspace(identity, problemQuery.data!.id),
-    enabled: match ? !!matchWorkspaceId : !!problemQuery.data,
+        : createWorkspace(identity, problemQuery.data!.id, selectedLanguage),
+    enabled: !!account.data && (match ? !!matchWorkspaceId : !!problemQuery.data),
     staleTime: 0,
     gcTime: 0,
   });
 
+  const loadedWorkspace = useMemo(() => {
+    if (account.data) return workspaceQuery.data;
+    if (!account.isPending && !match && problemQuery.data)
+      return guestWorkspace(problemQuery.data, selectedLanguage);
+    return undefined;
+  }, [
+    account.data,
+    account.isPending,
+    match,
+    problemQuery.data,
+    selectedLanguage,
+    workspaceQuery.data,
+  ]);
+
   useEffect(() => {
-    if (!problemQuery.data || !workspaceQuery.data) return;
+    if (!problemQuery.data || !loadedWorkspace) return;
     const nextContext = {
-      key: `${identity}:${workspaceQuery.data.id}:${problemQuery.data.id}`,
+      key: `${identity}:${loadedWorkspace.id}:${problemQuery.data.id}`,
       identity,
-      workspaceId: workspaceQuery.data.id,
+      workspaceId: loadedWorkspace.id,
       problemVersionId: problemQuery.data.id,
-      storageId: browserDraftScope(workspaceQuery.data),
+      storageId: browserDraftScope(loadedWorkspace),
     };
     const previousContext = draftContextRef.current;
     if (workspaceQuery.isFetching && previousContext?.key !== nextContext.key) return;
@@ -191,17 +234,26 @@ export function WorkspacePage({
     draftContextRef.current = nextContext;
     lastQueuedSourceRef.current = undefined;
     setProblem(problemQuery.data);
-    setWorkspace(workspaceQuery.data);
+    setWorkspace(loadedWorkspace);
     setCustomMode(false);
     setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
     const initialSource =
       readBrowserDraft(identity, nextContext.storageId, problemQuery.data.id) ??
+      (account.data
+        ? readBrowserDraft(
+            "anonymous" as DevelopmentIdentity,
+            nextContext.storageId,
+            problemQuery.data.id,
+          )
+        : undefined) ??
+      problemQuery.data.languages?.find((item) => item.language === loadedWorkspace.language)
+        ?.starterSource ??
       problemQuery.data.starterSource;
     setSource(initialSource);
     sourceRef.current = initialSource;
     dirtyRef.current = false;
     setSaveState("saved");
-  }, [problemQuery.data, workspaceQuery.data, workspaceQuery.isFetching, identity]);
+  }, [problemQuery.data, loadedWorkspace, workspaceQuery.isFetching, identity, account.data]);
 
   useEffect(() => {
     if (!workspace || !problem || draftContextRef.current?.identity !== identity) return;
@@ -232,17 +284,9 @@ export function WorkspacePage({
   }, [workspace, problem, identity]);
 
   useEffect(() => {
-    writePreference("quorem.dev-identity.v1", identity);
-  }, [identity]);
-
-  useEffect(() => {
     writePreference("quorem.pane-ratio.v1", paneRatio);
   }, [paneRatio]);
   useEffect(() => writePreference("quorem.results-height.v1", resultsHeight), [resultsHeight]);
-  useEffect(() => writePreference("quorem.code-font-size.v1", fontSize), [fontSize]);
-  useEffect(() => writePreference(editorSchemeStorageKey, editorScheme), [editorScheme]);
-  useEffect(() => writePreference("quorem.tab-size.v1", tabSize), [tabSize]);
-  useEffect(() => writePreference("quorem.wrap.v1", wrap), [wrap]);
 
   const updateSource = useCallback((next: string) => {
     editGeneration.current++;
@@ -328,12 +372,13 @@ export function WorkspacePage({
 
   const dataMatchesRoute =
     (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
-    workspaceQuery.data?.problemVersionId === problemQuery.data?.id;
+    loadedWorkspace?.problemVersionId === problemQuery.data?.id;
   const dataMatchesState =
-    problem?.id === problemQuery.data?.id && workspace?.id === workspaceQuery.data?.id;
+    problem?.id === problemQuery.data?.id && workspace?.id === loadedWorkspace?.id;
   const loading =
     problemQuery.isPending ||
-    workspaceQuery.isPending ||
+    account.isPending ||
+    (!!account.data && workspaceQuery.isPending) ||
     !dataMatchesRoute ||
     !dataMatchesState ||
     !problem ||
@@ -348,6 +393,8 @@ export function WorkspacePage({
     drafts: customDrafts,
     problem,
     enabled:
+      !!account.data &&
+      !languageSwitching &&
       !matchRules.blocked &&
       canExecuteDocument({
         identity,
@@ -373,14 +420,42 @@ export function WorkspacePage({
   const submission = execution.submission;
   const submissionBusy = execution.busy;
   const admissionPending = execution.admissionPending;
+  const changeLanguage = async (language: EditorLanguage) => {
+    if (languageSwitching || submissionBusy || admissionPending) return;
+    setLanguageSwitching(true);
+    setActionError(undefined);
+    try {
+      await saveCurrentDraft();
+      if (dirtyRef.current) throw new Error("Save the current draft before switching language.");
+      if (match) {
+        const selected = await switchMatchLanguage(identity, match.id, language);
+        setMatchSelection({ matchId: match.id, workspaceId: selected.id });
+      } else {
+        writePreference(`quorem.language.v1.${slug}`, language);
+        setSelectedLanguage(language);
+      }
+    } catch (error) {
+      setActionError(errorMessage(error));
+    } finally {
+      setLanguageSwitching(false);
+    }
+  };
   const run = useCallback(async () => {
     setActivePanel("results");
+    if (!account.data) {
+      setSignInPrompt(true);
+      return;
+    }
     await execution.run();
-  }, [execution.run]);
+  }, [execution.run, account.data]);
   const submit = useCallback(async () => {
     setActivePanel("results");
+    if (!account.data) {
+      setSignInPrompt(true);
+      return;
+    }
     if (await execution.submit()) setCustomMode(false);
-  }, [execution.submit]);
+  }, [execution.submit, account.data]);
 
   const hotkeyOptions = {
     enabled: !settingsOpen,
@@ -434,28 +509,40 @@ export function WorkspacePage({
     [identity, workspace, saveCurrentDraft],
   );
 
-  const activeIdentityChanged = useCallback(
-    async (next: DevelopmentIdentity) => {
-      if (next === identity) return;
-      await saveCurrentDraft();
-      if (dirtyRef.current) return;
-      setIdentity(next);
-    },
-    [identity, saveCurrentDraft, setIdentity],
-  );
-
   const loadError = problemQuery.error ?? workspaceQuery.error;
   const workspaceStyle = {
     "--problem-ratio": `${paneRatio}%`,
     "--results-height": `${resultsHeight}px`,
   } as CSSProperties;
-  const virtualDocumentUri = "file:///workspace/main.py";
+  const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
+  const virtualDocumentUri = `file:///workspace/${languageFileNames[documentLanguage]}`;
   const editorDocumentKey = workspace
-    ? `${identity}:${workspace.id}:${workspace.problemVersionId}:python`
+    ? `${identity}:${workspace.id}:${workspace.problemVersionId}:${documentLanguage}`
     : "pending";
-  const intelligence = useIntelligence(identity, editorDocumentKey, !loading);
+  const browserIntelligenceAvailable =
+    documentLanguage === "python" || documentLanguage === "typescript";
+  const intelligence = useIntelligence(
+    identity,
+    editorDocumentKey,
+    !!account.data && !loading && browserIntelligenceAvailable,
+    documentLanguage,
+  );
+  const intelligenceStatus =
+    !account.data || !browserIntelligenceAvailable ? "unavailable" : intelligence.status;
+  const intelligenceHint = !account.data
+    ? "IntelliSense unavailable. Sign in to enable it."
+    : !browserIntelligenceAvailable
+      ? "IntelliSense unavailable for this language."
+      : {
+          ready: "IntelliSense active",
+          connecting: "IntelliSense connecting",
+          paused: "IntelliSense paused. Follows the focused window automatically.",
+          unavailable: "IntelliSense unavailable",
+        }[intelligenceStatus];
 
   const actionsEnabled =
+    !!account.data &&
+    !languageSwitching &&
     !matchRules.blocked &&
     canExecuteDocument({
       identity,
@@ -517,39 +604,34 @@ export function WorkspacePage({
           identity={identity}
           slug={match ? undefined : slug}
           mode={match?.mode}
-          onIdentityChange={(next) => void activeIdentityChanged(next)}
           theme={themePreference}
           onThemeChange={setThemePreference}
-          preferences={
-            <WorkspaceSettings
-              onOpenChange={setSettingsOpen}
-              onImportDrafts={async (file) => {
-                try {
-                  await saveCurrentDraft();
-                  const imported = await importBrowserDrafts(await file.text(), identity);
-                  if (imported > 0) window.location.reload();
-                } catch (error) {
-                  setActionError(errorMessage(error));
-                }
-              }}
-              identity={identity}
-              onIdentityChange={(next) => void activeIdentityChanged(next)}
-              theme={themePreference}
-              onThemeChange={setThemePreference}
-              editorScheme={editorScheme}
-              onEditorSchemeChange={setEditorScheme}
-              fontSize={fontSize}
-              onFontSizeChange={setFontSize}
-              tabSize={tabSize}
-              onTabSizeChange={setTabSize}
-              wrap={wrap}
-              onWrapChange={setWrap}
-              onHistory={() => setHistoryOpen(true)}
-              onClearRecovery={() => {
-                void clearOwnerRecovery(identity);
-              }}
-            />
-          }
+          workspaceSettings={{
+            onOpenChange: setSettingsOpen,
+            onImportDrafts: async (file) => {
+              try {
+                await saveCurrentDraft();
+                const imported = await importBrowserDrafts(await file.text(), identity);
+                if (imported > 0) window.location.reload();
+              } catch (error) {
+                setActionError(errorMessage(error));
+              }
+            },
+            theme: themePreference,
+            onThemeChange: setThemePreference,
+            editorScheme: editorScheme,
+            onEditorSchemeChange: setEditorScheme,
+            fontSize: fontSize,
+            onFontSizeChange: setFontSize,
+            tabSize: tabSize,
+            onTabSizeChange: setTabSize,
+            wrap: wrap,
+            onWrapChange: setWrap,
+            onHistory: () => setHistoryOpen(true),
+            onClearRecovery: () => {
+              void clearOwnerRecovery(identity);
+            },
+          }}
           onCreateMatch={() => {
             void saveCurrentDraft().then(() => setCreateMatchOpen(true));
           }}
@@ -578,7 +660,15 @@ export function WorkspacePage({
         </nav>
         <div className="workspace-grid" data-active-panel={activePanel}>
           <section className="problem-pane" aria-label="Problem statement">
-            <ProblemStatement problem={problem} />
+            <ProblemStatement problem={problem}>
+              <EditorialPanel
+                key={`${identity}:${problem.id}`}
+                identity={identity}
+                versionId={problem.id}
+                language={documentLanguage}
+                inMatch={!!match}
+              />
+            </ProblemStatement>
           </section>
           <ResizableDivider
             axis="x"
@@ -590,30 +680,44 @@ export function WorkspacePage({
           <div className="solution-pane">
             <section className="coding-pane" aria-label="Code editor">
               <div className="code-toolbar">
-                <span className="editor-language">
-                  <span className="editor-language-logo" aria-hidden="true" />
-                  Python
-                </span>
+                <SelectField
+                  className="select-field--compact"
+                  label="Solution language"
+                  value={documentLanguage}
+                  disabled={
+                    loading ||
+                    languageSwitching ||
+                    submissionBusy ||
+                    admissionPending ||
+                    (!!match && (match.state !== "active" || matchRules.blocked))
+                  }
+                  onChange={(value) => void changeLanguage(value as EditorLanguage)}
+                  options={(problem.languages ?? [{ language: "python" }]).map((item) => ({
+                    value: item.language,
+                    label: languageLabels[item.language as EditorLanguage],
+                    leading: <LanguageLogo language={item.language as EditorLanguage} />,
+                  }))}
+                />
                 <div className="code-options">
-                  {intelligence.status === "paused" && (
-                    <Tooltip content="IntelliSense follows the focused window automatically.">
-                      <span className="intelligence-status" role="status">
-                        IntelliSense paused
+                  {(hostedIntelligenceEnabled ||
+                    (!!account.data && browserIntelligenceAvailable)) && (
+                    <Tooltip content={intelligenceHint}>
+                      <span
+                        role="img"
+                        tabIndex={0}
+                        className="intelligence-status"
+                        data-status={intelligenceStatus}
+                        aria-label={intelligenceHint}
+                      >
+                        <span className="intelligence-dot" aria-hidden="true" />
                       </span>
                     </Tooltip>
-                  )}
-                  {intelligence.status === "unavailable" && (
-                    <span className="intelligence-status" role="status">
-                      <span>IntelliSense unavailable</span>
-                      <button className="quiet-button" onClick={intelligence.retry}>
-                        Retry
-                      </button>
-                    </span>
                   )}
                 </div>
               </div>
               <div className="editor-frame">
                 <PythonEditor
+                  language={documentLanguage}
                   key={editorDocumentKey}
                   ref={editorRef}
                   documentKey={editorDocumentKey}
@@ -624,7 +728,11 @@ export function WorkspacePage({
                   fontSize={fontSize}
                   tabSize={tabSize}
                   wrap={wrap}
-                  intelligenceExtensions={intelligence.extensions}
+                  readOnly={languageSwitching}
+                  completionEnabled={!!account.data}
+                  intelligenceExtensions={
+                    browserIntelligenceAvailable ? intelligence.extensions : undefined
+                  }
                   onSourceChange={updateSource}
                 />
               </div>
@@ -717,6 +825,14 @@ export function WorkspacePage({
                   </div>
                 ))}
               </div>
+              {signInPrompt && (
+                <p className="action-error" role="alert">
+                  Sign in to run or submit code.{" "}
+                  <a href={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}>
+                    Sign in
+                  </a>
+                </p>
+              )}
               {actionError && (
                 <p className="action-error" role="alert">
                   {actionError}
@@ -736,7 +852,10 @@ export function WorkspacePage({
               <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.run} />}>
                 <button
                   className="button button-secondary"
-                  disabled={submissionBusy || !actionsEnabled}
+                  disabled={
+                    submissionBusy ||
+                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                  }
                   onClick={() => void run()}
                 >
                   <Icon name="play" />
@@ -746,7 +865,10 @@ export function WorkspacePage({
               <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.submit} />}>
                 <button
                   className="button button-primary"
-                  disabled={submissionBusy || !actionsEnabled}
+                  disabled={
+                    submissionBusy ||
+                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                  }
                   onClick={() => void submit()}
                 >
                   <Icon name="submit" />

@@ -1,11 +1,12 @@
 /** @file HistoryDialog.tsx @description Loads and restores browser draft revisions. @module editor */
+import { userFacingErrorMessage } from "../../../ui/errors";
 import type { DevelopmentIdentity, Workspace } from "@quorem/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { browserDraftScope, readBrowserHistory } from "../recovery";
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Could not load draft history.";
+  return userFacingErrorMessage(error, "Could not load draft history.");
 }
 
 /** Offers explicit restoration from the workspace's retained browser history. */
