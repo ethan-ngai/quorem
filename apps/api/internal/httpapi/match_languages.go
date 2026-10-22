@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"net/http"
 )
 
@@ -18,7 +18,7 @@ func (s *Server) registerMatchLanguages(mux *http.ServeMux) {
 			return
 		}
 		if !uuid.MatchString(r.PathValue("id")) {
-			s.err(w, r, &postgres.Error{Code: "invalid_input", Status: 400, Message: "Invalid match ID"})
+			s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid match ID"})
 			return
 		}
 		value, err := s.Store.SwitchMatchLanguage(r.Context(), owner(r), r.PathValue("id"), key, body.Language)

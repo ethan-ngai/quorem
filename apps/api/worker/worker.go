@@ -3,9 +3,9 @@ package worker
 import (
 	"context"
 	"errors"
-	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"github.com/ethan-ngai/quorem/internal/delivery"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"log"
 	"time"
@@ -24,58 +24,118 @@ var ErrTeardown = errors.New("sandbox teardown unconfirmed")
 type attemptReaper interface {
 	TeardownAttempt(context.Context, string) error
 }
-type Service struct{ store *postgres.Store }
 
-func Open(ctx context.Context, url string) (*Service, error) {
-	store, err := postgres.Open(ctx, url)
-	if err != nil {
-		return nil, err
-	}
-	return &Service{store}, nil
+// Repository owns atomic claims, leases, fencing, and durable completion.
+type Repository interface {
+	LoadExecution(context.Context, execution.Job) (Spec, error)
+	ReconcileMatches(context.Context) error
+	ExpiredAttempts(context.Context) ([]string, error)
+	Claim(context.Context) (execution.Job, error)
+	Lease(context.Context, execution.Job, bool) (bool, error)
+	Complete(context.Context, execution.Job, execution.Completion) error
 }
-func (s *Service) Close() { s.store.Pool.Close() }
+type Service struct {
+	store Repository
+	queue delivery.Queue
+	close func()
+}
+type Option func(*Service)
+
+func WithQueue(queue delivery.Queue) Option { return func(s *Service) { s.queue = queue } }
+func New(store Repository, options ...Option) *Service {
+	s := &Service{store: store}
+	for _, option := range options {
+		option(s)
+	}
+	return s
+}
+func (s *Service) Close() {
+	if s.close != nil {
+		s.close()
+	}
+}
 func (s *Service) Load(ctx context.Context, j execution.Job) (Spec, error) {
 	return s.store.LoadExecution(ctx, j)
 }
 func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) error {
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	interval := 200 * time.Millisecond
+	wake := make(chan struct{}, 1)
+	consumerDone := make(chan struct{})
+	if s.queue != nil {
+		interval = 5 * time.Second
+		go func() { defer close(consumerDone); s.consume(ctx, wake) }()
+		defer func() { cancel(); <-consumerDone }()
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if e := s.store.ReconcileMatches(ctx); e != nil {
-				log.Print("Match reconciliation unavailable")
-			}
-			attempts, e := s.store.ExpiredAttempts(ctx)
-			if e != nil {
-				log.Print("Queue reconciliation unavailable")
-				continue
-			}
-			safe := true
-			for _, attempt := range attempts {
-				reaper, ok := engine.(attemptReaper)
-				if !ok || reaper.TeardownAttempt(ctx, attempt) != nil {
-					safe = false
-					break
-				}
-			}
-			if !safe {
-				log.Print("Sandbox reconciliation unavailable")
-				continue
-			}
-			job, err := s.store.Claim(ctx)
-			if err != nil {
-				log.Print("Queue claim unavailable")
-				continue
-			}
-			if job.JobID == "" {
-				continue
-			}
-			s.execute(ctx, engine, job)
+		case <-wake:
+		}
+		// A coalesced wake may represent a full batch; drain durable claims in this slot.
+		for ctx.Err() == nil && s.poll(ctx, engine) {
 		}
 	}
+}
+func (s *Service) consume(ctx context.Context, wake chan<- struct{}) {
+	for ctx.Err() == nil {
+		messages, err := s.queue.Receive(ctx, delivery.MaxBatch)
+		if err != nil {
+			log.Print("Queue notification receive unavailable")
+		}
+		// One wake drains a batch; notification IDs never confer job ownership.
+		if len(messages) > 0 {
+			select {
+			case wake <- struct{}{}:
+			default:
+			}
+		}
+		for _, message := range messages {
+			if err := s.queue.Ack(ctx, message.Receipt); err != nil {
+				log.Print("Queue notification acknowledgment unavailable")
+			}
+		}
+		// Cloudflare uses short polling; bound empty/error loops for both adapters.
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+}
+func (s *Service) poll(ctx context.Context, engine execution.ExecutionEngine) bool {
+	if e := s.store.ReconcileMatches(ctx); e != nil {
+		log.Print("Match reconciliation unavailable")
+	}
+	attempts, e := s.store.ExpiredAttempts(ctx)
+	if e != nil {
+		log.Print("Queue reconciliation unavailable")
+		return false
+	}
+	for _, attempt := range attempts {
+		reaper, ok := engine.(attemptReaper)
+		if !ok || reaper.TeardownAttempt(ctx, attempt) != nil {
+			log.Print("Sandbox reconciliation unavailable")
+			return false
+		}
+	}
+	job, err := s.store.Claim(ctx)
+	if err != nil {
+		log.Print("Queue claim unavailable")
+		return false
+	}
+	if job.JobID == "" {
+		return false
+	}
+	s.execute(ctx, engine, job)
+	return true
 }
 func (s *Service) execute(parent context.Context, engine execution.ExecutionEngine, j execution.Job) {
 	ctx, cancel := context.WithTimeout(parent, 120*time.Second)

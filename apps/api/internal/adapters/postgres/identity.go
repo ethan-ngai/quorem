@@ -43,3 +43,18 @@ func (s *Store) ResolveIdentity(ctx context.Context, c identity.Claims) (identit
 	p.SessionID = c.SessionID
 	return p, tx.Commit(ctx)
 }
+
+func (s *Store) DevelopmentIdentity(ctx context.Context, user string) (identity.Principal, error) {
+	p := identity.Principal{UserID: user, EmailVerified: true, SessionID: "development"}
+	var role string
+	var disabled bool
+	err := s.Pool.QueryRow(ctx, "SELECT display_name,role,disabled FROM users WHERE id=$1", user).Scan(&p.DisplayName, &role, &disabled)
+	if err != nil {
+		return p, err
+	}
+	if disabled {
+		return p, identity.ErrUnauthorized
+	}
+	p.Admin = role == "admin"
+	return p, nil
+}

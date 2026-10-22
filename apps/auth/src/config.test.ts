@@ -86,3 +86,72 @@ describe("local registration mail", () => {
     ).toThrow();
   });
 });
+
+describe("independent platform capabilities", () => {
+  const production = {
+    ...env,
+    APP_ENV: "production",
+    AUTH_ORIGIN: "https://quorem.example",
+    AUTH_MODE: "password",
+    AUTH_PASSWORD_PRODUCTION: "true",
+    AUTH_EMAIL_DRIVER: "ses-smtp",
+    AUTH_EMAIL_SES_REGION: "us-east-1",
+    AUTH_EMAIL_FROM: "accounts@quorem.example",
+    SMTP_USERNAME: "smtp-user",
+    SMTP_PASSWORD: "smtp-secret",
+  };
+  it("permits explicit production credentials with secure SES delivery and no Cognito", () => {
+    const result = configuration({ ...production, COGNITO_CLIENT_ID: undefined });
+    expect(result.registration).toBe(true);
+    expect(result.localPassword).toBe(false);
+    expect(result.mail).toMatchObject({
+      driver: "ses-smtp",
+      host: "email-smtp.us-east-1.amazonaws.com",
+      port: 465,
+      secure: true,
+      requireTLS: true,
+    });
+  });
+  it("fails closed for production opt-in, transport and missing capabilities", () => {
+    for (const override of [
+      { AUTH_PASSWORD_PRODUCTION: undefined },
+      { AUTH_EMAIL_DRIVER: "none" },
+      { SMTP_PASSWORD: undefined },
+      { SMTP_PORT: "25" },
+      { AUTH_ORIGIN: "http://quorem.example" },
+      { AUTH_EMAIL_FROM: undefined },
+      { AUTH_PASSWORD_PRODUCTION: "yes" },
+    ])
+      expect(() => configuration({ ...production, ...override })).toThrow();
+  });
+  it("mixes R2 with SES or Cloudflare email with S3 independently", () => {
+    expect(
+      configuration({
+        ...production,
+        AVATAR_STORAGE_DRIVER: "r2",
+        AVATAR_R2_ACCOUNT_ID: "a".repeat(32),
+        AVATAR_R2_BUCKET: "avatars",
+        AVATAR_R2_ACCESS_KEY_ID: "key",
+        AVATAR_R2_SECRET_ACCESS_KEY: "secret",
+      }).avatars,
+    ).toMatchObject({ driver: "r2", bucket: "avatars" });
+    expect(
+      configuration({
+        ...production,
+        AUTH_EMAIL_DRIVER: "cloudflare",
+        AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+        AUTH_EMAIL_CLOUDFLARE_API_TOKEN: "token",
+        AVATAR_S3_BUCKET: "avatars",
+      }).mail,
+    ).toMatchObject({ driver: "cloudflare" });
+  });
+  it("validates explicit storage and prevents insecure remote endpoints", () => {
+    for (const override of [
+      { AVATAR_STORAGE_DRIVER: "other" },
+      { AVATAR_STORAGE_DRIVER: "r2", AVATAR_R2_BUCKET: "avatars" },
+      { AVATAR_S3_BUCKET: "avatars", AVATAR_S3_ACCESS_KEY_ID: "key" },
+      { AVATAR_S3_BUCKET: "avatars", AVATAR_S3_ENDPOINT: "http://remote.example" },
+    ])
+      expect(() => configuration({ ...production, ...override })).toThrow();
+  });
+});

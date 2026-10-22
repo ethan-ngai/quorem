@@ -1,11 +1,10 @@
 import { APIError } from "better-auth/api";
 import type { Pool } from "pg";
-import { verificationMailer, type MailConfiguration } from "./mailer.ts";
+import type { VerificationSender } from "./email-delivery.ts";
 import { takeRateLimit } from "./rate-limit.ts";
 
 /** Shared delivery budgets also cover verification emails triggered by clicking links. */
-export function accountMailer(database: Pool, configuration: MailConfiguration) {
-  const deliver = verificationMailer(configuration);
+export function accountMailer(database: Pool, deliver: VerificationSender) {
   return async (email: string, url: string, subject: string, instruction: string) => {
     const client = await database.connect();
     try {

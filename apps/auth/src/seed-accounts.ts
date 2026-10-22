@@ -3,7 +3,8 @@ import { Pool } from "pg";
 import { createAuth, config, database } from "./auth.ts";
 
 export async function seedAccounts(password: string, productURL?: string) {
-  if (config.method !== "password") throw new Error("Seeding requires local password mode");
+  if (config.method !== "password" || !config.localPassword)
+    throw new Error("Seeding requires local password mode");
   for (const value of [config.database, ...(productURL ? [productURL] : [])]) {
     if (!["localhost", "127.0.0.1"].includes(new URL(value).hostname))
       throw new Error("Seeding requires loopback databases");

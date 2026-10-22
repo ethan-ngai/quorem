@@ -130,3 +130,9 @@ func (s *Store) RegisterImplementations(ctx context.Context, versionID string, i
 	}
 	return tx.Commit(ctx)
 }
+
+func (s *Store) HasActiveMatchProblem(ctx context.Context, owner, versionID string) (bool, error) {
+	var active bool
+	err := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM match_participants p JOIN matches m ON m.id=p.match_id WHERE p.owner_id=$1 AND m.problem_version_id::text=$2 AND m.state IN ('active','finalizing'))`, owner, versionID).Scan(&active)
+	return active, err
+}

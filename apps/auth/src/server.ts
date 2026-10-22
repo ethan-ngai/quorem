@@ -5,21 +5,20 @@ import { toNodeHandler } from "better-auth/node";
 import { auth, config, database } from "./auth.ts";
 import { createProfileHandler } from "./profile.ts";
 import { createRegistrationHandler } from "./registration.ts";
-import { verificationMailer } from "./mailer.ts";
-import { s3ProfileStorage } from "./profile-storage.ts";
+import { verificationMail, profileStorage } from "./infrastructure.ts";
 const handler = toNodeHandler(auth);
 const registrationHandler =
-  config.registration && config.mail
+  config.registration && verificationMail
     ? createRegistrationHandler({
         database,
         origin: config.origin,
-        send: verificationMailer(config.mail),
+        send: verificationMail,
       })
     : undefined;
 const profileHandler = createProfileHandler({
   origin: config.origin,
   session: (headers) => auth.api.getSession({ headers }),
-  storage: s3ProfileStorage(process.env),
+  storage: profileStorage,
   repository: {
     async read(id) {
       const result = await database.query(
@@ -109,4 +108,4 @@ const server = createServer(async (req, res) => {
   }
 });
 server.requestTimeout = 15000;
-server.listen(Number(process.env.AUTH_PORT ?? 8082), "127.0.0.1");
+server.listen(Number(process.env.AUTH_PORT ?? 8082), process.env.AUTH_HOST ?? "127.0.0.1");
