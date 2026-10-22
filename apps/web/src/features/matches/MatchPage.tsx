@@ -308,7 +308,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
         theme={preference}
         onThemeChange={setPreference}
       />
-      <section className="match-page-content">
+      <section className="match-page-content" aria-busy={pending}>
         <div className="competitive-lobby-heading">
           <div>
             <h1>

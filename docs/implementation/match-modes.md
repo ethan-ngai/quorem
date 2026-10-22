@@ -12,6 +12,7 @@ Issue #28; depends on #27.
 - Forfeit excludes that player, including pending results. Last remaining player wins; reservations remain until completion.
 - Independent clipboard/focus actions: allow, local warning, or public announcement. No clipboard/source/navigation content sent. Blur/hidden deduplicate; announcements retain twenty events.
 - Duration and host rules use the shared SelectField; the searchable problem picker shares its trigger styling. Portaled menus stack above creation/settings dialogs (issue #78).
+- Lobby commands expose a busy state and lock controls without dimming the entire form during each save (issue #82).
 - Migration 062 preserves Showdown matches, cached snapshots and legacy command replay; local Charlie/Dana fixtures enable four-player testing.
 
 ## Limits
