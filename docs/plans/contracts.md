@@ -47,7 +47,7 @@ Job contract: `{jobId, submissionId, attemptId, problemVersionId, runtimeRevisio
 
 ## Matches
 
-- `POST /v1/matches`: `{difficulty, durationMinutes: 15|30|45|60}` → `{id, inviteUrl, state}`. Host seat, 24-hour invite. Opaque invite capability permits joining only after authentication; never reading private participant data by itself.
+- `POST /v1/matches`: `{difficulty, durationMinutes: 15|30|45|60}` → `{id, inviteUrl, state}`. `inviteUrl` is an origin-relative `/invite/{token}` path; browser resolves against the current app origin for display/copy/share, including legacy saved absolute links. Host seat, 24-hour invite. Opaque invite capability permits joining only after authentication; never reading private participant data by itself.
 - `POST /v1/matches/join`: `{inviteToken}` → owned MatchSnapshot. Atomic two-seat claim and per-user active-match reservation.
 - `POST /v1/matches/{id}/ready`: `{ready: boolean}`. Both ready triggers locked random selection, immutable start/duration/deadline and fresh match workspaces.
 - `PUT /v1/matches/{id}/settings`: `{difficulty, durationMinutes}`. Host only before start; changes clear both ready flags.
