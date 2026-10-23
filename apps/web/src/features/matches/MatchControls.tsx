@@ -11,7 +11,6 @@ import {
   Search,
   Swords,
   BookOpen,
-  UserRound,
   Shield,
   Info,
 } from "lucide-react";
@@ -27,6 +26,7 @@ export function useAccountIdentity() {
 
 export const defaultMatchSettings: CreateMatchRequest = {
   mode: "showdown",
+  accessMode: "accounts_only",
   difficulties: ["easy"],
   durationMinutes: 30,
   rules: { clipboard: "off", focus: "off" },
@@ -49,7 +49,6 @@ export function MatchSettings({
   participantCount = 0,
   showHostRules = false,
   catalog,
-  canHostGuests = false,
 }: {
   value: CreateMatchRequest;
   onChange: (value: CreateMatchRequest) => void;
@@ -58,7 +57,6 @@ export function MatchSettings({
   participantCount?: number;
   showHostRules?: boolean;
   catalog?: { id: string; title: string; difficulty: string }[];
-  canHostGuests?: boolean;
 }) {
   const [problems, setProblems] = useState<{ id: string; title: string; difficulty: string }[]>(
     catalog ?? [],
@@ -141,36 +139,6 @@ export function MatchSettings({
           ))}
         </div>
       </div>
-      {canHostGuests && (
-        <div className="match-option guest-access-option">
-          <span>
-            <UserRound />
-            Guest access
-          </span>
-          <Tooltip content="Invite people to join without creating an account.">
-            <button
-              className="guest-access-toggle"
-              type="button"
-              role="switch"
-              aria-label="Allow guests"
-              aria-checked={value.accessMode === "guests_allowed"}
-              disabled={disabled}
-              onClick={() =>
-                onChange({
-                  ...value,
-                  accessMode:
-                    value.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
-                })
-              }
-            >
-              <span>{value.accessMode === "guests_allowed" ? "Allowed" : "Off"}</span>
-              <span className="guest-toggle-track" aria-hidden="true">
-                <span />
-              </span>
-            </button>
-          </Tooltip>
-        </div>
-      )}
       <div className="match-option difficulty-option">
         <span>
           <Gauge />

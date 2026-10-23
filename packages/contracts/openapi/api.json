@@ -2306,21 +2306,6 @@
           },
           "admissionLocked": {
             "type": "boolean"
-          },
-          "guestBudget": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["jobsRemaining", "secondsRemaining"],
-            "properties": {
-              "jobsRemaining": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "secondsRemaining": {
-                "type": "integer",
-                "minimum": 0
-              }
-            }
           }
         },
         "required": [
@@ -3178,24 +3163,11 @@
           "experimental": {
             "type": "boolean"
           },
-          "guestJobs": {
-            "type": "integer"
-          },
-          "guestSeconds": {
-            "type": "integer"
-          },
           "guestConcurrency": {
             "type": "integer"
           }
         },
-        "required": [
-          "hostGuests",
-          "hostedIntelligence",
-          "experimental",
-          "guestJobs",
-          "guestSeconds",
-          "guestConcurrency"
-        ]
+        "required": ["hostGuests", "hostedIntelligence", "experimental", "guestConcurrency"]
       }
     }
   }

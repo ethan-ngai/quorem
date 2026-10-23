@@ -122,18 +122,13 @@ type Outcome struct {
 	Reason       string    `json:"reason"`
 	CompletedAt  time.Time `json:"completedAt"`
 }
-type GuestBudget struct {
-	JobsRemaining    int `json:"jobsRemaining"`
-	SecondsRemaining int `json:"secondsRemaining"`
-}
 type Snapshot struct {
-	GuestBudget *GuestBudget `json:"guestBudget,omitempty"`
-	ID          string       `json:"id"`
-	Version     string       `json:"version"`
-	State       string       `json:"state"`
-	ServerNow   time.Time    `json:"serverNow"`
-	HostUserID  string       `json:"hostUserId"`
-	ExpiresAt   time.Time    `json:"expiresAt"`
+	ID         string    `json:"id"`
+	Version    string    `json:"version"`
+	State      string    `json:"state"`
+	ServerNow  time.Time `json:"serverNow"`
+	HostUserID string    `json:"hostUserId"`
+	ExpiresAt  time.Time `json:"expiresAt"`
 	Settings
 	RuleEvents       []RuleEvent   `json:"ruleEvents"`
 	Participants     []Participant `json:"participants"`

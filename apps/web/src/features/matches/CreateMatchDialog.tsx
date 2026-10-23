@@ -1,3 +1,4 @@
+import { GuestAccessToggle } from "./GuestAccessToggle";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -54,13 +55,34 @@ export function CreateMatchDialog({
                   : "Choose a mode, difficulty and problem."}
               </Dialog.Description>
             </div>
-            <Tooltip content="Close">
-              <Dialog.Close asChild>
-                <button className="icon-button" aria-label="Close" disabled={pending}>
-                  <Icon name="close" />
-                </button>
-              </Dialog.Close>
-            </Tooltip>
+            <div className="lobby-heading-actions">
+              {!activeMatch.checking &&
+                !activeMatch.failed &&
+                !activeMatch.match &&
+                session.data?.kind !== "guest" &&
+                session.data?.capabilities?.hostGuests && (
+                  <GuestAccessToggle
+                    allowed={settings.accessMode === "guests_allowed"}
+                    disabled={pending || !!pendingCreate(identity)}
+                    onToggle={() =>
+                      setSettings({
+                        ...settings,
+                        accessMode:
+                          settings.accessMode === "guests_allowed"
+                            ? "accounts_only"
+                            : "guests_allowed",
+                      })
+                    }
+                  />
+                )}
+              <Tooltip content="Close">
+                <Dialog.Close asChild>
+                  <button className="icon-button" aria-label="Close" disabled={pending}>
+                    <Icon name="close" />
+                  </button>
+                </Dialog.Close>
+              </Tooltip>
+            </div>
           </header>
           {activeMatch.checking ? (
             <p role="status">Checking your active match…</p>
@@ -98,9 +120,6 @@ export function CreateMatchDialog({
               }}
             >
               <MatchSettings
-                canHostGuests={
-                  session.data?.kind !== "guest" && session.data?.capabilities?.hostGuests === true
-                }
                 value={settings}
                 identity={identity}
                 onChange={setSettings}

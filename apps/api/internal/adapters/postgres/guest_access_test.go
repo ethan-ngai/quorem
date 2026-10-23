@@ -187,20 +187,30 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 		}
 	}
 	s.Pool.Exec(ctx, "UPDATE matches SET guest_job_limit=1,guest_seconds_limit=60 WHERE id=$1", room.ID)
+	// Legacy overrides must not reintroduce cumulative allowances.
+	if _, err := s.Pool.Exec(ctx, "INSERT INTO quota_overrides(user_id,resource,value,actor,reason) VALUES('alice','guest_jobs',1,'test','Legacy'),('alice','guest_seconds',1,'test','Legacy')"); err != nil {
+		t.Fatal(err)
+	}
 	cmd := judging.Command{WorkspaceID: workspaces[0], Kind: "run", Source: "pass"}
 	first, err := s.Admit(ctx, owners[0], ID(), cmd, "one")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cmd.WorkspaceID = workspaces[1]
-	if _, err := s.Admit(ctx, owners[1], ID(), cmd, "two"); errorCode(err) != "quota_exceeded" {
-		t.Fatalf("room budget bypass: %v", err)
-	}
-	if _, err := s.CancelWithKey(ctx, owners[0], first.ID, ID()); err != nil {
-		t.Fatal(err)
-	}
 	second, err := s.Admit(ctx, owners[1], ID(), cmd, "two")
 	if err != nil {
+		t.Fatal("legacy room allowance blocked admission", err)
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, admissionErr := guestAdmission(ctx, tx, owners[0], room.ID)
+	tx.Rollback(ctx)
+	if errorCode(admissionErr) != "rate_limited" {
+		t.Fatal("sponsor concurrency protection lost", admissionErr)
+	}
+	if _, err := s.CancelWithKey(ctx, owners[0], first.ID, ID()); err != nil {
 		t.Fatal(err)
 	}
 	job, err := s.Claim(ctx)

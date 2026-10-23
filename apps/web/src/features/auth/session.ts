@@ -8,8 +8,6 @@ export type Session = {
     hostGuests: boolean;
     hostedIntelligence: boolean;
     experimental: boolean;
-    guestJobs: number;
-    guestSeconds: number;
     guestConcurrency: number;
   };
   user: { id: string; displayName: string; emailVerified: boolean; role: "user" | "admin" };
