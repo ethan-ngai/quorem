@@ -88,12 +88,6 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	if e != nil {
 		return v, e
 	}
-	if m.settings.AccessMode == "guests_allowed" {
-		v.GuestBudget = &matches.GuestBudget{}
-		if err = tx.QueryRow(ctx, `SELECT GREATEST(0,m.guest_job_limit-count(u.submission_id) FILTER(WHERE u.settled_at IS NULL OR u.charged_seconds>0)),GREATEST(0,m.guest_seconds_limit-COALESCE(sum(COALESCE(u.charged_seconds,u.reserved_seconds)),0)) FROM matches m LEFT JOIN guest_execution_usage u ON u.match_id=m.id WHERE m.id=$1 GROUP BY m.id`, m.id).Scan(&v.GuestBudget.JobsRemaining, &v.GuestBudget.SecondsRemaining); err != nil {
-			return v, err
-		}
-	}
 	if len(m.outcome) > 0 {
 		v.Outcome = &matches.Outcome{}
 		err = json.Unmarshal(m.outcome, v.Outcome)

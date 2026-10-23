@@ -9,7 +9,7 @@ import (
 )
 
 func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabilities, error) {
-	c := access.Capabilities{GuestJobs: 1200, GuestSeconds: 72000, GuestConcurrency: 2}
+	c := access.Capabilities{GuestConcurrency: 2}
 	var kind string
 	var disabled bool
 	if err := tx.QueryRow(ctx, "SELECT kind,disabled FROM users WHERE id=$1", owner).Scan(&kind, &disabled); err != nil {
@@ -35,10 +35,6 @@ func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabili
 			return c, err
 		}
 		switch key {
-		case "guest_jobs":
-			c.GuestJobs = min(value, 10000)
-		case "guest_seconds":
-			c.GuestSeconds = min(value, 600000)
 		case "guest_concurrency":
 			c.GuestConcurrency = min(value, 8)
 		}
@@ -151,10 +147,6 @@ func requireGuestHosting(ctx context.Context, tx pgx.Tx, owner, mode string) err
 func (s *Store) ApplyQuota(ctx context.Context, owner, resource, actor, reason, operation string, value int, dry bool) error {
 	maxValue := 0
 	switch resource {
-	case "guest_jobs":
-		maxValue = 10000
-	case "guest_seconds":
-		maxValue = 600000
 	case "guest_concurrency":
 		maxValue = 8
 	}

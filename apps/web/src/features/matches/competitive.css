@@ -878,46 +878,22 @@
 .lobby-lock-button:active .lobby-lock-icon {
   transform: scale(0.9);
 }
-.guest-access-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  cursor: pointer;
-  padding: 4px 0;
+.guest-access-icon {
+  width: 19px;
+  height: 19px;
 }
-.guest-access-toggle[aria-checked="true"] {
-  color: var(--color-text);
+.guest-access-slash {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--motion-fast) var(--motion-easing);
 }
-.guest-toggle-track {
-  width: 30px;
-  height: 18px;
-  border-radius: var(--radius-full);
-  background: var(--color-overlay);
-  border: 1px solid var(--color-border);
-  padding: 2px;
-  transition: background var(--motion-fast);
+.guest-access-button[aria-pressed="true"] .guest-access-slash {
+  stroke-dashoffset: 1;
 }
-.guest-toggle-track > span {
-  display: block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--color-text-secondary);
-  transition:
-    transform var(--motion-fast) var(--motion-easing),
-    background var(--motion-fast);
-}
-.guest-access-toggle[aria-checked="true"] .guest-toggle-track {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-}
-.guest-access-toggle[aria-checked="true"] .guest-toggle-track > span {
-  transform: translateX(12px);
-  background: var(--color-on-primary);
+@media (prefers-reduced-motion: reduce) {
+  .guest-access-slash {
+    transition: none;
+  }
 }
 .match-dialog-close {
   position: absolute;

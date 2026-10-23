@@ -1,4 +1,5 @@
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
+import { GuestAccessToggle } from "./GuestAccessToggle";
 import { useQueryClient } from "@tanstack/react-query";
 import { endGuestSession } from "../auth/session";
 import { LobbyLock } from "./LobbyLock";
@@ -389,6 +390,23 @@ export function MatchPage({ matchId }: { matchId: string }) {
           </div>
           {!closed && (
             <div className="lobby-heading-actions">
+              {host && account.data?.capabilities?.hostGuests && (
+                <GuestAccessToggle
+                  allowed={snapshot.accessMode === "guests_allowed"}
+                  disabled={pending}
+                  onToggle={() =>
+                    void command(() =>
+                      updateMatchSettings(identity, matchId, {
+                        ...snapshotSettings(snapshot),
+                        accessMode:
+                          snapshot.accessMode === "guests_allowed"
+                            ? "accounts_only"
+                            : "guests_allowed",
+                      }),
+                    )
+                  }
+                />
+              )}
               <LobbyLock
                 locked={snapshot.admissionLocked === true}
                 disabled={pending}
@@ -486,7 +504,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
               <div className="competitive-lobby-settings">
                 <MatchSettings
                   showHostRules
-                  canHostGuests={account.data?.capabilities?.hostGuests === true}
                   value={settings}
                   identity={identity}
                   participantCount={snapshot.participants.length}
@@ -543,12 +560,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   </Tooltip>
                 </div>
               </div>
-            )}
-            {host && account.data?.capabilities?.hostGuests && snapshot.guestBudget && (
-              <p className="sync-label" role="status">
-                Guest allowance: {snapshot.guestBudget.jobsRemaining} runs/submissions ·{" "}
-                {Math.floor(snapshot.guestBudget.secondsRemaining / 60)} execution minutes left.
-              </p>
             )}
             <footer className="competitive-lobby-footer">
               <span role="status">

@@ -721,10 +721,6 @@ export interface components {
             /** @enum {string} */
             accessMode?: "accounts_only" | "guests_allowed";
             admissionLocked?: boolean;
-            guestBudget?: {
-                jobsRemaining: number;
-                secondsRemaining: number;
-            };
         };
         CreateMatchRequest: {
             difficulty?: components["schemas"]["Difficulty"];
@@ -974,8 +970,6 @@ export interface components {
             hostGuests: boolean;
             hostedIntelligence: boolean;
             experimental: boolean;
-            guestJobs: number;
-            guestSeconds: number;
             guestConcurrency: number;
         };
     };

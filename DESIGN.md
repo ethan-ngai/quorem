@@ -294,3 +294,5 @@ Profile identity places a 128px circular avatar beside stacked Name/Username fie
 
 
 Guest-hosting controls appear only for eligible accounts. Admission uses a compact lock icon beside Leave, independent of guest access; animate its shackle between open and closed, respecting reduced motion. Match completion uses a calm score summary and dismissible result dialog. Forfeit explains its actual multiplayer consequence with Keep playing focused first. Guest navigation always offers Sign in; completed guest participation loses its session. Browser-local intelligence is available without an account; hosted engines retain capability checks.
+
+Eligible hosts control guest access through a person icon immediately left of the admission lock. Access defaults off: a short animated slash draws when disabled and retracts when enabled; reduced motion switches instantly. Creation uses the same icon in its heading. No guest allowance counters.
