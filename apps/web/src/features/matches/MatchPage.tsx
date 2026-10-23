@@ -1,4 +1,5 @@
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
+import { MatchRecovery } from "./MatchRecovery";
 import { GuestAccessToggle } from "./GuestAccessToggle";
 import { useQueryClient } from "@tanstack/react-query";
 import { endGuestSession } from "../auth/session";
@@ -215,22 +216,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
     return (
       <main className="match-page">
         <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
-        <section className="match-page-content">
-          <h1>{error ? "Match unavailable" : "Opening match…"}</h1>
-          {error && (
-            <>
-              <p role="alert">
-                {userFacingErrorMessage(error, "Match unavailable. Please try again.")}
-              </p>
-              <button className="button button-secondary" onClick={() => void refetch()}>
-                Retry
-              </button>
-              <a className="text-link" href="/practice">
-                Back to practice
-              </a>
-            </>
-          )}
-        </section>
+        <MatchRecovery failed={!!error} onRetry={refetch} />
       </main>
     );
   if (finished)
