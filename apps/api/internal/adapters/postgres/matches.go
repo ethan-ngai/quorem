@@ -480,6 +480,15 @@ func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, 
 				return failure("invalid_transition", 409, "Remove guests before disabling guest access")
 			}
 		}
+		previous := m.settings
+		previous.AdmissionLocked = settings.AdmissionLocked
+		before, _ := json.Marshal(previous)
+		after, _ := json.Marshal(settings)
+		if string(before) == string(after) {
+			m.settings = settings
+			_, err := tx.Exec(ctx, "UPDATE matches SET admission_locked=$2 WHERE id=$1", id, settings.AdmissionLocked)
+			return err
+		}
 		m.settings = settings
 		m.mode = settings.Mode
 		m.state = "waiting"
@@ -525,6 +534,9 @@ func (s *Store) ForfeitMatch(ctx context.Context, owner, id, key string) (matche
 			return finishMatch(ctx, tx, m, "cancelled", "", "forfeit_without_opponent")
 		}
 		if _, err := tx.Exec(ctx, "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id=$2", id, owner); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "DELETE FROM match_reservations WHERE match_id=$1 AND owner_id=$2", id, owner); err != nil {
 			return err
 		}
 		var count int

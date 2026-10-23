@@ -60,6 +60,7 @@ async function fetchMatchSnapshot(
 export function useMatchSync(
   identity: DevelopmentIdentity,
   matchId: string | undefined,
+  enabled = true,
 ): {
   snapshot: MatchSnapshot | undefined;
   error: Error | null;
@@ -100,8 +101,8 @@ export function useMatchSync(
         syncState.fetching = false;
       }
     },
-    enabled: Boolean(matchId) && readyOwner === ownerKey,
-    refetchInterval: status === "live" ? 5_000 : 2_000,
+    enabled: enabled && Boolean(matchId) && readyOwner === ownerKey,
+    refetchInterval: enabled ? (status === "live" ? 5_000 : 2_000) : false,
     structuralSharing: (previous, incoming) =>
       keepNewestSnapshot(previous as MatchSnapshot | undefined, incoming as MatchSnapshot),
   });
@@ -116,7 +117,7 @@ export function useMatchSync(
   const refetch = useCallback(() => query.refetch(), [query.refetch]);
 
   useEffect(() => {
-    if (!matchId) {
+    if (!matchId || !enabled) {
       setReadyOwner("");
       setStatus("connecting");
       syncState.disposed = true;
@@ -246,7 +247,7 @@ export function useMatchSync(
       syncState.events = [];
       syncState.overflow = false;
     };
-  }, [identity, matchId, ownerKey, queryClient, queryKey, refetch, syncState]);
+  }, [identity, matchId, ownerKey, queryClient, queryKey, refetch, syncState, enabled]);
 
   return {
     snapshot: query.data,

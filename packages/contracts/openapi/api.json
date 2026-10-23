@@ -1527,6 +1527,31 @@
           }
         }
       }
+    },
+    "/v1/guest-sessions/end": {
+      "post": {
+        "operationId": "endGuestSession",
+        "security": [
+          {
+            "GuestSession": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Finished guest participation revoked and cookie removed"
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

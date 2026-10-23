@@ -37,9 +37,7 @@ export function AccountMenu({
     /^\/(practice|match|invite|admin)(\/|$)/.test(location.pathname)
       ? `${location.pathname}${location.search}`
       : "";
-  if (session?.kind === "guest")
-    return <span className="guest-account-label">{session.user.displayName} · Guest</span>;
-  if (!session)
+  if (!session || session.kind === "guest")
     return (
       <a
         className="button nav-sign-in"

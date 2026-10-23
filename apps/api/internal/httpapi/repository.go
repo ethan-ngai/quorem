@@ -34,6 +34,7 @@ type ExecutionRepository interface {
 	CancelWithKey(context.Context, string, string, string) (judging.Submission, error)
 }
 type MatchRepository interface {
+	EndGuestSession(context.Context, string) (bool, error)
 	RotateInvite(context.Context, string, string, string) (matches.Created, error)
 	RemoveGuest(context.Context, string, string, string, string) (matches.Snapshot, error)
 	Capabilities(context.Context, string) (access.Capabilities, error)
