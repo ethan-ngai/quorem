@@ -1,4 +1,9 @@
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
+import { useQueryClient } from "@tanstack/react-query";
+import { endGuestSession } from "../auth/session";
+import { LobbyLock } from "./LobbyLock";
+import { MatchEndView } from "./MatchEndView";
+import { RotateCcw } from "lucide-react";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import {
@@ -121,7 +126,35 @@ function MatchLedger({
 export function MatchPage({ matchId }: { matchId: string }) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
-  const { snapshot, error, status, refetch } = useMatchSync(identity, matchId);
+  const queryClient = useQueryClient();
+  const [storedFinished, setFinished] = useState<{
+    snapshot: MatchSnapshot;
+    identity: DevelopmentIdentity;
+    guest: boolean;
+  }>();
+  const finished = storedFinished?.snapshot.id === matchId ? storedFinished : undefined;
+  const {
+    snapshot: liveSnapshot,
+    error,
+    status,
+    refetch,
+  } = useMatchSync(identity, matchId, !finished);
+  const snapshot = finished?.snapshot ?? liveSnapshot;
+  useEffect(() => {
+    if (!liveSnapshot || finished || account.isPending || !account.data) return;
+    if (
+      liveSnapshot.state === "completed" ||
+      liveSnapshot.state === "cancelled" ||
+      ownParticipant(liveSnapshot, identity)?.forfeited
+    )
+      setFinished({ snapshot: liveSnapshot, identity, guest: account.data?.kind === "guest" });
+  }, [liveSnapshot, finished, identity, account.isPending, account.data]);
+  useEffect(() => {
+    if (!finished?.guest) return;
+    void endGuestSession()
+      .then(() => queryClient.setQueryData(["auth-session"], null))
+      .catch(() => setActionError("Could not end the guest session. Reload to retry."));
+  }, [finished, queryClient]);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
@@ -165,7 +198,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
       setPending(false);
     }
   };
-  if (!account.isPending && !account.data)
+  if (!account.isPending && !account.data && !finished)
     return (
       <main className="match-page">
         <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
@@ -197,6 +230,17 @@ export function MatchPage({ matchId }: { matchId: string }) {
             </>
           )}
         </section>
+      </main>
+    );
+  if (finished)
+    return (
+      <main className="match-page">
+        <GlobalNav identity={finished.identity} theme={preference} onThemeChange={setPreference} />
+        <MatchEndView
+          snapshot={finished.snapshot}
+          identity={finished.identity}
+          guest={finished.guest}
+        />
       </main>
     );
   const own = ownParticipant(snapshot, identity);
@@ -238,6 +282,12 @@ export function MatchPage({ matchId }: { matchId: string }) {
     <ConcessionDialog
       open={conceding}
       pending={pending}
+      freeForAll={snapshot.mode === "free-for-all"}
+      remainingPlayers={
+        snapshot.participants.filter(
+          (player) => !player.forfeited && player.userId !== participantUserId(identity),
+        ).length
+      }
       onCancel={() => setConceding(false)}
       onConfirm={() =>
         void command(async () => {
@@ -338,21 +388,38 @@ export function MatchPage({ matchId }: { matchId: string }) {
             {closed && <p>{snapshot.outcome?.reason.replaceAll("_", " ")}</p>}
           </div>
           {!closed && (
-            <Tooltip content="Leave lobby">
-              <button
-                className="icon-button destructive-icon"
-                aria-label="Leave lobby"
+            <div className="lobby-heading-actions">
+              <LobbyLock
+                locked={snapshot.admissionLocked === true}
                 disabled={pending}
-                onClick={() =>
-                  void command(async () => {
-                    await leaveMatch(identity, matchId);
-                    window.location.assign("/practice");
-                  })
+                onToggle={
+                  host
+                    ? () =>
+                        void command(() =>
+                          updateMatchSettings(identity, matchId, {
+                            ...snapshotSettings(snapshot),
+                            admissionLocked: !snapshot.admissionLocked,
+                          }),
+                        )
+                    : undefined
                 }
-              >
-                <Icon name="output" />
-              </button>
-            </Tooltip>
+              />
+              <Tooltip content="Leave lobby">
+                <button
+                  className="icon-button destructive-icon"
+                  aria-label="Leave lobby"
+                  disabled={pending}
+                  onClick={() =>
+                    void command(async () => {
+                      await leaveMatch(identity, matchId);
+                      window.location.assign("/practice");
+                    })
+                  }
+                >
+                  <Icon name="output" />
+                </button>
+              </Tooltip>
+            </div>
           )}
         </div>
         {!closed && (
@@ -419,6 +486,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
               <div className="competitive-lobby-settings">
                 <MatchSettings
                   showHostRules
+                  canHostGuests={account.data?.capabilities?.hostGuests === true}
                   value={settings}
                   identity={identity}
                   participantCount={snapshot.participants.length}
@@ -451,17 +519,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
             )}
             {inviteUrl && host && (
               <div className="competitive-invite">
-                <button
-                  className="quiet-button"
-                  disabled={pending}
-                  onClick={() =>
-                    void command(async () => {
-                      await rotateInvite(identity, matchId);
-                    })
-                  }
-                >
-                  Rotate invitation
-                </button>
                 <label htmlFor="invite-link">
                   <Icon name="people" />
                   Invitation
@@ -474,14 +531,23 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     onFocus={(event) => event.currentTarget.select()}
                   />
                   {invitationActions}
+                  <Tooltip content="Replace invitation link. Existing players stay.">
+                    <button
+                      className="icon-button"
+                      aria-label="Replace invitation link"
+                      disabled={pending}
+                      onClick={() => void command(() => rotateInvite(identity, matchId))}
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}
-            {snapshot.guestBudget && (
+            {host && account.data?.capabilities?.hostGuests && snapshot.guestBudget && (
               <p className="sync-label" role="status">
-                Guest room allowance: {snapshot.guestBudget.jobsRemaining} runs/submissions ·{" "}
-                {Math.floor(snapshot.guestBudget.secondsRemaining / 60)} execution minutes
-                remaining. Host monthly limits also apply.
+                Guest allowance: {snapshot.guestBudget.jobsRemaining} runs/submissions ·{" "}
+                {Math.floor(snapshot.guestBudget.secondsRemaining / 60)} execution minutes left.
               </p>
             )}
             <footer className="competitive-lobby-footer">

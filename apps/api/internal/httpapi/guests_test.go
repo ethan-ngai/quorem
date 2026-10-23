@@ -115,3 +115,72 @@ func TestPublishingRequiresRecentStrongSession(t *testing.T) {
 		}
 	}
 }
+
+func TestGuestSessionEndsWithParticipation(t *testing.T) {
+	store := streamStore(t)
+	ctx := context.Background()
+	if err := store.ApplyGrant(ctx, access.Grant{OperationID: postgres.ID(), UserID: "alice", Scope: "internal", Source: "internal", Reference: "fixture", Actor: "operator", Reason: "Test"}, false); err != nil {
+		t.Fatal(err)
+	}
+	room, err := store.CreateMatch(ctx, "alice", postgres.ID(), matches.Settings{Mode: matches.FreeForAll, Difficulty: "easy", DurationMinutes: 30, AccessMode: "guests_allowed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := &http.Cookie{Name: guestCookie, Value: strings.Repeat("a", 43)}
+	if _, err = store.JoinGuest(ctx, strings.TrimPrefix(room.InviteURL, "/invite/"), cookie.Value, "Guest"); err != nil {
+		t.Fatal(err)
+	}
+	principal, err := store.GuestIdentity(ctx, cookie.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ReadyMatch(ctx, "alice", room.ID, postgres.ID(), true); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := store.ReadyMatch(ctx, principal.UserID, room.ID, postgres.ID(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := snapshot.Settings
+	settings.AdmissionLocked = true
+	snapshot, err = store.UpdateMatchSettings(ctx, "alice", room.ID, postgres.ID(), settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, player := range snapshot.Participants {
+		if !player.Ready {
+			t.Fatal("locking reset readiness")
+		}
+	}
+	api := &Server{Store: store, Origins: []string{"http://localhost:5173"}}
+	send := func(method, path string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(method, path, nil)
+		r.AddCookie(cookie)
+		r.Header.Set("Origin", "http://localhost:5173")
+		w := httptest.NewRecorder()
+		api.Handler().ServeHTTP(w, r)
+		return w
+	}
+	if w := send("POST", "/v1/guest-sessions/end"); w.Code != 409 {
+		t.Fatal("active guest revoked", w.Code, w.Body.String())
+	}
+	if _, err = store.LeaveMatch(ctx, "alice", room.ID, postgres.ID()); err != nil {
+		t.Fatal(err)
+	}
+	if w := send("POST", "/v1/guest-sessions/end"); w.Code != 204 || len(w.Result().Cookies()) != 1 || w.Result().Cookies()[0].MaxAge != -1 {
+		t.Fatal("guest end", w.Code, w.Body.String())
+	}
+	if w := send("GET", "/v1/session"); w.Code != 401 {
+		t.Fatal("guest survived match", w.Code)
+	}
+	if w := send("GET", "/v1/matches/"+room.ID); w.Code != 401 {
+		t.Fatal("revoked credential survived", w.Code)
+	}
+	// Navigation after a match also ends sessions when no end request was delivered.
+	if _, err = store.Pool.Exec(ctx, "UPDATE guest_sessions SET revoked_at=NULL"); err != nil {
+		t.Fatal(err)
+	}
+	if w := send("GET", "/v1/session"); w.Code != 401 || len(w.Result().Cookies()) != 1 {
+		t.Fatal("passive guest cleanup", w.Code)
+	}
+}

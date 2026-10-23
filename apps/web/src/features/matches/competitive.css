@@ -850,3 +850,205 @@
   font-size: 12px;
   color: var(--color-text-secondary);
 }
+
+.lobby-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lobby-lock-icon {
+  width: 19px;
+  height: 19px;
+  overflow: visible;
+}
+.lobby-lock-status {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--color-text-secondary);
+}
+.lock-shackle {
+  transform-origin: 17px 11px;
+  transition: transform 180ms var(--motion-easing);
+}
+.lobby-lock-icon[data-locked="false"] .lock-shackle {
+  transform: translate(2px, -1px) rotate(28deg);
+}
+.lobby-lock-button:active .lobby-lock-icon {
+  transform: scale(0.9);
+}
+.guest-access-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.guest-access-toggle[aria-checked="true"] {
+  color: var(--color-text);
+}
+.guest-toggle-track {
+  width: 30px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-overlay);
+  border: 1px solid var(--color-border);
+  padding: 2px;
+  transition: background var(--motion-fast);
+}
+.guest-toggle-track > span {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  transition:
+    transform var(--motion-fast) var(--motion-easing),
+    background var(--motion-fast);
+}
+.guest-access-toggle[aria-checked="true"] .guest-toggle-track {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.guest-access-toggle[aria-checked="true"] .guest-toggle-track > span {
+  transform: translateX(12px);
+  background: var(--color-on-primary);
+}
+.match-dialog-close {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+}
+.match-result-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+  margin-bottom: 20px;
+}
+.match-result-icon.is-winner {
+  color: var(--color-success);
+}
+.forfeit-icon {
+  color: var(--color-error);
+}
+.forfeit-dialog h2,
+.match-end-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.forfeit-dialog > p,
+.match-end-dialog > p,
+.match-results-heading p {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+.match-end-score {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 24px 0 8px;
+}
+.match-end-score > strong {
+  font-size: 32px;
+  letter-spacing: -0.03em;
+  font-weight: 550;
+}
+.match-end-score strong > span {
+  font-size: 20px;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+.match-end-score > span {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.match-results-page {
+  max-width: 520px;
+}
+.match-results-heading h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  letter-spacing: -0.025em;
+}
+.match-result-players {
+  padding: 0;
+  margin: 32px 0 24px;
+  list-style: none;
+  border-top: 1px solid var(--color-border);
+}
+.match-result-players li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+}
+.match-result-players li > span {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.match-result-players li strong {
+  font-weight: 500;
+}
+.match-result-players small,
+.result-score-total,
+.match-guest-finished {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.match-results-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+}
+.match-results-actions a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lock-shackle,
+  .guest-toggle-track,
+  .guest-toggle-track > span {
+    transition: none;
+  }
+}
+@media (max-width: 480px) {
+  .match-end-dialog .competitive-dialog-actions,
+  .forfeit-dialog .competitive-dialog-actions {
+    gap: 8px;
+  }
+  .match-end-dialog .competitive-dialog-actions > *,
+  .forfeit-dialog .competitive-dialog-actions > * {
+    flex: 1;
+    justify-content: center;
+  }
+}
+@media (max-width: 380px) {
+  .match-end-dialog .competitive-dialog-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .forfeit-dialog .competitive-dialog-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

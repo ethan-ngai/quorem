@@ -3,6 +3,7 @@ import { userFacingErrorMessage } from "../../ui/errors";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useState } from "react";
+import { useSession } from "../auth/session";
 import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
@@ -17,6 +18,7 @@ export function CreateMatchDialog({
   identity: DevelopmentIdentity;
   onClose: () => void;
 }) {
+  const session = useSession();
   const [open, setOpen] = useState(true);
   const [settings, setSettings] = useState<CreateMatchRequest>(
     () => pendingCreate(identity)?.payload ?? defaultMatchSettings,
@@ -96,6 +98,9 @@ export function CreateMatchDialog({
               }}
             >
               <MatchSettings
+                canHostGuests={
+                  session.data?.kind !== "guest" && session.data?.capabilities?.hostGuests === true
+                }
                 value={settings}
                 identity={identity}
                 onChange={setSettings}

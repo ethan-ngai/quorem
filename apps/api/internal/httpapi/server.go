@@ -41,6 +41,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/session", s.session)
 	mux.HandleFunc("GET /v1/capabilities", s.getCapabilities)
 	mux.HandleFunc("POST /v1/guest-sessions", s.bootstrapGuest)
+	mux.HandleFunc("POST /v1/guest-sessions/end", s.endGuest)
 	mux.HandleFunc("POST /v1/match-invites/{token}/guest", s.joinGuest)
 	mux.HandleFunc("GET /v1/problems", s.listProblems)
 	mux.HandleFunc("GET /v1/problems/{slug}", s.problem)
@@ -343,6 +344,21 @@ func (s *Server) RequireAdmin(w http.ResponseWriter, r *http.Request) bool {
 }
 func (s *Server) session(w http.ResponseWriter, r *http.Request) {
 	p := identity.Subject(r.Context())
+	if p.Guest {
+		cookie, _ := r.Cookie(guestCookie)
+		if cookie != nil {
+			ended, err := s.Store.EndGuestSession(r.Context(), cookie.Value)
+			if err != nil {
+				s.err(w, r, err)
+				return
+			}
+			if ended {
+				clearGuestCookie(w)
+				s.err(w, r, &application.Error{Code: "unauthenticated", Status: 401, Message: "Guest session ended"})
+				return
+			}
+		}
+	}
 	role := "user"
 	if p.Admin {
 		role = "admin"

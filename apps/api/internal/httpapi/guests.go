@@ -81,6 +81,9 @@ func guestRoute(r *http.Request, p identity.Principal, public bool) bool {
 		return true
 	}
 	path := r.URL.Path
+	if path == "/v1/guest-sessions/end" && r.Method == "POST" {
+		return true
+	}
 	if r.Method == "GET" && (path == "/v1/session" || path == "/v1/matches/current" || strings.HasPrefix(path, "/v1/workspaces/") || strings.HasPrefix(path, "/v1/submissions/")) {
 		return true
 	}
@@ -135,4 +138,30 @@ func (s *Server) removeGuest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, v)
+}
+
+func clearGuestCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+}
+func (s *Server) endGuest(w http.ResponseWriter, r *http.Request) {
+	if !identity.Subject(r.Context()).Guest {
+		s.err(w, r, &application.Error{Code: "forbidden", Status: 403, Message: "Guest session required"})
+		return
+	}
+	cookie, _ := r.Cookie(guestCookie)
+	if cookie == nil {
+		w.WriteHeader(401)
+		return
+	}
+	ended, err := s.Store.EndGuestSession(r.Context(), cookie.Value)
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	if !ended {
+		s.err(w, r, &application.Error{Code: "invalid_transition", Status: 409, Message: "The guest match is still active"})
+		return
+	}
+	clearGuestCookie(w)
+	w.WriteHeader(204)
 }

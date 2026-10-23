@@ -534,24 +534,19 @@ export function WorkspacePage({
   const intelligence = useIntelligence(
     identity,
     editorDocumentKey,
-    !!account.data && account.data.kind !== "guest" && !loading && browserIntelligenceAvailable,
+    !loading && browserIntelligenceAvailable,
     documentLanguage,
+    account.data?.kind !== "guest" && account.data?.capabilities?.hostedIntelligence === true,
   );
-  const intelligenceStatus =
-    !account.data || account.data.kind === "guest" || !browserIntelligenceAvailable
-      ? "unavailable"
-      : intelligence.status;
-  const intelligenceHint =
-    !account.data || account.data.kind === "guest"
-      ? "IntelliSense unavailable. Sign in to enable it."
-      : !browserIntelligenceAvailable
-        ? "IntelliSense unavailable for this language."
-        : {
-            ready: "IntelliSense active",
-            connecting: "IntelliSense connecting",
-            paused: "IntelliSense paused. Follows the focused window automatically.",
-            unavailable: "IntelliSense unavailable",
-          }[intelligenceStatus];
+  const intelligenceStatus = browserIntelligenceAvailable ? intelligence.status : "unavailable";
+  const intelligenceHint = !browserIntelligenceAvailable
+    ? "IntelliSense unavailable for this language."
+    : {
+        ready: "IntelliSense active",
+        connecting: "IntelliSense connecting",
+        paused: "IntelliSense paused. Follows the focused window automatically.",
+        unavailable: "IntelliSense unavailable",
+      }[intelligenceStatus];
 
   const actionsEnabled =
     !!account.data &&
@@ -712,8 +707,7 @@ export function WorkspacePage({
                   }))}
                 />
                 <div className="code-options">
-                  {(hostedIntelligenceEnabled ||
-                    (!!account.data && browserIntelligenceAvailable)) && (
+                  {(hostedIntelligenceEnabled || browserIntelligenceAvailable) && (
                     <Tooltip content={intelligenceHint}>
                       <span
                         role="img"
@@ -742,7 +736,7 @@ export function WorkspacePage({
                   tabSize={tabSize}
                   wrap={wrap}
                   readOnly={languageSwitching}
-                  completionEnabled={!!account.data && account.data.kind !== "guest"}
+                  completionEnabled={true}
                   intelligenceExtensions={
                     browserIntelligenceAvailable ? intelligence.extensions : undefined
                   }

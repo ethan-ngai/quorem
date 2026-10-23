@@ -114,3 +114,9 @@ func (s *Store) JoinGuest(ctx context.Context, token, credential, name string) (
 	}
 	return s.Match(ctx, owner, id)
 }
+
+// EndGuestSession revokes only finished/forfeited participation; active seats remain resumable.
+func (s *Store) EndGuestSession(ctx context.Context, credential string) (bool, error) {
+	tag, err := s.Pool.Exec(ctx, `UPDATE guest_sessions g SET revoked_at=clock_timestamp() FROM matches m WHERE g.token_hash=$1 AND m.id=g.match_id AND (m.state IN ('completed','cancelled') OR EXISTS(SELECT 1 FROM match_participants p WHERE p.match_id=m.id AND p.owner_id=g.owner_id AND p.forfeited))`, Hash([]byte(credential)))
+	return tag.RowsAffected() > 0, err
+}
