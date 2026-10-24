@@ -448,8 +448,8 @@ kbd {
 }
 .splitter-y::after {
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: var(--workspace-control-inset);
+  right: var(--workspace-control-inset);
   height: 1px;
 }
 .coding-pane {
@@ -2269,4 +2269,13 @@ kbd {
   .app-shell:not(.has-match) .workspace-grid {
     padding-top: 0;
   }
+}
+
+.python-editor .cm-scroller::-webkit-scrollbar-track:horizontal {
+  margin-left: var(--workspace-control-inset);
+  margin-right: var(--workspace-control-inset);
+}
+.python-editor .cm-scroller::-webkit-scrollbar-thumb:horizontal {
+  border-left: 0;
+  border-right: 0;
 }
