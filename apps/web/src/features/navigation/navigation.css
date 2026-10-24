@@ -29,11 +29,6 @@
 .nav-brand .brand-mark {
   flex-shrink: 0;
 }
-.nav-wordmark {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-}
 .nav-actions {
   display: flex;
   align-items: center;
@@ -96,9 +91,6 @@
   .global-nav {
     padding-inline: var(--space-2);
     gap: var(--space-2);
-  }
-  .nav-wordmark {
-    display: none;
   }
   .nav-actions {
     gap: var(--space-1);
@@ -449,5 +441,12 @@
 @media (pointer: coarse) {
   .nav-sign-in {
     min-height: 44px;
+  }
+}
+
+@media (max-width: 620px) {
+  .nav-actions .nav-match-action > span,
+  .nav-actions .global-mode > .mode-text {
+    display: none;
   }
 }

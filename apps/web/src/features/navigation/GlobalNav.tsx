@@ -105,7 +105,25 @@ export function GlobalNav({
     <>
       <div className="global-nav-slot">
         <header className="topbar global-nav">
-          <WorkspaceSidebar pathname={pathname} admin={session.data?.user.role === "admin"}>
+          <WorkspaceSidebar pathname={pathname} admin={session.data?.user.role === "admin"} />
+          <a className="nav-brand" href="/" aria-label="Quorem home">
+            <span className="brand-mark" aria-hidden="true" />
+          </a>
+          <div className="nav-actions">
+            {children}
+
+            {workspaceSettings && (
+              <Tooltip content="Workspace settings">
+                <button
+                  className="icon-button nav-settings-trigger"
+                  ref={settingsTrigger}
+                  aria-label="Workspace settings"
+                  onClick={() => openSettings("editor")}
+                >
+                  <SlidersHorizontal size={18} />
+                </button>
+              </Tooltip>
+            )}
             {mode ? (
               <span className="global-mode">
                 <span key={mode} className="mode-icon-enter">
@@ -169,28 +187,6 @@ export function GlobalNav({
                   </button>
                 </Tooltip>
               ))
-            )}
-          </WorkspaceSidebar>
-          <a className="nav-brand" href="/" aria-label="Quorem home">
-            <span className="brand-mark" aria-hidden="true" />
-            <span className="nav-wordmark" aria-hidden="true">
-              Quorem
-            </span>
-          </a>
-          <div className="nav-actions">
-            {children}
-
-            {workspaceSettings && (
-              <Tooltip content="Workspace settings">
-                <button
-                  className="icon-button nav-settings-trigger"
-                  ref={settingsTrigger}
-                  aria-label="Workspace settings"
-                  onClick={() => openSettings("editor")}
-                >
-                  <SlidersHorizontal size={18} />
-                </button>
-              </Tooltip>
             )}
             <AccountMenu
               triggerRef={profileTrigger}

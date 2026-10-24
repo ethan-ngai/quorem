@@ -1,6 +1,5 @@
-import type { ComponentProps } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   RouterProvider,
@@ -12,19 +11,6 @@ import {
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { GlobalNav } from "./GlobalNav";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
-
-// Expose portal actions to SSR so membership/auth gating remains covered.
-vi.mock("./WorkspaceSidebar", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./WorkspaceSidebar")>();
-  return {
-    WorkspaceSidebar: (props: ComponentProps<typeof actual.WorkspaceSidebar>) => (
-      <>
-        <actual.WorkspaceSidebar {...props} />
-        {props.children}
-      </>
-    ),
-  };
-});
 
 async function renderNavigation(
   path: string,
