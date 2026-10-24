@@ -36,23 +36,28 @@ type Document struct {
 	Epoch   string `json:"epoch"`
 }
 type Question struct {
-	Progress     *Progress        `json:"progress,omitempty"`
-	Problem      problems.Problem `json:"problem"`
-	Language     string           `json:"language"`
-	PrivateCases []problems.Case  `json:"privateCases,omitempty"`
+	Languages          []string         `json:"languages"`
+	PrivateCaseDetails []CaseDetail     `json:"privateCaseDetails,omitempty"`
+	RevealedCases      []CaseDetail     `json:"revealedCases,omitempty"`
+	Progress           *Progress        `json:"progress,omitempty"`
+	Problem            problems.Problem `json:"problem"`
+	Language           string           `json:"language"`
+	PrivateCases       []problems.Case  `json:"privateCases,omitempty"`
 }
 type Snapshot struct {
-	LatestSubmissionID string   `json:"latestSubmissionId,omitempty"`
-	ID                 string   `json:"id"`
-	Title              string   `json:"title"`
-	State              string   `json:"state"`
-	HostID             string   `json:"hostId"`
-	Role               string   `json:"role"`
-	Members            []Member `json:"members"`
-	Question           Question `json:"question"`
-	Document           Document `json:"document"`
-	InvitePath         string   `json:"invitePath,omitempty"`
-	Version            int64    `json:"version"`
+	QuestionEpoch      string       `json:"questionEpoch"`
+	Invites            *InvitePaths `json:"invites,omitempty"`
+	LatestSubmissionID string       `json:"latestSubmissionId,omitempty"`
+	ID                 string       `json:"id"`
+	Title              string       `json:"title"`
+	State              string       `json:"state"`
+	HostID             string       `json:"hostId"`
+	Role               string       `json:"role"`
+	Members            []Member     `json:"members"`
+	Question           Question     `json:"question"`
+	Document           Document     `json:"document"`
+	InvitePath         string       `json:"invitePath,omitempty"`
+	Version            int64        `json:"version"`
 }
 type Update struct {
 	ClientID string          `json:"clientID"`
@@ -69,15 +74,17 @@ type Updates struct {
 	Updates []Update `json:"updates"`
 }
 type Preview struct {
+	Role      string `json:"role"`
 	Title     string `json:"title"`
 	SessionID string `json:"sessionId"`
 	State     string `json:"state"`
 }
 
 type Progress struct {
-	Level     int                     `json:"level"`
-	Completed bool                    `json:"completed"`
-	Levels    []problems.OdysseyLevel `json:"levels"`
+	TotalLevels int                     `json:"totalLevels"`
+	Level       int                     `json:"level"`
+	Completed   bool                    `json:"completed"`
+	Levels      []problems.OdysseyLevel `json:"levels"`
 }
 type PresenceInput struct {
 	ClientID string `json:"clientID"`
@@ -90,4 +97,14 @@ type Presence struct {
 	PresenceInput
 	UserID string `json:"userId"`
 	Name   string `json:"name"`
+}
+
+type InvitePaths struct {
+	Interviewer string `json:"interviewer"`
+	Interviewee string `json:"interviewee"`
+}
+type CaseDetail struct {
+	ID       string        `json:"id"`
+	Case     problems.Case `json:"case"`
+	Revealed bool          `json:"revealed"`
 }

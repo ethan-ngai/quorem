@@ -20,6 +20,8 @@ import (
 const interviewGuestCookie = "quorem_interview_guest"
 
 type InterviewRepository interface {
+	SwitchInterviewLanguage(context.Context, string, string, string, string, string) (interviews.Snapshot, error)
+	SetInterviewCaseVisibility(context.Context, string, string, string, string, bool, ...string) (interviews.Snapshot, error)
 	RotateInterviewGuestCredential(context.Context, string, string) (bool, error)
 	InterviewPresence(context.Context, string, string) ([]interviews.Presence, error)
 	UpdateInterviewPresence(context.Context, string, string, interviews.PresenceInput) ([]interviews.Presence, error)
@@ -55,6 +57,8 @@ func (s *Server) registerInterviews(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/interviews", s.createInterview)
 	mux.HandleFunc("GET /v1/interviews/{id}", s.getInterview)
 	mux.HandleFunc("PUT /v1/interviews/{id}/question", s.setInterviewQuestion)
+	mux.HandleFunc("POST /v1/interviews/{id}/language", s.switchInterviewLanguage)
+	mux.HandleFunc("POST /v1/interviews/{id}/cases/{caseId}/visibility", s.setInterviewCaseVisibility)
 	mux.HandleFunc("POST /v1/interviews/{id}/members", s.setInterviewMember)
 	mux.HandleFunc("POST /v1/interviews/{id}/members/{userId}/remove", s.removeInterviewMember)
 	mux.HandleFunc("POST /v1/interviews/{id}/close", s.closeInterview)
@@ -387,6 +391,57 @@ func (s *Server) setInterviewPresence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, e := repo.UpdateInterviewPresence(r.Context(), owner(r), r.PathValue("id"), p)
+	if e != nil {
+		s.err(w, r, e)
+		return
+	}
+	respond(w, 200, v)
+}
+
+func (s *Server) switchInterviewLanguage(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var c struct {
+		Language string `json:"language"`
+		Epoch    string `json:"epoch"`
+	}
+	if !s.decode(w, r, &c, 1024) {
+		return
+	}
+	v, e := repo.SwitchInterviewLanguage(r.Context(), owner(r), r.PathValue("id"), key, c.Language, c.Epoch)
+	if e != nil {
+		s.err(w, r, e)
+		return
+	}
+	respond(w, 200, v)
+}
+func (s *Server) setInterviewCaseVisibility(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var c struct {
+		Revealed      *bool  `json:"revealed"`
+		QuestionEpoch string `json:"questionEpoch"`
+	}
+	if !s.decode(w, r, &c, 128) {
+		return
+	}
+	if c.Revealed == nil || c.QuestionEpoch == "" {
+		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Test visibility required"})
+		return
+	}
+	v, e := repo.SetInterviewCaseVisibility(r.Context(), owner(r), r.PathValue("id"), key, r.PathValue("caseId"), *c.Revealed, c.QuestionEpoch)
 	if e != nil {
 		s.err(w, r, e)
 		return

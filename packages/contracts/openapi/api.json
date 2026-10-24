@@ -2384,6 +2384,144 @@
           }
         }
       }
+    },
+    "/v1/interviews/{id}/language": {
+      "post": {
+        "operationId": "switchInterviewLanguage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "$ref": "#/components/schemas/Language"
+                  },
+                  "epoch": {
+                    "type": "string"
+                  }
+                },
+                "required": ["language", "epoch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/cases/{caseId}/visibility": {
+      "post": {
+        "operationId": "setInterviewCaseVisibility",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revealed": {
+                    "type": "boolean"
+                  },
+                  "questionEpoch": {
+                    "type": "string"
+                  }
+                },
+                "required": ["revealed", "questionEpoch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2996,6 +3134,12 @@
           },
           "infrastructureError": {
             "type": "string"
+          },
+          "privateCaseResults": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewCaseResult"
+            }
           }
         },
         "required": ["id", "workspaceId", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
@@ -4114,6 +4258,11 @@
             "items": {
               "$ref": "#/components/schemas/OdysseyLevel"
             }
+          },
+          "totalLevels": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
           }
         },
         "required": ["level", "completed", "levels"],
@@ -4283,9 +4432,27 @@
           },
           "progress": {
             "$ref": "#/components/schemas/OdysseyProgress"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Language"
+            }
+          },
+          "privateCaseDetails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewCaseDetail"
+            }
+          },
+          "revealedCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewCaseDetail"
+            }
           }
         },
-        "required": ["problem", "language"],
+        "required": ["problem", "language", "languages"],
         "additionalProperties": false
       },
       "InterviewSnapshot": {
@@ -4327,6 +4494,12 @@
           },
           "latestSubmissionId": {
             "type": "string"
+          },
+          "questionEpoch": {
+            "type": "string"
+          },
+          "invites": {
+            "$ref": "#/components/schemas/InterviewInvitePaths"
           }
         },
         "required": [
@@ -4338,7 +4511,8 @@
           "members",
           "question",
           "document",
-          "version"
+          "version",
+          "questionEpoch"
         ],
         "additionalProperties": false
       },
@@ -4366,9 +4540,12 @@
           },
           "state": {
             "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/InterviewRole"
           }
         },
-        "required": ["title", "sessionId", "state"],
+        "required": ["title", "sessionId", "state", "role"],
         "additionalProperties": false
       },
       "InterviewPresence": {
@@ -4398,6 +4575,84 @@
             "type": "string"
           }
         }
+      },
+      "InterviewInvitePaths": {
+        "type": "object",
+        "properties": {
+          "interviewer": {
+            "type": "string"
+          },
+          "interviewee": {
+            "type": "string"
+          }
+        },
+        "required": ["interviewer", "interviewee"],
+        "additionalProperties": false
+      },
+      "InterviewCaseDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CustomCase"
+          },
+          "revealed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "case", "revealed"],
+        "additionalProperties": false
+      },
+      "InterviewCaseResult": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "executed",
+              "accepted",
+              "wrong_answer",
+              "syntax_error",
+              "runtime_error",
+              "time_limit",
+              "memory_limit",
+              "output_limit",
+              "invalid_output"
+            ]
+          },
+          "actual": {
+            "$ref": "#/components/schemas/WireValue"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/WireValue"
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            }
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CustomCase"
+          }
+        },
+        "required": ["index", "status", "caseId", "case"],
+        "additionalProperties": false
       }
     }
   }

@@ -162,14 +162,18 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 			}
 			result.HiddenCases = append(result.HiddenCases, execution.HiddenCaseResult{Index: i, Status: hiddenStatus})
 		}
-		if spec.Kind == "run" {
+		if spec.Kind == "run" || spec.PrivateDetails {
 			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
 			if f.Line > 0 {
 				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
 			}
 			public.Stdout = f.Stdout
 			public.Stderr = f.Stderr
-			result.PublicCaseResults = append(result.PublicCaseResults, public)
+			if spec.Kind == "run" {
+				result.PublicCaseResults = append(result.PublicCaseResults, public)
+			} else {
+				result.PrivateCaseResults = append(result.PrivateCaseResults, public)
+			}
 		}
 	}
 	if spec.Kind == "submit" {

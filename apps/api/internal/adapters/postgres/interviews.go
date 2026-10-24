@@ -16,16 +16,16 @@ import (
 )
 
 type interviewRecord struct {
-	snapshot        interviews.Snapshot
-	fixture         problems.Fixture
-	language, token string
+	snapshot                          interviews.Snapshot
+	fixture                           problems.Fixture
+	language, token, interviewerToken string
 }
 
 func lockInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, active bool) (interviewRecord, error) {
 	var v interviewRecord
 	var data []byte
 	var disabled bool
-	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,m.role,h.disabled FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 FOR UPDATE OF i`, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.Role, &disabled)
+	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 FOR UPDATE OF i`, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Interview unavailable")
 	}
@@ -61,6 +61,10 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 	out := v.snapshot
 	out.Question = interviews.Question{Problem: v.fixture.Problem, Language: v.language}
 	out.Members = []interviews.Member{}
+	out.Question.Languages = []string{}
+	for _, implementation := range v.fixture.Problem.Languages {
+		out.Question.Languages = append(out.Question.Languages, implementation.Language)
+	}
 	if v.fixture.Problem.Odyssey != nil {
 		level, completed, err := interviewProgress(ctx, tx, v)
 		if err != nil {
@@ -71,22 +75,26 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 			return out, err
 		}
 		out.Question.Problem = p
-		out.Question.Progress = &interviews.Progress{Level: level, Completed: completed, Levels: p.Odyssey.Levels}
+		out.Question.Progress = &interviews.Progress{Level: level, Completed: completed, Levels: p.Odyssey.Levels, TotalLevels: len(v.fixture.Problem.Odyssey.Levels)}
 	}
 
-	if err := tx.QueryRow(ctx, `SELECT COALESCE((SELECT e.submission_id::text FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN interviews i ON i.id=e.session_id WHERE e.session_id=$1 AND e.document_epoch=i.document_epoch ORDER BY s.admitted_at DESC LIMIT 1),'')`, out.ID).Scan(&out.LatestSubmissionID); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COALESCE((SELECT e.submission_id::text FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN interviews i ON i.id=e.session_id WHERE e.session_id=$1 AND e.question_epoch=i.question_epoch AND EXISTS(SELECT 1 FROM execution_jobs j WHERE j.submission_id=e.submission_id AND j.language=i.language) ORDER BY s.admitted_at DESC LIMIT 1),'')`, out.ID).Scan(&out.LatestSubmissionID); err != nil {
 		return out, err
 	}
 	if out.Role == "interviewer" {
 		out.Question.PrivateCases = v.fixture.HiddenCases
 		if v.fixture.Problem.Odyssey != nil {
-			_, tests, err := problems.CompileOdyssey(v.fixture, out.Question.Progress.Level, "submit")
+			_, tests, err := problems.CompileOdyssey(v.fixture, len(v.fixture.Problem.Odyssey.Levels), "submit")
 			if err != nil {
 				return out, err
 			}
 			out.Question.PrivateCases = tests
 		}
 		out.InvitePath = "/interview-invite/" + v.token
+		out.Invites = &interviews.InvitePaths{Interviewer: "/interview-invite/" + v.interviewerToken, Interviewee: out.InvitePath}
+	}
+	if err := interviewCaseProjection(ctx, tx, v, &out); err != nil {
+		return out, err
 	}
 	rows, err := tx.Query(ctx, `SELECT m.user_id,u.display_name,m.role,u.kind='guest' FROM interview_members m JOIN users u ON u.id=m.user_id WHERE m.session_id=$1 AND m.removed_at IS NULL ORDER BY m.role,m.user_id`, out.ID)
 	if err != nil {
@@ -225,8 +233,13 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	}
 	token := base64.RawURLEncoding.EncodeToString(raw)
 	id := ID()
+	questionEpoch := ID()
+	if _, err = rand.Read(raw); err != nil {
+		return empty, err
+	}
+	interviewerToken := base64.RawURLEncoding.EncodeToString(raw)
 	data, _ := json.Marshal(f)
-	if _, err = tx.Exec(ctx, `INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, id, user, c.Title, data, c.Question.Language, f.Problem.StarterSource, ID(), Hash([]byte(token)), token); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, id, user, c.Title, data, c.Question.Language, f.Problem.StarterSource, ID(), Hash([]byte(token)), token, questionEpoch, Hash([]byte(interviewerToken)), interviewerToken); err != nil {
 		return empty, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO interview_members(session_id,user_id,role) VALUES($1,$2,'interviewer')`, id, user); err != nil {
@@ -307,14 +320,26 @@ func (s *Store) interviewQuestion(ctx context.Context, q interviews.QuestionInpu
 			return f, failure("invalid_input", 400, fmt.Sprintf("Private test: %v", err))
 		}
 	}
-	f.Problem.Languages = []problems.LanguageImplementation{{Language: q.Language, StarterSource: c.StarterSource, RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness}}
+	f.Problem.Languages = []problems.LanguageImplementation{}
+	for _, lang := range []string{"python", "java", "typescript", "ocaml"} {
+		r, _ := execution.LanguageRuntime(lang)
+		starter := c.StarterSource
+		if lang != q.Language {
+			var err error
+			starter, err = interviewStarter(f.Problem.Signature, lang)
+			if err != nil {
+				return f, failure("invalid_input", 400, err.Error())
+			}
+		}
+		f.Problem.Languages = append(f.Problem.Languages, problems.LanguageImplementation{Language: lang, StarterSource: starter, RuntimeRevision: r.Revision, HarnessRevision: r.Harness})
+	}
 	return f, nil
 }
 
 func interviewProgress(ctx context.Context, tx pgx.Tx, v interviewRecord) (int, bool, error) {
 	level := 1
 	completed := false
-	err := tx.QueryRow(ctx, `SELECT level,completed FROM odyssey_progress WHERE scope_id=$1 AND problem_version_id=$2`, v.snapshot.Document.Epoch, v.fixture.Problem.ID).Scan(&level, &completed)
+	err := tx.QueryRow(ctx, `SELECT level,completed FROM odyssey_progress WHERE scope_id=$1 AND problem_version_id=$2`, v.snapshot.QuestionEpoch, v.fixture.Problem.ID).Scan(&level, &completed)
 	if err == pgx.ErrNoRows {
 		err = nil
 	}

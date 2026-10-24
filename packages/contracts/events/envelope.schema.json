@@ -596,6 +596,12 @@
         },
         "infrastructureError": {
           "type": "string"
+        },
+        "privateCaseResults": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterviewCaseResult"
+          }
         }
       },
       "required": ["id", "workspaceId", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
@@ -1714,6 +1720,11 @@
           "items": {
             "$ref": "#/$defs/OdysseyLevel"
           }
+        },
+        "totalLevels": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
         }
       },
       "required": ["level", "completed", "levels"],
@@ -1883,9 +1894,27 @@
         },
         "progress": {
           "$ref": "#/$defs/OdysseyProgress"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Language"
+          }
+        },
+        "privateCaseDetails": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterviewCaseDetail"
+          }
+        },
+        "revealedCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterviewCaseDetail"
+          }
         }
       },
-      "required": ["problem", "language"],
+      "required": ["problem", "language", "languages"],
       "additionalProperties": false
     },
     "InterviewSnapshot": {
@@ -1927,6 +1956,12 @@
         },
         "latestSubmissionId": {
           "type": "string"
+        },
+        "questionEpoch": {
+          "type": "string"
+        },
+        "invites": {
+          "$ref": "#/$defs/InterviewInvitePaths"
         }
       },
       "required": [
@@ -1938,7 +1973,8 @@
         "members",
         "question",
         "document",
-        "version"
+        "version",
+        "questionEpoch"
       ],
       "additionalProperties": false
     },
@@ -1966,9 +2002,12 @@
         },
         "state": {
           "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/InterviewRole"
         }
       },
-      "required": ["title", "sessionId", "state"],
+      "required": ["title", "sessionId", "state", "role"],
       "additionalProperties": false
     },
     "InterviewPresence": {
@@ -1998,6 +2037,84 @@
           "type": "string"
         }
       }
+    },
+    "InterviewInvitePaths": {
+      "type": "object",
+      "properties": {
+        "interviewer": {
+          "type": "string"
+        },
+        "interviewee": {
+          "type": "string"
+        }
+      },
+      "required": ["interviewer", "interviewee"],
+      "additionalProperties": false
+    },
+    "InterviewCaseDetail": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "case": {
+          "$ref": "#/$defs/CustomCase"
+        },
+        "revealed": {
+          "type": "boolean"
+        }
+      },
+      "required": ["id", "case", "revealed"],
+      "additionalProperties": false
+    },
+    "InterviewCaseResult": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "executed",
+            "accepted",
+            "wrong_answer",
+            "syntax_error",
+            "runtime_error",
+            "time_limit",
+            "memory_limit",
+            "output_limit",
+            "invalid_output"
+          ]
+        },
+        "actual": {
+          "$ref": "#/$defs/WireValue"
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          }
+        },
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "caseId": {
+          "type": "string"
+        },
+        "case": {
+          "$ref": "#/$defs/CustomCase"
+        }
+      },
+      "required": ["index", "status", "caseId", "case"],
+      "additionalProperties": false
     }
   },
   "$ref": "#/$defs/EventEnvelope"

@@ -71,7 +71,7 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spec, error) {
 	var spec judging.Spec
 	var fixture, cases []byte
-	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,COALESCE(ie.fixture,p.fixture),s.cases FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, j.JobID, j.AttemptID).Scan(&spec.Source, &spec.Kind, &fixture, &cases)
+	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,COALESCE(ie.fixture,p.fixture),s.cases,ie.submission_id IS NOT NULL FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, j.JobID, j.AttemptID).Scan(&spec.Source, &spec.Kind, &fixture, &cases, &spec.PrivateDetails)
 	if err != nil {
 		return spec, err
 	}
@@ -190,6 +190,24 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	}
 	if state == "completed" && kind == "submit" && result.Verdict == execution.Accepted && result.Score != nil && result.Score.Passed == result.Score.Total {
 		if err = s.advanceOdyssey(ctx, tx, j.SubmissionID); err != nil {
+			return err
+		}
+	}
+	if state == "completed" && kind == "submit" && len(c.PrivateCaseResults) > 0 {
+		var admitted int
+		if err = tx.QueryRow(ctx, `SELECT jsonb_array_length(cases) FROM submissions WHERE id=$1`, j.SubmissionID).Scan(&admitted); err != nil {
+			return err
+		}
+		if len(c.PrivateCaseResults) != admitted {
+			return errors.New("incomplete private case details")
+		}
+		for i, r := range c.PrivateCaseResults {
+			if r.Index != i || len(r.Stdout) > j.Limits.OutputBytes || len(r.Stderr) > j.Limits.OutputBytes || len(r.Actual) > j.Limits.OutputBytes {
+				return errors.New("invalid private case details")
+			}
+		}
+		private, _ := json.Marshal(c.PrivateCaseResults)
+		if _, err = tx.Exec(ctx, `UPDATE interview_execution SET private_results=$2 WHERE submission_id=$1`, j.SubmissionID, private); err != nil {
 			return err
 		}
 	}

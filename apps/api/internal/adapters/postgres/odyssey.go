@@ -34,6 +34,7 @@ func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.Odyssey
 		return result, failure("invalid_input", 400, "Workspace is not Odyssey")
 	}
 	result.Levels = p.Odyssey.Levels
+	result.TotalLevels = len(f.Problem.Odyssey.Levels)
 	return result, nil
 }
 
