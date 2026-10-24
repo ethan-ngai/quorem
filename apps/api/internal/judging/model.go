@@ -7,6 +7,7 @@ import (
 )
 
 type Command struct {
+	Level       int             `json:"level,omitempty"`
 	WorkspaceID string          `json:"workspaceId"`
 	Kind        string          `json:"kind"`
 	Source      string          `json:"source"`

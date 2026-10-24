@@ -68,6 +68,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	s.registerMatchLanguages(mux)
 	s.registerAdminQuestions(mux)
+	s.registerOdyssey(mux)
 	s.registerEditorials(mux)
 	s.registerRealtime(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

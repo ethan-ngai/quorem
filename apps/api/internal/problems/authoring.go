@@ -17,12 +17,13 @@ type AuthoringImplementation struct {
 	ReferenceSource string `json:"referenceSource"`
 }
 type QuestionContent struct {
-	Problem         Problem                   `json:"problem"`
-	HiddenCases     []Case                    `json:"hiddenCases"`
-	Comparator      string                    `json:"comparator"`
-	Attribution     string                    `json:"attribution"`
-	Implementations []AuthoringImplementation `json:"implementations"`
-	Solutions       []EditorialSolution       `json:"solutions"`
+	OdysseyHiddenCases [][]Case                  `json:"odysseyHiddenCases,omitempty"`
+	Problem            Problem                   `json:"problem"`
+	HiddenCases        []Case                    `json:"hiddenCases"`
+	Comparator         string                    `json:"comparator"`
+	Attribution        string                    `json:"attribution"`
+	Implementations    []AuthoringImplementation `json:"implementations"`
+	Solutions          []EditorialSolution       `json:"solutions"`
 }
 
 var questionSlug = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
@@ -133,6 +134,11 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		return err
 	}
 	p := c.Problem
+	if p.Odyssey != nil {
+		if err := ValidateOdyssey(c); err != nil {
+			return err
+		}
+	}
 	if !questionSlug.MatchString(p.Slug) || strings.TrimSpace(p.Title) == "" || strings.TrimSpace(p.StatementMarkdown) == "" {
 		return fmt.Errorf("slug, title and statement required")
 	}
@@ -145,7 +151,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 	if strings.TrimSpace(c.Attribution) == "" {
 		return fmt.Errorf("attribution required")
 	}
-	if len(p.Examples) == 0 || len(c.HiddenCases) != 20 {
+	if p.Odyssey == nil && (len(p.Examples) == 0 || len(c.HiddenCases) != 20) {
 		return fmt.Errorf("public examples and exactly 20 hidden cases required")
 	}
 	seenTags := map[string]bool{}
@@ -169,7 +175,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 			return err
 		}
 	}
-	if err := ValidateInputConfig(sig.ReturnType, nil); err != nil {
+	if err := ValidateInputConfig(sig.ReturnType, nil); err != nil && !(p.Odyssey != nil && sig.ReturnType == "void") {
 		return err
 	}
 	if err := ValidateConstraints(sig, p.Constraints); err != nil {

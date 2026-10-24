@@ -38,9 +38,11 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	var fixtureData []byte
 	var language, runtimeRevision, harnessRevision string
 	var matchID string
+	var odysseyScope string
+	var odysseyLevel *int
 	var matchSequence *int64
 	var admissionTime any
-	err = tx.QueryRow(ctx, "SELECT p.fixture,COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision)
+	err = tx.QueryRow(ctx, "SELECT p.fixture,COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,COALESCE(w.odyssey_scope,w.id)::text FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Workspace not found")
 	}
@@ -81,8 +83,40 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		return judging.Submission{}, err
 	}
 	cases := f.HiddenCases
+	if f.Problem.Odyssey != nil {
+		caps, e := s.Capabilities(ctx, owner)
+		if e != nil {
+			return judging.Submission{}, e
+		}
+		if !caps.Odyssey {
+			return judging.Submission{}, failure("entitlement_required", 403, "Odyssey access required")
+		}
+		if matchID != "" {
+			return judging.Submission{}, failure("invalid_input", 400, "Odyssey is unavailable in competitive matches")
+		}
+		if _, err = tx.Exec(ctx, "INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING", odysseyScope, f.Problem.ID); err != nil {
+			return judging.Submission{}, err
+		}
+		var level int
+		if err = tx.QueryRow(ctx, "SELECT level FROM odyssey_progress WHERE scope_id=$1 AND problem_version_id=$2 FOR UPDATE", odysseyScope, f.Problem.ID).Scan(&level); err != nil {
+			return judging.Submission{}, err
+		}
+		if c.Level != level {
+			return judging.Submission{}, failure("revision_conflict", 409, "Odyssey level changed; reload progress")
+		}
+		var p problems.Problem
+		p, cases, err = problems.CompileOdyssey(f, level, c.Kind)
+		if err != nil {
+			return judging.Submission{}, err
+		}
+		f.Problem = p
+		odysseyLevel = &level
+	}
+
 	if c.Kind == "run" {
-		cases = f.Problem.SampleCases()
+		if f.Problem.Odyssey == nil {
+			cases = f.Problem.SampleCases()
+		}
 		if c.CustomCases != nil {
 			if err = problems.ValidateProblemCustomCases(f.Problem, c.CustomCases); err != nil {
 				return judging.Submission{}, failure("invalid_input", 400, err.Error())
@@ -130,7 +164,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	id := ID()
 	encoded, _ := json.Marshal(cases)
-	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()))", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()),$11)", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime, odysseyLevel); err != nil {
 		return judging.Submission{}, err
 	}
 	jobID := ID()
