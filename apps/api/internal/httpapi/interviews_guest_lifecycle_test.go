@@ -74,8 +74,16 @@ func guestLifecycleRoom(t *testing.T, s *postgres.Store) interviews.Snapshot {
 func joinGuestHTTP(t *testing.T, handler http.Handler, room interviews.Snapshot, cookie *http.Cookie, name string) (*httptest.ResponseRecorder, interviews.Snapshot, *http.Cookie) {
 	t.Helper()
 	body, _ := json.Marshal(map[string]string{"name": name})
-	token := strings.TrimPrefix(room.InvitePath, "/interview-invite/")
-	r := httptest.NewRequest("POST", "/v1/interview-invites/"+token+"/join", strings.NewReader(string(body)))
+	invite, e := url.Parse(room.InvitePath)
+	if e != nil {
+		t.Fatal(e)
+	}
+	token := strings.TrimPrefix(invite.Path, "/interview-invite/")
+	target := "/v1/interview-invites/" + token + "/join"
+	if invite.RawQuery != "" {
+		target += "?" + invite.RawQuery
+	}
+	r := httptest.NewRequest("POST", target, strings.NewReader(string(body)))
 	r.Header.Set("Origin", "https://quorem.test")
 	r.Header.Set("Content-Type", "application/json")
 	if cookie != nil {
@@ -194,5 +202,23 @@ func TestGuestInterviewHTTPExpiredCredentialCanRejoinSameRoom(t *testing.T) {
 	w, _, rotated := joinGuestHTTP(t, handler, room, cookie, "Candidate")
 	if w.Code != 200 || rotated == nil || rotated.Value == cookie.Value {
 		t.Fatalf("expired same-room join %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestInterviewGuestRoleComesFromInviteTokenNotQuery(t *testing.T) {
+	s := guestLifecycleStore(t)
+	room := guestLifecycleRoom(t, s)
+	handler := (&httpapi.Server{Store: s, Origins: []string{"https://quorem.test"}}).Handler()
+	candidateInvite := room
+	candidateInvite.InvitePath = room.Invites.Interviewee + "?role=interviewer"
+	w, candidate, cookie := joinGuestHTTP(t, handler, candidateInvite, nil, "Candidate")
+	if w.Code != 200 || candidate.Role != "interviewee" || candidate.Invites != nil {
+		t.Fatalf("query escalated role: %d %s", w.Code, w.Body.String())
+	}
+	staffInvite := room
+	staffInvite.InvitePath = room.Invites.Interviewer
+	w, staff, _ := joinGuestHTTP(t, handler, staffInvite, cookie, "")
+	if w.Code != 200 || staff.Role != "interviewer" || staff.Invites == nil {
+		t.Fatalf("interviewer token admission: %d %s", w.Code, w.Body.String())
 	}
 }

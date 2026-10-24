@@ -62,7 +62,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 		if err != nil {
 			return out, err
 		}
-		progressScope = v.snapshot.Document.Epoch
+		progressScope = v.snapshot.QuestionEpoch
 		if _, err = tx.Exec(ctx, `INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, progressScope, v.fixture.Problem.ID); err != nil {
 			return out, err
 		}
@@ -94,7 +94,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 		return out, err
 	}
 	fixture, _ := json.Marshal(v.fixture)
-	if _, err = tx.Exec(ctx, `INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture,level,progress_scope) VALUES($1,$2,$3,$4,$5,$6,$7)`, submissionID, id, v.snapshot.Document.Version, v.snapshot.Document.Epoch, fixture, level, progressScope); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture,level,progress_scope,question_epoch) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, submissionID, id, v.snapshot.Document.Version, v.snapshot.Document.Epoch, fixture, level, progressScope, v.snapshot.QuestionEpoch); err != nil {
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE users SET admission_tokens=LEAST(2,admission_tokens+EXTRACT(EPOCH FROM(clock_timestamp()-tokens_updated_at))/6.0)-1,tokens_updated_at=clock_timestamp() WHERE id=$1`, user); err != nil {
@@ -177,6 +177,9 @@ func (s *Store) InterviewSubmission(ctx context.Context, user, id, submissionID 
 		return out, err
 	}
 	out, err = s.submission(ctx, tx, submitter, submissionID)
+	if err == nil {
+		err = s.projectInterviewResults(ctx, tx, v, submissionID, &out)
+	}
 	if v.snapshot.Role == "interviewee" && out.Kind == "submit" {
 		out.HiddenCases = nil
 		out.PublicCases = nil
