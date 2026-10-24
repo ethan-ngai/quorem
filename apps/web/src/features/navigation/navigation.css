@@ -450,3 +450,24 @@
     display: none;
   }
 }
+
+@media (max-width: 620px) {
+  .global-nav .nav-actions .nav-match-action {
+    position: relative;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    gap: 0;
+  }
+  .global-nav .nav-actions .nav-match-action::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+  .global-nav .nav-actions .nav-match-action svg {
+    width: 16px;
+    height: 16px;
+  }
+}
