@@ -100,7 +100,7 @@ export function SettingsDialog({
               <div className="settings-category-group">
                 <span>On this device</span>
                 {workspaceSections
-                  .filter((item) => item.id !== "drafts" || workspace)
+                  .filter((item) => item.id !== "drafts" || workspace?.onHistory)
                   .map((item) => (
                     <button
                       key={item.id}

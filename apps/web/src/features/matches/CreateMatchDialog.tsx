@@ -1,7 +1,7 @@
 import { GuestAccessToggle } from "./GuestAccessToggle";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
-import * as Dialog from "@radix-ui/react-dialog";
+import { SessionDialog } from "../../ui/SessionDialog";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useState } from "react";
 import { useSession } from "../auth/session";
@@ -9,7 +9,6 @@ import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
 import { Icon } from "../editor/components/Icon";
-import { Tooltip } from "../editor/components/Tooltip";
 import { useActiveMatch } from "./useActiveMatch";
 
 export function CreateMatchDialog({
@@ -29,114 +28,94 @@ export function CreateMatchDialog({
   useErrorNotification(error);
   const activeMatch = useActiveMatch(identity);
   return (
-    <Dialog.Root
+    <SessionDialog
       open={open}
-      onOpenChange={(value) => {
-        if (!pending) setOpen(value);
-      }}
+      onOpenChange={setOpen}
+      pending={pending}
+      descriptionHidden
+      onExited={onClose}
+      className="match-creation-dialog"
+      title={
+        <>
+          <Icon name="people" />
+          {activeMatch.match ? "You already have an active match" : "Create match"}
+        </>
+      }
+      description={
+        activeMatch.match
+          ? "Return to continue. Finish or leave this match before creating another."
+          : "Choose a mode, difficulty and problem."
+      }
+      actions={
+        <>
+          {!activeMatch.checking &&
+            !activeMatch.failed &&
+            !activeMatch.match &&
+            session.data?.kind !== "guest" &&
+            session.data?.capabilities?.hostGuests && (
+              <GuestAccessToggle
+                allowed={settings.accessMode === "guests_allowed"}
+                disabled={pending || !!pendingCreate(identity)}
+                onToggle={() =>
+                  setSettings({
+                    ...settings,
+                    accessMode:
+                      settings.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
+                  })
+                }
+              />
+            )}
+        </>
+      }
     >
-      <Dialog.Portal>
-        <Dialog.Overlay className="settings-backdrop" />
-        <Dialog.Content
-          className="competitive-dialog match-creation-dialog"
-          onAnimationEnd={(event) => {
-            if (event.target === event.currentTarget && !open) onClose();
+      {activeMatch.checking ? (
+        <p role="status">Checking your active match…</p>
+      ) : activeMatch.failed ? (
+        <div>
+          <p role="alert">Could not check your active match.</p>
+          <button className="button button-secondary" onClick={() => void activeMatch.refresh()}>
+            Try again
+          </button>
+        </div>
+      ) : activeMatch.match ? (
+        <div className="competitive-dialog-actions">
+          <a className="button button-primary" href={`/match/${activeMatch.match.id}`}>
+            {activeMatch.label}
+          </a>
+        </div>
+      ) : (
+        <form
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (pending) return;
+            setPending(true);
+            setError(undefined);
+            try {
+              const invite = await createMatch(identity, settings);
+              window.location.assign(`/match/${invite.id}`);
+            } catch (cause) {
+              setError(userFacingErrorMessage(cause, "Could not create match."));
+              void activeMatch.refresh();
+              setPending(false);
+            }
           }}
         >
-          <header className="competitive-dialog-heading">
-            <div>
-              <Dialog.Title>
-                <Icon name="people" />
-                {activeMatch.match ? "You already have an active match" : "Create match"}
-              </Dialog.Title>
-              <Dialog.Description className="match-dialog-description">
-                {activeMatch.match
-                  ? "Return to continue. Finish or leave this match before creating another."
-                  : "Choose a mode, difficulty and problem."}
-              </Dialog.Description>
-            </div>
-            <div className="lobby-heading-actions">
-              {!activeMatch.checking &&
-                !activeMatch.failed &&
-                !activeMatch.match &&
-                session.data?.kind !== "guest" &&
-                session.data?.capabilities?.hostGuests && (
-                  <GuestAccessToggle
-                    allowed={settings.accessMode === "guests_allowed"}
-                    disabled={pending || !!pendingCreate(identity)}
-                    onToggle={() =>
-                      setSettings({
-                        ...settings,
-                        accessMode:
-                          settings.accessMode === "guests_allowed"
-                            ? "accounts_only"
-                            : "guests_allowed",
-                      })
-                    }
-                  />
-                )}
-              <Tooltip content="Close">
-                <Dialog.Close asChild>
-                  <button className="icon-button" aria-label="Close" disabled={pending}>
-                    <Icon name="close" />
-                  </button>
-                </Dialog.Close>
-              </Tooltip>
-            </div>
-          </header>
-          {activeMatch.checking ? (
-            <p role="status">Checking your active match…</p>
-          ) : activeMatch.failed ? (
-            <div>
-              <p role="alert">Could not check your active match.</p>
-              <button
-                className="button button-secondary"
-                onClick={() => void activeMatch.refresh()}
-              >
-                Try again
-              </button>
-            </div>
-          ) : activeMatch.match ? (
-            <div className="competitive-dialog-actions">
-              <a className="button button-primary" href={`/match/${activeMatch.match.id}`}>
-                {activeMatch.label}
-              </a>
-            </div>
-          ) : (
-            <form
-              onSubmit={async (event) => {
-                event.preventDefault();
-                if (pending) return;
-                setPending(true);
-                setError(undefined);
-                try {
-                  const invite = await createMatch(identity, settings);
-                  window.location.assign(`/match/${invite.id}`);
-                } catch (cause) {
-                  setError(userFacingErrorMessage(cause, "Could not create match."));
-                  void activeMatch.refresh();
-                  setPending(false);
-                }
-              }}
-            >
-              <MatchSettings
-                value={settings}
-                identity={identity}
-                onChange={setSettings}
-                disabled={pending || !!pendingCreate(identity)}
-              />
+          <MatchSettings
+            value={settings}
+            identity={identity}
+            onChange={setSettings}
+            disabled={pending || !!pendingCreate(identity)}
+          />
 
-              <footer className="competitive-dialog-actions">
-                <span />
-                <button className="button button-primary" disabled={pending}>
-                  {pending ? "Creating…" : "Create match"}
-                  <Icon name="arrow" />
-                </button>
-              </footer>
-            </form>
-          )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <footer className="competitive-dialog-actions">
+            <span />
+            <button className="button button-primary" disabled={pending}>
+              {pending ? "Creating…" : "Create match"}
+              <Icon name="arrow" />
+            </button>
+          </footer>
+        </form>
+      )}
+    </SessionDialog>
   );
 }

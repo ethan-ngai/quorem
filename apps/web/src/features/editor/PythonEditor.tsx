@@ -68,7 +68,8 @@ type PythonEditorProps = {
 
 const workspaceKeymap = keymap.of([
   ...closeBracketsKeymap,
-  ...defaultKeymap,
+  // The workspace Run shortcut owns Mod-Enter; CodeMirror otherwise inserts a blank line first.
+  ...defaultKeymap.filter((binding) => binding.key !== "Mod-Enter"),
   ...historyKeymap,
   ...foldKeymap,
   ...searchKeymap,

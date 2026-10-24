@@ -1,19 +1,9 @@
 import { useSession } from "../auth/session";
-import * as Popover from "@radix-ui/react-popover";
+import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
-import { useEffect, useRef, useState } from "react";
-import {
-  Clipboard,
-  Focus,
-  Gauge,
-  Dices,
-  Search,
-  Swords,
-  BookOpen,
-  Shield,
-  Info,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
 import { api, requireData } from "../editor/api";
 import { Tooltip } from "../editor/components/Tooltip";
 import { FreeForAllIcon } from "./FreeForAllIcon";
@@ -85,14 +75,6 @@ export function MatchSettings({
     };
   }, [identity, catalog]);
   const pools = value.difficulties ?? [value.difficulty ?? "easy"];
-  const [problemPickerOpen, setProblemPickerOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const searchInput = useRef<HTMLInputElement>(null);
-  const filteredProblems = problems.filter(
-    (problem) =>
-      pools.includes(problem.difficulty as (typeof pools)[number]) &&
-      problem.title.toLowerCase().includes(search.trim().toLowerCase()),
-  );
   const selectedProblem = problems.find((problem) => problem.id === value.selectedProblemVersionId);
   const changeDifficulties = (difficulties: typeof pools) => {
     onChange({
@@ -175,97 +157,17 @@ export function MatchSettings({
           <BookOpen />
           Problem
         </span>
-        <Popover.Root
-          open={problemPickerOpen}
-          onOpenChange={(open) => {
-            setProblemPickerOpen(open);
-            if (open) setSearch("");
-          }}
-        >
-          <Popover.Trigger asChild>
-            <button
-              type="button"
-              className="select-field match-choice problem-picker-trigger"
-              disabled={disabled}
-              aria-label="Problem"
-            >
-              <span>
-                {!value.selectedProblemVersionId && <Dices size={16} />}
-                {selectedProblem?.title ??
-                  (value.selectedProblemVersionId ? "Selected problem" : "Random")}
-              </span>
-              <span className="select-field-chevron">
-                <Icon name="chevron" />
-              </span>
-            </button>
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content
-              className="problem-picker-popover"
-              sideOffset={8}
-              collisionPadding={12}
-              align="end"
-              aria-label="Choose problem"
-              onOpenAutoFocus={(event) => {
-                event.preventDefault();
-                searchInput.current?.focus();
-              }}
-            >
-              <label className="problem-picker-search">
-                <Search size={16} />
-                <input
-                  ref={searchInput}
-                  aria-label="Search problems"
-                  placeholder="Search problems"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </label>
-              <div className="problem-picker-results" role="group" aria-label="Matching problems">
-                <button
-                  type="button"
-                  className="problem-picker-item"
-                  aria-pressed={!value.selectedProblemVersionId}
-                  onClick={() => {
-                    onChange({
-                      ...value,
-                      difficulties: pools,
-                      selectedProblemVersionId: undefined,
-                    });
-                    setProblemPickerOpen(false);
-                  }}
-                >
-                  <Dices size={18} />
-                  <span>Random</span>
-                  {!value.selectedProblemVersionId && <Icon name="submit" />}
-                </button>
-                {filteredProblems.map((problem) => (
-                  <button
-                    type="button"
-                    key={problem.id}
-                    className="problem-picker-item"
-                    aria-pressed={value.selectedProblemVersionId === problem.id}
-                    onClick={() => {
-                      onChange({
-                        ...value,
-                        difficulties: pools,
-                        selectedProblemVersionId: problem.id,
-                      });
-                      setProblemPickerOpen(false);
-                    }}
-                  >
-                    {value.selectedProblemVersionId === problem.id && <Icon name="submit" />}
-                    <span>{problem.title}</span>
-                    <small className={`difficulty-${problem.difficulty}`}>
-                      {problem.difficulty}
-                    </small>
-                  </button>
-                ))}
-                {!filteredProblems.length && <p role="status">No matching problems</p>}
-              </div>
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
+        <ProblemPicker
+          items={problems.filter((problem) =>
+            pools.includes(problem.difficulty as (typeof pools)[number]),
+          )}
+          value={value.selectedProblemVersionId}
+          disabled={disabled}
+          allowRandom
+          onChange={(selectedProblemVersionId) =>
+            onChange({ ...value, difficulties: pools, selectedProblemVersionId })
+          }
+        />
       </div>
       {catalogError && (
         <p className="match-catalog-error" role="status">

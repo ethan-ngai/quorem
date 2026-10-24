@@ -1518,6 +1518,15 @@ kbd {
   min-width: 0;
   overflow: hidden;
 }
+.authoring-case-browser {
+  height: 280px;
+  margin: var(--space-3) 0 var(--space-5);
+  background: var(--color-field);
+}
+.case-call + .case-call {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
 .case-rail {
   display: flex;
   flex-direction: column;
