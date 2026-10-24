@@ -1,12 +1,72 @@
-/** @file WorkspaceSidebar.tsx @description Full-height navigation overlay with a stationary workspace. @module navigation */
+/** @file WorkspaceSidebar.tsx @description In-place desktop rail expansion and a mobile navigation drawer. @module navigation */
 import * as Dialog from "@radix-ui/react-dialog";
 import { BookOpen, Home, SquarePen, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./sidebar.css";
 
-/** One modal lifecycle for desktop and mobile, including the closing animation. */
+/** Desktop keeps the same rail mounted; mobile uses a modal drawer. */
 export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin: boolean }) {
   const [open, setOpen] = useState(false);
+  const [mobile, setMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+  );
+  const desktopTrigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    function update() {
+      setMobile(media.matches);
+      setOpen(false);
+    }
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (mobile || !open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        desktopTrigger.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobile, open]);
+  if (!mobile)
+    return (
+      <>
+        <span className="sidebar-toggle-slot" aria-hidden="true" />
+        <div
+          className="sidebar-desktop-backdrop"
+          data-state={open ? "open" : "closed"}
+          aria-hidden="true"
+          onPointerDown={() => setOpen(false)}
+        />
+        <aside className="sidebar-peek" data-expanded={open}>
+          <div className="sidebar-header">
+            <button
+              ref={desktopTrigger}
+              className="icon-button sidebar-toggle"
+              aria-label={open ? "Close navigation" : "Open navigation"}
+              aria-expanded={open}
+              aria-controls="desktop-navigation"
+              onClick={() => setOpen(!open)}
+            >
+              <NavigationToggleIcon open={open} />
+            </button>
+            <a
+              className="nav-brand sidebar-brand"
+              href="/"
+              aria-label="Quorem home"
+              aria-hidden={!open}
+              tabIndex={open ? undefined : -1}
+            >
+              <span className="brand-mark" aria-hidden="true" />
+            </a>
+          </div>
+          <SidebarLinks pathname={pathname} admin={admin} peek={!open} id="desktop-navigation" />
+        </aside>
+      </>
+    );
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
@@ -16,23 +76,9 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
           aria-expanded={open}
           aria-controls="workspace-navigation"
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <path d="M3 6h18M3 12h18M3 18h8" />
-          </svg>
+          <NavigationToggleIcon open={false} />
         </button>
       </Dialog.Trigger>
-      <aside className="sidebar-peek">
-        <SidebarLinks pathname={pathname} admin={admin} peek />
-      </aside>
       <Dialog.Portal>
         <Dialog.Overlay className="sidebar-backdrop" />
         <Dialog.Content
@@ -61,13 +107,19 @@ function SidebarLinks({
   pathname,
   admin,
   peek = false,
+  id,
 }: {
   pathname: string;
   admin: boolean;
   peek?: boolean;
+  id?: string;
 }) {
   return (
-    <nav aria-label={peek ? "Quick navigation" : "Main navigation"} className="sidebar-content">
+    <nav
+      id={id}
+      aria-label={peek ? "Quick navigation" : "Main navigation"}
+      className="sidebar-content"
+    >
       <a className="sidebar-link" href="/" aria-label="Home" title="Home">
         <Home size={17} />
         <span>Home</span>
@@ -95,5 +147,24 @@ function SidebarLinks({
         </a>
       )}
     </nav>
+  );
+}
+
+function NavigationToggleIcon({ open }: { open: boolean }) {
+  return open ? (
+    <X size={20} />
+  ) : (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18M3 12h18M3 18h8" />
+    </svg>
   );
 }
