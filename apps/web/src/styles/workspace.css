@@ -1,4 +1,5 @@
 .app-shell {
+  --workspace-control-inset: 18px;
   display: grid;
   grid-template-rows: var(--navigation-height) minmax(0, 1fr);
   height: 100dvh;
@@ -466,11 +467,12 @@ kbd {
   align-items: center;
   justify-content: space-between;
   min-width: 0;
-  padding: 0 16px;
+  padding: 0 var(--workspace-control-inset);
   background: transparent;
 }
 
 .code-toolbar {
+  padding-left: calc(var(--workspace-control-inset) - var(--space-2) - 1px);
   padding-block: var(--space-2) 0;
 }
 .code-options {
@@ -497,7 +499,7 @@ kbd {
   padding-block: 14px;
 }
 .python-editor .cm-gutters {
-  padding-left: 10px;
+  padding-left: 0;
 }
 .python-editor .cm-line {
   padding-left: 12px;
@@ -544,7 +546,7 @@ kbd {
 }
 .results-content > [role="tabpanel"] > .result-message,
 .results-content > [role="tabpanel"] > .result-running {
-  padding: 12px 18px;
+  padding: 12px var(--workspace-control-inset);
   overflow: auto;
   max-height: 100%;
 }
@@ -558,7 +560,7 @@ kbd {
   flex: 0 0 auto;
   max-height: 50%;
   overflow: auto;
-  padding: 8px 18px 12px;
+  padding: 8px var(--workspace-control-inset) 12px;
 }
 .result-message {
   margin: 0;
@@ -1523,7 +1525,7 @@ kbd {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 6px 12px;
+  padding: 4px 8px 12px calc(var(--workspace-control-inset) - 8px);
   border-right: 1px solid var(--color-border);
 }
 .case-selector {
@@ -1581,7 +1583,7 @@ kbd {
   gap: 14px;
   min-height: 0;
   min-width: 0;
-  padding: 8px 18px 18px;
+  padding: 8px var(--workspace-control-inset) 18px;
   overflow: auto;
   overflow-wrap: anywhere;
 }
