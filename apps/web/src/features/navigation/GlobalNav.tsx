@@ -1,9 +1,9 @@
-/** @file GlobalNav.tsx @description Shared top navigation and contextual workspace controls. @module navigation */
+/** @file GlobalNav.tsx @description Shared sidebar with persistent top-bar identity and workspace controls. @module navigation */
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { useSession } from "../auth/session";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, CodeXml, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
@@ -14,6 +14,7 @@ import { ModeText } from "../matches/ModeText";
 import { useActiveMatch } from "../matches/useActiveMatch";
 import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
 import { AccountMenu } from "./AccountMenu";
+import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import "./navigation.css";
 
 export function GlobalNav({
@@ -102,124 +103,105 @@ export function GlobalNav({
   ]);
   return (
     <>
-      <header className="topbar global-nav">
-        <a className="nav-brand" href="/" aria-label="Quorem home">
-          <span className="brand-mark" aria-hidden="true" />
-          <span className="nav-wordmark" aria-hidden="true">
-            Quorem
-          </span>
-        </a>
-        <nav className="global-nav-links" aria-label="Main navigation">
-          <a
-            className="nav-link"
-            href="/practice"
-            aria-label="Practice"
-            aria-current={pathname.startsWith("/practice") ? "page" : undefined}
-          >
-            Practice
-          </a>
-          {session.data?.user.role === "admin" && (
-            <Tooltip content="Question editor">
-              <a
-                className="nav-link nav-authoring"
-                href="/admin/questions"
-                aria-label="Question editor"
-                aria-current={pathname.startsWith("/admin") ? "page" : undefined}
-              >
-                <CodeXml size={16} />
-                <span>Question editor</span>
-              </a>
-            </Tooltip>
-          )}
-        </nav>
-        <div className="nav-actions">
-          {children}
-          {mode ? (
-            <span className="global-mode">
-              <span key={mode} className="mode-icon-enter">
-                <ModeIcon mode={mode} />
+      <div className="global-nav-slot">
+        <header className="topbar global-nav">
+          <WorkspaceSidebar pathname={pathname} admin={session.data?.user.role === "admin"}>
+            {mode ? (
+              <span className="global-mode">
+                <span key={mode} className="mode-icon-enter">
+                  <ModeIcon mode={mode} />
+                </span>
+                <ModeText mode={mode} showdown="Showdown" freeForAll="Free-for-all" />
               </span>
-              <ModeText mode={mode} showdown="Showdown" freeForAll="Free-for-all" />
-            </span>
-          ) : (
-            !inMatch &&
-            (activeMatch.match ? (
-              <Tooltip content="Finish or leave your current match before creating another.">
-                <a
-                  className="nav-match-action active-match-trigger"
-                  aria-label={activeMatch.label ?? undefined}
-                  href={`/match/${activeMatch.match.id}`}
-                >
-                  <ArrowRight size={18} />
-                  <span>{activeMatch.label}</span>
-                </a>
-              </Tooltip>
             ) : (
-              <Tooltip
-                content={
-                  activeMatch.failed
-                    ? "Could not check your active match. Try again shortly."
-                    : session.data?.kind === "guest"
-                      ? "Sign in to create a match"
-                      : "Create match"
-                }
-              >
-                <button
-                  className="nav-match-action create-match-trigger"
-                  disabled={checkingMatch || activeMatch.failed}
-                  aria-label={
-                    checkingMatch
-                      ? "Checking active match"
-                      : activeMatch.failed
-                        ? "Match status unavailable"
-                        : session.data?.kind === "guest"
-                          ? "Sign in to create a match"
-                          : "Create match"
+              !inMatch &&
+              (activeMatch.match ? (
+                <Tooltip content="Finish or leave your current match before creating another.">
+                  <a
+                    className="nav-match-action active-match-trigger"
+                    aria-label={activeMatch.label ?? undefined}
+                    href={`/match/${activeMatch.match.id}`}
+                  >
+                    <ArrowRight size={18} />
+                    <span>{activeMatch.label}</span>
+                  </a>
+                </Tooltip>
+              ) : (
+                <Tooltip
+                  content={
+                    activeMatch.failed
+                      ? "Could not check your active match. Try again shortly."
+                      : session.data?.kind === "guest"
+                        ? "Sign in to create a match"
+                        : "Create match"
                   }
-                  onClick={() => {
-                    if (!session.data || session.data.kind === "guest") {
-                      signInToCreate();
-                      return;
-                    }
-                    (onCreateMatch ?? (() => setCreating(true)))();
-                  }}
                 >
-                  <Plus size={18} />
-                  <span>
-                    {checkingMatch
-                      ? "Checking match…"
-                      : activeMatch.failed
-                        ? "Match status unavailable"
-                        : session.data?.kind === "guest"
-                          ? "Sign in to create a match"
-                          : "Create match"}
-                  </span>
+                  <button
+                    className="nav-match-action create-match-trigger"
+                    disabled={checkingMatch || activeMatch.failed}
+                    aria-label={
+                      checkingMatch
+                        ? "Checking active match"
+                        : activeMatch.failed
+                          ? "Match status unavailable"
+                          : session.data?.kind === "guest"
+                            ? "Sign in to create a match"
+                            : "Create match"
+                    }
+                    onClick={() => {
+                      if (!session.data || session.data.kind === "guest") {
+                        signInToCreate();
+                        return;
+                      }
+                      (onCreateMatch ?? (() => setCreating(true)))();
+                    }}
+                  >
+                    <Plus size={18} />
+                    <span>
+                      {checkingMatch
+                        ? "Checking match…"
+                        : activeMatch.failed
+                          ? "Match status unavailable"
+                          : session.data?.kind === "guest"
+                            ? "Sign in to create a match"
+                            : "Create match"}
+                    </span>
+                  </button>
+                </Tooltip>
+              ))
+            )}
+          </WorkspaceSidebar>
+          <a className="nav-brand" href="/" aria-label="Quorem home">
+            <span className="brand-mark" aria-hidden="true" />
+            <span className="nav-wordmark" aria-hidden="true">
+              Quorem
+            </span>
+          </a>
+          <div className="nav-actions">
+            {children}
+
+            {workspaceSettings && (
+              <Tooltip content="Workspace settings">
+                <button
+                  className="icon-button nav-settings-trigger"
+                  ref={settingsTrigger}
+                  aria-label="Workspace settings"
+                  onClick={() => openSettings("editor")}
+                >
+                  <SlidersHorizontal size={18} />
                 </button>
               </Tooltip>
-            ))
-          )}
-
-          {workspaceSettings && (
-            <Tooltip content="Workspace settings">
-              <button
-                className="icon-button nav-settings-trigger"
-                ref={settingsTrigger}
-                aria-label="Workspace settings"
-                onClick={() => openSettings("editor")}
-              >
-                <SlidersHorizontal size={18} />
-              </button>
-            </Tooltip>
-          )}
-          <AccountMenu
-            triggerRef={profileTrigger}
-            session={session.data}
-            pending={session.isPending}
-            failed={session.isError}
-            onOpenSettings={openSettings}
-          />
-        </div>
-      </header>
+            )}
+            <AccountMenu
+              triggerRef={profileTrigger}
+              session={session.data}
+              pending={session.isPending}
+              failed={session.isError}
+              onOpenSettings={openSettings}
+            />
+          </div>
+        </header>
+      </div>
       <SettingsDialog
         open={settingsOpen}
         section={settingsSection}

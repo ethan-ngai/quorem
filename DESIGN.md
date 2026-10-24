@@ -301,8 +301,10 @@ Match loading/recovery retains shared navigation. Center a bounded 440px state w
 
 ## Application navigation
 
-Use a full-width 48px top bar with a subtle bottom rule. The pixel mark and medium-weight Quorem wordmark anchor the left; visible Practice and role-gated Question editor links follow. The selected page uses a quiet neutral fill with a small blue underline. Right-align contextual save state, match action, workspace settings and the circular account trigger. The match action uses a restrained neutral outlined button with a leading icon; show the existing return action during active membership. Preserve existing auth/match gating.
+Keep a full-width 48px top bar: sidebar toggle first, pixel logo and Quorem wordmark immediately to its right. Profile remains at the far top right, preceded by workspace settings and contextual save state. Neither branding nor profile moves when the sidebar expands. Account menus open below the avatar, respecting viewport bounds.
 
-Use Geist at 14px, a 16px wordmark, existing neutral surface/border/text tokens, 6px corners and 120–180ms hover/focus feedback. At 620px and below hide the wordmark and authoring text, retain accessible link names, and condense the match action to its labeled icon. Touch targets remain 44px. Keep the editor layout stable; no drawer, collapsed rail or page offset. Account menus open below the avatar and respect viewport bounds. Reduced motion disables spatial feedback.
+Restore the legacy-style left navigation below the top bar: 15.5rem expanded, 4.2rem collapsed, 280ms cubic-bezier(0.22, 1, 0.36, 1) width/transform transitions, 160–220ms label fades and 0.08rem hover translation. Keep group-label height stable during collapse. Home, Practice, role-gated Question editor and match creation/return actions belong to this sidebar. Preserve auth/match gating and desktop collapse preference. Use Geist, existing neutral tokens, 6px corners and blue selection accents.
+
+Below 900px use a modal drawer beneath the fixed top bar, with backdrop, focus trap, Escape/focus return and 44px touch targets. At 620px hide only the top-bar wordmark; sidebar labels stay visible. Keep editor geometry and independent scroll areas intact. Reduced motion removes spatial transitions.
 
 Default profile pictures use only the first name letter (username fallback), `avatar-background: #666666` and `avatar-foreground: #ffffff` in both themes; text contrast 5.74:1. Keep actual uploaded photos.

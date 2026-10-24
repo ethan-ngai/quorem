@@ -71,7 +71,10 @@ describe("global navigation", () => {
     expect(html).not.toContain('aria-label="Profile"');
     expect(html).toContain('href="/"');
     expect(html).toContain('aria-label="Practice"');
-    expect(html).not.toContain("sidebar");
+    expect(html).toContain('aria-label="Collapse sidebar"');
+    expect(html.indexOf('aria-label="Collapse sidebar"')).toBeLessThan(
+      html.indexOf('aria-label="Quorem home"'),
+    );
     expect(html).toContain('aria-current="page"');
   });
   it("places workspace settings immediately before the sign-in control", async () => {
