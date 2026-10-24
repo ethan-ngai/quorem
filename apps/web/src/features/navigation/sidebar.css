@@ -1,6 +1,6 @@
 :root {
   --sidebar-width: 15.5rem;
-  --sidebar-peek-width: 4.2rem;
+  --sidebar-peek-width: 48px;
   --sidebar-duration: 240ms;
   --sidebar-easing: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -181,7 +181,7 @@
     overflow: hidden;
   }
   .sidebar-peek .sidebar-content {
-    padding-inline: 5.6px;
+    padding-inline: 2px;
     height: 100%;
   }
   .sidebar-peek .sidebar-group-label {
@@ -189,7 +189,7 @@
   }
   .sidebar-peek .sidebar-link {
     justify-content: center;
-    padding-inline: 5.6px;
+    padding-inline: 0;
   }
   .sidebar-peek .sidebar-link > span {
     display: none;
