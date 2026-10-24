@@ -838,16 +838,18 @@ export function WorkspacePage({
                 </div>
               </div>
               <div className="results-content case-results-content">
-                <div aria-live="polite" className="case-result-summary">
-                  <ResultContent
-                    submission={submission}
-                    busy={admissionPending || (execution.isPending && !!execution.submissionId)}
-                    error={execution.error}
-                    showCases={false}
-                    customMode={customMode}
-                    runWasCustom={execution.runSnapshot?.custom}
-                  />
-                </div>
+                {!problem.odyssey && (
+                  <div aria-live="polite" className="case-result-summary">
+                    <ResultContent
+                      submission={submission}
+                      busy={admissionPending || (execution.isPending && !!execution.submissionId)}
+                      error={execution.error}
+                      showCases={false}
+                      customMode={customMode}
+                      runWasCustom={execution.runSnapshot?.custom}
+                    />
+                  </div>
+                )}
                 {(["samples", "custom"] as const).map((tab) => (
                   <div
                     key={tab}
@@ -862,7 +864,13 @@ export function WorkspacePage({
                           Run checks all unlocked public examples. Submit checks all unlocked
                           private tests.
                         </p>
-                        <ResultContent submission={submission} busy={admissionPending} />
+                        <ResultContent
+                          submission={submission}
+                          busy={
+                            admissionPending || (execution.isPending && !!execution.submissionId)
+                          }
+                          error={execution.error}
+                        />
                       </div>
                     ) : (
                       <TestCases
