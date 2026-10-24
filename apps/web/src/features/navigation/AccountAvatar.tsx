@@ -2,18 +2,8 @@
 import { useState } from "react";
 export function avatarIdentity(name?: string, username?: string | null) {
   const label = name?.trim() || username?.trim() || "Guest";
-  const words = label.split(/\s+/u);
-  const initials = (
-    words.length > 1
-      ? `${Array.from(words[0]!)[0]}${Array.from(words.at(-1)!)[0]}`
-      : Array.from(label).slice(0, 2).join("")
-  ).toLocaleUpperCase();
-  const tone =
-    Array.from(username || label).reduce(
-      (hash, char) => (hash * 31 + char.codePointAt(0)!) >>> 0,
-      0,
-    ) % 4;
-  return { initials, tone };
+  const initials = (Array.from(label)[0] ?? "G").toLocaleUpperCase();
+  return { initials };
 }
 export function AccountAvatar({
   name,
@@ -27,12 +17,9 @@ export function AccountAvatar({
   large?: boolean;
 }) {
   const [failedImage, setFailedImage] = useState<string>();
-  const { initials, tone } = avatarIdentity(name, username);
+  const { initials } = avatarIdentity(name, username);
   return (
-    <span
-      className={`account-avatar account-avatar-tone-${tone}${large ? " account-avatar-large" : ""}`}
-      aria-hidden="true"
-    >
+    <span className={`account-avatar${large ? " account-avatar-large" : ""}`} aria-hidden="true">
       {image && image !== failedImage ? (
         <img src={image} alt="" onError={() => setFailedImage(image)} />
       ) : (

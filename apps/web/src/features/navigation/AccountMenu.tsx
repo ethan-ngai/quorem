@@ -64,6 +64,7 @@ export function AccountMenu({
           <Popover.Content
             className="nav-popover nav-profile"
             align="end"
+            side="bottom"
             sideOffset={8}
             collisionPadding={8}
             aria-label="Account menu"
