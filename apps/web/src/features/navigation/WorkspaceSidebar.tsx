@@ -1,6 +1,6 @@
 /** @file WorkspaceSidebar.tsx @description In-place desktop rail expansion and a mobile navigation drawer. @module navigation */
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Home, SquarePen, X } from "lucide-react";
+import { BookOpen, Home, SquarePen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "./sidebar.css";
 
@@ -53,15 +53,6 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
             >
               <NavigationToggleIcon open={open} />
             </button>
-            <a
-              className="nav-brand sidebar-brand"
-              href="/"
-              aria-label="Quorem home"
-              aria-hidden={!open}
-              tabIndex={open ? undefined : -1}
-            >
-              <span className="brand-mark" aria-hidden="true" />
-            </a>
           </div>
           <SidebarLinks pathname={pathname} admin={admin} peek={!open} id="desktop-navigation" />
         </aside>
@@ -76,7 +67,7 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
           aria-expanded={open}
           aria-controls="workspace-navigation"
         >
-          <NavigationToggleIcon open={false} />
+          <NavigationToggleIcon open={open} />
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -89,7 +80,7 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
           <Dialog.Title className="sr-only">Navigation</Dialog.Title>
           <div className="sidebar-header">
             <Dialog.Close className="icon-button sidebar-toggle" aria-label="Close navigation">
-              <X size={20} />
+              <NavigationToggleIcon open={open} />
             </Dialog.Close>
             <a className="nav-brand" href="/" aria-label="Quorem home">
               <span className="brand-mark" aria-hidden="true" />
@@ -150,11 +141,12 @@ function SidebarLinks({
   );
 }
 
+/** Persistent strokes interpolate between the menu and close shapes. */
 function NavigationToggleIcon({ open }: { open: boolean }) {
-  return open ? (
-    <X size={20} />
-  ) : (
+  return (
     <svg
+      className="navigation-toggle-icon"
+      data-open={open}
       width="20"
       height="20"
       viewBox="0 0 24 24"
@@ -164,7 +156,9 @@ function NavigationToggleIcon({ open }: { open: boolean }) {
       strokeLinecap="round"
       aria-hidden="true"
     >
-      <path d="M3 6h18M3 12h18M3 18h8" />
+      <path className="toggle-stroke-top" d="M3 12h18" />
+      <path className="toggle-stroke-middle" d="M3 12h18" />
+      <path className="toggle-stroke-bottom" d="M3 12h18" />
     </svg>
   );
 }
