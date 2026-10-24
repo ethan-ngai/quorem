@@ -246,7 +246,7 @@ kbd {
   display: grid;
   min-width: 0;
   min-height: 0;
-  padding: 0;
+  padding: 8px;
   grid-template-columns: minmax(280px, var(--problem-ratio)) 8px minmax(280px, 1fr);
   grid-template-rows: minmax(0, 1fr) 48px;
   grid-template-areas: "problem split-x solution" "problem split-x actions";
@@ -303,7 +303,7 @@ kbd {
 .problem-copy code,
 .constraint-list code {
   padding: 2px 4px;
-  background: var(--color-overlay);
+  background: var(--color-inline-code);
   font-family: var(--font-code);
   font-size: 12px;
   border-radius: var(--radius-sm);
@@ -430,6 +430,7 @@ kbd {
 .splitter-x {
   grid-area: split-x;
   cursor: col-resize;
+  background: var(--color-background);
 }
 .splitter-x::after {
   top: 0;
@@ -437,7 +438,7 @@ kbd {
   left: calc(50% - 0.5px);
   width: 1px;
   border-radius: 0;
-  opacity: 1;
+  opacity: 0;
 }
 .splitter-y {
   grid-area: split-y;
@@ -445,7 +446,9 @@ kbd {
   background: var(--color-field);
 }
 .splitter-y::after {
-  inset: 2px 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
   height: 1px;
 }
 .coding-pane {
@@ -476,6 +479,7 @@ kbd {
   gap: 9px;
 }
 .editor-frame {
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
@@ -488,6 +492,8 @@ kbd {
   outline: none;
 }
 .python-editor .cm-scroller {
+  max-width: 100%;
+  overscroll-behavior: contain;
   padding-block: 14px;
 }
 .python-editor .cm-gutters {
@@ -525,7 +531,7 @@ kbd {
   display: grid;
   min-height: 0;
   grid-template-rows: 38px minmax(0, 1fr) auto;
-  background: var(--color-surface);
+  background: var(--color-field);
 }
 
 .results-content {
@@ -1084,8 +1090,9 @@ kbd {
   grid-template-rows: minmax(0, 1fr) 6px minmax(170px, var(--results-height));
   grid-template-areas: "code" "split-y" "results";
   overflow: hidden;
-  border: 0;
-  border-radius: 0;
+  border: 1px solid var(--color-border);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--color-field);
 }
 .problem-meta {
@@ -1172,9 +1179,9 @@ kbd {
   width: fit-content;
   max-width: 100%;
   min-width: 0;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--color-inline-code);
   font: 12px/1.6 var(--font-code);
   overflow-wrap: anywhere;
 }
@@ -1294,7 +1301,7 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) 48px;
     grid-template-areas: "content" "actions";
-    padding-top: 0;
+    padding-top: 4px;
   }
   .problem-pane,
   .coding-pane,
@@ -1470,9 +1477,10 @@ kbd {
   justify-content: flex-end;
   min-width: 0;
   padding: 0 14px;
-  border: 0;
-  border-radius: 0;
-  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--color-field);
 }
 .execution-bar .run-actions {
   gap: 8px;
@@ -2230,5 +2238,29 @@ kbd {
   .settings-backdrop,
   .settings-section {
     animation: none;
+  }
+}
+
+.python-editor .cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.python-editor .cm-scroller::-webkit-scrollbar-track {
+  background: var(--color-field);
+}
+.python-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--color-text-disabled);
+  border: 3px solid var(--color-field);
+  border-radius: 6px;
+}
+.python-editor .cm-scroller::-webkit-scrollbar-corner {
+  background: var(--color-field);
+}
+
+@media (max-width: 900px) {
+  .workspace-grid[data-active-panel="problem"] .execution-bar {
+    border: 0;
+    border-radius: 0;
+    background: var(--color-background);
   }
 }

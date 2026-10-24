@@ -176,7 +176,7 @@
     bottom: 0;
     left: 0;
     width: var(--sidebar-peek-width);
-    background: var(--color-surface);
+    background: var(--color-background);
     overflow: hidden;
   }
   .sidebar-peek .sidebar-content {
