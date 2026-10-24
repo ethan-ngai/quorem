@@ -1,0 +1,441 @@
+/** @file QuestionSetup.tsx @description Existing or custom interview questions with typed tests. @module interviews */
+import { useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { InterviewQuestionInput, Signature } from "@quorem/contracts";
+import { interviewRequest } from "./api";
+import { SelectField } from "../../ui/SelectField";
+import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
+import { TypedCaseInput } from "../editor/components/TypedCaseInput";
+import { parseCustomDrafts, type CustomCaseDraft } from "../editor/customCases";
+import "../editor/components/customCases.css";
+
+const initialSignature: Signature = {
+  className: "Solution",
+  methodName: "solve",
+  parameters: [{ name: "value", type: "int" }],
+  returnType: "int",
+};
+const types = [
+  "int",
+  "float",
+  "str",
+  "bool",
+  "list<int>",
+  "list<float>",
+  "list<str>",
+  "list<bool>",
+  "list<list<int>>",
+  "optional<int>",
+  "ListNode",
+  "TreeNode",
+].map((value) => ({ value, label: value }));
+function initialValue(type: string) {
+  return type === "str"
+    ? ""
+    : type === "bool"
+      ? "false"
+      : type.startsWith("list<")
+        ? "[]"
+        : type.startsWith("optional<") || type === "ListNode" || type === "TreeNode"
+          ? "null"
+          : "0";
+}
+function newCase(signature: Signature): CustomCaseDraft {
+  return {
+    id: crypto.randomUUID(),
+    args: signature.parameters.map((parameter) => initialValue(parameter.type)),
+    expectedEnabled: true,
+    expected: initialValue(signature.returnType),
+  };
+}
+
+/** Keeps input drafts intact until explicit, validated submission. */
+export function QuestionSetup({
+  onSubmit,
+  busy,
+  label = "Create interview",
+  showTitle = true,
+}: {
+  onSubmit: (question: InterviewQuestionInput, title: string) => void;
+  busy: boolean;
+  label?: string;
+  showTitle?: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [mode, setMode] = useState("catalog");
+  const [language, setLanguage] = useState<EditorLanguage>("python");
+  const [selected, setSelected] = useState("");
+  const [search, setSearch] = useState("");
+  const [customTitle, setCustomTitle] = useState("");
+  const [statement, setStatement] = useState("");
+  const [starter, setStarter] = useState(
+    "class Solution:\n    def solve(self, value: int) -> int:\n        pass\n",
+  );
+  const [signature, setSignature] = useState<Signature>(initialSignature);
+  const [publicCases, setPublicCases] = useState<CustomCaseDraft[]>(() => [
+    newCase(initialSignature),
+  ]);
+  const [privateCases, setPrivateCases] = useState<CustomCaseDraft[]>(() => [
+    newCase(initialSignature),
+  ]);
+  const [error, setError] = useState<string>();
+  const catalog = useQuery({
+    queryKey: ["interview-catalog", search],
+    queryFn: () =>
+      interviewRequest<{ items: { id: string; title: string; slug: string }[] }>(
+        `/v1/problems?limit=100&q=${encodeURIComponent(search)}`,
+      ),
+    enabled: mode === "catalog",
+  });
+  function updateSignature(next: Signature) {
+    setSignature(next);
+    const adapt = (cases: CustomCaseDraft[]) =>
+      cases.map((test) => ({
+        ...test,
+        args: next.parameters.map((parameter, index) =>
+          parameter.type === signature.parameters[index]?.type
+            ? (test.args[index] ?? initialValue(parameter.type))
+            : initialValue(parameter.type),
+        ),
+        expected:
+          next.returnType === signature.returnType ? test.expected : initialValue(next.returnType),
+      }));
+    setPublicCases(adapt);
+    setPrivateCases(adapt);
+  }
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(undefined);
+    if (mode === "catalog") {
+      if (!selected) {
+        setError("Choose a question.");
+        return;
+      }
+      onSubmit(
+        { language, problemVersionId: selected },
+        title.trim() ||
+          catalog.data?.items.find((item) => item.id === selected)?.title ||
+          "Interview",
+      );
+      return;
+    }
+    try {
+      if (!publicCases.length) {
+        setError("Add at least one shared test.");
+        return;
+      }
+      if (!customTitle.trim() || !starter.trim()) {
+        setError("Add a question title and starter code.");
+        return;
+      }
+      onSubmit(
+        {
+          language,
+          custom: {
+            title: customTitle,
+            statementMarkdown: statement,
+            starterSource: starter,
+            signature,
+            publicCases: parseCustomDrafts(publicCases, signature),
+            privateCases: parseCustomDrafts(privateCases, signature),
+          },
+        },
+        title.trim() || customTitle,
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Check your test values before continuing.",
+      );
+    }
+  }
+  return (
+    <form className="interview-setup" onSubmit={submit}>
+      {showTitle && (
+        <label>
+          <span>Interview title</span>
+          <input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />
+        </label>
+      )}
+      <div className="interview-form-row">
+        <label>
+          <span>Question source</span>
+          <SelectField
+            label="Question source"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "catalog", label: "Existing question" },
+              { value: "custom", label: "Custom question" },
+            ]}
+          />
+        </label>
+        <label>
+          <span>Language</span>
+          <SelectField
+            label="Interview language"
+            value={language}
+            onChange={(value) => setLanguage(value as EditorLanguage)}
+            options={Object.entries(languageLabels).map(([value, text]) => ({
+              value,
+              label: text,
+            }))}
+          />
+        </label>
+      </div>
+      {mode === "catalog" ? (
+        <>
+          <label>
+            <span>Find question</span>
+            <input
+              type="search"
+              value={search}
+              maxLength={120}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setSelected("");
+              }}
+            />
+          </label>
+          <label>
+            <span>Question</span>
+            <SelectField
+              label="Question"
+              value={selected}
+              onChange={setSelected}
+              options={
+                catalog.data?.items.map((item) => ({ value: item.id, label: item.title })) ?? []
+              }
+              disabled={catalog.isPending}
+            />
+          </label>
+          {!selected && (
+            <span className="interview-field-hint">Choose a question from the menu.</span>
+          )}
+          {catalog.isError && (
+            <p role="alert">
+              Could not load questions.{" "}
+              <button type="button" className="quiet-button" onClick={() => void catalog.refetch()}>
+                Retry
+              </button>
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <label>
+            <span>Question title</span>
+            <input
+              required
+              maxLength={120}
+              value={customTitle}
+              onChange={(event) => setCustomTitle(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Statement</span>
+            <textarea
+              rows={4}
+              value={statement}
+              onChange={(event) => setStatement(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Starter code</span>
+            <textarea
+              className="interview-code-input"
+              rows={8}
+              value={starter}
+              onChange={(event) => setStarter(event.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <fieldset className="interview-signature">
+            <legend>Method</legend>
+            <div className="interview-form-row">
+              <label>
+                <span>Class</span>
+                <input value={signature.className} readOnly required />
+              </label>
+              <label>
+                <span>Method name</span>
+                <input
+                  value={signature.methodName}
+                  onChange={(event) =>
+                    updateSignature({ ...signature, methodName: event.target.value })
+                  }
+                  required
+                  pattern="[a-zA-Z_][a-zA-Z0-9_]*"
+                />
+              </label>
+            </div>
+            {signature.parameters.map((parameter, index) => (
+              <div className="interview-parameter" key={index}>
+                <label>
+                  <span>Parameter name</span>
+                  <input
+                    value={parameter.name}
+                    required
+                    pattern="[a-zA-Z_][a-zA-Z0-9_]*"
+                    onChange={(event) =>
+                      updateSignature({
+                        ...signature,
+                        parameters: signature.parameters.map((item, position) =>
+                          position === index ? { ...item, name: event.target.value } : item,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Type</span>
+                  <SelectField
+                    label={`Type of ${parameter.name}`}
+                    value={parameter.type}
+                    options={types}
+                    onChange={(type) =>
+                      updateSignature({
+                        ...signature,
+                        parameters: signature.parameters.map((item, position) =>
+                          position === index ? { ...item, type } : item,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="quiet-button"
+                  aria-label={`Remove parameter ${parameter.name}`}
+                  onClick={() =>
+                    updateSignature({
+                      ...signature,
+                      parameters: signature.parameters.filter((_, position) => position !== index),
+                    })
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="quiet-button"
+              disabled={signature.parameters.length >= 16}
+              onClick={() =>
+                updateSignature({
+                  ...signature,
+                  parameters: [
+                    ...signature.parameters,
+                    { name: `arg${signature.parameters.length + 1}`, type: "int" },
+                  ],
+                })
+              }
+            >
+              Add parameter
+            </button>
+            <label>
+              <span>Return type</span>
+              <SelectField
+                label="Return type"
+                value={signature.returnType}
+                options={types}
+                onChange={(returnType) => updateSignature({ ...signature, returnType })}
+              />
+            </label>
+          </fieldset>
+          <CaseFields
+            label="Shared tests"
+            signature={signature}
+            cases={publicCases}
+            onChange={setPublicCases}
+          />
+          <CaseFields
+            label="Interviewer-private tests"
+            signature={signature}
+            cases={privateCases}
+            onChange={setPrivateCases}
+          />
+        </>
+      )}
+      {error && (
+        <p className="interview-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button className="button button-primary" disabled={busy}>
+        {busy ? "Working…" : label}
+      </button>
+    </form>
+  );
+}
+
+/** Shared typed input presets keep testcase editing consistent with practice. */
+function CaseFields({
+  label,
+  signature,
+  cases,
+  onChange,
+}: {
+  label: string;
+  signature: Signature;
+  cases: CustomCaseDraft[];
+  onChange: (cases: CustomCaseDraft[]) => void;
+}) {
+  function patch(index: number, value: Partial<CustomCaseDraft>) {
+    onChange(cases.map((test, position) => (position === index ? { ...test, ...value } : test)));
+  }
+  return (
+    <fieldset className="interview-case-fields">
+      <legend>{label}</legend>
+      {cases.map((test, index) => (
+        <div key={test.id} className="interview-author-case">
+          <div className="interview-case-heading">
+            <span>Test {index + 1}</span>
+            <button
+              type="button"
+              className="quiet-button"
+              aria-label={`Remove ${label.toLowerCase()} test ${index + 1}`}
+              onClick={() => onChange(cases.filter((_, position) => position !== index))}
+            >
+              Remove
+            </button>
+          </div>
+          {signature.parameters.map((parameter, position) => (
+            <TypedCaseInput
+              key={`${position}:${parameter.type}`}
+              id={`${test.id}-${position}`}
+              name={parameter.name}
+              type={parameter.type}
+              value={test.args[position] ?? initialValue(parameter.type)}
+              onChange={(value) =>
+                patch(index, {
+                  args: signature.parameters.map((item, itemIndex) =>
+                    itemIndex === position
+                      ? value
+                      : (test.args[itemIndex] ?? initialValue(item.type)),
+                  ),
+                })
+              }
+            />
+          ))}
+          <TypedCaseInput
+            id={`${test.id}-expected`}
+            name="Expected output"
+            purpose="expected"
+            type={signature.returnType}
+            value={test.expected}
+            onChange={(expected) => patch(index, { expected })}
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        className="quiet-button"
+        disabled={cases.length >= 20}
+        onClick={() => onChange([...cases, newCase(signature)])}
+      >
+        Add test
+      </button>
+    </fieldset>
+  );
+}

@@ -211,6 +211,12 @@
         },
         "expected": {
           "$ref": "#/$defs/WireValue"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MethodCall"
+          }
         }
       },
       "required": ["args"],
@@ -230,9 +236,15 @@
         },
         "explanation": {
           "type": "string"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MethodCall"
+          }
         }
       },
-      "required": ["args", "expected"],
+      "required": ["args"],
       "additionalProperties": false
     },
     "ProblemVersion": {
@@ -293,6 +305,9 @@
           "items": {
             "$ref": "#/$defs/LanguageImplementation"
           }
+        },
+        "odyssey": {
+          "$ref": "#/$defs/Odyssey"
         }
       },
       "required": [
@@ -406,6 +421,9 @@
             "$ref": "#/$defs/CustomCase"
           },
           "maxItems": 20
+        },
+        "level": {
+          "type": "integer"
         }
       },
       "required": ["workspaceId", "kind", "source"],
@@ -1345,6 +1363,9 @@
           "items": {
             "$ref": "#/$defs/LanguageImplementation"
           }
+        },
+        "odyssey": {
+          "$ref": "#/$defs/Odyssey"
         }
       },
       "additionalProperties": false,
@@ -1397,6 +1418,15 @@
           "maxItems": 4,
           "items": {
             "$ref": "#/$defs/EditorialSolution"
+          }
+        },
+        "odysseyHiddenCases": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CustomCase"
+            }
           }
         }
       },
@@ -1597,9 +1627,377 @@
         },
         "guestConcurrency": {
           "type": "integer"
+        },
+        "interviews": {
+          "type": "boolean"
+        },
+        "odyssey": {
+          "type": "boolean"
         }
       },
       "required": ["hostGuests", "hostedIntelligence", "experimental", "guestConcurrency"]
+    },
+    "MethodCall": {
+      "type": "object",
+      "properties": {
+        "methodName": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        }
+      },
+      "required": ["methodName", "args"],
+      "additionalProperties": false
+    },
+    "OdysseyLevel": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "statementMarkdown": {
+          "type": "string"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Signature"
+          },
+          "minItems": 1,
+          "maxItems": 16
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProblemExample"
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": ["title", "statementMarkdown", "methods", "examples"],
+      "additionalProperties": false
+    },
+    "Odyssey": {
+      "type": "object",
+      "properties": {
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OdysseyLevel"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        }
+      },
+      "required": ["levels"],
+      "additionalProperties": false
+    },
+    "OdysseyProgress": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "integer"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OdysseyLevel"
+          }
+        }
+      },
+      "required": ["level", "completed", "levels"],
+      "additionalProperties": false
+    },
+    "InterviewRole": {
+      "type": "string",
+      "enum": ["interviewer", "interviewee"]
+    },
+    "InterviewDocument": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "epoch": {
+          "type": "string"
+        }
+      },
+      "required": ["source", "version", "epoch"],
+      "additionalProperties": false
+    },
+    "InterviewUpdate": {
+      "type": "object",
+      "properties": {
+        "clientID": {
+          "type": "string"
+        },
+        "changes": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": ["clientID", "changes"],
+      "additionalProperties": false
+    },
+    "InterviewUpdates": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer"
+        },
+        "epoch": {
+          "type": "string"
+        },
+        "updates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterviewUpdate"
+          }
+        }
+      },
+      "required": ["version", "epoch", "updates"],
+      "additionalProperties": false
+    },
+    "InterviewPush": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer"
+        },
+        "epoch": {
+          "type": "string"
+        },
+        "updates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterviewUpdate"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        }
+      },
+      "required": ["version", "epoch", "updates"],
+      "additionalProperties": false
+    },
+    "InterviewCustomQuestion": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "statementMarkdown": {
+          "type": "string"
+        },
+        "signature": {
+          "$ref": "#/$defs/Signature"
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "publicCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomCase"
+          }
+        },
+        "privateCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomCase"
+          }
+        }
+      },
+      "required": [
+        "title",
+        "statementMarkdown",
+        "signature",
+        "starterSource",
+        "publicCases",
+        "privateCases"
+      ],
+      "additionalProperties": false
+    },
+    "InterviewQuestionInput": {
+      "type": "object",
+      "properties": {
+        "problemVersionId": {
+          "type": "string"
+        },
+        "custom": {
+          "$ref": "#/$defs/InterviewCustomQuestion"
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        }
+      },
+      "required": ["language"],
+      "additionalProperties": false
+    },
+    "InterviewMember": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/InterviewRole"
+        },
+        "guest": {
+          "type": "boolean"
+        }
+      },
+      "required": ["userId", "name", "role", "guest"],
+      "additionalProperties": false
+    },
+    "InterviewQuestion": {
+      "type": "object",
+      "properties": {
+        "problem": {
+          "$ref": "#/$defs/ProblemVersion"
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        },
+        "privateCases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomCase"
+          }
+        },
+        "progress": {
+          "$ref": "#/$defs/OdysseyProgress"
+        }
+      },
+      "required": ["problem", "language"],
+      "additionalProperties": false
+    },
+    "InterviewSnapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "closed"]
+        },
+        "hostId": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/InterviewRole"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InterviewMember"
+          }
+        },
+        "question": {
+          "$ref": "#/$defs/InterviewQuestion"
+        },
+        "document": {
+          "$ref": "#/$defs/InterviewDocument"
+        },
+        "invitePath": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "latestSubmissionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "state",
+        "hostId",
+        "role",
+        "members",
+        "question",
+        "document",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "InterviewCreate": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "$ref": "#/$defs/InterviewQuestionInput"
+        }
+      },
+      "required": ["title", "question"],
+      "additionalProperties": false
+    },
+    "InterviewPreview": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": ["title", "sessionId", "state"],
+      "additionalProperties": false
+    },
+    "InterviewPresence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clientID", "version", "epoch", "anchor", "head"],
+      "properties": {
+        "clientID": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "epoch": {
+          "type": "string"
+        },
+        "anchor": {
+          "type": "integer"
+        },
+        "head": {
+          "type": "integer"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
     }
   },
   "$ref": "#/$defs/EventEnvelope"
