@@ -1685,15 +1685,15 @@ kbd {
   align-items: start;
 }
 .case-value-row .field-purpose {
-  height: 18px;
+  height: 28px;
 }
 .machine-value {
   display: block;
   width: fit-content;
   max-width: 100%;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-inline-code);
   font: 12px/1.5 var(--font-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -2250,8 +2250,9 @@ kbd {
 }
 .python-editor .cm-scroller::-webkit-scrollbar-thumb {
   background: var(--color-text-disabled);
-  border: 3px solid var(--color-field);
-  border-radius: 6px;
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
 }
 .python-editor .cm-scroller::-webkit-scrollbar-corner {
   background: var(--color-field);
@@ -2272,10 +2273,6 @@ kbd {
 }
 
 .python-editor .cm-scroller::-webkit-scrollbar-track:horizontal {
-  margin-left: var(--workspace-control-inset);
-  margin-right: var(--workspace-control-inset);
-}
-.python-editor .cm-scroller::-webkit-scrollbar-thumb:horizontal {
-  border-left: 0;
-  border-right: 0;
+  margin-left: calc(var(--workspace-control-inset) - 3px);
+  margin-right: calc(var(--workspace-control-inset) - 3px);
 }
