@@ -28,6 +28,7 @@ export function useSubmission({
   drafts,
   problem,
   enabled = true,
+  level,
 }: {
   identity: DevelopmentIdentity;
   workspace?: Workspace;
@@ -37,6 +38,7 @@ export function useSubmission({
   drafts: CustomCaseDraft[];
   problem?: ProblemVersion;
   enabled?: boolean;
+  level?: number;
 }) {
   const queryClient = useQueryClient();
   const [active, setActive] = useState<{ scope: string; id: string }>();
@@ -163,7 +165,7 @@ export function useSubmission({
       setError(undefined);
       try {
         const bytes = new TextEncoder().encode(
-          JSON.stringify({ scope, kind, source, customCases }),
+          JSON.stringify({ scope, kind, source, customCases, level }),
         );
         const fingerprint = Array.from(
           new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
@@ -201,6 +203,7 @@ export function useSubmission({
           source,
           customCases,
           pendingRequest.current.key,
+          level,
         );
         if (scopeRef.current === scope) {
           setActive({ scope, id: admission.id });
@@ -247,6 +250,7 @@ export function useSubmission({
       scope,
       queryClient,
       enabled,
+      level,
     ],
   );
 

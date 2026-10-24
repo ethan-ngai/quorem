@@ -77,10 +77,11 @@ export async function createSubmission(
   source: string,
   customCases?: CustomCase[],
   idempotencyKey: string = crypto.randomUUID(),
+  level?: number,
 ) {
   const { data, error } = await api(identity).POST("/v1/submissions", {
     params: { header: { "Idempotency-Key": idempotencyKey } },
-    body: { workspaceId, kind, source, customCases },
+    body: { workspaceId, kind, source, customCases, ...(level !== undefined ? { level } : {}) },
   });
   return requireData(data as SubmissionAdmission | undefined, error);
 }

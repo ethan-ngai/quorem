@@ -501,6 +501,230 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{id}/odyssey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOdysseyProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listInterviews"];
+        put?: never;
+        post: operations["createInterview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getInterview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/question": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setInterviewQuestion"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getInterviewDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getInterviewUpdates"];
+        put?: never;
+        post: operations["pushInterviewUpdates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setInterviewMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/members/{userId}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["removeInterviewMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["closeInterview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["runInterviewSubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/submissions/{submissionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getInterviewSubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interview-invites/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewInterviewInvite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interview-invites/{token}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["joinInterviewInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getInterviewPresence"];
+        put?: never;
+        post: operations["setInterviewPresence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -556,11 +780,13 @@ export interface components {
         CustomCase: {
             args: components["schemas"]["WireValue"][];
             expected?: components["schemas"]["WireValue"];
+            calls?: components["schemas"]["MethodCall"][];
         };
         ProblemExample: {
             args: components["schemas"]["WireValue"][];
-            expected: components["schemas"]["WireValue"];
+            expected?: components["schemas"]["WireValue"];
             explanation?: string;
+            calls?: components["schemas"]["MethodCall"][];
         };
         ProblemVersion: {
             /** Format: uuid */
@@ -578,6 +804,7 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages?: components["schemas"]["LanguageImplementation"][];
+            odyssey?: components["schemas"]["Odyssey"];
         };
         EditorPreferences: {
             /** @enum {string} */
@@ -611,6 +838,7 @@ export interface components {
             kind: components["schemas"]["SubmissionKind"];
             source: string;
             customCases?: components["schemas"]["CustomCase"][];
+            level?: number;
         };
         SubmissionAdmission: {
             /** Format: uuid */
@@ -903,6 +1131,7 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages: components["schemas"]["LanguageImplementation"][];
+            odyssey?: components["schemas"]["Odyssey"];
         };
         QuestionContent: {
             problem: components["schemas"]["QuestionProblem"];
@@ -911,6 +1140,7 @@ export interface components {
             attribution: string;
             implementations: components["schemas"]["AuthoringImplementation"][];
             solutions: components["schemas"]["EditorialSolution"][];
+            odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
         };
         QuestionDraft: {
             /** Format: uuid */
@@ -971,6 +1201,105 @@ export interface components {
             hostedIntelligence: boolean;
             experimental: boolean;
             guestConcurrency: number;
+            interviews?: boolean;
+            odyssey?: boolean;
+        };
+        MethodCall: {
+            methodName: string;
+            args: components["schemas"]["WireValue"][];
+            expected?: components["schemas"]["WireValue"];
+        };
+        OdysseyLevel: {
+            title: string;
+            statementMarkdown: string;
+            methods: components["schemas"]["Signature"][];
+            examples: components["schemas"]["ProblemExample"][];
+        };
+        Odyssey: {
+            levels: components["schemas"]["OdysseyLevel"][];
+        };
+        OdysseyProgress: {
+            level: number;
+            completed: boolean;
+            levels: components["schemas"]["OdysseyLevel"][];
+        };
+        /** @enum {string} */
+        InterviewRole: "interviewer" | "interviewee";
+        InterviewDocument: {
+            source: string;
+            version: number;
+            epoch: string;
+        };
+        InterviewUpdate: {
+            clientID: string;
+            changes: unknown[];
+        };
+        InterviewUpdates: {
+            version: number;
+            epoch: string;
+            updates: components["schemas"]["InterviewUpdate"][];
+        };
+        InterviewPush: {
+            version: number;
+            epoch: string;
+            updates: components["schemas"]["InterviewUpdate"][];
+        };
+        InterviewCustomQuestion: {
+            title: string;
+            statementMarkdown: string;
+            signature: components["schemas"]["Signature"];
+            starterSource: string;
+            publicCases: components["schemas"]["CustomCase"][];
+            privateCases: components["schemas"]["CustomCase"][];
+        };
+        InterviewQuestionInput: {
+            problemVersionId?: string;
+            custom?: components["schemas"]["InterviewCustomQuestion"];
+            language: components["schemas"]["Language"];
+        };
+        InterviewMember: {
+            userId: string;
+            name: string;
+            role: components["schemas"]["InterviewRole"];
+            guest: boolean;
+        };
+        InterviewQuestion: {
+            problem: components["schemas"]["ProblemVersion"];
+            language: components["schemas"]["Language"];
+            privateCases?: components["schemas"]["CustomCase"][];
+            progress?: components["schemas"]["OdysseyProgress"];
+        };
+        InterviewSnapshot: {
+            id: string;
+            title: string;
+            /** @enum {string} */
+            state: "active" | "closed";
+            hostId: string;
+            role: components["schemas"]["InterviewRole"];
+            members: components["schemas"]["InterviewMember"][];
+            question: components["schemas"]["InterviewQuestion"];
+            document: components["schemas"]["InterviewDocument"];
+            invitePath?: string;
+            version: number;
+            latestSubmissionId?: string;
+        };
+        InterviewCreate: {
+            title: string;
+            question: components["schemas"]["InterviewQuestionInput"];
+        };
+        InterviewPreview: {
+            title: string;
+            sessionId: string;
+            state: string;
+        };
+        InterviewPresence: {
+            clientID: string;
+            version: number;
+            epoch: string;
+            anchor: number;
+            head: number;
+            userId?: string;
+            name?: string;
         };
     };
     responses: never;
@@ -2067,6 +2396,594 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getOdysseyProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OdysseyProgress"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listInterviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"][];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createInterview: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewCreate"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInterview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewQuestion: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewQuestionInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInterviewDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewDocument"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInterviewUpdates: {
+        parameters: {
+            query: {
+                version: number;
+                epoch: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewUpdates"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    pushInterviewUpdates: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewPush"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewUpdates"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewMember: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    userId: string;
+                    role: components["schemas"]["InterviewRole"];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeInterviewMember: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    closeInterview: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    runInterviewSubmission: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "run" | "submit";
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Submission"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInterviewSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                submissionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Submission"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    previewInterviewInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewPreview"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    joinInterviewInvite: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getInterviewPresence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewPresence"][];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewPresence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewPresence"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewPresence"][];
+                };
             };
             /** @description Safe application error */
             default: {

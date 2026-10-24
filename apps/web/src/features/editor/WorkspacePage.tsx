@@ -57,6 +57,9 @@ import {
 } from "./recovery";
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
+import { OdysseyPanel } from "../odyssey/OdysseyPanel";
+import { interviewRequest } from "../interviews/api";
+import type { OdysseyProgress } from "@quorem/contracts";
 import { useSubmission } from "./useSubmission";
 import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { useIntelligence } from "./useIntelligence";
@@ -243,7 +246,9 @@ export function WorkspacePage({
     setProblem(problemQuery.data);
     setWorkspace(loadedWorkspace);
     setCustomMode(false);
-    setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
+    setCustomDrafts(
+      problemQuery.data.odyssey ? [] : readCustomDrafts(nextContext.key, problemQuery.data),
+    );
     const initialSource =
       readBrowserDraft(identity, nextContext.storageId, problemQuery.data.id) ??
       (account.data
@@ -392,16 +397,24 @@ export function WorkspacePage({
     !problem ||
     !workspace;
   const matchRules = useMatchRules(identity, match);
+  const odyssey = useQuery({
+    queryKey: ["odyssey", workspace?.id],
+    queryFn: () => interviewRequest<OdysseyProgress>(`/v1/workspaces/${workspace!.id}/odyssey`),
+    enabled: !!workspace && !!problem?.odyssey && serverWorkspace,
+    refetchInterval: problem?.odyssey ? 2000 : false,
+  });
   const execution = useSubmission({
+    level: odyssey.data?.level,
     identity,
     workspace,
     sourceRef,
     editorRef,
-    customMode,
+    customMode: problem?.odyssey ? false : customMode,
     drafts: customDrafts,
     problem,
     enabled:
       serverWorkspace &&
+      (!problem?.odyssey || !!odyssey.data) &&
       !languageSwitching &&
       !matchRules.blocked &&
       canExecuteDocument({
@@ -550,6 +563,7 @@ export function WorkspacePage({
 
   const actionsEnabled =
     !!account.data &&
+    (!problem?.odyssey || !!odyssey.data) &&
     !languageSwitching &&
     !matchRules.blocked &&
     canExecuteDocument({
@@ -668,15 +682,33 @@ export function WorkspacePage({
         </nav>
         <div className="workspace-grid" data-active-panel={activePanel}>
           <section className="problem-pane" aria-label="Problem statement">
-            <ProblemStatement problem={problem}>
-              <EditorialPanel
-                key={`${identity}:${problem.id}`}
-                identity={identity}
-                versionId={problem.id}
-                language={documentLanguage}
-                inMatch={!!match}
-              />
-            </ProblemStatement>
+            {problem.odyssey ? (
+              odyssey.data ? (
+                <OdysseyPanel
+                  progress={odyssey.data}
+                  title={problem.title}
+                  introduction={problem.statementMarkdown}
+                />
+              ) : (
+                <p className="result-message" role="status">
+                  {!account.data
+                    ? "Sign in to start Odyssey."
+                    : odyssey.isError
+                      ? "Odyssey is unavailable for this account. Reload to retry."
+                      : "Loading levels…"}
+                </p>
+              )
+            ) : (
+              <ProblemStatement problem={problem}>
+                <EditorialPanel
+                  key={`${identity}:${problem.id}`}
+                  identity={identity}
+                  versionId={problem.id}
+                  language={documentLanguage}
+                  inMatch={!!match}
+                />
+              </ProblemStatement>
+            )}
           </section>
           <ResizableDivider
             axis="x"
@@ -754,7 +786,10 @@ export function WorkspacePage({
             <section className="results-pane" aria-label="Execution results">
               <div className="results-toolbar">
                 <div className="result-tabs" role="tablist" aria-label="Tests">
-                  {(["samples", "custom"] as const).map((tab) => {
+                  {(problem.odyssey
+                    ? (["samples"] as const)
+                    : (["samples", "custom"] as const)
+                  ).map((tab) => {
                     const selected = customMode === (tab === "custom");
                     return (
                       <button
@@ -790,11 +825,13 @@ export function WorkspacePage({
                               : "custom"
                           }
                         />
-                        {tab === "samples"
-                          ? submission?.hiddenCases?.length
-                            ? "Hidden cases"
-                            : "Sample cases"
-                          : "Custom cases"}
+                        {problem.odyssey
+                          ? "Cumulative tests"
+                          : tab === "samples"
+                            ? submission?.hiddenCases?.length
+                              ? "Hidden cases"
+                              : "Sample cases"
+                            : "Custom cases"}
                       </button>
                     );
                   })}
@@ -819,16 +856,26 @@ export function WorkspacePage({
                     aria-labelledby={`tests-${tab}-tab`}
                     hidden={customMode !== (tab === "custom")}
                   >
-                    <TestCases
-                      key={`${identity}:${workspace.id}:${problem.id}:${tab}`}
-                      problem={problem}
-                      customMode={tab === "custom"}
-                      drafts={customDrafts}
-                      onDraftsChange={changeCustomDrafts}
-                      submission={submission}
-                      snapshot={execution.runSnapshot}
-                      busy={admissionPending || (execution.isPending && !!execution.submissionId)}
-                    />
+                    {problem.odyssey ? (
+                      <div className="odyssey-levels">
+                        <p>
+                          Run checks all unlocked public examples. Submit checks all unlocked
+                          private tests.
+                        </p>
+                        <ResultContent submission={submission} busy={admissionPending} />
+                      </div>
+                    ) : (
+                      <TestCases
+                        key={`${identity}:${workspace.id}:${problem.id}:${tab}`}
+                        problem={problem}
+                        customMode={tab === "custom"}
+                        drafts={customDrafts}
+                        onDraftsChange={changeCustomDrafts}
+                        submission={submission}
+                        snapshot={execution.runSnapshot}
+                        busy={admissionPending || (execution.isPending && !!execution.submissionId)}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
