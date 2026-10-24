@@ -1,7 +1,7 @@
 /** @file AccountMenu.tsx @description Profile menu and accessible account dialogs. @module navigation */
 import { useErrorNotification } from "../../ui/Notifications";
 import * as Popover from "@radix-ui/react-popover";
-import { BookOpen, ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
+import { SquarePen, ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
 import { useState, type Ref } from "react";
 import { signOut, type Session } from "../auth/session";
 import { useProfile } from "../auth/profile";
@@ -64,6 +64,7 @@ export function AccountMenu({
           <Popover.Content
             className="nav-popover nav-profile"
             align="end"
+            side="bottom"
             sideOffset={8}
             collisionPadding={8}
             aria-label="Account menu"
@@ -108,8 +109,8 @@ export function AccountMenu({
                   ) : null}
                   {session.user.role === "admin" ? (
                     <a href="/admin/questions">
-                      <BookOpen />
-                      <span>Question editor</span>
+                      <SquarePen />
+                      <span>Question Editor</span>
                     </a>
                   ) : null}
                 </div>

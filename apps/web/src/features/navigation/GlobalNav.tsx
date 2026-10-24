@@ -1,13 +1,12 @@
+/** @file GlobalNav.tsx @description Shared sidebar with persistent top-bar identity and workspace controls. @module navigation */
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { useSession } from "../auth/session";
-import * as Popover from "@radix-ui/react-popover";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, BookOpen, Home, Menu, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
-import { Brand } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/MatchControls";
@@ -15,6 +14,7 @@ import { ModeText } from "../matches/ModeText";
 import { useActiveMatch } from "../matches/useActiveMatch";
 import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
 import { AccountMenu } from "./AccountMenu";
+import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import "./navigation.css";
 
 export function GlobalNav({
@@ -103,138 +103,101 @@ export function GlobalNav({
   ]);
   return (
     <>
-      <header className="topbar global-nav">
-        <Brand />
-        <nav className="global-nav-links" aria-label="Main navigation">
-          <Popover.Root>
-            <Tooltip content="Navigation">
-              <Popover.Trigger asChild>
-                <button className="icon-button nav-menu-trigger" aria-label="Navigation">
-                  <Menu size={18} />
-                </button>
-              </Popover.Trigger>
-            </Tooltip>
-            <Popover.Portal>
-              <Popover.Content
-                className="nav-popover nav-menu"
-                align="start"
-                sideOffset={8}
-                collisionPadding={8}
-                aria-label="Navigation"
-              >
-                <Popover.Close asChild>
-                  <a href="/">
-                    <Home size={17} />
-                    Home
-                  </a>
-                </Popover.Close>
-                {session.data?.user.role === "admin" && (
-                  <Popover.Close asChild>
-                    <a href="/admin/questions">
-                      <BookOpen size={17} />
-                      Question editor
-                    </a>
-                  </Popover.Close>
-                )}
-                <Popover.Close asChild>
-                  <a
-                    href="/practice"
-                    aria-current={pathname.startsWith("/practice") ? "page" : undefined}
-                  >
-                    <BookOpen size={17} />
-                    Practice
-                  </a>
-                </Popover.Close>
-              </Popover.Content>
-            </Popover.Portal>
-          </Popover.Root>
-          {mode ? (
-            <span className="global-mode">
-              <span key={mode} className="mode-icon-enter">
-                <ModeIcon mode={mode} />
-              </span>
-              <ModeText mode={mode} showdown="Showdown" freeForAll="Free-for-all" />
-            </span>
-          ) : (
-            !inMatch &&
-            (activeMatch.match ? (
-              <Tooltip content="Finish or leave your current match before creating another.">
-                <a
-                  className="quiet-button active-match-trigger"
-                  aria-label={activeMatch.label ?? undefined}
-                  href={`/match/${activeMatch.match.id}`}
-                >
-                  <ArrowRight size={18} />
-                  <span>{activeMatch.label}</span>
-                </a>
-              </Tooltip>
-            ) : (
-              <Tooltip
-                content={
-                  activeMatch.failed
-                    ? "Could not check your active match. Try again shortly."
-                    : session.data?.kind === "guest"
-                      ? "Sign in to create a match"
-                      : "Create match"
-                }
-              >
+      <div className="global-nav-slot">
+        <header className="topbar global-nav">
+          <WorkspaceSidebar pathname={pathname} admin={session.data?.user.role === "admin"} />
+          <a className="nav-brand" href="/" aria-label="Quorem home">
+            <span className="brand-mark" aria-hidden="true" />
+          </a>
+          <div className="nav-actions">
+            {children}
+
+            {workspaceSettings && (
+              <Tooltip content="Workspace settings">
                 <button
-                  className="quiet-button create-match-trigger"
-                  disabled={checkingMatch || activeMatch.failed}
-                  aria-label={
-                    checkingMatch
-                      ? "Checking active match"
-                      : activeMatch.failed
-                        ? "Match status unavailable"
-                        : session.data?.kind === "guest"
-                          ? "Sign in to create a match"
-                          : "Create match"
-                  }
-                  onClick={() => {
-                    if (!session.data || session.data.kind === "guest") {
-                      signInToCreate();
-                      return;
-                    }
-                    (onCreateMatch ?? (() => setCreating(true)))();
-                  }}
+                  className="icon-button nav-settings-trigger"
+                  ref={settingsTrigger}
+                  aria-label="Workspace settings"
+                  onClick={() => openSettings("editor")}
                 >
-                  <Plus size={18} />
-                  <span>
-                    {checkingMatch
-                      ? "Checking match…"
-                      : activeMatch.failed
-                        ? "Match status unavailable"
-                        : session.data?.kind === "guest"
-                          ? "Sign in to create a match"
-                          : "Create match"}
-                  </span>
+                  <SlidersHorizontal size={18} />
                 </button>
               </Tooltip>
-            ))
-          )}
-        </nav>
-        <div className="topbar-spacer" />
-        {children}
-        {workspaceSettings && (
-          <Tooltip content="Workspace settings">
-            <button
-              className="icon-button"
-              ref={settingsTrigger}
-              aria-label="Workspace settings"
-              onClick={() => openSettings("editor")}
-            >
-              <SlidersHorizontal size={18} />
-            </button>
-          </Tooltip>
-        )}
-        <AccountMenu
-          triggerRef={profileTrigger}
-          session={session.data}
-          pending={session.isPending}
-          failed={session.isError}
-          onOpenSettings={openSettings}
-        />
-      </header>
+            )}
+            {mode ? (
+              <span className="global-mode">
+                <span key={mode} className="mode-icon-enter">
+                  <ModeIcon mode={mode} />
+                </span>
+                <ModeText mode={mode} showdown="Showdown" freeForAll="Free-for-all" />
+              </span>
+            ) : (
+              !inMatch &&
+              (activeMatch.match ? (
+                <Tooltip content="Finish or leave your current match before creating another.">
+                  <a
+                    className="nav-match-action active-match-trigger"
+                    aria-label={activeMatch.label ?? undefined}
+                    href={`/match/${activeMatch.match.id}`}
+                  >
+                    <ArrowRight size={18} />
+                    <span>{activeMatch.label}</span>
+                  </a>
+                </Tooltip>
+              ) : (
+                <Tooltip
+                  content={
+                    activeMatch.failed
+                      ? "Could not check your active match. Try again shortly."
+                      : session.data?.kind === "guest"
+                        ? "Sign in to create a match"
+                        : "Create match"
+                  }
+                >
+                  <button
+                    className="nav-match-action create-match-trigger"
+                    disabled={checkingMatch || activeMatch.failed}
+                    aria-label={
+                      checkingMatch
+                        ? "Checking active match"
+                        : activeMatch.failed
+                          ? "Match status unavailable"
+                          : session.data?.kind === "guest"
+                            ? "Sign in to create a match"
+                            : "Create match"
+                    }
+                    onClick={() => {
+                      if (!session.data || session.data.kind === "guest") {
+                        signInToCreate();
+                        return;
+                      }
+                      (onCreateMatch ?? (() => setCreating(true)))();
+                    }}
+                  >
+                    <Plus size={18} />
+                    <span>
+                      {checkingMatch
+                        ? "Checking match…"
+                        : activeMatch.failed
+                          ? "Match status unavailable"
+                          : session.data?.kind === "guest"
+                            ? "Sign in to create a match"
+                            : "Create match"}
+                    </span>
+                  </button>
+                </Tooltip>
+              ))
+            )}
+            <AccountMenu
+              triggerRef={profileTrigger}
+              session={session.data}
+              pending={session.isPending}
+              failed={session.isError}
+              onOpenSettings={openSettings}
+            />
+          </div>
+        </header>
+      </div>
       <SettingsDialog
         open={settingsOpen}
         section={settingsSection}
