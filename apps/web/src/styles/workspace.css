@@ -2264,3 +2264,14 @@ kbd {
     background: var(--color-background);
   }
 }
+
+@media (min-width: 901px) {
+  .app-shell:not(.has-match) .workspace-grid {
+    padding-top: 0;
+  }
+  .app-shell:not(.has-match) .solution-pane {
+    border-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+}
