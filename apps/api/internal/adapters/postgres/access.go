@@ -23,6 +23,10 @@ func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabili
 	if err != nil {
 		return c, err
 	}
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp())),EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','problems.odyssey') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, owner).Scan(&c.Interviews, &c.Odyssey)
+	if err != nil {
+		return c, err
+	}
 	rows, err := tx.Query(ctx, "SELECT resource,value FROM quota_overrides WHERE user_id=$1 AND (expires_at IS NULL OR expires_at>clock_timestamp())", owner)
 	if err != nil {
 		return c, err
@@ -59,7 +63,7 @@ func (s *Store) ApplyGrant(ctx context.Context, g access.Grant, dry bool) error 
 	if g.OperationID == "" || g.UserID == "" || g.Actor == "" || g.Reason == "" || g.Reference == "" {
 		return failure("invalid_input", 400, "Operation, target, actor, reason and reference are required")
 	}
-	if g.Scope != "admin" && g.Scope != "internal" && g.Scope != "matches.host_guests" && g.Scope != "intelligence.hosted" && g.Scope != "experimental" {
+	if g.Scope != "admin" && g.Scope != "internal" && g.Scope != "matches.host_guests" && g.Scope != "intelligence.hosted" && g.Scope != "experimental" && g.Scope != "interviews.host" && g.Scope != "problems.odyssey" {
 		return failure("invalid_input", 400, "Unknown access scope")
 	}
 	if g.Source != "manual" && g.Source != "internal" && g.Source != "subscription" {
