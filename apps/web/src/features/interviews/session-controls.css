@@ -1,0 +1,148 @@
+.interview-session-heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-2);
+}
+.interview-session-heading strong {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.interview-session-heading > a {
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-shrink: 0;
+}
+.interview-session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 6px 18px;
+  min-height: 48px;
+}
+.interview-session-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.interview-roster {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.interview-roster li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px 0;
+}
+.interview-roster li + li {
+  border-top: 1px solid var(--color-border);
+}
+.interview-roster .account-avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.interview-person {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+}
+.interview-person strong {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.interview-person span,
+.interview-person-role {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.interview-invite-popover {
+  z-index: 180;
+  width: min(360px, calc(100vw - 24px));
+  background: var(--color-overlay);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  font: 13px var(--font-interface);
+  box-shadow: var(--shadow-overlay);
+}
+.interview-invite-popover h2 {
+  font-size: 14px;
+  font-weight: 550;
+  margin: 0 0 12px;
+}
+.interview-invite-arrow {
+  fill: var(--color-border);
+}
+.interview-invite-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 12px 0;
+}
+.interview-invite-row + .interview-invite-row {
+  border-top: 1px solid var(--color-border);
+}
+.interview-invite-row > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+.interview-invite-row strong {
+  font-weight: 500;
+}
+.interview-invite-row span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+@media (max-width: 450px) {
+  .interview-roster li {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .interview-person {
+    min-width: calc(100% - 48px);
+  }
+  .interview-roster .select-field {
+    margin-left: 40px;
+  }
+  .interview-session-bar {
+    padding-inline: 12px;
+    gap: 8px;
+  }
+}
+
+.interview-session-heading {
+  flex: 1;
+}
+.interview-session-actions {
+  flex: 1;
+  justify-content: flex-end;
+}
+.interview-session-bar > .odyssey-progress {
+  padding: 0;
+  max-width: 50%;
+}
+@media (max-width: 450px) {
+  .interview-session-bar:has(.odyssey-progress) .interview-session-heading {
+    flex: 0;
+  }
+  .interview-session-bar:has(.odyssey-progress) .interview-session-heading strong {
+    display: none;
+  }
+}
+
+.interview-test-panel {
+  display: contents;
+}

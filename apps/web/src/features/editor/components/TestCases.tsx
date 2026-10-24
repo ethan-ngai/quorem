@@ -1,6 +1,6 @@
 import { Tooltip } from "./Tooltip";
-import type { ProblemVersion, Submission } from "@quorem/contracts";
-import { useState } from "react";
+import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
+import { useState, type ReactNode } from "react";
 import {
   associatedResultIndex,
   createCustomDraft,
@@ -27,6 +27,8 @@ export function TestCases({
   busy = false,
   minimumCases = 1,
   requiredExpected = false,
+  caseActions,
+  caseResults,
 }: {
   problem: ProblemVersion;
   customMode: boolean;
@@ -38,15 +40,22 @@ export function TestCases({
   busy?: boolean;
   minimumCases?: number;
   requiredExpected?: boolean;
+  caseActions?: (index: number) => ReactNode;
+  caseResults?: readonly (PublicCaseResult | undefined)[];
 }) {
   const hiddenCases =
-    !busy && !customMode && submission?.kind === "submit" && submission.state === "completed"
+    !caseResults &&
+    !busy &&
+    !customMode &&
+    submission?.kind === "submit" &&
+    submission.state === "completed"
       ? submission.hiddenCases
       : undefined;
   const [selectedSample, setSelectedSample] = useState(0);
   const [selectedCustomId, setSelectedCustomId] = useState<string>();
   // Recovered output without an admission snapshot belongs in this same case rail.
   const recoveredCases =
+    !caseResults &&
     !busy &&
     !snapshot &&
     !customMode &&
@@ -85,9 +94,10 @@ export function TestCases({
     ? associatedResultIndex(matchingSnapshot, customMode, caseId, currentValue)
     : -1;
   const result =
-    !pending && submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
+    (!pending ? caseResults?.[sampleIndex] : undefined) ??
+    (!pending && submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
       ? submission.publicCases?.[resultIndex]
-      : recoveredCases?.[sampleIndex];
+      : recoveredCases?.[sampleIndex]);
   const editedAfterRun =
     customMode &&
     matchingSnapshot?.custom &&
@@ -98,6 +108,7 @@ export function TestCases({
   }
   function caseStatus(index: number) {
     if (pending) return undefined;
+    if (caseResults) return caseResults[index]?.status;
     if (hiddenCases) return hiddenCases[index]?.status;
     if (submission?.kind !== "run" || submission.state !== "completed") return undefined;
     if (recoveredCases) return recoveredCases[index]?.status;
@@ -171,6 +182,7 @@ export function TestCases({
         )}
       </div>
       <div className="case-details">
+        {caseActions?.(sampleIndex)}
         {customMode && draft ? (
           <>
             <div className="custom-case-heading">

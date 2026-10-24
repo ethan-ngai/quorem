@@ -66,8 +66,8 @@ export function InterviewInvite({ token }: { token: string }) {
           </div>
           <dl className="competitive-lobby-summary">
             <div>
-              <dt>Workspace</dt>
-              <dd>Shared code and results</dd>
+              <dt>Role</dt>
+              <dd>{preview.data.role === "interviewer" ? "Interviewer" : "Interviewee"}</dd>
             </div>
             <div>
               <dt>Status</dt>
@@ -91,7 +91,7 @@ export function InterviewInvite({ token }: { token: string }) {
             title="Join this interview?"
             description={
               account.data
-                ? `Join as ${account.data.user.displayName}.`
+                ? `Join as ${account.data.user.displayName} · ${preview.data.role === "interviewer" ? "Interviewer" : "Interviewee"}.`
                 : "Choose a display name to continue as a guest."
             }
             returnFocus={() => document.getElementById("interview-join")?.focus()}

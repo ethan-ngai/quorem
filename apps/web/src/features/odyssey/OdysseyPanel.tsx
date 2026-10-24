@@ -1,5 +1,5 @@
 /** @file OdysseyPanel.tsx @description Authorized levels composed into the shared problem statement. @module odyssey */
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { OdysseyProgress } from "@quorem/contracts";
 import { ProblemStatement, type StatementProblem } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
@@ -11,15 +11,16 @@ export function OdysseyPanel({
   title,
   introduction,
   children,
+  selectedLevel,
 }: {
   progress: OdysseyProgress;
   problem?: StatementProblem;
   title?: string;
   introduction?: string;
   children?: ReactNode;
+  selectedLevel?: number;
 }) {
-  const [requested, setRequested] = useState<number>();
-  const index = Math.min(requested ?? progress.level - 1, progress.levels.length - 1);
+  const index = Math.min((selectedLevel ?? progress.level) - 1, progress.levels.length - 1);
   const level = progress.levels[index];
   if (!level) return null;
   const statement: StatementProblem = {
@@ -38,23 +39,6 @@ export function OdysseyPanel({
       problem={statement}
       navigation={
         <>
-          <div className="result-tabs" role="group" aria-label="Unlocked levels">
-            {progress.levels.map((item, position) => (
-              <button
-                key={position}
-                aria-pressed={index === position}
-                aria-selected={index === position}
-                onClick={() => setRequested(position)}
-              >
-                {position + 1}. {item.title}
-              </button>
-            ))}
-          </div>
-          <p className="case-stale" role="status">
-            {progress.completed
-              ? "All levels complete"
-              : `Level ${progress.level} · Submit to unlock the next level. Earlier tests run again.`}
-          </p>
           {(problem?.statementMarkdown ?? introduction) && (
             <div className="problem-copy">
               <StatementMarkdown source={problem?.statementMarkdown ?? introduction!} />

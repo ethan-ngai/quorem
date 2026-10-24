@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { InterviewQuestionInput, Signature } from "@quorem/contracts";
 import { interviewRequest } from "./api";
+import { LanguageLogo } from "../../ui/LanguageLogo";
 import { SelectField } from "../../ui/SelectField";
 import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
 import { TestCases } from "../editor/components/TestCases";
@@ -152,6 +153,7 @@ export function QuestionSetup({
             options={Object.entries(languageLabels).map(([value, text]) => ({
               value,
               label: text,
+              leading: <LanguageLogo language={value as EditorLanguage} />,
             }))}
           />
         </label>

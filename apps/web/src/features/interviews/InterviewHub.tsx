@@ -6,6 +6,7 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
 import { interviewRequest } from "./api";
+import { InterviewInvitationLinks } from "./InterviewInvitations";
 import { QuestionSetup } from "./QuestionSetup";
 import { useErrorNotification } from "../../ui/Notifications";
 import "../../styles/workspace.css";
@@ -17,6 +18,7 @@ export function InterviewHub() {
   const account = useSession();
   const theme = useTheme();
   const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<InterviewSnapshot>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   useErrorNotification(error);
@@ -36,7 +38,7 @@ export function InterviewHub() {
         { title, question },
         crypto.randomUUID(),
       );
-      window.location.assign(`/interview/${session.id}`);
+      setCreated(session);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not create interview.");
     } finally {
@@ -51,7 +53,13 @@ export function InterviewHub() {
         description="Collaborate in a shared coding workspace."
         actions={
           account.data?.capabilities?.interviews && (
-            <button className="button button-primary" onClick={() => setCreating(true)}>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                setCreated(undefined);
+                setCreating(true);
+              }}
+            >
               New interview
             </button>
           )
@@ -133,12 +141,25 @@ export function InterviewHub() {
       <SessionDialog
         open={creating}
         onOpenChange={setCreating}
-        title="Create interview"
-        description="Choose a question or add your own code and tests."
+        title={created ? "Invite people" : "Create interview"}
+        description={created ? created.title : "Choose a question or add your own code and tests."}
         pending={busy}
         className="match-creation-dialog"
       >
-        <QuestionSetup onSubmit={(question, title) => void create(question, title)} busy={busy} />
+        {created ? (
+          <>
+            <InterviewInvitationLinks
+              invites={created.invites ?? { interviewee: created.invitePath }}
+            />
+            <footer className="competitive-dialog-actions">
+              <a className="button button-primary" href={`/interview/${created.id}`}>
+                Open workspace
+              </a>
+            </footer>
+          </>
+        ) : (
+          <QuestionSetup onSubmit={(question, title) => void create(question, title)} busy={busy} />
+        )}
       </SessionDialog>
     </div>
   );

@@ -1,12 +1,7 @@
 /** @file InterviewPage.tsx @description Shared coding workspace, role controls and private judging. @module interviews */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  InterviewSnapshot,
-  InterviewQuestionInput,
-  InterviewRole,
-  Submission,
-} from "@quorem/contracts";
+import type { InterviewSnapshot, InterviewQuestionInput, Submission } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
@@ -25,23 +20,20 @@ import { workspaceShortcuts } from "../editor/workspaceShortcuts";
 import { useIntelligence } from "../editor/useIntelligence";
 import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
 import { SolutionToolbar } from "../editor/components/SolutionToolbar";
-import { WorkspaceTests } from "../editor/components/WorkspaceTests";
+import { InterviewTests } from "./InterviewTests";
+import { InterviewParticipants } from "./InterviewParticipants";
+import { InterviewInvitations } from "./InterviewInvitations";
+import { OdysseyStepper } from "../odyssey/OdysseyStepper";
+import { ArrowLeft } from "lucide-react";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
-import { TestCases } from "../editor/components/TestCases";
-import type { CustomCaseDraft } from "../editor/customCases";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
-import { SelectField } from "../../ui/SelectField";
 import { SessionDialog } from "../../ui/SessionDialog";
-import { SessionBar } from "../../ui/SessionBar";
 import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
-import { InvitationActions } from "../matches/InvitationActions";
-import { shareInvitation } from "../matches/shareInvitation";
 import "../../styles/workspace.css";
-const noDrafts: CustomCaseDraft[] = [];
-const keepDrafts = () => {};
 const keepSource = () => {};
 import "./collaboration.css";
+import "./session-controls.css";
 
 /** Session metadata may refresh freely; document epochs change only after explicit recovery. */
 export function InterviewPage({ id }: { id: string }) {
@@ -61,7 +53,7 @@ export function InterviewPage({ id }: { id: string }) {
       key={initial.document.epoch}
       initial={initial}
       snapshot={query.data}
-      onOpenQuestion={() => setInitial(query.data)}
+      onOpenQuestion={(next) => setInitial(next ?? query.data)}
     />
   ) : (
     <div className="match-page">
@@ -90,7 +82,7 @@ function InterviewPad({
 }: {
   initial: InterviewSnapshot;
   snapshot: InterviewSnapshot;
-  onOpenQuestion: () => void;
+  onOpenQuestion: (next?: InterviewSnapshot) => void;
 }) {
   const id = snapshot.id;
   const theme = useTheme();
@@ -104,20 +96,25 @@ function InterviewPad({
   );
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [languageSwitching, setLanguageSwitching] = useState(false);
   const [setup, setSetup] = useState(false);
   const [members, setMembers] = useState(false);
   const [tab, setTab] = useState<WorkspacePanel>("code");
   const [ending, setEnding] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [selectedLevel, setSelectedLevel] = useState<number>();
   const [admitted, setAdmitted] = useState<{ id: string; previous?: string }>();
   const [admitting, setAdmitting] = useState(false);
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = window.setTimeout(() => setCopied(false), 2000);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
   const changed = snapshot.document.epoch !== initial.document.epoch;
+  useEffect(() => {
+    if (
+      changed &&
+      !!snapshot.questionEpoch &&
+      snapshot.questionEpoch === initial.questionEpoch &&
+      controller.isSynchronized()
+    )
+      onOpenQuestion(snapshot);
+  }, [changed, snapshot, initial.questionEpoch, controller, onOpenQuestion]);
   const interviewer = snapshot.role === "interviewer";
   const closed = snapshot.state === "closed";
   useErrorNotification(error);
@@ -183,28 +180,27 @@ function InterviewPad({
       setBusy(false);
     }
   }
-  async function copyInvitation() {
+  async function changeLanguage(language: EditorLanguage) {
+    if (disabled) return;
+    setLanguageSwitching(true);
+    setBusy(true);
+    setError(undefined);
     try {
-      await navigator.clipboard.writeText(
-        new URL(snapshot.invitePath!, window.location.origin).href,
+      if (!(await controller.flush())) throw new Error("Reconnect before changing language.");
+      const next = await interviewRequest<InterviewSnapshot>(
+        `/v1/interviews/${id}/language`,
+        "POST",
+        { language, epoch: initial.document.epoch },
+        crypto.randomUUID(),
       );
-      setCopied(true);
-    } catch {
-      setError("Could not copy invitation.");
-    }
-  }
-  async function shareInvite() {
-    setSharing(true);
-    try {
-      if (
-        (await shareInvitation(new URL(snapshot.invitePath!, window.location.origin).href)) ===
-        "copied"
-      )
-        setCopied(true);
-    } catch {
-      setError("Could not share invitation.");
+      await queryClient.cancelQueries({ queryKey: ["interview", id] });
+      queryClient.setQueryData(["interview", id], next);
+      onOpenQuestion(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not change language.");
     } finally {
-      setSharing(false);
+      setLanguageSwitching(false);
+      setBusy(false);
     }
   }
   async function copyCode() {
@@ -229,28 +225,12 @@ function InterviewPad({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const disabled = executing || closed || changed || status !== "connected";
   const hotkeys = {
-    enabled: !settingsOpen && !setup && !members && !disabled,
+    enabled: !settingsOpen && !setup && !members && !inviting && !disabled,
     ignoreInputs: false,
     requireReset: true,
   };
   useHotkey(workspaceShortcuts.run.binding, () => void execute("run"), hotkeys);
   useHotkey(workspaceShortcuts.submit.binding, () => void execute("submit"), hotkeys);
-  const privateTests =
-    interviewer && !!question.privateCases?.length ? (
-      <details className="problem-section">
-        <summary className="quiet-button">
-          Interviewer-private tests ({question.privateCases.length})
-        </summary>
-        <div className="authoring-case-browser">
-          <TestCases
-            problem={{ ...question.problem, examples: question.privateCases }}
-            customMode={false}
-            drafts={noDrafts}
-            onDraftsChange={keepDrafts}
-          />
-        </div>
-      </details>
-    ) : undefined;
   return (
     <WorkspaceLayout
       navigation={
@@ -269,68 +249,67 @@ function InterviewPad({
       onPanelChange={setTab}
       header={
         <>
-          <SessionBar
-            label="Interview session"
-            actions={
-              <>
-                <Tooltip content="Participants">
+          <div className="interview-session-bar" aria-label="Interview session">
+            <div className="interview-session-heading">
+              <Tooltip content="Back to interviews">
+                <a href="/interviews" aria-label="Back to interviews">
+                  <ArrowLeft size={16} />
+                </a>
+              </Tooltip>
+              <strong title={snapshot.title}>{snapshot.title}</strong>
+            </div>
+            {question.progress && (
+              <OdysseyStepper
+                progress={question.progress}
+                selectedLevel={selectedLevel}
+                onSelect={setSelectedLevel}
+              />
+            )}
+            <div className="interview-session-actions">
+              <Tooltip content="Participants">
+                <button
+                  className="icon-button"
+                  onClick={() => setMembers(true)}
+                  aria-label={`Participants (${snapshot.members.length})`}
+                >
+                  <Icon name="people" />
+                </button>
+              </Tooltip>
+              {interviewer && !closed && (
+                <Tooltip content="Change question">
                   <button
                     className="icon-button"
-                    onClick={() => setMembers(true)}
-                    aria-label={`Participants (${snapshot.members.length})`}
+                    onClick={() => setSetup(true)}
+                    aria-label="Change question"
                   >
-                    <Icon name="people" />
+                    <Icon name="problem" />
                   </button>
                 </Tooltip>
-                {interviewer && !closed && (
-                  <Tooltip content="Change question">
-                    <button
-                      className="icon-button"
-                      onClick={() => setSetup(true)}
-                      aria-label="Change question"
-                    >
-                      <Icon name="problem" />
-                    </button>
-                  </Tooltip>
-                )}
-                {snapshot.invitePath && !closed && (
-                  <InvitationActions
-                    copied={copied}
-                    sharing={sharing}
-                    onCopy={() => void copyInvitation()}
-                    onShare={() => void shareInvite()}
-                  />
-                )}
-                {interviewer && !closed && (
-                  <Tooltip content="End interview">
-                    <button
-                      className="icon-button destructive-icon"
-                      disabled={busy}
-                      onClick={() => setEnding(true)}
-                      aria-label="End interview"
-                    >
-                      <Icon name="flag" />
-                    </button>
-                  </Tooltip>
-                )}
-              </>
-            }
-          >
-            <div className="competitive-player-score">
-              <a href="/interviews" className="text-link">
-                Interviews
-              </a>
-              <strong>{snapshot.title}</strong>
-              <span className="score-judging">{interviewer ? "Interviewer" : "Interviewee"}</span>
+              )}
+              {snapshot.invites && !closed && (
+                <InterviewInvitations invites={snapshot.invites} onOpenChange={setInviting} />
+              )}
+              {interviewer && !closed && (
+                <Tooltip content="End interview">
+                  <button
+                    className="icon-button destructive-icon"
+                    disabled={busy}
+                    onClick={() => setEnding(true)}
+                    aria-label="End interview"
+                  >
+                    <Icon name="flag" />
+                  </button>
+                </Tooltip>
+              )}
             </div>
-          </SessionBar>
+          </div>
           {(changed || status === "replaced") && (
             <div className="match-rule-notice" role="alert">
               <span>The question changed. Preserve your local code before continuing.</span>
               <button className="quiet-button" onClick={() => void copyCode()}>
                 Copy my code
               </button>
-              <button className="button button-secondary" onClick={onOpenQuestion}>
+              <button className="button button-secondary" onClick={() => onOpenQuestion()}>
                 Open new question
               </button>
             </div>
@@ -349,18 +328,24 @@ function InterviewPad({
       }
       problem={
         question.progress ? (
-          <OdysseyPanel progress={question.progress} problem={question.problem}>
-            {privateTests}
-          </OdysseyPanel>
+          <OdysseyPanel
+            progress={question.progress}
+            problem={question.problem}
+            selectedLevel={selectedLevel}
+          />
         ) : (
-          <ProblemStatement problem={question.problem}>{privateTests}</ProblemStatement>
+          <ProblemStatement problem={question.problem} />
         )
       }
       editor={
         <>
           <SolutionToolbar
             language={language}
-            languages={[{ language }]}
+            languages={(question.languages ?? Object.keys(languageFileNames)).map((language) => ({
+              language,
+            }))}
+            disabled={disabled}
+            onChange={(next) => void changeLanguage(next)}
             intelligence={
               supportedIntelligence
                 ? {
@@ -387,7 +372,7 @@ function InterviewPad({
               fontSize={preferences.fontSize}
               tabSize={preferences.tabSize}
               wrap={preferences.wrap}
-              readOnly={closed || changed}
+              readOnly={closed || changed || languageSwitching}
               intelligenceExtensions={supportedIntelligence ? intelligence.extensions : undefined}
               collaborationExtension={controller.extension}
               onSourceChange={keepSource}
@@ -397,11 +382,19 @@ function InterviewPad({
       }
       results={
         <>
-          <WorkspaceTests
-            progress={question.progress}
-            problem={question.problem}
+          <InterviewTests
+            question={question}
+            interviewer={interviewer}
             submission={result.data}
             busy={admitting}
+            managing={busy}
+            closed={closed || changed}
+            onReveal={(caseId, revealed) =>
+              void mutate(`cases/${encodeURIComponent(caseId)}/visibility`, {
+                revealed,
+                questionEpoch: initial.questionEpoch,
+              })
+            }
           />
           {result.isError && (
             <p className="result-message" role="alert">
@@ -421,57 +414,14 @@ function InterviewPad({
         />
       }
     >
-      <SessionDialog
+      <InterviewParticipants
+        snapshot={snapshot}
         open={members}
         onOpenChange={setMembers}
-        title="Participants"
-        description="Everyone shares the code and execution results."
-        pending={busy}
-        className="match-creation-dialog"
-      >
-        <div className="competitive-seats">
-          {snapshot.members.map((member) => (
-            <div className="competitive-seat" key={member.userId}>
-              <Icon name="people" />
-              <div>
-                <strong>{member.name}</strong>
-                <span>
-                  {member.guest ? "Guest · " : ""}
-                  {member.role === "interviewer" ? "Interviewer" : "Interviewee"}
-                </span>
-              </div>
-              {interviewer && !closed && member.userId !== snapshot.hostId && (
-                <>
-                  <SelectField
-                    label={`Role for ${member.name}`}
-                    value={member.role}
-                    disabled={busy}
-                    onChange={(role) =>
-                      void mutate("members", { userId: member.userId, role: role as InterviewRole })
-                    }
-                    options={[
-                      { value: "interviewer", label: "Interviewer" },
-                      { value: "interviewee", label: "Interviewee" },
-                    ]}
-                  />
-                  <Tooltip content="Remove participant">
-                    <button
-                      className="icon-button destructive-icon"
-                      disabled={busy}
-                      aria-label={`Remove ${member.name}`}
-                      onClick={() =>
-                        void mutate(`members/${encodeURIComponent(member.userId)}/remove`)
-                      }
-                    >
-                      <Icon name="close" />
-                    </button>
-                  </Tooltip>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      </SessionDialog>
+        busy={busy}
+        onRole={(userId, role) => void mutate("members", { userId, role })}
+        onRemove={(userId) => void mutate(`members/${encodeURIComponent(userId)}/remove`)}
+      />
       <SessionDialog
         open={setup}
         onOpenChange={setSetup}

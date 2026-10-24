@@ -143,6 +143,7 @@ export function createCollaboration(
     },
   );
   return {
+    isSynchronized: () => !!view && !retry && !sendableUpdates(view.state).length,
     extension: [
       collab({ startVersion: document.version, clientID }),
       plugin,
