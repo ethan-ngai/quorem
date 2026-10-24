@@ -57,14 +57,9 @@
   border-radius: 50%;
   background: var(--color-text-disabled);
 }
-.save-saved i,
 .presence-dot.online,
 .intelligence-dot.ready {
   background: var(--color-success-accent);
-}
-.save-saving i,
-.save-dirty i {
-  background: var(--color-warning-accent);
 }
 .save-error i,
 .save-offline i {
@@ -251,7 +246,7 @@ kbd {
   display: grid;
   min-width: 0;
   min-height: 0;
-  padding: 4px 12px 12px;
+  padding: 0;
   grid-template-columns: minmax(280px, var(--problem-ratio)) 8px minmax(280px, 1fr);
   grid-template-rows: minmax(0, 1fr) 48px;
   grid-template-areas: "problem split-x solution" "problem split-x actions";
@@ -262,9 +257,9 @@ kbd {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background);
 }
 
 .mono {
@@ -437,12 +432,12 @@ kbd {
   cursor: col-resize;
 }
 .splitter-x::after {
-  top: calc(50% - 12px);
-  height: 24px;
-  left: 3px;
-  right: 3px;
-  border-radius: 3px;
-  opacity: 0;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  border-radius: 0;
+  opacity: 1;
 }
 .splitter-y {
   grid-area: split-y;
@@ -450,7 +445,7 @@ kbd {
   background: var(--color-field);
 }
 .splitter-y::after {
-  inset: 2px 16px;
+  inset: 2px 0;
   height: 1px;
 }
 .coding-pane {
@@ -530,7 +525,7 @@ kbd {
   display: grid;
   min-height: 0;
   grid-template-rows: 38px minmax(0, 1fr) auto;
-  background: var(--color-field);
+  background: var(--color-surface);
 }
 
 .results-content {
@@ -1089,9 +1084,8 @@ kbd {
   grid-template-rows: minmax(0, 1fr) 6px minmax(170px, var(--results-height));
   grid-template-areas: "code" "split-y" "results";
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-bottom: 0;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border: 0;
+  border-radius: 0;
   background: var(--color-field);
 }
 .problem-meta {
@@ -1178,9 +1172,9 @@ kbd {
   width: fit-content;
   max-width: 100%;
   min-width: 0;
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--color-background);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   font: 12px/1.6 var(--font-code);
   overflow-wrap: anywhere;
 }
@@ -1300,7 +1294,7 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) 48px;
     grid-template-areas: "content" "actions";
-    padding-top: 6px;
+    padding-top: 0;
   }
   .problem-pane,
   .coding-pane,
@@ -1317,7 +1311,7 @@ kbd {
   .problem-pane {
     grid-area: content;
     border-bottom: 0;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: 0;
   }
   .workspace-grid[data-active-panel="problem"] .problem-pane,
   .workspace-grid[data-active-panel="code"] .coding-pane,
@@ -1476,10 +1470,9 @@ kbd {
   justify-content: flex-end;
   min-width: 0;
   padding: 0 14px;
-  border: 1px solid var(--color-border);
-  border-top: 0;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  background: var(--color-field);
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface);
 }
 .execution-bar .run-actions {
   gap: 8px;
@@ -1690,9 +1683,9 @@ kbd {
   display: block;
   width: fit-content;
   max-width: 100%;
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--color-background);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   font: 12px/1.5 var(--font-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
