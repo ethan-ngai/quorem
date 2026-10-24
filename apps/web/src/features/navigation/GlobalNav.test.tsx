@@ -1,5 +1,6 @@
+import type { ComponentProps } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   RouterProvider,
@@ -11,6 +12,19 @@ import {
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { GlobalNav } from "./GlobalNav";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
+
+// Expose portal actions to SSR so membership/auth gating remains covered.
+vi.mock("./WorkspaceSidebar", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./WorkspaceSidebar")>();
+  return {
+    WorkspaceSidebar: (props: ComponentProps<typeof actual.WorkspaceSidebar>) => (
+      <>
+        <actual.WorkspaceSidebar {...props} />
+        {props.children}
+      </>
+    ),
+  };
+});
 
 async function renderNavigation(
   path: string,
@@ -65,17 +79,15 @@ describe("global navigation", () => {
   it("offers creation and named navigation/sign-in controls in practice", async () => {
     const html = await renderNavigation("/practice");
     expect(html).toContain('aria-label="Create match"');
-    expect(html).toContain('aria-label="Main navigation"');
+    expect(html).toContain('aria-label="Open navigation"');
     expect(html).toContain('href="/login"');
     expect(html).not.toContain("Guest");
     expect(html).not.toContain('aria-label="Profile"');
     expect(html).toContain('href="/"');
-    expect(html).toContain('aria-label="Practice"');
-    expect(html).toContain('aria-label="Collapse sidebar"');
-    expect(html.indexOf('aria-label="Collapse sidebar"')).toBeLessThan(
+    expect(html).toContain('aria-label="Open navigation"');
+    expect(html.indexOf('aria-label="Open navigation"')).toBeLessThan(
       html.indexOf('aria-label="Quorem home"'),
     );
-    expect(html).toContain('aria-current="page"');
   });
   it("places workspace settings immediately before the sign-in control", async () => {
     const html = await renderNavigation("/practice/example", {
