@@ -1,3 +1,4 @@
+import { CatalogLayout, CatalogTable } from "./CatalogLayout";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
@@ -104,18 +105,15 @@ export function PracticeBrowser() {
   return (
     <div className="practice-page">
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
-      <main className="practice-browser">
-        <header className="practice-heading">
-          <div>
-            <h1>Practice</h1>
-            <p>Browse questions by topic and difficulty.</p>
-          </div>
-          {catalog.data && (
-            <span className="practice-total">
-              {total} {total === 1 ? "question" : "questions"}
-            </span>
-          )}
-        </header>
+      <CatalogLayout
+        title="Practice"
+        description="Browse questions by topic and difficulty."
+        actions={
+          <span className="practice-total">
+            {total} {total === 1 ? "question" : "questions"}
+          </span>
+        }
+      >
         <div className="practice-toolbar">
           <label className="practice-search">
             <Search size={16} aria-hidden="true" />
@@ -176,9 +174,9 @@ export function PracticeBrowser() {
             </div>
           ) : (
             <>
-              <table className="practice-table">
-                <caption className="sr-only">Practice questions</caption>
-                <thead>
+              <CatalogTable
+                label="Practice questions"
+                heading={
                   <tr>
                     <th
                       scope="col"
@@ -209,51 +207,49 @@ export function PracticeBrowser() {
                       </button>
                     </th>
                   </tr>
-                </thead>
-                <tbody>
-                  {catalog.data.items.map((problem) => (
-                    <tr
-                      key={problem.id}
-                      onClick={(event) => {
-                        if ((event.target as Element).closest("a, button, input")) return;
-                        const href = `/practice/${problem.slug}`;
-                        if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
-                        else
-                          void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
-                      }}
-                    >
-                      <td>
-                        <Link to="/practice/$slug" params={{ slug: problem.slug }}>
-                          {problem.title}
-                        </Link>
-                        <div className="practice-topic-list">
-                          {problem.tags.map((tag) => (
-                            <button
-                              key={tag}
-                              onClick={() => update({ topic: addFilter(search.topic, tag) })}
-                              aria-label={`Filter by ${label(tag)}`}
-                            >
-                              {label(tag)}
-                            </button>
-                          ))}
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className={`practice-difficulty ${problem.difficulty}`}
-                          onClick={() =>
-                            update({ difficulty: addFilter(search.difficulty, problem.difficulty) })
-                          }
-                          aria-label={`Filter by ${label(problem.difficulty)}`}
-                        >
-                          {label(problem.difficulty)}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                }
+              >
+                {catalog.data.items.map((problem) => (
+                  <tr
+                    key={problem.id}
+                    onClick={(event) => {
+                      if ((event.target as Element).closest("a, button, input")) return;
+                      const href = `/practice/${problem.slug}`;
+                      if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
+                      else void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
+                    }}
+                  >
+                    <td>
+                      <Link to="/practice/$slug" params={{ slug: problem.slug }}>
+                        {problem.title}
+                      </Link>
+                      <div className="practice-topic-list">
+                        {problem.tags.map((tag) => (
+                          <button
+                            key={tag}
+                            onClick={() => update({ topic: addFilter(search.topic, tag) })}
+                            aria-label={`Filter by ${label(tag)}`}
+                          >
+                            {label(tag)}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`practice-difficulty ${problem.difficulty}`}
+                        onClick={() =>
+                          update({ difficulty: addFilter(search.difficulty, problem.difficulty) })
+                        }
+                        aria-label={`Filter by ${label(problem.difficulty)}`}
+                      >
+                        {label(problem.difficulty)}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </CatalogTable>
               {catalog.data.items.length === 0 && (
                 <div className="practice-state">
                   <h2>{filtered ? "No matching questions" : "No questions available"}</h2>
@@ -300,7 +296,7 @@ export function PracticeBrowser() {
             </>
           )}
         </section>
-      </main>
+      </CatalogLayout>
     </div>
   );
 }

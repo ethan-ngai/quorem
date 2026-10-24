@@ -3,12 +3,8 @@ import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import * as Dialog from "@radix-ui/react-dialog";
 import { userFacingErrorMessage } from "../../ui/errors";
-import { SelectField } from "../../ui/SelectField";
-import { LanguageLogo } from "../../ui/LanguageLogo";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
-import { ShortcutHint } from "./components/ShortcutKeys";
-import { Tooltip } from "./components/Tooltip";
 import type {
   DevelopmentIdentity,
   MatchSnapshot,
@@ -16,15 +12,7 @@ import type {
   Workspace,
 } from "@quorem/contracts";
 import { useQuery } from "@tanstack/react-query";
-import {
-  useCallback,
-  useMemo,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useEffect, useRef, useState, type ReactNode } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { MatchRuleNotice, useMatchRules } from "../matches/useMatchRules";
 import {
@@ -37,13 +25,10 @@ import {
 import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
-import { TestCases } from "./components/TestCases";
-import { ResultContent } from "./components/ResultContent";
 import { customDraftStorageKey, readCustomDrafts, type CustomCaseDraft } from "./customCases";
-import { Brand, Icon } from "./components/Icon";
+import { Brand } from "./components/Icon";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
-import { ResizableDivider } from "./components/ResizableDivider";
 import { readPreference, writePreference } from "./editorSettings";
 import {
   createBrowserDraftWriter,
@@ -64,12 +49,13 @@ import { useSubmission } from "./useSubmission";
 import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
+import { WorkspaceLayout } from "./components/WorkspaceLayout";
+import { SolutionToolbar } from "./components/SolutionToolbar";
+import { WorkspaceTests } from "./components/WorkspaceTests";
+import { ExecutionActions } from "./components/ExecutionActions";
 import "../../styles/workspace.css";
 
 type Panel = "problem" | "code" | "results";
-
-const defaultPaneRatio = 40;
-const defaultResultsHeight = 260;
 
 /** Returns a safe short message for load and save failures. */
 function errorMessage(error: unknown) {
@@ -79,7 +65,7 @@ function errorMessage(error: unknown) {
 /** Opens one public problem in the resizable practice workspace. */
 import { guestWorkspace } from "./guestWorkspace";
 import { useSession } from "../auth/session";
-import { languageLabels, languageFileNames, type EditorLanguage } from "./editorLanguages";
+import { languageFileNames, type EditorLanguage } from "./editorLanguages";
 
 export function WorkspacePage({
   slug = "",
@@ -99,12 +85,6 @@ export function WorkspacePage({
     providedIdentity ??
     "anonymous") as DevelopmentIdentity;
   const { preference: themePreference, setPreference: setThemePreference, theme } = useTheme();
-  const [paneRatio, setPaneRatio] = useState(() =>
-    readPreference("quorem.pane-ratio.v1", defaultPaneRatio),
-  );
-  const [resultsHeight, setResultsHeight] = useState(() =>
-    readPreference("quorem.results-height.v1", defaultResultsHeight),
-  );
   const [activePanel, setActivePanel] = useState<Panel>("code");
   const [createMatchOpen, setCreateMatchOpen] = useState(false);
   const [problem, setProblem] = useState<ProblemVersion>();
@@ -295,11 +275,6 @@ export function WorkspacePage({
     };
   }, [workspace, problem, identity]);
 
-  useEffect(() => {
-    writePreference("quorem.pane-ratio.v1", paneRatio);
-  }, [paneRatio]);
-  useEffect(() => writePreference("quorem.results-height.v1", resultsHeight), [resultsHeight]);
-
   const updateSource = useCallback((next: string) => {
     editGeneration.current++;
     sourceRef.current = next;
@@ -403,7 +378,12 @@ export function WorkspacePage({
     enabled: !!workspace && !!problem?.odyssey && serverWorkspace,
     refetchInterval: problem?.odyssey ? 2000 : false,
   });
+  const runExamples = useMemo(
+    () => odyssey.data?.levels.flatMap((level) => level.examples),
+    [odyssey.data],
+  );
   const execution = useSubmission({
+    runExamples,
     level: odyssey.data?.level,
     identity,
     workspace,
@@ -533,10 +513,6 @@ export function WorkspacePage({
   );
 
   const loadError = problemQuery.error ?? workspaceQuery.error;
-  const workspaceStyle = {
-    "--problem-ratio": `${paneRatio}%`,
-    "--results-height": `${resultsHeight}px`,
-  } as CSSProperties;
   const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
   const virtualDocumentUri = `file:///workspace/${languageFileNames[documentLanguage]}`;
   const editorDocumentKey = workspace
@@ -616,79 +592,63 @@ export function WorkspacePage({
           )}
         </div>
       )}
-      <main
-        className={`app-shell ${match ? "has-match" : ""}`}
-        aria-busy={loading}
-        style={{ ...workspaceStyle, visibility: loading ? "hidden" : undefined }}
-        inert={loading}
-      >
-        <GlobalNav
-          identity={identity}
-          slug={match ? undefined : slug}
-          mode={match?.mode}
-          theme={themePreference}
-          onThemeChange={setThemePreference}
-          workspaceSettings={{
-            onOpenChange: setSettingsOpen,
-            onImportDrafts: async (file) => {
-              try {
-                await saveCurrentDraft();
-                const imported = await importBrowserDrafts(await file.text(), identity);
-                if (imported > 0) window.location.reload();
-              } catch (error) {
-                setActionError(errorMessage(error));
-              }
-            },
-            theme: themePreference,
-            onThemeChange: setThemePreference,
-            editorScheme: editorScheme,
-            onEditorSchemeChange: setEditorScheme,
-            fontSize: fontSize,
-            onFontSizeChange: setFontSize,
-            tabSize: tabSize,
-            onTabSizeChange: setTabSize,
-            wrap: wrap,
-            onWrapChange: setWrap,
-            onHistory: () => setHistoryOpen(true),
-            onClearRecovery: () => {
-              void clearOwnerRecovery(identity);
-            },
-          }}
-          onCreateMatch={() => {
-            void saveCurrentDraft().then(() => setCreateMatchOpen(true));
-          }}
-        >
-          <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
-        </GlobalNav>
-        {matchHeader && (
-          <div className="match-strip">
-            {matchHeader}
-            <MatchRuleNotice message={matchRules.notice} onDismiss={matchRules.dismiss} />
-          </div>
-        )}
-        <nav className="mobile-tabs" aria-label="Workspace panes">
-          {(["problem", "code", "results"] as const).map((panel) => (
-            <button
-              key={panel}
-              aria-current={activePanel === panel ? "page" : undefined}
-              onClick={() => setActivePanel(panel)}
-            >
-              <Icon
-                name={panel === "problem" ? "problem" : panel === "code" ? "code" : "results"}
-              />
-              {panel === "problem" ? "Problem" : panel === "code" ? "Code" : "Results"}
-            </button>
-          ))}
-        </nav>
-        <div className="workspace-grid" data-active-panel={activePanel}>
-          <section className="problem-pane" aria-label="Problem statement">
+      <WorkspaceLayout
+        pending={loading}
+        navigation={
+          <GlobalNav
+            identity={identity}
+            slug={match ? undefined : slug}
+            mode={match?.mode}
+            theme={themePreference}
+            onThemeChange={setThemePreference}
+            workspaceSettings={{
+              onOpenChange: setSettingsOpen,
+              onImportDrafts: async (file) => {
+                try {
+                  await saveCurrentDraft();
+                  const imported = await importBrowserDrafts(await file.text(), identity);
+                  if (imported > 0) window.location.reload();
+                } catch (error) {
+                  setActionError(errorMessage(error));
+                }
+              },
+              theme: themePreference,
+              onThemeChange: setThemePreference,
+              editorScheme: editorScheme,
+              onEditorSchemeChange: setEditorScheme,
+              fontSize: fontSize,
+              onFontSizeChange: setFontSize,
+              tabSize: tabSize,
+              onTabSizeChange: setTabSize,
+              wrap: wrap,
+              onWrapChange: setWrap,
+              onHistory: () => setHistoryOpen(true),
+              onClearRecovery: () => {
+                void clearOwnerRecovery(identity);
+              },
+            }}
+            onCreateMatch={() => {
+              void saveCurrentDraft().then(() => setCreateMatchOpen(true));
+            }}
+          >
+            <SaveIndicator state={saveState} onRetry={() => void saveCurrentDraft()} />
+          </GlobalNav>
+        }
+        header={
+          matchHeader ? (
+            <>
+              {matchHeader}
+              <MatchRuleNotice message={matchRules.notice} onDismiss={matchRules.dismiss} />
+            </>
+          ) : undefined
+        }
+        panel={activePanel}
+        onPanelChange={setActivePanel}
+        problem={
+          <>
             {problem.odyssey ? (
               odyssey.data ? (
-                <OdysseyPanel
-                  progress={odyssey.data}
-                  title={problem.title}
-                  introduction={problem.statementMarkdown}
-                />
+                <OdysseyPanel progress={odyssey.data} problem={problem} />
               ) : (
                 <p className="result-message" role="status">
                   {!account.data
@@ -709,224 +669,81 @@ export function WorkspacePage({
                 />
               </ProblemStatement>
             )}
-          </section>
-          <ResizableDivider
-            axis="x"
-            value={paneRatio}
-            minimum={25}
-            maximum={60}
-            onChange={setPaneRatio}
-          />
-          <div className="solution-pane">
-            <section className="coding-pane" aria-label="Code editor">
-              <div className="code-toolbar">
-                <SelectField
-                  className="select-field--compact"
-                  label="Solution language"
-                  value={documentLanguage}
-                  disabled={
-                    loading ||
-                    languageSwitching ||
-                    submissionBusy ||
-                    admissionPending ||
-                    (!!match && (match.state !== "active" || matchRules.blocked))
-                  }
-                  onChange={(value) => void changeLanguage(value as EditorLanguage)}
-                  options={(problem.languages ?? [{ language: "python" }]).map((item) => ({
-                    value: item.language,
-                    label: languageLabels[item.language as EditorLanguage],
-                    leading: <LanguageLogo language={item.language as EditorLanguage} />,
-                  }))}
-                />
-                <div className="code-options">
-                  {(hostedIntelligenceEnabled || browserIntelligenceAvailable) && (
-                    <Tooltip content={intelligenceHint}>
-                      <span
-                        role="img"
-                        tabIndex={0}
-                        className="intelligence-status"
-                        data-status={intelligenceStatus}
-                        aria-label={intelligenceHint}
-                      >
-                        <span className="intelligence-dot" aria-hidden="true" />
-                      </span>
-                    </Tooltip>
-                  )}
-                </div>
-              </div>
-              <div className="editor-frame">
-                <PythonEditor
-                  language={documentLanguage}
-                  key={editorDocumentKey}
-                  ref={editorRef}
-                  documentKey={editorDocumentKey}
-                  documentUri={virtualDocumentUri}
-                  initialSource={source}
-                  theme={theme}
-                  colorScheme={editorScheme}
-                  fontSize={fontSize}
-                  tabSize={tabSize}
-                  wrap={wrap}
-                  readOnly={languageSwitching}
-                  completionEnabled={true}
-                  intelligenceExtensions={
-                    browserIntelligenceAvailable ? intelligence.extensions : undefined
-                  }
-                  onSourceChange={updateSource}
-                />
-              </div>
-            </section>
-            <ResizableDivider
-              axis="y"
-              value={resultsHeight}
-              minimum={170}
-              maximum={480}
-              onChange={setResultsHeight}
+          </>
+        }
+        editor={
+          <>
+            <SolutionToolbar
+              language={documentLanguage}
+              languages={problem.languages ?? [{ language: "python" }]}
+              disabled={
+                loading ||
+                languageSwitching ||
+                submissionBusy ||
+                admissionPending ||
+                (!!match && (match.state !== "active" || matchRules.blocked))
+              }
+              onChange={(value) => void changeLanguage(value)}
+              intelligence={
+                hostedIntelligenceEnabled || browserIntelligenceAvailable
+                  ? { status: intelligenceStatus, hint: intelligenceHint }
+                  : undefined
+              }
             />
-            <section className="results-pane" aria-label="Execution results">
-              <div className="results-toolbar">
-                <div className="result-tabs" role="tablist" aria-label="Tests">
-                  {(problem.odyssey
-                    ? (["samples"] as const)
-                    : (["samples", "custom"] as const)
-                  ).map((tab) => {
-                    const selected = customMode === (tab === "custom");
-                    return (
-                      <button
-                        key={tab}
-                        id={`tests-${tab}-tab`}
-                        role="tab"
-                        aria-selected={selected}
-                        aria-controls={`tests-${tab}-panel`}
-                        tabIndex={selected ? 0 : -1}
-                        onClick={() => setCustomMode(tab === "custom")}
-                        onKeyDown={(event) => {
-                          if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-                            event.preventDefault();
-                            const next =
-                              event.key === "Home"
-                                ? "samples"
-                                : event.key === "End"
-                                  ? "custom"
-                                  : tab === "samples"
-                                    ? "custom"
-                                    : "samples";
-                            setCustomMode(next === "custom");
-                            document.getElementById(`tests-${next}-tab`)?.focus();
-                          }
-                        }}
-                      >
-                        <Icon
-                          name={
-                            tab === "samples"
-                              ? submission?.hiddenCases?.length
-                                ? "lock"
-                                : "samples"
-                              : "custom"
-                          }
-                        />
-                        {problem.odyssey
-                          ? "Cumulative tests"
-                          : tab === "samples"
-                            ? submission?.hiddenCases?.length
-                              ? "Hidden cases"
-                              : "Sample cases"
-                            : "Custom cases"}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="results-content case-results-content">
-                {!problem.odyssey && (
-                  <div aria-live="polite" className="case-result-summary">
-                    <ResultContent
-                      submission={submission}
-                      busy={admissionPending || (execution.isPending && !!execution.submissionId)}
-                      error={execution.error}
-                      showCases={false}
-                      customMode={customMode}
-                      runWasCustom={execution.runSnapshot?.custom}
-                    />
-                  </div>
-                )}
-                {(["samples", "custom"] as const).map((tab) => (
-                  <div
-                    key={tab}
-                    id={`tests-${tab}-panel`}
-                    role="tabpanel"
-                    aria-labelledby={`tests-${tab}-tab`}
-                    hidden={customMode !== (tab === "custom")}
-                  >
-                    {problem.odyssey ? (
-                      <div className="odyssey-levels">
-                        <p>
-                          Run checks all unlocked public examples. Submit checks all unlocked
-                          private tests.
-                        </p>
-                        <ResultContent
-                          submission={submission}
-                          busy={
-                            admissionPending || (execution.isPending && !!execution.submissionId)
-                          }
-                          error={execution.error}
-                        />
-                      </div>
-                    ) : (
-                      <TestCases
-                        key={`${identity}:${workspace.id}:${problem.id}:${tab}`}
-                        problem={problem}
-                        customMode={tab === "custom"}
-                        drafts={customDrafts}
-                        onDraftsChange={changeCustomDrafts}
-                        submission={submission}
-                        snapshot={execution.runSnapshot}
-                        busy={admissionPending || (execution.isPending && !!execution.submissionId)}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-          <footer className="execution-bar" aria-label="Execution actions">
-            <div className="run-actions">
-              {submissionBusy &&
-                !admissionPending &&
-                !(submission?.kind === "submit" && workspace.kind === "match") && (
-                  <button className="quiet-button" onClick={() => void execution.cancel()}>
-                    Cancel run
-                  </button>
-                )}
-              <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.run} />}>
-                <button
-                  className="button button-secondary"
-                  disabled={
-                    submissionBusy ||
-                    (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
-                  }
-                  onClick={() => void run()}
-                >
-                  <Icon name="play" />
-                  Run
-                </button>
-              </Tooltip>
-              <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.submit} />}>
-                <button
-                  className="button button-primary"
-                  disabled={
-                    submissionBusy ||
-                    (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
-                  }
-                  onClick={() => void submit()}
-                >
-                  <Icon name="submit" />
-                  Submit
-                </button>
-              </Tooltip>
+            <div className="editor-frame">
+              <PythonEditor
+                language={documentLanguage}
+                key={editorDocumentKey}
+                ref={editorRef}
+                documentKey={editorDocumentKey}
+                documentUri={virtualDocumentUri}
+                initialSource={source}
+                theme={theme}
+                colorScheme={editorScheme}
+                fontSize={fontSize}
+                tabSize={tabSize}
+                wrap={wrap}
+                readOnly={languageSwitching}
+                completionEnabled={true}
+                intelligenceExtensions={
+                  browserIntelligenceAvailable ? intelligence.extensions : undefined
+                }
+                onSourceChange={updateSource}
+              />
             </div>
-          </footer>
-        </div>
+          </>
+        }
+        results={
+          <WorkspaceTests
+            problem={problem}
+            progress={odyssey.data}
+            submission={submission}
+            busy={admissionPending || (execution.isPending && !!execution.submissionId)}
+            error={execution.error}
+            customMode={customMode}
+            onCustomModeChange={setCustomMode}
+            drafts={customDrafts}
+            onDraftsChange={changeCustomDrafts}
+            snapshot={execution.runSnapshot}
+          />
+        }
+        actions={
+          <ExecutionActions
+            disabled={
+              submissionBusy || (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
+            }
+            onRun={() => void run()}
+            onSubmit={() => void submit()}
+            onCancel={
+              submissionBusy &&
+              !admissionPending &&
+              !(submission?.kind === "submit" && workspace.kind === "match")
+                ? () => void execution.cancel()
+                : undefined
+            }
+          />
+        }
+      >
         <Dialog.Root open={signInPrompt} onOpenChange={setSignInPrompt}>
           <Dialog.Portal>
             <Dialog.Overlay className="settings-backdrop" />
@@ -971,7 +788,7 @@ export function WorkspacePage({
         {createMatchOpen && (
           <CreateMatchDialog identity={identity} onClose={() => setCreateMatchOpen(false)} />
         )}
-      </main>
+      </WorkspaceLayout>
     </>
   );
 }

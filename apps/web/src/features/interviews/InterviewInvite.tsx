@@ -7,7 +7,10 @@ import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
 import { interviewRequest } from "./api";
 import "../../styles/workspace.css";
-import "./interviews.css";
+import { SessionDialog } from "../../ui/SessionDialog";
+import { InvitationLayout } from "../../ui/InvitationLayout";
+import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
+import { useErrorNotification } from "../../ui/Notifications";
 
 /** Joining as a guest creates only an interview-scoped credential. */
 export function InterviewInvite({ token }: { token: string }) {
@@ -22,6 +25,8 @@ export function InterviewInvite({ token }: { token: string }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [dismissed, setDismissed] = useState(false);
+  useErrorNotification(error);
   async function join() {
     setBusy(true);
     setError(undefined);
@@ -40,58 +45,93 @@ export function InterviewInvite({ token }: { token: string }) {
     }
   }
   return (
-    <div className="app-root interview-app">
-      <GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />
-      <main className="interview-invite">
-        {preview.isPending ? (
-          <p role="status">Opening invitation…</p>
-        ) : preview.isError ? (
-          <>
-            <h1>Invitation unavailable</h1>
-            <p>Ask an interviewer for a current invitation.</p>
-            <button className="quiet-button" onClick={() => void preview.refetch()}>
-              Try again
-            </button>
-          </>
-        ) : (
-          <>
+    <InvitationLayout
+      navigation={<GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />}
+    >
+      {preview.isPending || preview.isError ? (
+        <WorkspaceRecovery
+          failed={preview.isError}
+          title={preview.isError ? "Invitation unavailable" : "Opening interview"}
+          message={
+            preview.isError
+              ? "Ask an interviewer for a current invitation, or retry."
+              : "Loading the shared workspace…"
+          }
+          onRetry={() => preview.refetch()}
+        />
+      ) : (
+        <>
+          <div className="competitive-lobby-heading">
             <h1>{preview.data.title}</h1>
-            <p>Collaborate in one shared coding workspace.</p>
-            {preview.data.state === "closed" ? (
-              <p>This interview has ended.</p>
-            ) : (
-              <form
-                className="interview-setup"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void join();
-                }}
-              >
-                {!account.data && (
-                  <label>
-                    <span>Your name</span>
-                    <input
-                      required
-                      maxLength={80}
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      autoComplete="name"
-                    />
-                  </label>
-                )}
-                {error && (
-                  <p className="interview-error" role="alert">
-                    {error}
-                  </p>
-                )}
+          </div>
+          <dl className="competitive-lobby-summary">
+            <div>
+              <dt>Workspace</dt>
+              <dd>Shared code and results</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{preview.data.state === "closed" ? "Ended" : "Open"}</dd>
+            </div>
+          </dl>
+          <footer className="competitive-lobby-actions">
+            <button
+              id="interview-join"
+              className="button button-primary"
+              disabled={account.isPending || preview.data.state === "closed"}
+              onClick={() => setDismissed(false)}
+            >
+              Join interview
+            </button>
+          </footer>
+          <SessionDialog
+            open={!dismissed && !account.isPending && preview.data.state !== "closed"}
+            onOpenChange={(open) => setDismissed(!open)}
+            pending={busy}
+            title="Join this interview?"
+            description={
+              account.data
+                ? `Join as ${account.data.user.displayName}.`
+                : "Choose a display name to continue as a guest."
+            }
+            returnFocus={() => document.getElementById("interview-join")?.focus()}
+          >
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void join();
+              }}
+            >
+              {!account.data && (
+                <label className="guest-name-field">
+                  Display name
+                  <input
+                    required
+                    maxLength={80}
+                    autoComplete="nickname"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+              )}
+              <footer className="competitive-dialog-actions">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setDismissed(true)}
+                >
+                  View interview
+                </button>
                 <button className="button button-primary" disabled={busy || account.isPending}>
                   {busy ? "Joining…" : "Join interview"}
                 </button>
-              </form>
-            )}
-          </>
-        )}
-      </main>
-    </div>
+              </footer>
+            </form>
+          </SessionDialog>
+        </>
+      )}
+    </InvitationLayout>
   );
 }

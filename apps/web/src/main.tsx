@@ -138,7 +138,13 @@ const interviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/interviews",
   component: () => (
-    <Suspense fallback={<main role="status">Opening interviews…</main>}>
+    <Suspense
+      fallback={
+        <main className="workspace-loading" role="status">
+          Opening interviews…
+        </main>
+      }
+    >
       <InterviewHub />
     </Suspense>
   ),
@@ -149,7 +155,13 @@ const interviewRoute = createRoute({
   component: function InterviewRoute() {
     const { id } = interviewRoute.useParams();
     return (
-      <Suspense fallback={<main role="status">Opening interview…</main>}>
+      <Suspense
+        fallback={
+          <main className="workspace-loading" role="status">
+            Opening interview…
+          </main>
+        }
+      >
         <InterviewPage id={id} />
       </Suspense>
     );
@@ -161,7 +173,13 @@ const interviewInviteRoute = createRoute({
   component: function InterviewInviteRoute() {
     const { token } = interviewInviteRoute.useParams();
     return (
-      <Suspense fallback={<main role="status">Opening invitation…</main>}>
+      <Suspense
+        fallback={
+          <main className="workspace-loading" role="status">
+            Opening invitation…
+          </main>
+        }
+      >
         <InterviewInvite token={token} />
       </Suspense>
     );

@@ -1,3 +1,4 @@
+import { SessionBar } from "../../ui/SessionBar";
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
 import { GuestAccessToggle } from "./GuestAccessToggle";
@@ -73,7 +74,30 @@ function MatchLedger({
 }) {
   const own = ownParticipant(snapshot, identity);
   return (
-    <div className="competitive-scoreboard" aria-label="Match progress">
+    <SessionBar
+      label="Match progress"
+      actions={
+        <>
+          {status !== "live" && (
+            <Tooltip content="Connection interrupted; refreshing match state">
+              <span className="sync-label">Reconnecting…</span>
+            </Tooltip>
+          )}
+          {snapshot.state === "active" ? <MatchClock snapshot={snapshot} /> : null}
+          {!own?.forfeited && (snapshot.state === "active" || snapshot.state === "finalizing") && (
+            <Tooltip content="Forfeit match">
+              <button
+                className="icon-button destructive-icon"
+                aria-label="Forfeit match"
+                onClick={onForfeit}
+              >
+                <Icon name="flag" />
+              </button>
+            </Tooltip>
+          )}
+        </>
+      }
+    >
       {[own, ...snapshot.participants.filter((player) => player.userId !== own?.userId)].map(
         (player, index) => (
           <div className="competitive-player-score" key={index}>
@@ -101,26 +125,7 @@ function MatchLedger({
           </div>
         ),
       )}
-      <div className="competitive-clock-actions">
-        {status !== "live" && (
-          <Tooltip content="Connection interrupted; refreshing match state">
-            <span className="sync-label">Reconnecting…</span>
-          </Tooltip>
-        )}
-        {snapshot.state === "active" ? <MatchClock snapshot={snapshot} /> : null}
-        {!own?.forfeited && (snapshot.state === "active" || snapshot.state === "finalizing") && (
-          <Tooltip content="Forfeit match">
-            <button
-              className="icon-button destructive-icon"
-              aria-label="Forfeit match"
-              onClick={onForfeit}
-            >
-              <Icon name="flag" />
-            </button>
-          </Tooltip>
-        )}
-      </div>
-    </div>
+    </SessionBar>
   );
 }
 

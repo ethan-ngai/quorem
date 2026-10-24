@@ -1,6 +1,7 @@
 /** @file OdysseyFields.tsx @description Ordered level and stateful test authoring. @module odyssey */
 import type { OdysseyLevel, QuestionContent } from "@quorem/contracts";
-import { JSONField } from "../admin/QuestionFields";
+import { JSONField, Field } from "../admin/AuthoringFields";
+import { SignatureFields } from "../admin/SignatureFields";
 
 /** Edits explicit API contracts; future levels never insert or overwrite candidate source. */
 export function OdysseyFields({
@@ -59,29 +60,65 @@ export function OdysseyFields({
             unlocked suite. Calls within one test share an object; each test starts fresh.
           </p>
           {levels.map((level, index) => (
-            <fieldset key={index} className="odyssey-author-level">
-              <legend>Level {index + 1}</legend>
-              <label className="admin-field">
-                <span>Level title</span>
+            <details key={index} className="admin-language" open>
+              <summary>
+                Level {index + 1}: {level.title}
+              </summary>
+              <Field label="Level title">
                 <input
                   value={level.title}
                   onChange={(event) => patch(index, { title: event.target.value })}
                 />
-              </label>
-              <label className="admin-field">
-                <span>Level statement</span>
+              </Field>
+              <Field label="Level statement">
                 <textarea
                   rows={4}
                   value={level.statementMarkdown}
                   onChange={(event) => patch(index, { statementMarkdown: event.target.value })}
                 />
-              </label>
-              <JSONField
-                label={`Level ${index + 1} methods`}
-                value={level.methods}
-                onChange={(value) => patch(index, { methods: value as OdysseyLevel["methods"] })}
-                onValidityChange={onValidityChange}
-              />
+              </Field>
+              {level.methods.map((method, methodIndex) => (
+                <section key={methodIndex}>
+                  <SignatureFields
+                    value={method}
+                    allowVoid
+                    onValidityChange={onValidityChange}
+                    onChange={(next) =>
+                      patch(index, {
+                        methods: level.methods.map((item, position) =>
+                          position === methodIndex ? next : item,
+                        ),
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    onClick={() =>
+                      patch(index, {
+                        methods: level.methods.filter((_, position) => position !== methodIndex),
+                      })
+                    }
+                  >
+                    Remove method
+                  </button>
+                </section>
+              ))}
+              <button
+                type="button"
+                className="quiet-button"
+                disabled={level.methods.length >= 16}
+                onClick={() =>
+                  patch(index, {
+                    methods: [
+                      ...level.methods,
+                      { className: "Solution", methodName: "", parameters: [], returnType: "int" },
+                    ],
+                  })
+                }
+              >
+                Add method
+              </button>
               <JSONField
                 label={`Level ${index + 1} public examples`}
                 value={level.examples}
@@ -114,7 +151,7 @@ export function OdysseyFields({
                   Remove level
                 </button>
               )}
-            </fieldset>
+            </details>
           ))}
           <button
             type="button"

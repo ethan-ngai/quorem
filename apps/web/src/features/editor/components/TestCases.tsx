@@ -5,6 +5,7 @@ import {
   associatedResultIndex,
   createCustomDraft,
   parseCustomDraft,
+  caseSnapshotValue,
   type CustomCaseDraft,
   type RunSnapshot,
 } from "../customCases";
@@ -13,6 +14,7 @@ import { Icon } from "./Icon";
 import { TypedCaseInput } from "./TypedCaseInput";
 import "./customCases.css";
 import { CaseOutput, CaseValue } from "./CaseOutput";
+import { SequenceCaseValues } from "./SequenceCaseValues";
 
 export function TestCases({
   problem,
@@ -23,6 +25,8 @@ export function TestCases({
   snapshot,
   selectedSampleIndex,
   busy = false,
+  minimumCases = 1,
+  requiredExpected = false,
 }: {
   problem: ProblemVersion;
   customMode: boolean;
@@ -32,6 +36,8 @@ export function TestCases({
   snapshot?: RunSnapshot;
   selectedSampleIndex?: number;
   busy?: boolean;
+  minimumCases?: number;
+  requiredExpected?: boolean;
 }) {
   const hiddenCases =
     !busy && !customMode && submission?.kind === "submit" && submission.state === "completed"
@@ -64,7 +70,7 @@ export function TestCases({
       customMode && draft
         ? parseCustomDraft(draft, problem.signature, problem.constraints)
         : example
-          ? { args: example.args, expected: example.expected }
+          ? caseSnapshotValue(example)
           : undefined;
   } catch {
     /* An edited invalid draft cannot inherit a previous result. */
@@ -99,7 +105,7 @@ export function TestCases({
     try {
       value = customMode
         ? parseCustomDraft(drafts[index]!, problem.signature, problem.constraints)
-        : { args: problem.examples[index]!.args, expected: problem.examples[index]!.expected };
+        : caseSnapshotValue(problem.examples[index]!);
     } catch {
       return undefined;
     }
@@ -129,6 +135,7 @@ export function TestCases({
         {(customMode ? drafts : (hiddenCases ?? recoveredCases ?? problem.examples)).map(
           (item, index) => (
             <button
+              type="button"
               key={customMode ? (item as CustomCaseDraft).id : index}
               className="case-selector"
               aria-pressed={index === (customMode ? customIndex : sampleIndex)}
@@ -150,10 +157,11 @@ export function TestCases({
         )}
         {customMode && (
           <button
+            type="button"
             className="case-selector add-case"
             disabled={drafts.length >= 20}
             onClick={() => {
-              const added = createCustomDraft(problem);
+              const added = { ...createCustomDraft(problem), expectedEnabled: requiredExpected };
               onDraftsChange([...drafts, added]);
               setSelectedCustomId(added.id);
             }}
@@ -169,8 +177,9 @@ export function TestCases({
               <span>Case {customIndex + 1}</span>
               <Tooltip content="Remove case">
                 <button
+                  type="button"
                   className="icon-button destructive-icon"
-                  disabled={drafts.length === 1}
+                  disabled={drafts.length <= minimumCases}
                   aria-label={`Remove custom case ${customIndex + 1}`}
                   onClick={() => {
                     const remaining = drafts.filter((item) => item.id !== draft.id);
@@ -204,16 +213,18 @@ export function TestCases({
                   name="Expected output"
                   purpose="expected"
                   action={
-                    <Tooltip content="Remove expected output">
-                      <button
-                        type="button"
-                        className="icon-button destructive-icon"
-                        aria-label="Remove expected output"
-                        onClick={() => updateDraft({ expectedEnabled: false })}
-                      >
-                        <Icon name="trash" />
-                      </button>
-                    </Tooltip>
+                    !requiredExpected && (
+                      <Tooltip content="Remove expected output">
+                        <button
+                          type="button"
+                          className="icon-button destructive-icon"
+                          aria-label="Remove expected output"
+                          onClick={() => updateDraft({ expectedEnabled: false })}
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </Tooltip>
+                    )
                   }
                   type={problem.signature.returnType}
                   value={draft.expected}
@@ -230,6 +241,8 @@ export function TestCases({
               </button>
             )}
           </>
+        ) : customMode ? (
+          <p className="result-message">Add a case to get started.</p>
         ) : hiddenCases?.length ? (
           <div className="locked-case">
             <Icon
@@ -251,7 +264,9 @@ export function TestCases({
               {hiddenCases[sampleIndex]?.status === "time_limit" ? "Time limit exceeded" : null}
             </span>
           </div>
-        ) : recoveredCases?.length ? null : example ? (
+        ) : recoveredCases?.length ? null : example?.calls?.length ? (
+          <SequenceCaseValues problem={problem} calls={example.calls} />
+        ) : example ? (
           <>
             {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
               <CaseValue key={index} name={name} value={value} parameter />
@@ -264,7 +279,9 @@ export function TestCases({
             />
           </>
         ) : (
-          <p className="result-message">No sample cases available.</p>
+          <p className="result-message">
+            {customMode ? "Add a case to get started." : "No sample cases available."}
+          </p>
         )}
         {editedAfterRun && (
           <p className="case-stale">Edited since last run. Run again for this input.</p>

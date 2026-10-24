@@ -8,6 +8,7 @@ import { cancelSubmission, createSubmission, fetchSubmission } from "./api";
 import {
   parseCustomCases,
   parseCustomDrafts,
+  caseSnapshotValue,
   type CustomCaseDraft,
   type RunSnapshot,
 } from "./customCases";
@@ -29,6 +30,7 @@ export function useSubmission({
   problem,
   enabled = true,
   level,
+  runExamples,
 }: {
   identity: DevelopmentIdentity;
   workspace?: Workspace;
@@ -39,6 +41,7 @@ export function useSubmission({
   problem?: ProblemVersion;
   enabled?: boolean;
   level?: number;
+  runExamples?: ProblemVersion["examples"];
 }) {
   const queryClient = useQueryClient();
   const [active, setActive] = useState<{ scope: string; id: string }>();
@@ -68,7 +71,8 @@ export function useSubmission({
     setActive(id ? { scope, id } : undefined);
     setError(undefined);
     setRunSnapshot(undefined);
-    if (!id || !problem) return;
+    // Stateful recovery uses authoritative server outputs rather than locally stored call metadata.
+    if (!id || !problem || problem.odyssey) return;
     try {
       const raw: unknown = JSON.parse(
         localStorage.getItem(`${submissionStorageKey(identity, workspace.id)}:snapshot:${id}`) ??
@@ -150,12 +154,9 @@ export function useSubmission({
           ? {
               problemVersionId: problem.id,
               custom: customMode,
-              cases: (customCases ?? problem.examples).map((value, index) => ({
+              cases: (customCases ?? runExamples ?? problem.examples).map((value, index) => ({
                 id: customMode ? drafts[index]!.id : String(index),
-                value: {
-                  args: value.args,
-                  ...(value.expected !== undefined ? { expected: value.expected } : {}),
-                },
+                value: caseSnapshotValue(value),
               })),
             }
           : undefined;
@@ -245,6 +246,7 @@ export function useSubmission({
       customMode,
       drafts,
       problem,
+      runExamples,
       editorRef,
       sourceRef,
       scope,

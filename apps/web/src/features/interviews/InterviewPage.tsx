@@ -11,16 +11,37 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { PythonEditor, type PythonEditorHandle } from "../editor/PythonEditor";
-import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
+import { languageFileNames, type EditorLanguage } from "../editor/editorLanguages";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
-import { ResultContent } from "../editor/components/ResultContent";
 import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { useErrorNotification } from "../../ui/Notifications";
 import { interviewRequest } from "./api";
 import { createCollaboration, type CollaborationStatus } from "./collaboration";
 import { QuestionSetup } from "./QuestionSetup";
+import type { DevelopmentIdentity } from "@quorem/contracts";
+import { useSession } from "../auth/session";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { workspaceShortcuts } from "../editor/workspaceShortcuts";
+import { useIntelligence } from "../editor/useIntelligence";
+import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
+import { SolutionToolbar } from "../editor/components/SolutionToolbar";
+import { WorkspaceTests } from "../editor/components/WorkspaceTests";
+import { ExecutionActions } from "../editor/components/ExecutionActions";
+import { TestCases } from "../editor/components/TestCases";
+import type { CustomCaseDraft } from "../editor/customCases";
+import { Icon } from "../editor/components/Icon";
+import { Tooltip } from "../editor/components/Tooltip";
+import { SelectField } from "../../ui/SelectField";
+import { SessionDialog } from "../../ui/SessionDialog";
+import { SessionBar } from "../../ui/SessionBar";
+import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
+import { InvitationActions } from "../matches/InvitationActions";
+import { shareInvitation } from "../matches/shareInvitation";
 import "../../styles/workspace.css";
-import "./interviews.css";
+const noDrafts: CustomCaseDraft[] = [];
+const keepDrafts = () => {};
+const keepSource = () => {};
+import "./collaboration.css";
 
 /** Session metadata may refresh freely; document epochs change only after explicit recovery. */
 export function InterviewPage({ id }: { id: string }) {
@@ -35,31 +56,28 @@ export function InterviewPage({ id }: { id: string }) {
   useEffect(() => {
     if (query.data && !initial) setInitial(query.data);
   }, [query.data, initial]);
-  return (
-    <div className="app-root interview-app">
+  return initial && query.data ? (
+    <InterviewPad
+      key={initial.document.epoch}
+      initial={initial}
+      snapshot={query.data}
+      onOpenQuestion={() => setInitial(query.data)}
+    />
+  ) : (
+    <div className="match-page">
       <GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />
-      {initial && query.data ? (
-        <InterviewPad
-          key={initial.document.epoch}
-          initial={initial}
-          snapshot={query.data}
-          onOpenQuestion={() => setInitial(query.data)}
-        />
-      ) : (
-        <main className="interview-invite">
-          {query.isError ? (
-            <>
-              <h1>Interview unavailable</h1>
-              <p>Open your invitation or sign in to restore access.</p>
-              <button className="quiet-button" onClick={() => void query.refetch()}>
-                Try again
-              </button>
-            </>
-          ) : (
-            <p role="status">Opening interview…</p>
-          )}
-        </main>
-      )}
+      <WorkspaceRecovery
+        failed={query.isError}
+        title={query.isError ? "Interview unavailable" : "Opening interview"}
+        message={
+          query.isError
+            ? "Open your invitation or sign in to restore access."
+            : "Connecting to the shared workspace…"
+        }
+        onRetry={() => query.refetch()}
+        backHref="/interviews"
+        backLabel="Back to interviews"
+      />
     </div>
   );
 }
@@ -88,15 +106,24 @@ function InterviewPad({
   const [busy, setBusy] = useState(false);
   const [setup, setSetup] = useState(false);
   const [members, setMembers] = useState(false);
-  const [tab, setTab] = useState("code");
-  const [admitted, setAdmitted] = useState<string>();
+  const [tab, setTab] = useState<WorkspacePanel>("code");
+  const [ending, setEnding] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [admitted, setAdmitted] = useState<{ id: string; previous?: string }>();
+  const [admitting, setAdmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
   const changed = snapshot.document.epoch !== initial.document.epoch;
   const interviewer = snapshot.role === "interviewer";
   const closed = snapshot.state === "closed";
   useErrorNotification(error);
   const sharedSubmission = snapshot.latestSubmissionId;
-  const submissionId = sharedSubmission ?? admitted;
+  const submissionId =
+    sharedSubmission && sharedSubmission !== admitted?.previous ? sharedSubmission : admitted?.id;
   const result = useQuery({
     queryKey: ["interview-result", id, submissionId],
     queryFn: () => interviewRequest<Submission>(`/v1/interviews/${id}/submissions/${submissionId}`),
@@ -104,7 +131,8 @@ function InterviewPad({
     refetchInterval: (query) =>
       ["queued", "running"].includes(query.state.data?.state ?? "") ? 600 : false,
   });
-  const executing = busy || result.data?.state === "queued" || result.data?.state === "running";
+  const executing =
+    busy || admitting || result.data?.state === "queued" || result.data?.state === "running";
   async function mutate(path: string, body: unknown = {}) {
     setBusy(true);
     setError(undefined);
@@ -118,7 +146,9 @@ function InterviewPad({
     }
   }
   async function execute(kind: "run" | "submit") {
-    setBusy(true);
+    if (executing || closed || changed || status !== "connected") return;
+    setTab("results");
+    setAdmitting(true);
     setError(undefined);
     try {
       if (!(await controller.flush())) {
@@ -131,13 +161,13 @@ function InterviewPad({
         { kind },
         crypto.randomUUID(),
       );
-      setAdmitted(submission.id);
+      setAdmitted({ id: submission.id, previous: sharedSubmission });
       queryClient.setQueryData(["interview-result", id, submission.id], submission);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not run code.");
     } finally {
-      setBusy(false);
+      setAdmitting(false);
     }
   }
   async function replace(question: InterviewQuestionInput) {
@@ -153,222 +183,334 @@ function InterviewPad({
       setBusy(false);
     }
   }
+  async function copyInvitation() {
+    try {
+      await navigator.clipboard.writeText(
+        new URL(snapshot.invitePath!, window.location.origin).href,
+      );
+      setCopied(true);
+    } catch {
+      setError("Could not copy invitation.");
+    }
+  }
+  async function shareInvite() {
+    setSharing(true);
+    try {
+      if (
+        (await shareInvitation(new URL(snapshot.invitePath!, window.location.origin).href)) ===
+        "copied"
+      )
+        setCopied(true);
+    } catch {
+      setError("Could not share invitation.");
+    } finally {
+      setSharing(false);
+    }
+  }
   async function copyCode() {
     try {
       await navigator.clipboard.writeText(editor.current?.getSource() ?? initial.document.source);
-      setCopied(true);
     } catch {
       setError("Select and copy your code from the editor before opening the new question.");
     }
   }
-  return (
-    <main className="interview-workspace">
-      <header className="interview-session-bar">
-        <a href="/interviews" className="text-link">
-          Interviews
-        </a>
-        <h1>{snapshot.title}</h1>
-        <span className="interview-role">{interviewer ? "Interviewer" : "Interviewee"}</span>
-        <div className="interview-session-actions">
-          <button
-            className="quiet-button"
-            onClick={() => setMembers(!members)}
-            aria-expanded={members}
-          >
-            {snapshot.members.length} participants
-          </button>
-          {interviewer && !closed && (
-            <button className="quiet-button" onClick={() => setSetup(!setup)} aria-expanded={setup}>
-              Change question
-            </button>
-          )}
-          {snapshot.invitePath && !closed && (
-            <button
-              className="quiet-button"
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(new URL(snapshot.invitePath!, window.location.origin).href)
-                  .then(() => setCopied(true))
-                  .catch(() => setError("Could not copy invitation."));
-              }}
-            >
-              {copied ? "Copied" : "Copy invite"}
-            </button>
-          )}
-          {interviewer && !closed && (
-            <button className="quiet-button" disabled={busy} onClick={() => void mutate("close")}>
-              End interview
-            </button>
-          )}
-        </div>
-      </header>
-      {members && (
-        <section className="interview-members" aria-label="Participants">
-          {snapshot.members.map((member) => (
-            <div key={member.userId}>
-              <span>
-                {member.name}
-                {member.guest ? " · Guest" : ""}
-              </span>
-              {interviewer && !closed && member.userId !== snapshot.hostId ? (
-                <>
-                  <select
-                    aria-label={`Role for ${member.name}`}
-                    value={member.role}
-                    disabled={busy}
-                    onChange={(event) =>
-                      void mutate("members", {
-                        userId: member.userId,
-                        role: event.target.value as InterviewRole,
-                      })
-                    }
-                  >
-                    <option value="interviewer">Interviewer</option>
-                    <option value="interviewee">Interviewee</option>
-                  </select>
-                  <button
-                    className="quiet-button"
-                    disabled={busy}
-                    onClick={() =>
-                      void mutate(`members/${encodeURIComponent(member.userId)}/remove`)
-                    }
-                  >
-                    Remove
-                  </button>
-                </>
-              ) : (
-                <span>{member.role}</span>
-              )}
-            </div>
-          ))}
-        </section>
-      )}
-      {setup && (
-        <section className="interview-question-change">
-          <h2>Replace question</h2>
-          <p>This starts a new shared document. Copy any code you want to keep first.</p>
-          <QuestionSetup
-            showTitle={false}
-            onSubmit={(question) => void replace(question)}
-            busy={busy}
-            label="Replace question and code"
+  const question = changed ? initial.question : snapshot.question;
+  const language = initial.question.language as EditorLanguage;
+  const documentKey = `interview:${id}:${initial.document.epoch}`;
+  const account = useSession();
+  const supportedIntelligence = language === "python" || language === "typescript";
+  const intelligence = useIntelligence(
+    (account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity,
+    documentKey,
+    supportedIntelligence && !closed,
+    language,
+    false,
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const disabled = executing || closed || changed || status !== "connected";
+  const hotkeys = {
+    enabled: !settingsOpen && !setup && !members && !disabled,
+    ignoreInputs: false,
+    requireReset: true,
+  };
+  useHotkey(workspaceShortcuts.run.binding, () => void execute("run"), hotkeys);
+  useHotkey(workspaceShortcuts.submit.binding, () => void execute("submit"), hotkeys);
+  const privateTests =
+    interviewer && !!question.privateCases?.length ? (
+      <details className="problem-section">
+        <summary className="quiet-button">
+          Interviewer-private tests ({question.privateCases.length})
+        </summary>
+        <div className="authoring-case-browser">
+          <TestCases
+            problem={{ ...question.problem, examples: question.privateCases }}
+            customMode={false}
+            drafts={noDrafts}
+            onDraftsChange={keepDrafts}
           />
-        </section>
-      )}
-      {(changed || status === "replaced") && (
-        <div className="interview-recovery" role="alert">
-          <span>The shared question changed. Preserve local code before continuing.</span>
-          <button className="quiet-button" onClick={() => void copyCode()}>
-            Copy my code
-          </button>
-          <button className="button button-secondary" onClick={onOpenQuestion}>
-            Open new question
-          </button>
         </div>
-      )}
-      {closed && (
-        <p className="interview-recovery" role="status">
-          Interview ended. Code and results remain available.
-        </p>
-      )}
-      {status === "offline" && (
-        <div className="interview-recovery" role="status">
-          Connection interrupted. Edits stay in this tab and retry automatically. Keep this tab
-          open.
-        </div>
-      )}
-      <nav className="interview-mobile-tabs" aria-label="Interview panes">
-        {["question", "code", "results"].map((value) => (
-          <button
-            className="quiet-button"
-            key={value}
-            aria-pressed={tab === value}
-            onClick={() => setTab(value)}
+      </details>
+    ) : undefined;
+  return (
+    <WorkspaceLayout
+      navigation={
+        <GlobalNav
+          theme={theme.preference}
+          onThemeChange={theme.setPreference}
+          workspaceSettings={{
+            ...preferences,
+            theme: theme.preference,
+            onThemeChange: theme.setPreference,
+            onOpenChange: setSettingsOpen,
+          }}
+        />
+      }
+      panel={tab}
+      onPanelChange={setTab}
+      header={
+        <>
+          <SessionBar
+            label="Interview session"
+            actions={
+              <>
+                <Tooltip content="Participants">
+                  <button
+                    className="icon-button"
+                    onClick={() => setMembers(true)}
+                    aria-label={`Participants (${snapshot.members.length})`}
+                  >
+                    <Icon name="people" />
+                  </button>
+                </Tooltip>
+                {interviewer && !closed && (
+                  <Tooltip content="Change question">
+                    <button
+                      className="icon-button"
+                      onClick={() => setSetup(true)}
+                      aria-label="Change question"
+                    >
+                      <Icon name="problem" />
+                    </button>
+                  </Tooltip>
+                )}
+                {snapshot.invitePath && !closed && (
+                  <InvitationActions
+                    copied={copied}
+                    sharing={sharing}
+                    onCopy={() => void copyInvitation()}
+                    onShare={() => void shareInvite()}
+                  />
+                )}
+                {interviewer && !closed && (
+                  <Tooltip content="End interview">
+                    <button
+                      className="icon-button destructive-icon"
+                      disabled={busy}
+                      onClick={() => setEnding(true)}
+                      aria-label="End interview"
+                    >
+                      <Icon name="flag" />
+                    </button>
+                  </Tooltip>
+                )}
+              </>
+            }
           >
-            {value[0]!.toUpperCase() + value.slice(1)}
-          </button>
-        ))}
-      </nav>
-      <div className="interview-panes" data-tab={tab}>
-        <section className="interview-question" aria-label="Interview question">
-          {snapshot.question.progress ? (
-            <OdysseyPanel
-              progress={snapshot.question.progress}
-              title={snapshot.question.problem.title}
-              introduction={snapshot.question.problem.statementMarkdown}
-            />
-          ) : (
-            <ProblemStatement problem={initial.question.problem} />
-          )}
-          {interviewer && snapshot.question.privateCases && (
-            <details className="interview-private">
-              <summary>Interviewer-private tests ({snapshot.question.privateCases.length})</summary>
-              <pre>
-                <code>{JSON.stringify(snapshot.question.privateCases, null, 2)}</code>
-              </pre>
-            </details>
-          )}
-        </section>
-        <div className="interview-solution">
-          <section className="interview-code" aria-label="Shared code">
-            <div className="code-toolbar">
-              <span>
-                {languageLabels[initial.question.language as EditorLanguage] ??
-                  initial.question.language}
-              </span>
+            <div className="competitive-player-score">
+              <a href="/interviews" className="text-link">
+                Interviews
+              </a>
+              <strong>{snapshot.title}</strong>
+              <span className="score-judging">{interviewer ? "Interviewer" : "Interviewee"}</span>
             </div>
+          </SessionBar>
+          {(changed || status === "replaced") && (
+            <div className="match-rule-notice" role="alert">
+              <span>The question changed. Preserve your local code before continuing.</span>
+              <button className="quiet-button" onClick={() => void copyCode()}>
+                Copy my code
+              </button>
+              <button className="button button-secondary" onClick={onOpenQuestion}>
+                Open new question
+              </button>
+            </div>
+          )}
+          {closed && (
+            <div className="match-rule-notice" role="status">
+              Interview ended. Code and results remain available.
+            </div>
+          )}
+          {status === "offline" && (
+            <div className="match-rule-notice" role="status">
+              Connection interrupted. Keep this tab open; your edits retry automatically.
+            </div>
+          )}
+        </>
+      }
+      problem={
+        question.progress ? (
+          <OdysseyPanel progress={question.progress} problem={question.problem}>
+            {privateTests}
+          </OdysseyPanel>
+        ) : (
+          <ProblemStatement problem={question.problem}>{privateTests}</ProblemStatement>
+        )
+      }
+      editor={
+        <>
+          <SolutionToolbar
+            language={language}
+            languages={[{ language }]}
+            intelligence={
+              supportedIntelligence
+                ? {
+                    status: intelligence.status,
+                    hint:
+                      intelligence.status === "ready"
+                        ? "IntelliSense active"
+                        : intelligence.status === "connecting"
+                          ? "IntelliSense connecting"
+                          : "IntelliSense unavailable",
+                  }
+                : undefined
+            }
+          />
+          <div className="editor-frame">
             <PythonEditor
               ref={editor}
-              documentKey={`interview:${id}:${initial.document.epoch}`}
-              documentUri={`file:///interviews/${id}/solution`}
+              documentKey={documentKey}
+              documentUri={`file:///interviews/${id}/${languageFileNames[language]}`}
               initialSource={initial.document.source}
-              language={initial.question.language as EditorLanguage}
+              language={language}
               theme={theme.theme}
               colorScheme={preferences.editorScheme}
               fontSize={preferences.fontSize}
               tabSize={preferences.tabSize}
               wrap={preferences.wrap}
               readOnly={closed || changed}
+              intelligenceExtensions={supportedIntelligence ? intelligence.extensions : undefined}
               collaborationExtension={controller.extension}
-              onSourceChange={() => {}}
+              onSourceChange={keepSource}
             />
-          </section>
-          <section className="interview-results" aria-label="Shared test results">
-            <ResultContent submission={result.data} busy={busy} />
-            {result.isError && (
-              <p role="alert">
-                Could not load results.{" "}
-                <button className="quiet-button" onClick={() => void result.refetch()}>
-                  Retry
-                </button>
-              </p>
-            )}
-          </section>
+          </div>
+        </>
+      }
+      results={
+        <>
+          <WorkspaceTests
+            progress={question.progress}
+            problem={question.problem}
+            submission={result.data}
+            busy={admitting}
+          />
+          {result.isError && (
+            <p className="result-message" role="alert">
+              Could not load results.{" "}
+              <button className="quiet-button" onClick={() => void result.refetch()}>
+                Retry
+              </button>
+            </p>
+          )}
+        </>
+      }
+      actions={
+        <ExecutionActions
+          disabled={disabled}
+          onRun={() => void execute("run")}
+          onSubmit={() => void execute("submit")}
+        />
+      }
+    >
+      <SessionDialog
+        open={members}
+        onOpenChange={setMembers}
+        title="Participants"
+        description="Everyone shares the code and execution results."
+        pending={busy}
+        className="match-creation-dialog"
+      >
+        <div className="competitive-seats">
+          {snapshot.members.map((member) => (
+            <div className="competitive-seat" key={member.userId}>
+              <Icon name="people" />
+              <div>
+                <strong>{member.name}</strong>
+                <span>
+                  {member.guest ? "Guest · " : ""}
+                  {member.role === "interviewer" ? "Interviewer" : "Interviewee"}
+                </span>
+              </div>
+              {interviewer && !closed && member.userId !== snapshot.hostId && (
+                <>
+                  <SelectField
+                    label={`Role for ${member.name}`}
+                    value={member.role}
+                    disabled={busy}
+                    onChange={(role) =>
+                      void mutate("members", { userId: member.userId, role: role as InterviewRole })
+                    }
+                    options={[
+                      { value: "interviewer", label: "Interviewer" },
+                      { value: "interviewee", label: "Interviewee" },
+                    ]}
+                  />
+                  <Tooltip content="Remove participant">
+                    <button
+                      className="icon-button destructive-icon"
+                      disabled={busy}
+                      aria-label={`Remove ${member.name}`}
+                      onClick={() =>
+                        void mutate(`members/${encodeURIComponent(member.userId)}/remove`)
+                      }
+                    >
+                      <Icon name="close" />
+                    </button>
+                  </Tooltip>
+                </>
+              )}
+            </div>
+          ))}
         </div>
-      </div>
-      <footer className="interview-execution">
-        <span>
-          {snapshot.question.progress
-            ? `Level ${snapshot.question.progress.level} · cumulative tests`
-            : "Shared code and results"}
-        </span>
-        <div>
+      </SessionDialog>
+      <SessionDialog
+        open={setup}
+        onOpenChange={setSetup}
+        title="Change question"
+        description="This starts a new shared document. Copy code you want to keep first."
+        pending={busy}
+        className="match-creation-dialog"
+      >
+        <QuestionSetup
+          showTitle={false}
+          onSubmit={(question) => void replace(question)}
+          busy={busy}
+          label="Replace question and code"
+        />
+      </SessionDialog>
+      <SessionDialog
+        open={ending}
+        onOpenChange={setEnding}
+        title="End interview?"
+        description="Editing and execution will stop. Code and results remain available."
+        pending={busy}
+      >
+        <footer className="competitive-dialog-actions">
           <button
             className="button button-secondary"
-            disabled={executing || closed || changed || status !== "connected"}
-            onClick={() => void execute("run")}
+            disabled={busy}
+            onClick={() => setEnding(false)}
           >
-            Run
+            Keep interviewing
           </button>
           <button
             className="button button-primary"
-            disabled={executing || closed || changed || status !== "connected"}
-            onClick={() => void execute("submit")}
+            disabled={busy}
+            onClick={() => void mutate("close").then(() => setEnding(false))}
           >
-            {executing ? "Running…" : "Submit"}
+            End interview
           </button>
-        </div>
-      </footer>
-    </main>
+        </footer>
+      </SessionDialog>
+    </WorkspaceLayout>
   );
 }
