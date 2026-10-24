@@ -23,8 +23,8 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 	var data []byte
 	var cancelled bool
 	var attempts int
-	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,p.public,s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
- FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id
+	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,COALESCE(ie.fixture->'problem',p.public),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
+ FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id
  WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running')
  ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -71,7 +71,7 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spec, error) {
 	var spec judging.Spec
 	var fixture, cases []byte
-	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,p.fixture,s.cases FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, j.JobID, j.AttemptID).Scan(&spec.Source, &spec.Kind, &fixture, &cases)
+	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,COALESCE(ie.fixture,p.fixture),s.cases FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, j.JobID, j.AttemptID).Scan(&spec.Source, &spec.Kind, &fixture, &cases)
 	if err != nil {
 		return spec, err
 	}
@@ -79,6 +79,15 @@ func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spe
 		return spec, err
 	}
 	err = json.Unmarshal(cases, &spec.Cases)
+	if err == nil && spec.Fixture.Problem.Odyssey != nil {
+		var level *int
+		if err = s.Pool.QueryRow(ctx, "SELECT odyssey_level FROM submissions WHERE id=$1", j.SubmissionID).Scan(&level); err != nil {
+			return spec, err
+		}
+		if level != nil {
+			spec.Fixture.Problem.Odyssey = &problems.Odyssey{Levels: spec.Fixture.Problem.Odyssey.Levels[:*level]}
+		}
+	}
 	return spec, err
 }
 func (s *Store) Lease(ctx context.Context, j execution.Job, heartbeat bool) (bool, error) {
@@ -162,7 +171,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 		result.Verdict = c.Verdict
 		result.Diagnostics = c.SafeDiagnostics
 		if kind == "submit" {
-			if c.Score == nil || c.Score.Total != 20 || c.Score.Passed < 0 || c.Score.Passed > 20 {
+			var admittedCount int
+			if err = tx.QueryRow(ctx, "SELECT jsonb_array_length(cases) FROM submissions WHERE id=$1", j.SubmissionID).Scan(&admittedCount); err != nil {
+				return err
+			}
+			if c.Score == nil || c.Score.Total != admittedCount || c.Score.Passed < 0 || c.Score.Passed > admittedCount {
 				return errors.New("incomplete hidden score")
 			}
 			if err = validateHiddenCases(c); err != nil {
@@ -173,6 +186,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 			result.Diagnostics = nil
 		} else {
 			result.PublicCases = c.PublicCaseResults
+		}
+	}
+	if state == "completed" && kind == "submit" && result.Verdict == execution.Accepted && result.Score != nil && result.Score.Passed == result.Score.Total {
+		if err = s.advanceOdyssey(ctx, tx, j.SubmissionID); err != nil {
+			return err
 		}
 	}
 	encoded, _ := json.Marshal(result)

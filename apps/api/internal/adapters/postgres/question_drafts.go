@@ -111,6 +111,17 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 		return problems.QuestionContent{}, err
 	}
 	c := problems.QuestionContent{Problem: p, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
+	var original []byte
+	if err = s.Pool.QueryRow(ctx, "SELECT fixture FROM problem_versions WHERE id::text=$1", versionID).Scan(&original); err != nil {
+		return c, err
+	}
+	var fixture problems.Fixture
+	if err = json.Unmarshal(original, &fixture); err != nil {
+		return c, err
+	}
+	c.Problem.Odyssey = fixture.Problem.Odyssey
+	c.OdysseyHiddenCases = fixture.OdysseyHiddenCases
+
 	if err = s.Pool.QueryRow(ctx, "SELECT comparator,attribution FROM problem_versions WHERE id::text=$1", versionID).Scan(&c.Comparator, &c.Attribution); err != nil {
 		return c, err
 	}
@@ -154,7 +165,7 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 	if err != nil {
 		return c, err
 	}
-	c.Solutions, err = s.Solutions(ctx, versionID)
+	c.Solutions, err = s.readSolutions(ctx, versionID)
 	return c, err
 }
 
@@ -202,7 +213,7 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 	}
 	p.StarterSource = python.StarterSource
 	p.RuntimeRevision = python.RuntimeRevision
-	fixture := problems.Fixture{Problem: p, HarnessRevision: python.HarnessRevision, Comparator: c.Comparator, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: python.ReferenceSource}
+	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: python.HarnessRevision, Comparator: c.Comparator, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: python.ReferenceSource}
 	public, err := json.Marshal(p)
 	if err != nil {
 		return d, err

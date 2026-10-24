@@ -67,6 +67,9 @@ def encode(kind, value, depth=0, count=None, seen=None):
         count[0] += 1
     if count[0] > MAX_ELEMENTS or depth > MAX_DEPTH:
         raise InvalidOutput()
+    if kind == 'void':
+        if value is not None: raise InvalidOutput()
+        return None
     if kind.startswith('optional<'):
         return None if value is None else encode(kind[9:-1], value, depth+1, count, seen)
     if kind.startswith('list<'):
@@ -132,9 +135,17 @@ def main():
             exec(code, namespace)
             signature = request['signature']
             solution = namespace['Solution']()
-            args = [decode(p['type'], v) for p, v in zip(signature['parameters'], request['args'])]
-            value = getattr(solution, signature['methodName'])(*args)
-            result['actual'] = encode(signature['returnType'], value)
+            if request.get('calls'):
+                values = []
+                for call in request['calls']:
+                    method = request['methods'][call['methodName']]
+                    args = [decode(p['type'], v) for p, v in zip(method['parameters'], call['args'])]
+                    values.append(encode(method['returnType'], getattr(solution, call['methodName'])(*args)))
+                result['actual'] = values
+            else:
+                args = [decode(p['type'], v) for p, v in zip(signature['parameters'], request['args'])]
+                value = getattr(solution, signature['methodName'])(*args)
+                result['actual'] = encode(signature['returnType'], value)
         encoded = json.dumps(result['actual'], ensure_ascii=False, allow_nan=False).encode()
         if len(encoded) > MAX_OUTPUT:
             raise OutputLimit()

@@ -134,11 +134,11 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		status := f.Status
 		var actual, expected json.RawMessage
 		if status == "executed" {
-			actual, err = worker.Normalize(spec.Fixture.Problem.Signature.ReturnType, f.Actual)
+			actual, err = worker.NormalizeCaseOutput(spec.Fixture, c, f.Actual)
 			if err != nil {
 				status = "invalid_output"
-			} else if len(c.Expected) > 0 {
-				expected, err = worker.Normalize(spec.Fixture.Problem.Signature.ReturnType, c.Expected)
+			} else if len(worker.CaseExpected(c)) > 0 {
+				expected, err = worker.NormalizeCaseOutput(spec.Fixture, c, worker.CaseExpected(c))
 				if err != nil {
 					return result, errors.New("invalid trusted expectation")
 				}
@@ -180,6 +180,14 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	}
 	return result, nil
 }
+func sandboxRequest(spec worker.Spec, c worker.Case) []byte {
+	calls := make([]map[string]any, 0, len(c.Calls))
+	for _, call := range c.Calls {
+		calls = append(calls, map[string]any{"methodName": call.MethodName, "args": call.Args})
+	}
+	request, _ := json.Marshal(map[string]any{"source": spec.Source, "signature": spec.Fixture.Problem.Signature, "args": c.Args, "calls": calls, "methods": worker.MethodSignatures(spec.Fixture)})
+	return request
+}
 func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spec worker.Spec, c worker.Case, compilationRemaining ...time.Duration) (result frame, resultErr error) {
 	ctx, cancelCause := context.WithCancelCause(parent)
 	cancel := func() { cancelCause(context.Canceled) }
@@ -205,7 +213,7 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 	if runtime.Language == "python" && d.Image != "" {
 		image = d.Image
 	}
-	request, _ := json.Marshal(map[string]any{"source": spec.Source, "signature": spec.Fixture.Problem.Signature, "args": c.Args})
+	request := sandboxRequest(spec, c)
 	args := []string{"run", "--rm", "-i", "--name", name, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--memory-swap", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--pids-limit", strconv.Itoa(j.Limits.MaxProcesses), "--cpus", "1", "--user", "65534:65534", "--tmpfs", "/tmp:rw,noexec,nosuid,size=16777216", image}
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Stdin = bytes.NewReader(request)
