@@ -7,6 +7,8 @@ type Capabilities struct {
 	HostGuests         bool `json:"hostGuests"`
 	HostedIntelligence bool `json:"hostedIntelligence"`
 	Experimental       bool `json:"experimental"`
+	Interviews         bool `json:"interviews"`
+	Odyssey            bool `json:"odyssey"`
 	GuestConcurrency   int  `json:"guestConcurrency"`
 }
 type Grant struct {
