@@ -41,14 +41,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 15px 14px 16px 2px;
-}
-.sidebar-group-label {
-  height: 18px;
-  margin: 0 0 8px;
-  padding-left: 3px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
+  padding: 8px 14px 16px 2px;
 }
 .sidebar-link {
   display: grid;
@@ -189,9 +182,6 @@
   .sidebar-peek .sidebar-content {
     padding-inline: 2px;
     height: 100%;
-  }
-  .sidebar-peek .sidebar-group-label {
-    visibility: hidden;
   }
   .sidebar-peek .sidebar-link > span {
     display: none;

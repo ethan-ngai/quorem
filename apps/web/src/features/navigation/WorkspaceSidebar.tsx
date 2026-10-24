@@ -68,7 +68,6 @@ function SidebarLinks({
 }) {
   return (
     <nav aria-label={peek ? "Quick navigation" : "Main navigation"} className="sidebar-content">
-      <p className="sidebar-group-label">Navigate</p>
       <a className="sidebar-link" href="/" aria-label="Home" title="Home">
         <Home size={17} />
         <span>Home</span>
