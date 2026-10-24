@@ -20,6 +20,7 @@ import (
 const interviewGuestCookie = "quorem_interview_guest"
 
 type InterviewRepository interface {
+	RotateInterviewGuestCredential(context.Context, string, string) (bool, error)
 	InterviewPresence(context.Context, string, string) ([]interviews.Presence, error)
 	UpdateInterviewPresence(context.Context, string, string, interviews.PresenceInput) ([]interviews.Presence, error)
 	Interviews(context.Context, string) ([]interviews.Snapshot, error)
@@ -285,7 +286,19 @@ func (s *Server) joinInterview(w http.ResponseWriter, r *http.Request) {
 		if cookie, e := r.Cookie(interviewGuestCookie); e == nil {
 			credential = cookie.Value
 		}
-		if !validInterviewCredential(credential) {
+		rotate := !validInterviewCredential(credential)
+		if !rotate {
+			var e error
+			rotate, e = repo.RotateInterviewGuestCredential(r.Context(), credential, r.PathValue("token"))
+			if e != nil {
+				s.err(w, r, e)
+				return
+			}
+		}
+		if c.Name == "" {
+			c.Name = identity.Subject(r.Context()).DisplayName
+		}
+		if rotate {
 			raw := make([]byte, 32)
 			if _, e := rand.Read(raw); e != nil {
 				s.err(w, r, e)

@@ -4,6 +4,7 @@ import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
+import { OdysseyFields } from "../odyssey/OdysseyFields";
 import { revisions, languageLabels, type Language } from "./content";
 /** Field groups share the wire types, with JSON reserved for typed collections. */
 export function QuestionFields({
@@ -136,13 +137,18 @@ export function QuestionFields({
         />
         <JSONField
           onValidityChange={onValidityChange}
-          label="Hidden cases (20 required)"
+          label={
+            problem.odyssey
+              ? "Legacy hidden cases (unused for Odyssey)"
+              : "Hidden cases (20 required)"
+          }
           value={content.hiddenCases}
           onChange={(hiddenCases) =>
             onChange({ ...content, hiddenCases: hiddenCases as QuestionContent["hiddenCases"] })
           }
         />
       </section>
+      <OdysseyFields content={content} onChange={onChange} onValidityChange={onValidityChange} />
       <section>
         <h2>Languages and solutions</h2>
         <p>Starter and trusted judge reference code are separate from published editorial code.</p>
@@ -295,7 +301,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** Retains invalid JSON text for correction instead of reverting the user's input. */
-function JSONField({
+export function JSONField({
   label,
   value,
   onChange,
@@ -394,6 +400,15 @@ export function validJSONShape(label: string, value: unknown): boolean {
       )
     );
   if (!Array.isArray(value)) return false;
+  if (label.startsWith("Level ") && label.endsWith("methods"))
+    return value.every((item) => validJSONShape("Typed signature", item));
+  if (label.startsWith("Level "))
+    return value.every(
+      (item) =>
+        record(item) &&
+        Array.isArray(item.args) &&
+        (item.calls === undefined || Array.isArray(item.calls)),
+    );
   if (label === "Structured constraints") {
     const target = (item: unknown) =>
       record(item) && typeof item.parameter === "string" && typeof item.projection === "string";

@@ -106,7 +106,7 @@ func (s *Store) PreviewInterviewInvite(ctx context.Context, token string) (inter
 	if !validInterviewToken(token) {
 		return v, failure("not_found", 404, "Invitation unavailable")
 	}
-	err := s.Pool.QueryRow(ctx, `SELECT title,id,state FROM interviews i JOIN users u ON u.id=i.host_id AND NOT u.disabled WHERE invite_hash=$1 AND i.state='active' AND EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=i.host_id AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, Hash([]byte(token))).Scan(&v.Title, &v.SessionID, &v.State)
+	err := s.Pool.QueryRow(ctx, `SELECT i.title,i.id,i.state FROM interviews i JOIN users u ON u.id=i.host_id AND NOT u.disabled WHERE i.invite_hash=$1 AND i.state='active' AND EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=i.host_id AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, Hash([]byte(token))).Scan(&v.Title, &v.SessionID, &v.State)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Invitation unavailable")
 	}

@@ -1,11 +1,19 @@
 /** @file WorkspaceSidebar.tsx @description In-place desktop rail expansion and a mobile navigation drawer. @module navigation */
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Home, SquarePen } from "lucide-react";
+import { BookOpen, Home, SquarePen, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "./sidebar.css";
 
 /** Desktop keeps the same rail mounted; mobile uses a modal drawer. */
-export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin: boolean }) {
+export function WorkspaceSidebar({
+  pathname,
+  admin,
+  interviews = false,
+}: {
+  pathname: string;
+  admin: boolean;
+  interviews?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [mobile, setMobile] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
@@ -54,7 +62,13 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
               <NavigationToggleIcon open={open} />
             </button>
           </div>
-          <SidebarLinks pathname={pathname} admin={admin} peek={!open} id="desktop-navigation" />
+          <SidebarLinks
+            pathname={pathname}
+            admin={admin}
+            interviews={interviews}
+            peek={!open}
+            id="desktop-navigation"
+          />
         </aside>
       </>
     );
@@ -86,7 +100,7 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
               <span className="brand-mark" aria-hidden="true" />
             </a>
           </div>
-          <SidebarLinks pathname={pathname} admin={admin} />
+          <SidebarLinks pathname={pathname} admin={admin} interviews={interviews} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -97,11 +111,13 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
 function SidebarLinks({
   pathname,
   admin,
+  interviews,
   peek = false,
   id,
 }: {
   pathname: string;
   admin: boolean;
+  interviews?: boolean;
   peek?: boolean;
   id?: string;
 }) {
@@ -125,6 +141,18 @@ function SidebarLinks({
         <BookOpen size={17} />
         <span>Practice</span>
       </a>
+      {interviews && (
+        <a
+          className="sidebar-link"
+          href="/interviews"
+          aria-label="Interviews"
+          title="Interviews"
+          aria-current={pathname.startsWith("/interview") ? "page" : undefined}
+        >
+          <Users size={17} />
+          <span>Interviews</span>
+        </a>
+      )}
       {admin && (
         <a
           className="sidebar-link"

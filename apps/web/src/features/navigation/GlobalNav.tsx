@@ -105,7 +105,11 @@ export function GlobalNav({
     <>
       <div className="global-nav-slot">
         <header className="topbar global-nav">
-          <WorkspaceSidebar pathname={pathname} admin={session.data?.user.role === "admin"} />
+          <WorkspaceSidebar
+            pathname={pathname}
+            admin={session.data?.user.role === "admin"}
+            interviews={!!session.data?.capabilities?.interviews}
+          />
           <a className="nav-brand" href="/" aria-label="Quorem home">
             <span className="brand-mark" aria-hidden="true" />
           </a>
