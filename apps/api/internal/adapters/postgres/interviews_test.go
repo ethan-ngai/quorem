@@ -42,6 +42,10 @@ func TestInterviewRolesPrivacyDurabilityAndGuestRevocation(t *testing.T) {
 	}
 	v := createInterviewTest(t, s)
 	token := strings.TrimPrefix(v.InvitePath, "/interview-invite/")
+	preview, err := s.PreviewInterviewInvite(ctx, token)
+	if err != nil || preview.SessionID != v.ID || preview.Title != v.Title || preview.State != "active" {
+		t.Fatalf("guest invitation preview: %+v %v", preview, err)
+	}
 	if _, err := s.Interview(ctx, "bob", v.ID); errorCode(err) != "not_found" {
 		t.Fatalf("nonmember read %v", err)
 	}
