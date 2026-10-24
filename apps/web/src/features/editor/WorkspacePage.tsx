@@ -42,6 +42,7 @@ import {
 } from "./recovery";
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
+import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { interviewRequest } from "../interviews/api";
 import type { OdysseyProgress } from "@quorem/contracts";
@@ -378,6 +379,7 @@ export function WorkspacePage({
     enabled: !!workspace && !!problem?.odyssey && serverWorkspace,
     refetchInterval: problem?.odyssey ? 2000 : false,
   });
+  const [selectedLevel, setSelectedLevel] = useState<number>();
   const runExamples = useMemo(
     () => odyssey.data?.levels.flatMap((level) => level.examples),
     [odyssey.data],
@@ -640,6 +642,12 @@ export function WorkspacePage({
               {matchHeader}
               <MatchRuleNotice message={matchRules.notice} onDismiss={matchRules.dismiss} />
             </>
+          ) : odyssey.data ? (
+            <OdysseyStepper
+              progress={odyssey.data}
+              selectedLevel={selectedLevel}
+              onSelect={setSelectedLevel}
+            />
           ) : undefined
         }
         panel={activePanel}
@@ -648,7 +656,11 @@ export function WorkspacePage({
           <>
             {problem.odyssey ? (
               odyssey.data ? (
-                <OdysseyPanel progress={odyssey.data} problem={problem} />
+                <OdysseyPanel
+                  progress={odyssey.data}
+                  problem={problem}
+                  selectedLevel={selectedLevel}
+                />
               ) : (
                 <p className="result-message" role="status">
                   {!account.data

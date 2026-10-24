@@ -24,7 +24,7 @@ func (s *Store) UpdateInterviewQuestion(ctx context.Context, user, id, key strin
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE interviews SET question=$2,language=$3,source=$4,document_version=0,document_epoch=$5 WHERE id=$1`, id, data, q.Language, f.Problem.StarterSource, ID())
+		_, err = tx.Exec(ctx, `UPDATE interviews SET question=$2,language=$3,source=$4,document_version=0,document_epoch=$5,question_epoch=$6 WHERE id=$1`, id, data, q.Language, f.Problem.StarterSource, ID(), ID())
 		return err
 	})
 }
@@ -106,7 +106,7 @@ func (s *Store) PreviewInterviewInvite(ctx context.Context, token string) (inter
 	if !validInterviewToken(token) {
 		return v, failure("not_found", 404, "Invitation unavailable")
 	}
-	err := s.Pool.QueryRow(ctx, `SELECT i.title,i.id,i.state FROM interviews i JOIN users u ON u.id=i.host_id AND NOT u.disabled WHERE i.invite_hash=$1 AND i.state='active' AND EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=i.host_id AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, Hash([]byte(token))).Scan(&v.Title, &v.SessionID, &v.State)
+	err := s.Pool.QueryRow(ctx, `SELECT i.title,i.id,i.state,CASE WHEN i.interviewer_invite_hash=$1 THEN 'interviewer' ELSE 'interviewee' END FROM interviews i JOIN users u ON u.id=i.host_id AND NOT u.disabled WHERE (i.invite_hash=$1 OR i.interviewer_invite_hash=$1) AND i.state='active' AND EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=i.host_id AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, Hash([]byte(token))).Scan(&v.Title, &v.SessionID, &v.State, &v.Role)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Invitation unavailable")
 	}
@@ -138,8 +138,8 @@ func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name
 		return empty, err
 	}
 	defer tx.Rollback(ctx)
-	var id, host, state string
-	err = tx.QueryRow(ctx, `SELECT id,host_id,state FROM interviews WHERE invite_hash=$1 FOR UPDATE`, Hash([]byte(token))).Scan(&id, &host, &state)
+	var id, host, state, role string
+	err = tx.QueryRow(ctx, `SELECT id,host_id,state,CASE WHEN interviewer_invite_hash=$1 THEN 'interviewer' ELSE 'interviewee' END FROM interviews WHERE invite_hash=$1 OR interviewer_invite_hash=$1 FOR UPDATE`, Hash([]byte(token))).Scan(&id, &host, &state, &role)
 	if err == pgx.ErrNoRows {
 		return empty, failure("not_found", 404, "Invitation unavailable")
 	}
@@ -221,7 +221,7 @@ func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name
 	if count >= 12 && newMember {
 		return empty, failure("room_full", 409, "Interview is full")
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO interview_members(session_id,user_id,role) VALUES($1,$2,'interviewee') ON CONFLICT DO NOTHING`, id, user); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO interview_members(session_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT(session_id,user_id) DO UPDATE SET role=CASE WHEN EXCLUDED.role='interviewer' THEN 'interviewer' ELSE interview_members.role END`, id, user, role); err != nil {
 		return empty, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=$1`, id); err != nil {

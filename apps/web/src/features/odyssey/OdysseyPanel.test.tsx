@@ -34,7 +34,8 @@ describe("Odyssey level presentation", () => {
     );
     expect(markup).toContain("Key store");
     expect(markup).toContain("Solution.put(key: str) → void");
-    expect(markup).toContain("Earlier tests run again");
+    expect(markup).not.toContain("All levels complete");
+    expect(markup).not.toContain("Unlocked levels");
     expect(markup).not.toContain("<script>");
     expect(markup).not.toContain("textarea");
   });

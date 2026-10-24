@@ -69,9 +69,10 @@ type Odyssey struct {
 	Levels []OdysseyLevel `json:"levels"`
 }
 type OdysseyProgress struct {
-	Level     int            `json:"level"`
-	Completed bool           `json:"completed"`
-	Levels    []OdysseyLevel `json:"levels"`
+	TotalLevels int            `json:"totalLevels"`
+	Level       int            `json:"level"`
+	Completed   bool           `json:"completed"`
+	Levels      []OdysseyLevel `json:"levels"`
 }
 type Problem struct {
 	Odyssey           *Odyssey                 `json:"odyssey,omitempty"`

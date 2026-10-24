@@ -725,6 +725,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/interviews/{id}/language": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["switchInterviewLanguage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/cases/{caseId}/visibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setInterviewCaseVisibility"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -890,6 +922,7 @@ export interface components {
             publicCases?: components["schemas"]["PublicCaseResult"][];
             diagnostics?: components["schemas"]["Diagnostic"][];
             infrastructureError?: string;
+            privateCaseResults?: components["schemas"]["InterviewCaseResult"][];
         };
         /** @enum {string} */
         MatchState: "waiting" | "ready" | "active" | "finalizing" | "completed" | "cancelled";
@@ -1222,6 +1255,7 @@ export interface components {
             level: number;
             completed: boolean;
             levels: components["schemas"]["OdysseyLevel"][];
+            totalLevels?: number;
         };
         /** @enum {string} */
         InterviewRole: "interviewer" | "interviewee";
@@ -1268,6 +1302,9 @@ export interface components {
             language: components["schemas"]["Language"];
             privateCases?: components["schemas"]["CustomCase"][];
             progress?: components["schemas"]["OdysseyProgress"];
+            languages: components["schemas"]["Language"][];
+            privateCaseDetails?: components["schemas"]["InterviewCaseDetail"][];
+            revealedCases?: components["schemas"]["InterviewCaseDetail"][];
         };
         InterviewSnapshot: {
             id: string;
@@ -1282,6 +1319,8 @@ export interface components {
             invitePath?: string;
             version: number;
             latestSubmissionId?: string;
+            questionEpoch: string;
+            invites?: components["schemas"]["InterviewInvitePaths"];
         };
         InterviewCreate: {
             title: string;
@@ -1291,6 +1330,7 @@ export interface components {
             title: string;
             sessionId: string;
             state: string;
+            role: components["schemas"]["InterviewRole"];
         };
         InterviewPresence: {
             clientID: string;
@@ -1300,6 +1340,27 @@ export interface components {
             head: number;
             userId?: string;
             name?: string;
+        };
+        InterviewInvitePaths: {
+            interviewer: string;
+            interviewee: string;
+        };
+        InterviewCaseDetail: {
+            id: string;
+            case: components["schemas"]["CustomCase"];
+            revealed: boolean;
+        };
+        InterviewCaseResult: {
+            index: number;
+            /** @enum {string} */
+            status: "executed" | "accepted" | "wrong_answer" | "syntax_error" | "runtime_error" | "time_limit" | "memory_limit" | "output_limit" | "invalid_output";
+            actual?: components["schemas"]["WireValue"];
+            expected?: components["schemas"]["WireValue"];
+            diagnostics?: components["schemas"]["Diagnostic"][];
+            stdout?: string;
+            stderr?: string;
+            caseId: string;
+            case: components["schemas"]["CustomCase"];
         };
     };
     responses: never;
@@ -2983,6 +3044,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InterviewPresence"][];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    switchInterviewLanguage: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    language: components["schemas"]["Language"];
+                    epoch: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewCaseVisibility: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+                caseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revealed: boolean;
+                    questionEpoch: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
                 };
             };
             /** @description Safe application error */

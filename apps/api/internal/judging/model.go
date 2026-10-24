@@ -14,6 +14,7 @@ type Command struct {
 	CustomCases []problems.Case `json:"customCases,omitempty"`
 }
 type Submission struct {
+	PrivateCaseResults  []InterviewCaseResult        `json:"privateCaseResults,omitempty"`
 	ExecutionJobID      string                       `json:"-"`
 	ID                  string                       `json:"id"`
 	WorkspaceID         string                       `json:"workspaceId"`
@@ -30,8 +31,15 @@ type Submission struct {
 	InfrastructureError string                       `json:"infrastructureError,omitempty"`
 }
 type Spec struct {
-	Source  string
-	Kind    string
-	Fixture problems.Fixture
-	Cases   []problems.Case
+	PrivateDetails bool
+	Source         string
+	Kind           string
+	Fixture        problems.Fixture
+	Cases          []problems.Case
+}
+
+type InterviewCaseResult struct {
+	CaseID string        `json:"caseId"`
+	Case   problems.Case `json:"case"`
+	execution.PublicCaseResult
 }

@@ -19,6 +19,8 @@ export function WorkspaceTests({
   onDraftsChange,
   snapshot,
   progress,
+  hideToolbar = false,
+  detailsVisible = false,
 }: {
   problem: ProblemVersion;
   submission?: Submission;
@@ -30,6 +32,8 @@ export function WorkspaceTests({
   onDraftsChange?: (drafts: CustomCaseDraft[]) => void;
   snapshot?: RunSnapshot;
   progress?: OdysseyProgress;
+  hideToolbar?: boolean;
+  detailsVisible?: boolean;
 }) {
   const testProblem = progress
     ? {
@@ -43,47 +47,53 @@ export function WorkspaceTests({
   const selected = tabs.length > 1 && customMode;
   return (
     <>
-      <div className="results-toolbar">
-        <div className="result-tabs" role="tablist" aria-label="Tests">
-          {tabs.map((tab, index) => (
-            <button
-              key={tab}
-              id={`tests-${tab}-tab`}
-              role="tab"
-              aria-selected={selected === (tab === "custom")}
-              aria-controls={`tests-${tab}-panel`}
-              tabIndex={selected === (tab === "custom") ? 0 : -1}
-              onClick={() => onCustomModeChange?.(tab === "custom")}
-              onKeyDown={(event) => {
-                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-                event.preventDefault();
-                const target =
-                  event.key === "Home"
-                    ? 0
-                    : event.key === "End"
-                      ? tabs.length - 1
-                      : (index + 1) % tabs.length;
-                const next = tabs[target]!;
-                onCustomModeChange?.(next === "custom");
-                document.getElementById(`tests-${next}-tab`)?.focus();
-              }}
-            >
-              <Icon
-                name={
-                  tab === "custom" ? "custom" : submission?.hiddenCases?.length ? "lock" : "samples"
-                }
-              />
-              {problem.odyssey
-                ? "Cumulative tests"
-                : tab === "custom"
-                  ? "Custom cases"
-                  : submission?.hiddenCases?.length
-                    ? "Hidden cases"
-                    : "Sample cases"}
-            </button>
-          ))}
+      {!hideToolbar && (
+        <div className="results-toolbar">
+          <div className="result-tabs" role="tablist" aria-label="Tests">
+            {tabs.map((tab, index) => (
+              <button
+                key={tab}
+                id={`tests-${tab}-tab`}
+                role="tab"
+                aria-selected={selected === (tab === "custom")}
+                aria-controls={`tests-${tab}-panel`}
+                tabIndex={selected === (tab === "custom") ? 0 : -1}
+                onClick={() => onCustomModeChange?.(tab === "custom")}
+                onKeyDown={(event) => {
+                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                  event.preventDefault();
+                  const target =
+                    event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? tabs.length - 1
+                        : (index + 1) % tabs.length;
+                  const next = tabs[target]!;
+                  onCustomModeChange?.(next === "custom");
+                  document.getElementById(`tests-${next}-tab`)?.focus();
+                }}
+              >
+                <Icon
+                  name={
+                    tab === "custom"
+                      ? "custom"
+                      : submission?.hiddenCases?.length
+                        ? "lock"
+                        : "samples"
+                  }
+                />
+                {problem.odyssey
+                  ? "Cumulative tests"
+                  : tab === "custom"
+                    ? "Custom cases"
+                    : submission?.hiddenCases?.length
+                      ? "Hidden cases"
+                      : "Sample cases"}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
       <div className="results-content case-results-content">
         <div aria-live="polite" className="case-result-summary">
           <ResultContent
@@ -91,6 +101,7 @@ export function WorkspaceTests({
             busy={busy}
             error={error}
             showCases={false}
+            detailsVisible={detailsVisible}
             customMode={selected}
             runWasCustom={snapshot?.custom}
           />

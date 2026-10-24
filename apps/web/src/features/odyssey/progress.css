@@ -1,0 +1,75 @@
+.odyssey-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 8px 18px;
+}
+.odyssey-progress ol {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-x: auto;
+}
+.odyssey-progress li {
+  display: flex;
+  align-items: center;
+}
+.odyssey-progress li + li::before {
+  content: "";
+  width: 16px;
+  height: 1px;
+  background: var(--color-border);
+}
+.odyssey-progress li[data-complete="true"] + li::before {
+  background: var(--color-success);
+}
+.odyssey-progress button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  background: transparent;
+  font-size: 11px;
+}
+.odyssey-progress button[aria-current] {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+  outline: 2px solid var(--color-overlay);
+  outline-offset: 2px;
+}
+.odyssey-progress li[data-complete="true"] button {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-background);
+}
+.odyssey-progress button:disabled {
+  opacity: 0.45;
+}
+.odyssey-progress button svg {
+  width: 14px;
+  height: 14px;
+}
+.odyssey-current {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.odyssey-current > span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.odyssey-current strong {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

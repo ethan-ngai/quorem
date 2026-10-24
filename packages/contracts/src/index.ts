@@ -6,6 +6,8 @@ export type { components, paths, operations } from "./generated";
 export type MethodCall = components["schemas"]["MethodCall"];
 export type OdysseyLevel = components["schemas"]["OdysseyLevel"];
 export type OdysseyProgress = components["schemas"]["OdysseyProgress"];
+export type InterviewCaseDetail = components["schemas"]["InterviewCaseDetail"];
+export type InterviewCaseResult = components["schemas"]["InterviewCaseResult"];
 export type InterviewSnapshot = components["schemas"]["InterviewSnapshot"];
 export type InterviewQuestionInput = components["schemas"]["InterviewQuestionInput"];
 export type InterviewDocument = components["schemas"]["InterviewDocument"];

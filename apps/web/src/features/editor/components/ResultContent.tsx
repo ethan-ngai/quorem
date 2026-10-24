@@ -64,6 +64,7 @@ export function ResultContent({
   busy,
   error,
   showCases = true,
+  detailsVisible = false,
   customMode,
   runWasCustom = false,
 }: {
@@ -71,6 +72,7 @@ export function ResultContent({
   busy: boolean;
   error?: string;
   showCases?: boolean;
+  detailsVisible?: boolean;
   customMode?: boolean;
   runWasCustom?: boolean;
 }) {
@@ -116,9 +118,10 @@ export function ResultContent({
             <span className="run-overview">
               <Icon
                 name={
-                  submission.kind === "submit"
+                  submission.kind === "submit" && !detailsVisible
                     ? "lock"
-                    : passed === compared.length
+                    : (submission.score?.passed ?? passed) ===
+                        (submission.score?.total ?? compared.length)
                       ? "submit"
                       : "close"
                 }
