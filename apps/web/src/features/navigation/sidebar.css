@@ -8,7 +8,11 @@
   height: var(--navigation-height);
   min-width: 0;
 }
-.sidebar-toggle {
+.sidebar-toggle.icon-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   flex-shrink: 0;
 }
 .workspace-sidebar {
@@ -37,7 +41,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 15px 14px 16px;
+  padding: 15px 14px 16px 2px;
 }
 .sidebar-group-label {
   height: 18px;
@@ -47,17 +51,16 @@
   color: var(--color-text-secondary);
 }
 .sidebar-link {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
   width: 100%;
   min-height: 44px;
-  padding: 10px 12px;
+  padding: 0;
   flex-shrink: 0;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--color-background);
+  background: transparent;
   color: var(--color-text-secondary);
   text-decoration: none;
   font-size: 14px;
@@ -70,16 +73,16 @@
   flex-shrink: 0;
   width: 17px;
   height: 17px;
+  justify-self: center;
 }
 .sidebar-link > span {
   overflow: hidden;
   white-space: nowrap;
 }
 .sidebar-link:hover {
-  background: var(--color-overlay);
+  color: var(--color-text);
 }
 .sidebar-link[aria-current="page"] {
-  background: var(--color-brand-secondary);
   color: var(--color-primary);
 }
 .sidebar-backdrop {
@@ -152,7 +155,7 @@
 
 .topbar.global-nav,
 .workspace-sidebar .sidebar-header {
-  padding-inline: 16px;
+  padding-inline: 2px 16px;
   gap: 14px;
 }
 @media (max-width: 620px) {
@@ -161,13 +164,16 @@
     padding-inline: var(--space-2);
     gap: var(--space-2);
   }
+  .workspace-sidebar .sidebar-content {
+    padding-left: var(--space-2);
+  }
 }
 
 .sidebar-peek {
   display: none;
 }
 @media (min-width: 901px) {
-  body:has(.sidebar-peek) {
+  #root:has(.sidebar-peek) {
     padding-left: var(--sidebar-peek-width);
   }
   .sidebar-peek {
@@ -186,10 +192,6 @@
   }
   .sidebar-peek .sidebar-group-label {
     visibility: hidden;
-  }
-  .sidebar-peek .sidebar-link {
-    justify-content: center;
-    padding-inline: 0;
   }
   .sidebar-peek .sidebar-link > span {
     display: none;
