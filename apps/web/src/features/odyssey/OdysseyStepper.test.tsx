@@ -1,0 +1,36 @@
+/** @file OdysseyStepper.test.tsx @description Locked stage metadata and completion navigation. @module odyssey */
+import { describe, it, expect } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { OdysseyStepper } from "./OdysseyStepper";
+import type { OdysseyProgress } from "@quorem/contracts";
+const progress: OdysseyProgress = {
+  level: 1,
+  completed: false,
+  totalLevels: 3,
+  levels: [{ title: "Deposits", statementMarkdown: "", methods: [], examples: [] }],
+};
+describe("Odyssey stage navigation", () => {
+  it("shows the total without leaking locked level names", () => {
+    const html = renderToStaticMarkup(<OdysseyStepper progress={progress} onSelect={() => {}} />);
+    expect(html).toContain("Step 1 of 3");
+    expect(html.match(/disabled=""/g)).toHaveLength(2);
+    expect(html).toContain('aria-current="step"');
+    expect(html).not.toContain("All levels complete");
+  });
+  it("marks passed stages while letting an earlier stage be reviewed", () => {
+    const html = renderToStaticMarkup(
+      <OdysseyStepper
+        progress={{
+          ...progress,
+          level: 2,
+          levels: [...progress.levels, { ...progress.levels[0]!, title: "Withdrawals" }],
+        }}
+        selectedLevel={1}
+        onSelect={() => {}}
+      />,
+    );
+    expect(html).toContain('aria-label="1. Deposits, passed" aria-current="step"');
+    expect(html).toContain('data-complete="true"');
+    expect(html).toContain("Step 1 of 3");
+  });
+});

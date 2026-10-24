@@ -139,3 +139,50 @@ describe("shared test browser", () => {
     expect(buttons.every((button) => button.includes('type="button"'))).toBe(true);
   });
 });
+
+describe("authorized case details", () => {
+  const result = {
+    index: 0,
+    status: "accepted" as const,
+    actual: "private-actual",
+    expected: "private-expected",
+  };
+  const submission: Submission = {
+    id: "private",
+    workspaceId: "workspace",
+    kind: "submit",
+    state: "completed",
+    sourceHash: "source",
+    admittedAt: "",
+    updatedAt: "",
+    hiddenCases: [{ index: 0, status: "accepted" }],
+  };
+  it("shows full authorized Submit detail through the shared case browser", () => {
+    const html = renderToStaticMarkup(
+      <TestCases
+        problem={problem}
+        customMode={false}
+        drafts={[]}
+        onDraftsChange={() => {}}
+        submission={submission}
+        caseResults={[result]}
+      />,
+    );
+    expect(html).toContain("private-actual");
+    expect(html).not.toContain('class="locked-case"');
+  });
+  it("clears prior actual output as a new admission starts", () => {
+    const html = renderToStaticMarkup(
+      <TestCases
+        problem={problem}
+        customMode={false}
+        drafts={[]}
+        onDraftsChange={() => {}}
+        submission={submission}
+        caseResults={[result]}
+        busy
+      />,
+    );
+    expect(html).not.toContain("private-actual");
+  });
+});
