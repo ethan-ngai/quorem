@@ -13,8 +13,9 @@ import (
 )
 
 func TestDockerOdysseyStatefulSequences(t *testing.T) {
-	if os.Getenv("QUOREM_TEST_ODYSSEY_DOCKER") != "1" {
-		t.Skip("QUOREM_TEST_ODYSSEY_DOCKER=1 enables isolated Odyssey images")
+	isolated := os.Getenv("QUOREM_TEST_ODYSSEY_DOCKER") == "1"
+	if !isolated && os.Getenv("QUOREM_TEST_DOCKER") != "1" {
+		t.Skip("QUOREM_TEST_DOCKER=1 enables sandbox tests")
 	}
 	var content struct {
 		Problem struct {
@@ -38,7 +39,11 @@ func TestDockerOdysseyStatefulSequences(t *testing.T) {
 	for _, impl := range content.Implementations {
 		t.Run(impl.Language, func(t *testing.T) {
 			runtime, _ := execution.LanguageRuntime(impl.Language)
-			d := &Docker{Images: map[string]string{impl.Language: "quorem-" + impl.Language + ":odyssey-test"}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+			image := runtime.Image
+			if isolated {
+				image = "quorem-" + impl.Language + ":odyssey-test"
+			}
+			d := &Docker{Images: map[string]string{impl.Language: image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 				return worker.Spec{Source: impl.ReferenceSource, Kind: "submit", Fixture: fixture, Cases: cases}, nil
 			}}
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
