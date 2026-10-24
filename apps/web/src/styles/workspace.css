@@ -246,7 +246,7 @@ kbd {
   display: grid;
   min-width: 0;
   min-height: 0;
-  padding: 8px;
+  padding: 0;
   grid-template-columns: minmax(280px, var(--problem-ratio)) 8px minmax(280px, 1fr);
   grid-template-rows: minmax(0, 1fr) 48px;
   grid-template-areas: "problem split-x solution" "problem split-x actions";
@@ -1300,7 +1300,7 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) 48px;
     grid-template-areas: "content" "actions";
-    padding-top: 4px;
+    padding-top: 0;
   }
   .problem-pane,
   .coding-pane,
