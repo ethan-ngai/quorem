@@ -72,3 +72,17 @@ func TestPresenceCountsAndShutdown(t *testing.T) {
 		t.Fatal("publish after shutdown")
 	}
 }
+
+func TestInterviewNoticeCoalescing(t *testing.T) {
+	document := Notice{Type: "interview.document"}
+	presence := Notice{Type: "interview.presence"}
+	if CoalesceNotice(document, presence).Type != "interview.changed" {
+		t.Fatal("document wakeup lost")
+	}
+	if CoalesceNotice(document, document).Type != "interview.document" {
+		t.Fatal("unnecessary full refresh")
+	}
+	if CoalesceNotice(CoalesceNotice(document, presence), document).Type != "interview.changed" {
+		t.Fatal("full wakeup lost")
+	}
+}

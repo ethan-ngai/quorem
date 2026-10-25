@@ -17,6 +17,18 @@ vi.mock("./api", () => ({
   },
   interviewRequest: vi.fn(),
 }));
+vi.mock("./socket", () => ({
+  createInterviewSocket: () => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    onChange: vi.fn(),
+    onStatus: vi.fn(),
+    request: (type: string, body: Record<string, unknown>) =>
+      type === "push"
+        ? interviewRequest("updates", "POST", body.push, body.key as string)
+        : interviewRequest("updates", "GET"),
+  }),
+}));
 vi.mock("./presence", () => ({ presenceExtension: () => [] }));
 vi.mock("@codemirror/view", () => ({ ViewPlugin: { fromClass: (plugin: unknown) => plugin } }));
 afterEach(() => {
@@ -134,6 +146,35 @@ describe("shared document synchronization", () => {
     expect(local.statuses.at(-1)).toBe("replaced");
     expect(local.state.doc.toString()).toBe("keep me");
     expect(interviewRequest).toHaveBeenCalledTimes(1);
+    local.destroy();
+  });
+  it("drains a remote backlog beyond one server batch", async () => {
+    const local = client();
+    let version = 0;
+    vi.mocked(interviewRequest).mockImplementation(async () => {
+      const count = version === 0 ? 256 : 1;
+      const updates = Array.from({ length: count }, (_, index) => ({
+        clientID: "remote",
+        changes: ChangeSet.of({ from: version + index, insert: "x" }, version + index).toJSON(),
+      }));
+      version += count;
+      return { epoch: "one", version, updates };
+    });
+    expect(await local.flush()).toBe(true);
+    expect(getSyncedVersion(local.state)).toBe(257);
+    expect(local.state.doc.toString()).toBe("x".repeat(257));
+    local.destroy();
+  });
+  it("does not retry a closed-room conflict in a hot loop", async () => {
+    const local = client();
+    local.edit("pending");
+    vi.mocked(interviewRequest).mockRejectedValue(
+      new InterviewError("invalid_transition", "closed", 409),
+    );
+    expect(await local.flush()).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(interviewRequest).toHaveBeenCalledTimes(1);
+    expect(local.state.doc.toString()).toBe("pending");
     local.destroy();
   });
 });

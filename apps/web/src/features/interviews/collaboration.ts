@@ -2,9 +2,15 @@
 import { collab, getSyncedVersion, receiveUpdates, sendableUpdates } from "@codemirror/collab";
 import { ChangeSet, type Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
-import type { InterviewDocument, InterviewUpdates } from "@quorem/contracts";
+import type {
+  InterviewDocument,
+  InterviewUpdates,
+  InterviewSnapshot,
+  Submission,
+} from "@quorem/contracts";
+import { createInterviewSocket } from "./socket";
 import { presenceExtension } from "./presence";
-import { InterviewError, interviewRequest } from "./api";
+import { InterviewError } from "./api";
 
 export type CollaborationStatus = "connected" | "connecting" | "offline" | "replaced";
 
@@ -13,12 +19,15 @@ export function createCollaboration(
   id: string,
   document: InterviewDocument,
   onStatus: (status: CollaborationStatus) => void,
+  onSnapshot?: (snapshot: InterviewSnapshot, result?: Submission) => void,
 ) {
+  const transport = createInterviewSocket(id);
   const clientID = crypto.randomUUID();
   let view: EditorView | undefined;
   let disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let active: Promise<void> | undefined;
+  let rerun = false;
   let retry:
     | {
         key: string;
@@ -51,12 +60,14 @@ export function createCollaboration(
       );
   }
   async function pull() {
-    if (!view) return;
+    if (!view || disposed) return;
     const version = getSyncedVersion(view.state);
-    const response = await interviewRequest<InterviewUpdates>(
-      `/v1/interviews/${id}/updates?version=${version}&epoch=${encodeURIComponent(document.epoch)}`,
-    );
+    const response = await transport.request<InterviewUpdates>("pull", {
+      version,
+      epoch: document.epoch,
+    });
     apply(response);
+    if (response.updates.length === 256) await pull();
   }
   async function synchronize() {
     if (!view || disposed) return;
@@ -78,26 +89,22 @@ export function createCollaboration(
       }
       if (retry) {
         try {
-          const response = await interviewRequest<InterviewUpdates>(
-            `/v1/interviews/${id}/updates`,
-            "POST",
-            retry.body,
-            retry.key,
-          );
+          const response = await transport.request<InterviewUpdates>("push", {
+            push: retry.body,
+            key: retry.key,
+          });
           apply(response);
           retry = undefined;
         } catch (error) {
-          if (
-            !(error instanceof InterviewError) ||
-            error.status !== 409 ||
-            error.code === "document_changed"
-          )
-            throw error;
+          if (!(error instanceof InterviewError) || error.code !== "stale_version") throw error;
           retry = undefined;
           await pull();
         }
       } else await pull();
-      if (!disposed) status("connected");
+      if (!disposed) {
+        status("connected");
+        if (view && sendableUpdates(view.state).length) schedule(0);
+      }
     } catch (error) {
       if (
         error instanceof InterviewError &&
@@ -111,26 +118,66 @@ export function createCollaboration(
     }
   }
   function run() {
-    if (active) return active;
+    if (active) {
+      rerun = true;
+      return active;
+    }
     active = synchronize().finally(() => {
       active = undefined;
+      if (rerun) {
+        rerun = false;
+        schedule();
+      }
     });
     return active;
   }
-  function schedule(delay = 300) {
+  function schedule(delay = 0) {
     if (disposed) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
-      void run().finally(() => schedule());
+      void run();
     }, delay);
   }
+  let refreshing = false;
+  let refreshAgain = false;
+  async function refreshSnapshot() {
+    if (!onSnapshot || !view) return;
+    if (refreshing) {
+      refreshAgain = true;
+      return;
+    }
+    refreshing = true;
+    try {
+      do {
+        refreshAgain = false;
+        const snapshot = await transport.request<InterviewSnapshot>("snapshot");
+        const result = snapshot.latestSubmissionId
+          ? await transport.request<Submission>("submission", {
+              submissionId: snapshot.latestSubmissionId,
+            })
+          : undefined;
+        if (view) onSnapshot(snapshot, result);
+      } while (refreshAgain && view);
+    } catch {
+      /* Reconnect refreshes the current authorized snapshot. */
+    } finally {
+      refreshing = false;
+    }
+  }
+  transport.onChange((kind) => {
+    if (kind !== "interview.presence") schedule();
+    if (kind !== "interview.presence" && kind !== "interview.document") void refreshSnapshot();
+  });
+  transport.onStatus((connected) => {
+    if (!disposed) status(connected ? "connecting" : "offline");
+  });
   const plugin = ViewPlugin.fromClass(
     class {
       constructor(editor: EditorView) {
         view = editor;
         disposed = false;
         status("connecting");
-        schedule(0);
+        transport.start();
       }
       update(update: ViewUpdate) {
         if (update.docChanged) schedule(40);
@@ -138,6 +185,7 @@ export function createCollaboration(
       destroy() {
         disposed = true;
         clearTimeout(timer);
+        transport.stop();
         view = undefined;
       }
     },
@@ -147,7 +195,7 @@ export function createCollaboration(
     extension: [
       collab({ startVersion: document.version, clientID }),
       plugin,
-      presenceExtension(id, document.epoch, clientID),
+      presenceExtension(transport, document.epoch, clientID),
     ] as Extension,
     /** @returns Whether all local changes are acknowledged before execution. */
     async flush() {

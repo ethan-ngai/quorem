@@ -57,6 +57,7 @@ func (s *Server) registerInterviews(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/interviews", s.listInterviews)
 	mux.HandleFunc("POST /v1/interviews", s.createInterview)
 	mux.HandleFunc("GET /v1/interviews/{id}", s.getInterview)
+	mux.HandleFunc("GET /v1/interviews/{id}/events", s.interviewEvents)
 	mux.HandleFunc("DELETE /v1/interviews/{id}", s.deleteInterview)
 	mux.HandleFunc("PUT /v1/interviews/{id}/question", s.setInterviewQuestion)
 	mux.HandleFunc("POST /v1/interviews/{id}/language", s.switchInterviewLanguage)
