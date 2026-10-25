@@ -207,11 +207,12 @@ jobs:
       - name: Verify production routes
         if: github.ref == 'refs/heads/main'
         run: |
-          curl --max-time 75 --retry 6 --retry-all-errors --retry-delay 10 --fail "$AUTH_ORIGIN/health"
-          curl --fail --silent "$AUTH_ORIGIN/" -o /tmp/marketing.html
-          curl --fail --silent "$AUTH_ORIGIN/practice" -o /tmp/workspace.html
+          curl_args=(--max-time 75 --retry 6 --retry-all-errors --retry-delay 2 --fail --silent --show-error)
+          curl "${curl_args[@]}" "$AUTH_ORIGIN/health"
+          curl "${curl_args[@]}" "$AUTH_ORIGIN/" -o /tmp/marketing.html
+          curl "${curl_args[@]}" "$AUTH_ORIGIN/practice" -o /tmp/workspace.html
           test "$(sha256sum /tmp/marketing.html | cut -d ' ' -f 1)" != "$(sha256sum /tmp/workspace.html | cut -d ' ' -f 1)"
-          curl --fail "$AUTH_ORIGIN/v1/problems"
-          curl --fail "$AUTH_ORIGIN/api/auth/quorem-config"
+          curl "${curl_args[@]}" "$AUTH_ORIGIN/v1/problems" -o /tmp/problems.json
+          curl "${curl_args[@]}" "$AUTH_ORIGIN/api/auth/quorem-config" -o /tmp/auth-config.json
           test "$(curl --silent -o /dev/null -w '%{http_code}' "$AUTH_ORIGIN/internal/session/test")" = 404
           echo "Production: $AUTH_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
