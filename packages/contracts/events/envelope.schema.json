@@ -4,37 +4,19 @@
   "$defs": {
     "Language": {
       "type": "string",
-      "enum": [
-        "python",
-        "java",
-        "typescript",
-        "ocaml"
-      ]
+      "enum": ["python", "java", "typescript", "ocaml"]
     },
     "Difficulty": {
       "type": "string",
-      "enum": [
-        "easy",
-        "medium",
-        "hard"
-      ]
+      "enum": ["easy", "medium", "hard"]
     },
     "SubmissionKind": {
       "type": "string",
-      "enum": [
-        "run",
-        "submit"
-      ]
+      "enum": ["run", "submit"]
     },
     "SubmissionState": {
       "type": "string",
-      "enum": [
-        "queued",
-        "running",
-        "completed",
-        "cancelled",
-        "failed"
-      ]
+      "enum": ["queued", "running", "completed", "cancelled", "failed"]
     },
     "Verdict": {
       "type": "string",
@@ -113,25 +95,17 @@
               "additionalProperties": true
             }
           },
-          "required": [
-            "code",
-            "message",
-            "requestId"
-          ],
+          "required": ["code", "message", "requestId"],
           "additionalProperties": false
         }
       },
-      "required": [
-        "error"
-      ],
+      "required": ["error"],
       "additionalProperties": false
     },
     "InputPresetConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "preset"
-      ],
+      "required": ["preset"],
       "properties": {
         "preset": {
           "type": "string",
@@ -162,10 +136,7 @@
           "$ref": "#/$defs/InputPresetConfig"
         }
       },
-      "required": [
-        "name",
-        "type"
-      ],
+      "required": ["name", "type"],
       "additionalProperties": false
     },
     "Signature": {
@@ -173,9 +144,7 @@
       "properties": {
         "className": {
           "type": "string",
-          "enum": [
-            "Solution"
-          ]
+          "enum": ["Solution"]
         },
         "methodName": {
           "type": "string"
@@ -190,12 +159,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "className",
-        "methodName",
-        "parameters",
-        "returnType"
-      ],
+      "required": ["className", "methodName", "parameters", "returnType"],
       "additionalProperties": false
     },
     "ExecutionLimits": {
@@ -255,9 +219,7 @@
           }
         }
       },
-      "required": [
-        "args"
-      ],
+      "required": ["args"],
       "additionalProperties": false
     },
     "ProblemExample": {
@@ -282,9 +244,7 @@
           }
         }
       },
-      "required": [
-        "args"
-      ],
+      "required": ["args"],
       "additionalProperties": false
     },
     "ProblemVersion": {
@@ -372,11 +332,7 @@
       "properties": {
         "theme": {
           "type": "string",
-          "enum": [
-            "system",
-            "light",
-            "dark"
-          ]
+          "enum": ["system", "light", "dark"]
         },
         "paneRatios": {
           "type": "array",
@@ -393,22 +349,13 @@
         },
         "tabSize": {
           "type": "integer",
-          "enum": [
-            2,
-            4
-          ]
+          "enum": [2, 4]
         },
         "wrap": {
           "type": "boolean"
         }
       },
-      "required": [
-        "theme",
-        "paneRatios",
-        "codeFontSize",
-        "tabSize",
-        "wrap"
-      ],
+      "required": ["theme", "paneRatios", "codeFontSize", "tabSize", "wrap"],
       "additionalProperties": false
     },
     "Workspace": {
@@ -420,10 +367,7 @@
         },
         "kind": {
           "type": "string",
-          "enum": [
-            "solo",
-            "match"
-          ]
+          "enum": ["solo", "match"]
         },
         "problemVersionId": {
           "type": "string",
@@ -440,13 +384,7 @@
           "$ref": "#/$defs/EditorPreferences"
         }
       },
-      "required": [
-        "id",
-        "kind",
-        "problemVersionId",
-        "language",
-        "preferences"
-      ],
+      "required": ["id", "kind", "problemVersionId", "language", "preferences"],
       "additionalProperties": false
     },
     "CreateWorkspaceRequest": {
@@ -460,10 +398,7 @@
           "$ref": "#/$defs/Language"
         }
       },
-      "required": [
-        "problemVersionId",
-        "language"
-      ],
+      "required": ["problemVersionId", "language"],
       "additionalProperties": false
     },
     "CreateSubmissionRequest": {
@@ -491,11 +426,7 @@
           "type": "integer"
         }
       },
-      "required": [
-        "workspaceId",
-        "kind",
-        "source"
-      ],
+      "required": ["workspaceId", "kind", "source"],
       "additionalProperties": false
     },
     "SubmissionAdmission": {
@@ -516,12 +447,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "state",
-        "sourceHash",
-        "admittedAt"
-      ],
+      "required": ["id", "state", "sourceHash", "admittedAt"],
       "additionalProperties": false
     },
     "Score": {
@@ -536,10 +462,7 @@
           "minimum": 0
         }
       },
-      "required": [
-        "passed",
-        "total"
-      ],
+      "required": ["passed", "total"],
       "additionalProperties": false
     },
     "Diagnostic": {
@@ -557,9 +480,7 @@
           "minimum": 1
         }
       },
-      "required": [
-        "message"
-      ],
+      "required": ["message"],
       "additionalProperties": false
     },
     "PublicCaseResult": {
@@ -602,10 +523,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "index",
-        "status"
-      ],
+      "required": ["index", "status"],
       "additionalProperties": false
     },
     "HiddenCaseResult": {
@@ -617,17 +535,10 @@
         },
         "status": {
           "type": "string",
-          "enum": [
-            "accepted",
-            "wrong_answer",
-            "time_limit"
-          ]
+          "enum": ["accepted", "wrong_answer", "time_limit"]
         }
       },
-      "required": [
-        "index",
-        "status"
-      ],
+      "required": ["index", "status"],
       "additionalProperties": false
     },
     "Submission": {
@@ -693,39 +604,19 @@
           }
         }
       },
-      "required": [
-        "id",
-        "workspaceId",
-        "kind",
-        "state",
-        "sourceHash",
-        "admittedAt",
-        "updatedAt"
-      ],
+      "required": ["id", "workspaceId", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
       "additionalProperties": false
     },
     "MatchState": {
       "type": "string",
-      "enum": [
-        "waiting",
-        "ready",
-        "active",
-        "finalizing",
-        "completed",
-        "cancelled"
-      ]
+      "enum": ["waiting", "ready", "active", "finalizing", "completed", "cancelled"]
     },
     "MatchOutcome": {
       "type": "object",
       "properties": {
         "kind": {
           "type": "string",
-          "enum": [
-            "win",
-            "draw",
-            "no_contest",
-            "cancelled"
-          ]
+          "enum": ["win", "draw", "no_contest", "cancelled"]
         },
         "winnerUserId": {
           "type": "string",
@@ -739,11 +630,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "kind",
-        "reason",
-        "completedAt"
-      ],
+      "required": ["kind", "reason", "completedAt"],
       "additionalProperties": false
     },
     "MatchParticipant": {
@@ -761,10 +648,7 @@
         },
         "presence": {
           "type": "string",
-          "enum": [
-            "online",
-            "offline"
-          ]
+          "enum": ["online", "offline"]
         },
         "submissionState": {
           "$ref": "#/$defs/SubmissionState"
@@ -783,12 +667,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "userId",
-        "displayName",
-        "ready",
-        "presence"
-      ],
+      "required": ["userId", "displayName", "ready", "presence"],
       "additionalProperties": false
     },
     "MatchSnapshot": {
@@ -814,12 +693,7 @@
         },
         "durationMinutes": {
           "type": "integer",
-          "enum": [
-            15,
-            30,
-            45,
-            60
-          ]
+          "enum": [15, 30, 45, 60]
         },
         "participants": {
           "type": "array",
@@ -884,10 +758,7 @@
         },
         "accessMode": {
           "type": "string",
-          "enum": [
-            "accounts_only",
-            "guests_allowed"
-          ]
+          "enum": ["accounts_only", "guests_allowed"]
         },
         "admissionLocked": {
           "type": "boolean"
@@ -918,12 +789,7 @@
         },
         "durationMinutes": {
           "type": "integer",
-          "enum": [
-            15,
-            30,
-            45,
-            60
-          ]
+          "enum": [15, 30, 45, 60]
         },
         "mode": {
           "$ref": "#/$defs/MatchMode"
@@ -955,18 +821,13 @@
         },
         "accessMode": {
           "type": "string",
-          "enum": [
-            "accounts_only",
-            "guests_allowed"
-          ]
+          "enum": ["accounts_only", "guests_allowed"]
         },
         "admissionLocked": {
           "type": "boolean"
         }
       },
-      "required": [
-        "durationMinutes"
-      ],
+      "required": ["durationMinutes"],
       "additionalProperties": false,
       "allOf": [
         {
@@ -978,9 +839,7 @@
                   "$ref": "#/$defs/Difficulty"
                 }
               },
-              "required": [
-                "difficulty"
-              ]
+              "required": ["difficulty"]
             },
             {
               "type": "object",
@@ -995,9 +854,7 @@
                   "uniqueItems": true
                 }
               },
-              "required": [
-                "difficulties"
-              ]
+              "required": ["difficulties"]
             },
             {
               "type": "object",
@@ -1007,9 +864,7 @@
                   "format": "uuid"
                 }
               },
-              "required": [
-                "selectedProblemVersionId"
-              ]
+              "required": ["selectedProblemVersionId"]
             }
           ]
         }
@@ -1030,11 +885,7 @@
           "$ref": "#/$defs/MatchState"
         }
       },
-      "required": [
-        "id",
-        "inviteUrl",
-        "state"
-      ],
+      "required": ["id", "inviteUrl", "state"],
       "additionalProperties": false
     },
     "JoinMatchRequest": {
@@ -1044,9 +895,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "inviteToken"
-      ],
+      "required": ["inviteToken"],
       "additionalProperties": false
     },
     "ReadyMatchRequest": {
@@ -1056,9 +905,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "ready"
-      ],
+      "required": ["ready"],
       "additionalProperties": false
     },
     "EventEnvelope": {
@@ -1194,20 +1041,10 @@
         },
         "projection": {
           "type": "string",
-          "enum": [
-            "value",
-            "length",
-            "elements",
-            "sum",
-            "nodeCount",
-            "nodeValues"
-          ]
+          "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues"]
         }
       },
-      "required": [
-        "parameter",
-        "projection"
-      ],
+      "required": ["parameter", "projection"],
       "additionalProperties": false
     },
     "Constraint": {
@@ -1231,11 +1068,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "kind",
-                "target",
-                "min"
-              ],
+              "required": ["kind", "target", "min"],
               "additionalProperties": false
             },
             {
@@ -1255,11 +1088,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "kind",
-                "target",
-                "max"
-              ],
+              "required": ["kind", "target", "max"],
               "additionalProperties": false
             }
           ]
@@ -1279,21 +1108,10 @@
             },
             "operator": {
               "type": "string",
-              "enum": [
-                "eq",
-                "le",
-                "lt",
-                "ge",
-                "gt"
-              ]
+              "enum": ["eq", "le", "lt", "ge", "gt"]
             }
           },
-          "required": [
-            "kind",
-            "left",
-            "right",
-            "operator"
-          ],
+          "required": ["kind", "left", "right", "operator"],
           "additionalProperties": false
         },
         {
@@ -1308,18 +1126,10 @@
             },
             "property": {
               "type": "string",
-              "enum": [
-                "sorted",
-                "nondecreasing",
-                "unique"
-              ]
+              "enum": ["sorted", "nondecreasing", "unique"]
             }
           },
-          "required": [
-            "kind",
-            "target",
-            "property"
-          ],
+          "required": ["kind", "target", "property"],
           "additionalProperties": false
         },
         {
@@ -1334,35 +1144,22 @@
               "minLength": 1
             }
           },
-          "required": [
-            "kind",
-            "text"
-          ],
+          "required": ["kind", "text"],
           "additionalProperties": false
         }
       ]
     },
     "MatchMode": {
       "type": "string",
-      "enum": [
-        "showdown",
-        "free-for-all"
-      ]
+      "enum": ["showdown", "free-for-all"]
     },
     "MatchRuleAction": {
       "type": "string",
-      "enum": [
-        "off",
-        "warning",
-        "announce"
-      ]
+      "enum": ["off", "warning", "announce"]
     },
     "MatchRuleKind": {
       "type": "string",
-      "enum": [
-        "clipboard",
-        "focus"
-      ]
+      "enum": ["clipboard", "focus"]
     },
     "MatchRules": {
       "type": "object",
@@ -1374,10 +1171,7 @@
           "$ref": "#/$defs/MatchRuleAction"
         }
       },
-      "required": [
-        "clipboard",
-        "focus"
-      ],
+      "required": ["clipboard", "focus"],
       "additionalProperties": false
     },
     "MatchRuleEvent": {
@@ -1403,13 +1197,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "userId",
-        "kind",
-        "action",
-        "occurredAt"
-      ],
+      "required": ["id", "userId", "kind", "action", "occurredAt"],
       "additionalProperties": false
     },
     "ReportMatchRuleRequest": {
@@ -1419,29 +1207,17 @@
           "$ref": "#/$defs/MatchRuleKind"
         }
       },
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "additionalProperties": false
     },
     "LanguageImplementation": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "language",
-        "starterSource",
-        "runtimeRevision",
-        "harnessRevision"
-      ],
+      "required": ["language", "starterSource", "runtimeRevision", "harnessRevision"],
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml"]
         },
         "starterSource": {
           "type": "string"
@@ -1468,12 +1244,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml"]
         },
         "source": {
           "type": "string"
@@ -1495,21 +1266,11 @@
     "EditorialComplexity": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "language",
-        "timeComplexity",
-        "spaceComplexity",
-        "complexityNotes"
-      ],
+      "required": ["language", "timeComplexity", "spaceComplexity", "complexityNotes"],
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml"]
         },
         "timeComplexity": {
           "type": "string"
@@ -1528,12 +1289,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml"]
         },
         "starterSource": {
           "type": "string"
@@ -1713,12 +1469,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "revision",
-        "content",
-        "updatedAt"
-      ]
+      "required": ["id", "revision", "content", "updatedAt"]
     },
     "QuestionDraftSummary": {
       "type": "object",
@@ -1747,13 +1498,7 @@
           "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "revision",
-        "title",
-        "slug",
-        "updatedAt"
-      ]
+      "required": ["id", "revision", "title", "slug", "updatedAt"]
     },
     "QuestionDraftPage": {
       "type": "object",
@@ -1771,9 +1516,7 @@
           "format": "uuid"
         }
       },
-      "required": [
-        "items"
-      ]
+      "required": ["items"]
     },
     "CreateQuestionDraftRequest": {
       "oneOf": [
@@ -1785,9 +1528,7 @@
               "$ref": "#/$defs/QuestionContent"
             }
           },
-          "required": [
-            "content"
-          ]
+          "required": ["content"]
         },
         {
           "type": "object",
@@ -1798,9 +1539,7 @@
               "format": "uuid"
             }
           },
-          "required": [
-            "problemVersionId"
-          ]
+          "required": ["problemVersionId"]
         }
       ]
     },
@@ -1816,10 +1555,7 @@
           "$ref": "#/$defs/QuestionContent"
         }
       },
-      "required": [
-        "revision",
-        "content"
-      ]
+      "required": ["revision", "content"]
     },
     "PublishQuestionDraftRequest": {
       "type": "object",
@@ -1830,9 +1566,7 @@
           "pattern": "^[1-9][0-9]{0,18}$"
         }
       },
-      "required": [
-        "revision"
-      ]
+      "required": ["revision"]
     },
     "InvitePreview": {
       "type": "object",
@@ -1857,12 +1591,7 @@
         },
         "durationMinutes": {
           "type": "integer",
-          "enum": [
-            15,
-            30,
-            45,
-            60
-          ]
+          "enum": [15, 30, 45, 60]
         },
         "rules": {
           "$ref": "#/$defs/MatchRules"
@@ -1874,17 +1603,11 @@
         },
         "capacity": {
           "type": "integer",
-          "enum": [
-            2,
-            8
-          ]
+          "enum": [2, 8]
         },
         "accessMode": {
           "type": "string",
-          "enum": [
-            "accounts_only",
-            "guests_allowed"
-          ]
+          "enum": ["accounts_only", "guests_allowed"]
         },
         "admissionLocked": {
           "type": "boolean"
@@ -1951,10 +1674,7 @@
           "$ref": "#/$defs/WireValue"
         }
       },
-      "required": [
-        "methodName",
-        "args"
-      ],
+      "required": ["methodName", "args"],
       "additionalProperties": false
     },
     "OdysseyLevel": {
@@ -1983,12 +1703,7 @@
           "maxItems": 20
         }
       },
-      "required": [
-        "title",
-        "statementMarkdown",
-        "methods",
-        "examples"
-      ],
+      "required": ["title", "statementMarkdown", "methods", "examples"],
       "additionalProperties": false
     },
     "Odyssey": {
@@ -2003,9 +1718,7 @@
           "maxItems": 8
         }
       },
-      "required": [
-        "levels"
-      ],
+      "required": ["levels"],
       "additionalProperties": false
     },
     "OdysseyProgress": {
@@ -2029,19 +1742,12 @@
           "maximum": 8
         }
       },
-      "required": [
-        "level",
-        "completed",
-        "levels"
-      ],
+      "required": ["level", "completed", "levels"],
       "additionalProperties": false
     },
     "InterviewRole": {
       "type": "string",
-      "enum": [
-        "interviewer",
-        "interviewee"
-      ]
+      "enum": ["interviewer", "interviewee"]
     },
     "InterviewDocument": {
       "type": "object",
@@ -2056,11 +1762,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "source",
-        "version",
-        "epoch"
-      ],
+      "required": ["source", "version", "epoch"],
       "additionalProperties": false
     },
     "InterviewUpdate": {
@@ -2074,10 +1776,7 @@
           "items": {}
         }
       },
-      "required": [
-        "clientID",
-        "changes"
-      ],
+      "required": ["clientID", "changes"],
       "additionalProperties": false
     },
     "InterviewUpdates": {
@@ -2096,11 +1795,7 @@
           }
         }
       },
-      "required": [
-        "version",
-        "epoch",
-        "updates"
-      ],
+      "required": ["version", "epoch", "updates"],
       "additionalProperties": false
     },
     "InterviewPush": {
@@ -2121,11 +1816,7 @@
           "maxItems": 32
         }
       },
-      "required": [
-        "version",
-        "epoch",
-        "updates"
-      ],
+      "required": ["version", "epoch", "updates"],
       "additionalProperties": false
     },
     "InterviewCustomQuestion": {
@@ -2182,12 +1873,8 @@
       ],
       "additionalProperties": false,
       "dependentRequired": {
-        "odyssey": [
-          "odysseyHiddenCases"
-        ],
-        "odysseyHiddenCases": [
-          "odyssey"
-        ]
+        "odyssey": ["odysseyHiddenCases"],
+        "odysseyHiddenCases": ["odyssey"]
       }
     },
     "InterviewQuestionInput": {
@@ -2203,9 +1890,7 @@
           "$ref": "#/$defs/Language"
         }
       },
-      "required": [
-        "language"
-      ],
+      "required": ["language"],
       "additionalProperties": false
     },
     "InterviewMember": {
@@ -2224,12 +1909,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "userId",
-        "name",
-        "role",
-        "guest"
-      ],
+      "required": ["userId", "name", "role", "guest"],
       "additionalProperties": false
     },
     "InterviewQuestion": {
@@ -2269,11 +1949,7 @@
           }
         }
       },
-      "required": [
-        "problem",
-        "language",
-        "languages"
-      ],
+      "required": ["problem", "language", "languages"],
       "additionalProperties": false
     },
     "InterviewSnapshot": {
@@ -2287,10 +1963,7 @@
         },
         "state": {
           "type": "string",
-          "enum": [
-            "active",
-            "closed"
-          ]
+          "enum": ["active", "closed"]
         },
         "hostId": {
           "type": "string"
@@ -2350,10 +2023,7 @@
           "$ref": "#/$defs/InterviewQuestionInput"
         }
       },
-      "required": [
-        "title",
-        "question"
-      ],
+      "required": ["title", "question"],
       "additionalProperties": false
     },
     "InterviewPreview": {
@@ -2372,24 +2042,13 @@
           "$ref": "#/$defs/InterviewRole"
         }
       },
-      "required": [
-        "title",
-        "sessionId",
-        "state",
-        "role"
-      ],
+      "required": ["title", "sessionId", "state", "role"],
       "additionalProperties": false
     },
     "InterviewPresence": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "clientID",
-        "version",
-        "epoch",
-        "anchor",
-        "head"
-      ],
+      "required": ["clientID", "version", "epoch", "anchor", "head"],
       "properties": {
         "clientID": {
           "type": "string"
@@ -2424,10 +2083,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "interviewer",
-        "interviewee"
-      ],
+      "required": ["interviewer", "interviewee"],
       "additionalProperties": false
     },
     "InterviewCaseDetail": {
@@ -2443,11 +2099,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "id",
-        "case",
-        "revealed"
-      ],
+      "required": ["id", "case", "revealed"],
       "additionalProperties": false
     },
     "InterviewCaseResult": {
@@ -2496,12 +2148,7 @@
           "$ref": "#/$defs/CustomCase"
         }
       },
-      "required": [
-        "index",
-        "status",
-        "caseId",
-        "case"
-      ],
+      "required": ["index", "status", "caseId", "case"],
       "additionalProperties": false
     }
   },
