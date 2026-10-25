@@ -133,15 +133,6 @@ resource "restapi_object" "rollout" {
     step_percentage      = 100
   })
 }
-# Retire the old origin before attaching its hostname to Pages.
-resource "cloudflare_workers_custom_domain" "app" {
-  count      = 0
-  account_id = var.account_id
-  hostname   = var.domain
-  zone_id    = var.zone_id
-  service    = var.worker_name
-  depends_on = [restapi_object.rollout]
-}
 output "origin" { value = local.origin }
 
 output "application_id" { value = restapi_object.container.id }
