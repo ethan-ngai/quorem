@@ -38,7 +38,7 @@ func ValidateOdyssey(c QuestionContent) error {
 			}
 			seen := map[string]bool{}
 			for _, p := range sig.Parameters {
-				if !symbolName.MatchString(p.Name) || seen[p.Name] || ValidateInputConfig(p.Type, p.Input) != nil {
+				if !symbolName.MatchString(p.Name) || len(p.Name) > 80 || seen[p.Name] || ValidateInputConfig(p.Type, p.Input) != nil {
 					return fmt.Errorf("invalid Odyssey parameter")
 				}
 				seen[p.Name] = true

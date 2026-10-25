@@ -8,12 +8,14 @@ import (
 const MaxSourceBytes = 65536
 
 type CustomQuestion struct {
-	Title             string             `json:"title"`
-	StatementMarkdown string             `json:"statementMarkdown"`
-	Signature         problems.Signature `json:"signature"`
-	StarterSource     string             `json:"starterSource"`
-	PublicCases       []problems.Case    `json:"publicCases"`
-	PrivateCases      []problems.Case    `json:"privateCases"`
+	Odyssey            *problems.Odyssey  `json:"odyssey,omitempty"`
+	OdysseyHiddenCases [][]problems.Case  `json:"odysseyHiddenCases,omitempty"`
+	Title              string             `json:"title"`
+	StatementMarkdown  string             `json:"statementMarkdown"`
+	Signature          problems.Signature `json:"signature"`
+	StarterSource      string             `json:"starterSource"`
+	PublicCases        []problems.Case    `json:"publicCases"`
+	PrivateCases       []problems.Case    `json:"privateCases"`
 }
 type QuestionInput struct {
 	ProblemVersionID string          `json:"problemVersionId,omitempty"`
