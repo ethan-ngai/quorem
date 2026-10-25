@@ -121,3 +121,9 @@
     transform: translateX(-50%);
   }
 }
+
+.odyssey-locked-tooltip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

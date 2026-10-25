@@ -864,6 +864,11 @@ export interface components {
             methodName: string;
             parameters: components["schemas"]["Parameter"][];
             returnType: string;
+            /**
+             * @description Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant.
+             * @enum {string}
+             */
+            outputOrder?: "ordered" | "unordered";
         };
         ExecutionLimits: {
             wallTimeMs: number;

@@ -1,3 +1,5 @@
+import { QuestionLanguage } from "../editor/QuestionLanguage";
+import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
@@ -70,21 +72,21 @@ export function QuestionFields({
     });
   }
   return (
-    <fieldset disabled={disabled} className="admin-fields question-authoring">
-      <legend className="sr-only">Question fields</legend>
-      <div className="admin-field-pair">
-        <Field label="Question type">
-          <SelectField
-            label="Question type"
-            value={problem.odyssey ? "staged" : "single"}
-            disabled={disabled || invalidCases}
-            options={[
-              { value: "single", label: "Single question" },
-              { value: "staged", label: "Multi-stage question" },
-            ]}
-            onChange={(value) =>
-              setProblem({
-                odyssey:
+    <QuestionLanguage.Provider value={language}>
+      <fieldset disabled={disabled} className="admin-fields question-authoring">
+        <legend className="sr-only">Question fields</legend>
+        <div className="admin-field-pair">
+          <Field label="Question type">
+            <SelectField
+              label="Question type"
+              value={problem.odyssey ? "staged" : "single"}
+              disabled={disabled || invalidCases}
+              options={[
+                { value: "single", label: "Single question" },
+                { value: "staged", label: "Multi-stage question" },
+              ]}
+              onChange={(value) => {
+                const odyssey =
                   value === "staged"
                     ? {
                         levels: [
@@ -96,278 +98,302 @@ export function QuestionFields({
                           },
                         ],
                       }
-                    : undefined,
-              })
-            }
-          />
-        </Field>
-        <Field label="Language">
-          <SelectField
-            label="Question language"
-            value={language}
-            disabled={disabled}
-            onChange={(value) => setLanguage(value as Language)}
-            options={Object.entries(languageLabels).map(([value, label]) => ({
-              value,
-              label,
-              leading: <LanguageLogo language={value as Language} />,
-            }))}
-          />
-        </Field>
-      </div>
-      <AuthoringTabs
-        id={id}
-        label="Question authoring"
-        value={section}
-        onChange={setSection}
-        tabs={[
-          { value: "question", label: "Question" },
-          { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
-          { value: "solutions", label: "Solutions" },
-        ]}
-      />
-      <div
-        role="tabpanel"
-        id={`${id}-question-panel`}
-        aria-labelledby={`${id}-question`}
-        hidden={section !== "question"}
-      >
-        <QuestionBasics
-          title={problem.title}
-          statement={problem.statementMarkdown}
-          starter={implementation?.starterSource}
-          staged={!!problem.odyssey}
-          onTitleChange={(title) => {
-            const slug = (value: string) =>
-              value
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-|-$/g, "")
-                .slice(0, 56);
-            setProblem({
-              title,
-              ...(!problem.slug || problem.slug === slug(problem.title)
-                ? { slug: slug(title) }
-                : {}),
-            });
-          }}
-          onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
-          onStarterChange={(starterSource) =>
-            setImplementation(implementationIndex, { starterSource })
-          }
-        />
-        {!implementation && (
-          <p className="case-stale">
-            Enable {languageLabels[language]} in Solutions to add starter code.
-          </p>
-        )}
-        {!problem.odyssey && (
-          <fieldset className="admin-fields" disabled={disabled || invalidCases}>
-            <SignatureFields
-              value={problem.signature}
-              onChange={(signature) => onChange(adaptSignature(content, signature))}
-              onValidityChange={onValidityChange}
-            />
-          </fieldset>
-        )}
-        {invalidCases && <p className="admin-error">Fix test values before changing the method.</p>}
-        <details className="authoring-options">
-          <summary>Question details</summary>
-          <div className="admin-field-pair">
-            <Field label="Slug">
-              <input
-                value={problem.slug}
-                onChange={(event) => setProblem({ slug: event.target.value })}
-              />
-            </Field>
-            <Field label="Difficulty">
-              <SelectField
-                label="Difficulty"
-                value={problem.difficulty}
-                disabled={disabled}
-                onChange={(value) =>
-                  setProblem({ difficulty: value as ProblemVersion["difficulty"] })
-                }
-                options={[
-                  { value: "easy", label: "Easy" },
-                  { value: "medium", label: "Medium" },
-                  { value: "hard", label: "Hard" },
-                ]}
-              />
-            </Field>
-          </div>
-          <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
-          <Field label="Attribution">
-            <input
-              value={content.attribution}
-              onChange={(event) => onChange({ ...content, attribution: event.target.value })}
+                    : undefined;
+                const methods = odyssey?.levels[0]?.methods;
+                onChange({
+                  ...content,
+                  problem: {
+                    ...problem,
+                    odyssey,
+                    starterSource:
+                      methods && !problem.starterSource
+                        ? initialOdysseySource(methods, "python")
+                        : problem.starterSource,
+                  },
+                  implementations: content.implementations.map((item) =>
+                    methods && !item.starterSource
+                      ? { ...item, starterSource: initialOdysseySource(methods, item.language) }
+                      : item,
+                  ),
+                });
+              }}
             />
           </Field>
-          <JSONField
-            label="Structured constraints"
-            value={problem.constraints}
-            onValidityChange={onValidityChange}
-            onChange={(constraints) =>
-              setProblem({ constraints: constraints as ProblemVersion["constraints"] })
+          <Field label="Language">
+            <SelectField
+              label="Question language"
+              value={language}
+              disabled={disabled}
+              onChange={(value) => setLanguage(value as Language)}
+              options={Object.entries(languageLabels).map(([value, label]) => ({
+                value,
+                label,
+                leading: <LanguageLogo language={value as Language} />,
+              }))}
+            />
+          </Field>
+        </div>
+        <AuthoringTabs
+          id={id}
+          label="Question authoring"
+          value={section}
+          onChange={setSection}
+          tabs={[
+            { value: "question", label: "Question" },
+            { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
+            { value: "solutions", label: "Solutions" },
+          ]}
+        />
+        <div
+          role="tabpanel"
+          id={`${id}-question-panel`}
+          aria-labelledby={`${id}-question`}
+          hidden={section !== "question"}
+        >
+          <QuestionBasics
+            title={problem.title}
+            statement={problem.statementMarkdown}
+            starter={implementation?.starterSource}
+            staged={!!problem.odyssey}
+            onTitleChange={(title) => {
+              const slug = (value: string) =>
+                value
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-|-$/g, "")
+                  .slice(0, 56);
+              setProblem({
+                title,
+                ...(!problem.slug || problem.slug === slug(problem.title)
+                  ? { slug: slug(title) }
+                  : {}),
+              });
+            }}
+            onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
+            onStarterChange={(starterSource) =>
+              setImplementation(implementationIndex, { starterSource })
             }
           />
-          <div className="admin-field-pair">
-            {Object.entries(problem.limits).map(([name, value]) => (
-              <AuthoringNumberField
-                key={name}
-                label={name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
-                value={value}
-                onValidityChange={(invalid) => onValidityChange(`limit:${name}`, invalid)}
-                onChange={(next) => setProblem({ limits: { ...problem.limits, [name]: next } })}
+          {!implementation && (
+            <p className="case-stale">
+              Enable {languageLabels[language]} in Solutions to add starter code.
+            </p>
+          )}
+          {!problem.odyssey && (
+            <fieldset className="admin-fields" disabled={disabled || invalidCases}>
+              <SignatureFields
+                value={problem.signature}
+                onChange={(signature) => onChange(adaptSignature(content, signature))}
+                onValidityChange={onValidityChange}
               />
-            ))}
-          </div>
-        </details>
-      </div>
-      <div
-        role="tabpanel"
-        id={`${id}-tests-panel`}
-        aria-labelledby={`${id}-tests`}
-        hidden={section !== "tests"}
-      >
-        {problem.odyssey ? (
-          <AuthoringStages
-            content={content}
-            onChange={onChange}
-            onValidityChange={onValidityChange}
-          />
-        ) : (
-          <AuthoringCases
-            key={JSON.stringify([
-              problem.signature.parameters.map((p) => p.type),
-              problem.signature.returnType,
-            ])}
-            content={content}
-            onChange={onChange}
-            onValidityChange={onValidityChange}
-          />
-        )}
-      </div>
-      <div
-        role="tabpanel"
-        id={`${id}-solutions-panel`}
-        aria-labelledby={`${id}-solutions`}
-        hidden={section !== "solutions"}
-      >
-        {[language].map((language) => {
-          const index = content.implementations.findIndex((item) => item.language === language);
-          const implementation = content.implementations[index];
-          const solution = content.solutions.find((item) => item.language === language);
-          return (
-            <div key={language}>
-              <label className="admin-check">
+            </fieldset>
+          )}
+          {invalidCases && (
+            <p className="admin-error">Fix test values before changing the method.</p>
+          )}
+          <details className="authoring-options">
+            <summary>Question details</summary>
+            <div className="admin-field-pair">
+              <Field label="Slug">
                 <input
-                  type="checkbox"
-                  checked={!!implementation}
-                  disabled={language === "python"}
-                  onChange={(event) =>
-                    onChange({
-                      ...content,
-                      implementations: event.target.checked
-                        ? [
-                            ...content.implementations,
-                            {
-                              language,
-                              starterSource: "",
-                              runtimeRevision: revisions[language][0],
-                              harnessRevision: revisions[language][1],
-                              referenceSource: "",
-                            },
-                          ]
-                        : content.implementations.filter((item) => item.language !== language),
-                      solutions: event.target.checked
-                        ? content.solutions
-                        : content.solutions.filter((item) => item.language !== language),
-                    })
-                  }
+                  value={problem.slug}
+                  onChange={(event) => setProblem({ slug: event.target.value })}
                 />
-                Enable language
-              </label>
-              {implementation && (
-                <>
-                  <AuthoringCodeField
-                    label={`${languageLabels[language]} private judge reference`}
-                    language={language}
-                    source={implementation.referenceSource}
-                    disabled={disabled}
-                    onChange={(source) => setImplementation(index, { referenceSource: source })}
-                  />
-                  <label className="admin-check">
-                    <input
-                      type="checkbox"
-                      checked={!!solution}
-                      onChange={(event) =>
-                        event.target.checked
-                          ? setSolution(language, {})
-                          : onChange({
-                              ...content,
-                              solutions: content.solutions.filter(
-                                (item) => item.language !== language,
-                              ),
-                            })
-                      }
-                    />
-                    Publish editorial solution
-                  </label>
-                  {solution && (
-                    <>
-                      <AuthoringCodeField
-                        label={`${languageLabels[language]} editorial code`}
-                        language={language}
-                        source={solution.source}
-                        disabled={disabled}
-                        onChange={(source) => setSolution(language, { source })}
-                      />
-                      <Field label={`${languageLabels[language]} explanation`}>
-                        <textarea
-                          rows={5}
-                          value={solution.explanationMarkdown}
-                          onChange={(event) =>
-                            setSolution(language, { explanationMarkdown: event.target.value })
-                          }
-                        />
-                      </Field>
-                      <div className="admin-field-pair">
-                        <Field label={`${languageLabels[language]} time complexity`}>
-                          <input
-                            value={solution.timeComplexity}
-                            onChange={(event) =>
-                              setSolution(language, { timeComplexity: event.target.value })
-                            }
-                          />
-                        </Field>
-                        <Field label={`${languageLabels[language]} auxiliary space complexity`}>
-                          <input
-                            value={solution.spaceComplexity}
-                            onChange={(event) =>
-                              setSolution(language, { spaceComplexity: event.target.value })
-                            }
-                          />
-                        </Field>
-                      </div>
-                      <Field label={`${languageLabels[language]} complexity definitions`}>
-                        <textarea
-                          rows={3}
-                          value={solution.complexityNotes}
-                          onChange={(event) =>
-                            setSolution(language, { complexityNotes: event.target.value })
-                          }
-                        />
-                      </Field>
-                    </>
-                  )}
-                </>
-              )}
+              </Field>
+              <Field label="Difficulty">
+                <SelectField
+                  label="Difficulty"
+                  value={problem.difficulty}
+                  disabled={disabled}
+                  onChange={(value) =>
+                    setProblem({ difficulty: value as ProblemVersion["difficulty"] })
+                  }
+                  options={[
+                    { value: "easy", label: "Easy" },
+                    { value: "medium", label: "Medium" },
+                    { value: "hard", label: "Hard" },
+                  ]}
+                />
+              </Field>
             </div>
-          );
-        })}
-      </div>
-    </fieldset>
+            <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
+            <Field label="Attribution">
+              <input
+                value={content.attribution}
+                onChange={(event) => onChange({ ...content, attribution: event.target.value })}
+              />
+            </Field>
+            <JSONField
+              label="Structured constraints"
+              value={problem.constraints}
+              onValidityChange={onValidityChange}
+              onChange={(constraints) =>
+                setProblem({ constraints: constraints as ProblemVersion["constraints"] })
+              }
+            />
+            <div className="admin-field-pair">
+              {Object.entries(problem.limits).map(([name, value]) => (
+                <AuthoringNumberField
+                  key={name}
+                  label={name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
+                  value={value}
+                  onValidityChange={(invalid) => onValidityChange(`limit:${name}`, invalid)}
+                  onChange={(next) => setProblem({ limits: { ...problem.limits, [name]: next } })}
+                />
+              ))}
+            </div>
+          </details>
+        </div>
+        <div
+          role="tabpanel"
+          id={`${id}-tests-panel`}
+          aria-labelledby={`${id}-tests`}
+          hidden={section !== "tests"}
+        >
+          {problem.odyssey ? (
+            <AuthoringStages
+              content={content}
+              onChange={onChange}
+              onValidityChange={onValidityChange}
+            />
+          ) : (
+            <AuthoringCases
+              key={JSON.stringify([
+                problem.signature.parameters.map((p) => p.type),
+                problem.signature.returnType,
+              ])}
+              content={content}
+              onChange={onChange}
+              onValidityChange={onValidityChange}
+            />
+          )}
+        </div>
+        <div
+          role="tabpanel"
+          id={`${id}-solutions-panel`}
+          aria-labelledby={`${id}-solutions`}
+          hidden={section !== "solutions"}
+        >
+          {[language].map((language) => {
+            const index = content.implementations.findIndex((item) => item.language === language);
+            const implementation = content.implementations[index];
+            const solution = content.solutions.find((item) => item.language === language);
+            return (
+              <div key={language}>
+                <label className="admin-check">
+                  <input
+                    type="checkbox"
+                    checked={!!implementation}
+                    disabled={language === "python"}
+                    onChange={(event) =>
+                      onChange({
+                        ...content,
+                        implementations: event.target.checked
+                          ? [
+                              ...content.implementations,
+                              {
+                                language,
+                                starterSource: problem.odyssey
+                                  ? initialOdysseySource(
+                                      problem.odyssey.levels[0]!.methods,
+                                      language,
+                                    )
+                                  : "",
+                                runtimeRevision: revisions[language][0],
+                                harnessRevision: revisions[language][1],
+                                referenceSource: "",
+                              },
+                            ]
+                          : content.implementations.filter((item) => item.language !== language),
+                        solutions: event.target.checked
+                          ? content.solutions
+                          : content.solutions.filter((item) => item.language !== language),
+                      })
+                    }
+                  />
+                  Enable language
+                </label>
+                {implementation && (
+                  <>
+                    <AuthoringCodeField
+                      label={`${languageLabels[language]} private judge reference`}
+                      language={language}
+                      source={implementation.referenceSource}
+                      disabled={disabled}
+                      onChange={(source) => setImplementation(index, { referenceSource: source })}
+                    />
+                    <label className="admin-check">
+                      <input
+                        type="checkbox"
+                        checked={!!solution}
+                        onChange={(event) =>
+                          event.target.checked
+                            ? setSolution(language, {})
+                            : onChange({
+                                ...content,
+                                solutions: content.solutions.filter(
+                                  (item) => item.language !== language,
+                                ),
+                              })
+                        }
+                      />
+                      Publish editorial solution
+                    </label>
+                    {solution && (
+                      <>
+                        <AuthoringCodeField
+                          label={`${languageLabels[language]} editorial code`}
+                          language={language}
+                          source={solution.source}
+                          disabled={disabled}
+                          onChange={(source) => setSolution(language, { source })}
+                        />
+                        <Field label={`${languageLabels[language]} explanation`}>
+                          <textarea
+                            rows={5}
+                            value={solution.explanationMarkdown}
+                            onChange={(event) =>
+                              setSolution(language, { explanationMarkdown: event.target.value })
+                            }
+                          />
+                        </Field>
+                        <div className="admin-field-pair">
+                          <Field label={`${languageLabels[language]} time complexity`}>
+                            <input
+                              value={solution.timeComplexity}
+                              onChange={(event) =>
+                                setSolution(language, { timeComplexity: event.target.value })
+                              }
+                            />
+                          </Field>
+                          <Field label={`${languageLabels[language]} auxiliary space complexity`}>
+                            <input
+                              value={solution.spaceComplexity}
+                              onChange={(event) =>
+                                setSolution(language, { spaceComplexity: event.target.value })
+                              }
+                            />
+                          </Field>
+                        </div>
+                        <Field label={`${languageLabels[language]} complexity definitions`}>
+                          <textarea
+                            rows={3}
+                            value={solution.complexityNotes}
+                            onChange={(event) =>
+                              setSolution(language, { complexityNotes: event.target.value })
+                            }
+                          />
+                        </Field>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </fieldset>
+    </QuestionLanguage.Provider>
   );
 }
 

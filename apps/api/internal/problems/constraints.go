@@ -59,7 +59,7 @@ func targetType(sig Signature, t *ConstraintTarget) (string, error) {
 	var typ string
 	for _, p := range sig.Parameters {
 		if p.Name == t.Parameter {
-			typ = p.Type
+			typ = strings.ReplaceAll(p.Type, "array<", "list<")
 			break
 		}
 	}

@@ -20,7 +20,16 @@ func Implementations(f Fixture) ([]LanguageImplementation, map[string]string, er
 			return nil, nil, err
 		}
 		runtime, _ := execution.LanguageRuntime(language)
-		starter, err := Starter(f.Problem.Signature, language)
+		signature := f.Problem.Signature
+		// Bundled Java artifacts predate list/array distinction; keep sealed starters stable.
+		if language == "java" {
+			signature.Parameters = append([]Parameter(nil), signature.Parameters...)
+			signature.ReturnType = strings.ReplaceAll(signature.ReturnType, "list<", "array<")
+			for i := range signature.Parameters {
+				signature.Parameters[i].Type = strings.ReplaceAll(signature.Parameters[i].Type, "list<", "array<")
+			}
+		}
+		starter, err := Starter(signature, language)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -53,6 +62,20 @@ func languageType(kind, language string) (string, error) {
 			return "(" + inner + ") option", nil
 		}
 	}
+	if strings.HasPrefix(kind, "array<") {
+		inner, err := languageType(kind[6:len(kind)-1], language)
+		if err != nil {
+			return "", err
+		}
+		switch language {
+		case "java":
+			return inner + "[]", nil
+		case "typescript":
+			return "(" + inner + ")[]", nil
+		case "ocaml":
+			return "(" + inner + ") array", nil
+		}
+	}
 	if strings.HasPrefix(kind, "list<") {
 		inner, err := languageType(kind[5:len(kind)-1], language)
 		if err != nil {
@@ -60,7 +83,15 @@ func languageType(kind, language string) (string, error) {
 		}
 		switch language {
 		case "java":
-			return inner + "[]", nil
+			switch inner {
+			case "int":
+				inner = "Integer"
+			case "double":
+				inner = "Double"
+			case "boolean":
+				inner = "Boolean"
+			}
+			return "java.util.List<" + inner + ">", nil
 		case "typescript":
 			return "(" + inner + ")[]", nil
 		case "ocaml":

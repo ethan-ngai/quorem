@@ -29,6 +29,7 @@ export function SequenceCaseValues({
                 name="Expected output"
                 purpose="target"
                 value={call.expected}
+                type={signature?.returnType}
                 tone="verdict-success"
               />
             )}

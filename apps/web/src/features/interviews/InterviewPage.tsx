@@ -238,6 +238,12 @@ function InterviewPad({
   }
   const question = changed ? initial.question : snapshot.question;
   const language = initial.question.language as EditorLanguage;
+  useEffect(() => {
+    controller.setOdyssey(
+      snapshot.state === "active" ? snapshot.question.progress : undefined,
+      language,
+    );
+  }, [controller, snapshot.question.progress, snapshot.state, language]);
   const documentKey = `interview:${id}:${initial.document.epoch}`;
   const account = useSession();
   const host = snapshot.hostId === account.data?.user.id;
@@ -276,6 +282,7 @@ function InterviewPad({
   useHotkey(workspaceShortcuts.submit.binding, () => void execute("submit"), hotkeys);
   return (
     <WorkspaceLayout
+      language={language}
       navigation={
         <GlobalNav
           theme={theme.preference}

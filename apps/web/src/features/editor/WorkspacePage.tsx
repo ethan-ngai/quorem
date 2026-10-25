@@ -43,6 +43,7 @@ import {
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
+import { unlockedMethodEdit } from "../odyssey/methodStubs";
 import { publicOdysseyPreview } from "../odyssey/publicPreview";
 import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { interviewRequest } from "../interviews/api";
@@ -374,14 +375,38 @@ export function WorkspacePage({
     !problem ||
     !workspace;
   const matchRules = useMatchRules(identity, match);
+  const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
   const odyssey = useQuery({
     queryKey: ["odyssey", workspace?.id],
     queryFn: () => interviewRequest<OdysseyProgress>(`/v1/workspaces/${workspace!.id}/odyssey`),
     enabled: !!workspace && !!problem?.odyssey && serverWorkspace,
     refetchInterval: problem?.odyssey ? 2000 : false,
   });
-  const displayedOdyssey =
-    odyssey.data ?? (!serverWorkspace ? publicOdysseyPreview(problem) : undefined);
+  const previewOdyssey = useMemo(
+    () => (!serverWorkspace ? publicOdysseyPreview(problem) : undefined),
+    [serverWorkspace, problem],
+  );
+  const displayedOdyssey = odyssey.data ?? previewOdyssey;
+  useEffect(() => {
+    if (loading || !displayedOdyssey) return;
+    let cancelled = false;
+    async function append() {
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
+        const editor = editorRef.current;
+        if (!editor) return;
+        const before = editor.getSource();
+        const edit = await unlockedMethodEdit(before, documentLanguage, displayedOdyssey!.levels);
+        if (cancelled) return;
+        if (editor.getSource() !== before) continue;
+        if (edit) editor.applyEdit(edit.from, edit.to, edit.insert);
+        return;
+      }
+    }
+    void append();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, displayedOdyssey, documentLanguage, workspace?.id]);
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const runExamples = useMemo(
     () => odyssey.data?.levels.flatMap((level) => level.examples),
@@ -518,7 +543,6 @@ export function WorkspacePage({
   );
 
   const loadError = problemQuery.error ?? workspaceQuery.error;
-  const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
   const virtualDocumentUri = `file:///workspace/${languageFileNames[documentLanguage]}`;
   const editorDocumentKey = workspace
     ? `${identity}:${workspace.id}:${workspace.problemVersionId}:${documentLanguage}`
@@ -602,6 +626,7 @@ export function WorkspacePage({
         </div>
       )}
       <WorkspaceLayout
+        language={documentLanguage}
         pending={loading}
         navigation={
           <GlobalNav

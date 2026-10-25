@@ -2,7 +2,8 @@ import type { CustomCase } from "@quorem/contracts";
 
 export type WireValue = CustomCase["args"][number];
 
-export function innerType(type: string, wrapper: "optional" | "list") {
+export function innerType(type: string, wrapper: "optional" | "list" | "array") {
+  if (wrapper === "list" && type.startsWith("array<")) return type.slice(6, -1);
   return type.startsWith(`${wrapper}<`) && type.endsWith(">")
     ? type.slice(wrapper.length + 1, -1)
     : undefined;

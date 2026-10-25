@@ -1,3 +1,5 @@
+import { useQuestionLanguage } from "../QuestionLanguage";
+import { questionValue, questionTypeName } from "../questionTypes";
 import { Tooltip } from "./Tooltip";
 import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "./Icon";
@@ -25,6 +27,8 @@ export function TypedCaseInput({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const language = useQuestionLanguage();
+  const nullLabel = questionValue(null, language);
   const [touched, setTouched] = useState(false);
   const [rejected, setRejected] = useState<string>();
   let preset: ReturnType<typeof resolveInputPreset>;
@@ -75,14 +79,14 @@ export function TypedCaseInput({
       <div className="typed-case-label">
         <label htmlFor={id}>
           {purpose === "input" ? <code className="parameter-name">{name}</code> : name}{" "}
-          <span>{type}</span>
+          <span>{questionTypeName(type, language)}</span>
         </label>
         {action}
         {optional && (
           <button
             type="button"
             className="quiet-button"
-            aria-label={empty ? `Set ${name} value` : `Set ${name} to null`}
+            aria-label={empty ? `Set ${name} value` : `Set ${name} to ${nullLabel}`}
             onClick={() => {
               setTouched(false);
               setRejected(undefined);
@@ -95,7 +99,7 @@ export function TypedCaseInput({
               );
             }}
           >
-            {empty ? "Set value" : "Use null"}
+            {empty ? "Set value" : `Use ${nullLabel}`}
           </button>
         )}
       </div>
@@ -110,14 +114,14 @@ export function TypedCaseInput({
           </span>
         </Tooltip>
         {empty ? (
-          <code className="typed-null">null</code>
+          <code className="typed-null">{nullLabel}</code>
         ) : control.kind === "boolean" ? (
           <SelectField
             label={name}
             value={props.value}
             options={[
-              { value: "false", label: "false" },
-              { value: "true", label: "true" },
+              { value: "false", label: questionValue(false, language) },
+              { value: "true", label: questionValue(true, language) },
             ]}
             onChange={(source) => props.onChange({ target: { value: source } })}
             triggerProps={{

@@ -1,4 +1,7 @@
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
+import { useQuestionLanguage } from "../QuestionLanguage";
+import { questionValue } from "../questionTypes";
+import type { EditorLanguage } from "../editorLanguages";
 import { useId, useState, type ReactNode } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "./Icon";
@@ -21,9 +24,13 @@ export type StatementProblem = Pick<
 >;
 
 /** @returns Named argument values in the public function's declared order. */
-export function exampleInput(problem: Pick<ProblemVersion, "signature">, args: unknown[]) {
+export function exampleInput(
+  problem: Pick<ProblemVersion, "signature">,
+  args: unknown[],
+  language: EditorLanguage = "python",
+) {
   return bindArguments(problem.signature, args)
-    .map(({ name, value }) => `${name} = ${JSON.stringify(value)}`)
+    .map(({ name, value }) => `${name} = ${questionValue(value, language)}`)
     .join(", ");
 }
 
@@ -41,6 +48,7 @@ export function ProblemStatement({
   beforeExamples?: ReactNode;
   allowTopics?: boolean;
 }) {
+  const language = useQuestionLanguage();
   const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
   const topicsVisible = revealedTopicsFor === problem.id;
   const topicsId = useId();
@@ -110,14 +118,17 @@ export function ProblemStatement({
                                   signature
                                     ? bindArguments(signature, call.args)
                                         .map(
-                                          ({ name, value }) => `${name} = ${JSON.stringify(value)}`,
+                                          ({ name, value }) =>
+                                            `${name} = ${questionValue(value, language)}`,
                                         )
                                         .join(", ")
-                                    : call.args.map((value) => JSON.stringify(value)).join(", ")
+                                    : call.args
+                                        .map((value) => questionValue(value, language))
+                                        .join(", ")
                                 })`;
                               })
                               .join("; ")
-                          : exampleInput(problem, example.args)}
+                          : exampleInput(problem, example.args, language)}
                       </code>
                     </div>
                     <div>
@@ -127,11 +138,9 @@ export function ProblemStatement({
                         </span>
                       </Tooltip>
                       <code>
-                        {JSON.stringify(
-                          example.calls?.length
-                            ? example.calls.map((call) => call.expected)
-                            : example.expected,
-                        )}
+                        {example.calls?.length
+                          ? `[${example.calls.map((call) => questionValue(call.expected, language, problem.odyssey?.levels.flatMap((level) => level.methods).find((method) => method.methodName === call.methodName)?.returnType)).join(",")}]`
+                          : questionValue(example.expected, language, problem.signature.returnType)}
                       </code>
                     </div>
                   </div>
