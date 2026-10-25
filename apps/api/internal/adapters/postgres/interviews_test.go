@@ -360,3 +360,17 @@ func TestInterviewAndMatchGuestsShareSponsorConcurrency(t *testing.T) {
 		t.Fatal("match bypassed interview concurrency", err)
 	}
 }
+
+func TestInterviewMemberPhotoProjection(t *testing.T) {
+	s := interviewTestStore(t)
+	ctx := context.Background()
+	const photo = "/api/auth/profile-photos/test.webp"
+	if _, err := s.Pool.Exec(ctx, "UPDATE users SET profile_image=$2 WHERE id=$1", "alice", photo); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Pool.Exec(ctx, "UPDATE users SET profile_image='' WHERE id='alice'") })
+	room := createInterviewTest(t, s)
+	if len(room.Members) != 1 || room.Members[0].Image != photo {
+		t.Fatal("member photo missing", room.Members)
+	}
+}
