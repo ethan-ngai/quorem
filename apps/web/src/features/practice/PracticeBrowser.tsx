@@ -1,3 +1,4 @@
+import { QuestionTypeFilter } from "./QuestionTypeFilter";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout, CatalogTable } from "./CatalogLayout";
 import { useQuery } from "@tanstack/react-query";
@@ -62,6 +63,7 @@ export function PracticeBrowser() {
       "public-problems",
       session.data?.user.id,
       library,
+      search.type,
       search.q,
       search.difficulty,
       search.topic,
@@ -74,6 +76,7 @@ export function PracticeBrowser() {
         params: {
           query: {
             library,
+            type: search.type,
             q: search.q,
             difficulty: search.difficulty,
             topic: search.topic,
@@ -102,7 +105,7 @@ export function PracticeBrowser() {
     staleTime: 60_000,
   });
   const topics = metadata.data ?? catalog.data?.topics ?? [];
-  const filtered = Boolean(search.q || search.difficulty || search.topic || library);
+  const filtered = Boolean(search.q || search.difficulty || search.topic || library || search.type);
   const sort = search.sort ?? "title";
   const SortIcon = search.order === "desc" ? ArrowDown : ArrowUp;
   const sortBy = (next: "title" | "difficulty") =>
@@ -113,7 +116,13 @@ export function PracticeBrowser() {
   const clear = () => {
     setQuery("");
     setEditing(false);
-    update({ q: undefined, difficulty: undefined, topic: undefined, library: undefined });
+    update({
+      q: undefined,
+      difficulty: undefined,
+      topic: undefined,
+      library: undefined,
+      type: undefined,
+    });
   };
   const page = search.page ?? 1;
   const total = catalog.data?.total ?? 0;
@@ -150,6 +159,7 @@ export function PracticeBrowser() {
           </label>
         </div>
         <div className="practice-filters">
+          <QuestionTypeFilter value={search.type} onChange={(type) => update({ type })} />
           {canChooseLibrary && (
             <SegmentedControl
               iconOnly
