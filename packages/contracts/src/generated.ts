@@ -1365,6 +1365,7 @@ export interface components {
             hints?: components["schemas"]["QuestionHints"];
         };
         InterviewMember: {
+            image?: string;
             userId: string;
             name: string;
             role: components["schemas"]["InterviewRole"];

@@ -1890,6 +1890,9 @@
     "InterviewMember": {
       "type": "object",
       "properties": {
+        "image": {
+          "type": "string"
+        },
         "userId": {
           "type": "string"
         },
