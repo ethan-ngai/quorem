@@ -113,6 +113,11 @@ func (s *Store) Seed(ctx context.Context, fixtures []problems.Fixture) error {
 		return err
 	}
 
+	return s.SeedProblems(ctx, fixtures)
+}
+
+// SeedProblems installs append-only catalog content without development identities.
+func (s *Store) SeedProblems(ctx context.Context, fixtures []problems.Fixture) error {
 	for _, f := range fixtures {
 		public, _ := json.Marshal(f.Problem)
 		private, _ := json.Marshal(f)

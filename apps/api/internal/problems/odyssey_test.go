@@ -81,6 +81,19 @@ func TestOdysseyVoidMethods(t *testing.T) {
 	}
 }
 
+func TestOdysseyPublicationWithVoidEntryMethod(t *testing.T) {
+	c := odysseyContent(t)
+	c.Problem.Signature.ReturnType = "void"
+	c.Problem.Odyssey.Levels[0].Methods[0].ReturnType = "void"
+	if err := ValidateQuestionPublication(c); err != nil {
+		t.Fatal(err)
+	}
+	c.Problem.Odyssey = nil
+	if err := ValidateQuestionPublication(c); err == nil {
+		t.Fatal("ordinary questions cannot return void")
+	}
+}
+
 func TestUnorderedMethodOutput(t *testing.T) {
 	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "top_k", ReturnType: "list<str>", OutputOrder: "unordered"}, {ClassName: "Solution", MethodName: "words", ReturnType: "list<str>"}}}}}}
 	c := Case{Calls: []MethodCall{{MethodName: "top_k"}, {MethodName: "words"}}}

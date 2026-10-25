@@ -27,4 +27,6 @@ SES uses its official SMTP interface with separate SMTP credentials and mandator
 
 Production self-managed password authentication requires explicit `AUTH_PASSWORD_PRODUCTION=true`, HTTPS and an external email adapter; default Cognito mode remains supported. Seed creation still requires local loopback origin/databases. Configure each deployment's networking, secret delivery and mail sender domain separately. No cloud deployment or credential acceptance is implied by local adapter tests.
 
+For initial production without SMTP, explicit `AUTH_LOGIN_ONLY=true` permits verified-account sign-in with HTTPS and production opt-in; registration stays disabled. The separate operator-only `src/bootstrap.ts` command provisions the initial admin, with an immutable bootstrap ledger and Better Auth password hashing. It never exposes a public signup bypass or resets an existing operator's password on redeploy. Deployment instructions: [production](../../docs/implementation/production.md).
+
 Primary references: [R2 S3 SDK configuration](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/), [SES SMTP](https://docs.aws.amazon.com/ses/latest/dg/send-using-smtp-programmatically.html), [Cloudflare outbound REST API](https://developers.cloudflare.com/email-service/api/send-emails/rest-api/).

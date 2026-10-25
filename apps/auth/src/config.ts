@@ -32,18 +32,23 @@ export function configuration(env: NodeJS.ProcessEnv) {
     !["true", "false"].includes(env.AUTH_PASSWORD_PRODUCTION)
   )
     throw new Error("AUTH_PASSWORD_PRODUCTION must be true or false");
+  if (env.AUTH_LOGIN_ONLY !== undefined && !["true", "false"].includes(env.AUTH_LOGIN_ONLY))
+    throw new Error("AUTH_LOGIN_ONLY must be true or false");
+  const loginOnly = env.AUTH_LOGIN_ONLY === "true";
+  if (loginOnly && (method !== "password" || platform.mail))
+    throw new Error("Login-only mode requires password authentication without email delivery");
   if (
     method === "password" &&
     !localPassword &&
     !(
       env.AUTH_PASSWORD_PRODUCTION === "true" &&
       url.protocol === "https:" &&
-      platform.mail &&
-      (platform.mail.driver === "cloudflare" || platform.mail.requireTLS)
+      (loginOnly ||
+        (platform.mail && (platform.mail.driver === "cloudflare" || platform.mail.requireTLS)))
     )
   )
     throw new Error(
-      "Production password mode requires HTTPS, explicit opt-in and external email delivery",
+      "Production password mode requires HTTPS, explicit opt-in and external email delivery or login-only mode",
     );
   const provider = (key: string) => (method === "cognito" ? required(key) : "");
   const pair = (prefix: string) => {
