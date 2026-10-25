@@ -13,16 +13,35 @@ import (
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
-const isolationProbe = `import os,socket,pathlib,subprocess,errno
+const isolationProbe = `import os,socket,pathlib,subprocess,errno,sys,json
+def no_swap(cg,proc):
+ swap=cg/'memory.swap.max'
+ if swap.exists():
+  assert int(swap.read_text())==0
+ else:
+  # Kernels without swap omit the controller; verify no swap is available.
+  memory=dict(line.split(':',1) for line in (proc/'meminfo').read_text().splitlines() if ':' in line)
+  assert memory['SwapTotal'].split()==['0','kB']
+  swaps=proc/'swaps'
+  if swaps.exists():
+   lines=swaps.read_text().splitlines()
+   assert len(lines)==1 and lines[0].split()==['Filename','Type','Size','Used','Priority']
 class Solution:
  def probe(self):
+  cg=pathlib.Path('/sys/fs/cgroup')
+  facts={'interfaces':socket.if_nameindex(),'cgroup':pathlib.Path('/proc/self/cgroup').read_text()}
+  for name in ['memory.max','memory.swap.max','pids.max','cpu.max']:
+   path=cg/name
+   facts[name]=path.read_text().strip() if path.exists() else 'absent'
+  print('sandbox facts: '+json.dumps(facts),file=sys.stderr)
   assert os.getuid()==65534 and os.getgid()==65534 and os.getpid()==1
   status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
   assert int(status['CapEff'].strip(),16)==0 and status['NoNewPrivs'].strip()=='1'
   assert os.statvfs('/').f_flag & os.ST_RDONLY
   assert not os.path.exists('/var/run/docker.sock') and not os.path.exists('/app')
   assert not any(k in os.environ for k in ['DATABASE_URL','AUTH_DATABASE_URL','BETTER_AUTH_SECRET','AUTH_INTERNAL_SECRET','QUOREM_INVITE_KEY'])
-  assert set(os.listdir('/sys/class/net'))=={'lo'}
+  interfaces={name for _,name in socket.if_nameindex()}
+  assert interfaces=={'lo'}, 'network interfaces: '+repr(interfaces)
   try:
    socket.create_connection(('1.1.1.1',443),timeout=.1)
    raise AssertionError('network enabled')
@@ -30,9 +49,8 @@ class Solution:
   mounts=pathlib.Path('/proc/mounts').read_text().splitlines()
   tmp=next(line.split()[3].split(',') for line in mounts if line.split()[1]=='/tmp')
   assert 'noexec' in tmp and 'nosuid' in tmp
-  cg=pathlib.Path('/sys/fs/cgroup')
   assert int((cg/'memory.max').read_text())==MEMORY_LIMIT
-  assert int((cg/'memory.swap.max').read_text())==0
+  no_swap(cg,pathlib.Path('/proc'))
   assert int((cg/'pids.max').read_text())==PID_LIMIT
   quota,period=map(int,(cg/'cpu.max').read_text().split())
   assert 0<quota<=period

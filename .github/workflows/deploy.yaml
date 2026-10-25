@@ -191,7 +191,7 @@ jobs:
       - name: Verify production routes
         if: github.ref == 'refs/heads/main'
         run: |
-          curl --max-time 75 --retry 6 --retry-all-errors --retry-delay 10 --fail "$AUTH_ORIGIN/health"
+          curl --max-time 75 --retry 12 --retry-all-errors --retry-delay 10 --fail "$AUTH_ORIGIN/health"
           curl --fail --silent "$AUTH_ORIGIN/" -o /tmp/marketing.html
           curl --fail --silent "$AUTH_ORIGIN/practice" -o /tmp/workspace.html
           test "$(sha256sum /tmp/marketing.html | cut -d ' ' -f 1)" != "$(sha256sum /tmp/workspace.html | cut -d ' ' -f 1)"
