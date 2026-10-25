@@ -162,7 +162,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		seenTags[tag] = true
 	}
 	sig := p.Signature
-	if sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 {
+	if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 {
 		return fmt.Errorf("Solution class and valid method name required")
 	}
 	seenParameters := map[string]bool{}

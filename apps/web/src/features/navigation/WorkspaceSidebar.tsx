@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 /** @file WorkspaceSidebar.tsx @description In-place desktop rail expansion and a mobile navigation drawer. @module navigation */
 import * as Dialog from "@radix-ui/react-dialog";
 import { BookOpen, Home, SquarePen, Users } from "lucide-react";
@@ -52,16 +53,18 @@ export function WorkspaceSidebar({
         />
         <aside className="sidebar-peek" data-expanded={open}>
           <div className="sidebar-header">
-            <button
-              ref={desktopTrigger}
-              className="icon-button sidebar-toggle"
-              aria-label={open ? "Close navigation" : "Open navigation"}
-              aria-expanded={open}
-              aria-controls="desktop-navigation"
-              onClick={() => setOpen(!open)}
-            >
-              <NavigationToggleIcon open={open} />
-            </button>
+            <Tooltip content={open ? "Collapse sidebar" : "Expand sidebar"}>
+              <button
+                ref={desktopTrigger}
+                className="icon-button sidebar-toggle"
+                aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
+                aria-expanded={open}
+                aria-controls="desktop-navigation"
+                onClick={() => setOpen(!open)}
+              >
+                <NavigationToggleIcon open={open} />
+              </button>
+            </Tooltip>
           </div>
           <SidebarLinks
             pathname={pathname}
@@ -75,16 +78,18 @@ export function WorkspaceSidebar({
     );
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <button
-          className="icon-button sidebar-toggle"
-          aria-label="Open navigation"
-          aria-expanded={open}
-          aria-controls="workspace-navigation"
-        >
-          <NavigationToggleIcon open={open} />
-        </button>
-      </Dialog.Trigger>
+      <Tooltip content="Expand sidebar">
+        <Dialog.Trigger asChild>
+          <button
+            className="icon-button sidebar-toggle"
+            aria-label="Expand sidebar"
+            aria-expanded={open}
+            aria-controls="workspace-navigation"
+          >
+            <NavigationToggleIcon open={open} />
+          </button>
+        </Dialog.Trigger>
+      </Tooltip>
       <Dialog.Portal>
         <Dialog.Overlay className="sidebar-backdrop" />
         <Dialog.Content
@@ -158,15 +163,16 @@ function SidebarLinks({
           : []),
       ].map(({ href, label, icon: LinkIcon, active }) => (
         <Tooltip key={href} content={label} side="right" disabled={!peek}>
-          <a
+          <Link
+            reloadDocument={href === "/"}
             className="sidebar-link"
-            href={href}
+            to={href}
             aria-label={label}
             aria-current={active ? "page" : undefined}
           >
             <LinkIcon size={17} />
             <span>{label}</span>
-          </a>
+          </Link>
         </Tooltip>
       ))}
     </nav>

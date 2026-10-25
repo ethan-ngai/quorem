@@ -46,3 +46,8 @@ it("retains an explicit private library filter and rejects unknown libraries", (
   expect(catalogSearch({ library: "private" })).toMatchObject({ library: "private" });
   expect(catalogSearch({ library: "someone-else" })).not.toHaveProperty("library");
 });
+
+it("preserves known question types and rejects unknown types", () => {
+  for (const type of ["classic", "odyssey"]) expect(catalogSearch({ type })).toEqual({ type });
+  expect(catalogSearch({ type: "other" })).not.toHaveProperty("type");
+});

@@ -137,8 +137,8 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 			actual, err = worker.NormalizeCaseOutput(spec.Fixture, c, f.Actual)
 			if err != nil {
 				status = "invalid_output"
-			} else if len(worker.CaseExpected(c)) > 0 {
-				expected, err = worker.NormalizeCaseOutput(spec.Fixture, c, worker.CaseExpected(c))
+			} else if len(worker.CaseExpected(spec.Fixture, c)) > 0 {
+				expected, err = worker.NormalizeCaseOutput(spec.Fixture, c, worker.CaseExpected(spec.Fixture, c))
 				if err != nil {
 					return result, errors.New("invalid trusted expectation")
 				}

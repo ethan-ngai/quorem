@@ -327,3 +327,11 @@
   color: var(--color-text-secondary);
   font-size: 14px;
 }
+
+.auth-content a {
+  text-decoration: none;
+}
+
+.auth-content .auth-forgot {
+  padding-inline: 0;
+}

@@ -39,3 +39,19 @@ it("omits spoilers in match workspaces", () => {
   );
   expect(markup).toBe("");
 });
+
+it("omits the disclosure and fetch when no published complexity exists", () => {
+  const client = new QueryClient();
+  const html = renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <EditorialPanel identity="alice" versionId="missing-complexity" available={false} />
+    </QueryClientProvider>,
+  );
+  expect(html).toBe("");
+  expect(
+    client
+      .getQueryCache()
+      .getAll()
+      .every((query) => query.state.fetchStatus === "idle"),
+  ).toBe(true);
+});

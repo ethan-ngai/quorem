@@ -2,7 +2,7 @@
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { useSession } from "../auth/session";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
@@ -35,10 +35,29 @@ export function GlobalNav({
   workspaceSettings?: SettingsProps;
   children?: ReactNode;
 }) {
+  const [compactActions, setCompactActions] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 620px)");
+    const update = () => setCompactActions(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const profileTrigger = useRef<HTMLButtonElement>(null);
   const settingsTrigger = useRef<HTMLButtonElement>(null);
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("appearance");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(() =>
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("settings")
+      : null) === "social"
+      ? "social"
+      : "appearance",
+  );
+  const [settingsOpen, setSettingsOpen] = useState(
+    () =>
+      (typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("settings")
+        : null) === "social",
+  );
   function openSettings(section: SettingsSection) {
     setSettingsSection(section);
     setSettingsOpen(true);
@@ -146,17 +165,19 @@ export function GlobalNav({
               !inMatch &&
               (activeMatch.match ? (
                 <Tooltip content="Finish or leave your current match before creating another.">
-                  <a
+                  <Link
                     className="nav-match-action active-match-trigger"
                     aria-label={activeMatch.label ?? undefined}
-                    href={`/match/${activeMatch.match.id}`}
+                    to="/match/$id"
+                    params={{ id: activeMatch.match.id }}
                   >
                     <ArrowRight size={18} />
                     <span>{activeMatch.label}</span>
-                  </a>
+                  </Link>
                 </Tooltip>
               ) : (
                 <Tooltip
+                  disabled={!compactActions}
                   content={
                     activeMatch.failed
                       ? "Could not check your active match. Try again shortly."

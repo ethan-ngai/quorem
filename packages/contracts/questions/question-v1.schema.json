@@ -1,0 +1,679 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Quorem question v1",
+  "$ref": "#/$defs/QuestionContent",
+  "$defs": {
+    "QuestionContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "problem": {
+          "$ref": "#/$defs/QuestionProblem"
+        },
+        "hiddenCases": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/CustomCase"
+          }
+        },
+        "comparator": {
+          "type": "string"
+        },
+        "attribution": {
+          "type": "string"
+        },
+        "implementations": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/AuthoringImplementation"
+          }
+        },
+        "solutions": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/EditorialSolution"
+          }
+        },
+        "odysseyHiddenCases": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CustomCase"
+            }
+          }
+        }
+      },
+      "required": [
+        "problem",
+        "hiddenCases",
+        "comparator",
+        "attribution",
+        "implementations",
+        "solutions"
+      ]
+    },
+    "QuestionProblem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "difficulty": {
+          "$ref": "#/$defs/Difficulty"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "statementMarkdown": {
+          "type": "string"
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProblemExample"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Constraint"
+          }
+        },
+        "signature": {
+          "$ref": "#/$defs/Signature"
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "runtimeRevision": {
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/ExecutionLimits"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LanguageImplementation"
+          }
+        },
+        "odyssey": {
+          "$ref": "#/$defs/Odyssey"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "version",
+        "title",
+        "difficulty",
+        "tags",
+        "statementMarkdown",
+        "examples",
+        "constraints",
+        "signature",
+        "starterSource",
+        "runtimeRevision",
+        "limits",
+        "languages"
+      ]
+    },
+    "Difficulty": {
+      "type": "string",
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ]
+    },
+    "ProblemExample": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        },
+        "explanation": {
+          "type": "string"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MethodCall"
+          }
+        }
+      },
+      "required": [
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    "WireValue": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        {
+          "type": "number",
+          "not": {
+            "type": "integer"
+          }
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        }
+      ]
+    },
+    "MethodCall": {
+      "type": "object",
+      "properties": {
+        "methodName": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        }
+      },
+      "required": [
+        "methodName",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    "Constraint": {
+      "oneOf": [
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "range"
+                },
+                "target": {
+                  "$ref": "#/$defs/ConstraintTarget"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "target",
+                "min"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "range"
+                },
+                "target": {
+                  "$ref": "#/$defs/ConstraintTarget"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "target",
+                "max"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "comparison"
+            },
+            "left": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "right": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "operator": {
+              "type": "string",
+              "enum": [
+                "eq",
+                "le",
+                "lt",
+                "ge",
+                "gt"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "left",
+            "right",
+            "operator"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "property"
+            },
+            "target": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "property": {
+              "type": "string",
+              "enum": [
+                "sorted",
+                "nondecreasing",
+                "unique"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "target",
+            "property"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "prose"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ConstraintTarget": {
+      "type": "object",
+      "properties": {
+        "parameter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projection": {
+          "type": "string",
+          "enum": [
+            "value",
+            "length",
+            "elements",
+            "sum",
+            "nodeCount",
+            "nodeValues"
+          ]
+        }
+      },
+      "required": [
+        "parameter",
+        "projection"
+      ],
+      "additionalProperties": false
+    },
+    "Signature": {
+      "type": "object",
+      "properties": {
+        "className": {
+          "type": "string",
+          "enum": [
+            "Solution"
+          ]
+        },
+        "methodName": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "returnType": {
+          "type": "string"
+        },
+        "outputOrder": {
+          "type": "string",
+          "enum": [
+            "ordered",
+            "unordered"
+          ],
+          "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
+        }
+      },
+      "required": [
+        "className",
+        "methodName",
+        "parameters",
+        "returnType"
+      ],
+      "additionalProperties": false
+    },
+    "Parameter": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/InputPresetConfig"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "InputPresetConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preset"
+      ],
+      "properties": {
+        "preset": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Registered input preset ID. Built-ins: default, number, text, boolean, sequence, matrix, tree, linkedList, structured. Server rejects unregistered or codec-incompatible presets."
+        },
+        "placeholder": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        }
+      }
+    },
+    "ExecutionLimits": {
+      "type": "object",
+      "properties": {
+        "wallTimeMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outputBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxProcesses": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxCollectionElements": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxNestingDepth": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "wallTimeMs",
+        "memoryBytes",
+        "outputBytes",
+        "maxProcesses",
+        "maxCollectionElements",
+        "maxNestingDepth"
+      ],
+      "additionalProperties": false
+    },
+    "LanguageImplementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "starterSource",
+        "runtimeRevision",
+        "harnessRevision"
+      ],
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": [
+            "python",
+            "java",
+            "typescript",
+            "ocaml"
+          ]
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "runtimeRevision": {
+          "type": "string"
+        },
+        "harnessRevision": {
+          "type": "string"
+        }
+      }
+    },
+    "Odyssey": {
+      "type": "object",
+      "properties": {
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OdysseyLevel"
+          },
+          "minItems": 1,
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "levels"
+      ],
+      "additionalProperties": false
+    },
+    "OdysseyLevel": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "statementMarkdown": {
+          "type": "string"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Signature"
+          },
+          "minItems": 1,
+          "maxItems": 16
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProblemExample"
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "title",
+        "statementMarkdown",
+        "methods",
+        "examples"
+      ],
+      "additionalProperties": false
+    },
+    "CustomCase": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        "expected": {
+          "$ref": "#/$defs/WireValue"
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MethodCall"
+          }
+        }
+      },
+      "required": [
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    "AuthoringImplementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": [
+            "python",
+            "java",
+            "typescript",
+            "ocaml"
+          ]
+        },
+        "starterSource": {
+          "type": "string"
+        },
+        "runtimeRevision": {
+          "type": "string"
+        },
+        "harnessRevision": {
+          "type": "string"
+        },
+        "referenceSource": {
+          "type": "string",
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "language",
+        "starterSource",
+        "runtimeRevision",
+        "harnessRevision",
+        "referenceSource"
+      ]
+    },
+    "EditorialSolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "source",
+        "explanationMarkdown",
+        "timeComplexity",
+        "spaceComplexity",
+        "complexityNotes"
+      ],
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": [
+            "python",
+            "java",
+            "typescript",
+            "ocaml"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "explanationMarkdown": {
+          "type": "string"
+        },
+        "timeComplexity": {
+          "type": "string"
+        },
+        "spaceComplexity": {
+          "type": "string"
+        },
+        "complexityNotes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

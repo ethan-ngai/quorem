@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { UserRound, ShieldCheck, X } from "lucide-react";
+import { UserRound, ShieldCheck, Link, X } from "lucide-react";
 import { useRef } from "react";
 import type { Session } from "../auth/session";
 import type { ThemePreference } from "../editor/editorSettings";
@@ -10,11 +10,12 @@ import {
   type SettingsProps,
   type WorkspaceSection,
 } from "../editor/components/WorkspaceSettings";
+import { SocialAccounts } from "../auth/SocialAccounts";
 import { ProfileSettings } from "./ProfileSettings";
 import { useLocalEditorPreferences } from "./useLocalEditorPreferences";
 import "./settings.css";
 
-export type SettingsSection = WorkspaceSection | "profile" | "security";
+export type SettingsSection = WorkspaceSection | "profile" | "security" | "social";
 export function SettingsDialog({
   open,
   section,
@@ -43,8 +44,10 @@ export function SettingsDialog({
       ? "Profile"
       : section === "security"
         ? "Security & login"
-        : workspaceSections.find((item) => item.id === section)!.label;
-  const accountSection = section === "profile" || section === "security";
+        : section === "social"
+          ? "Social accounts"
+          : workspaceSections.find((item) => item.id === section)!.label;
+  const accountSection = section === "profile" || section === "security" || section === "social";
   return (
     <Dialog.Root
       open={open}
@@ -95,6 +98,13 @@ export function SettingsDialog({
                     <ShieldCheck />
                     <span>Security & login</span>
                   </button>
+                  <button
+                    aria-current={section === "social" ? "page" : undefined}
+                    onClick={() => onSectionChange("social")}
+                  >
+                    <Link />
+                    <span>Social accounts</span>
+                  </button>
                 </div>
               )}
               <div className="settings-category-group">
@@ -124,7 +134,15 @@ export function SettingsDialog({
                 <p className="settings-local-note">Saved only in this browser.</p>
               )}
               {accountSection ? (
-                session && <ProfileSettings userId={session.user.id} section={section} />
+                session &&
+                (section === "social" ? (
+                  <SocialAccounts userId={session.user.id} />
+                ) : (
+                  <ProfileSettings
+                    userId={session.user.id}
+                    section={section as "profile" | "security"}
+                  />
+                ))
               ) : (
                 <WorkspaceSettingsContent
                   {...(workspace ?? {

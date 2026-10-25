@@ -42,6 +42,24 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 	if p.Odyssey == nil || len(p.Odyssey.Levels) != 1 {
 		t.Fatalf("future levels exposed: %+v", p.Odyssey)
 	}
+	for _, kind := range []string{"classic", "odyssey"} {
+		page, err := s.ProblemCatalog(context.Background(), ProblemFilter{Type: kind, Page: 1, Limit: 1})
+		if err != nil || len(page.Items) != 1 {
+			t.Fatalf("type filter %s: %+v %v", kind, page, err)
+		}
+		for _, item := range page.Items {
+			if (item.Odyssey != nil) != (kind == "odyssey") {
+				t.Fatalf("wrong type %s: %+v", kind, item)
+			}
+		}
+		if kind == "odyssey" && page.Total != 1 {
+			t.Fatalf("filtered total: %d", page.Total)
+		}
+	}
+	if _, err := s.ProblemCatalog(ctx, ProblemFilter{Type: "unknown", Page: 1, Limit: 20}); errorCode(err) != "invalid_input" {
+		t.Fatal("invalid type", err)
+	}
+
 	data, _ = json.Marshal(p)
 	if strings.Contains(string(data), "Withdrawals") {
 		t.Fatal("future requirement leaked")

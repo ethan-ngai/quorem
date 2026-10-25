@@ -1,7 +1,14 @@
+import { randomUUID } from "../../randomUUID";
+import { LoadingScreen } from "../../ui/LoadingScreen";
+import { Link, useNavigate } from "@tanstack/react-router";
 /** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { InterviewSnapshot, InterviewQuestionInput } from "@quorem/contracts";
+import type {
+  InterviewSnapshot,
+  InterviewQuestionInput,
+  InterviewMonitoring,
+} from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
@@ -11,7 +18,7 @@ import { QuestionSetup } from "./QuestionSetup";
 import { useErrorNotification } from "../../ui/Notifications";
 import "../../styles/workspace.css";
 import { CatalogLayout, CatalogTable } from "../practice/CatalogLayout";
-import { Trash2, Square } from "lucide-react";
+import { Trash2, Power, Users, CircleDot, Archive } from "lucide-react";
 import { Tooltip } from "../editor/components/Tooltip";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -20,6 +27,7 @@ import { SessionDialog } from "../../ui/SessionDialog";
 export function InterviewHub() {
   const account = useSession();
   const theme = useTheme();
+  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<InterviewSnapshot>();
   const [busy, setBusy] = useState(false);
@@ -35,15 +43,19 @@ export function InterviewHub() {
     enabled: !!account.data,
     refetchInterval: 10000,
   });
-  async function create(question: InterviewQuestionInput, title: string) {
+  async function create(
+    question: InterviewQuestionInput,
+    title: string,
+    monitoring?: InterviewMonitoring,
+  ) {
     setBusy(true);
     setError(undefined);
     try {
       const session = await interviewRequest<InterviewSnapshot>(
         "/v1/interviews",
         "POST",
-        { title, question },
-        crypto.randomUUID(),
+        { title, question, monitoring },
+        randomUUID(),
       );
       setCreated(session);
       await sessions.refetch();
@@ -68,7 +80,7 @@ export function InterviewHub() {
         `/v1/interviews/${session.id}${action === "end" ? "/close" : ""}`,
         action === "end" ? "POST" : "DELETE",
         undefined,
-        crypto.randomUUID(),
+        randomUUID(),
       );
       await sessions.refetch();
       setLifecycle(action === "end" ? { session, action: "delete" } : undefined);
@@ -111,14 +123,12 @@ export function InterviewHub() {
           </div>
         ) : (
           <section
-            className="practice-catalog"
+            className="practice-catalog interview-catalog"
             aria-label="Interviews"
             aria-busy={sessions.isFetching}
           >
             {sessions.isPending ? (
-              <div className="practice-state" role="status">
-                Loading interviews…
-              </div>
+              <LoadingScreen inline label="Loading interviews…" />
             ) : sessions.isError ? (
               <div className="practice-state" role="alert">
                 <p>Could not load interviews.</p>
@@ -133,7 +143,9 @@ export function InterviewHub() {
                   heading={
                     <tr>
                       <th scope="col">Interview</th>
-                      <th scope="col">Status</th>
+                      <th scope="col" className="interview-role-column">
+                        Your role
+                      </th>
                       <th scope="col">
                         <span className="sr-only">Actions</span>
                       </th>
@@ -145,20 +157,56 @@ export function InterviewHub() {
                       key={session.id}
                       onClick={(event) => {
                         if (!(event.target as Element).closest("a, button"))
-                          window.location.assign(`/interview/${session.id}`);
+                          void navigate({ to: "/interview/$id", params: { id: session.id } });
                       }}
                     >
                       <td>
-                        <a href={`/interview/${session.id}`}>{session.title}</a>
+                        <div className="interview-title-line">
+                          <Tooltip
+                            content={
+                              session.state === "closed"
+                                ? "Closed: read-only interview"
+                                : "Active: editing available"
+                            }
+                          >
+                            <span
+                              className="interview-row-status"
+                              data-state={session.state}
+                              tabIndex={0}
+                              role="img"
+                              aria-label={
+                                session.state === "closed" ? "Closed interview" : "Active interview"
+                              }
+                            >
+                              {session.state === "closed" ? (
+                                <Archive size={15} aria-hidden="true" />
+                              ) : (
+                                <CircleDot size={15} aria-hidden="true" />
+                              )}
+                            </span>
+                          </Tooltip>
+                          <Link to="/interview/$id" params={{ id: session.id }}>
+                            {session.title}
+                          </Link>
+                        </div>
+                        <span className="interview-row-detail">
+                          {session.question.problem.title}
+                        </span>
+                        <span className="interview-mobile-meta">
+                          {session.role === "interviewer" ? "Interviewer" : "Interviewee"} ·{" "}
+                          {session.members.length}{" "}
+                          {session.members.length === 1 ? "member" : "members"}
+                        </span>
                       </td>
-                      <td>
-                        {session.state === "closed"
-                          ? "Closed"
-                          : session.role === "interviewer"
-                            ? "Interviewer"
-                            : "Interviewee"}
+                      <td className="interview-role-column">
+                        {session.role === "interviewer" ? "Interviewer" : "Interviewee"}
+                        <span className="interview-row-detail interview-member-count">
+                          <Users size={13} aria-hidden="true" />
+                          {session.members.length}{" "}
+                          {session.members.length === 1 ? "member" : "members"}
+                        </span>
                       </td>
-                      <td>
+                      <td className="catalog-actions">
                         {session.hostId === account.data?.user.id && (
                           <Tooltip
                             content={
@@ -179,7 +227,7 @@ export function InterviewHub() {
                               {session.state === "closed" ? (
                                 <Trash2 size={16} />
                               ) : (
-                                <Square size={16} />
+                                <Power size={16} />
                               )}
                             </button>
                           </Tooltip>
@@ -224,13 +272,20 @@ export function InterviewHub() {
               invites={created.invites ?? { interviewee: created.invitePath }}
             />
             <footer className="competitive-dialog-actions">
-              <a className="button button-primary" href={`/interview/${created.id}`}>
+              <Link
+                className="button button-primary"
+                to="/interview/$id"
+                params={{ id: created.id }}
+              >
                 Open workspace
-              </a>
+              </Link>
             </footer>
           </>
         ) : (
-          <QuestionSetup onSubmit={(question, title) => void create(question, title)} busy={busy} />
+          <QuestionSetup
+            onSubmit={(question, title, monitoring) => void create(question, title, monitoring)}
+            busy={busy}
+          />
         )}
       </SessionDialog>
     </div>

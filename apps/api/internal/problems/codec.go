@@ -51,7 +51,7 @@ func validType(typ string, depth int) bool {
 	case "int", "float", "bool", "str", "ListNode", "TreeNode":
 		return true
 	}
-	for _, wrapper := range []string{"optional<", "list<"} {
+	for _, wrapper := range []string{"optional<", "list<", "array<"} {
 		if strings.HasPrefix(typ, wrapper) && strings.HasSuffix(typ, ">") {
 			return validType(typ[len(wrapper):len(typ)-1], depth+1)
 		}
@@ -60,6 +60,7 @@ func validType(typ string, depth int) bool {
 }
 
 func Normalize(typ string, data json.RawMessage) (json.RawMessage, error) {
+	typ = strings.ReplaceAll(typ, "array<", "list<")
 	if !validType(typ, 0) {
 		return nil, fmt.Errorf("unknown or excessively nested type")
 	}

@@ -144,7 +144,8 @@
 }
 
 .interview-people-popover {
-  width: min(440px, calc(100vw - 24px));
+  width: max-content;
+  max-width: min(440px, calc(100vw - 24px));
 }
 .interview-people-popover .interview-roster li {
   padding: 8px 0;

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, X } from "lucide-react";
 import { reportRuleEvent } from "./api";
-import { createRuleMonitor } from "./ruleMonitor";
+import { createRuleMonitor, observeWindowFocus } from "./ruleMonitor";
 import { Tooltip } from "../editor/components/Tooltip";
 
 export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapshot) {
@@ -44,22 +44,13 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
         event.stopImmediatePropagation();
       }
     };
-    const lostFocus = () => monitor.focus(false);
-    const restoredFocus = () =>
-      monitor.focus(document.visibilityState === "visible" && document.hasFocus());
-    const visibility = () =>
-      monitor.focus(document.visibilityState === "visible" && document.hasFocus());
     for (const type of ["copy", "cut", "paste"])
       document.addEventListener(type, clipboardAttempt, true);
-    window.addEventListener("blur", lostFocus);
-    window.addEventListener("focus", restoredFocus);
-    document.addEventListener("visibilitychange", visibility);
+    const stopFocus = observeWindowFocus(monitor.focus);
     return () => {
       for (const type of ["copy", "cut", "paste"])
         document.removeEventListener(type, clipboardAttempt, true);
-      window.removeEventListener("blur", lostFocus);
-      window.removeEventListener("focus", restoredFocus);
-      document.removeEventListener("visibilitychange", visibility);
+      stopFocus();
     };
   }, [active, match?.id, clipboard, focus, identity, scope, queryClient]);
   return {

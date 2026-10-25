@@ -1,4 +1,5 @@
 /** @file StageAuthoring.tsx @description Ordered step/method editing with typed stateful test suites. @module odyssey */
+import { randomUUID } from "../../randomUUID";
 import { useId, useState } from "react";
 import { SignatureFields } from "../admin/SignatureFields";
 import { Icon } from "../editor/components/Icon";
@@ -71,7 +72,7 @@ export function StageAuthoring({
               returnType: "int",
             });
             const stage: StageDraft = {
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               title: `Step ${value.length + 1}`,
               statement: "",
               methods: [method],

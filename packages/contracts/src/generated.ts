@@ -757,6 +757,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/interviews/{id}/hints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setInterviewHints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/monitoring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setInterviewMonitoring"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/rule-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reportInterviewRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/admission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setInterviewAdmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -800,6 +864,11 @@ export interface components {
             methodName: string;
             parameters: components["schemas"]["Parameter"][];
             returnType: string;
+            /**
+             * @description Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant.
+             * @enum {string}
+             */
+            outputOrder?: "ordered" | "unordered";
         };
         ExecutionLimits: {
             wallTimeMs: number;
@@ -837,6 +906,8 @@ export interface components {
             limits: components["schemas"]["ExecutionLimits"];
             languages?: components["schemas"]["LanguageImplementation"][];
             odyssey?: components["schemas"]["Odyssey"];
+            /** @description Languages with published complexity; contains no costs or solution source. */
+            complexityLanguages?: components["schemas"]["Language"][];
         };
         EditorPreferences: {
             /** @enum {string} */
@@ -994,6 +1065,7 @@ export interface components {
             rules?: {
                 clipboard?: components["schemas"]["MatchRuleAction"];
                 focus?: components["schemas"]["MatchRuleAction"];
+                hints?: components["schemas"]["QuestionHints"];
             };
             /** @enum {string} */
             accessMode?: "accounts_only" | "guests_allowed";
@@ -1103,6 +1175,7 @@ export interface components {
         MatchRules: {
             clipboard: components["schemas"]["MatchRuleAction"];
             focus: components["schemas"]["MatchRuleAction"];
+            hints?: components["schemas"]["QuestionHints"];
         };
         MatchRuleEvent: {
             /** Format: uuid */
@@ -1213,6 +1286,11 @@ export interface components {
         };
         PublishQuestionDraftRequest: {
             revision: string;
+            /**
+             * @description Private library or admin-only global publication. Omitted preserves the draft destination.
+             * @enum {string}
+             */
+            visibility?: "private" | "global";
         };
         InvitePreview: {
             mode: components["schemas"]["MatchMode"];
@@ -1294,6 +1372,7 @@ export interface components {
             problemVersionId?: string;
             custom?: components["schemas"]["InterviewCustomQuestion"];
             language: components["schemas"]["Language"];
+            hints?: components["schemas"]["QuestionHints"];
         };
         InterviewMember: {
             userId: string;
@@ -1325,10 +1404,16 @@ export interface components {
             latestSubmissionId?: string;
             questionEpoch: string;
             invites?: components["schemas"]["InterviewInvitePaths"];
+            hints?: components["schemas"]["QuestionHints"];
+            monitoring?: components["schemas"]["InterviewMonitoring"];
+            /** @description Interviewer-only event history. Omitted for interviewees. */
+            ruleEvents?: components["schemas"]["InterviewRuleEvent"][];
+            admissionLocked?: boolean;
         };
         InterviewCreate: {
             title: string;
             question: components["schemas"]["InterviewQuestionInput"];
+            monitoring?: components["schemas"]["InterviewMonitoring"];
         };
         InterviewPreview: {
             title: string;
@@ -1365,6 +1450,32 @@ export interface components {
             stderr?: string;
             caseId: string;
             case: components["schemas"]["CustomCase"];
+        };
+        QuestionHints: {
+            /** @description Allow revealing topics; defaults to true. */
+            topics?: boolean;
+            /** @description Allow revealing published complexity; defaults to false for sessions. */
+            complexity?: boolean;
+        };
+        InterviewMonitoring: {
+            /** @description Enabled when omitted. */
+            paste?: boolean;
+            /** @description Enabled when omitted. */
+            focus?: boolean;
+        };
+        InterviewRuleEvent: {
+            /** Format: uuid */
+            id: string;
+            userId: string;
+            name: string;
+            /** @enum {string} */
+            kind: "paste" | "focus";
+            /** Format: date-time */
+            occurredAt: string;
+        };
+        InterviewRuleEventInput: {
+            /** @enum {string} */
+            kind: "paste" | "focus";
         };
     };
     responses: never;
@@ -1963,6 +2074,7 @@ export interface operations {
                 page?: number;
                 limit?: number;
                 library?: "global" | "private";
+                type?: "classic" | "odyssey";
             };
             header?: never;
             path?: never;
@@ -3152,6 +3264,156 @@ export interface operations {
                 "application/json": {
                     revealed: boolean;
                     questionEpoch: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewHints: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionHints"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewMonitoring: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewMonitoring"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reportInterviewRule: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewRuleEventInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewAdmission: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    locked: boolean;
                 };
             };
         };

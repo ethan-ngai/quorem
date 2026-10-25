@@ -23,6 +23,11 @@ func notice() realtime.Notice {
 }
 
 func TestAppSyncPublish(t *testing.T) {
+	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1)} {
+		t.Run(channel, func(t *testing.T) { testAppSyncPublish(t, channel) })
+	}
+}
+func testAppSyncPublish(t *testing.T, channel string) {
 	n := notice()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-api-key") != "private-key" || r.Method != "POST" {
@@ -32,7 +37,7 @@ func TestAppSyncPublish(t *testing.T) {
 			Channel string   `json:"channel"`
 			Events  []string `json:"events"`
 		}
-		if json.NewDecoder(r.Body).Decode(&body) != nil || body.Channel != testChannel || len(body.Events) != 1 {
+		if json.NewDecoder(r.Body).Decode(&body) != nil || body.Channel != channel || len(body.Events) != 1 {
 			t.Error("invalid publish envelope")
 		}
 		var got realtime.Notice
@@ -44,7 +49,7 @@ func TestAppSyncPublish(t *testing.T) {
 	}))
 	defer server.Close()
 	a := &AppSync{HTTPURL: server.URL, APIKey: "private-key"}
-	if err := a.Publish(context.Background(), testChannel, n); err != nil {
+	if err := a.Publish(context.Background(), channel, n); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -68,6 +73,11 @@ func TestAppSyncIAM(t *testing.T) {
 	}
 }
 func TestAppSyncSubscription(t *testing.T) {
+	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1)} {
+		t.Run(channel, func(t *testing.T) { testAppSyncSubscription(t, channel) })
+	}
+}
+func testAppSyncSubscription(t *testing.T, channel string) {
 	n := notice()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		protocols := strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",")
@@ -100,7 +110,7 @@ func TestAppSyncSubscription(t *testing.T) {
 			Type, Channel string
 			Authorization map[string]string
 		}
-		if json.Unmarshal(body, &sub) != nil || sub.Type != "subscribe" || sub.Channel != testChannel || sub.Authorization["x-api-key"] != "private-key" {
+		if json.Unmarshal(body, &sub) != nil || sub.Type != "subscribe" || sub.Channel != channel || sub.Authorization["x-api-key"] != "private-key" {
 			t.Error("invalid subscription")
 		}
 		_ = writeJSON(ctx, c, map[string]string{"type": "subscribe_success", "id": "quorem"})
@@ -112,7 +122,7 @@ func TestAppSyncSubscription(t *testing.T) {
 	a := &AppSync{HTTPURL: server.URL, WebSocketURL: strings.Replace(server.URL, "http", "ws", 1), APIKey: "private-key"}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	stream, stop, err := a.Subscribe(ctx, testChannel)
+	stream, stop, err := a.Subscribe(ctx, channel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,6 +182,11 @@ func TestProviderConfiguration(t *testing.T) {
 
 // Opt-in workerd test exercises the actual Durable Object implementation, not a protocol mock.
 func TestCloudflareEmulator(t *testing.T) {
+	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1)} {
+		t.Run(channel, func(t *testing.T) { testCloudflareEmulator(t, channel) })
+	}
+}
+func testCloudflareEmulator(t *testing.T, channel string) {
 	base := os.Getenv("QUOREM_RELAY_TEST_URL")
 	if base == "" {
 		t.Skip("requires local Wrangler")
@@ -179,13 +194,13 @@ func TestCloudflareEmulator(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	c := &Cloudflare{URL: base, Token: os.Getenv("QUOREM_RELAY_TEST_TOKEN")}
-	stream, stop, err := c.Subscribe(ctx, testChannel)
+	stream, stop, err := c.Subscribe(ctx, channel)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
 	n := notice()
-	if err = c.Publish(ctx, testChannel, n); err != nil {
+	if err = c.Publish(ctx, channel, n); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -198,11 +213,11 @@ func TestCloudflareEmulator(t *testing.T) {
 	}
 	wrong := *c
 	wrong.Token = strings.Repeat("z", 32)
-	if wrong.Publish(ctx, testChannel, n) == nil {
+	if wrong.Publish(ctx, channel, n) == nil {
 		t.Fatal("unauthorized publish accepted")
 	}
 	n.AggregateID = "other"
-	if c.Publish(ctx, testChannel, n) == nil {
+	if c.Publish(ctx, channel, n) == nil {
 		t.Fatal("cross-match notice accepted")
 	}
 }

@@ -14,10 +14,11 @@ type Parameter struct {
 	Input *InputConfig `json:"input,omitempty"`
 }
 type Signature struct {
-	ClassName  string      `json:"className"`
-	MethodName string      `json:"methodName"`
-	Parameters []Parameter `json:"parameters"`
-	ReturnType string      `json:"returnType"`
+	OutputOrder string      `json:"outputOrder,omitempty"`
+	ClassName   string      `json:"className"`
+	MethodName  string      `json:"methodName"`
+	Parameters  []Parameter `json:"parameters"`
+	ReturnType  string      `json:"returnType"`
 }
 type MethodCall struct {
 	MethodName string            `json:"methodName"`
@@ -75,21 +76,22 @@ type OdysseyProgress struct {
 	Levels      []OdysseyLevel `json:"levels"`
 }
 type Problem struct {
-	Odyssey           *Odyssey                 `json:"odyssey,omitempty"`
-	Languages         []LanguageImplementation `json:"languages"`
-	ID                string                   `json:"id"`
-	Slug              string                   `json:"slug"`
-	Version           string                   `json:"version"`
-	Title             string                   `json:"title"`
-	Difficulty        string                   `json:"difficulty"`
-	Tags              []string                 `json:"tags"`
-	StatementMarkdown string                   `json:"statementMarkdown"`
-	Examples          []ProblemExample         `json:"examples"`
-	Constraints       []Constraint             `json:"constraints"`
-	Signature         Signature                `json:"signature"`
-	StarterSource     string                   `json:"starterSource"`
-	RuntimeRevision   string                   `json:"runtimeRevision"`
-	Limits            execution.Limits         `json:"limits"`
+	ComplexityLanguages []string                 `json:"complexityLanguages,omitempty"`
+	Odyssey             *Odyssey                 `json:"odyssey,omitempty"`
+	Languages           []LanguageImplementation `json:"languages"`
+	ID                  string                   `json:"id"`
+	Slug                string                   `json:"slug"`
+	Version             string                   `json:"version"`
+	Title               string                   `json:"title"`
+	Difficulty          string                   `json:"difficulty"`
+	Tags                []string                 `json:"tags"`
+	StatementMarkdown   string                   `json:"statementMarkdown"`
+	Examples            []ProblemExample         `json:"examples"`
+	Constraints         []Constraint             `json:"constraints"`
+	Signature           Signature                `json:"signature"`
+	StarterSource       string                   `json:"starterSource"`
+	RuntimeRevision     string                   `json:"runtimeRevision"`
+	Limits              execution.Limits         `json:"limits"`
 }
 type Fixture struct {
 	OdysseyHiddenCases [][]Case `json:"odysseyHiddenCases,omitempty"`

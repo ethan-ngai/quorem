@@ -1,0 +1,28 @@
+.result-tabs {
+  display: flex;
+  align-self: stretch;
+  gap: 18px;
+}
+.result-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.result-tabs button[aria-selected="true"] {
+  color: var(--color-text);
+  font-weight: 550;
+}
+
+.result-tabs {
+  min-height: 32px;
+}
+.result-tabs svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}

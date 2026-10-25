@@ -1,4 +1,5 @@
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
+import { randomUUID } from "../../randomUUID";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import type { DevelopmentIdentity, ProblemVersion, Workspace } from "@quorem/contracts";
@@ -191,7 +192,7 @@ export function useSubmission({
           /* Browser storage may be unavailable; the current tab retains its retry key. */
         }
         if (pendingRequest.current?.fingerprint !== fingerprint)
-          pendingRequest.current = { fingerprint, key: crypto.randomUUID() };
+          pendingRequest.current = { fingerprint, key: randomUUID() };
         try {
           localStorage.setItem(recoveryKey, JSON.stringify(pendingRequest.current));
         } catch {

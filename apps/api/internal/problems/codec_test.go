@@ -119,3 +119,21 @@ func TestFloatSignedZeroParity(t *testing.T) {
 		t.Fatal(string(got), err)
 	}
 }
+
+func TestArrayPseudoType(t *testing.T) {
+	for _, typ := range []string{"array<int>", "list<int>"} {
+		got, err := Normalize(typ, []byte(`[1,2]`))
+		if err != nil || string(got) != `[1,2]` {
+			t.Fatal(typ, string(got), err)
+		}
+	}
+	if _, err := Normalize("array<int>", []byte(`[null]`)); err == nil {
+		t.Fatal("null array integer")
+	}
+	for _, test := range []struct{ typ, language, want string }{{"list<int>", "java", "java.util.List<Integer>"}, {"array<int>", "java", "int[]"}, {"list<optional<str>>", "java", "java.util.List<String>"}} {
+		got, err := languageType(test.typ, test.language)
+		if err != nil || got != test.want {
+			t.Fatal(test, got, err)
+		}
+	}
+}

@@ -229,3 +229,44 @@ func TestInterviewBaselineAndMatchesExcludePrivateQuestions(t *testing.T) {
 		t.Fatal("interview baseline exposed private workspace", global, err)
 	}
 }
+
+func TestAdminChoosesPrivateOrGlobalPublication(t *testing.T) {
+	s := adminStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	c := authoringContent(t, s)
+	c.Problem.Slug = "scope-choice"
+	for _, visibility := range []string{"private", "global"} {
+		draft, err := s.CreateQuestionDraft(ctx, "alice", c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		published, err := s.PublishQuestionDraftTo(ctx, "alice", draft.ID, draft.Revision, visibility)
+		if err != nil {
+			t.Fatal(visibility, err)
+		}
+		_, err = s.Problem(context.Background(), published.PublishedVersionID, true)
+		if visibility == "private" && errorCode(err) != "not_found" {
+			t.Fatal("private publication leaked", err)
+		}
+		if visibility == "global" && err != nil {
+			t.Fatal("global publication hidden", err)
+		}
+		if _, err = s.Problem(ctx, published.PublishedVersionID, true); err != nil {
+			t.Fatal("owner read", err)
+		}
+	}
+	grantCustomAuthor(t, s, "bob")
+	bob := authorContext("bob")
+	draft, err := s.CreateQuestionDraft(bob, "bob", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A forged principal cannot grant global publication; the persisted role decides.
+	forged := identity.With(bob, identity.Principal{UserID: "bob", Admin: true})
+	if _, err = s.PublishQuestionDraftTo(forged, "bob", draft.ID, draft.Revision, "global"); errorCode(err) != "forbidden" {
+		t.Fatal("global bypass", err)
+	}
+	if _, err = s.PublishQuestionDraftTo(bob, "bob", draft.ID, draft.Revision, "private"); err != nil {
+		t.Fatal("denied attempt consumed draft", err)
+	}
+}

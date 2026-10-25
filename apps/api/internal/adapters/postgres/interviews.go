@@ -26,7 +26,8 @@ func lockInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, acti
 	var v interviewRecord
 	var data []byte
 	var disabled bool
-	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 AND i.deleted_at IS NULL FOR UPDATE OF i`, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled)
+	var complexityLanguages []string
+	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled,i.monitoring,i.admission_locked,ARRAY(SELECT ps.language FROM problem_solutions ps WHERE ps.version_id=NULLIF(i.question->'problem'->>'id','')::uuid AND COALESCE(i.question->'problem'->'odyssey','null'::jsonb)='null'::jsonb AND btrim(ps.time_complexity)<>'' AND btrim(ps.space_complexity)<>'' ORDER BY ps.language) FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 AND i.deleted_at IS NULL FOR UPDATE OF i`, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled, &v.snapshot.Monitoring, &v.snapshot.AdmissionLocked, &complexityLanguages)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Interview unavailable")
 	}
@@ -42,9 +43,17 @@ func lockInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, acti
 	if active && v.snapshot.State != "active" {
 		return v, failure("invalid_transition", 409, "Interview is closed")
 	}
+	var presentation struct {
+		Hints *problems.HintVisibility `json:"hints,omitempty"`
+	}
+	if err = json.Unmarshal(data, &presentation); err != nil {
+		return v, err
+	}
+	v.snapshot.Hints = presentation.Hints
 	if err = json.Unmarshal(data, &v.fixture); err != nil {
 		return v, err
 	}
+	v.fixture.Problem.ComplexityLanguages = complexityLanguages
 	// Revoking the host flag freezes writes and invitations, but preserves member readback.
 	if active {
 		var enabled bool
@@ -57,6 +66,14 @@ func lockInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, acti
 		}
 	}
 	return v, nil
+}
+
+// Presentation settings live beside the private fixture in the session's question JSONB.
+func encodeInterviewQuestion(f problems.Fixture, hints *problems.HintVisibility) ([]byte, error) {
+	return json.Marshal(struct {
+		problems.Fixture
+		Hints *problems.HintVisibility `json:"hints,omitempty"`
+	}{f, hints})
 }
 func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (interviews.Snapshot, error) {
 	out := v.snapshot
@@ -83,6 +100,23 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 		return out, err
 	}
 	if out.Role == "interviewer" {
+		events, err := tx.Query(ctx, `SELECT e.id,e.owner_id,u.display_name,e.kind,e.occurred_at FROM interview_rule_events e JOIN users u ON u.id=e.owner_id WHERE e.session_id=$1 ORDER BY e.occurred_at,e.id`, out.ID)
+		if err != nil {
+			return out, err
+		}
+		for events.Next() {
+			var event interviews.RuleEvent
+			if err = events.Scan(&event.ID, &event.UserID, &event.Name, &event.Kind, &event.OccurredAt); err != nil {
+				events.Close()
+				return out, err
+			}
+			out.RuleEvents = append(out.RuleEvents, event)
+		}
+		err = events.Err()
+		events.Close()
+		if err != nil {
+			return out, err
+		}
 		out.Question.PrivateCases = v.fixture.HiddenCases
 		if v.fixture.Problem.Odyssey != nil {
 			_, tests, err := problems.CompileOdyssey(v.fixture, len(v.fixture.Problem.Odyssey.Levels), "submit")
@@ -257,8 +291,13 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 		return empty, err
 	}
 	interviewerToken := base64.RawURLEncoding.EncodeToString(raw)
-	data, _ := json.Marshal(f)
-	if _, err = tx.Exec(ctx, `INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, id, user, c.Title, data, c.Question.Language, f.Problem.StarterSource, ID(), Hash([]byte(token)), token, questionEpoch, Hash([]byte(interviewerToken)), interviewerToken); err != nil {
+	data, _ := encodeInterviewQuestion(f, c.Question.Hints)
+	monitoring := interviews.Monitoring{}
+	if c.Monitoring != nil {
+		monitoring = *c.Monitoring
+	}
+	policy, _ := json.Marshal(monitoring)
+	if _, err = tx.Exec(ctx, `INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token,monitoring) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, id, user, c.Title, data, c.Question.Language, f.Problem.StarterSource, ID(), Hash([]byte(token)), token, questionEpoch, Hash([]byte(interviewerToken)), interviewerToken, policy); err != nil {
 		return empty, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO interview_members(session_id,user_id,role) VALUES($1,$2,'interviewer')`, id, user); err != nil {

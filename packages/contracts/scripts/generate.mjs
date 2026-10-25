@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import openapiTS, { astToString, COMMENT_HEADER } from "openapi-typescript";
 import ts from "typescript";
+import { questionSchema } from "./question-schema.mjs";
 
 /** @returns Generated declarations derived entirely from the OpenAPI schema. */
 export async function generateContracts() {
@@ -44,4 +45,8 @@ export async function generateContracts() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   writeFileSync(new URL("../src/generated.ts", import.meta.url), await generateContracts());
+  writeFileSync(
+    new URL("../questions/question-v1.schema.json", import.meta.url),
+    JSON.stringify(questionSchema(), null, 2) + "\n",
+  );
 }

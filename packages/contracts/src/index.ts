@@ -15,6 +15,7 @@ export type InterviewUpdate = components["schemas"]["InterviewUpdate"];
 export type InterviewUpdates = components["schemas"]["InterviewUpdates"];
 export type InterviewPreview = components["schemas"]["InterviewPreview"];
 export type InterviewRole = components["schemas"]["InterviewRole"];
+export type QuestionHints = components["schemas"]["QuestionHints"];
 export type QuestionContent = components["schemas"]["QuestionContent"];
 export type QuestionDraft = components["schemas"]["QuestionDraft"];
 export type QuestionDraftSummary = components["schemas"]["QuestionDraftSummary"];
@@ -74,3 +75,6 @@ export function createApiClient(
     headers: options.identity ? { "X-Dev-User": options.identity } : undefined,
   });
 }
+
+export type InterviewMonitoring = components["schemas"]["InterviewMonitoring"];
+export type InterviewRuleEvent = components["schemas"]["InterviewRuleEvent"];

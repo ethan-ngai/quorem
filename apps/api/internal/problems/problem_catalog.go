@@ -1,8 +1,8 @@
 package problems
 
 type ProblemFilter struct {
-	Query, Difficulty, Topic, Sort, Order, Library string
-	Page, Limit                                    int
+	Query, Difficulty, Topic, Sort, Order, Library, Type string
+	Page, Limit                                          int
 }
 type ProblemPage struct {
 	Items  []Problem `json:"items"`

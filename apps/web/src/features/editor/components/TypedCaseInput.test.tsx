@@ -67,7 +67,7 @@ describe("typed case controls", () => {
     expect(markup).toContain('role="combobox"');
     expect(markup).toContain('aria-label="enabled"');
     expect(markup).toContain('id="enabled"');
-    expect(markup).toContain(">false</span>");
+    expect(markup).toContain(">False</span>");
   });
   it("supports multiline question overrides and nullable values", () => {
     const multiline = renderToStaticMarkup(

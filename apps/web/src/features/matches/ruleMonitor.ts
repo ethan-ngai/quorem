@@ -18,7 +18,7 @@ export function createRuleMonitor(
       }
       return true;
     },
-    focus(present: boolean) {
+    focus(this: void, present: boolean) {
       if (present) {
         absent = false;
         return;
@@ -27,5 +27,19 @@ export function createRuleMonitor(
       absent = true;
       if (rules.focus !== "off") report("focus", rules.focus);
     },
+  };
+}
+
+/** Shared browser signals; the rule monitor deduplicates blur and visibility changes. */
+export function observeWindowFocus(focus: (present: boolean) => void) {
+  const lost = () => focus(false);
+  const restored = () => focus(document.visibilityState === "visible" && document.hasFocus());
+  window.addEventListener("blur", lost);
+  window.addEventListener("focus", restored);
+  document.addEventListener("visibilitychange", restored);
+  return () => {
+    window.removeEventListener("blur", lost);
+    window.removeEventListener("focus", restored);
+    document.removeEventListener("visibilitychange", restored);
   };
 }

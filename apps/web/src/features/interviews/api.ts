@@ -35,6 +35,7 @@ export async function interviewRequest<T>(
     const error = (await response.json().catch(() => ({}))) as { error?: { code?: string } };
     const code = error.error?.code ?? "request_failed";
     const messages: Record<string, string> = {
+      admission_locked: "The host has locked this interview. Ask them to unlock it to join.",
       forbidden: "You no longer have access to this interview.",
       unauthenticated: "Open your invitation or sign in to continue.",
       entitlement_required: "This feature is not enabled for this account.",

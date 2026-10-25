@@ -120,7 +120,10 @@ describe("shared test browser", () => {
     );
     expect(html).toContain('aria-label="Case 2: accepted"');
     expect(html).toContain('class="case-run-output"');
-    expect(html).toContain("[9]");
+    expect(html).toContain('aria-label="Call 1: deposit"');
+    expect(html).toContain(">amount</span>");
+    expect(html).toContain(">Expected</span>");
+    expect(html).not.toContain("[9]");
   });
   it("never submits a surrounding authoring form when choosing, adding or removing cases", () => {
     const draft = { ...createCustomDraft(problem), expectedEnabled: true };

@@ -127,6 +127,18 @@
 .practice-table td:nth-child(2) {
   width: 17%;
 }
+.practice-table .catalog-actions {
+  text-align: end;
+}
+.practice-table .catalog-actions .icon-button {
+  margin-inline-start: auto;
+}
+.practice-table .catalog-actions .icon-button.destructive-icon {
+  color: var(--color-text-secondary);
+}
+.practice-table tbody tr:hover .catalog-actions .icon-button.destructive-icon {
+  color: var(--color-error);
+}
 .practice-table tbody tr {
   cursor: pointer;
   transition: background var(--motion-fast);
@@ -393,5 +405,79 @@
   .practice-difficulty,
   .practice-table tbody tr {
     transition: none;
+  }
+}
+
+.interview-row-detail,
+.interview-mobile-meta {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  margin-top: var(--space-1);
+}
+.interview-member-count {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+.interview-title-line {
+  display: grid;
+  grid-template-columns: var(--space-4) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+}
+.interview-title-line + .interview-row-detail,
+.interview-mobile-meta {
+  margin-inline-start: calc(var(--space-4) + var(--space-2));
+}
+.interview-row-status {
+  display: inline-flex;
+  margin-top: 3px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.interview-catalog .practice-table td:first-child {
+  width: 65%;
+}
+.interview-catalog .practice-table td.interview-role-column {
+  width: 25%;
+}
+.interview-catalog .catalog-actions {
+  width: 10%;
+}
+@media (max-width: 600px) {
+  .interview-catalog .practice-table td:first-child {
+    width: auto;
+  }
+}
+.interview-row-status[data-state="active"] {
+  color: var(--color-success);
+}
+.interview-mobile-meta {
+  display: none;
+}
+.interview-catalog .catalog-actions .icon-button {
+  opacity: 0;
+  pointer-events: none;
+}
+.interview-catalog tr:is(:hover, :focus-within) .catalog-actions .icon-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none), (pointer: coarse) {
+  .interview-catalog .catalog-actions .icon-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (max-width: 600px) {
+  .interview-role-column {
+    display: none;
+  }
+  .interview-mobile-meta {
+    display: block;
   }
 }
