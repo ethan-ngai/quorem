@@ -26,7 +26,7 @@
 }
 .typed-case-field input,
 .typed-case-field textarea,
-.typed-case-field select {
+.typed-case-field .select-field {
   width: 100%;
   min-height: var(--control-height);
   padding: 6px 8px;

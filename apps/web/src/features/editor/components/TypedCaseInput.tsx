@@ -1,4 +1,5 @@
 import { Tooltip } from "./Tooltip";
+import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "./Icon";
 import { useState, type ReactNode } from "react";
 import type { InputPresetConfig } from "@quorem/contracts";
@@ -111,10 +112,21 @@ export function TypedCaseInput({
         {empty ? (
           <code className="typed-null">null</code>
         ) : control.kind === "boolean" ? (
-          <select {...props}>
-            <option value="false">false</option>
-            <option value="true">true</option>
-          </select>
+          <SelectField
+            label={name}
+            value={props.value}
+            options={[
+              { value: "false", label: "false" },
+              { value: "true", label: "true" },
+            ]}
+            onChange={(source) => props.onChange({ target: { value: source } })}
+            triggerProps={{
+              id,
+              "aria-invalid": props["aria-invalid"],
+              "aria-describedby": props["aria-describedby"],
+              onBlur: props.onBlur,
+            }}
+          />
         ) : (
           <div className={framed ? "typed-collection" : "typed-control"}>
             {framed && (
