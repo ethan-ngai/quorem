@@ -55,6 +55,9 @@ func guestLifecycleStore(t *testing.T) *postgres.Store {
 	if err = s.Migrate(ctx, "../../migrations"); err != nil {
 		t.Fatal(err)
 	}
+	if err = s.Seed(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = s.Pool.Exec(ctx, `TRUNCATE interviews CASCADE; DELETE FROM entitlement_grants WHERE user_id='alice' AND source_ref='guest-http-lifecycle'`); err != nil {
 		t.Fatal(err)
 	}

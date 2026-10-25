@@ -1,0 +1,36 @@
+.workspace-tooltip {
+  z-index: var(--layer-tooltip, 400);
+  max-width: min(280px, var(--radix-tooltip-content-available-width));
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: 11px/1.4 var(--font-interface);
+  box-shadow: 0 2px 8px #0002;
+  animation: tooltip-enter 120ms ease-out;
+}
+.workspace-tooltip[data-state="closed"] {
+  animation: tooltip-exit 100ms ease-in;
+}
+@keyframes tooltip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes tooltip-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-tooltip[data-state] {
+    animation: none;
+  }
+}

@@ -1,7 +1,8 @@
+import "./results.css";
 /** @file ResultContent.tsx @description Safe submission summaries and selected public Run output. @module editor */
 import type { Diagnostic, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useState } from "react";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 import { CaseOutput, verdictTone } from "./CaseOutput";
 
 /** Shows safe compiler or public-case diagnostics with useful source positions. */

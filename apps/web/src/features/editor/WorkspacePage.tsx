@@ -14,7 +14,7 @@ import type {
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect, useRef, useState, type ReactNode } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
-import { MatchRuleNotice, useMatchRules } from "../matches/useMatchRules";
+import { useMatchRules } from "../matches/useMatchRules";
 import {
   fetchProblem,
   fetchProblemVersion,
@@ -670,10 +670,7 @@ export function WorkspacePage({
         }
         header={
           matchHeader ? (
-            <>
-              {matchHeader}
-              <MatchRuleNotice message={matchRules.notice} onDismiss={matchRules.dismiss} />
-            </>
+            matchHeader
           ) : odyssey.data ? (
             <OdysseyStepper
               progress={odyssey.data}

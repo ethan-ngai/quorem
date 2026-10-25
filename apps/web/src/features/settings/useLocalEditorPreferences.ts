@@ -1,18 +1,18 @@
 import { useState } from "react";
 import {
-  readPreference,
   writePreference,
-  readEditorScheme,
+  readEditorPreferences,
   editorSchemeStorageKey,
 } from "../editor/editorSettings";
 import type { EditorScheme } from "../editor/editorSchemes";
 
-/** Outside a workspace, editor preferences still save only to this browser. */
+/** Shared display preferences for workspaces and settings on every route. */
 export function useLocalEditorPreferences() {
-  const [editorScheme, scheme] = useState(readEditorScheme);
-  const [fontSize, font] = useState(() => readPreference("quorem.code-font-size.v1", 15));
-  const [tabSize, tab] = useState<2 | 4>(() => readPreference("quorem.tab-size.v1", 4));
-  const [wrap, wrapping] = useState(() => readPreference("quorem.wrap.v1", false));
+  const [initial] = useState(readEditorPreferences);
+  const [editorScheme, scheme] = useState(initial.editorScheme);
+  const [fontSize, font] = useState(initial.fontSize);
+  const [tabSize, tab] = useState(initial.tabSize);
+  const [wrap, wrapping] = useState(initial.wrap);
   return {
     editorScheme,
     onEditorSchemeChange: (value: EditorScheme) => {

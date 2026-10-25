@@ -70,7 +70,19 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 	if len(cases) == 0 {
 		return out, failure("invalid_input", 400, "No tests configured")
 	}
-	if err = interviewExecutionAdmission(ctx, tx, user, v.snapshot.HostID, guest); err != nil {
+	if _, err = ownerExecutionAdmission(ctx, tx, user); err != nil {
+		return out, err
+	}
+	if guest {
+		available, e := guestSponsorCapacity(ctx, tx, v.snapshot.HostID)
+		if e != nil {
+			return out, e
+		}
+		if !available {
+			return out, failure("quota_exceeded", 429, "Host guest execution capacity reached")
+		}
+	}
+	if err = executionQueueAdmission(ctx, tx); err != nil {
 		return out, err
 	}
 	// Baseline workspace satisfies existing job FKs; the private immutable fixture lives only in interview_execution.
@@ -97,7 +109,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 	if _, err = tx.Exec(ctx, `INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture,level,progress_scope,question_epoch) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, submissionID, id, v.snapshot.Document.Version, v.snapshot.Document.Epoch, fixture, level, progressScope, v.snapshot.QuestionEpoch); err != nil {
 		return out, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE users SET admission_tokens=LEAST(2,admission_tokens+EXTRACT(EPOCH FROM(clock_timestamp()-tokens_updated_at))/6.0)-1,tokens_updated_at=clock_timestamp() WHERE id=$1`, user); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE users SET admission_tokens=`+executionTokenBalance+`-1,tokens_updated_at=clock_timestamp() WHERE id=$1`, user); err != nil {
 		return out, err
 	}
 	if err = saveInterviewOperation(ctx, tx, user, key, hash, id, map[string]string{"submissionId": submissionID}); err != nil {
@@ -109,54 +121,6 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 	out, err = s.Submission(ctx, user, submissionID)
 	out.ExecutionJobID = jobID
 	return out, err
-}
-func interviewExecutionAdmission(ctx context.Context, tx pgx.Tx, user, host string, guest bool) error {
-	var busy bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM submissions WHERE owner_id=$1 AND state IN ('queued','running'))`, user).Scan(&busy); err != nil {
-		return err
-	}
-	if busy {
-		return failure("user_busy", 409, "Another execution is active")
-	}
-	var tokens float64
-	var daily int
-	if err := tx.QueryRow(ctx, `SELECT LEAST(2,admission_tokens+EXTRACT(EPOCH FROM(clock_timestamp()-tokens_updated_at))/6.0),(SELECT count(*) FROM submissions WHERE owner_id=$1 AND admitted_at>clock_timestamp()-interval '24 hours') FROM users WHERE id=$1`, user).Scan(&tokens, &daily); err != nil {
-		return err
-	}
-	if tokens < 1 || daily >= 100 {
-		return failure("quota_exceeded", 429, "Execution quota reached")
-	}
-	if guest {
-		if _, err := tx.Exec(ctx, `INSERT INTO guest_sponsor_locks(user_id) VALUES($1) ON CONFLICT DO NOTHING`, host); err != nil {
-			return err
-		}
-		var locked string
-		if err := tx.QueryRow(ctx, `SELECT user_id FROM guest_sponsor_locks WHERE user_id=$1 FOR UPDATE`, host).Scan(&locked); err != nil {
-			return err
-		}
-		caps, err := capabilities(ctx, tx, host)
-		if err != nil {
-			return err
-		}
-		var running int
-		if running, err = activeGuestExecutions(ctx, tx, host); err != nil {
-			return err
-		}
-		if running >= caps.GuestConcurrency {
-			return failure("quota_exceeded", 429, "Host guest execution capacity reached")
-		}
-	}
-	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(740020)`); err != nil {
-		return err
-	}
-	var pending int
-	if err := tx.QueryRow(ctx, `SELECT count(*) FROM execution_jobs WHERE NOT finished`).Scan(&pending); err != nil {
-		return err
-	}
-	if pending >= 200 {
-		return failure("queue_saturated", 429, "Judge queue is full")
-	}
-	return nil
 }
 func (s *Store) InterviewSubmission(ctx context.Context, user, id, submissionID string) (judging.Submission, error) {
 	var out judging.Submission

@@ -1,8 +1,9 @@
 /** @file SessionDialog.tsx @description Shared competitive dialog chrome for session setup and membership. @module ui */
+import "./session-dialog.css";
 import * as Dialog from "@radix-ui/react-dialog";
-import type { ReactNode } from "react";
-import { Icon } from "../features/editor/components/Icon";
-import { Tooltip } from "../features/editor/components/Tooltip";
+import { useRef, type ReactNode, type RefObject } from "react";
+import { Icon } from "./Icon";
+import { Tooltip } from "./Tooltip";
 import { focusOverlayOnOpen } from "./overlayFocus";
 
 export function SessionDialog({
@@ -17,6 +18,8 @@ export function SessionDialog({
   className = "",
   onExited,
   returnFocus,
+  initialFocus,
+  closeLabel = "Close",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -29,7 +32,10 @@ export function SessionDialog({
   className?: string;
   onExited?: () => void;
   returnFocus?: () => void;
+  initialFocus?: RefObject<HTMLElement | null>;
+  closeLabel?: string;
 }) {
+  const opener = useRef<HTMLElement | null>(null);
   return (
     <Dialog.Root
       open={open}
@@ -38,14 +44,24 @@ export function SessionDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="settings-backdrop" />
+        <Dialog.Overlay className="session-backdrop" />
         <Dialog.Content
           className={`competitive-dialog ${className}`}
-          onOpenAutoFocus={focusOverlayOnOpen}
+          onOpenAutoFocus={(event) => {
+            if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement)
+              opener.current = document.activeElement;
+            if (!event.defaultPrevented && initialFocus?.current) {
+              event.preventDefault();
+              initialFocus.current.focus({ preventScroll: true });
+            } else focusOverlayOnOpen(event);
+          }}
           onCloseAutoFocus={(event) => {
             if (returnFocus) {
               event.preventDefault();
               returnFocus();
+            } else if (opener.current?.isConnected) {
+              event.preventDefault();
+              opener.current.focus({ preventScroll: true });
             }
           }}
           onAnimationEnd={(event) => {
@@ -63,9 +79,9 @@ export function SessionDialog({
             </div>
             <div className="lobby-heading-actions">
               {actions}
-              <Tooltip content="Close">
+              <Tooltip content={closeLabel}>
                 <Dialog.Close asChild>
-                  <button className="icon-button" aria-label="Close" disabled={pending}>
+                  <button className="icon-button" aria-label={closeLabel} disabled={pending}>
                     <Icon name="close" />
                   </button>
                 </Dialog.Close>

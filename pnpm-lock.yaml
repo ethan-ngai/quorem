@@ -332,6 +332,9 @@ importers:
       '@lezer/highlight':
         specifier: 1.2.5
         version: 1.2.5
+      '@noble/hashes':
+        specifier: 2.4.0
+        version: 2.4.0
       '@quorem/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

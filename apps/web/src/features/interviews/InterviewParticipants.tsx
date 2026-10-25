@@ -2,8 +2,8 @@
 import type { InterviewSnapshot, InterviewRole } from "@quorem/contracts";
 import * as Popover from "../../ui/Popover";
 import { SelectField } from "../../ui/SelectField";
-import { Tooltip } from "../editor/components/Tooltip";
-import { Icon } from "../editor/components/Icon";
+import { Tooltip } from "../../ui/Tooltip";
+import { Icon } from "../../ui/Icon";
 import "./session-controls.css";
 
 export function InterviewParticipants({

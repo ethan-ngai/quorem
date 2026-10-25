@@ -3,12 +3,12 @@ import { ToggleSwitch as Toggle } from "../../../ui/ToggleSwitch";
 import { Monitor, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { SelectField } from "../../../ui/SelectField";
-import type { ThemePreference } from "../editorSettings";
+import { editorFontSizes, type ThemePreference } from "../editorSettings";
 import { editorSchemes, type EditorScheme } from "../editorSchemes";
 import { workspaceShortcuts } from "../workspaceShortcuts";
 import { ShortcutKeys } from "./ShortcutKeys";
-import { Icon } from "./Icon";
-import { Tooltip } from "./Tooltip";
+import { Icon } from "../../../ui/Icon";
+import { SegmentedControl } from "../../../ui/SegmentedControl";
 
 export type SettingsProps = {
   onOpenChange?: (open: boolean) => void;
@@ -71,20 +71,17 @@ export function WorkspaceSettingsContent({
       {section === "appearance" && (
         <>
           <Setting label="Color theme">
-            <div className="theme-segments" role="group" aria-label="Color theme">
-              {themes.map(({ value, label, icon: ThemeIcon }) => (
-                <Tooltip key={value} content={label}>
-                  <button
-                    type="button"
-                    aria-label={`${label} theme`}
-                    aria-pressed={props.theme === value}
-                    onClick={() => props.onThemeChange(value)}
-                  >
-                    <ThemeIcon size={18} strokeWidth={1.5} aria-hidden="true" />
-                  </button>
-                </Tooltip>
-              ))}
-            </div>
+            <SegmentedControl
+              label="Color theme"
+              value={props.theme}
+              onChange={props.onThemeChange}
+              iconOnly
+              options={themes.map(({ value, label, icon: ThemeIcon }) => ({
+                value,
+                label: `${label} theme`,
+                icon: <ThemeIcon size={18} strokeWidth={1.5} aria-hidden="true" />,
+              }))}
+            />
           </Setting>
           <Setting label="Editor color scheme">
             <SelectField
@@ -105,7 +102,7 @@ export function WorkspaceSettingsContent({
               label="Code font size"
               value={String(props.fontSize)}
               onChange={(value) => props.onFontSizeChange(Number(value))}
-              options={[12, 13, 14, 15, 16, 18, 20, 22, 24].map((size) => ({
+              options={editorFontSizes.map((size) => ({
                 value: String(size),
                 label: `${size}px`,
               }))}

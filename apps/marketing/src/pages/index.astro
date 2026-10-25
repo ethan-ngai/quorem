@@ -1,9 +1,11 @@
 ---
 import "@fontsource-variable/geist";
 import "@quorem/ui/theme.css";
+import "@quorem/ui/controls.css";
 import "../styles/marketing.css";
 import "../../../web/src/features/matches/competitive.css";
-import workspaceStyles from "../../../web/src/styles/workspace.css?inline";
+import "../../../web/src/features/editor/components/problem-statement.css";
+import "../../../web/src/features/editor/components/machine-values.css";
 import LobbyPreview from "../components/LobbyPreview";
 import SubmissionPreview from "../components/SubmissionPreview";
 import ProblemCards from "../components/ProblemCards.astro";
@@ -83,10 +85,6 @@ const socialImage = Astro.site
             name="twitter:image:alt"
             content="Quorem pixel logo — private coding matches and practice."
         />
-        <style
-            is:inline
-            set:html={`@scope (.workspace-demo) { ${workspaceStyles} }`}
-        />
         <title>Quorem — Private coding matches</title>
         <script is:inline>
             (() => {
@@ -135,7 +133,7 @@ const socialImage = Astro.site
                         Create match
                     </a>
                 </nav>
-                <a class="button nav-button login-button" href="/login">Sign in</a>
+                <a class="marketing-button nav-button login-button" href="/login">Sign in</a>
                 <ThemeSwitch />
             </div>
         </header>
@@ -152,7 +150,7 @@ const socialImage = Astro.site
                             </p>
                             <div class="hero-actions">
                                 <a
-                                    class="button primary-button hero-cta"
+                                    class="marketing-button primary-button hero-cta"
                                     href="/practice?create=match"
                                 >
                                     Create match
@@ -404,12 +402,12 @@ const socialImage = Astro.site
                     </h2>
                     <div class="closing-actions">
                         <a
-                            class="button primary-button"
+                            class="marketing-button primary-button"
                             href="/practice?create=match"
                         >
                             Create match
                         </a>
-                        <a class="button secondary-button" href="/practice">
+                        <a class="marketing-button secondary-button" href="/practice">
                             Practice solo
                         </a>
                     </div>

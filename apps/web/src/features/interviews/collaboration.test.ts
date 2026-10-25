@@ -86,7 +86,7 @@ describe("shared document synchronization", () => {
       if (method === "POST") {
         if (stale) {
           stale = false;
-          throw new InterviewError("stale_version", "stale", 409);
+          throw new InterviewError("stale_version", 409);
         }
         const request = body as { updates: { clientID: string; changes: unknown }[] };
         for (const update of request.updates)
@@ -145,9 +145,7 @@ describe("shared document synchronization", () => {
   it("stops on epoch replacement and retains local source", async () => {
     const local = client();
     local.edit("keep me");
-    vi.mocked(interviewRequest).mockRejectedValue(
-      new InterviewError("document_changed", "replaced", 409),
-    );
+    vi.mocked(interviewRequest).mockRejectedValue(new InterviewError("document_changed", 409));
     expect(await local.flush()).toBe(false);
     expect(local.statuses.at(-1)).toBe("replaced");
     expect(local.state.doc.toString()).toBe("keep me");
@@ -174,9 +172,7 @@ describe("shared document synchronization", () => {
   it("does not retry a closed-room conflict in a hot loop", async () => {
     const local = client();
     local.edit("pending");
-    vi.mocked(interviewRequest).mockRejectedValue(
-      new InterviewError("invalid_transition", "closed", 409),
-    );
+    vi.mocked(interviewRequest).mockRejectedValue(new InterviewError("invalid_transition", 409));
     expect(await local.flush()).toBe(false);
     await vi.advanceTimersByTimeAsync(1000);
     expect(interviewRequest).toHaveBeenCalledTimes(1);
@@ -199,7 +195,7 @@ it("pulls another peer's stub insertion after a version conflict without duplica
   vi.mocked(interviewRequest).mockImplementation(async (_path, method) => {
     if (method === "POST") {
       writes++;
-      throw new InterviewError("stale_version", "peer inserted first", 409);
+      throw new InterviewError("stale_version", 409);
     }
     reads++;
     return reads === 1

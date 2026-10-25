@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quorem.local/schemas/events.v1.json",
+  "$ref": "#/$defs/EventEnvelope"
+}

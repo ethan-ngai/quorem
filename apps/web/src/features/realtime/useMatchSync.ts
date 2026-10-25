@@ -1,11 +1,11 @@
+import { createReconnectingSocket } from "./reconnectingSocket";
 /** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
-import { authenticatedFetch, token } from "../auth/session";
-import { createApiClient, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
+import { api, requireData } from "../../api/client";
+import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   bufferMatchEvent,
-  createReconnectScheduler,
   isMatchSnapshot,
   keepNewestSnapshot,
   mergeMatchEvents,
@@ -20,10 +20,6 @@ type MatchSyncState = MatchEventBuffer & {
   gapTimer: number | undefined;
 };
 
-function apiBaseUrl() {
-  return import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
-}
-
 function eventSocketUrl(matchId: string, identity: DevelopmentIdentity) {
   const base = import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
   const url = new URL(`/v1/matches/${encodeURIComponent(matchId)}/events`, base);
@@ -37,21 +33,11 @@ async function fetchMatchSnapshot(
   matchId: string,
   signal: AbortSignal,
 ): Promise<MatchSnapshot> {
-  const { data, error } = await createApiClient({
-    baseUrl: apiBaseUrl(),
-    identity,
-    fetch: authenticatedFetch,
-  }).GET("/v1/matches/{id}", {
+  const { data, error } = await api(identity).GET("/v1/matches/{id}", {
     params: { path: { id: matchId } },
     signal,
   });
-  if (data === undefined) {
-    const message =
-      typeof error === "object" && error !== null && "error" in error
-        ? String((error as { error: { message?: string } }).error.message ?? "Could not load match")
-        : "Could not load match";
-    throw new Error(message);
-  }
+  requireData(data, error);
   if (!isMatchSnapshot(data, matchId)) throw new Error("Match response did not match the contract");
   return data;
 }
@@ -129,8 +115,6 @@ export function useMatchSync(
     setReadyOwner("");
     syncState.disposed = false;
     let disposed = false;
-    let socket: WebSocket | undefined;
-    let connectTimer: number | undefined;
 
     const requestRefresh = () => {
       if (!disposed)
@@ -142,45 +126,17 @@ export function useMatchSync(
         });
     };
 
-    const connect = async () => {
-      if (disposed) return;
-      setStatus("connecting");
-      try {
-        const bearer = await token();
-        if (disposed) return;
-        socket = new WebSocket(
-          eventSocketUrl(matchId, identity),
-          bearer ? ["quorem", `bearer.${bearer}`] : [],
-        );
-      } catch (cause) {
-        setTransportError(
-          cause instanceof Error ? cause : new Error("Match event connection failed"),
-        );
-        setStatus("polling");
-        setReadyOwner(ownerKey);
-        reconnect.schedule();
-        return;
-      }
-
-      connectTimer = window.setTimeout(() => {
-        if (!disposed && socket?.readyState !== WebSocket.OPEN) {
-          setStatus("polling");
-          setReadyOwner(ownerKey);
-          socket?.close();
-        }
-      }, 2_000);
-
-      socket.onopen = () => {
-        if (disposed) return;
-        window.clearTimeout(connectTimer);
-        reconnect.reset();
+    const connection = createReconnectingSocket({
+      url: () => eventSocketUrl(matchId, identity),
+      timeout: 2_000,
+      onConnecting: () => setStatus("connecting"),
+      onOpen() {
         setTransportError(null);
         setStatus("live");
         setReadyOwner(ownerKey);
         requestRefresh();
-      };
-
-      socket.onmessage = (message) => {
+      },
+      onMessage(message) {
         if (disposed) return;
         let raw: unknown;
         try {
@@ -212,38 +168,23 @@ export function useMatchSync(
             current ? keepNewestSnapshot(current, merged.snapshot) : merged.snapshot,
           );
         }
-      };
-
-      socket.onerror = () => {
-        if (!disposed) {
-          setTransportError(new Error("Match event connection failed"));
-          socket?.close();
-        }
-      };
-
-      socket.onclose = () => {
-        if (disposed) return;
-        window.clearTimeout(connectTimer);
+      },
+      onError(cause) {
+        setTransportError(
+          cause instanceof Error ? cause : new Error("Match event connection failed"),
+        );
+      },
+      onDisconnect() {
         setStatus("polling");
         setReadyOwner(ownerKey);
-        reconnect.schedule();
-      };
-    };
-
-    const reconnect = createReconnectScheduler(
-      connect,
-      (callback, delay) => window.setTimeout(callback, delay),
-      (timer) => window.clearTimeout(timer),
-    );
-
-    void connect();
+      },
+    });
+    connection.start();
     return () => {
       disposed = true;
       syncState.disposed = true;
-      window.clearTimeout(connectTimer);
-      reconnect.stop();
+      connection.stop();
       window.clearTimeout(syncState.gapTimer);
-      socket?.close();
       syncState.events = [];
       syncState.overflow = false;
     };

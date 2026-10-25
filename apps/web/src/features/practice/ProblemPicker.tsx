@@ -2,7 +2,7 @@
 import * as Popover from "../../ui/Popover";
 import { useRef, useState } from "react";
 import { Dices, Search } from "lucide-react";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 import "../matches/competitive.css";
 
 export function ProblemPicker({

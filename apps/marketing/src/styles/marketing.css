@@ -140,7 +140,7 @@ summary:focus-visible {
   margin-left: 8px;
   transition: transform var(--motion-standard) var(--motion-easing);
 }
-.button {
+.marketing-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -156,7 +156,7 @@ summary:focus-visible {
     transform var(--motion-standard) var(--motion-easing),
     background-color var(--motion-standard) var(--motion-easing);
 }
-.button:active:not(:disabled):not([aria-disabled="true"]) {
+.marketing-button:active:not(:disabled):not([aria-disabled="true"]) {
   transform: scale(0.98);
 }
 .nav-button {
@@ -862,31 +862,7 @@ summary:focus-visible {
   padding: 16px 48px 48px;
   background: radial-gradient(ellipse at 50% 40%, var(--marketing-highlight), transparent 70%);
 }
-.product-preview {
-  width: 100%;
-  max-width: 680px;
-  margin-inline: auto;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: var(--marketing-depth);
-}
-.product-preview picture {
-  display: block;
-}
-.product-preview img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.preview-dark {
-  display: none !important;
-}
-:root[data-theme="dark"] .preview-light {
-  display: none;
-}
-:root[data-theme="dark"] .preview-dark {
-  display: block !important;
-}
+
 .challenge-panel {
   display: flex;
   flex-direction: column;
@@ -901,14 +877,7 @@ summary:focus-visible {
 .editor-stage {
   padding: 16px 32px 32px;
 }
-.preview-editor-toolbar,
-.preview-editor-toolbar {
-  justify-content: space-between;
-  border-bottom: 1px solid var(--color-border);
-}
-.preview-editor-toolbar > span:last-child {
-  color: var(--color-text-secondary);
-}
+
 .preview-code {
   position: relative;
 }
@@ -1186,15 +1155,15 @@ summary:focus-visible {
   .quiet-link:hover span {
     transform: translateX(3px);
   }
-  .button:hover:not(:active):not(:disabled):not([aria-disabled="true"]) {
+  .marketing-button:hover:not(:active):not(:disabled):not([aria-disabled="true"]) {
     transform: translateY(-2px);
   }
-  .button:not(.primary-button):not(.button-primary):hover:not(:active):not(:disabled):not(
+  .marketing-button:not(.primary-button):not(.button-primary):hover:not(:active):not(:disabled):not(
       [aria-disabled="true"]
     ) {
     background: var(--color-overlay);
   }
-  .button:is(.primary-button, .button-primary):hover:not(:active):not(:disabled):not(
+  .marketing-button:is(.primary-button, .button-primary):hover:not(:active):not(:disabled):not(
       [aria-disabled="true"]
     ) {
     background: color-mix(in oklch, var(--color-primary) 92%, white);
@@ -1511,14 +1480,6 @@ summary:focus-visible {
   box-shadow: var(--marketing-depth);
   font-size: 12px;
 }
-.workspace-demo .preview-editor-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  font-size: 11px;
-  background: var(--color-surface);
-}
 .workspace-demo .python-editor:has(.cm-editor) + .preview-source {
   display: none;
 }
@@ -1539,20 +1500,7 @@ summary:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.demo-editor-actions {
-  display: flex;
-  align-items: center;
-  justify-content: end;
-  gap: 12px;
-  border-top: 1px solid var(--color-border);
-  padding: 10px 12px;
-  font-size: 11px;
-}
-.demo-editor-actions > span:first-child {
-  margin-right: auto;
-  color: var(--color-text-secondary);
-  font-size: 10px;
-}
+
 .demo-primary-action {
   display: inline-flex;
   align-items: center;
@@ -1587,28 +1535,6 @@ summary:focus-visible {
 .lobby-render-heading > span {
   margin-left: auto;
   font-size: 11px;
-  color: var(--color-text-secondary);
-}
-.lobby-render .select-field {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-field);
-  color: var(--color-text);
-  font-size: 12px;
-}
-.lobby-render .select-field svg,
-.lobby-render .icon-button svg {
-  width: 16px;
-  height: 16px;
-}
-.lobby-render .icon-button {
-  border: 0;
-  background: transparent;
   color: var(--color-text-secondary);
 }
 .lobby-render .match-difficulty button:disabled {
@@ -2013,10 +1939,6 @@ summary:focus-visible {
     transition: none;
   }
 }
-
-.demo-editor-actions {
-  position: relative;
-}
 .demo-cursor {
   position: absolute;
   right: 83px;
@@ -2053,11 +1975,6 @@ summary:focus-visible {
     opacity: 1;
   }
 }
-.workspace-demo .demo-language {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
 .workspace-demo .editor-language-logo {
   display: inline-block;
   width: 16px;
@@ -2093,19 +2010,6 @@ summary:focus-visible {
 }
 .workspace-demo .run-actions {
   display: flex;
-}
-.workspace-demo .demo-execution-bar .button {
-  padding: 6px 10px;
-  font-size: 12px;
-  gap: 6px;
-}
-.workspace-demo .demo-execution-bar .button svg {
-  width: 14px;
-  height: 14px;
-}
-.workspace-demo .button-primary {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
 }
 .workspace-demo .demo-execution-bar .demo-cursor {
   right: 134px;
@@ -3246,14 +3150,13 @@ summary:focus-visible {
   );
 }
 
-.button,
-.workspace-demo .button {
+.marketing-button {
   transition:
     transform 240ms var(--hero-easing),
     background-color var(--motion-standard) var(--motion-easing),
     color var(--motion-standard) var(--motion-easing);
 }
-.button:is(:disabled, [aria-disabled="true"]) {
+.marketing-button:is(:disabled, [aria-disabled="true"]) {
   transform: none;
 }
 

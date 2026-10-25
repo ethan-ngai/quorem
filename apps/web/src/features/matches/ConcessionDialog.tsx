@@ -1,7 +1,7 @@
-/** @file ConcessionDialog.tsx @description Multiplayer-aware, reversible-before-confirmation forfeit prompt. @module matches */
+/** @file ConcessionDialog.tsx @description Multiplayer-aware forfeit confirmation using shared session chrome. @module matches */
 import { useRef } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Flag, X } from "lucide-react";
+import { Flag } from "lucide-react";
+import { SessionDialog } from "../../ui/SessionDialog";
 
 export function ConcessionDialog({
   open,
@@ -20,54 +20,42 @@ export function ConcessionDialog({
 }) {
   const keepPlaying = useRef<HTMLButtonElement>(null);
   return (
-    <Dialog.Root
+    <SessionDialog
       open={open}
       onOpenChange={(value) => {
-        if (!value && !pending) onCancel();
+        if (!value) onCancel();
       }}
-    >
-      <Dialog.Portal>
-        <Dialog.Overlay className="settings-backdrop" />
-        <Dialog.Content
-          className="competitive-dialog forfeit-dialog"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            keepPlaying.current?.focus();
-          }}
-        >
-          <button
-            className="icon-button match-dialog-close"
-            aria-label="Close forfeit dialog"
-            disabled={pending}
-            onClick={onCancel}
-          >
-            <X size={18} />
-          </button>
+      className="forfeit-dialog"
+      initialFocus={keepPlaying}
+      closeLabel="Close forfeit dialog"
+      pending={pending}
+      title={
+        <>
           <span className="match-result-icon forfeit-icon">
             <Flag size={24} />
           </span>
-          <Dialog.Title>Leave this match?</Dialog.Title>
-          <Dialog.Description>
-            {freeForAll && remainingPlayers > 1
-              ? "You'll forfeit your place. The remaining players will keep competing."
-              : "You'll forfeit and your opponent will win."}{" "}
-            You can't rejoin this match.
-          </Dialog.Description>
-          <div className="competitive-dialog-actions">
-            <button
-              className="button button-secondary"
-              disabled={pending}
-              onClick={onCancel}
-              ref={keepPlaying}
-            >
-              Keep playing
-            </button>
-            <button className="button button-danger" disabled={pending} onClick={onConfirm}>
-              {pending ? "Forfeiting…" : "Forfeit & leave"}
-            </button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          Leave this match?
+        </>
+      }
+      description={`${
+        freeForAll && remainingPlayers > 1
+          ? "You'll forfeit your place. The remaining players will keep competing."
+          : "You'll forfeit and your opponent will win."
+      } You can't rejoin this match.`}
+    >
+      <div className="competitive-dialog-actions">
+        <button
+          className="button button-secondary"
+          disabled={pending}
+          onClick={onCancel}
+          ref={keepPlaying}
+        >
+          Keep playing
+        </button>
+        <button className="button button-danger" disabled={pending} onClick={onConfirm}>
+          {pending ? "Forfeiting…" : "Forfeit & leave"}
+        </button>
+      </div>
+    </SessionDialog>
   );
 }

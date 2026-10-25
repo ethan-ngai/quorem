@@ -1,5 +1,5 @@
 import { usePreviewSequence } from "./usePreviewSequence";
-import { Icon } from "../../../web/src/features/editor/components/Icon";
+import { Icon } from "../../../web/src/ui/Icon";
 
 /** Two independent submissions resolve into the first correct winner, once. */
 export default function SubmissionPreview() {

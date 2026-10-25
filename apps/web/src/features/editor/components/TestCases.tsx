@@ -1,5 +1,5 @@
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
-import { Tooltip } from "./Tooltip";
+import { Tooltip } from "../../../ui/Tooltip";
 import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
 import { Fragment, useState, type ReactNode } from "react";
 import {
@@ -11,7 +11,7 @@ import {
   type RunSnapshot,
 } from "../customCases";
 import { bindArguments } from "../argumentBinding";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 import { TypedCaseInput } from "./TypedCaseInput";
 import "./customCases.css";
 import { CaseOutput, CaseValue } from "./CaseOutput";

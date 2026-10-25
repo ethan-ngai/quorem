@@ -22,7 +22,7 @@ import {
   signInWithPasskey,
   signInWithProvider,
 } from "./capabilities";
-import { Brand } from "../editor/components/Icon";
+import { Brand } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useCooldown } from "../../ui/useCooldown";
 import { UsernameRules } from "./UsernameRules";

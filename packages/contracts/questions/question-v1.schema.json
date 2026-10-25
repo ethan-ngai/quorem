@@ -137,11 +137,7 @@
     },
     "Difficulty": {
       "type": "string",
-      "enum": [
-        "easy",
-        "medium",
-        "hard"
-      ]
+      "enum": ["easy", "medium", "hard"]
     },
     "ProblemExample": {
       "type": "object",
@@ -165,9 +161,7 @@
           }
         }
       },
-      "required": [
-        "args"
-      ],
+      "required": ["args"],
       "additionalProperties": false
     },
     "WireValue": {
@@ -216,10 +210,7 @@
           "$ref": "#/$defs/WireValue"
         }
       },
-      "required": [
-        "methodName",
-        "args"
-      ],
+      "required": ["methodName", "args"],
       "additionalProperties": false
     },
     "Constraint": {
@@ -243,11 +234,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "kind",
-                "target",
-                "min"
-              ],
+              "required": ["kind", "target", "min"],
               "additionalProperties": false
             },
             {
@@ -267,11 +254,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "kind",
-                "target",
-                "max"
-              ],
+              "required": ["kind", "target", "max"],
               "additionalProperties": false
             }
           ]
@@ -291,21 +274,10 @@
             },
             "operator": {
               "type": "string",
-              "enum": [
-                "eq",
-                "le",
-                "lt",
-                "ge",
-                "gt"
-              ]
+              "enum": ["eq", "le", "lt", "ge", "gt"]
             }
           },
-          "required": [
-            "kind",
-            "left",
-            "right",
-            "operator"
-          ],
+          "required": ["kind", "left", "right", "operator"],
           "additionalProperties": false
         },
         {
@@ -320,18 +292,10 @@
             },
             "property": {
               "type": "string",
-              "enum": [
-                "sorted",
-                "nondecreasing",
-                "unique"
-              ]
+              "enum": ["sorted", "nondecreasing", "unique"]
             }
           },
-          "required": [
-            "kind",
-            "target",
-            "property"
-          ],
+          "required": ["kind", "target", "property"],
           "additionalProperties": false
         },
         {
@@ -346,10 +310,7 @@
               "minLength": 1
             }
           },
-          "required": [
-            "kind",
-            "text"
-          ],
+          "required": ["kind", "text"],
           "additionalProperties": false
         }
       ]
@@ -363,20 +324,10 @@
         },
         "projection": {
           "type": "string",
-          "enum": [
-            "value",
-            "length",
-            "elements",
-            "sum",
-            "nodeCount",
-            "nodeValues"
-          ]
+          "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues"]
         }
       },
-      "required": [
-        "parameter",
-        "projection"
-      ],
+      "required": ["parameter", "projection"],
       "additionalProperties": false
     },
     "Signature": {
@@ -384,9 +335,7 @@
       "properties": {
         "className": {
           "type": "string",
-          "enum": [
-            "Solution"
-          ]
+          "enum": ["Solution"]
         },
         "methodName": {
           "type": "string"
@@ -402,19 +351,11 @@
         },
         "outputOrder": {
           "type": "string",
-          "enum": [
-            "ordered",
-            "unordered"
-          ],
+          "enum": ["ordered", "unordered"],
           "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
         }
       },
-      "required": [
-        "className",
-        "methodName",
-        "parameters",
-        "returnType"
-      ],
+      "required": ["className", "methodName", "parameters", "returnType"],
       "additionalProperties": false
     },
     "Parameter": {
@@ -430,18 +371,13 @@
           "$ref": "#/$defs/InputPresetConfig"
         }
       },
-      "required": [
-        "name",
-        "type"
-      ],
+      "required": ["name", "type"],
       "additionalProperties": false
     },
     "InputPresetConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "preset"
-      ],
+      "required": ["preset"],
       "properties": {
         "preset": {
           "type": "string",
@@ -500,21 +436,11 @@
     "LanguageImplementation": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "language",
-        "starterSource",
-        "runtimeRevision",
-        "harnessRevision"
-      ],
+      "required": ["language", "starterSource", "runtimeRevision", "harnessRevision"],
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml"]
         },
         "starterSource": {
           "type": "string"
@@ -539,9 +465,7 @@
           "maxItems": 8
         }
       },
-      "required": [
-        "levels"
-      ],
+      "required": ["levels"],
       "additionalProperties": false
     },
     "OdysseyLevel": {
@@ -570,12 +494,7 @@
           "maxItems": 20
         }
       },
-      "required": [
-        "title",
-        "statementMarkdown",
-        "methods",
-        "examples"
-      ],
+      "required": ["title", "statementMarkdown", "methods", "examples"],
       "additionalProperties": false
     },
     "CustomCase": {
@@ -597,9 +516,7 @@
           }
         }
       },
-      "required": [
-        "args"
-      ],
+      "required": ["args"],
       "additionalProperties": false
     },
     "AuthoringImplementation": {
@@ -608,12 +525,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml"]
         },
         "starterSource": {
           "type": "string"
@@ -651,12 +563,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml"]
         },
         "source": {
           "type": "string"
