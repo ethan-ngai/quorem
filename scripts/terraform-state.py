@@ -3,8 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import urllib.error
-import urllib.request
+from cloudflare_api import get
 
 root = Path(__file__).resolve().parent.parent
 account = os.environ["CLOUDFLARE_ACCOUNT_ID"]
@@ -30,17 +29,7 @@ def terraform(stack, *arguments):
                           cwd=root, check=True)
 
 
-request = urllib.request.Request(
-    f"https://api.cloudflare.com/client/v4/accounts/{account}/r2/buckets/{bucket}",
-    headers={"Authorization": "Bearer " + os.environ["CLOUDFLARE_API_TOKEN"]},
-)
-try:
-    with urllib.request.urlopen(request, timeout=30) as response:
-        exists = response.status == 200
-except urllib.error.HTTPError as error:
-    if error.code != 404:
-        raise RuntimeError(f"State bucket lookup failed: HTTP {error.code}") from None
-    exists = False
+exists = get(f"/accounts/{account}/r2/buckets/{bucket}", missing_ok=True) is not None
 
 override = root / "infra/terraform/state/backend.override.tf"
 if exists:
