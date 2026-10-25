@@ -111,3 +111,39 @@ func (s *Store) SetInterviewCaseVisibility(ctx context.Context, user, id, key, c
 		return err
 	})
 }
+
+// PassInterviewStage advances shared progress without changing code or question epochs.
+func (s *Store) PassInterviewStage(ctx context.Context, user, id, key, epoch string, level int) (interviews.Snapshot, error) {
+	return s.mutateInterview(ctx, user, id, key, "pass-stage", struct {
+		Epoch string
+		Level int
+	}{epoch, level}, func(tx pgx.Tx, v interviewRecord) error {
+		if epoch != v.snapshot.QuestionEpoch {
+			return failure("document_changed", 409, "Question changed; refresh before passing a stage")
+		}
+		if v.fixture.Problem.Odyssey == nil {
+			return failure("invalid_input", 400, "Question has no stages")
+		}
+		if err := requireInterviewOdyssey(ctx, tx, v.snapshot.HostID, v.fixture); err != nil {
+			return err
+		}
+		current, completed, err := interviewProgress(ctx, tx, v)
+		if err != nil {
+			return err
+		}
+		if level != current || completed {
+			return failure("stale_version", 409, "Stage changed; refresh before passing a stage")
+		}
+		total := len(v.fixture.Problem.Odyssey.Levels)
+		next := min(level+1, total)
+		// Judge completion can race this command; only advance the displayed stage once.
+		tag, err := tx.Exec(ctx, `INSERT INTO odyssey_progress(scope_id,problem_version_id,level,completed) VALUES($1,$2,$3,$4) ON CONFLICT(scope_id,problem_version_id) DO UPDATE SET level=EXCLUDED.level,completed=EXCLUDED.completed WHERE odyssey_progress.level=$5 AND NOT odyssey_progress.completed`, epoch, v.fixture.Problem.ID, next, level == total, level)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return failure("stale_version", 409, "Stage changed; refresh before passing a stage")
+		}
+		return nil
+	})
+}

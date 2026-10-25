@@ -49,4 +49,23 @@ func TestHTTPCreatePrivateStagedInterviewWithoutPublication(t *testing.T) {
 	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE p.owner_id IS NULL`).Scan(&publications); err != nil || publications != 0 {
 		t.Fatal("private pad published problem", publications, err)
 	}
+	passBody, _ := json.Marshal(map[string]any{"questionEpoch": snapshot.QuestionEpoch, "level": 1})
+	r = httptest.NewRequest("POST", "/v1/interviews/"+snapshot.ID+"/pass-stage", strings.NewReader(string(passBody)))
+	r.RemoteAddr = "127.0.0.1:5000"
+	r.Header.Set("Origin", "https://quorem.test")
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Idempotency-Key", postgres.ID())
+	w = httptest.NewRecorder()
+	(&httpapi.Server{Store: s, Local: true, Origins: []string{"https://quorem.test"}}).Handler().ServeHTTP(w, r)
+	if w.Code != 200 {
+		t.Fatalf("pass stage %d %s", w.Code, w.Body.String())
+	}
+	var passed interviews.Snapshot
+	if err = json.Unmarshal(w.Body.Bytes(), &passed); err != nil {
+		t.Fatal(err)
+	}
+	if !passed.Question.Progress.Completed || passed.Document != snapshot.Document {
+		t.Fatal("manual HTTP completion", passed)
+	}
+
 }

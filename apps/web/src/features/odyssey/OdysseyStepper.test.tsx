@@ -17,6 +17,21 @@ describe("Odyssey stage navigation", () => {
     expect(html).toContain('aria-current="step"');
     expect(html).not.toContain("All levels complete");
   });
+  it("keeps a non-navigable interviewer view on the active stage", () => {
+    const html = renderToStaticMarkup(
+      <OdysseyStepper
+        progress={{
+          ...progress,
+          level: 2,
+          levels: [...progress.levels, { ...progress.levels[0]!, title: "Withdrawals" }],
+        }}
+        selectedLevel={1}
+      />,
+    );
+    expect(html).toContain("Step 2 of 3");
+    expect(html).toContain('aria-label="2. Withdrawals" aria-current="step"');
+    expect(html).not.toContain('aria-label="1. Deposits, passed" aria-current="step"');
+  });
   it("marks passed stages while letting an earlier stage be reviewed", () => {
     const html = renderToStaticMarkup(
       <OdysseyStepper
