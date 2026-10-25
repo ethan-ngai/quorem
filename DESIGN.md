@@ -76,6 +76,8 @@ Transient failures and room events use shared toasts; room alerts retain accessi
 
 All working controls support keyboard focus and an accessible name; icon-only controls have shared tooltips. Overlays own focus trapping/restoration, dismissal, collision handling and layering. Disabled and pending controls prevent duplicate actions and retain stable geometry. Destructive actions use shared semantic treatment.
 
+Collaboration colors follow user identity across participant avatars, remote carets and selections. Photos carry a colored ring; initials use the color as their background. The local caret retains its editor scheme.
+
 Motion explains interaction or state changes. Reuse short, reversible transitions; avoid ambient movement while coding. Respect reduced motion. Suspend decorative marketing animation offscreen and in hidden tabs. Loading and status changes must not move surrounding content.
 
 ## Verification

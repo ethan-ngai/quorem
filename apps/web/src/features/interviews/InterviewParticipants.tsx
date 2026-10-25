@@ -1,4 +1,6 @@
 /** @file InterviewParticipants.tsx @description Readable participant roster and role management. @module interviews */
+import { AccountAvatar } from "../navigation/AccountAvatar";
+import { participantColor } from "../collaboration/participantColor";
 import type { InterviewSnapshot, InterviewRole } from "@quorem/contracts";
 import * as Popover from "../../ui/Popover";
 import { SelectField } from "../../ui/SelectField";
@@ -59,9 +61,11 @@ export function InterviewParticipants({
                 const editable = canManage && member.userId !== snapshot.hostId;
                 return (
                   <li key={member.userId}>
-                    <span className="account-avatar" aria-hidden="true">
-                      {member.name.slice(0, 1).toUpperCase()}
-                    </span>
+                    <AccountAvatar
+                      name={member.name}
+                      image={member.image}
+                      color={participantColor(member.userId)}
+                    />
                     <div className="interview-person">
                       <strong>{member.name}</strong>
                       <span>

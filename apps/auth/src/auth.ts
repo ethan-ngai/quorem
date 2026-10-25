@@ -339,6 +339,7 @@ export function createAuth(allowSeed = false) {
           expirationTime: "5m",
           definePayload: ({ user, session }) => ({
             emailVerified: user.emailVerified === true,
+            image: user.image?.startsWith("/api/auth/profile-photos/") ? user.image : "",
             name:
               user.name ||
               ("username" in user && typeof user.username === "string" ? user.username : ""),

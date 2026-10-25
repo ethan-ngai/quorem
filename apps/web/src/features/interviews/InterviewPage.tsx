@@ -50,7 +50,6 @@ function resultAccessFor(snapshot: InterviewSnapshot) {
         .sort()
         .join(",")}`;
 }
-import "./collaboration.css";
 import "./session-controls.css";
 
 /** Session metadata may refresh freely; document epochs change only after explicit recovery. */
