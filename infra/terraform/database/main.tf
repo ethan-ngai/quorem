@@ -29,7 +29,7 @@ resource "neon_project" "production" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [branch, primary_compute]
+    ignore_changes  = [branch, primary_compute, history_retention_seconds]
   }
 }
 output "database_url" {

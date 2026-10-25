@@ -34,6 +34,8 @@ env:
   WRANGLER_SEND_METRICS: "false"
 jobs:
   build:
+    outputs:
+      image_sha: ${{ steps.validation.outputs.image_sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
@@ -81,7 +83,15 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp check --no-fmt
       - run: vp run contracts:check
+      - name: Check reusable validation
+        id: validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATED_RUN_ID: ${{ vars.DEPLOY_VALIDATED_RUN }}
+          PUBLISHED_IMAGE_RUN_ID: ${{ vars.DEPLOY_PUBLISHED_IMAGE_RUN }}
+        run: python3 scripts/reuse-deployment-checks.py
       - name: Build Astro and React artifact
+        if: steps.validation.outputs.reuse_image != 'true'
         run: |
           export QUOREM_SITE_URL="$AUTH_ORIGIN"
           export VITE_HOSTED_INTELLIGENCE=false
@@ -91,13 +101,8 @@ jobs:
           cp -R apps/web/dist/. deploy/site/
           python3 scripts/package-auth.py
       - name: Build isolated language images
+        if: steps.validation.outputs.reuse_image != 'true'
         run: python3 scripts/build-judge-images.py
-      - name: Check reusable validation
-        id: validation
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VALIDATED_RUN_ID: ${{ vars.DEPLOY_VALIDATED_RUN }}
-        run: python3 scripts/reuse-deployment-checks.py
       - name: Validate application and judge
         if: steps.validation.outputs.reuse != 'true'
         env:
@@ -107,12 +112,14 @@ jobs:
           vp -C apps/web test
           go test -p 1 ./...
       - name: Build application image
+        if: steps.validation.outputs.reuse_image != 'true'
         run: |
           docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-production:$GITHUB_SHA" .
       - name: Verify nested Docker isolation
+        if: steps.validation.outputs.reuse_image != 'true'
         run: docker run --privileged --cgroupns=private --rm "quorem-production:$GITHUB_SHA" --verify-only
       - name: Push application image
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.validation.outputs.reuse_image != 'true'
         run: |
           image="registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$GITHUB_SHA"
           docker tag "quorem-production:$GITHUB_SHA" "$image"
@@ -124,6 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      IMAGE_REVISION: ${{ needs.build.outputs.image_sha }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       TF_VAR_project_name: ${{ vars.NEON_PROJECT_NAME || 'quorem-production' }}
       TF_VAR_region: ${{ vars.NEON_REGION || 'aws-us-east-1' }}
@@ -144,7 +152,7 @@ jobs:
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - name: Configure image
-        run: echo "TF_VAR_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$GITHUB_SHA" >> "$GITHUB_ENV"
+        run: echo "TF_VAR_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$IMAGE_REVISION" >> "$GITHUB_ENV"
       - name: Initialize Terraform state
         if: github.ref == 'refs/heads/main'
         run: python3 scripts/terraform-state.py
