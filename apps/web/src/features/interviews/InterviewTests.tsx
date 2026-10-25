@@ -3,6 +3,8 @@ import { useId, useState } from "react";
 import type { InterviewSnapshot, Submission } from "@quorem/contracts";
 import { WorkspaceTests } from "../editor/components/WorkspaceTests";
 import { TestCases } from "../editor/components/TestCases";
+import { Tooltip } from "../editor/components/Tooltip";
+import { VisibilityIcon } from "../editor/components/Icon";
 import { Icon } from "../editor/components/Icon";
 import { ResultContent } from "../editor/components/ResultContent";
 
@@ -27,8 +29,9 @@ export function InterviewTests({
   const [collection, setCollection] = useState("shared");
   const tests = interviewer ? question.privateCaseDetails : question.revealedCases;
   const privateSelected = collection === "private" && !!tests?.length;
+  const privateSubmission = submission?.kind === "submit" ? submission : undefined;
   const results = tests?.map((test) =>
-    submission?.privateCaseResults?.find((result) => result.caseId === test.id),
+    privateSubmission?.privateCaseResults?.find((result) => result.caseId === test.id),
   );
   return (
     <>
@@ -60,10 +63,12 @@ export function InterviewTests({
                   document.getElementById(`${id}-${target}`)?.focus();
                 }}
               >
-                <Icon name="samples" />
+                <Icon name={name === "private" ? "lock" : "samples"} />
                 {name === "shared"
-                  ? "Shared examples"
-                  : `${interviewer ? "Private tests" : "Revealed tests"} (${tests.length})`}
+                  ? "Test cases"
+                  : interviewer
+                    ? "Private tests"
+                    : "Revealed tests"}
               </button>
             ))}
           </div>
@@ -80,7 +85,16 @@ export function InterviewTests({
         {privateSelected && tests ? (
           <div className="results-content case-results-content">
             <div className="case-result-summary" aria-live="polite">
-              <ResultContent submission={submission} busy={busy} showCases={false} detailsVisible />
+              {privateSubmission ? (
+                <ResultContent
+                  submission={privateSubmission}
+                  busy={busy}
+                  showCases={false}
+                  detailsVisible
+                />
+              ) : (
+                <p className="result-message">Submit to run private tests.</p>
+              )}
             </div>
             <TestCases
               problem={{
@@ -92,29 +106,34 @@ export function InterviewTests({
               drafts={[]}
               onDraftsChange={() => {}}
               busy={busy}
-              submission={submission}
+              submission={privateSubmission}
               caseResults={results}
+              caseGroups={tests.map((test) => {
+                const level = test.id.match(/^level:(\d+)/)?.[1];
+                return level ? `Step ${level}` : undefined;
+              })}
               caseActions={(index) => {
                 const test = tests[index]!;
-                const level = Number(test.id.match(/^level:(\d+)/)?.[1]);
-                return (
-                  <div className="custom-case-heading">
-                    <span>
-                      {level ? `Step ${level} · ` : ""}
-                      {test.revealed ? "Visible to everyone" : "Only interviewers"}
-                    </span>
-                    {interviewer && (
+                return interviewer ? (
+                  <div className="case-visibility-action">
+                    <Tooltip
+                      content={test.revealed ? "Hide from interviewees" : "Reveal to interviewees"}
+                    >
                       <button
                         type="button"
-                        className="quiet-button"
+                        className="icon-button"
+                        aria-label={
+                          test.revealed ? "Hide from interviewees" : "Reveal to interviewees"
+                        }
+                        aria-pressed={test.revealed}
                         disabled={managing || closed}
                         onClick={() => onReveal(test.id, !test.revealed)}
                       >
-                        {test.revealed ? "Hide from interviewees" : "Reveal to interviewees"}
+                        <VisibilityIcon visible={test.revealed} />
                       </button>
-                    )}
+                    </Tooltip>
                   </div>
-                );
+                ) : null;
               }}
             />
           </div>

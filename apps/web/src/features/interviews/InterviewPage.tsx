@@ -121,8 +121,14 @@ function InterviewPad({
   const sharedSubmission = snapshot.latestSubmissionId;
   const submissionId =
     sharedSubmission && sharedSubmission !== admitted?.previous ? sharedSubmission : admitted?.id;
+  const resultAccess = interviewer
+    ? "interviewer"
+    : `${snapshot.role}:${(snapshot.question.revealedCases ?? [])
+        .map((test) => test.id)
+        .sort()
+        .join(",")}`;
   const result = useQuery({
-    queryKey: ["interview-result", id, submissionId],
+    queryKey: ["interview-result", id, submissionId, resultAccess],
     queryFn: () => interviewRequest<Submission>(`/v1/interviews/${id}/submissions/${submissionId}`),
     enabled: !!submissionId,
     refetchInterval: (query) =>
@@ -159,7 +165,7 @@ function InterviewPad({
         crypto.randomUUID(),
       );
       setAdmitted({ id: submission.id, previous: sharedSubmission });
-      queryClient.setQueryData(["interview-result", id, submission.id], submission);
+      queryClient.setQueryData(["interview-result", id, submission.id, resultAccess], submission);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not run code.");
@@ -266,15 +272,14 @@ function InterviewPad({
               />
             )}
             <div className="interview-session-actions">
-              <Tooltip content="Participants">
-                <button
-                  className="icon-button"
-                  onClick={() => setMembers(true)}
-                  aria-label={`Participants (${snapshot.members.length})`}
-                >
-                  <Icon name="people" />
-                </button>
-              </Tooltip>
+              <InterviewParticipants
+                snapshot={snapshot}
+                open={members}
+                onOpenChange={setMembers}
+                busy={busy}
+                onRole={(userId, role) => void mutate("members", { userId, role })}
+                onRemove={(userId) => void mutate(`members/${encodeURIComponent(userId)}/remove`)}
+              />
               {interviewer && !closed && (
                 <Tooltip content="Change question">
                   <button
@@ -287,7 +292,11 @@ function InterviewPad({
                 </Tooltip>
               )}
               {snapshot.invites && !closed && (
-                <InterviewInvitations invites={snapshot.invites} onOpenChange={setInviting} />
+                <InterviewInvitations
+                  title={snapshot.title}
+                  invites={snapshot.invites}
+                  onOpenChange={setInviting}
+                />
               )}
               {interviewer && !closed && (
                 <Tooltip content="End interview">
@@ -414,14 +423,6 @@ function InterviewPad({
         />
       }
     >
-      <InterviewParticipants
-        snapshot={snapshot}
-        open={members}
-        onOpenChange={setMembers}
-        busy={busy}
-        onRole={(userId, role) => void mutate("members", { userId, role })}
-        onRemove={(userId) => void mutate(`members/${encodeURIComponent(userId)}/remove`)}
-      />
       <SessionDialog
         open={setup}
         onOpenChange={setSetup}

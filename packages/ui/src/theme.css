@@ -58,6 +58,9 @@
   --results-initial-height: 260px;
   --control-height: 32px;
   --navigation-height: 48px;
+  --layer-popover: 180;
+  --layer-select: 240;
+  --layer-tooltip: 400;
   --shadow-overlay: 0 6px 20px oklch(0.2 0 0 / 0.08);
   --narrow-touch-target: 44px;
   --motion-fast: 120ms;

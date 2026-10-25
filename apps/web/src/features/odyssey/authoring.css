@@ -1,0 +1,93 @@
+.stage-authoring-nav,
+.stage-authoring-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.stage-authoring-nav {
+  margin-bottom: var(--space-4);
+}
+.stage-authoring-nav .result-tabs {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.stage-authoring h3,
+.question-authoring h3 {
+  font-size: var(--text-small);
+  font-weight: 550;
+  margin: 0 0 var(--space-3);
+}
+.stage-authoring-heading h3 {
+  margin: 0;
+}
+.stage-authoring-heading {
+  margin-bottom: var(--space-4);
+}
+.stage-authoring .admin-language {
+  margin-bottom: var(--space-3);
+}
+.authoring-test-collections {
+  margin-top: var(--space-5);
+}
+.question-authoring .authoring-case-browser {
+  height: 320px;
+  margin: var(--space-3) 0 0;
+  --workspace-control-inset: 18px;
+}
+.question-authoring .case-details {
+  gap: 12px;
+  padding: 12px;
+}
+.question-authoring .case-rail {
+  padding-top: 8px;
+}
+.sequence-call-editor {
+  display: grid;
+  gap: var(--space-3);
+}
+.sequence-call-editor + .sequence-call-editor {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+}
+.sequence-call-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-label);
+}
+.sequence-call-heading .select-field {
+  flex: 1;
+  min-width: 0;
+}
+.sequence-call-heading > span {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.sequence-authoring .case-details > .quiet-button {
+  justify-self: start;
+}
+
+.authoring-section-tabs {
+  margin: 0 0 var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.question-authoring > .competitive-dialog-actions {
+  position: sticky;
+  bottom: -24px;
+  background: var(--color-surface);
+  padding-block: 16px;
+  margin-bottom: -24px;
+  z-index: 2;
+}
+.question-authoring .case-browser {
+  --case-rail-width: 104px;
+  --narrow-case-rail-width: 104px;
+}
+.question-authoring .case-rail {
+  padding-inline: 6px;
+}
+.question-authoring .case-selector.add-case {
+  white-space: nowrap;
+}

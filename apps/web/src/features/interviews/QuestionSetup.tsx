@@ -1,5 +1,5 @@
 /** @file QuestionSetup.tsx @description Existing or custom interview questions with typed tests. @module interviews */
-import { useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { InterviewQuestionInput, Signature } from "@quorem/contracts";
 import { interviewRequest } from "./api";
@@ -9,6 +9,10 @@ import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
 import { TestCases } from "../editor/components/TestCases";
 import { blankQuestion } from "../admin/content";
 import { SignatureFields } from "../admin/SignatureFields";
+import { StageAuthoring } from "../odyssey/StageAuthoring";
+import { firstStage, parseStages, type StageDraft } from "../odyssey/stageDrafts";
+import { Icon } from "../editor/components/Icon";
+import "../odyssey/authoring.css";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import "../admin/admin.css";
 import { createCustomDraft, parseCustomDrafts, type CustomCaseDraft } from "../editor/customCases";
@@ -38,6 +42,8 @@ export function QuestionSetup({
 }) {
   const [title, setTitle] = useState("");
   const [mode, setMode] = useState("catalog");
+  const [authorSection, setAuthorSection] = useState("question");
+  const sectionId = useId();
   const [language, setLanguage] = useState<EditorLanguage>("python");
   const [selected, setSelected] = useState("");
   const [search, setSearch] = useState("");
@@ -53,6 +59,19 @@ export function QuestionSetup({
   const [privateCases, setPrivateCases] = useState<CustomCaseDraft[]>(() => [
     newCase(initialSignature),
   ]);
+  const [stages, setStages] = useState<StageDraft[]>(() => [firstStage(initialSignature)]);
+  const stagedInitialized = useRef(false);
+  const [invalidTypes, setInvalidTypes] = useState<Record<string, boolean>>({});
+  const [invalidSingleTypes, setInvalidSingleTypes] = useState<Record<string, boolean>>({});
+  function chooseMode(next: string) {
+    if (next === "staged" && !stagedInitialized.current) {
+      setStages([
+        firstStage(signature, "", publicCases, privateCases.length ? privateCases : undefined),
+      ]);
+      stagedInitialized.current = true;
+    }
+    setMode(next);
+  }
   const [error, setError] = useState<string>();
   const catalog = useQuery({
     queryKey: ["interview-catalog", search],
@@ -95,11 +114,41 @@ export function QuestionSetup({
       return;
     }
     try {
+      if (mode === "staged") {
+        if (Object.values(invalidTypes).some(Boolean))
+          throw new Error("Fix the highlighted method types before creating the question.");
+        if (!customTitle.trim() || !starter.trim()) {
+          setAuthorSection("question");
+          throw new Error("Add a question title and starter code.");
+        }
+        const staged = parseStages(stages);
+        onSubmit(
+          {
+            language,
+            custom: {
+              title: customTitle,
+              statementMarkdown: statement,
+              starterSource: starter,
+              signature: stages[0]!.methods[0]!.signature,
+              publicCases: staged.odyssey.levels[0]!.examples,
+              privateCases: [],
+              ...staged,
+            },
+          },
+          title.trim() || customTitle,
+        );
+        return;
+      }
+      if (Object.values(invalidSingleTypes).some(Boolean)) {
+        setAuthorSection("question");
+        throw new Error("Fix the highlighted method types before creating the question.");
+      }
       if (!publicCases.length) {
         setError("Add at least one shared test.");
         return;
       }
       if (!customTitle.trim() || !starter.trim()) {
+        setAuthorSection("question");
         setError("Add a question title and starter code.");
         return;
       }
@@ -124,7 +173,7 @@ export function QuestionSetup({
     }
   }
   return (
-    <form className="admin-fields" onSubmit={submit}>
+    <form className="admin-fields question-authoring" onSubmit={submit}>
       {showTitle && (
         <label className="admin-field">
           <span>Interview title</span>
@@ -137,10 +186,11 @@ export function QuestionSetup({
           <SelectField
             label="Question source"
             value={mode}
-            onChange={setMode}
+            onChange={chooseMode}
             options={[
               { value: "catalog", label: "Existing question" },
               { value: "custom", label: "Custom question" },
+              { value: "staged", label: "Custom multi-stage question" },
             ]}
           />
         </label>
@@ -158,29 +208,71 @@ export function QuestionSetup({
           />
         </label>
       </div>
-      {mode === "catalog" ? (
-        <>
-          <label className="admin-field">
-            <span>Problem</span>
-            <ProblemPicker
-              items={catalog.data?.items ?? []}
-              value={selected}
-              onChange={(value) => setSelected(value ?? "")}
-              onSearchChange={setSearch}
-              disabled={catalog.isPending && !catalog.data}
-            />
-          </label>
-          {catalog.isError && (
-            <p role="alert">
-              Could not load questions.{" "}
-              <button type="button" className="quiet-button" onClick={() => void catalog.refetch()}>
-                Retry
-              </button>
-            </p>
-          )}
-        </>
-      ) : (
-        <>
+      {mode !== "catalog" && (
+        <div
+          className="result-tabs authoring-section-tabs"
+          role="tablist"
+          aria-label="Question authoring"
+        >
+          {(["question", "tests"] as const).map((tab, index) => (
+            <button
+              type="button"
+              key={tab}
+              role="tab"
+              id={`${sectionId}-${tab}`}
+              aria-controls={`${sectionId}-${tab}-panel`}
+              aria-selected={authorSection === tab}
+              tabIndex={authorSection === tab ? 0 : -1}
+              onClick={() => setAuthorSection(tab)}
+              onKeyDown={(event) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                const next =
+                  event.key === "Home"
+                    ? "question"
+                    : event.key === "End"
+                      ? "tests"
+                      : index === 0
+                        ? "tests"
+                        : "question";
+                setAuthorSection(next);
+                document.getElementById(`${sectionId}-${next}`)?.focus();
+              }}
+            >
+              {tab === "question" ? "Question" : mode === "staged" ? "Steps & tests" : "Tests"}
+            </button>
+          ))}
+        </div>
+      )}
+      <fieldset className="admin-fields" hidden={mode !== "catalog"} disabled={mode !== "catalog"}>
+        <label className="admin-field">
+          <span>Problem</span>
+          <ProblemPicker
+            items={catalog.data?.items ?? []}
+            value={selected}
+            onChange={(value) => setSelected(value ?? "")}
+            onSearchChange={setSearch}
+            disabled={catalog.isPending && !catalog.data}
+          />
+        </label>
+        {catalog.isError && (
+          <p role="alert">
+            Could not load questions.{" "}
+            <button type="button" className="quiet-button" onClick={() => void catalog.refetch()}>
+              Retry
+            </button>
+          </p>
+        )}
+      </fieldset>
+      <fieldset className="admin-fields" hidden={mode === "catalog"} disabled={mode === "catalog"}>
+        <fieldset
+          className="admin-fields"
+          hidden={authorSection !== "question"}
+          disabled={authorSection !== "question"}
+          id={`${sectionId}-question-panel`}
+          role="tabpanel"
+          aria-labelledby={`${sectionId}-question`}
+        >
           <label className="admin-field">
             <span>Question title</span>
             <input
@@ -191,7 +283,7 @@ export function QuestionSetup({
             />
           </label>
           <label className="admin-field">
-            <span>Statement</span>
+            <span>{mode === "staged" ? "Introduction" : "Statement"}</span>
             <textarea
               rows={4}
               value={statement}
@@ -199,7 +291,7 @@ export function QuestionSetup({
             />
           </label>
           <label className="admin-field">
-            <span>Starter code</span>
+            <span>{mode === "staged" ? "Initial starter code" : "Starter code"}</span>
             <textarea
               className="admin-code"
               rows={8}
@@ -208,21 +300,59 @@ export function QuestionSetup({
               spellCheck={false}
             />
           </label>
-          <SignatureFields value={signature} onChange={updateSignature} />
-          <CaseFields
-            label="Shared tests"
-            signature={signature}
-            cases={publicCases}
-            onChange={setPublicCases}
+        </fieldset>
+        <fieldset
+          className="admin-fields"
+          hidden={mode !== "staged" || authorSection !== "tests"}
+          disabled={mode !== "staged" || authorSection !== "tests"}
+          id={mode === "staged" ? `${sectionId}-tests-panel` : undefined}
+          role="tabpanel"
+          aria-labelledby={`${sectionId}-tests`}
+        >
+          <StageAuthoring
+            value={stages}
+            onChange={setStages}
+            onValidityChange={(id, invalid) =>
+              setInvalidTypes((current) =>
+                current[id] === invalid ? current : { ...current, [id]: invalid },
+              )
+            }
           />
-          <CaseFields
-            label="Interviewer-private tests"
-            signature={signature}
-            cases={privateCases}
-            onChange={setPrivateCases}
-          />
-        </>
-      )}
+        </fieldset>
+        <fieldset className="admin-fields" hidden={mode === "staged"} disabled={mode === "staged"}>
+          <fieldset
+            className="admin-fields"
+            hidden={authorSection !== "question"}
+            disabled={authorSection !== "question"}
+          >
+            <SignatureFields
+              value={signature}
+              onChange={updateSignature}
+              onValidityChange={(id, invalid) =>
+                setInvalidSingleTypes((current) =>
+                  current[id] === invalid ? current : { ...current, [id]: invalid },
+                )
+              }
+            />
+          </fieldset>
+          <fieldset
+            className="admin-fields"
+            hidden={authorSection !== "tests"}
+            disabled={authorSection !== "tests"}
+            id={mode !== "staged" ? `${sectionId}-tests-panel` : undefined}
+            role="tabpanel"
+            aria-labelledby={`${sectionId}-tests`}
+          >
+            <QuestionTests
+              signature={signature}
+              publicCases={publicCases}
+              privateCases={privateCases}
+              onPublicChange={setPublicCases}
+              onPrivateChange={setPrivateCases}
+            />
+          </fieldset>
+        </fieldset>
+      </fieldset>
       {error && (
         <p className="admin-error" role="alert">
           {error}
@@ -238,32 +368,75 @@ export function QuestionSetup({
   );
 }
 
-/** Shared practice case rail; expected values remain mandatory for authored test suites. */
-function CaseFields({
-  label,
+/** Both collections share one bounded authoring surface; drafts survive tab switches. */
+function QuestionTests({
   signature,
-  cases,
-  onChange,
+  publicCases,
+  privateCases,
+  onPublicChange,
+  onPrivateChange,
 }: {
-  label: string;
   signature: Signature;
-  cases: CustomCaseDraft[];
-  onChange: (cases: CustomCaseDraft[]) => void;
+  publicCases: CustomCaseDraft[];
+  privateCases: CustomCaseDraft[];
+  onPublicChange: (value: CustomCaseDraft[]) => void;
+  onPrivateChange: (value: CustomCaseDraft[]) => void;
 }) {
+  const [collection, setCollection] = useState("public");
+  const [selection, setSelection] = useState<Record<string, string | undefined>>({});
+  const id = useId();
   const problem = { ...blankQuestion().problem, signature };
   return (
-    <section>
-      <h3>{label}</h3>
-      <div className="authoring-case-browser">
+    <div className="authoring-test-collections">
+      <div className="result-tabs" role="tablist" aria-label="Question tests">
+        {(["public", "private"] as const).map((tab, index) => (
+          <button
+            type="button"
+            role="tab"
+            key={tab}
+            id={`${id}-${tab}`}
+            aria-controls={`${id}-cases`}
+            aria-selected={collection === tab}
+            tabIndex={collection === tab ? 0 : -1}
+            onClick={() => setCollection(tab)}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const next =
+                event.key === "Home"
+                  ? "public"
+                  : event.key === "End"
+                    ? "private"
+                    : index === 0
+                      ? "private"
+                      : "public";
+              setCollection(next);
+              document.getElementById(`${id}-${next}`)?.focus();
+            }}
+          >
+            <Icon name={tab === "private" ? "lock" : "samples"} />
+            {tab === "public" ? "Test cases" : "Private tests"}
+          </button>
+        ))}
+      </div>
+      <div
+        className="authoring-case-browser"
+        id={`${id}-cases`}
+        role="tabpanel"
+        aria-labelledby={`${id}-${collection}`}
+      >
         <TestCases
+          key={collection}
+          selectedCustomId={selection[collection]}
+          onSelectCustomCase={(id) => setSelection((current) => ({ ...current, [collection]: id }))}
           problem={problem}
           customMode
-          drafts={cases}
-          onDraftsChange={onChange}
+          drafts={collection === "public" ? publicCases : privateCases}
+          onDraftsChange={collection === "public" ? onPublicChange : onPrivateChange}
           requiredExpected
-          minimumCases={label === "Shared tests" ? 1 : 0}
+          minimumCases={collection === "public" ? 1 : 0}
         />
       </div>
-    </section>
+    </div>
   );
 }

@@ -8,7 +8,7 @@ export function innerType(type: string, wrapper: "optional" | "list") {
     : undefined;
 }
 
-function supportedType(type: string, depth = 0): boolean {
+export function supportedType(type: string, depth = 0): boolean {
   if (depth > 100) return false;
   if (["int", "float", "str", "bool", "ListNode", "TreeNode"].includes(type)) return true;
   const inner = innerType(type, "optional") ?? innerType(type, "list");

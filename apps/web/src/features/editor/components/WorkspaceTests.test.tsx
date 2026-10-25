@@ -46,6 +46,8 @@ describe("shared test browser", () => {
     );
     expect(html).toContain('aria-label="Case 2"');
     expect(html).toContain("deposit");
+    expect(html).toContain("Step 1");
+    expect(html).toContain("Step 2");
     expect(html).toContain("amount");
     expect(html).not.toContain('"methodName"');
     expect(html).not.toContain("Custom cases");
