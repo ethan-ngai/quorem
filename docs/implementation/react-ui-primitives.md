@@ -8,6 +8,6 @@ Sidebar preview links use `ui/Tooltip` with keyboard focus and right-side placem
 
 `ui/SelectField` now covers typed boolean cases as well as language, settings, participant roles and practice selectors. Trigger props preserve field labels, validation descriptions and blur handling. Native text inputs/textareas remain appropriate for typed editing. Native `details` in stage/method authoring retain disclosure semantics.
 
-Browser draft history now uses `ui/SessionDialog`, sharing dialog chrome, focus trapping, dismissal and restore-pending protection. Existing settings and sidebar dialogs intentionally retain their specialized Radix layouts; other competitive dialogs already share their CSS surface and Radix focus behavior.
+Browser draft history, practice execution sign-in and interview lifecycle prompts use `ui/SessionDialog`, sharing dialog chrome, focus trapping, dismissal and pending protection. Existing settings and sidebar dialogs intentionally retain their specialized Radix layouts; other competitive dialogs already share their CSS surface and Radix focus behavior.
 
 Buttons share the existing token classes. Destructive interview actions now share `.destructive-icon` / `.button-destructive-hover`: neutral rest, error hover/focus, short reversible color transitions and reduced-motion support. Invitation login preserves the interview return path.
