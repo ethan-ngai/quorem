@@ -64,7 +64,7 @@ export function SelectField({
         }}
       >
         {selected?.leading}
-        <Select.Value>{selected?.label}</Select.Value>
+        <Select.Value placeholder={selected?.label}>{selected?.label}</Select.Value>
         <Select.Icon className="select-field-chevron">
           <ChevronDown size={14} aria-hidden="true" />
         </Select.Icon>
