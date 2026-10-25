@@ -7,6 +7,8 @@ import { api, requireData } from "../editor/api";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { useSession } from "../auth/session";
+import { SelectField } from "../../ui/SelectField";
 import { CatalogFilter } from "./CatalogFilter";
 import { addFilter, filterValues } from "./catalogSearch";
 import type { CatalogSearch } from "./catalogSearch";
@@ -18,6 +20,7 @@ const label = (value: string) =>
 const pageSize = 20;
 
 export function PracticeBrowser() {
+  const session = useSession();
   const { identity } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
   const search = useSearch({ from: "/practice" });
@@ -43,6 +46,8 @@ export function PracticeBrowser() {
   const catalog = useQuery({
     queryKey: [
       "public-problems",
+      session.data?.user.id,
+      search.library,
       search.q,
       search.difficulty,
       search.topic,
@@ -54,6 +59,7 @@ export function PracticeBrowser() {
       const { data, error } = await api().GET("/v1/problems", {
         params: {
           query: {
+            library: search.library,
             q: search.q,
             difficulty: search.difficulty,
             topic: search.topic,
@@ -71,7 +77,7 @@ export function PracticeBrowser() {
   });
   // Filter options use a separate cache, so changing filters never removes available topics.
   const metadata = useQuery({
-    queryKey: ["public-problem-topics"],
+    queryKey: ["public-problem-topics", session.data?.user.id],
     queryFn: async ({ signal }) => {
       const { data, error } = await api().GET("/v1/problems", {
         params: { query: { limit: 1 } },
@@ -82,7 +88,7 @@ export function PracticeBrowser() {
     staleTime: 60_000,
   });
   const topics = metadata.data ?? catalog.data?.topics ?? [];
-  const filtered = Boolean(search.q || search.difficulty || search.topic);
+  const filtered = Boolean(search.q || search.difficulty || search.topic || search.library);
   const sort = search.sort ?? "title";
   const SortIcon = search.order === "desc" ? ArrowDown : ArrowUp;
   const sortBy = (next: "title" | "difficulty") =>
@@ -93,7 +99,7 @@ export function PracticeBrowser() {
   const clear = () => {
     setQuery("");
     setEditing(false);
-    update({ q: undefined, difficulty: undefined, topic: undefined });
+    update({ q: undefined, difficulty: undefined, topic: undefined, library: undefined });
   };
   const page = search.page ?? 1;
   const total = catalog.data?.total ?? 0;
@@ -130,6 +136,26 @@ export function PracticeBrowser() {
           </label>
         </div>
         <div className="practice-filters">
+          {session.data && (
+            <SelectField
+              label="Question library"
+              value={search.library ?? "all"}
+              onChange={(value) =>
+                update({ library: value === "all" ? undefined : (value as "private" | "global") })
+              }
+              options={[
+                { value: "all", label: "All questions" },
+                { value: "global", label: "Global questions" },
+                { value: "private", label: "Private library" },
+              ]}
+            />
+          )}
+          {(session.data?.user.role === "admin" ||
+            session.data?.capabilities?.authorCustomQuestions) && (
+            <a className="quiet-button" href="/admin/questions">
+              Question editor
+            </a>
+          )}
           <CatalogFilter
             label="Difficulty"
             selected={filterValues(search.difficulty)}

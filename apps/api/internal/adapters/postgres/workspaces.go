@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/workspace"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
@@ -12,7 +13,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner, problemID, language 
 	if _, ok := execution.LanguageRuntime(language); !ok {
 		return workspace.Workspace{}, failure("invalid_input", 400, "Unsupported language")
 	}
-	p, err := s.Problem(ctx, problemID, true)
+	p, err := s.Problem(identity.With(ctx, identity.Principal{UserID: owner}), problemID, true)
 	if err != nil {
 		return workspace.Workspace{}, err
 	}

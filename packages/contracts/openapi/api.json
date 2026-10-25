@@ -937,6 +937,14 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["global", "private"]
+            }
           }
         ]
       }
@@ -1686,6 +1694,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteInterview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Interview deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["deleted"],
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
                 }
               }
             }

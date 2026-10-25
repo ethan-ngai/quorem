@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 )
@@ -28,16 +30,8 @@ func scanQuestionDraft(row pgx.Row) (QuestionDraft, error) {
 	}
 	return d, err
 }
-func (s *Store) requireQuestionAdmin(ctx context.Context, actor string) error {
-	var admin bool
-	err := s.Pool.QueryRow(ctx, "SELECT role='admin' AND NOT disabled FROM users WHERE id=$1", actor).Scan(&admin)
-	if errors.Is(err, pgx.ErrNoRows) || err == nil && !admin {
-		return failure("forbidden", 403, "Administrator required")
-	}
-	return err
-}
 func (s *Store) CreateQuestionDraft(ctx context.Context, actor string, content problems.QuestionContent) (QuestionDraft, error) {
-	if err := s.requireQuestionAdmin(ctx, actor); err != nil {
+	if err := s.requireQuestionAuthor(ctx, actor); err != nil {
 		return QuestionDraft{}, err
 	}
 	content = problems.NormalizeQuestionDraft(content)
@@ -48,14 +42,14 @@ func (s *Store) CreateQuestionDraft(ctx context.Context, actor string, content p
 	if err != nil {
 		return QuestionDraft{}, err
 	}
-	return scanQuestionDraft(s.Pool.QueryRow(ctx, "INSERT INTO question_drafts(content,created_by,updated_by) VALUES($1,$2,$2) RETURNING "+draftColumns, data, actor))
+	return scanQuestionDraft(s.Pool.QueryRow(ctx, "INSERT INTO question_drafts(content,created_by,updated_by,owner_id) SELECT $1,$2,$2,CASE WHEN role='admin' THEN NULL ELSE id END FROM users WHERE id=$2 RETURNING "+draftColumns, data, actor))
 }
 func (s *Store) QuestionDraft(ctx context.Context, id string) (QuestionDraft, error) {
-	return scanQuestionDraft(s.Pool.QueryRow(ctx, "SELECT "+draftColumns+" FROM question_drafts WHERE id::text=$1", id))
+	return scanQuestionDraft(s.Pool.QueryRow(ctx, "SELECT "+draftColumns+" FROM question_drafts WHERE id::text=$1 AND (owner_id=$2 OR (owner_id IS NULL AND $3))", id, identity.Subject(ctx).UserID, identity.Subject(ctx).Admin))
 }
 func (s *Store) QuestionDrafts(ctx context.Context, cursor string) (QuestionDraftPage, error) {
-	query := `SELECT id::text,revision::text,COALESCE(content->'problem'->>'title',''),COALESCE(content->'problem'->>'slug',''),COALESCE(published_version_id::text,''),updated_at FROM question_drafts WHERE $1='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=$1) ORDER BY updated_at DESC,id DESC LIMIT 51`
-	rows, err := s.Pool.Query(ctx, query, cursor)
+	query := `SELECT id::text,revision::text,COALESCE(content->'problem'->>'title',''),COALESCE(content->'problem'->>'slug',''),COALESCE(published_version_id::text,''),updated_at FROM question_drafts WHERE (owner_id=$2 OR (owner_id IS NULL AND $3)) AND ($1='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=$1 AND (owner_id=$2 OR (owner_id IS NULL AND $3)))) ORDER BY updated_at DESC,id DESC LIMIT 51`
+	rows, err := s.Pool.Query(ctx, query, cursor, identity.Subject(ctx).UserID, identity.Subject(ctx).Admin)
 	if err != nil {
 		return QuestionDraftPage{}, err
 	}
@@ -79,7 +73,7 @@ func validDraftRevision(revision string) bool {
 	return err == nil && v > 0 && strconv.FormatInt(v, 10) == revision
 }
 func (s *Store) UpdateQuestionDraft(ctx context.Context, actor, id, revision string, content problems.QuestionContent) (QuestionDraft, error) {
-	if err := s.requireQuestionAdmin(ctx, actor); err != nil {
+	if err := s.requireQuestionAuthor(ctx, actor); err != nil {
 		return QuestionDraft{}, err
 	}
 	if !validDraftRevision(revision) {
@@ -93,7 +87,7 @@ func (s *Store) UpdateQuestionDraft(ctx context.Context, actor, id, revision str
 	if err != nil {
 		return QuestionDraft{}, err
 	}
-	d, err := scanQuestionDraft(s.Pool.QueryRow(ctx, "UPDATE question_drafts SET content=$1,revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id::text=$3 AND revision::text=$4 AND published_version_id IS NULL RETURNING "+draftColumns, data, actor, id, revision))
+	d, err := scanQuestionDraft(s.Pool.QueryRow(ctx, "UPDATE question_drafts SET content=$1,revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id::text=$3 AND revision::text=$4 AND published_version_id IS NULL AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) RETURNING "+draftColumns, data, actor, id, revision))
 	var missing *Error
 	if errors.As(err, &missing) && missing.Code == "not_found" {
 		if _, e := s.QuestionDraft(ctx, id); e != nil {
@@ -106,6 +100,16 @@ func (s *Store) UpdateQuestionDraft(ctx context.Context, actor, id, revision str
 
 // Fork normalized content, preserving private authoring fields only behind admin routes.
 func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems.QuestionContent, error) {
+	principal := identity.Subject(ctx)
+	if !principal.Admin {
+		var own bool
+		if err := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND p.owner_id=$2)`, versionID, principal.UserID).Scan(&own); err != nil {
+			return problems.QuestionContent{}, err
+		}
+		if !own {
+			return problems.QuestionContent{}, failure("forbidden", 403, "Only your own private questions can be cloned")
+		}
+	}
 	p, err := s.Problem(ctx, versionID, true)
 	if err != nil {
 		return problems.QuestionContent{}, err
@@ -170,7 +174,7 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 }
 
 func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision string) (QuestionDraft, error) {
-	if err := s.requireQuestionAdmin(ctx, actor); err != nil {
+	if err := s.requireQuestionAuthor(ctx, actor); err != nil {
 		return QuestionDraft{}, err
 	}
 	if !validDraftRevision(revision) {
@@ -181,7 +185,7 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 		return QuestionDraft{}, err
 	}
 	defer tx.Rollback(ctx)
-	d, err := scanQuestionDraft(tx.QueryRow(ctx, "SELECT "+draftColumns+" FROM question_drafts WHERE id::text=$1 FOR UPDATE", id))
+	d, err := scanQuestionDraft(tx.QueryRow(ctx, "SELECT "+draftColumns+" FROM question_drafts WHERE id::text=$1 AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) FOR UPDATE", id, actor))
 	if err != nil {
 		return d, err
 	}
@@ -192,6 +196,28 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 		return d, failure("invalid_input", 400, err.Error())
 	}
 	c := d.Content
+	var privateOwner *string
+	if err = tx.QueryRow(ctx, "SELECT owner_id FROM question_drafts WHERE id=$1", id).Scan(&privateOwner); err != nil {
+		return d, err
+	}
+	if privateOwner != nil {
+		// Namespace private slugs; a user cannot advance a global publication or another owner's version.
+		baseSlug := strings.TrimPrefix(c.Problem.Slug, "private-"+Hash([]byte(*privateOwner))[:16]+"-")
+		if len(baseSlug) > 96 {
+			return d, failure("invalid_input", 400, "Private question slug must be 96 characters or fewer")
+		}
+		c.Problem.Slug = "private-" + Hash([]byte(*privateOwner))[:16] + "-" + baseSlug
+		if _, err = tx.Exec(ctx, `INSERT INTO problems(slug,owner_id) VALUES($1,$2) ON CONFLICT(slug) DO NOTHING`, c.Problem.Slug, *privateOwner); err != nil {
+			return d, err
+		}
+		var ownNamespace bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM problems WHERE slug=$1 AND owner_id=$2)`, c.Problem.Slug, *privateOwner).Scan(&ownNamespace); err != nil {
+			return d, err
+		}
+		if !ownNamespace {
+			return d, failure("forbidden", 403, "Private question namespace unavailable")
+		}
+	}
 	// Serialize new version numbers per slug across different admin drafts.
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,740071))", c.Problem.Slug); err != nil {
 		return d, err
@@ -257,4 +283,15 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 		return d, err
 	}
 	return d, nil
+}
+
+func (s *Store) requireQuestionAuthor(ctx context.Context, actor string) error {
+	c, err := s.Capabilities(ctx, actor)
+	if err != nil {
+		return err
+	}
+	if !c.AuthorCustomQuestions {
+		return failure("forbidden", 403, "Custom question access required")
+	}
+	return nil
 }

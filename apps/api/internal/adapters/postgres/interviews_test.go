@@ -17,7 +17,7 @@ import (
 func interviewTestStore(t *testing.T) *Store {
 	t.Helper()
 	s := testStore(t)
-	if _, err := s.Pool.Exec(context.Background(), `TRUNCATE interviews CASCADE; INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'alice','interviews.host','manual','test','test','test')`); err != nil {
+	if _, err := s.Pool.Exec(context.Background(), `TRUNCATE interviews CASCADE; INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'alice','interviews.host','manual','test','test','test'),(gen_random_uuid(),'alice','questions.custom','manual','test','test','test')`); err != nil {
 		t.Fatal(err)
 	}
 	return s

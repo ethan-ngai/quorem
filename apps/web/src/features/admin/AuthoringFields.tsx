@@ -1,5 +1,5 @@
 /** @file AuthoringFields.tsx @description Shared labeled fields and typed JSON authoring. @module admin */
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 /** @returns A labeled field that keeps native focus and keyboard behavior. */
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -24,6 +24,9 @@ export function JSONField({
 }) {
   const [source, setSource] = useState(() => JSON.stringify(value, null, 2));
   const [invalid, setInvalid] = useState(false);
+  const validity = useRef(onValidityChange);
+  validity.current = onValidityChange;
+  useEffect(() => () => validity.current(label, false), [label]);
   return (
     <Field label={label}>
       <textarea

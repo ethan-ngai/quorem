@@ -22,3 +22,15 @@ Evidence: fresh/backfill/sealing/atomic rollback/role/revision tests on disposab
 ## Remaining release gates
 
 Actual Cognito callback, email verification/reset and Google federation require cloud evidence under #15. Local auth tests exercise the real Better Auth handler with fixture sessions, redirects, JWT/JWKS and logout. Publication validates metadata/cases; it does not automatically compile or judge newly authored reference/editorial sources. Administrators must verify those artifacts before public release. Public sandbox isolation/cloud deployment remains separately gated.
+
+## Private libraries
+
+Global authoring requires the server-owned admin role. Non-admin authors require an active `questions.custom` grant (or internal entitlement); their drafts and publications always belong to their private library. Grant through the existing operator tool:
+
+```sh
+go run ./apps/api/cmd/access grant --user '<product-user-id>' --scope questions.custom --actor '<operator>' --reason 'Private question authoring' --op-id '<unique-operation>' --ref '<tracking-reference>'
+```
+
+Practice supports `library=global` and `library=private`; omitted includes global plus the signed-in owner's questions. Owner checks also protect direct version, editorial, workspace and interview selection requests. Private authors may clone their own publications; global private references/hidden tests remain admin-only. Custom interview questions require this same capability and save transactionally to the author's library. Interview membership permits the assigned shared question, without opening the author's library.
+
+Interview hosting defaults to one active interview. Operators may raise the bounded per-account limit with `access quota --resource interview_concurrency --value <1..100>` and the usual user/actor/reason/op-id fields. This quota remains separate from hosting/custom-authoring grants.
