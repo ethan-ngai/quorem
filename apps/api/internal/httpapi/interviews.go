@@ -32,6 +32,7 @@ type InterviewRepository interface {
 	SetInterviewMember(context.Context, string, string, string, string, string) (interviews.Snapshot, error)
 	RemoveInterviewMember(context.Context, string, string, string, string) (interviews.Snapshot, error)
 	CloseInterview(context.Context, string, string, string) (interviews.Snapshot, error)
+	DeleteInterview(context.Context, string, string) error
 	PreviewInterviewInvite(context.Context, string) (interviews.Preview, error)
 	JoinInterview(context.Context, string, string, string, string) (interviews.Snapshot, error)
 	InterviewGuestIdentity(context.Context, string) (identity.Principal, error)
@@ -56,6 +57,7 @@ func (s *Server) registerInterviews(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/interviews", s.listInterviews)
 	mux.HandleFunc("POST /v1/interviews", s.createInterview)
 	mux.HandleFunc("GET /v1/interviews/{id}", s.getInterview)
+	mux.HandleFunc("DELETE /v1/interviews/{id}", s.deleteInterview)
 	mux.HandleFunc("PUT /v1/interviews/{id}/question", s.setInterviewQuestion)
 	mux.HandleFunc("POST /v1/interviews/{id}/language", s.switchInterviewLanguage)
 	mux.HandleFunc("POST /v1/interviews/{id}/cases/{caseId}/visibility", s.setInterviewCaseVisibility)
@@ -447,4 +449,16 @@ func (s *Server) setInterviewCaseVisibility(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	respond(w, 200, v)
+}
+
+func (s *Server) deleteInterview(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	if err := repo.DeleteInterview(r.Context(), owner(r), r.PathValue("id")); err != nil {
+		s.err(w, r, err)
+		return
+	}
+	respond(w, 200, map[string]bool{"deleted": true})
 }

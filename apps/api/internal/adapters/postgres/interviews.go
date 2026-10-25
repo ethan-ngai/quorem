@@ -25,7 +25,7 @@ func lockInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, acti
 	var v interviewRecord
 	var data []byte
 	var disabled bool
-	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 FOR UPDATE OF i`, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled)
+	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 AND i.deleted_at IS NULL FOR UPDATE OF i`, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Interview unavailable")
 	}
@@ -127,7 +127,7 @@ func (s *Store) Interview(ctx context.Context, user, id string) (interviews.Snap
 	return out, tx.Commit(ctx)
 }
 func (s *Store) Interviews(ctx context.Context, user string) ([]interviews.Snapshot, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT i.id FROM interviews i JOIN interview_members m ON m.session_id=i.id WHERE m.user_id=$1 AND m.removed_at IS NULL ORDER BY i.updated_at DESC LIMIT 50`, user)
+	rows, err := s.Pool.Query(ctx, `SELECT i.id FROM interviews i JOIN interview_members m ON m.session_id=i.id WHERE m.user_id=$1 AND m.removed_at IS NULL AND i.deleted_at IS NULL ORDER BY i.updated_at DESC LIMIT 50`, user)
 	if err != nil {
 		return nil, err
 	}
@@ -224,8 +224,12 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM interviews WHERE host_id=$1 AND state='active'`, user).Scan(&count); err != nil {
 		return empty, err
 	}
-	if count >= 10 {
-		return empty, failure("quota_exceeded", 429, "Close an interview before creating another")
+	caps, err := capabilities(ctx, tx, user)
+	if err != nil {
+		return empty, err
+	}
+	if count >= caps.InterviewConcurrency {
+		return empty, failure("quota_exceeded", 429, "End an interview before creating another")
 	}
 	raw := make([]byte, 32)
 	if _, err = rand.Read(raw); err != nil {
