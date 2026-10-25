@@ -1,3 +1,4 @@
+import "./results.css";
 /** @file CaseBrowserLayout.tsx @description Shared case rail/detail geometry for execution and authoring. @module editor */
 import type { ReactNode } from "react";
 export function CaseBrowserLayout({

@@ -1,8 +1,9 @@
 /** @file SessionDialog.tsx @description Shared competitive dialog chrome for session setup and membership. @module ui */
+import "./session-dialog.css";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
-import { Icon } from "../features/editor/components/Icon";
-import { Tooltip } from "../features/editor/components/Tooltip";
+import { Icon } from "./Icon";
+import { Tooltip } from "./Tooltip";
 import { focusOverlayOnOpen } from "./overlayFocus";
 
 export function SessionDialog({
@@ -38,7 +39,7 @@ export function SessionDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="settings-backdrop" />
+        <Dialog.Overlay className="session-backdrop" />
         <Dialog.Content
           className={`competitive-dialog ${className}`}
           onOpenAutoFocus={focusOverlayOnOpen}

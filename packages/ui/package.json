@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./controls.css": "./src/controls.css",
     "./theme.css": "./src/theme.css",
     "./tokens": "./src/tokens.ts"
   }

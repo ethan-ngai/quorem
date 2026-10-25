@@ -1,0 +1,16 @@
+.invitation-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.copy-invitation .copy-back {
+  opacity: 1;
+  transition: opacity var(--motion-standard) var(--motion-easing);
+}
+.copy-invitation.is-copied {
+  color: var(--color-success);
+}
+.copy-invitation.is-copied .copy-back {
+  opacity: 0;
+}

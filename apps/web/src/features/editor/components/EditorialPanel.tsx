@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
-import { VisibilityIcon } from "./Icon";
+import { VisibilityIcon } from "../../../ui/Icon";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 

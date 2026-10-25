@@ -3,7 +3,7 @@ import { UserRound, ShieldCheck, Link, X } from "lucide-react";
 import { useRef } from "react";
 import type { Session } from "../auth/session";
 import type { ThemePreference } from "../editor/editorSettings";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 import {
   WorkspaceSettingsContent,
   workspaceSections,

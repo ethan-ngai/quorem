@@ -17,8 +17,8 @@ import {
 } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
 import { WorkspacePage } from "../editor/WorkspacePage";
-import { Tooltip } from "../editor/components/Tooltip";
-import { Icon } from "../editor/components/Icon";
+import { Tooltip } from "../../ui/Tooltip";
+import { Icon } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
 import {

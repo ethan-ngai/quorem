@@ -1,8 +1,8 @@
 /** @file ExecutionActions.tsx @description One execution action row for every coding workspace. @module editor */
 import { workspaceShortcuts } from "../workspaceShortcuts";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 import { ShortcutHint } from "./ShortcutKeys";
-import { Tooltip } from "./Tooltip";
+import { Tooltip } from "../../../ui/Tooltip";
 
 export function ExecutionActions({
   disabled,

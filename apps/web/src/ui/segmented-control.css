@@ -50,6 +50,6 @@
 @media (pointer: coarse) {
   .segmented-control[data-icon-only="true"] > button {
     min-width: 44px;
-    min-height: 38px;
+    min-height: var(--narrow-touch-target);
   }
 }

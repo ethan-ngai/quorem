@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useErrorNotification } from "../../ui/Notifications";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { requireData } from "../../api/client";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
 import { joinMatch, joinAsGuest } from "./api";

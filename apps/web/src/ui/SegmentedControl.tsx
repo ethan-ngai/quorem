@@ -3,7 +3,7 @@ import { useId, type ReactNode, type CSSProperties } from "react";
 import "./segmented-control.css";
 
 /** One persistent selection, with radio keyboard behavior and shared motion. */
-export function SegmentedControl({
+export function SegmentedControl<Value extends string>({
   label,
   value,
   options,
@@ -12,11 +12,11 @@ export function SegmentedControl({
   onChange,
 }: {
   label: string;
-  value: string;
-  options: readonly { value: string; label: string; icon?: ReactNode }[];
+  value: Value;
+  options: readonly { value: Value; label: string; icon?: ReactNode }[];
   iconOnly?: boolean;
   disabled?: boolean;
-  onChange: (value: string) => void;
+  onChange: (value: Value) => void;
 }) {
   const id = useId();
   const selected = Math.max(

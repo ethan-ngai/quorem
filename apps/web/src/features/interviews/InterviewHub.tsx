@@ -19,7 +19,7 @@ import { useErrorNotification } from "../../ui/Notifications";
 import "../../styles/workspace.css";
 import { CatalogLayout, CatalogTable } from "../practice/CatalogLayout";
 import { Trash2, Power, Users, CircleDot, Archive } from "lucide-react";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { SessionDialog } from "../../ui/SessionDialog";
 

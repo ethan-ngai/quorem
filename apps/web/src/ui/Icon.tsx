@@ -1,4 +1,4 @@
-/** @file Icon.tsx @description Consistent functional workspace symbols. @module editor */
+/** @file Icon.tsx @description Consistent functional workspace symbols. @module ui */
 import type { SVGProps } from "react";
 import { Swords } from "lucide-react";
 

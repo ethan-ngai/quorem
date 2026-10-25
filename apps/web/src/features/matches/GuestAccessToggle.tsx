@@ -1,4 +1,4 @@
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 
 export function GuestAccessToggle({
   allowed,

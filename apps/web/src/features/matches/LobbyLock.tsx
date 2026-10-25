@@ -1,5 +1,5 @@
 /** @file LobbyLock.tsx @description Admission control with an animated shackle. @module matches */
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 
 export function LobbyLock({
   locked,
