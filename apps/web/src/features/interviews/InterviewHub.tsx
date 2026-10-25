@@ -1,3 +1,5 @@
+import { LoadingScreen } from "../../ui/LoadingScreen";
+import { Link } from "@tanstack/react-router";
 /** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -116,9 +118,7 @@ export function InterviewHub() {
             aria-busy={sessions.isFetching}
           >
             {sessions.isPending ? (
-              <div className="practice-state" role="status">
-                Loading interviews…
-              </div>
+              <LoadingScreen inline label="Loading interviews…" />
             ) : sessions.isError ? (
               <div className="practice-state" role="alert">
                 <p>Could not load interviews.</p>
@@ -149,7 +149,9 @@ export function InterviewHub() {
                       }}
                     >
                       <td>
-                        <a href={`/interview/${session.id}`}>{session.title}</a>
+                        <Link to="/interview/$id" params={{ id: session.id }}>
+                          {session.title}
+                        </Link>
                       </td>
                       <td>
                         {session.state === "closed"
@@ -224,9 +226,13 @@ export function InterviewHub() {
               invites={created.invites ?? { interviewee: created.invitePath }}
             />
             <footer className="competitive-dialog-actions">
-              <a className="button button-primary" href={`/interview/${created.id}`}>
+              <Link
+                className="button button-primary"
+                to="/interview/$id"
+                params={{ id: created.id }}
+              >
                 Open workspace
-              </a>
+              </Link>
             </footer>
           </>
         ) : (

@@ -99,7 +99,7 @@ Translate the supplied dark account-menu reference into the compact workspace sc
 
 Theme-independent motion tokens: `motion-fast`: 120ms; `motion-standard`: 180ms; `motion-easing`: cubic-bezier(0.2, 0, 0, 1). Map them to shared CSS custom properties.
 
-Brief color/opacity/transform feedback clarifies hover, selection, saving, and popovers. No ambient animation while coding. Reduced motion removes spatial transitions. Loading/status animation must not move code or result geometry.
+Brief color/opacity/transform feedback clarifies hover, selection, saving, and popovers. No ambient animation while coding. Reduced motion removes spatial transitions. Loading/status animation must not move code or result geometry. Blocking loading states center the stationary Quorem mark inside a 64px, 2px orbit ring; neutral border with a primary-colored leading arc, 900ms linear rotation. Use page background and secondary text in both themes. Reduced motion keeps the ring static.
 
 All anchored popovers use the shared `ui/Popover` primitive for portal layering, entrance/exit motion and reduced-motion support. Icon-only sidebar preview links use right-aligned shared tooltips. Destructive interview actions transition from neutral to error red on hover/focus.
 

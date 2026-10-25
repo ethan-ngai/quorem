@@ -1,3 +1,4 @@
+import { LogoSpinner } from "../../ui/LoadingScreen";
 /** @file InvitePage.tsx @description Read-only invitation preview with explicit account-aware acceptance. @module matches */
 import * as Dialog from "@radix-ui/react-dialog";
 import { createApiClient } from "@quorem/contracts";
@@ -82,6 +83,7 @@ export function InvitePage({ token }: { token: string }) {
     >
       {!lobby || preview.isError ? (
         <div className="invite-entry">
+          {!preview.isError && <LogoSpinner />}
           <h1>{preview.isError ? "Invitation unavailable" : "Opening lobby…"}</h1>
           {preview.isError && (
             <>

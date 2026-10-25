@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 /** @file WorkspaceSidebar.tsx @description In-place desktop rail expansion and a mobile navigation drawer. @module navigation */
 import * as Dialog from "@radix-ui/react-dialog";
 import { BookOpen, Home, SquarePen, Users } from "lucide-react";
@@ -158,15 +159,16 @@ function SidebarLinks({
           : []),
       ].map(({ href, label, icon: LinkIcon, active }) => (
         <Tooltip key={href} content={label} side="right" disabled={!peek}>
-          <a
+          <Link
+            reloadDocument={href === "/"}
             className="sidebar-link"
-            href={href}
+            to={href}
             aria-label={label}
             aria-current={active ? "page" : undefined}
           >
             <LinkIcon size={17} />
             <span>{label}</span>
-          </a>
+          </Link>
         </Tooltip>
       ))}
     </nav>

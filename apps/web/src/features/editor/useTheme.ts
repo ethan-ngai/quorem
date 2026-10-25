@@ -8,6 +8,13 @@ function resolveTheme(preference: ThemePreference): EditorTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+/** Apply before React renders route fallbacks; page hooks own subsequent changes. */
+export function initializeTheme() {
+  document.documentElement.dataset.theme = resolveTheme(
+    readPreference<ThemePreference>("quorem.theme.v1", "system"),
+  );
+}
+
 /** Keeps the app theme in sync with the user's choice and system changes. */
 export function useTheme() {
   const key = "quorem.theme.v1";

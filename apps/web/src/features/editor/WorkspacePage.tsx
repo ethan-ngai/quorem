@@ -26,7 +26,7 @@ import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { customDraftStorageKey, readCustomDrafts, type CustomCaseDraft } from "./customCases";
-import { Brand } from "./components/Icon";
+import { LogoSpinner, LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
 import { readPreference, writePreference } from "./editorSettings";
@@ -163,6 +163,7 @@ export function WorkspacePage({
 
   const problemQuery = useQuery({
     queryKey: ["problem", identity, match?.problemVersionId ?? slug],
+    staleTime: 60_000,
     queryFn: () =>
       match ? fetchProblemVersion(identity, match.problemVersionId!) : fetchProblem(identity, slug),
     enabled: match ? !!match.problemVersionId && !!matchWorkspaceId : !!slug,
@@ -178,7 +179,7 @@ export function WorkspacePage({
       (account.data.kind !== "guest" || !!match) &&
       (match ? !!matchWorkspaceId : !!problemQuery.data),
     staleTime: 0,
-    gcTime: 0,
+    gcTime: 5 * 60_000,
   });
 
   const loadedWorkspace = useMemo(() => {
@@ -205,7 +206,6 @@ export function WorkspacePage({
       storageId: browserDraftScope(loadedWorkspace),
     };
     const previousContext = draftContextRef.current;
-    if (workspaceQuery.isFetching && previousContext?.key !== nextContext.key) return;
     if (previousContext?.key === nextContext.key) return;
     try {
       browserWriterRef.current?.flush();
@@ -557,7 +557,7 @@ export function WorkspacePage({
   if (!problem || !workspace)
     return (
       <main className="workspace-loading" aria-live="polite">
-        <Brand />
+        {loadError ? null : <LogoSpinner />}
         <h1>{loadError ? "Workspace unavailable" : "Opening workspace…"}</h1>
         {loadError && (
           <>
@@ -580,7 +580,11 @@ export function WorkspacePage({
     <>
       {loading && (
         <div className="workspace-loading workspace-transition" role="status">
-          <p>{loadError ? errorMessage(loadError) : "Opening workspace…"}</p>
+          {loadError ? (
+            <p role="alert">{errorMessage(loadError)}</p>
+          ) : (
+            <LoadingScreen label="Opening workspace…" />
+          )}
           {loadError && (
             <button
               className="button button-secondary"
