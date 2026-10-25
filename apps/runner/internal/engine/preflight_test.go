@@ -20,8 +20,11 @@ func TestSandboxNoSwapEvidence(t *testing.T) {
 		want                       bool
 	}{
 		{"bounded", "0", "SwapTotal: 1024 kB\n", header, true},
-		{"unbounded", "max", "SwapTotal: 0 kB\n", header, false},
-		{"nonzero", "1", "SwapTotal: 0 kB\n", header, false},
+		{"unbounded swapless", "max", "SwapTotal: 0 kB\n", header, true},
+		{"unbounded available swap", "max", "SwapTotal: 1024 kB\n", header, false},
+		{"nonzero swapless", "1", "SwapTotal: 0 kB\n", header, true},
+		{"nonzero available swap", "1", "SwapTotal: 1024 kB\n", header, false},
+		{"invalid controller", "invalid", "SwapTotal: 0 kB\n", header, false},
 		{"no swap devices", "", "SwapTotal: 0 kB\n", header, true},
 		{"no swap kernel", "", "SwapTotal: 0 kB\n", "", true},
 		{"unused device", "", "SwapTotal: 0 kB\n", header + "/swap file 1024 0 -2\n", false},

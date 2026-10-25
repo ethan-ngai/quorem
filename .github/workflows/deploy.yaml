@@ -6,9 +6,6 @@ on:
 permissions:
   contents: read
   actions: read
-concurrency:
-  group: production-apply-${{ github.ref }}
-  cancel-in-progress: false
 env:
   AUTH_ORIGIN: https://${{ vars.PRODUCTION_DOMAIN || 'quorem.app' }}
   QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_test?sslmode=disable
@@ -83,6 +80,8 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp check --no-fmt
       - run: vp run contracts:check
+      - name: Validate sandbox admission policy
+        run: go test ./apps/runner/internal/engine -run TestSandboxNoSwapEvidence -count=1
       - name: Check reusable validation
         id: validation
         env:
@@ -91,7 +90,7 @@ jobs:
           PUBLISHED_IMAGE_RUN_ID: ${{ vars.DEPLOY_PUBLISHED_IMAGE_RUN }}
         run: python3 scripts/reuse-deployment-checks.py
       - name: Build Astro and React artifact
-        if: steps.validation.outputs.reuse_image != 'true'
+        if: steps.validation.outputs.reuse_image != 'true' && steps.validation.outputs.patch_image != 'true'
         run: |
           export QUOREM_SITE_URL="$AUTH_ORIGIN"
           export VITE_HOSTED_INTELLIGENCE=false
@@ -101,7 +100,7 @@ jobs:
           cp -R apps/web/dist/. deploy/site/
           python3 scripts/package-auth.py
       - name: Build isolated language images
-        if: steps.validation.outputs.reuse_image != 'true'
+        if: steps.validation.outputs.reuse_image != 'true' && steps.validation.outputs.patch_image != 'true'
         run: python3 scripts/build-judge-images.py
       - name: Validate application and judge
         if: steps.validation.outputs.reuse != 'true'
@@ -114,7 +113,11 @@ jobs:
       - name: Build application image
         if: steps.validation.outputs.reuse_image != 'true'
         run: |
-          docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-production:$GITHUB_SHA" .
+          if [ "${{ steps.validation.outputs.patch_image }}" = true ]; then
+            python3 scripts/build-runtime-image.py "${{ steps.validation.outputs.base_sha }}"
+          else
+            docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-production:$GITHUB_SHA" .
+          fi
       - name: Verify nested Docker isolation
         if: steps.validation.outputs.reuse_image != 'true'
         run: docker run --privileged --cgroupns=private --rm "quorem-production:$GITHUB_SHA" --verify-only
@@ -126,6 +129,9 @@ jobs:
           vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
           echo "TF_VAR_image=$image" >> "$GITHUB_ENV"
   deploy:
+    concurrency:
+      group: production-apply-${{ github.ref }}
+      cancel-in-progress: false
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

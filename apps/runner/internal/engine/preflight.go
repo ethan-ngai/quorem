@@ -17,19 +17,21 @@ const isolationProbe = `import os,socket,pathlib,subprocess,errno,sys,json
 def no_swap(cg,proc):
  swap=cg/'memory.swap.max'
  if swap.exists():
-  assert int(swap.read_text())==0
- else:
-  # Kernels without swap omit the controller; verify no swap is available.
-  memory=dict(line.split(':',1) for line in (proc/'meminfo').read_text().splitlines() if ':' in line)
-  assert memory['SwapTotal'].split()==['0','kB']
-  swaps=proc/'swaps'
-  if swaps.exists():
-   lines=swaps.read_text().splitlines()
-   assert len(lines)==1 and lines[0].split()==['Filename','Type','Size','Used','Priority']
+  limit=swap.read_text().strip()
+  assert limit=='max' or limit.isdigit()
+  if limit=='0': return
+ # A host with no swap cannot supply it even when the controller reports max.
+ memory=dict(line.split(':',1) for line in (proc/'meminfo').read_text().splitlines() if ':' in line)
+ assert memory['SwapTotal'].split()==['0','kB']
+ swaps=proc/'swaps'
+ if swaps.exists():
+  lines=swaps.read_text().splitlines()
+  assert len(lines)==1 and lines[0].split()==['Filename','Type','Size','Used','Priority']
 class Solution:
  def probe(self):
   cg=pathlib.Path('/sys/fs/cgroup')
-  facts={'interfaces':socket.if_nameindex(),'cgroup':pathlib.Path('/proc/self/cgroup').read_text()}
+  facts={'interfaces':socket.if_nameindex(),'cgroup':pathlib.Path('/proc/self/cgroup').read_text(),
+   'swap_total':[line for line in pathlib.Path('/proc/meminfo').read_text().splitlines() if line.startswith('SwapTotal:')]}
   for name in ['memory.max','memory.swap.max','pids.max','cpu.max']:
    path=cg/name
    facts[name]=path.read_text().strip() if path.exists() else 'absent'
