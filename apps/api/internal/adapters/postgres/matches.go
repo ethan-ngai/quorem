@@ -183,30 +183,12 @@ func (s *Store) matchCommand(ctx context.Context, owner, route, key string, body
 		return err
 	}
 	data, _ := json.Marshal(body)
-	if settings, ok := body.(matches.Settings); ok && settings.AccessMode == "accounts_only" && !settings.AdmissionLocked {
-		data, _ = json.Marshal(struct {
-			Mode                     string        `json:"mode"`
-			Difficulties             []string      `json:"difficulties"`
-			SelectedProblemVersionID string        `json:"selectedProblemVersionId,omitempty"`
-			Rules                    matches.Rules `json:"rules"`
-			Difficulty               string        `json:"difficulty"`
-			DurationMinutes          int           `json:"durationMinutes"`
-		}{settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.Difficulty, settings.DurationMinutes})
-	}
 	fingerprint := Hash(data)
 	var hash string
 	var prior []byte
 	err = tx.QueryRow(ctx, "SELECT body_hash,response FROM match_idempotency WHERE owner_id=$1 AND route=$2 AND key=$3 AND expires_at>clock_timestamp()", owner, route, key).Scan(&hash, &prior)
 	if err == nil {
-		legacyMatches := false
-		if settings, ok := body.(matches.Settings); ok && settings.AccessMode == "accounts_only" && !settings.AdmissionLocked && settings.Mode == matches.Showdown && len(settings.Difficulties) == 1 && settings.SelectedProblemVersionID == "" && settings.Rules.Clipboard == "off" && settings.Rules.Focus == "off" && settings.Rules.Hints == nil {
-			old, _ := json.Marshal(struct {
-				Difficulty      string `json:"difficulty"`
-				DurationMinutes int    `json:"durationMinutes"`
-			}{settings.Difficulty, settings.DurationMinutes})
-			legacyMatches = hash == Hash(old)
-		}
-		if hash != fingerprint && !legacyMatches {
+		if hash != fingerprint {
 			return failure("idempotency_conflict", 409, "Key was used for a different command")
 		}
 		if route == "create" || route == "rotate" {

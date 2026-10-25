@@ -10,7 +10,7 @@ import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
-import { api, requireData } from "../editor/api";
+import { api, requireData } from "../../api/client";
 import { createDraft, getDraft, listDrafts, publishDraft, saveDraft } from "./api";
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
