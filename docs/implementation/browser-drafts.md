@@ -6,19 +6,11 @@ Competitive workspace replaces server drafts with browser-only source/history.
 - Latest code coalesces into a browser write after cursor paint; page closure, navigation and explicit save flush it synchronously. IndexedDB keeps up to 100 snapshots for 30 days. Empty code is a valid draft.
 - Windows keep independent active buffers. Latest browser write resumes on reload; no remote source replaces an open editor.
 - Existing IndexedDB recovery imports automatically if no current browser draft exists. History restore preserves edits made while a save is pending.
-- API workspaces hold metadata only; Run/Submit retain immutable source snapshots for judging. Draft endpoints/tables and workspace source/revision columns are removed by migration 060.
+- API workspaces hold metadata only; Run/Submit retain immutable source snapshots for judging. Draft endpoints/tables and workspace source/revision columns are absent from the database baseline.
 
 ## Legacy development data
 
-Before running migration 060 against an existing database, export its drafts to a private file outside the checkout:
-
-```sh
-scripts/export-browser-drafts.sh "$DATABASE_URL" /private/path/quorem-drafts.json
-```
-
-This command is read-only and exports latest drafts plus historical copies. Settings > Drafts > Import previous drafts imports missing latest drafts for the selected identity; existing browser drafts win. Historical copies remain in the private backup. Never commit this file.
-
-For preview validation, clone the existing database and migrate the clone; retain the original until the browser import is verified.
+The current [database baseline](database.md) contains no server draft tables. Older draft exports remain importable through Settings > Drafts > Import previous drafts. Existing browser drafts win; historical copies stay in the private backup. Never commit source backups.
 
 ## Validation
 
