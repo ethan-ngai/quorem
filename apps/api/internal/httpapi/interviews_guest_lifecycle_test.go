@@ -61,6 +61,9 @@ func guestLifecycleStore(t *testing.T) *postgres.Store {
 	if err = s.ApplyGrant(ctx, access.Grant{OperationID: postgres.ID(), UserID: "alice", Actor: "test", Reason: "Guest lifecycle fixture", Scope: "interviews.host", Source: "manual", Reference: "guest-http-lifecycle"}, false); err != nil {
 		t.Fatal(err)
 	}
+	if err = s.ApplyQuota(ctx, "alice", "interview_concurrency", "test", "Concurrent guest credential fixtures", postgres.ID(), 2, false); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 func guestLifecycleRoom(t *testing.T, s *postgres.Store) interviews.Snapshot {

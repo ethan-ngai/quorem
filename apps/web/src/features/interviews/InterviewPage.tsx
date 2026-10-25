@@ -24,6 +24,7 @@ import { InterviewTests } from "./InterviewTests";
 import { InterviewParticipants } from "./InterviewParticipants";
 import { InterviewInvitations } from "./InterviewInvitations";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
+import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { ArrowLeft } from "lucide-react";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
 import { Icon } from "../editor/components/Icon";
@@ -100,7 +101,7 @@ function InterviewPad({
   const [setup, setSetup] = useState(false);
   const [members, setMembers] = useState(false);
   const [tab, setTab] = useState<WorkspacePanel>("code");
-  const [ending, setEnding] = useState(false);
+  const [lifecycle, setLifecycle] = useState<"end" | "delete">();
   const [inviting, setInviting] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const [admitted, setAdmitted] = useState<{ id: string; previous?: string }>();
@@ -142,8 +143,10 @@ function InterviewPad({
     try {
       await interviewRequest(`/v1/interviews/${id}/${path}`, "POST", body, crypto.randomUUID());
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
+      return true;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Interview update failed.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -220,6 +223,28 @@ function InterviewPad({
   const language = initial.question.language as EditorLanguage;
   const documentKey = `interview:${id}:${initial.document.epoch}`;
   const account = useSession();
+  const host = snapshot.hostId === account.data?.user.id;
+  const wasClosed = useRef(closed);
+  useEffect(() => {
+    if (closed && !wasClosed.current && host) setLifecycle("delete");
+    wasClosed.current = closed;
+  }, [closed, host]);
+  async function applyLifecycle() {
+    if (lifecycle === "end") {
+      if (await mutate("close")) setLifecycle(host ? "delete" : undefined);
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    try {
+      await interviewRequest(`/v1/interviews/${id}`, "DELETE");
+      window.location.assign("/interviews");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not delete interview.");
+    } finally {
+      setBusy(false);
+    }
+  }
   const supportedIntelligence = language === "python" || language === "typescript";
   const intelligence = useIntelligence(
     (account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity,
@@ -231,7 +256,7 @@ function InterviewPad({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const disabled = executing || closed || changed || status !== "connected";
   const hotkeys = {
-    enabled: !settingsOpen && !setup && !members && !inviting && !disabled,
+    enabled: !settingsOpen && !setup && !members && !inviting && !lifecycle && !disabled,
     ignoreInputs: false,
     requireReset: true,
   };
@@ -303,7 +328,7 @@ function InterviewPad({
                   <button
                     className="icon-button destructive-icon"
                     disabled={busy}
-                    onClick={() => setEnding(true)}
+                    onClick={() => setLifecycle("end")}
                     aria-label="End interview"
                   >
                     <Icon name="flag" />
@@ -325,7 +350,15 @@ function InterviewPad({
           )}
           {closed && (
             <div className="match-rule-notice" role="status">
-              Interview ended. Code and results remain available.
+              <span>Interview ended. Code and results remain available.</span>
+              {host && (
+                <button
+                  className="quiet-button button-destructive-hover"
+                  onClick={() => setLifecycle("delete")}
+                >
+                  Delete interview
+                </button>
+              )}
             </div>
           )}
           {status === "offline" && (
@@ -438,30 +471,12 @@ function InterviewPad({
           label="Replace question and code"
         />
       </SessionDialog>
-      <SessionDialog
-        open={ending}
-        onOpenChange={setEnding}
-        title="End interview?"
-        description="Editing and execution will stop. Code and results remain available."
-        pending={busy}
-      >
-        <footer className="competitive-dialog-actions">
-          <button
-            className="button button-secondary"
-            disabled={busy}
-            onClick={() => setEnding(false)}
-          >
-            Keep interviewing
-          </button>
-          <button
-            className="button button-primary"
-            disabled={busy}
-            onClick={() => void mutate("close").then(() => setEnding(false))}
-          >
-            End interview
-          </button>
-        </footer>
-      </SessionDialog>
+      <InterviewLifecycleDialog
+        action={lifecycle}
+        busy={busy}
+        onClose={() => setLifecycle(undefined)}
+        onConfirm={() => void applyLifecycle()}
+      />
     </WorkspaceLayout>
   );
 }

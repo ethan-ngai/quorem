@@ -2,7 +2,7 @@
 export function signInReferral(search: string, referrer: string, origin: string): string | null {
   const valid = (path: string) =>
     !/[\\\r\n]/.test(path) &&
-    (/^\/(\?|#|$)/.test(path) || /^\/(practice|match|invite|admin)(\/|\?|#|$)/.test(path));
+    (/^\/(\?|#|$)/.test(path) || /^\/(practice|match|invite|admin|interviews|interview|interview-invite)(\/|\?|#|$)/.test(path));
   const withoutCreation = (path: string) => {
     const destination = new URL(path, origin);
     if (destination.searchParams.get("create") === "match")

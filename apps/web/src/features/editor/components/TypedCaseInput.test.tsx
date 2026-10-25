@@ -60,6 +60,15 @@ describe("typed case controls", () => {
       expect(markup).toContain("&quot;</span>");
     }
   });
+  it("labels shared boolean controls and preserves false selection", () => {
+    const markup = renderToStaticMarkup(
+      <TypedCaseInput id="enabled" name="enabled" type="bool" value="false" onChange={() => {}} />,
+    );
+    expect(markup).toContain('role="combobox"');
+    expect(markup).toContain('aria-label="enabled"');
+    expect(markup).toContain('id="enabled"');
+    expect(markup).toContain(">false</span>");
+  });
   it("supports multiline question overrides and nullable values", () => {
     const multiline = renderToStaticMarkup(
       <TypedCaseInput

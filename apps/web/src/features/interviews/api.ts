@@ -38,6 +38,8 @@ export async function interviewRequest<T>(
       forbidden: "You no longer have access to this interview.",
       unauthenticated: "Open your invitation or sign in to continue.",
       entitlement_required: "This feature is not enabled for this account.",
+      quota_exceeded: "End an active interview before creating another, or try again later.",
+      invalid_transition: "This interview changed. Refresh and try again.",
       rate_limited: "Too many requests. Try again shortly.",
       stale_version: "The shared document changed. Synchronizing…",
       invalid_input: "Check the question and test values, then try again.",

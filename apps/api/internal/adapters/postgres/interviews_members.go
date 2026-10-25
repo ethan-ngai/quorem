@@ -94,7 +94,12 @@ func (s *Store) mutateInterview(ctx context.Context, user, id, key, action strin
 	if prior != "" {
 		return interviewSnapshot(ctx, tx, v)
 	}
-	if _, err = lockInterview(ctx, tx, user, id, true, true); err != nil {
+	// Ending must remain available after a hosting grant is revoked.
+	if action == "close" {
+		if v.snapshot.State != "active" {
+			return empty, failure("invalid_transition", 409, "Interview is closed")
+		}
+	} else if _, err = lockInterview(ctx, tx, user, id, true, true); err != nil {
 		return empty, err
 	}
 	if err = fn(tx, v); err != nil {
