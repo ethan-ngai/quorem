@@ -141,3 +141,6 @@ resource "cloudflare_workers_custom_domain" "app" {
   depends_on = [restapi_object.rollout]
 }
 output "origin" { value = local.origin }
+
+output "application_id" { value = restapi_object.container.id }
+output "rollout_id" { value = restapi_object.rollout.id }
