@@ -74,3 +74,6 @@ jobs:
           grep -q 'Code. Clash. Conquer.' /tmp/pages-home.html
           curl --fail --silent --show-error --retry 5 --retry-all-errors "$url/practice" -o /tmp/pages-app.html
           test "$(sha256sum /tmp/pages-home.html | cut -d ' ' -f1)" != "$(sha256sum /tmp/pages-app.html | cut -d ' ' -f1)"
+          for path in /login /practice/run-widths /interview/test; do
+            test "$(curl --silent --show-error -o /dev/null -w '%{http_code}' "$url$path")" = 200
+          done
