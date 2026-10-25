@@ -230,14 +230,24 @@ kbd {
 }
 .splitter-y {
   grid-area: split-y;
+  z-index: 3;
+  height: 8px;
+  margin-block: -4px;
   cursor: row-resize;
-  background: var(--color-field);
 }
 .splitter-y::after {
-  bottom: 0;
-  left: var(--workspace-control-inset);
-  right: var(--workspace-control-inset);
+  top: 4px;
+  left: 0;
+  right: 0;
   height: 1px;
+  opacity: 0;
+  transition:
+    opacity var(--motion-fast),
+    background var(--motion-fast);
+}
+.splitter-y:hover::after,
+.splitter-y:focus-visible::after {
+  opacity: 1;
 }
 .coding-pane {
   position: relative;
@@ -722,7 +732,7 @@ kbd {
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: minmax(0, 1fr) 6px minmax(170px, var(--results-height));
+  grid-template-rows: minmax(0, 1fr) 0 minmax(170px, var(--results-height));
   grid-template-areas: "code" "split-y" "results";
   overflow: hidden;
   border: 0;
