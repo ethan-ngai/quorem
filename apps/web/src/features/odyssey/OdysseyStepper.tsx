@@ -22,10 +22,11 @@ export function OdysseyStepper({
           const number = index + 1;
           const level = progress.levels[index];
           const complete = progress.completed || number < progress.level;
-          const label = `${number}. ${level?.title ?? "Locked stage"}${complete ? ", passed" : !level ? ", locked" : ""}`;
+          const title = `${number}. ${level?.title ?? "Locked stage"}`;
+          const label = `${title}${complete ? ", passed" : !level ? ", locked" : ""}`;
           return (
             <li key={number} data-complete={complete}>
-              <Tooltip content={label}>
+              <Tooltip content={complete ? title : label}>
                 <button
                   type="button"
                   disabled={!level}

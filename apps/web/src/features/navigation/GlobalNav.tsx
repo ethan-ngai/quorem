@@ -35,6 +35,14 @@ export function GlobalNav({
   workspaceSettings?: SettingsProps;
   children?: ReactNode;
 }) {
+  const [compactActions, setCompactActions] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 620px)");
+    const update = () => setCompactActions(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const profileTrigger = useRef<HTMLButtonElement>(null);
   const settingsTrigger = useRef<HTMLButtonElement>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("appearance");
@@ -158,6 +166,7 @@ export function GlobalNav({
                 </Tooltip>
               ) : (
                 <Tooltip
+                  disabled={!compactActions}
                   content={
                     activeMatch.failed
                       ? "Could not check your active match. Try again shortly."
