@@ -295,12 +295,14 @@ export function TestCases({
           </span>
         </div>
       ) : recoveredCases?.length ? null : example?.calls?.length ? (
-        <SequenceCaseValues problem={problem} calls={example.calls} />
+        !result && <SequenceCaseValues problem={problem} calls={example.calls} />
       ) : example ? (
         <>
-          {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
-            <CaseValue key={index} name={name} value={value} parameter />
-          ))}
+          <div className="case-call-inputs">
+            {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
+              <CaseValue key={index} name={name} value={value} parameter />
+            ))}
+          </div>
           <CaseValue
             name="Expected output"
             purpose="target"
@@ -333,7 +335,21 @@ export function TestCases({
       {result && (
         <CaseOutput
           result={result}
-          showExpected={!!recoveredCases?.length || (customMode && !draft?.expectedEnabled)}
+          sequence={
+            example?.calls?.length
+              ? {
+                  calls: example.calls,
+                  methods: problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
+                    problem.signature,
+                  ],
+                }
+              : undefined
+          }
+          showExpected={
+            !!example?.calls?.length ||
+            !!recoveredCases?.length ||
+            (customMode && !draft?.expectedEnabled)
+          }
         />
       )}
     </CaseBrowserLayout>

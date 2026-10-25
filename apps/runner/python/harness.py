@@ -70,7 +70,6 @@ def encode(kind, value, depth=0, count=None, seen=None):
     if count[0] > MAX_ELEMENTS or depth > MAX_DEPTH:
         raise InvalidOutput()
     if kind == 'void':
-        if value is not None: raise InvalidOutput()
         return None
     if kind.startswith('optional<'):
         return None if value is None else encode(kind[9:-1], value, depth+1, count, seen)

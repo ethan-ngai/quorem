@@ -18,13 +18,15 @@ export function SequenceCaseValues({
         return (
           <div className="case-call" key={index}>
             <strong className="parameter-name">{call.methodName}</strong>
-            {(signature
-              ? bindArguments(signature, call.args)
-              : call.args.map((value, index) => ({ name: `Argument ${index + 1}`, value }))
-            ).map(({ name, value }) => (
-              <CaseValue key={name} name={name} value={value} parameter />
-            ))}
-            {call.expected !== undefined && (
+            <div className="case-call-inputs">
+              {(signature
+                ? bindArguments(signature, call.args)
+                : call.args.map((value, index) => ({ name: `Argument ${index + 1}`, value }))
+              ).map(({ name, value }) => (
+                <CaseValue key={name} name={name} value={value} parameter />
+              ))}
+            </div>
+            {signature?.returnType !== "void" && call.expected !== undefined && (
               <CaseValue
                 name="Expected output"
                 purpose="target"

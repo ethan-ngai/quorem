@@ -79,7 +79,7 @@ if(t.startsWith('optional<'))return v===null?null:encode(t.slice(9,-1),v,d+1);
 if(t.startsWith('array<'))t='list<'+t.slice(6);
 if(t.startsWith('list<')){if(!Array.isArray(v)||seen.has(v))throw Error('invalid_output');seen.add(v);return v.map(x=>encode(t.slice(5,-1),x,d+1));}
 if(t==='ListNode'||t==='TreeNode'){if(v===null)return null;const q=[v],a:any[]=[];for(let i=0;i<q.length;i++){const n=q[i];if(n===null){a.push(null);continue;}if(!(n instanceof (t==='ListNode'?ListNode:TreeNode))||seen.has(n)||q.length>10000)throw Error('invalid_output');seen.add(n);a.push(encode('int',n.val,d+1));if(t==='ListNode'){if((n as any).next!==null)q.push((n as any).next);}else q.push((n as any).left,(n as any).right);}while(a.at(-1)===null)a.pop();return a.length?a:null;}
-if(t==='void'){if(v!==undefined&&v!==null)throw Error('invalid_output');return null;}
+if(t==='void')return null;
 if(t==='int'&&(!Number.isInteger(v)||v< -2147483648||v>2147483647)||t==='float'&&(typeof v!=='number'||!Number.isFinite(v))||t==='str'&&typeof v!=='string'||t==='bool'&&typeof v!=='boolean')throw Error('invalid_output');return v;}
 '''
 OCAML_TYPES='''type list_node = { mutable value:int; mutable next:list_node option }

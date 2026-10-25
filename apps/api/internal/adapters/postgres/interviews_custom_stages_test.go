@@ -80,10 +80,6 @@ func TestPrivateCustomStagesRejectInvalidDefinitions(t *testing.T) {
 		"missing examples": func(c *interviews.CustomQuestion) { c.Odyssey.Levels[0].Examples = nil },
 		"future call":      func(c *interviews.CustomQuestion) { c.OdysseyHiddenCases[0][0].Calls[0].MethodName = "take" },
 		"wrong arguments":  func(c *interviews.CustomQuestion) { c.OdysseyHiddenCases[0][0].Calls[0].Args = nil },
-		"void expectation": func(c *interviews.CustomQuestion) {
-			c.OdysseyHiddenCases[0][0].Calls[0].Expected = json.RawMessage(`1`)
-		},
-		"missing void expectation": func(c *interviews.CustomQuestion) { c.OdysseyHiddenCases[0][0].Calls[0].Expected = nil },
 		"wrong return value": func(c *interviews.CustomQuestion) {
 			c.OdysseyHiddenCases[0][0].Calls[1].Expected = json.RawMessage(`true`)
 		},
@@ -203,5 +199,15 @@ func TestPrivateCustomStageStartersCompileInSupportedRuntimes(t *testing.T) {
 				t.Fatalf("%s starter did not compile: %v\n%s\n%s", impl.Language, err, output, impl.StarterSource)
 			}
 		})
+	}
+}
+
+func TestPrivateCustomStagesIgnoreVoidExpectations(t *testing.T) {
+	for _, expected := range []json.RawMessage{nil, json.RawMessage(`1`), json.RawMessage(`null`)} {
+		q := cloneCustomStaged(customStagedInterviewQuestion())
+		q.Custom.OdysseyHiddenCases[0][0].Calls[0].Expected = expected
+		if _, err := (&Store{}).interviewQuestion(context.Background(), "", q); err != nil {
+			t.Fatal("void expectation rejected", err)
+		}
 	}
 }

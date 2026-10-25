@@ -32,8 +32,8 @@ func TestOdysseyPublicationAndCumulativeSuites(t *testing.T) {
 	if err != nil || len(tests) != 4 || len(p.Odyssey.Levels) != 2 {
 		t.Fatal(p, tests, err)
 	}
-	if string(CaseExpected(tests[2])) != "[5,true,false,3]" {
-		t.Fatal(string(CaseExpected(tests[2])))
+	if string(CaseExpected(p, tests[2])) != "[5,true,false,3]" {
+		t.Fatal(string(CaseExpected(p, tests[2])))
 	}
 	if _, _, err = CompileOdyssey(f, 3, "submit"); err == nil {
 		t.Fatal("accepted nonexistent level")
@@ -68,8 +68,16 @@ func TestOdysseyVoidMethods(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Calls[0].Expected = json.RawMessage("1")
-	if err := ValidateOdysseyCase(p, c, true); err == nil {
-		t.Fatal("non-null void expectation")
+	if err := ValidateOdysseyCase(p, c, true); err != nil {
+		t.Fatal("void expectations should be ignored", err)
+	}
+	c.Calls[0].Expected = nil
+	if string(CaseExpected(p, c)) != "[null]" {
+		t.Fatal("void calls must not disable comparison of the remaining results")
+	}
+	actual, err := NormalizeCaseOutput(p, c, []byte(`[42]`))
+	if err != nil || string(actual) != "[null]" {
+		t.Fatal("void return checked", string(actual), err)
 	}
 }
 

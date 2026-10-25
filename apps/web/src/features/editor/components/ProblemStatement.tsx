@@ -1,4 +1,5 @@
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
+import { sequenceOutputs } from "../sequenceOutputs";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
 import type { EditorLanguage } from "../editorLanguages";
@@ -131,18 +132,43 @@ export function ProblemStatement({
                           : exampleInput(problem, example.args, language)}
                       </code>
                     </div>
-                    <div>
-                      <Tooltip content="Output">
-                        <span className="value-label" tabIndex={0} aria-label="Output">
-                          <Icon name="output" />
-                        </span>
-                      </Tooltip>
-                      <code>
-                        {example.calls?.length
-                          ? `[${example.calls.map((call) => questionValue(call.expected, language, problem.odyssey?.levels.flatMap((level) => level.methods).find((method) => method.methodName === call.methodName)?.returnType)).join(",")}]`
-                          : questionValue(example.expected, language, problem.signature.returnType)}
-                      </code>
-                    </div>
+                    {example.calls?.length ? (
+                      sequenceOutputs(
+                        problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
+                          problem.signature,
+                        ],
+                        example.calls,
+                      ).map((output) => (
+                        <div key={output.call}>
+                          <Tooltip
+                            content={`Output from ${output.methodName} (call ${output.call})`}
+                          >
+                            <span
+                              className="value-label"
+                              tabIndex={0}
+                              aria-label={`Output from ${output.methodName} (call ${output.call})`}
+                            >
+                              <Icon name="output" />
+                            </span>
+                          </Tooltip>
+                          <code>
+                            {output.methodName}:{" "}
+                            {questionValue(output.value, language, output.type)}
+                          </code>
+                        </div>
+                      ))
+                    ) : (
+                      <div>
+                        <Tooltip content="Output">
+                          <span className="value-label" tabIndex={0} aria-label="Output">
+                            <Icon name="output" />
+                          </span>
+                        </Tooltip>
+                        <code>
+                          {questionValue(example.expected, language, problem.signature.returnType)}
+                        </code>
+                      </div>
+                    )}
                   </div>
                   <div className="example-explanation">
                     {example.explanation && (

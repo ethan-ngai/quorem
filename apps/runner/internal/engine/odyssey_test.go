@@ -74,3 +74,28 @@ func TestOdysseySandboxRequestOmitsExpectations(t *testing.T) {
 		t.Fatal("private expectation sent to contestant sandbox", string(data))
 	}
 }
+
+func TestDockerOdysseyIgnoresVoidReturns(t *testing.T) {
+	if os.Getenv("QUOREM_TEST_DOCKER") != "1" {
+		t.Skip("QUOREM_TEST_DOCKER=1 enables sandbox tests")
+	}
+	var f worker.Fixture
+	if err := json.Unmarshal([]byte(`{"problem":{"signature":{"className":"Solution","methodName":"get","parameters":[],"returnType":"int"},"odyssey":{"levels":[{"methods":[{"className":"Solution","methodName":"save","parameters":[],"returnType":"void"},{"className":"Solution","methodName":"get","parameters":[],"returnType":"int"}]}]}},"hiddenCases":[{"args":[],"calls":[{"methodName":"save","args":[]},{"methodName":"get","args":[],"expected":3}]}]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct{ language, source string }{
+		{"python", "class Solution:\n    def save(self):\n        self.value=3\n        return 42\n    def get(self):\n        return self.value\n"},
+		{"typescript", "class Solution { value=0; save():number {this.value=3;return 42;} get():number{return this.value;} }"},
+	} {
+		t.Run(test.language, func(t *testing.T) {
+			result := executeLanguage(t, f, test.language, test.source, "submit", f.HiddenCases)
+			if result.Verdict != execution.Accepted {
+				t.Fatalf("%+v", result)
+			}
+			wrong := executeLanguage(t, f, test.language, strings.Replace(test.source, "value=3", "value=0", 1), "submit", f.HiddenCases)
+			if wrong.Verdict != execution.WrongAnswer {
+				t.Fatalf("state change was not checked: %+v", wrong)
+			}
+		})
+	}
+}
