@@ -75,3 +75,6 @@ export function createApiClient(
     headers: options.identity ? { "X-Dev-User": options.identity } : undefined,
   });
 }
+
+export type InterviewMonitoring = components["schemas"]["InterviewMonitoring"];
+export type InterviewRuleEvent = components["schemas"]["InterviewRuleEvent"];

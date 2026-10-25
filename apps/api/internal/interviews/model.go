@@ -3,6 +3,7 @@ package interviews
 import (
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"time"
 )
 
 const MaxSourceBytes = 65536
@@ -24,8 +25,9 @@ type QuestionInput struct {
 	Language         string                   `json:"language"`
 }
 type Create struct {
-	Title    string        `json:"title"`
-	Question QuestionInput `json:"question"`
+	Monitoring *Monitoring   `json:"monitoring,omitempty"`
+	Title      string        `json:"title"`
+	Question   QuestionInput `json:"question"`
 }
 type Member struct {
 	UserID string `json:"userId"`
@@ -48,6 +50,8 @@ type Question struct {
 	PrivateCases       []problems.Case  `json:"privateCases,omitempty"`
 }
 type Snapshot struct {
+	Monitoring         Monitoring               `json:"monitoring"`
+	RuleEvents         []RuleEvent              `json:"ruleEvents,omitempty"`
 	Hints              *problems.HintVisibility `json:"hints,omitempty"`
 	QuestionEpoch      string                   `json:"questionEpoch"`
 	Invites            *InvitePaths             `json:"invites,omitempty"`
@@ -111,4 +115,21 @@ type CaseDetail struct {
 	ID       string        `json:"id"`
 	Case     problems.Case `json:"case"`
 	Revealed bool          `json:"revealed"`
+}
+
+// Omitted flags preserve default-on observation for existing and new sessions.
+type Monitoring struct {
+	Paste *bool `json:"paste,omitempty"`
+	Focus *bool `json:"focus,omitempty"`
+}
+
+func (m Monitoring) PasteEnabled() bool { return m.Paste == nil || *m.Paste }
+func (m Monitoring) FocusEnabled() bool { return m.Focus == nil || *m.Focus }
+
+type RuleEvent struct {
+	ID         string    `json:"id"`
+	UserID     string    `json:"userId"`
+	Name       string    `json:"name"`
+	Kind       string    `json:"kind"`
+	OccurredAt time.Time `json:"occurredAt"`
 }

@@ -16,6 +16,7 @@ import (
 )
 
 type interviewCommand struct {
+	Kind         string                   `json:"kind"`
 	ID           string                   `json:"id"`
 	Type         string                   `json:"type"`
 	Key          string                   `json:"key"`
@@ -174,6 +175,9 @@ func (s *Server) interviewEvents(w http.ResponseWriter, r *http.Request) {
 				value, e = repo.InterviewPresence(attempt, user, id)
 			case "submission":
 				value, e = repo.InterviewSubmission(attempt, user, id, command.SubmissionID)
+			case "rule-event":
+				e = repo.ReportInterviewRule(attempt, user, id, command.Key, command.Kind)
+				value = struct{}{}
 			case "snapshot":
 				value, e = repo.Interview(attempt, user, id)
 			default:

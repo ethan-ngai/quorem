@@ -168,6 +168,17 @@ func TestInterviewWebSocketCrossInstanceRecovery(t *testing.T) {
 			if err = json.Unmarshal(interviewRPC(t, bob, "pull", map[string]any{"epoch": pad.Document.Epoch, "version": 0}), &updates); err != nil || updates.Version != 1 || len(updates.Updates) != 1 {
 				t.Fatalf("cross-instance update: %+v %v", updates, err)
 			}
+
+			eventKey := postgres.ID()
+			interviewRPC(t, bob, "rule-event", map[string]any{"key": eventKey, "kind": "paste"})
+			interviewRPC(t, bob, "rule-event", map[string]any{"key": eventKey, "kind": "paste"})
+			var alerts interviews.Snapshot
+			if err = json.Unmarshal(interviewRPC(t, alice, "snapshot", nil), &alerts); err != nil || len(alerts.RuleEvents) != 1 {
+				t.Fatalf("interviewer socket missing alerts: %v", err)
+			}
+			if raw := interviewRPC(t, bob, "snapshot", nil); strings.Contains(string(raw), "ruleEvents") || strings.Contains(string(raw), alerts.RuleEvents[0].ID) {
+				t.Fatal("candidate socket leaked alerts")
+			}
 			peers := interviewRPC(t, alice, "presence", map[string]any{"presence": interviews.PresenceInput{ClientID: "alice-window", Epoch: pad.Document.Epoch, Version: 1, Anchor: 1, Head: 1}})
 			if !strings.Contains(string(peers), "alice-window") {
 				t.Fatal("presence missing")
@@ -175,13 +186,13 @@ func TestInterviewWebSocketCrossInstanceRecovery(t *testing.T) {
 			if _, err = store.SetInterviewMember(ctx, "alice", pad.ID, postgres.ID(), "bob", "interviewer"); err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(interviewRPC(t, bob, "snapshot", nil)), "987654") {
+			if promoted := string(interviewRPC(t, bob, "snapshot", nil)); !strings.Contains(promoted, "987654") || !strings.Contains(promoted, "ruleEvents") {
 				t.Fatal("promotion not reflected")
 			}
 			if _, err = store.SetInterviewMember(ctx, "alice", pad.ID, postgres.ID(), "bob", "interviewee"); err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(string(interviewRPC(t, bob, "snapshot", nil)), "987654") {
+			if demoted := string(interviewRPC(t, bob, "snapshot", nil)); strings.Contains(demoted, "987654") || strings.Contains(demoted, "ruleEvents") {
 				t.Fatal("demotion leaked private tests")
 			}
 			bob.CloseNow()
