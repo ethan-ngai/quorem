@@ -134,13 +134,16 @@ func (g *Gateway) owner(r *http.Request) string {
 		return ""
 	}
 	var data struct {
-		Mode string `json:"mode"`
+		Mode         string `json:"mode"`
+		Capabilities struct {
+			Hosted bool `json:"hostedIntelligence"`
+		} `json:"capabilities"`
 		User struct {
 			ID       string `json:"id"`
 			Verified bool   `json:"emailVerified"`
 		} `json:"user"`
 	}
-	if json.NewDecoder(http.MaxBytesReader(nil, response.Body, 64*1024)).Decode(&data) != nil || data.Mode != "managed" || !data.User.Verified {
+	if json.NewDecoder(http.MaxBytesReader(nil, response.Body, 64*1024)).Decode(&data) != nil || data.Mode != "managed" || !data.User.Verified || !data.Capabilities.Hosted {
 		return ""
 	}
 	return data.User.ID

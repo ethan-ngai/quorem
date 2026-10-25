@@ -54,7 +54,7 @@ func TestAdminQuestionHTTPDraftLifecycle(t *testing.T) {
 	s.registerAdminQuestions(mux)
 	send := func(method, path, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
-		r = r.WithContext(identity.With(r.Context(), identity.Principal{UserID: actor, Admin: true, EmailVerified: true}))
+		r = r.WithContext(identity.With(r.Context(), identity.Principal{UserID: actor, Admin: true, EmailVerified: true, StrongUntil: 4102444800}))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
 		return w

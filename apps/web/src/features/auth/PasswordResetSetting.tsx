@@ -1,3 +1,4 @@
+import { useErrorNotification } from "../../ui/Notifications";
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Pencil, Mail, Check, LoaderCircle, X } from "lucide-react";
@@ -20,6 +21,7 @@ export function PasswordResetSetting({
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useErrorNotification(error);
   const cooldown = useCooldown();
   async function send() {
     setBusy(true);
@@ -96,9 +98,7 @@ export function PasswordResetSetting({
                 </>
               )}
             </div>
-            <div className="reset-popover-error" aria-live="polite">
-              {error && <p role="alert">{error}</p>}
-            </div>
+
             <button
               className="button button-primary"
               disabled={busy || cooldown.remaining > 0}

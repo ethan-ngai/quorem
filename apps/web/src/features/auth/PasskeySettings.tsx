@@ -1,4 +1,5 @@
 /** @file PasskeySettings.tsx @description Authenticated passkey enrollment and removal. @module auth */
+import { useErrorNotification } from "../../ui/Notifications";
 import { authErrorMessage } from "./errors";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ export function PasskeySettings() {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useErrorNotification(error);
   async function update(action: () => Promise<unknown>) {
     setBusy(true);
     setError("");
@@ -92,11 +94,6 @@ export function PasskeySettings() {
           ) : null}
         </>
       )}
-      {error ? (
-        <p className="account-error settings-feedback" role="alert">
-          {error}
-        </p>
-      ) : null}
     </section>
   );
 }

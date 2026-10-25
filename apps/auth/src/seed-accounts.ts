@@ -63,6 +63,16 @@ export async function seedAccounts(password: string, productURL?: string) {
             id,
             username === "alice" ? "admin" : "user",
           ]);
+          if (username === "alice") {
+            await client.query(
+              "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,$2,'internal','internal','local:alice','local-seed','Local internal-plan fixture') ON CONFLICT(user_id,feature,source,source_ref) DO NOTHING",
+              [randomUUID(), id],
+            );
+            await client.query(
+              "INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES($1,'local-seed',$2,'seed:internal','internal','Loopback-only Alice fixture') ON CONFLICT DO NOTHING",
+              [`seed:internal:${id}`, id],
+            );
+          }
           await client.query("COMMIT");
         } catch (error) {
           await client.query("ROLLBACK");

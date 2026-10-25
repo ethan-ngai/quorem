@@ -1242,6 +1242,316 @@
           }
         }
       }
+    },
+    "/v1/matches/current": {
+      "get": {
+        "operationId": "getCurrentMatch",
+        "responses": {
+          "200": {
+            "description": "Current authorized match, or null when none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MatchSnapshot"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/match-invites/{token}": {
+      "get": {
+        "operationId": "previewMatchInvite",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 43,
+              "maxLength": 43
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only lobby settings; grants no membership or execution access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/guest-sessions": {
+      "post": {
+        "operationId": "bootstrapGuest",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "HttpOnly guest credential issued; no membership granted"
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/match-invites/{token}/guest": {
+      "post": {
+        "operationId": "joinAsGuest",
+        "security": [
+          {
+            "GuestSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/rotate-invite": {
+      "post": {
+        "operationId": "rotateInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchInvite"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/guests/{guest}/remove": {
+      "post": {
+        "operationId": "removeGuest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guest",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/guest-sessions/end": {
+      "post": {
+        "operationId": "endGuestSession",
+        "security": [
+          {
+            "GuestSession": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Finished guest participation revoked and cookie removed"
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1251,6 +1561,12 @@
         "in": "header",
         "name": "X-Dev-User",
         "description": "Local development only: alice, bob, charlie or dana. Disabled outside development."
+      },
+      "GuestSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "quorem_guest",
+        "description": "HttpOnly server-issued guest credential; restricted to admitted room membership, never an account credential."
       }
     },
     "schemas": {
@@ -1890,6 +2206,9 @@
           },
           "forfeited": {
             "type": "boolean"
+          },
+          "guest": {
+            "type": "boolean"
           }
         },
         "required": ["userId", "displayName", "ready", "presence"],
@@ -1980,6 +2299,13 @@
               "$ref": "#/components/schemas/MatchRuleEvent"
             },
             "maxItems": 20
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": ["accounts_only", "guests_allowed"]
+          },
+          "admissionLocked": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -2036,6 +2362,13 @@
               }
             },
             "additionalProperties": false
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": ["accounts_only", "guests_allowed"]
+          },
+          "admissionLocked": {
+            "type": "boolean"
           }
         },
         "required": ["durationMinutes"],
@@ -2766,6 +3099,75 @@
           }
         },
         "required": ["revision"]
+      },
+      "InvitePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "difficulties",
+          "durationMinutes",
+          "rules",
+          "participantCount",
+          "capacity"
+        ],
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "difficulties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Difficulty"
+            }
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "enum": [15, 30, 45, 60]
+          },
+          "rules": {
+            "$ref": "#/components/schemas/MatchRules"
+          },
+          "participantCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8
+          },
+          "capacity": {
+            "type": "integer",
+            "enum": [2, 8]
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": ["accounts_only", "guests_allowed"]
+          },
+          "admissionLocked": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Capabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hostGuests": {
+            "type": "boolean"
+          },
+          "hostedIntelligence": {
+            "type": "boolean"
+          },
+          "experimental": {
+            "type": "boolean"
+          },
+          "guestConcurrency": {
+            "type": "integer"
+          }
+        },
+        "required": ["hostGuests", "hostedIntelligence", "experimental", "guestConcurrency"]
       }
     }
   }

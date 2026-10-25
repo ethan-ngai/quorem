@@ -113,6 +113,10 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	if tokens < 1 || daily >= 100 {
 		return judging.Submission{}, failure("quota_exceeded", 429, "Execution quota reached")
 	}
+	sponsor, err := guestAdmission(ctx, tx, owner, matchID)
+	if err != nil {
+		return judging.Submission{}, err
+	}
 	// Serialize the global queue count with admission across API instances.
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740020)"); err != nil {
 		return judging.Submission{}, err
@@ -132,6 +136,11 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	jobID := ID()
 	if _, err = tx.Exec(ctx, "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,$3,$4,$5)", jobID, id, language, runtimeRevision, harnessRevision); err != nil {
 		return judging.Submission{}, err
+	}
+	if sponsor != "" {
+		if _, err = tx.Exec(ctx, "INSERT INTO guest_execution_usage(submission_id,match_id,sponsor_id) VALUES($1,$2,$3)", id, matchID, sponsor); err != nil {
+			return judging.Submission{}, err
+		}
 	}
 	if _, err = tx.Exec(ctx, "INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES($1,$2,$3,$4,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at", owner, key, bodyHash, id); err != nil {
 		return judging.Submission{}, err
@@ -251,6 +260,6 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 	return v, tx.Commit(ctx)
 }
 func (s *Store) Cleanup(ctx context.Context) error {
-	_, err := s.Pool.Exec(ctx, "DELETE FROM execution_idempotency WHERE expires_at < clock_timestamp(); DELETE FROM cancellation_idempotency WHERE expires_at < clock_timestamp(); UPDATE submissions SET source='',result=NULL WHERE admitted_at < clock_timestamp()-interval '30 days' AND state NOT IN ('queued','running')")
+	_, err := s.Pool.Exec(ctx, "DELETE FROM guest_request_buckets WHERE window_start<clock_timestamp()-interval '2 hours'; UPDATE submissions s SET source='',result=NULL,cases='[]'::jsonb WHERE admitted_at<clock_timestamp()-interval '7 days' AND state NOT IN ('queued','running') AND EXISTS(SELECT 1 FROM users u WHERE u.id=s.owner_id AND u.kind='guest'); UPDATE users u SET display_name='Expired guest' WHERE kind='guest' AND EXISTS(SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<clock_timestamp()-interval '7 days'); DELETE FROM execution_idempotency WHERE expires_at < clock_timestamp(); DELETE FROM cancellation_idempotency WHERE expires_at < clock_timestamp(); UPDATE submissions SET source='',result=NULL WHERE admitted_at < clock_timestamp()-interval '30 days' AND state NOT IN ('queued','running')")
 	return err
 }

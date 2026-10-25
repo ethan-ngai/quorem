@@ -65,9 +65,11 @@ const server = createServer(async (req, res) => {
     const id = decodeURIComponent(req.url.slice("/internal/session/".length));
     try {
       const result = await database.query(
-        'SELECT 1 FROM "session" s JOIN "user" u ON u.id=s."userId" WHERE s.id=$1 AND s."expiresAt">NOW() AND u.id=$2 AND u."emailVerified"=true',
+        'SELECT (SELECT EXTRACT(EPOCH FROM strong_at)::bigint FROM session_assurance WHERE session_id=s.id) AS strong_at FROM "session" s JOIN "user" u ON u.id=s."userId" WHERE s.id=$1 AND s."expiresAt">NOW() AND u.id=$2 AND u."emailVerified"=true',
         [id, req.headers["x-auth-subject"]],
       );
+      if (result.rowCount === 1 && result.rows[0].strong_at)
+        res.setHeader("X-Auth-Strong-At", String(result.rows[0].strong_at));
       res.writeHead(result.rowCount === 1 ? 204 : 401).end();
     } catch {
       res.writeHead(503).end();

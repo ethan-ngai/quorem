@@ -67,6 +67,9 @@ func TestFreeForAllHostStartSettingsAndForfeit(t *testing.T) {
 	if _, e = s.Admit(ctx, "charlie", ID(), judging.Command{WorkspaceID: matchWorkspace(t, s, c.ID, "charlie"), Kind: "run", Source: "pass"}, "hash"); errorCode(e) != "invalid_transition" {
 		t.Fatal(e)
 	}
+	if _, err := s.CreateMatch(ctx, "charlie", ID(), matches.Settings{Difficulty: "easy", DurationMinutes: 30}); err != nil {
+		t.Fatal("forfeit retained active-room reservation", err)
+	}
 	v, e = s.ForfeitMatch(ctx, "bob", c.ID, ID())
 	if e != nil || v.Outcome == nil || v.Outcome.Reason != "forfeit" || v.Outcome.WinnerUserID != v.HostUserID {
 		t.Fatal(v, e)

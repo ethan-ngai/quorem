@@ -1,5 +1,7 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
+import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
+import * as Dialog from "@radix-ui/react-dialog";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
@@ -127,7 +129,9 @@ export function WorkspacePage({
   const [customMode, setCustomMode] = useState(false);
   const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
   const [signInPrompt, setSignInPrompt] = useState(false);
+  const signInPromptOrigin = useRef<HTMLElement | null>(null);
   const [actionError, setActionError] = useState<string>();
+  useErrorNotification(actionError);
   const [historyOpen, setHistoryOpen] = useState(false);
   const {
     editorScheme,
@@ -185,13 +189,16 @@ export function WorkspacePage({
       match
         ? fetchWorkspace(identity, matchWorkspaceId!)
         : createWorkspace(identity, problemQuery.data!.id, selectedLanguage),
-    enabled: !!account.data && (match ? !!matchWorkspaceId : !!problemQuery.data),
+    enabled:
+      !!account.data &&
+      (account.data.kind !== "guest" || !!match) &&
+      (match ? !!matchWorkspaceId : !!problemQuery.data),
     staleTime: 0,
     gcTime: 0,
   });
 
   const loadedWorkspace = useMemo(() => {
-    if (account.data) return workspaceQuery.data;
+    if (account.data && (account.data.kind !== "guest" || match)) return workspaceQuery.data;
     if (!account.isPending && !match && problemQuery.data)
       return guestWorkspace(problemQuery.data, selectedLanguage);
     return undefined;
@@ -375,10 +382,11 @@ export function WorkspacePage({
     loadedWorkspace?.problemVersionId === problemQuery.data?.id;
   const dataMatchesState =
     problem?.id === problemQuery.data?.id && workspace?.id === loadedWorkspace?.id;
+  const serverWorkspace = !!account.data && (account.data.kind !== "guest" || !!match);
   const loading =
     problemQuery.isPending ||
     account.isPending ||
-    (!!account.data && workspaceQuery.isPending) ||
+    (serverWorkspace && workspaceQuery.isPending) ||
     !dataMatchesRoute ||
     !dataMatchesState ||
     !problem ||
@@ -393,7 +401,7 @@ export function WorkspacePage({
     drafts: customDrafts,
     problem,
     enabled:
-      !!account.data &&
+      serverWorkspace &&
       !languageSwitching &&
       !matchRules.blocked &&
       canExecuteDocument({
@@ -441,24 +449,26 @@ export function WorkspacePage({
     }
   };
   const run = useCallback(async () => {
-    setActivePanel("results");
-    if (!account.data) {
+    if (!account.data || (account.data.kind === "guest" && !match)) {
+      signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
+    setActivePanel("results");
     await execution.run();
-  }, [execution.run, account.data]);
+  }, [execution.run, account.data, match]);
   const submit = useCallback(async () => {
-    setActivePanel("results");
-    if (!account.data) {
+    if (!account.data || (account.data.kind === "guest" && !match)) {
+      signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
+    setActivePanel("results");
     if (await execution.submit()) setCustomMode(false);
-  }, [execution.submit, account.data]);
+  }, [execution.submit, account.data, match]);
 
   const hotkeyOptions = {
-    enabled: !settingsOpen,
+    enabled: !settingsOpen && !signInPrompt,
     ignoreInputs: false,
     requireReset: true,
   };
@@ -524,21 +534,19 @@ export function WorkspacePage({
   const intelligence = useIntelligence(
     identity,
     editorDocumentKey,
-    !!account.data && !loading && browserIntelligenceAvailable,
+    !loading && browserIntelligenceAvailable,
     documentLanguage,
+    account.data?.kind !== "guest" && account.data?.capabilities?.hostedIntelligence === true,
   );
-  const intelligenceStatus =
-    !account.data || !browserIntelligenceAvailable ? "unavailable" : intelligence.status;
-  const intelligenceHint = !account.data
-    ? "IntelliSense unavailable. Sign in to enable it."
-    : !browserIntelligenceAvailable
-      ? "IntelliSense unavailable for this language."
-      : {
-          ready: "IntelliSense active",
-          connecting: "IntelliSense connecting",
-          paused: "IntelliSense paused. Follows the focused window automatically.",
-          unavailable: "IntelliSense unavailable",
-        }[intelligenceStatus];
+  const intelligenceStatus = browserIntelligenceAvailable ? intelligence.status : "unavailable";
+  const intelligenceHint = !browserIntelligenceAvailable
+    ? "IntelliSense unavailable for this language."
+    : {
+        ready: "IntelliSense active",
+        connecting: "IntelliSense connecting",
+        paused: "IntelliSense paused. Follows the focused window automatically.",
+        unavailable: "IntelliSense unavailable",
+      }[intelligenceStatus];
 
   const actionsEnabled =
     !!account.data &&
@@ -699,8 +707,7 @@ export function WorkspacePage({
                   }))}
                 />
                 <div className="code-options">
-                  {(hostedIntelligenceEnabled ||
-                    (!!account.data && browserIntelligenceAvailable)) && (
+                  {(hostedIntelligenceEnabled || browserIntelligenceAvailable) && (
                     <Tooltip content={intelligenceHint}>
                       <span
                         role="img"
@@ -729,7 +736,7 @@ export function WorkspacePage({
                   tabSize={tabSize}
                   wrap={wrap}
                   readOnly={languageSwitching}
-                  completionEnabled={!!account.data}
+                  completionEnabled={true}
                   intelligenceExtensions={
                     browserIntelligenceAvailable ? intelligence.extensions : undefined
                   }
@@ -825,19 +832,6 @@ export function WorkspacePage({
                   </div>
                 ))}
               </div>
-              {signInPrompt && (
-                <p className="action-error" role="alert">
-                  Sign in to run or submit code.{" "}
-                  <a href={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}>
-                    Sign in
-                  </a>
-                </p>
-              )}
-              {actionError && (
-                <p className="action-error" role="alert">
-                  {actionError}
-                </p>
-              )}
             </section>
           </div>
           <footer className="execution-bar" aria-label="Execution actions">
@@ -854,7 +848,7 @@ export function WorkspacePage({
                   className="button button-secondary"
                   disabled={
                     submissionBusy ||
-                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                    (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
                   }
                   onClick={() => void run()}
                 >
@@ -867,7 +861,7 @@ export function WorkspacePage({
                   className="button button-primary"
                   disabled={
                     submissionBusy ||
-                    (account.data ? !actionsEnabled : loading || languageSwitching)
+                    (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
                   }
                   onClick={() => void submit()}
                 >
@@ -878,6 +872,39 @@ export function WorkspacePage({
             </div>
           </footer>
         </div>
+        <Dialog.Root open={signInPrompt} onOpenChange={setSignInPrompt}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="settings-backdrop" />
+            <Dialog.Content
+              className="competitive-dialog"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                signInPromptOrigin.current?.focus();
+              }}
+            >
+              <header className="competitive-dialog-heading">
+                <div>
+                  <Dialog.Title>Sign in to run tests</Dialog.Title>
+                  <Dialog.Description>
+                    Sign in to run tests and submit solutions. You can keep editing without an
+                    account.
+                  </Dialog.Description>
+                </div>
+              </header>
+              <div className="competitive-dialog-actions">
+                <Dialog.Close asChild>
+                  <button className="button button-secondary">Keep editing</button>
+                </Dialog.Close>
+                <a
+                  className="button button-primary"
+                  href={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`}
+                >
+                  Sign in
+                </a>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
         {historyOpen && (
           <HistoryDialog
             identity={identity}

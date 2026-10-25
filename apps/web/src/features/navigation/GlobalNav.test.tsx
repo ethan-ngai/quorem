@@ -10,8 +10,13 @@ import {
 } from "@tanstack/react-router";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { GlobalNav } from "./GlobalNav";
+import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
 
-async function renderNavigation(path: string, workspaceSettings?: SettingsProps) {
+async function renderNavigation(
+  path: string,
+  workspaceSettings?: SettingsProps,
+  activeState?: MatchSnapshot["state"],
+) {
   const root = createRootRoute();
   const route = createRoute({
     getParentRoute: () => root,
@@ -23,14 +28,40 @@ async function renderNavigation(path: string, workspaceSettings?: SettingsProps)
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   await router.load();
+  const client = new QueryClient();
+  client.setQueryData(["auth-session"], null);
+  if (activeState) {
+    client.setQueryData(["auth-session"], {
+      user: { id: "alice", displayName: "Alice", emailVerified: true, role: "user" },
+      mode: "development",
+    });
+    client.setQueryData(["current-match", "alice"], {
+      id: "current",
+      state: activeState,
+      participants: [{ userId: developmentUserIds.alice }],
+    });
+  }
   return renderToStaticMarkup(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={client}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
 }
 
 describe("global navigation", () => {
+  it.each(["waiting", "ready", "active", "finalizing"] as const)(
+    "replaces creation for %s membership",
+    async (state) => {
+      const html = await renderNavigation("/practice", undefined, state);
+      expect(html).not.toContain('aria-label="Create match"');
+      expect(html).toContain('href="/match/current"');
+      expect(html).toContain(
+        state === "waiting" || state === "ready"
+          ? "Return to active lobby"
+          : "Return to active match",
+      );
+    },
+  );
   it("offers creation and named navigation/sign-in controls in practice", async () => {
     const html = await renderNavigation("/practice");
     expect(html).toContain('aria-label="Create match"');

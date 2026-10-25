@@ -1,24 +1,41 @@
 import { AuthError } from "./errors";
 import { useQuery } from "@tanstack/react-query";
 export type Session = {
+  kind?: "account" | "guest";
+  matchId?: string;
+  strongUntil?: number;
+  capabilities?: {
+    hostGuests: boolean;
+    hostedIntelligence: boolean;
+    experimental: boolean;
+    guestConcurrency: number;
+  };
   user: { id: string; displayName: string; emailVerified: boolean; role: "user" | "admin" };
   mode: "managed" | "development";
 };
 let access: { token: string; until: number } | undefined;
+let anonymousUntil = 0;
 let pending: Promise<string | undefined> | undefined;
 let generation = 0;
 export function resetToken() {
   generation++;
+  anonymousUntil = 0;
   access = undefined;
   pending = undefined;
 }
 export async function token(): Promise<string | undefined> {
   if (access && access.until > Date.now()) return access.token;
+  if (anonymousUntil > Date.now()) return undefined;
   if (pending) return pending;
   const requestedGeneration = generation;
   const request = fetch("/api/auth/token", { credentials: "same-origin" })
     .then(async (response) => {
-      if (!response.ok) return undefined;
+      if (!response.ok) {
+        // Polling guests must not repeatedly hit the account-token service.
+        if (response.status === 401 && requestedGeneration === generation)
+          anonymousUntil = Date.now() + 30_000;
+        return undefined;
+      }
       const data = (await response.json()) as { token?: string };
       if (requestedGeneration !== generation) return undefined;
       if (data.token) access = { token: data.token, until: Date.now() + 240_000 };
@@ -127,4 +144,13 @@ export async function signOut() {
   if (!response.ok) throw new AuthError("Sign out unavailable");
   resetToken();
   location.assign("/practice");
+}
+
+/** Ending a guest match removes its credential; it never signs out an account. */
+export async function endGuestSession() {
+  const response = await fetch("/v1/guest-sessions/end", {
+    method: "POST",
+    credentials: "same-origin",
+  });
+  if (!response.ok && response.status !== 401) throw new AuthError("Could not end guest session");
 }

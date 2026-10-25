@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { PasswordResetSetting } from "./PasswordResetSetting";
 import { authErrorMessage } from "./errors";
 import { Pencil, Check, X, Send } from "lucide-react";
@@ -56,7 +57,7 @@ export function ProfileEditor({
       setMessage(success);
     } catch (cause) {
       if (cause instanceof AccountRateLimitError) limited?.(cause.retryAfter);
-      setError(authErrorMessage(cause, "Account update unavailable."));
+      toast.error(authErrorMessage(cause, "Account update unavailable."));
     } finally {
       setBusy(false);
     }

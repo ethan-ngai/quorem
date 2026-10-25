@@ -638,6 +638,9 @@
         },
         "forfeited": {
           "type": "boolean"
+        },
+        "guest": {
+          "type": "boolean"
         }
       },
       "required": ["userId", "displayName", "ready", "presence"],
@@ -728,6 +731,13 @@
             "$ref": "#/$defs/MatchRuleEvent"
           },
           "maxItems": 20
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": ["accounts_only", "guests_allowed"]
+        },
+        "admissionLocked": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -784,6 +794,13 @@
             }
           },
           "additionalProperties": false
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": ["accounts_only", "guests_allowed"]
+        },
+        "admissionLocked": {
+          "type": "boolean"
         }
       },
       "required": ["durationMinutes"],
@@ -1514,6 +1531,75 @@
         }
       },
       "required": ["revision"]
+    },
+    "InvitePreview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "difficulties",
+        "durationMinutes",
+        "rules",
+        "participantCount",
+        "capacity"
+      ],
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/MatchMode"
+        },
+        "difficulties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Difficulty"
+          }
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "enum": [15, 30, 45, 60]
+        },
+        "rules": {
+          "$ref": "#/$defs/MatchRules"
+        },
+        "participantCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "capacity": {
+          "type": "integer",
+          "enum": [2, 8]
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": ["accounts_only", "guests_allowed"]
+        },
+        "admissionLocked": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "Capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hostGuests": {
+          "type": "boolean"
+        },
+        "hostedIntelligence": {
+          "type": "boolean"
+        },
+        "experimental": {
+          "type": "boolean"
+        },
+        "guestConcurrency": {
+          "type": "integer"
+        }
+      },
+      "required": ["hostGuests", "hostedIntelligence", "experimental", "guestConcurrency"]
     }
   },
   "$ref": "#/$defs/EventEnvelope"

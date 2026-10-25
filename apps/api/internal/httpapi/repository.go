@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/ethan-ngai/quorem/apps/api/internal/access"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
@@ -33,6 +34,14 @@ type ExecutionRepository interface {
 	CancelWithKey(context.Context, string, string, string) (judging.Submission, error)
 }
 type MatchRepository interface {
+	EndGuestSession(context.Context, string) (bool, error)
+	RotateInvite(context.Context, string, string, string) (matches.Created, error)
+	RemoveGuest(context.Context, string, string, string, string) (matches.Snapshot, error)
+	Capabilities(context.Context, string) (access.Capabilities, error)
+	GuestIdentity(context.Context, string) (identity.Principal, error)
+	JoinGuest(context.Context, string, string, string) (matches.Snapshot, error)
+	PreviewInvite(context.Context, string) (matches.InvitePreview, error)
+	ActiveMatch(context.Context, string) (*matches.Snapshot, error)
 	CreateMatch(context.Context, string, string, matches.Settings) (matches.Created, error)
 	JoinMatch(context.Context, string, string, string) (matches.Snapshot, error)
 	Match(context.Context, string, string) (matches.Snapshot, error)
