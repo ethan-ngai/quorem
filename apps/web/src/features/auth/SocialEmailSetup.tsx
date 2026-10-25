@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useTheme } from "../editor/useTheme";
-import { Brand } from "../editor/components/Icon";
+import { Brand } from "../../ui/Icon";
 import { LoginShowcase } from "./LoginShowcase";
 import { accountRequest, connectProvider } from "./account";
 import { signInWithProvider, type SocialProvider } from "./capabilities";

@@ -909,15 +909,6 @@ export interface components {
             /** @description Languages with published complexity; contains no costs or solution source. */
             complexityLanguages?: components["schemas"]["Language"][];
         };
-        EditorPreferences: {
-            /** @enum {string} */
-            theme: "system" | "light" | "dark";
-            paneRatios: number[];
-            codeFontSize: number;
-            /** @enum {integer} */
-            tabSize: 2 | 4;
-            wrap: boolean;
-        };
         Workspace: {
             /** Format: uuid */
             id: string;
@@ -928,7 +919,6 @@ export interface components {
             language: components["schemas"]["Language"];
             /** Format: uuid */
             matchId?: string;
-            preferences: components["schemas"]["EditorPreferences"];
         };
         CreateWorkspaceRequest: {
             /** Format: uuid */

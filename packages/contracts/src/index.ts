@@ -30,7 +30,6 @@ export type ConstraintTarget = components["schemas"]["ConstraintTarget"];
 export type InputPresetConfig = components["schemas"]["InputPresetConfig"];
 export type Signature = components["schemas"]["Signature"];
 export type Workspace = components["schemas"]["Workspace"];
-export type EditorPreferences = components["schemas"]["EditorPreferences"];
 export type CustomCase = components["schemas"]["CustomCase"];
 export type Submission = components["schemas"]["Submission"];
 export type SubmissionAdmission = components["schemas"]["SubmissionAdmission"];

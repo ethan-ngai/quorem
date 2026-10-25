@@ -2,7 +2,7 @@
 import { SelectField } from "../../../ui/SelectField";
 import { LanguageLogo } from "../../../ui/LanguageLogo";
 import { languageLabels, type EditorLanguage } from "../editorLanguages";
-import { Tooltip } from "./Tooltip";
+import { Tooltip } from "../../../ui/Tooltip";
 
 export function SolutionToolbar({
   language,

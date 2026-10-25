@@ -1,14 +1,9 @@
+import { sha256 } from "../../sha256";
 /** Ephemeral local fingerprints; clipboard text never enters the event report or storage. */
 export function createClipboardProvenance(limit = 20) {
   const fingerprints = new Set<string>();
   let pending = Promise.resolve();
-  async function fingerprint(text: string) {
-    const bytes = new TextEncoder().encode(text.replace(/\r\n?/g, "\n"));
-    const digest = await crypto.subtle.digest("SHA-256", bytes);
-    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(
-      "",
-    );
-  }
+  const fingerprint = (text: string) => sha256(text.replace(/\r\n?/g, "\n"));
   return {
     remember(text: string) {
       if (!text || text.length > 1024 * 1024) return pending;

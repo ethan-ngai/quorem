@@ -66,18 +66,6 @@ export function createInterviewRuleReporter(
   };
 }
 
-/** Suppress historical/repeated snapshots and ignore out-of-order refreshes. */
-export function createInterviewAlertTracker() {
-  let version = -1;
-  let seen = new Set<string>();
-  return (nextVersion: number, events: readonly InterviewRuleEvent[]) => {
-    if (nextVersion < version) return [];
-    const added = version < 0 ? [] : events.filter((event) => !seen.has(event.id));
-    seen = new Set(events.map((event) => event.id));
-    version = nextVersion;
-    return added;
-  };
-}
 export function interviewEventDescription(kind: InterviewRuleKind) {
   return kind === "paste" ? "pasted into the code editor" : "left the interview window";
 }

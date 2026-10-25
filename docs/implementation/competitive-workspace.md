@@ -4,7 +4,7 @@ Issue #26 updates the Showdown flow.
 
 ## Behavior
 
-- Showdown uses the persisted/API mode `showdown`; migration 061 backfills existing matches and cached snapshot responses.
+- Showdown uses the persisted/API mode `showdown`; room modes and rules are declared in the product schema baseline.
 - Ready/Cancel retain their dimensions; readiness morphs reversibly. Waiting text follows opponent presence/readiness, then the current player.
 - Centered, animated match creation; segmented difficulty and Radix duration selection.
 - Compact lobby with side-by-side players, icon readiness and animated invitation copying. Settings apply immediately; changed rules reset readiness.

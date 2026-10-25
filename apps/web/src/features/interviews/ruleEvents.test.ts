@@ -1,6 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import type { InterviewRuleEvent } from "@quorem/contracts";
-import { createInterviewRuleReporter, createInterviewAlertTracker } from "./ruleEvents";
+import { createInterviewRuleReporter } from "./ruleEvents";
 import { InterviewError } from "./api";
 afterEach(() => vi.useRealTimers());
 it("retries with one stable key and sends only event kind metadata", async () => {
@@ -19,9 +18,7 @@ it("retries with one stable key and sends only event kind metadata", async () =>
 });
 it("queues while offline, drops unauthorized reports, and cancels retries on teardown", async () => {
   vi.useFakeTimers();
-  const send = vi
-    .fn()
-    .mockRejectedValue(new InterviewError("forbidden", "No longer a candidate", 403));
+  const send = vi.fn().mockRejectedValue(new InterviewError("forbidden", 403));
   const reporter = createInterviewRuleReporter(send);
   reporter.start();
   reporter.report("focus");
@@ -34,19 +31,4 @@ it("queues while offline, drops unauthorized reports, and cancels retries on tea
   reporter.stop();
   reporter.report("paste");
   expect(send).toHaveBeenCalledTimes(1);
-});
-it("does not replay historical alerts or duplicate toasts on stale/repeated snapshots", () => {
-  const event = (id: string) =>
-    ({
-      id,
-      userId: "candidate",
-      name: "Candidate",
-      kind: "paste",
-      occurredAt: "2026-10-24T23:00:00Z",
-    }) as InterviewRuleEvent;
-  const track = createInterviewAlertTracker();
-  expect(track(5, [event("old")])).toEqual([]);
-  expect(track(6, [event("old"), event("new")])).toEqual([event("new")]);
-  expect(track(5, [event("old")])).toEqual([]);
-  expect(track(6, [event("old"), event("new")])).toEqual([]);
 });

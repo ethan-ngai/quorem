@@ -1,6 +1,7 @@
 /** @file ShareActions.tsx @description Shared copy/native-share controls with consistent capability checks and tooltips. @module ui */
-import { Tooltip } from "../features/editor/components/Tooltip";
-import { Icon } from "../features/editor/components/Icon";
+import "./share-actions.css";
+import { Tooltip } from "./Tooltip";
+import { Icon } from "./Icon";
 import { CopyFeedbackIcon } from "./CopyFeedbackIcon";
 import { canShareLink, type ShareLinkData } from "./shareLink";
 

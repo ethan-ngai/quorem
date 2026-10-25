@@ -36,8 +36,8 @@ import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { ArrowLeft, Archive, Trash2, Settings } from "lucide-react";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
-import { Icon } from "../editor/components/Icon";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Icon } from "../../ui/Icon";
+import { Tooltip } from "../../ui/Tooltip";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
 import "../../styles/workspace.css";
@@ -55,6 +55,11 @@ import "./session-controls.css";
 
 /** Session metadata may refresh freely; document epochs change only after explicit recovery. */
 export function InterviewPage({ id }: { id: string }) {
+  return <InterviewSession key={id} id={id} />;
+}
+
+/** A route change resets the initial document and all session-scoped recovery state. */
+function InterviewSession({ id }: { id: string }) {
   const theme = useTheme();
   const query = useQuery({
     queryKey: ["interview", id],

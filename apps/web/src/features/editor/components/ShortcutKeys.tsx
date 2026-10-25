@@ -1,5 +1,5 @@
 import { shortcutKeySymbols } from "../workspaceShortcuts";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 
 export function ShortcutKeys({ keys }: { keys: readonly string[] }) {
   return (

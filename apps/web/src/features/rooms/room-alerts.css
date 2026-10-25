@@ -1,0 +1,75 @@
+.room-alerts-trigger {
+  position: relative;
+}
+.room-alerts-count {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  min-width: 16px;
+  padding: 0 3px;
+  background: var(--color-overlay);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  line-height: 14px;
+}
+.room-alerts-popover {
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-overlay);
+}
+.room-alerts-popover header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+.room-alerts-popover small,
+.room-alerts-popover time {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.room-alerts-popover ol {
+  max-height: min(360px, 60dvh);
+  overflow: auto;
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+.room-alerts-popover li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  font-size: 12px;
+}
+.room-alerts-popover li > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-warning);
+}
+.room-alerts-popover li > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.room-alerts-popover li strong {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.room-alerts-popover time {
+  display: block;
+  margin-top: var(--space-1);
+}
+.room-alerts-popover p {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.room-event-icon {
+  flex-shrink: 0;
+  color: var(--color-warning);
+}

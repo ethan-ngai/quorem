@@ -1,7 +1,7 @@
 /** @file useActiveMatch.ts @description Finds current server membership before exposing creation or return actions. @module matches */
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
-import { api, requireData } from "../editor/api";
+import { api, requireData } from "../../api/client";
 import { activeMatchReturnLabel } from "./matchState";
 
 export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {

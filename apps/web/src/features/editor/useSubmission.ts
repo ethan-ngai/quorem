@@ -1,3 +1,4 @@
+import { sha256 } from "../../sha256";
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
 import { randomUUID } from "../../randomUUID";
 import { useErrorNotification } from "../../ui/Notifications";
@@ -166,13 +167,9 @@ export function useSubmission({
       setAdmissionPending(true);
       setError(undefined);
       try {
-        const bytes = new TextEncoder().encode(
+        const fingerprint = await sha256(
           JSON.stringify({ scope, kind, source, customCases, level }),
         );
-        const fingerprint = Array.from(
-          new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-          (byte) => byte.toString(16).padStart(2, "0"),
-        ).join("");
         const recoveryKey = `${submissionStorageKey(identity, workspace.id)}:pending`;
         try {
           const stored = localStorage.getItem(recoveryKey);

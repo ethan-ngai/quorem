@@ -3,7 +3,7 @@ import { authErrorMessage } from "./errors";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { emailInputSchema, emailSchema, passwordSchema } from "@quorem/contracts/auth";
-import { Brand } from "../editor/components/Icon";
+import { Brand } from "../../ui/Icon";
 import { LoginShowcase } from "./LoginShowcase";
 import { useTheme } from "../editor/useTheme";
 import { resetToken } from "./session";

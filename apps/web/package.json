@@ -25,6 +25,7 @@
     "@fontsource-variable/geist": "^5.2.6",
     "@fontsource/jetbrains-mono": "^5.2.6",
     "@lezer/highlight": "1.2.5",
+    "@noble/hashes": "2.4.0",
     "@quorem/contracts": "workspace:*",
     "@quorem/ui": "workspace:*",
     "@radix-ui/react-dialog": "^1.2.0",

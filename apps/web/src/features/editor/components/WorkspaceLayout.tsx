@@ -3,7 +3,7 @@ import { QuestionLanguage } from "../QuestionLanguage";
 import type { EditorLanguage } from "../editorLanguages";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { readPreference, writePreference } from "../editorSettings";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 import { ResizableDivider } from "./ResizableDivider";
 
 export type WorkspacePanel = "problem" | "code" | "results";

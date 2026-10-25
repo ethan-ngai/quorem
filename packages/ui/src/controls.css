@@ -1,0 +1,116 @@
+/* Shared controls carry their defaults into every host, including Astro previews. */
+:where(.button, .icon-button, .quiet-button) {
+  box-sizing: border-box;
+  font-family: var(--font-interface);
+  line-height: 1.5;
+  cursor: pointer;
+}
+:where(.button, .icon-button, .quiet-button):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  transition:
+    color var(--motion-fast),
+    background var(--motion-fast);
+}
+.icon-button:hover:not(:disabled),
+.quiet-button:hover:not(:disabled) {
+  background: var(--color-overlay);
+  color: var(--color-text);
+}
+.quiet-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--control-height);
+  padding: 0 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background var(--motion-fast),
+    color var(--motion-fast);
+}
+.button-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.button-secondary:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--color-overlay);
+}
+.button-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.button-primary:hover:not(:disabled):not([aria-disabled="true"]) {
+  filter: brightness(0.95);
+}
+.icon-button:disabled,
+.button[aria-disabled="true"],
+.button:disabled,
+.quiet-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.button-danger {
+  background: var(--color-error-button);
+  color: var(--color-on-primary);
+  border-color: var(--color-error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .icon-button,
+  .quiet-button {
+    transition: none;
+  }
+}
+.icon-button.destructive-icon,
+.button.button-destructive-hover {
+  transition:
+    color var(--motion-fast) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing),
+    border-color var(--motion-fast) var(--motion-easing);
+}
+.icon-button.destructive-icon:hover:not(:disabled),
+.icon-button.destructive-icon:focus-visible,
+.button.button-destructive-hover:hover:not(:disabled):not([aria-disabled="true"]),
+.button.button-destructive-hover:focus-visible {
+  color: var(--color-error-button);
+  background: color-mix(in oklch, var(--color-error) 12%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .icon-button.destructive-icon,
+  .button.button-destructive-hover {
+    transition: none;
+  }
+}

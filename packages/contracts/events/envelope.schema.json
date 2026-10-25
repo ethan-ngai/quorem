@@ -341,37 +341,6 @@
       ],
       "additionalProperties": false
     },
-    "EditorPreferences": {
-      "type": "object",
-      "properties": {
-        "theme": {
-          "type": "string",
-          "enum": ["system", "light", "dark"]
-        },
-        "paneRatios": {
-          "type": "array",
-          "items": {
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "exclusiveMaximum": 1
-          }
-        },
-        "codeFontSize": {
-          "type": "integer",
-          "minimum": 12,
-          "maximum": 24
-        },
-        "tabSize": {
-          "type": "integer",
-          "enum": [2, 4]
-        },
-        "wrap": {
-          "type": "boolean"
-        }
-      },
-      "required": ["theme", "paneRatios", "codeFontSize", "tabSize", "wrap"],
-      "additionalProperties": false
-    },
     "Workspace": {
       "type": "object",
       "properties": {
@@ -393,12 +362,9 @@
         "matchId": {
           "type": "string",
           "format": "uuid"
-        },
-        "preferences": {
-          "$ref": "#/$defs/EditorPreferences"
         }
       },
-      "required": ["id", "kind", "problemVersionId", "language", "preferences"],
+      "required": ["id", "kind", "problemVersionId", "language"],
       "additionalProperties": false
     },
     "CreateWorkspaceRequest": {

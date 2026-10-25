@@ -3,9 +3,9 @@ import { useId, useState } from "react";
 import type { InterviewSnapshot, Submission } from "@quorem/contracts";
 import { WorkspaceTests } from "../editor/components/WorkspaceTests";
 import { TestCases } from "../editor/components/TestCases";
-import { Tooltip } from "../editor/components/Tooltip";
-import { VisibilityIcon } from "../editor/components/Icon";
-import { Icon } from "../editor/components/Icon";
+import { Tooltip } from "../../ui/Tooltip";
+import { VisibilityIcon } from "../../ui/Icon";
+import { Icon } from "../../ui/Icon";
 import { ResultContent } from "../editor/components/ResultContent";
 
 export function InterviewTests({

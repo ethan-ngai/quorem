@@ -57,12 +57,37 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 		return err
 	}
 	sort.Strings(paths)
-	for _, path := range paths {
-		var applied bool
-		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE name=$1)", filepath.Base(path)).Scan(&applied); err != nil {
+	if len(paths) == 0 {
+		return fmt.Errorf("no SQL migrations found in %s", dir)
+	}
+	rows, err := tx.Query(ctx, "SELECT name FROM schema_migrations")
+	if err != nil {
+		return err
+	}
+	appliedNames := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err = rows.Scan(&name); err != nil {
+			rows.Close()
 			return err
 		}
-		if applied {
+		appliedNames[name] = true
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	names := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		names[filepath.Base(path)] = true
+	}
+	for name := range appliedNames {
+		if !names[name] {
+			return fmt.Errorf("database has unavailable migration %s; for a current preproduction database run python3 scripts/adopt-schema.py --service product (see docs/implementation/database.md)", name)
+		}
+	}
+	for _, path := range paths {
+		if appliedNames[filepath.Base(path)] {
 			continue
 		}
 		data, e := os.ReadFile(path)
@@ -79,6 +104,15 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 	return tx.Commit(ctx)
 }
 func (s *Store) Seed(ctx context.Context, fixtures []problems.Fixture) error {
+	// Fixture identities belong to explicit local seeding, never schema creation.
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO users(id,display_name,participant_id) VALUES
+ ('alice','Alice','00000000-0000-4000-8000-000000000001'),
+ ('bob','Bob','00000000-0000-4000-8000-000000000002'),
+ ('charlie','Charlie','00000000-0000-4000-8000-000000000003'),
+ ('dana','Dana','00000000-0000-4000-8000-000000000004') ON CONFLICT(id) DO NOTHING`); err != nil {
+		return err
+	}
+
 	for _, f := range fixtures {
 		public, _ := json.Marshal(f.Problem)
 		private, _ := json.Marshal(f)

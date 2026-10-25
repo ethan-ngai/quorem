@@ -10,6 +10,12 @@
 - Provision with Terraform; deploy through GitHub Actions.
 - Architecture and provider rules: [architecture](docs/plans/architecture.md), [adapters](docs/implementation/platform-adapters.md). Read before backend/infrastructure work.
 
+## Implementation
+
+- Before implementing, inspect analogous code and its consumers; identify the shared owner.
+- Implement common behavior/styles in that owner using shared primitives, composition and inheritance (DRY, single responsibility). Keep consumer-specific differences explicit.
+- Before finishing, review the diff for duplicated logic/defaults and obsolete paths; remove them and verify affected consumers.
+
 ## Git workflow
 
 - GitHub issues/PRs are the work ledger. Inspect them and Git status/worktrees at task start; link substantive work to an issue.

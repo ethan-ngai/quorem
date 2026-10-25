@@ -15,7 +15,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, requireData } from "../editor/api";
+import { api, requireData } from "../../api/client";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
