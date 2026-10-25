@@ -28,12 +28,12 @@ Seed set: six original fixtures, two per difficulty, including list/tree algorit
 ## Workspace and browser drafts
 
 - `POST /v1/workspaces`: `{problemVersionId, language}` → owned solo Workspace; reuse unique owner+problem-version+language solo workspace.
-- `GET /v1/workspaces/{id}` → `{id, kind: solo|match, problemVersionId, language, matchId?, preferences}`. Match workspace allocated only at start, initialized from template rather than solo source.
+- `GET /v1/workspaces/{id}` → `{id, kind: solo|match, problemVersionId, language, matchId?}`. Match workspace allocated only at start, initialized from template rather than solo source.
 - `GET /v1/problems/{slug}` → current public ProblemVersion; `GET /v1/problem-versions/{id}` → immutable public version, but enforce unrevealed-match access separately. No public match snapshot leaks chosen version before start.
 - Draft source/history are browser-only. Practice scope: owner + immutable version + language. Match scope additionally includes private workspace ID. Reload resumes latest local write; concurrent windows retain independent buffers. No draft/save/history/restore HTTP routes.
 
 
-Preferences hold theme (`system|light|dark`), pane ratios, code font size (12–24px), tab size (2|4), wrap flag. Browser-local preference storage first; server preference endpoint optional only when needed, no implicit requirement for cross-device preferences.
+Display preferences belong to browser-local settings; workspace responses contain document identity, language and scope only.
 
 ## Execution
 

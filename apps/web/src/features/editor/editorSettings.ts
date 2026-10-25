@@ -36,6 +36,8 @@ export function readEditorScheme() {
   return normalizeEditorScheme(readPreference<unknown>(editorSchemeStorageKey, "workspace"));
 }
 
+export const editorFontSizes = [12, 13, 14, 15, 16, 18, 20, 22, 24] as const;
+
 /** @returns Validated display preferences; persisted JSON is untrusted browser data. */
 export function readEditorPreferences() {
   const fontSize = readPreference<unknown>("quorem.code-font-size.v1", 15);
@@ -44,7 +46,7 @@ export function readEditorPreferences() {
   return {
     editorScheme: readEditorScheme(),
     fontSize:
-      typeof fontSize === "number" && [12, 13, 14, 15, 16, 18, 20, 22, 24].includes(fontSize)
+      typeof fontSize === "number" && editorFontSizes.some((size) => size === fontSize)
         ? fontSize
         : 15,
     tabSize: (tabSize === 2 ? 2 : 4) as 2 | 4,
