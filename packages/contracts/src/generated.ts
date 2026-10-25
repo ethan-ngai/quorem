@@ -1285,6 +1285,8 @@ export interface components {
             starterSource: string;
             publicCases: components["schemas"]["CustomCase"][];
             privateCases: components["schemas"]["CustomCase"][];
+            odyssey?: components["schemas"]["Odyssey"];
+            odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
         };
         InterviewQuestionInput: {
             problemVersionId?: string;

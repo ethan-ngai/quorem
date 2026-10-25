@@ -303,33 +303,47 @@ func (s *Store) interviewQuestion(ctx context.Context, q interviews.QuestionInpu
 	for _, test := range c.PublicCases {
 		f.Problem.Examples = append(f.Problem.Examples, problems.ProblemExample{Case: test})
 	}
-	// Reuse authoring/type validation without publishing private content or requiring a reference solution.
-	validation := problems.QuestionContent{Problem: f.Problem, HiddenCases: []problems.Case{}, Comparator: "ordered", Attribution: f.Attribution, Implementations: []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "python", StarterSource: "private", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision}, ReferenceSource: "private"}}}
-	validation.Problem.Slug = "interview-private"
-	if len(c.PublicCases) == 0 || len(c.PublicCases) > 20 || len(c.PrivateCases) > 100 {
-		return f, failure("invalid_input", 400, "Provide 1-20 public tests and at most 100 private tests")
-	}
-	for len(validation.HiddenCases) < 20 {
-		validation.HiddenCases = append(validation.HiddenCases, c.PublicCases[0])
-	}
-	if err := problems.ValidateQuestionPublication(validation); err != nil {
-		return f, failure("invalid_input", 400, err.Error())
-	}
-	for _, test := range c.PrivateCases {
-		if err := problems.ValidateProblemCase(f.Problem, test, true); err != nil {
-			return f, failure("invalid_input", 400, fmt.Sprintf("Private test: %v", err))
+	if c.Odyssey != nil || c.OdysseyHiddenCases != nil {
+		if err := validateCustomInterviewStages(&f, c); err != nil {
+			return f, failure("invalid_input", 400, err.Error())
+		}
+	} else {
+		// Reuse authoring/type validation without publishing private content or requiring a reference solution.
+		validation := problems.QuestionContent{Problem: f.Problem, HiddenCases: []problems.Case{}, Comparator: "ordered", Attribution: f.Attribution, Implementations: []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "python", StarterSource: "private", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision}, ReferenceSource: "private"}}}
+		validation.Problem.Slug = "interview-private"
+		if len(c.PublicCases) == 0 || len(c.PublicCases) > 20 || len(c.PrivateCases) > 100 {
+			return f, failure("invalid_input", 400, "Provide 1-20 public tests and at most 100 private tests")
+		}
+		for len(validation.HiddenCases) < 20 {
+			validation.HiddenCases = append(validation.HiddenCases, c.PublicCases[0])
+		}
+		if err := problems.ValidateQuestionPublication(validation); err != nil {
+			return f, failure("invalid_input", 400, err.Error())
+		}
+		for _, test := range c.PrivateCases {
+			if err := problems.ValidateProblemCase(f.Problem, test, true); err != nil {
+				return f, failure("invalid_input", 400, fmt.Sprintf("Private test: %v", err))
+			}
 		}
 	}
+
 	f.Problem.Languages = []problems.LanguageImplementation{}
 	for _, lang := range []string{"python", "java", "typescript", "ocaml"} {
 		r, _ := execution.LanguageRuntime(lang)
 		starter := c.StarterSource
 		if lang != q.Language {
 			var err error
-			starter, err = interviewStarter(f.Problem.Signature, lang)
+			if f.Problem.Odyssey != nil {
+				starter, err = interviewStageStarter(f.Problem.Odyssey.Levels[0].Methods, lang)
+			} else {
+				starter, err = interviewStarter(f.Problem.Signature, lang)
+			}
 			if err != nil {
 				return f, failure("invalid_input", 400, err.Error())
 			}
+		}
+		if len(starter) > interviews.MaxSourceBytes {
+			return f, failure("invalid_input", 400, "Generated starter exceeds source limit")
 		}
 		f.Problem.Languages = append(f.Problem.Languages, problems.LanguageImplementation{Language: lang, StarterSource: starter, RuntimeRevision: r.Revision, HarnessRevision: r.Harness})
 	}
