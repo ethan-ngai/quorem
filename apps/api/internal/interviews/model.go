@@ -50,6 +50,7 @@ type Question struct {
 	PrivateCases       []problems.Case  `json:"privateCases,omitempty"`
 }
 type Snapshot struct {
+	AdmissionLocked    bool                     `json:"admissionLocked"`
 	Monitoring         Monitoring               `json:"monitoring"`
 	RuleEvents         []RuleEvent              `json:"ruleEvents,omitempty"`
 	Hints              *problems.HintVisibility `json:"hints,omitempty"`

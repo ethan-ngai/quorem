@@ -162,7 +162,8 @@ func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name
 	}
 	defer tx.Rollback(ctx)
 	var id, host, state, role string
-	err = tx.QueryRow(ctx, `SELECT id,host_id,state,CASE WHEN interviewer_invite_hash=$1 THEN 'interviewer' ELSE 'interviewee' END FROM interviews WHERE invite_hash=$1 OR interviewer_invite_hash=$1 FOR UPDATE`, Hash([]byte(token))).Scan(&id, &host, &state, &role)
+	var locked bool
+	err = tx.QueryRow(ctx, `SELECT id,host_id,state,admission_locked,CASE WHEN interviewer_invite_hash=$1 THEN 'interviewer' ELSE 'interviewee' END FROM interviews WHERE invite_hash=$1 OR interviewer_invite_hash=$1 FOR UPDATE`, Hash([]byte(token))).Scan(&id, &host, &state, &locked, &role)
 	if err == pgx.ErrNoRows {
 		return empty, failure("not_found", 404, "Invitation unavailable")
 	}
@@ -237,6 +238,9 @@ func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name
 		return empty, failure("forbidden", 403, "Interview access was removed")
 	}
 	newMember := err == pgx.ErrNoRows
+	if locked && newMember {
+		return empty, failure("admission_locked", 409, "The host has locked this interview")
+	}
 	var count int
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM interview_members WHERE session_id=$1 AND removed_at IS NULL`, id).Scan(&count); err != nil {
 		return empty, err
