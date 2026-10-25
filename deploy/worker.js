@@ -34,7 +34,16 @@ export class Quorem extends DurableObject {
         const health = await port.fetch("http://container/health", {
           signal: AbortSignal.timeout(2000),
         });
-        if (health.ok) return port.fetch(request);
+        const ready = health.ok;
+        await health.body?.cancel();
+        if (ready) {
+          const url = new URL(request.url);
+          url.protocol = "http:";
+          url.host = "container";
+          const forwarded = new Request(url, request);
+          forwarded.headers.delete("host");
+          return port.fetch(forwarded);
+        }
       } catch {
         /* The process may still be starting. */
       }
