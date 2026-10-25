@@ -1,4 +1,5 @@
 import { SessionDialog } from "../../ui/SessionDialog";
+import { useEffect, useRef } from "react";
 
 /** Shared host confirmation for dashboard and workspace lifecycle actions. */
 export function InterviewLifecycleDialog({
@@ -13,6 +14,11 @@ export function InterviewLifecycleDialog({
   onConfirm: () => void;
 }) {
   const deleting = action === "delete";
+  const keep = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // Pending disables the focused action; refocus the follow-up prompt after completion.
+    if (action && !busy) keep.current?.focus();
+  }, [action, busy]);
   return (
     <SessionDialog
       open={!!action}
@@ -28,7 +34,7 @@ export function InterviewLifecycleDialog({
       pending={busy}
     >
       <footer className="competitive-dialog-actions">
-        <button className="button button-secondary" disabled={busy} onClick={onClose}>
+        <button ref={keep} className="button button-secondary" disabled={busy} onClick={onClose}>
           {deleting ? "Keep interview" : "Keep interviewing"}
         </button>
         <button
