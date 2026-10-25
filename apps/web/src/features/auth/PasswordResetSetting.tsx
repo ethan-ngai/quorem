@@ -10,10 +10,12 @@ import { authErrorMessage } from "./errors";
 /** Email reset stays explicit, with delivery feedback and a persistent resend budget. */
 export function PasswordResetSetting({
   email,
+  hasPassword = true,
   onOpen,
   disabled = false,
 }: {
   email: string;
+  hasPassword?: boolean;
   onOpen?: () => void;
   disabled?: boolean;
 }) {
@@ -50,9 +52,9 @@ export function PasswordResetSetting({
           <div className="profile-field-content profile-field-heading">
             <div>
               <span className="profile-field-label">Password</span>
-              <p className="profile-field-value">••••••••</p>
+              <p className="profile-field-value">{hasPassword ? "••••••••" : "Not set"}</p>
             </div>
-            <Tooltip content="Reset password by email">
+            <Tooltip content={hasPassword ? "Reset password by email" : "Add password by email"}>
               <Popover.Trigger asChild>
                 <button className="icon-button" aria-label="Edit password" disabled={disabled}>
                   <Pencil size={16} />
@@ -68,10 +70,12 @@ export function PasswordResetSetting({
             align="end"
             sideOffset={8}
             collisionPadding={8}
-            aria-label="Reset password"
+            aria-label={hasPassword ? "Reset password" : "Add password"}
           >
             <div className="reset-popover-heading">
-              <h3>{sent ? "Check your email" : "Reset your password"}</h3>
+              <h3>
+                {sent ? "Check your email" : hasPassword ? "Reset your password" : "Add a password"}
+              </h3>
               <Popover.Close asChild>
                 <button className="icon-button" aria-label="Close password reset">
                   <X size={16} />
@@ -92,8 +96,10 @@ export function PasswordResetSetting({
                     We’ll send a secure link to <strong>{email}</strong>.
                   </p>
                   <p>
-                    Your password stays the same until you use the link. Changing it signs out all
-                    devices.
+                    {hasPassword
+                      ? "Your password stays the same until you use the link."
+                      : "Use the link to add a password alongside your social sign-in."}{" "}
+                    Completing it signs out all devices.
                   </p>
                 </>
               )}
@@ -112,7 +118,9 @@ export function PasswordResetSetting({
                   ? `Resend in ${cooldown.remaining}s`
                   : sent
                     ? "Resend reset link"
-                    : "Send reset link"}
+                    : hasPassword
+                      ? "Send reset link"
+                      : "Send setup link"}
             </button>
           </Popover.Content>
         </Popover.Portal>

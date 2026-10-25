@@ -1,3 +1,4 @@
+import { SocialEmailSetup } from "./SocialEmailSetup";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -30,6 +31,11 @@ import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
 
 export function LoginPage() {
+  if (
+    new URLSearchParams(location.search).has("socialEmail") ||
+    new URLSearchParams(location.search).has("socialEmailToken")
+  )
+    return <SocialEmailSetup />;
   if (new URLSearchParams(location.search).get("reset") === "1") return <PasswordReset />;
   return <LoginForm />;
 }
@@ -178,6 +184,13 @@ function LoginForm() {
                     ? "Verify your email first. Then choose your username and password."
                     : "Pick up where you left off."}
           </p>
+          {new URLSearchParams(location.search).has("error") && (
+            <p role="alert">
+              {new URLSearchParams(location.search).get("error") === "account_not_linked"
+                ? "An account with this email already exists. Sign in to that account first, then open Settings → Social accounts to connect this provider."
+                : "Could not connect your social account. Sign in and try again from Settings → Social accounts."}
+            </p>
+          )}
           {new URLSearchParams(location.search).has("emailChanged") && (
             <p className="auth-success" role="status">
               Email updated. Your new address is verified.
@@ -469,7 +482,7 @@ function LoginForm() {
                 </button>
               </form>
               {!creating && capabilities.data?.registration && (
-                <a className="quiet-button" href="/login?reset=1">
+                <a className="quiet-button auth-forgot" href="/login?reset=1">
                   Forgot password?
                 </a>
               )}
