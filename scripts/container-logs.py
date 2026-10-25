@@ -35,10 +35,7 @@ body = {
     "queryId": "quorem-container-startup-diagnostic",
     "timeframe": {"from": now - args.minutes * 60000, "to": now},
     "view": "events", "limit": args.limit, "dry": True,
-    "parameters": {"filters": [
-        {"key": "$metadata.service", "operation": "eq", "type": "string",
-         "value": os.environ.get("CLOUDFLARE_WORKER_NAME", "quorem-production")},
-    ]},
+    "parameters": {"datasets": ["containers"]},
 }
 url = f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/observability/telemetry/query"
 request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={
