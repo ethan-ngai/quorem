@@ -239,6 +239,9 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 	if err != nil {
 		return d, err
 	}
+	if _, err = tx.Exec(ctx, "INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES($1,$2,$2,'questions.publish',$3,'Explicit publication')", "publish:"+p.ID, actor, id); err != nil {
+		return d, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return d, err
 	}

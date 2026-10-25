@@ -20,6 +20,7 @@ export function useIntelligence(
   documentKey: string,
   enabled = true,
   language: EditorLanguage = "python",
+  allowHosted = false,
 ) {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [status, setStatus] = useState<IntelligenceStatus>("connecting");
@@ -32,7 +33,7 @@ export function useIntelligence(
       setExtensions([]);
       return;
     }
-    if (language === "typescript" || !hostedIntelligenceEnabled) {
+    if (language === "typescript" || !hostedIntelligenceEnabled || !allowHosted) {
       const controller = new AbortController();
       let dispose: (() => void) | undefined;
       setExtensions([]);
@@ -172,7 +173,7 @@ export function useIntelligence(
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
-  }, [identity, documentKey, key, attempt, enabled, language]);
+  }, [identity, documentKey, key, attempt, enabled, language, allowHosted]);
 
   return { extensions, status, retry };
 }

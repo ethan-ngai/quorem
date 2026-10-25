@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { authErrorMessage } from "./errors";
 import { useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -44,7 +45,7 @@ export function PasswordReset() {
       setConfirmation("");
       setDone(true);
     } catch (cause) {
-      setError(authErrorMessage(cause, "Reset unavailable."));
+      toast.error(authErrorMessage(cause, "Reset unavailable."));
     } finally {
       setBusy(false);
     }
@@ -153,7 +154,7 @@ function ResetEmailRequest() {
             })
             .catch((cause) => {
               if (cause instanceof AccountRateLimitError) cooldown.start(cause.retryAfter);
-              setError(authErrorMessage(cause, "Could not request reset."));
+              toast.error(authErrorMessage(cause, "Could not request reset."));
             })
             .finally(() => setBusy(false));
         }}

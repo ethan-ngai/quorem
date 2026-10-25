@@ -98,7 +98,7 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Local fixture selection is never accepted by the managed verifier.
-	if s.Local {
+	if s.Local && !identity.Subject(r.Context()).Guest {
 		if selected := r.URL.Query().Get("user"); selected != "" {
 			if developmentSubject(selected) == "" {
 				s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Unknown development identity", Status: 401})
@@ -137,6 +137,13 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 	defer disconnect()
 	bearer, _ := requestBearer(r)
 	send := func(notice realtime.Notice) error {
+		if cookie, e := r.Cookie(guestCookie); bearer == "" && e == nil {
+			p, e := s.Store.GuestIdentity(ctx, cookie.Value)
+			if e != nil || p.UserID != user {
+				connection.Close(websocket.StatusPolicyViolation, "Guest session expired")
+				return identity.ErrUnauthorized
+			}
+		}
 		if bearer != "" {
 			p, e := s.Identity.Verify(ctx, bearer)
 			if e != nil || p.UserID != user {

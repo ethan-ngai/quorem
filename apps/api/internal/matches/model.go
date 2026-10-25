@@ -8,6 +8,19 @@ import (
 const Showdown = "showdown"
 const FreeForAll = "free-for-all"
 
+// InvitePreview discloses lobby settings only, never participant identities or problem content.
+type InvitePreview struct {
+	ID               string   `json:"id"`
+	AdmissionLocked  bool     `json:"admissionLocked"`
+	AccessMode       string   `json:"accessMode"`
+	Mode             string   `json:"mode"`
+	Difficulties     []string `json:"difficulties"`
+	DurationMinutes  int      `json:"durationMinutes"`
+	Rules            Rules    `json:"rules"`
+	ParticipantCount int      `json:"participantCount"`
+	Capacity         int      `json:"capacity"`
+}
+
 type Rules struct {
 	Clipboard string `json:"clipboard"`
 	Focus     string `json:"focus"`
@@ -21,6 +34,8 @@ type RuleEvent struct {
 }
 
 type Settings struct {
+	AdmissionLocked          bool     `json:"admissionLocked"`
+	AccessMode               string   `json:"accessMode"`
 	Mode                     string   `json:"mode"`
 	Difficulties             []string `json:"difficulties"`
 	SelectedProblemVersionID string   `json:"selectedProblemVersionId,omitempty"`
@@ -30,6 +45,9 @@ type Settings struct {
 }
 
 func (s Settings) Normalize() Settings {
+	if s.AccessMode == "" {
+		s.AccessMode = "accounts_only"
+	}
 	if s.Mode == "" {
 		s.Mode = Showdown
 	}
@@ -58,6 +76,9 @@ func (s Settings) Capacity() int {
 	return 2
 }
 func (s Settings) Valid() bool {
+	if s.AccessMode != "accounts_only" && s.AccessMode != "guests_allowed" {
+		return false
+	}
 	if s.Mode != Showdown && s.Mode != FreeForAll {
 		return false
 	}
@@ -85,6 +106,7 @@ type Created struct {
 	State     string `json:"state"`
 }
 type Participant struct {
+	Guest           bool             `json:"guest"`
 	Forfeited       bool             `json:"forfeited"`
 	UserID          string           `json:"userId"`
 	DisplayName     string           `json:"displayName"`

@@ -1,4 +1,12 @@
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
+import { MatchRecovery } from "./MatchRecovery";
+import { GuestAccessToggle } from "./GuestAccessToggle";
+import { useQueryClient } from "@tanstack/react-query";
+import { endGuestSession } from "../auth/session";
+import { LobbyLock } from "./LobbyLock";
+import { MatchEndView } from "./MatchEndView";
+import { RotateCcw } from "lucide-react";
+import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import {
   participantUserId,
@@ -12,22 +20,24 @@ import { Tooltip } from "../editor/components/Tooltip";
 import { Icon } from "../editor/components/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync } from "../realtime/useMatchSync";
-import { forfeitMatch, leaveMatch, setReady, startMatch, updateMatchSettings } from "./api";
+import {
+  forfeitMatch,
+  leaveMatch,
+  setReady,
+  startMatch,
+  updateMatchSettings,
+  rotateInvite,
+  removeGuest,
+} from "./api";
 import { MatchSettings, ModeIcon, defaultMatchSettings, useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { InvitationActions } from "./InvitationActions";
 import { ReadinessIcon } from "./ReadinessIcon";
 import { ReadyActionIcon } from "./ReadyActionIcon";
+import { ModeText } from "./ModeText";
 import { shareInvitation } from "./shareInvitation";
 import { readInvite } from "./commandRecovery";
-import {
-  lobbyWaitingLabel,
-  outcomeLabel,
-  ownParticipant,
-  remainingTime,
-  showdown,
-  freeForAll,
-} from "./matchState";
+import { lobbyWaitingLabel, outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
 
@@ -118,9 +128,41 @@ function MatchLedger({
 export function MatchPage({ matchId }: { matchId: string }) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
-  const { snapshot, error, status, refetch } = useMatchSync(identity, matchId);
+  const queryClient = useQueryClient();
+  const [storedFinished, setFinished] = useState<{
+    snapshot: MatchSnapshot;
+    identity: DevelopmentIdentity;
+    guest: boolean;
+  }>();
+  const finished = storedFinished?.snapshot.id === matchId ? storedFinished : undefined;
+  const {
+    snapshot: liveSnapshot,
+    error,
+    status,
+    refetch,
+  } = useMatchSync(identity, matchId, !finished);
+  const snapshot = finished?.snapshot ?? liveSnapshot;
+  useEffect(() => {
+    if (!liveSnapshot || finished || account.isPending || !account.data) return;
+    if (
+      liveSnapshot.state === "completed" ||
+      liveSnapshot.state === "cancelled" ||
+      ownParticipant(liveSnapshot, identity)?.forfeited
+    )
+      setFinished({ snapshot: liveSnapshot, identity, guest: account.data?.kind === "guest" });
+  }, [liveSnapshot, finished, identity, account.isPending, account.data]);
+  useEffect(() => {
+    if (!finished?.guest) return;
+    void endGuestSession()
+      .then(() => queryClient.setQueryData(["auth-session"], null))
+      .catch(() => setActionError("Could not end the guest session. Reload to retry."));
+  }, [finished, queryClient]);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  useErrorNotification(actionError);
+  useErrorNotification(
+    snapshot && error ? "Connection interrupted. Refreshing match state." : undefined,
+  );
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [conceding, setConceding] = useState(false);
@@ -135,6 +177,8 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const [settings, setSettings] = useState<CreateMatchRequest>(defaultMatchSettings);
   const snapshotSettings = (match: MatchSnapshot): CreateMatchRequest => ({
     mode: match.mode,
+    accessMode: match.accessMode,
+    admissionLocked: match.admissionLocked,
     difficulties: match.difficulties ?? [match.difficulty],
     selectedProblemVersionId: match.selectedProblemVersionId,
     durationMinutes: match.durationMinutes,
@@ -156,7 +200,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
       setPending(false);
     }
   };
-  if (!account.isPending && !account.data)
+  if (!account.isPending && !account.data && !finished)
     return (
       <main className="match-page">
         <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
@@ -172,26 +216,21 @@ export function MatchPage({ matchId }: { matchId: string }) {
     return (
       <main className="match-page">
         <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
-        <section className="match-page-content">
-          <h1>{error ? "Match unavailable" : "Opening match…"}</h1>
-          {error && (
-            <>
-              <p role="alert">
-                {userFacingErrorMessage(error, "Match unavailable. Please try again.")}
-              </p>
-              <button className="button button-secondary" onClick={() => void refetch()}>
-                Retry
-              </button>
-              <a className="text-link" href="/practice">
-                Back to practice
-              </a>
-            </>
-          )}
-        </section>
+        <MatchRecovery failed={!!error} onRetry={refetch} />
+      </main>
+    );
+  if (finished)
+    return (
+      <main className="match-page">
+        <GlobalNav identity={finished.identity} theme={preference} onThemeChange={setPreference} />
+        <MatchEndView
+          snapshot={finished.snapshot}
+          identity={finished.identity}
+          guest={finished.guest}
+        />
       </main>
     );
   const own = ownParticipant(snapshot, identity);
-  const mode = snapshot.mode === "free-for-all" ? freeForAll : showdown;
   const host = snapshot.hostUserId === participantUserId(identity);
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
@@ -230,7 +269,12 @@ export function MatchPage({ matchId }: { matchId: string }) {
     <ConcessionDialog
       open={conceding}
       pending={pending}
-      error={actionError}
+      freeForAll={snapshot.mode === "free-for-all"}
+      remainingPlayers={
+        snapshot.participants.filter(
+          (player) => !player.forfeited && player.userId !== participantUserId(identity),
+        ).length
+      }
       onCancel={() => setConceding(false)}
       onConfirm={() =>
         void command(async () => {
@@ -282,11 +326,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
           <a href="/practice">Back to practice</a>
         </div>
       )}
-      {error && (
-        <p className="sync-error" role="status">
-          Connection interrupted. Refreshing authoritative state.
-        </p>
-      )}
+
       {concession}
     </>
   );
@@ -308,31 +348,82 @@ export function MatchPage({ matchId }: { matchId: string }) {
         theme={preference}
         onThemeChange={setPreference}
       />
-      <section className="match-page-content">
+      <section className="match-page-content" aria-busy={pending}>
         <div className="competitive-lobby-heading">
           <div>
             <h1>
-              {!closed && <ModeIcon mode={snapshot.mode} />}
-              {closed ? outcomeLabel(snapshot, identity) : mode.name}
+              {closed ? (
+                outcomeLabel(snapshot, identity)
+              ) : (
+                <ModeText
+                  mode={snapshot.mode}
+                  showdown={
+                    <>
+                      <ModeIcon mode="showdown" />
+                      Showdown
+                    </>
+                  }
+                  freeForAll={
+                    <>
+                      <ModeIcon mode="free-for-all" />
+                      Free-for-all
+                    </>
+                  }
+                />
+              )}
             </h1>
             {closed && <p>{snapshot.outcome?.reason.replaceAll("_", " ")}</p>}
           </div>
           {!closed && (
-            <Tooltip content="Leave lobby">
-              <button
-                className="icon-button destructive-icon"
-                aria-label="Leave lobby"
+            <div className="lobby-heading-actions">
+              {host && account.data?.capabilities?.hostGuests && (
+                <GuestAccessToggle
+                  allowed={snapshot.accessMode === "guests_allowed"}
+                  disabled={pending}
+                  onToggle={() =>
+                    void command(() =>
+                      updateMatchSettings(identity, matchId, {
+                        ...snapshotSettings(snapshot),
+                        accessMode:
+                          snapshot.accessMode === "guests_allowed"
+                            ? "accounts_only"
+                            : "guests_allowed",
+                      }),
+                    )
+                  }
+                />
+              )}
+              <LobbyLock
+                locked={snapshot.admissionLocked === true}
                 disabled={pending}
-                onClick={() =>
-                  void command(async () => {
-                    await leaveMatch(identity, matchId);
-                    window.location.assign("/practice");
-                  })
+                onToggle={
+                  host
+                    ? () =>
+                        void command(() =>
+                          updateMatchSettings(identity, matchId, {
+                            ...snapshotSettings(snapshot),
+                            admissionLocked: !snapshot.admissionLocked,
+                          }),
+                        )
+                    : undefined
                 }
-              >
-                <Icon name="output" />
-              </button>
-            </Tooltip>
+              />
+              <Tooltip content="Leave lobby">
+                <button
+                  className="icon-button destructive-icon"
+                  aria-label="Leave lobby"
+                  disabled={pending}
+                  onClick={() =>
+                    void command(async () => {
+                      await leaveMatch(identity, matchId);
+                      window.location.assign("/practice");
+                    })
+                  }
+                >
+                  <Icon name="output" />
+                </button>
+              </Tooltip>
+            </div>
           )}
         </div>
         {!closed && (
@@ -347,11 +438,23 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   <div>
                     <strong>
                       {participant.userId === participantUserId(identity)
-                        ? `${participant.displayName} (you)`
-                        : participant.displayName}
+                        ? `${participant.displayName}${participant.guest ? " (guest)" : ""} (you)`
+                        : `${participant.displayName}${participant.guest ? " (guest)" : ""}`}
                     </strong>
                     <span>{participant.userId === snapshot.hostUserId ? "Host" : "Player"}</span>
                   </div>
+                  {host && participant.guest && (
+                    <button
+                      className="quiet-button"
+                      disabled={pending}
+                      aria-label={`Remove guest ${participant.displayName}`}
+                      onClick={() =>
+                        void command(() => removeGuest(identity, matchId, participant.userId))
+                      }
+                    >
+                      Remove
+                    </button>
+                  )}
                   <Tooltip content={participant.ready ? "Ready" : "Not ready"}>
                     <span
                       className={`seat-readiness ${participant.ready ? "is-ready" : ""}`}
@@ -372,9 +475,11 @@ export function MatchPage({ matchId }: { matchId: string }) {
                   <div>
                     <strong>Open seat</strong>
                     <span>
-                      {snapshot.mode === "free-for-all"
-                        ? `${8 - snapshot.participants.length} seats available`
-                        : "Invite your opponent"}
+                      <ModeText
+                        mode={snapshot.mode}
+                        showdown="Invite your opponent"
+                        freeForAll={`${8 - snapshot.participants.length} seats available`}
+                      />
                     </span>
                   </div>
                   {inviteUrl && host && invitationActions}
@@ -429,12 +534,24 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     onFocus={(event) => event.currentTarget.select()}
                   />
                   {invitationActions}
+                  <Tooltip content="Replace invitation link. Existing players stay.">
+                    <button
+                      className="icon-button"
+                      aria-label="Replace invitation link"
+                      disabled={pending}
+                      onClick={() => void command(() => rotateInvite(identity, matchId))}
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
             )}
             <footer className="competitive-lobby-footer">
               <span role="status">
-                {status !== "live" ? "Reconnecting…" : lobbyWaitingLabel(snapshot, identity)}
+                <span className="mode-text-enter" key={snapshot.mode}>
+                  {status !== "live" ? "Reconnecting…" : lobbyWaitingLabel(snapshot, identity)}
+                </span>
               </span>
               <div className="lobby-ready-actions">
                 <button
@@ -451,29 +568,35 @@ export function MatchPage({ matchId }: { matchId: string }) {
                     <span className="readiness-option readiness-option-cancel">Cancel</span>
                   </span>
                 </button>
-                {host && snapshot.mode === "free-for-all" && (
-                  <button
-                    className="button button-primary"
-                    disabled={
-                      pending ||
-                      snapshot.participants.length < 2 ||
-                      !snapshot.participants.every((player) => player.ready)
-                    }
-                    onClick={() => void command(() => startMatch(identity, matchId))}
+                {host && (
+                  <span
+                    className="lobby-start-slot"
+                    data-visible={snapshot.mode === "free-for-all"}
+                    aria-hidden={snapshot.mode !== "free-for-all"}
+                    inert={snapshot.mode !== "free-for-all"}
                   >
-                    <Icon name="play" />
-                    Start
-                  </button>
+                    <span className="lobby-start-slot-inner">
+                      <button
+                        className="button button-primary"
+                        disabled={
+                          snapshot.mode !== "free-for-all" ||
+                          pending ||
+                          snapshot.participants.length < 2 ||
+                          !snapshot.participants.every((player) => player.ready)
+                        }
+                        onClick={() => void command(() => startMatch(identity, matchId))}
+                      >
+                        <Icon name="play" />
+                        Start
+                      </button>
+                    </span>
+                  </span>
                 )}
               </div>
             </footer>
           </>
         )}
-        {(actionError || error) && (
-          <p role="alert" className="result-error">
-            {actionError ?? userFacingErrorMessage(error, "Match unavailable. Please try again.")}
-          </p>
-        )}
+
         {closed && (
           <a className="text-link" href="/practice">
             Back to practice

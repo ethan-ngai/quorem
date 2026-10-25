@@ -127,3 +127,20 @@ describe("account identity transport", () => {
     }
   });
 });
+
+describe("anonymous token polling", () => {
+  it("caches missing account credentials until an explicit auth change", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ token: "signed-in" }));
+    vi.stubGlobal("fetch", fetch);
+    const { token, resetToken } = await import("./session");
+    expect(await token()).toBeUndefined();
+    expect(await token()).toBeUndefined();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    resetToken();
+    expect(await token()).toBe("signed-in");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});

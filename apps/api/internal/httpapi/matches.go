@@ -2,9 +2,21 @@ package httpapi
 
 import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"net/http"
 )
+
+func (s *Server) previewInvite(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Store.PreviewInvite(r.Context(), r.PathValue("token"))
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	respond(w, http.StatusOK, v)
+}
 
 func (s *Server) matchKey(w http.ResponseWriter, r *http.Request) string {
 	key := r.Header.Get("Idempotency-Key")
@@ -21,6 +33,10 @@ func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	var body matches.Settings
 	if !s.decode(w, r, &body, 4096) {
+		return
+	}
+	if body.AccessMode == "guests_allowed" && !s.GuestCreation {
+		s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest hosting is temporarily paused"})
 		return
 	}
 	v, e := s.Store.CreateMatch(r.Context(), owner(r), key, body)
@@ -55,6 +71,15 @@ func (s *Server) getMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, s.withPresence(v))
+}
+func (s *Server) currentMatch(w http.ResponseWriter, r *http.Request) {
+	v, err := s.Store.ActiveMatch(r.Context(), owner(r))
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	respond(w, http.StatusOK, v)
 }
 func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 	key := s.matchKey(w, r)
@@ -92,6 +117,10 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 		if !s.decode(w, r, &body, 4096) {
 			return
 		}
+		if body.AccessMode == "guests_allowed" && !s.GuestCreation {
+			s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest hosting is temporarily paused"})
+			return
+		}
 		v, e = s.Store.UpdateMatchSettings(r.Context(), owner(r), id, key, body)
 	case "forfeit", "leave":
 		var body struct{}
@@ -110,6 +139,9 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 	if e != nil {
 		s.err(w, r, e)
 		return
+	}
+	if r.PathValue("action") == "leave" && v.StartedAt == nil && identity.Subject(r.Context()).Guest {
+		http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	}
 	respond(w, 200, s.withPresence(v))
 }

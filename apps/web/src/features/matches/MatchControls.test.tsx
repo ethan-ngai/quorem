@@ -23,5 +23,8 @@ describe("server-rendered match settings", () => {
     for (const label of ["Two Sum", "30 minutes", "Warn", "Announce to lobby"])
       expect(html).toContain(label);
     expect(html).not.toContain("Problem list unavailable");
+    expect(html).not.toContain("Guest access");
+    expect(html).not.toContain("Allow guests");
+    expect(html).not.toContain("Lobby admission");
   });
 });

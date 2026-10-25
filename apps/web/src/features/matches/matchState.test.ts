@@ -1,7 +1,36 @@
 /** @file matchState.test.ts @description Privacy and outcome display boundaries. @module matches */
 import { describe, expect, it } from "vitest";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
-import { lobbyWaitingLabel, outcomeLabel, ownParticipant, remainingTime } from "./matchState";
+import {
+  activeMatchReturnLabel,
+  lobbyWaitingLabel,
+  outcomeLabel,
+  ownParticipant,
+  remainingTime,
+} from "./matchState";
+
+describe("active match return link", () => {
+  it.each(["waiting", "ready", "active", "finalizing", "completed", "cancelled"] as const)(
+    "uses current membership and %s state",
+    (state) => {
+      const match = { ...snapshot, state };
+      const expected =
+        state === "waiting" || state === "ready"
+          ? "Return to active lobby"
+          : state === "active" || state === "finalizing"
+            ? "Return to active match"
+            : null;
+      expect(activeMatchReturnLabel(match, "alice")).toBe(expected);
+      expect(activeMatchReturnLabel({ ...match, participants: [] }, "alice")).toBeNull();
+      expect(
+        activeMatchReturnLabel(
+          { ...match, participants: match.participants.map((p) => ({ ...p, forfeited: true })) },
+          "alice",
+        ),
+      ).toBeNull();
+    },
+  );
+});
 
 describe("lobby readiness", () => {
   it("waits for every FFA participant and then an explicit host start", () => {

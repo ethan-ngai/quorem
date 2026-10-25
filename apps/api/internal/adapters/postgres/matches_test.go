@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"os"
 	"strconv"
@@ -15,11 +16,89 @@ import (
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
+func TestInvitePreviewSettingsWithoutMembershipOrPrivateData(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	created, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulty: "easy", DurationMinutes: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := inviteToken(t, created)
+	v, err := s.PreviewInvite(ctx, token)
+	if err != nil || v.Mode != "showdown" || v.ParticipantCount != 1 || v.Capacity != 2 || v.DurationMinutes != 30 {
+		t.Fatalf("preview: %+v %v", v, err)
+	}
+	data, _ := json.Marshal(v)
+	for _, private := range []string{token, "ownerId", "userId", "displayName", "problemVersionId", "source", "inviteHash"} {
+		if strings.Contains(string(data), private) {
+			t.Fatalf("preview leaked %s", private)
+		}
+	}
+	var seats int
+	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM match_participants WHERE match_id=$1", created.ID).Scan(&seats); err != nil || seats != 1 {
+		t.Fatalf("preview claimed seat: %d %v", seats, err)
+	}
+	if _, err := s.PreviewInvite(ctx, "invalid"); errorCode(err) != "not_found" {
+		t.Fatalf("invalid token: %v", err)
+	}
+	if _, err := s.JoinMatch(ctx, "bob", ID(), token); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.PreviewInvite(ctx, token); err != nil || v.ParticipantCount != v.Capacity {
+		t.Fatalf("full lobby: %+v %v", v, err)
+	}
+	if _, err := s.Pool.Exec(ctx, "UPDATE matches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PreviewInvite(ctx, token); errorCode(err) != "not_found" {
+		t.Fatalf("expired token: %v", err)
+	}
+}
+
+func TestActiveMatchMembershipAndExpiry(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if v, err := s.ActiveMatch(ctx, "alice"); err != nil || v != nil {
+		t.Fatalf("no reservation: %+v %v", v, err)
+	}
+	created, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulty: "easy", DurationMinutes: 30})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "alice"); err != nil || v == nil || v.ID != created.ID {
+		t.Fatalf("host membership: %+v %v", v, err)
+	}
+	if _, err := s.JoinMatch(ctx, "bob", ID(), inviteToken(t, created)); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "bob"); err != nil || v == nil || v.ID != created.ID {
+		t.Fatalf("joined membership: %+v %v", v, err)
+	}
+	if v, err := s.ActiveMatch(ctx, "charlie"); err != nil || v != nil {
+		t.Fatalf("other owner: %+v %v", v, err)
+	}
+	if _, err := s.LeaveMatch(ctx, "bob", created.ID, ID()); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "bob"); err != nil || v != nil {
+		t.Fatalf("departed membership: %+v %v", v, err)
+	}
+	if _, err := s.Pool.Exec(ctx, "UPDATE matches SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ActiveMatch(ctx, "alice"); err != nil || v != nil {
+		t.Fatalf("expired membership: %+v %v", v, err)
+	}
+}
+
 func inviteToken(t *testing.T, c matches.Created) string {
 	t.Helper()
 	u, e := url.Parse(c.InviteURL)
 	if e != nil {
 		t.Fatal(e)
+	}
+	if u.IsAbs() || u.Host != "" || !strings.HasPrefix(u.Path, "/invite/") {
+		t.Fatal("expected origin-relative invitation path")
 	}
 	return strings.TrimPrefix(u.Path, "/invite/")
 }
