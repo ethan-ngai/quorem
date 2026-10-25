@@ -13,7 +13,7 @@ describe("browser display preferences", () => {
     ]);
     vi.stubGlobal("localStorage", { getItem: (key: string) => values.get(key) ?? null });
     expect(readEditorPreferences()).toEqual({
-      editorScheme: "workspace",
+      editorSchemes: { light: "jetbrains-light", dark: "jetbrains-dark" },
       fontSize: 15,
       tabSize: 4,
       wrap: false,
@@ -29,10 +29,44 @@ describe("browser display preferences", () => {
     ]);
     vi.stubGlobal("localStorage", { getItem: (key: string) => values.get(key) ?? null });
     expect(readEditorPreferences()).toEqual({
-      editorScheme: "darcula",
+      editorSchemes: { light: "jetbrains-light", dark: "darcula" },
       fontSize: 18,
       tabSize: 2,
       wrap: true,
+    });
+  });
+
+  it("validates each mode independently without falling back to legacy settings", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) =>
+        key === "quorem.editor-schemes.v2"
+          ? JSON.stringify({ light: "github-light", dark: "jetbrains-light" })
+          : JSON.stringify("darcula"),
+    });
+    expect(readEditorPreferences().editorSchemes).toEqual({
+      light: "github-light",
+      dark: "jetbrains-dark",
+    });
+  });
+
+  it.each(["workspace", "unknown", null])("uses JetBrains defaults for legacy %s", (value) => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => (key === "quorem.editor-scheme.v1" ? JSON.stringify(value) : null),
+    });
+    expect(readEditorPreferences().editorSchemes).toEqual({
+      light: "jetbrains-light",
+      dark: "jetbrains-dark",
+    });
+  });
+
+  it("migrates a legacy light choice only into the light slot", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) =>
+        key === "quorem.editor-scheme.v1" ? JSON.stringify("jetbrains-light") : null,
+    });
+    expect(readEditorPreferences().editorSchemes).toEqual({
+      light: "jetbrains-light",
+      dark: "jetbrains-dark",
     });
   });
 

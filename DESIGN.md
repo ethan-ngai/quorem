@@ -8,12 +8,12 @@ colors:
     accent: { light: "oklch(0.50 0.21 260)", dark: "oklch(0.72 0.14 260)" }
     onPrimary: { light: "oklch(1 0 0)", dark: "oklch(0.15 0.006 255)" }
   neutral:
-    inlineCode: { light: "oklch(0.93 0.004 255)", dark: "oklch(0.145 0.004 255)" }
-    background: { light: "oklch(0.97 0.003 255)", dark: "oklch(0.18 0.004 255)" }
-    surface: { light: "oklch(0.985 0.002 255)", dark: "oklch(0.205 0.005 255)" }
-    overlay: { light: "oklch(0.95 0.004 255)", dark: "oklch(0.25 0.008 255)" }
+    inlineCode: { light: "oklch(0.965 0.003 255)", dark: "oklch(0.145 0.004 255)" }
+    background: { light: "oklch(1 0 0)", dark: "oklch(0.18 0.004 255)" }
+    surface: { light: "oklch(0.98 0.002 255)", dark: "oklch(0.205 0.005 255)" }
+    overlay: { light: "oklch(0.98 0.002 255)", dark: "oklch(0.25 0.008 255)" }
     field: { light: "oklch(1 0 0)", dark: "oklch(0.205 0.005 255)" }
-    border: { light: "oklch(0.90 0.004 255)", dark: "oklch(0.28 0.006 255)" }
+    border: { light: "oklch(0.925 0.003 255)", dark: "oklch(0.28 0.006 255)" }
     text:
       primary: { light: "oklch(0.24 0.006 255)", dark: "oklch(0.91 0.004 255)" }
       secondary: { light: "oklch(0.45 0.008 255)", dark: "oklch(0.73 0.008 255)" }
@@ -50,7 +50,7 @@ Preserve approved product language, branding and interactions. Quorem uses its s
 
 `packages/ui/src/theme.css` implements the palette, typography, spacing, radii, layering and motion tokens above. `packages/ui/src/tokens.ts` provides layout values needed by JavaScript. Editor scheme palettes live beside the editor. Change the owning token once; keep this document about intent rather than duplicating implementation tables.
 
-Use Geist for interface/prose and JetBrains Mono for code and machine values. Keep literal operators readable; disable editor ligatures. Neutral surfaces carry most of the screen; blue identifies actions and focus. Semantic colors accompany text or icons. Maintain readable contrast in light and dark themes. System theme is the initial preference; explicit choices persist. Editor color schemes are independent.
+Use Geist for interface/prose and JetBrains Mono for code and machine values. Keep literal operators readable; disable editor ligatures. Large light-mode reading and editor surfaces are white. Reserve closely spaced off-whites for compact controls and overlays, with darker neutrals limited to small elements or strong emphasis. Blue identifies actions and focus. Semantic colors accompany text or icons. Maintain readable contrast in light and dark themes. System theme is the initial preference; explicit choices persist. Editor schemes follow global appearance using separately saved light and dark choices. Default to the new JetBrains Light and Dark palettes; named alternatives remain scoped to the editor.
 
 Separate content through spacing, thin rules and tonal changes. Workspace panes stay flat, without nested cards, ornamental gradients, glass or decorative shadows. Small control radii and restrained overlay elevation follow shared tokens.
 

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
+import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { Field } from "./AuthoringFields";
 import { useTheme } from "../editor/useTheme";
 import type { EditorLanguage } from "../editor/editorLanguages";
@@ -20,6 +21,7 @@ export function AuthoringCodeField({
 }) {
   const id = useId();
   const { theme } = useTheme();
+  const preferences = useLocalEditorPreferences();
   return (
     <div className="admin-field">
       <span id={id}>{label}</span>
@@ -31,7 +33,7 @@ export function AuthoringCodeField({
             initialSource={source}
             language={language}
             theme={theme}
-            colorScheme="workspace"
+            colorScheme={preferences.editorSchemes[theme]}
             fontSize={14}
             tabSize={4}
             wrap

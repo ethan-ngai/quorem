@@ -188,7 +188,7 @@ export function parseStages(
       title: stage.title,
       statementMarkdown: stage.statement,
       methods: stage.methods.map((method) => method.signature),
-      examples: parse(stage.examples, "test cases"),
+      examples: parse(stage.examples, "examples"),
     };
   });
   if (!levels.length || levels.length > 8) throw new Error("Add 1–8 steps.");

@@ -47,12 +47,14 @@ it("omits void output but retains an optional None and a list-valued return", ()
   expect(html).toContain('aria-label="Call 4: top_k"');
   expect(html).toContain("[&quot;a&quot;,&quot;b&quot;]");
 });
-it("renders separate named example outputs and no void expectation in case details", () => {
+it("groups statement examples by numbered calls and omits void outputs", () => {
   const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(html).not.toContain("Output from save");
-  expect(html).toContain('aria-label="Output from get (call 2)"');
-  expect(html).toContain('aria-label="Output from count (call 3)"');
-  expect(html).toContain('aria-label="Output from top_k (call 4)"');
+  expect(html).toContain('aria-label="Call 2: get"');
+  expect(html).toContain('aria-label="Call 3: count"');
+  expect(html).toContain('aria-label="Call 4: top_k"');
+  expect(html.match(/>Output<\/span>/g)).toHaveLength(3);
+  expect(html).toContain("No arguments");
   expect(html).not.toContain("[None,None,2,");
   const details = renderToStaticMarkup(<SequenceCaseValues problem={problem} calls={calls} />);
   expect(details.match(/>Expected output<\/span>/g)).toHaveLength(3);

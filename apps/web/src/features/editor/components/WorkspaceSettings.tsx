@@ -4,7 +4,12 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { SelectField } from "../../../ui/SelectField";
 import { editorFontSizes, type ThemePreference } from "../editorSettings";
-import { editorSchemes, type EditorScheme } from "../editorSchemes";
+import {
+  editorSchemesForMode,
+  type EditorScheme,
+  type EditorMode,
+  type EditorSchemePreferences,
+} from "../editorSchemes";
 import { workspaceShortcuts } from "../workspaceShortcuts";
 import { ShortcutKeys } from "./ShortcutKeys";
 import { Icon } from "../../../ui/Icon";
@@ -14,8 +19,8 @@ export type SettingsProps = {
   onOpenChange?: (open: boolean) => void;
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
-  editorScheme: EditorScheme;
-  onEditorSchemeChange: (scheme: EditorScheme) => void;
+  editorSchemes: EditorSchemePreferences;
+  onEditorSchemeChange: (mode: EditorMode, scheme: EditorScheme) => void;
   fontSize: number;
   onFontSizeChange: (size: number) => void;
   tabSize: 2 | 4;
@@ -83,15 +88,21 @@ export function WorkspaceSettingsContent({
               }))}
             />
           </Setting>
-          <Setting label="Editor color scheme">
-            <SelectField
-              className="select-field--settings"
-              label="Editor color scheme"
-              value={props.editorScheme}
-              onChange={(value) => props.onEditorSchemeChange(value as EditorScheme)}
-              options={editorSchemes.map((s) => ({ value: s.id, label: s.label }))}
-            />
-          </Setting>
+          {(["light", "dark"] as const).map((mode) => (
+            <Setting
+              key={mode}
+              label={`${mode === "light" ? "Light" : "Dark"} editor theme`}
+              description={`Used when appearance is ${mode}.`}
+            >
+              <SelectField
+                className="select-field--settings"
+                label={`${mode === "light" ? "Light" : "Dark"} editor theme`}
+                value={props.editorSchemes[mode]}
+                onChange={(value) => props.onEditorSchemeChange(mode, value as EditorScheme)}
+                options={editorSchemesForMode(mode).map((s) => ({ value: s.id, label: s.label }))}
+              />
+            </Setting>
+          ))}
         </>
       )}
       {section === "editor" && (

@@ -23,6 +23,8 @@ import {
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { editorStateCache } from "./editorStateCache";
 import { indentationGuides } from "./indentationGuides";
+import { documentationComments } from "./documentationComments";
+import { commentAnnotations } from "./commentAnnotations";
 import { editorColorTheme } from "./editorPalette";
 import type { EditorScheme } from "./editorSchemes";
 import {
@@ -83,6 +85,8 @@ const baseExtensions: Extension[] = [
   // Keep cursor placement under editor control instead of Safari's native caret.
   drawSelection(),
   indentationGuides,
+  commentAnnotations,
+  documentationComments,
   Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])),
   highlightActiveLine(),
   highlightActiveLineGutter(),

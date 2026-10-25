@@ -2,10 +2,12 @@
 import { globalCompletion, localCompletionSource, pythonLanguage } from "@codemirror/lang-python";
 import { completeFromList, ifNotIn, type CompletionSource } from "@codemirror/autocomplete";
 import { syntaxTree } from "@codemirror/language";
-import { Decoration, ViewPlugin, type DecorationSet, type EditorView } from "@codemirror/view";
-import { Tag, styleTags, tags } from "@lezer/highlight";
+import { Decoration, ViewPlugin, EditorView, type DecorationSet } from "@codemirror/view";
+import { styleTags, tags } from "@lezer/highlight";
 
-export const parameterTag = Tag.define(tags.variableName);
+import { pythonDocumentation } from "./documentationComments";
+import { parameterTag } from "./syntaxHighlighting";
+import { editorColor as syntaxColor } from "./editorColors";
 
 // VariableName rules share one node property; preserve the grammar's original call/definition paths.
 export const highlightedPython = pythonLanguage.configure({
@@ -70,6 +72,7 @@ const statementCompletion = ifNotIn(
   ),
 );
 export const pythonSupport = [
+  pythonLanguage.data.of({ documentationComments: pythonDocumentation }),
   pythonLanguage.data.of({ autocomplete: fallbackCompletion(localCompletionSource) }),
   pythonLanguage.data.of({ autocomplete: fallbackCompletion(globalCompletion) }),
   pythonLanguage.data.of({ autocomplete: statementCompletion }),
@@ -175,3 +178,8 @@ export const pythonIdentifierAccents = ViewPlugin.define(
   }),
   { decorations: (plugin) => plugin.decorations },
 );
+
+export const pythonAccentTheme = EditorView.baseTheme({
+  ".cm-python-builtin, .cm-python-builtin span": { color: syntaxColor("builtin") },
+  ".cm-python-self, .cm-python-self span": { color: syntaxColor("self") },
+});
