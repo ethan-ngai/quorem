@@ -2,7 +2,7 @@
 
 Ledger: [#179](https://github.com/ethan-ngai/quorem/issues/179).
 
-`Deploy production` validates `dev`; only `main` provisions or deploys. GitHub Actions builds Astro and React into one static artifact, packages Go/Node services and isolated language images, then applies Terraform. Cloudflare Workers routes one exact configured origin to a container running Nginx, API, auth and judge. PostgreSQL and the auth schema live in Neon. R2 stores locked Terraform state. Application data never relies on container disk.
+`Deploy production` runs from `main`. GitHub Actions builds Astro and React into one static artifact, packages Go/Node services and isolated language images, then applies Terraform. Separate build/deployment jobs retain the verified registry image when infrastructure needs a retry. Unchanged application trees may reuse a prior run's successful checks after checking its job results and exact source diff; every image still repeats the nested isolation gate. Cloudflare Workers routes one exact configured origin to a container running Nginx, API, auth and judge. PostgreSQL and the auth schema live in Neon. R2 stores locked Terraform state. Application data never relies on container disk.
 
 Terraform owns the state bucket, Neon project, Worker/version/deployment, Containers application and rollout, and custom domain. The Containers application/rollout use `Mastercard/restapi` because Cloudflare's native provider lacks those resources. Immutable rollout history remains on Cloudflare when Terraform replaces its rollout state entry. Wrangler only pushes the built image; it does not provision the application.
 
@@ -18,7 +18,7 @@ Repository secrets:
 - `AUTH_BOOTSTRAP_PASSWORD`: initial operator password, at least 20 characters and one punctuation character.
 - `PRIVATE_QUESTION_JSON`: private authoring content, including hidden cases; never commit it or include it in container images.
 
-Repository variables: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `PRODUCTION_DOMAIN`, `TF_STATE_BUCKET`. IDs also accept repository secrets for compatibility. Workers Paid and R2 must be active. `scripts/terraform-state.py` bootstraps a missing bucket through Terraform, migrates its bootstrap state into R2, and initializes separate application/database state keys. Bucket and database destruction are protected by Terraform lifecycle rules. State contains credentials; keep the bucket private.
+Repository variables: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `PRODUCTION_DOMAIN`, `TF_STATE_BUCKET`. IDs also accept repository secrets for compatibility. `NEON_PROJECT_ID`, `NEON_PROJECT_NAME`, `NEON_REGION` select an existing project for Terraform import; its branch/database/compute settings remain unchanged. A project-scoped key suffices for this path. Optional `DEPLOY_VALIDATED_RUN` selects prior test evidence. Workers Paid and R2 must be active. `scripts/terraform-state.py` bootstraps a missing bucket through Terraform, migrates its bootstrap state into R2, and initializes separate application/database state keys. Bucket and database destruction are protected by Terraform lifecycle rules. State contains credentials; keep the bucket private.
 
 All application URLs derive from the configured origin. Marketing uses `QUOREM_SITE_URL`; browser API/auth requests remain origin-relative. The optional hosted language gateway stays disabled. Nginx serves `/` from Astro, application routes from `app.html`, and proxies only public API/auth routes; `/internal/*` stays private.
 

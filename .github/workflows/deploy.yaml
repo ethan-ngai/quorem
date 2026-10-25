@@ -1,15 +1,39 @@
 name: Deploy production
 on:
   push:
-    branches: [dev, main]
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: production-deploy-${{ github.ref }}
   cancel-in-progress: false
+env:
+  AUTH_ORIGIN: https://${{ vars.PRODUCTION_DOMAIN || 'quorem.app' }}
+  QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_test?sslmode=disable
+  AUTH_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_test?sslmode=disable
+  TF_IN_AUTOMATION: "true"
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+  TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID || secrets.CLOUDFLARE_ZONE_ID }}
+  TF_VAR_domain: ${{ vars.PRODUCTION_DOMAIN || 'quorem.app' }}
+  TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  TF_VAR_better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
+  TF_VAR_auth_internal_secret: ${{ secrets.AUTH_INTERNAL_SECRET }}
+  TF_VAR_invite_key: ${{ secrets.QUOREM_INVITE_KEY }}
+  APP_ENV: local
+  BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+  AUTH_INTERNAL_SECRET: ${{ secrets.AUTH_INTERNAL_SECRET }}
+  QUOREM_INVITE_KEY: ${{ secrets.QUOREM_INVITE_KEY }}
+  WRANGLER_SEND_METRICS: "false"
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
@@ -24,31 +48,10 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U quorem -d quorem_test"
           --health-interval 2s --health-timeout 3s --health-retries 30
-    env:
-      AUTH_ORIGIN: https://${{ vars.PRODUCTION_DOMAIN || 'quorem.app' }}
-      QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_test?sslmode=disable
-      AUTH_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_test?sslmode=disable
-      TF_IN_AUTOMATION: "true"
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
-      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
-      TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
-      TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID || secrets.CLOUDFLARE_ZONE_ID }}
-      TF_VAR_domain: ${{ vars.PRODUCTION_DOMAIN || 'quorem.app' }}
-      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      TF_VAR_better_auth_secret: ${{ secrets.BETTER_AUTH_SECRET }}
-      TF_VAR_auth_internal_secret: ${{ secrets.AUTH_INTERNAL_SECRET }}
-      TF_VAR_invite_key: ${{ secrets.QUOREM_INVITE_KEY }}
-      APP_ENV: local
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-      AUTH_INTERNAL_SECRET: ${{ secrets.AUTH_INTERNAL_SECRET }}
-      QUOREM_INVITE_KEY: ${{ secrets.QUOREM_INVITE_KEY }}
-      WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - name: Check deployment configuration
         if: github.ref == 'refs/heads/main'
         env:
@@ -75,10 +78,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
-        with:
-          terraform_version: 1.13.5
-          terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - run: vp check --no-fmt
       - run: vp run contracts:check
@@ -93,7 +92,14 @@ jobs:
           python3 scripts/package-auth.py
       - name: Build isolated language images
         run: python3 scripts/build-judge-images.py
+      - name: Check reusable validation
+        id: validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATED_RUN_ID: ${{ vars.DEPLOY_VALIDATED_RUN }}
+        run: python3 scripts/reuse-deployment-checks.py
       - name: Validate application and judge
+        if: steps.validation.outputs.reuse != 'true'
         env:
           QUOREM_TEST_DOCKER: "1"
         run: |
@@ -105,21 +111,45 @@ jobs:
           docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-production:$GITHUB_SHA" .
       - name: Verify nested Docker isolation
         run: docker run --privileged --cgroupns=private --rm "quorem-production:$GITHUB_SHA" --verify-only
+      - name: Push application image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          image="registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$GITHUB_SHA"
+          docker tag "quorem-production:$GITHUB_SHA" "$image"
+          vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
+          echo "TF_VAR_image=$image" >> "$GITHUB_ENV"
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      TF_VAR_project_name: ${{ vars.NEON_PROJECT_NAME || 'quorem-production' }}
+      TF_VAR_region: ${{ vars.NEON_REGION || 'aws-us-east-1' }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - name: Configure image
+        run: echo "TF_VAR_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$GITHUB_SHA" >> "$GITHUB_ENV"
       - name: Initialize Terraform state
         if: github.ref == 'refs/heads/main'
         run: python3 scripts/terraform-state.py
       - name: Provision Neon
-        if: github.ref == 'refs/heads/main'
-        run: |
-          terraform -chdir=infra/terraform/database apply -input=false -auto-approve
-          python3 - <<'PY'
-          import os, subprocess
-          url = subprocess.check_output(['terraform', '-chdir=infra/terraform/database', 'output', '-raw', 'database_url'], text=True).strip()
-          print('::add-mask::' + url)
-          with open(os.environ['GITHUB_ENV'], 'a') as file:
-              for name in ['DATABASE_URL', 'AUTH_DATABASE_URL', 'TF_VAR_database_url']:
-                  file.write(name + '=' + url + '\n')
-          PY
+        run: python3 scripts/provision-database.py
       - name: Migrate and bootstrap operator
         if: github.ref == 'refs/heads/main'
         env:
@@ -146,13 +176,6 @@ jobs:
               json.dump(question, file)
           PY
           .local/deploy/provision --seed --private-question .local/deploy/private-question.json
-      - name: Push application image
-        if: github.ref == 'refs/heads/main'
-        run: |
-          image="registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$GITHUB_SHA"
-          docker tag "quorem-production:$GITHUB_SHA" "$image"
-          vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
-          echo "TF_VAR_image=$image" >> "$GITHUB_ENV"
       - name: Provision application and domain
         if: github.ref == 'refs/heads/main'
         run: |
