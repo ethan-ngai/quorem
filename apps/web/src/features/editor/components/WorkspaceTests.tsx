@@ -83,12 +83,12 @@ export function WorkspaceTests({
                   }
                 />
                 {problem.odyssey
-                  ? "Cumulative tests"
+                  ? "Examples"
                   : tab === "custom"
                     ? "Custom cases"
                     : submission?.hiddenCases?.length
                       ? "Hidden cases"
-                      : "Sample cases"}
+                      : "Examples"}
               </button>
             ))}
           </div>

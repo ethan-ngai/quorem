@@ -198,3 +198,14 @@
     transform: none;
   }
 }
+
+.example-sequence {
+  display: grid;
+  gap: var(--space-4);
+}
+.example-sequence h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
