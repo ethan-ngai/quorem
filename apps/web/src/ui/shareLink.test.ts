@@ -34,3 +34,18 @@ it("cancels without copying or sending a second action", async () => {
   expect(await shareLink(data, browser)).toBe("cancelled");
   expect(browser.clipboard.writeText).not.toHaveBeenCalled();
 });
+
+it("propagates native-share and clipboard failures to the shared feedback owner", async () => {
+  const error = new DOMException("Blocked", "NotAllowedError");
+  await expect(
+    shareLink(data, {
+      clipboard: { writeText: vi.fn() },
+      share: vi.fn().mockRejectedValue(error),
+    }),
+  ).rejects.toBe(error);
+  await expect(
+    shareLink(data, {
+      clipboard: { writeText: vi.fn().mockRejectedValue(error) },
+    }),
+  ).rejects.toBe(error);
+});

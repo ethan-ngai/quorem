@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { usePreviewTheme } from "./usePreviewTheme";
+import { useEffect, useRef } from "react";
 import {
   PythonEditor,
   type PythonEditorHandle,
 } from "../../../web/src/features/editor/PythonEditor";
-import { Icon } from "../../../web/src/features/editor/components/Icon";
+import { Icon } from "../../../web/src/ui/Icon";
 import { usePreviewSequence } from "./usePreviewSequence";
 
 const starter = "class Solution:\n    def climbStairs(self, n):\n        ";
@@ -43,20 +44,9 @@ const frameDelay = (stage: number) => frames[stage].delay;
 /** A finite, read-only typing scene using the app's mounted CodeMirror editor. */
 export default function HeroEditorPreview() {
   const editor = useRef<PythonEditorHandle>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const theme = usePreviewTheme();
   const { root, stage } = usePreviewSequence(frames.length - 1, true, frameDelay);
   const phase = Math.max(0, stage - typingEnd);
-  useEffect(() => {
-    const sync = () =>
-      setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
-    sync();
-    const observer = new MutationObserver(sync);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
   useEffect(() => editor.current?.replaceSource(frames[stage].source), [stage]);
   return (
     <div className="workspace-demo hero-typing" data-typing={stage < typingEnd}>

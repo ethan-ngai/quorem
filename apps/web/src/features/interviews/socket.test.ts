@@ -77,8 +77,32 @@ describe("interview socket", () => {
     const rejected = expect(response).rejects.toThrow("disconnected");
     socket.close();
     await rejected;
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
     expect(Socket.instances).toHaveLength(2);
+    transport.stop();
+  });
+  it("retains machine error codes while hiding server details", async () => {
+    const transport = createInterviewSocket("room");
+    transport.start();
+    await Promise.resolve();
+    const socket = Socket.instances[0]!;
+    socket.open();
+    const response = transport.request("snapshot");
+    const request = JSON.parse(socket.sent[0]!);
+    socket.frame({
+      type: "response",
+      id: request.id,
+      error: {
+        code: "database_error",
+        status: 500,
+        message: "secret SQL connection password",
+      },
+    });
+    await expect(response).rejects.toMatchObject({
+      code: "database_error",
+      status: 500,
+      message: "Interview request failed. Your code is still here.",
+    });
     transport.stop();
   });
   it("fences an old token lookup across stop/start", async () => {

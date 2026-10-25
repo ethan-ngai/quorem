@@ -5,7 +5,7 @@ import { ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
 import { useState, type Ref } from "react";
 import { signOut, type Session } from "../auth/session";
 import { useProfile } from "../auth/profile";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 import { AccountAvatar } from "./AccountAvatar";
 
 export function AccountMenu({

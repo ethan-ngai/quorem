@@ -1,3 +1,5 @@
+import "./machine-values.css";
+import "./problem-statement.css";
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
 import { sequenceOutputs } from "../sequenceOutputs";
 import { useQuestionLanguage } from "../QuestionLanguage";
@@ -5,8 +7,8 @@ import { questionValue } from "../questionTypes";
 import type { EditorLanguage } from "../editorLanguages";
 import { useId, useState, type ReactNode } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
-import { Icon, VisibilityIcon } from "./Icon";
-import { Tooltip } from "./Tooltip";
+import { Icon, VisibilityIcon } from "../../../ui/Icon";
+import { Tooltip } from "../../../ui/Tooltip";
 import { bindArguments } from "../argumentBinding";
 import { constraintMarkup } from "../constraintMarkup";
 import type { ProblemVersion } from "@quorem/contracts";

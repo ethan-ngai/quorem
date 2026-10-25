@@ -1,29 +1,18 @@
-import { useEffect, useState } from "react";
+import { usePreviewTheme } from "./usePreviewTheme";
 import { PythonEditor } from "../../../web/src/features/editor/PythonEditor";
 import { TestCases } from "../../../web/src/features/editor/components/TestCases";
 import { ResultContent } from "../../../web/src/features/editor/components/ResultContent";
-import { Icon } from "../../../web/src/features/editor/components/Icon";
+import { Icon } from "../../../web/src/ui/Icon";
 import { previewProblem, previewSnapshot, previewSubmission, source } from "./previewProblem";
 import { usePreviewSequence } from "./usePreviewSequence";
 /** Shared editor and case output, with read-only illustrative judging. */
 export default function EditorPreview() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const theme = usePreviewTheme();
   const { root, stage, replay } = usePreviewSequence(4, true, (step) =>
     step === 0 ? 220 : step === 1 ? 1700 : 1400,
   );
   const selectedCase = Math.min(Math.max(stage - 2, 0), 2);
   const submission = previewSubmission(stage);
-  useEffect(() => {
-    const sync = () =>
-      setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
-    sync();
-    const observer = new MutationObserver(sync);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
   return (
     <div ref={root} className="workspace-demo demo-tests" aria-label="Example Two Sum test run">
       <div className="demo-readonly" inert>

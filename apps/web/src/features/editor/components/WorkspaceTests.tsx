@@ -1,7 +1,7 @@
 /** @file WorkspaceTests.tsx @description Shared test tabs, verdict and case browser. @module editor */
 import type { ProblemVersion, Submission, OdysseyProgress } from "@quorem/contracts";
 import type { CustomCaseDraft, RunSnapshot } from "../customCases";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 import { ResultContent } from "./ResultContent";
 import { TestCases } from "./TestCases";
 

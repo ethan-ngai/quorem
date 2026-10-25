@@ -1,0 +1,113 @@
+.competitive-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 61;
+  width: min(460px, calc(100vw - 32px));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 24px;
+  color: var(--color-text);
+}
+.competitive-dialog-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.competitive-dialog-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0;
+}
+.competitive-dialog-heading p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.competitive-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+}
+.competitive-dialog-actions a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.competitive-dialog[data-state="open"] {
+  animation: competitive-dialog-in 180ms var(--motion-easing);
+}
+.competitive-dialog[data-state="closed"] {
+  animation: competitive-dialog-out 140ms var(--motion-easing);
+}
+@keyframes competitive-dialog-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+  }
+}
+@keyframes competitive-dialog-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 4px)) scale(0.98);
+  }
+}
+.match-dialog-description {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.lobby-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.session-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: #0005;
+  animation: session-backdrop-in 160ms ease-out;
+}
+.session-backdrop[data-state="closed"] {
+  animation: session-backdrop-out 140ms ease-in;
+}
+@keyframes session-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes session-backdrop-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .competitive-dialog[data-state],
+  .session-backdrop[data-state] {
+    animation-duration: 1ms;
+  }
+  @keyframes competitive-dialog-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes competitive-dialog-out {
+    to {
+      opacity: 0;
+    }
+  }
+}

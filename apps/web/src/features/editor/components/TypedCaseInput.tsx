@@ -1,8 +1,9 @@
+import "./machine-values.css";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue, questionTypeName } from "../questionTypes";
-import { Tooltip } from "./Tooltip";
+import { Tooltip } from "../../../ui/Tooltip";
 import { SelectField } from "../../../ui/SelectField";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 import { useState, type ReactNode } from "react";
 import type { InputPresetConfig } from "@quorem/contracts";
 import { innerType } from "../customCases";

@@ -1,6 +1,6 @@
 import { useErrorNotification } from "../../ui/Notifications";
 import { Pencil, LoaderCircle } from "lucide-react";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authErrorMessage } from "../auth/errors";

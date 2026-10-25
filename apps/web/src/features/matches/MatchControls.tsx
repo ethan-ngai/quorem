@@ -6,9 +6,9 @@ import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts"
 import { useEffect, useState } from "react";
 import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
 import { api, requireData } from "../../api/client";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 import { FreeForAllIcon } from "./FreeForAllIcon";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 
 export function useAccountIdentity() {
   const account = useSession();

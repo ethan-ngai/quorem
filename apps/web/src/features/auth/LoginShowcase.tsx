@@ -1,6 +1,6 @@
 /** @file LoginShowcase.tsx @description Marketing problem examples and restrained grid motion. @module auth */
 import { useEffect, useRef } from "react";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 
 function GridMesh() {
   const ref = useRef<HTMLCanvasElement>(null);

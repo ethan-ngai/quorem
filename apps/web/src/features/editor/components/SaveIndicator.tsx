@@ -1,5 +1,5 @@
 /** @file SaveIndicator.tsx @description Shows draft persistence failures and recovery. @module editor */
-import { Tooltip } from "./Tooltip";
+import { Tooltip } from "../../../ui/Tooltip";
 
 export type SaveState = "saved" | "dirty" | "saving" | "offline" | "error";
 

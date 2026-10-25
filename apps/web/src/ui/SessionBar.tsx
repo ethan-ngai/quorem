@@ -1,4 +1,5 @@
 /** @file SessionBar.tsx @description Shared competitive session strip and actions. @module ui */
+import "./session-bar.css";
 import type { ReactNode } from "react";
 export function SessionBar({
   label,
