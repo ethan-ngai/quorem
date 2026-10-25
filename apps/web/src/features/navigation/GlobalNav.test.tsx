@@ -65,13 +65,13 @@ describe("global navigation", () => {
   it("offers creation and named navigation/sign-in controls in practice", async () => {
     const html = await renderNavigation("/practice");
     expect(html).toContain('aria-label="Create match"');
-    expect(html).toContain('aria-label="Open navigation"');
+    expect(html).toContain('aria-label="Expand sidebar"');
     expect(html).toContain('href="/login"');
     expect(html).not.toContain("Guest");
     expect(html).not.toContain('aria-label="Profile"');
     expect(html).toContain('href="/"');
-    expect(html).toContain('aria-label="Open navigation"');
-    expect(html.indexOf('aria-label="Open navigation"')).toBeLessThan(
+    expect(html).toContain('aria-label="Expand sidebar"');
+    expect(html.indexOf('aria-label="Expand sidebar"')).toBeLessThan(
       html.indexOf('aria-label="Quorem home"'),
     );
   });

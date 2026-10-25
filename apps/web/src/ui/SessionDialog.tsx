@@ -3,6 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
 import { Icon } from "../features/editor/components/Icon";
 import { Tooltip } from "../features/editor/components/Tooltip";
+import { focusOverlayOnOpen } from "./overlayFocus";
 
 export function SessionDialog({
   open,
@@ -40,6 +41,7 @@ export function SessionDialog({
         <Dialog.Overlay className="settings-backdrop" />
         <Dialog.Content
           className={`competitive-dialog ${className}`}
+          onOpenAutoFocus={focusOverlayOnOpen}
           onCloseAutoFocus={(event) => {
             if (returnFocus) {
               event.preventDefault();

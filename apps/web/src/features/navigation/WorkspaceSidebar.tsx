@@ -53,16 +53,18 @@ export function WorkspaceSidebar({
         />
         <aside className="sidebar-peek" data-expanded={open}>
           <div className="sidebar-header">
-            <button
-              ref={desktopTrigger}
-              className="icon-button sidebar-toggle"
-              aria-label={open ? "Close navigation" : "Open navigation"}
-              aria-expanded={open}
-              aria-controls="desktop-navigation"
-              onClick={() => setOpen(!open)}
-            >
-              <NavigationToggleIcon open={open} />
-            </button>
+            <Tooltip content={open ? "Collapse sidebar" : "Expand sidebar"}>
+              <button
+                ref={desktopTrigger}
+                className="icon-button sidebar-toggle"
+                aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
+                aria-expanded={open}
+                aria-controls="desktop-navigation"
+                onClick={() => setOpen(!open)}
+              >
+                <NavigationToggleIcon open={open} />
+              </button>
+            </Tooltip>
           </div>
           <SidebarLinks
             pathname={pathname}
@@ -76,16 +78,18 @@ export function WorkspaceSidebar({
     );
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <button
-          className="icon-button sidebar-toggle"
-          aria-label="Open navigation"
-          aria-expanded={open}
-          aria-controls="workspace-navigation"
-        >
-          <NavigationToggleIcon open={open} />
-        </button>
-      </Dialog.Trigger>
+      <Tooltip content="Expand sidebar">
+        <Dialog.Trigger asChild>
+          <button
+            className="icon-button sidebar-toggle"
+            aria-label="Expand sidebar"
+            aria-expanded={open}
+            aria-controls="workspace-navigation"
+          >
+            <NavigationToggleIcon open={open} />
+          </button>
+        </Dialog.Trigger>
+      </Tooltip>
       <Dialog.Portal>
         <Dialog.Overlay className="sidebar-backdrop" />
         <Dialog.Content
