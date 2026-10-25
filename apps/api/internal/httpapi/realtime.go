@@ -24,6 +24,7 @@ func (s *Server) StartRealtime(ctx context.Context) {
 		s.Presence = local
 	}
 	go func() { <-ctx.Done(); local.Close() }()
+	s.startInterviewRealtime(ctx)
 	go func() {
 		tick := time.NewTicker(250 * time.Millisecond)
 		defer tick.Stop()

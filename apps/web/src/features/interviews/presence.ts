@@ -9,7 +9,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
-import { interviewRequest } from "./api";
+import type { InterviewSocket } from "./socket";
 
 export type InterviewPresence = {
   clientID: string;
@@ -41,50 +41,75 @@ class RemoteCursor extends WidgetType {
   }
 }
 
-/** @returns Bounded advisory cursor polling; presence never decides document authority. */
-export function presenceExtension(id: string, epoch: string, clientID: string) {
+/** @returns Event-driven advisory cursors with expiring leases; presence never decides document authority. */
+export function presenceExtension(transport: InterviewSocket, epoch: string, clientID: string) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
       timer: ReturnType<typeof setTimeout> | undefined;
+      heartbeat: ReturnType<typeof setInterval>;
       disposed = false;
+      reading = false;
+      readAgain = false;
+      stop: () => void;
+      stopStatus: () => void;
       constructor(readonly view: EditorView) {
-        this.schedule(0);
+        this.stop = transport.onChange(() => {
+          void this.read();
+        });
+        this.heartbeat = setInterval(() => {
+          void this.publish();
+        }, 10_000);
+        this.stopStatus = transport.onStatus((connected) => {
+          if (connected && !this.disposed) this.schedule();
+        });
       }
-      schedule(delay = 1200) {
+      schedule() {
+        clearTimeout(this.timer);
         this.timer = setTimeout(() => {
-          void this.poll().finally(() => {
-            if (!this.disposed) this.schedule();
-          });
-        }, delay);
+          void this.publish();
+        }, 60);
       }
-      async poll() {
+      async read() {
+        if (this.disposed) return;
+        if (this.reading) {
+          this.readAgain = true;
+          return;
+        }
+        this.reading = true;
+        try {
+          do {
+            this.readAgain = false;
+            const peers = await transport.request<InterviewPresence[]>("peers");
+            if (!this.disposed) this.view.dispatch({ effects: receivedPresence.of(peers) });
+          } while (this.readAgain && !this.disposed);
+        } catch {
+          /* A reconnect refreshes advisory selections. */
+        } finally {
+          this.reading = false;
+        }
+      }
+      async publish() {
         if (this.disposed || sendableUpdates(this.view.state).length) return;
         const version = getSyncedVersion(this.view.state);
         const { anchor, head } = this.view.state.selection.main;
         try {
-          await interviewRequest(`/v1/interviews/${id}/presence`, "POST", {
-            clientID,
-            epoch,
-            version,
-            anchor,
-            head,
+          const peers = await transport.request<InterviewPresence[]>("presence", {
+            presence: { clientID, epoch, version, anchor, head },
           });
-          const peers = await interviewRequest<InterviewPresence[]>(
-            `/v1/interviews/${id}/presence`,
-          );
-          if (
-            !this.disposed &&
-            version === getSyncedVersion(this.view.state) &&
-            !sendableUpdates(this.view.state).length
-          )
-            this.view.dispatch({ effects: receivedPresence.of(peers) });
+          if (!this.disposed) this.view.dispatch({ effects: receivedPresence.of(peers) });
         } catch {
-          /* Presence is advisory; editing and reconnect remain independent. */
+          /* Presence never blocks document synchronization. */
         }
       }
       update(update: ViewUpdate) {
         if (update.docChanged) this.decorations = Decoration.none;
+        if (
+          update.docChanged ||
+          update.selectionSet ||
+          getSyncedVersion(update.startState) !== getSyncedVersion(update.state)
+        )
+          this.schedule();
         for (const transaction of update.transactions)
           for (const effect of transaction.effects) {
             if (!effect.is(receivedPresence)) continue;
@@ -92,6 +117,7 @@ export function presenceExtension(id: string, epoch: string, clientID: string) {
             const ranges = effect.value
               .filter(
                 (peer) =>
+                  !sendableUpdates(update.state).length &&
                   peer.clientID !== clientID &&
                   peer.epoch === epoch &&
                   peer.version === version &&
@@ -119,6 +145,9 @@ export function presenceExtension(id: string, epoch: string, clientID: string) {
       destroy() {
         this.disposed = true;
         clearTimeout(this.timer);
+        clearInterval(this.heartbeat);
+        this.stop();
+        this.stopStatus();
       }
     },
     { decorations: (value) => value.decorations },

@@ -33,6 +33,14 @@ import { SessionDialog } from "../../ui/SessionDialog";
 import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
 import "../../styles/workspace.css";
 const keepSource = () => {};
+function resultAccessFor(snapshot: InterviewSnapshot) {
+  return snapshot.role === "interviewer"
+    ? "interviewer"
+    : `${snapshot.role}:${(snapshot.question.revealedCases ?? [])
+        .map((test) => test.id)
+        .sort()
+        .join(",")}`;
+}
 import "./collaboration.css";
 import "./session-controls.css";
 
@@ -42,7 +50,6 @@ export function InterviewPage({ id }: { id: string }) {
   const query = useQuery({
     queryKey: ["interview", id],
     queryFn: () => interviewRequest<InterviewSnapshot>(`/v1/interviews/${id}`),
-    refetchInterval: 2000,
     retry: false,
   });
   const [initial, setInitial] = useState<InterviewSnapshot>();
@@ -92,7 +99,15 @@ function InterviewPad({
   const editor = useRef<PythonEditorHandle>(null);
   const [status, setStatus] = useState<CollaborationStatus>("connecting");
   const controller = useMemo(
-    () => createCollaboration(id, initial.document, setStatus),
+    () =>
+      createCollaboration(id, initial.document, setStatus, (next, result) => {
+        queryClient.setQueryData(["interview", id], next);
+        if (result)
+          queryClient.setQueryData(
+            ["interview-result", id, result.id, resultAccessFor(next)],
+            result,
+          );
+      }),
     [id, initial.document.epoch],
   );
   const [error, setError] = useState<string>();
@@ -122,18 +137,11 @@ function InterviewPad({
   const sharedSubmission = snapshot.latestSubmissionId;
   const submissionId =
     sharedSubmission && sharedSubmission !== admitted?.previous ? sharedSubmission : admitted?.id;
-  const resultAccess = interviewer
-    ? "interviewer"
-    : `${snapshot.role}:${(snapshot.question.revealedCases ?? [])
-        .map((test) => test.id)
-        .sort()
-        .join(",")}`;
+  const resultAccess = resultAccessFor(snapshot);
   const result = useQuery({
     queryKey: ["interview-result", id, submissionId, resultAccess],
     queryFn: () => interviewRequest<Submission>(`/v1/interviews/${id}/submissions/${submissionId}`),
     enabled: !!submissionId,
-    refetchInterval: (query) =>
-      ["queued", "running"].includes(query.state.data?.state ?? "") ? 600 : false,
   });
   const executing =
     busy || admitting || result.data?.state === "queued" || result.data?.state === "running";
