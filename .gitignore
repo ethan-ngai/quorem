@@ -16,3 +16,11 @@ __pycache__/
 
 .wrangler/
 .dev.vars
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+backend.override.tf
+deploy/site/
+deploy/images/
+deploy/runtime-deps/

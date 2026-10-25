@@ -108,7 +108,7 @@ func ValidateConstraints(sig Signature, constraints []Constraint) error {
 		}
 		names[p.Name] = true
 	}
-	if !validType(sig.ReturnType, 0) {
+	if sig.ReturnType != "void" && !validType(sig.ReturnType, 0) {
 		return fmt.Errorf("invalid return type")
 	}
 	for i, c := range constraints {

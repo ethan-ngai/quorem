@@ -155,3 +155,31 @@ describe("independent platform capabilities", () => {
       expect(() => configuration({ ...production, ...override })).toThrow();
   });
 });
+
+describe("production login without SMTP", () => {
+  const production = {
+    ...env,
+    APP_ENV: "production",
+    AUTH_ORIGIN: "https://deployment.example",
+    AUTH_MODE: "password",
+    AUTH_PASSWORD_PRODUCTION: "true",
+    AUTH_LOGIN_ONLY: "true",
+  };
+  it("allows verified operator accounts while registration stays disabled", () => {
+    const result = configuration(production);
+    expect(result.registration).toBe(false);
+    expect(result.mail).toBeUndefined();
+    expect(result.social).toEqual({ google: undefined, apple: undefined, github: undefined });
+  });
+  it("rejects implicit opt-in, HTTP and conflicting mail configuration", () => {
+    for (const override of [
+      { AUTH_LOGIN_ONLY: undefined },
+      { AUTH_LOGIN_ONLY: "yes" },
+      { AUTH_PASSWORD_PRODUCTION: undefined },
+      { AUTH_ORIGIN: "http://deployment.example" },
+      { AUTH_MODE: "cognito" },
+      { SMTP_HOST: "localhost" },
+    ])
+      expect(() => configuration({ ...production, ...override })).toThrow();
+  });
+});

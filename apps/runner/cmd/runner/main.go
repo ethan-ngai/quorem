@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/apps/runner/internal/engine"
 	"github.com/ethan-ngai/quorem/internal/delivery"
@@ -20,8 +21,17 @@ func env(name, fallback string) string {
 	return fallback
 }
 func main() {
+	verify := flag.Bool("verify-sandbox", false, "Verify runtime isolation and exit before connecting to the database")
+	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if *verify {
+		if err := (&engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local")}).VerifySandbox(ctx); err != nil {
+			log.Fatal(err)
+		}
+		log.Print("Sandbox isolation and teardown verified")
+		return
+	}
 	count, err := strconv.Atoi(env("RUNNER_CONCURRENCY", "2"))
 	if err != nil || count < 1 || count > 8 {
 		log.Fatal("Invalid runner concurrency")

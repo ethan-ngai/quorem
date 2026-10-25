@@ -14,6 +14,7 @@ import (
 // Aliases expose runner inputs without exposing API persistence packages.
 type Spec = judging.Spec
 type Case = problems.Case
+type Parameter = problems.Parameter
 type Fixture = problems.Fixture
 
 func NormalizeCaseOutput(f Fixture, c Case, value []byte) ([]byte, error) {
