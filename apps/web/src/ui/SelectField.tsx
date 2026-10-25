@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode, type ComponentProps } from "react";
 import "./select-field.css";
 
 export type SelectOption = { value: string; label: string; leading?: ReactNode };
@@ -12,6 +12,10 @@ type SelectFieldProps = {
   onChange: (value: string) => void;
   disabled?: boolean;
   className?: string;
+  triggerProps?: Pick<
+    ComponentProps<"button">,
+    "id" | "aria-describedby" | "aria-invalid" | "onBlur"
+  >;
 };
 
 export function SelectField({
@@ -21,6 +25,7 @@ export function SelectField({
   onChange,
   disabled,
   className = "",
+  triggerProps,
 }: SelectFieldProps) {
   const [open, setOpen] = useState(false);
   const closingPointer = useRef(false);
@@ -34,6 +39,7 @@ export function SelectField({
       onOpenChange={setOpen}
     >
       <Select.Trigger
+        {...triggerProps}
         className={`select-field ${className}`}
         aria-label={label}
         // Radix blocks lower-layer pointer events while open; keep the trigger from clicking through its parent popover.

@@ -3,7 +3,8 @@ import { Notifications, useErrorNotification } from "../../../ui/Notifications";
 import { userFacingErrorMessage } from "../../../ui/errors";
 import type { DevelopmentIdentity, Workspace } from "@quorem/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { SessionDialog } from "../../../ui/SessionDialog";
 import { browserDraftScope, readBrowserHistory } from "../recovery";
 
 function errorMessage(error: unknown) {
@@ -30,80 +31,57 @@ export function HistoryDialog({
   const [restoringRevision, setRestoringRevision] = useState<string>();
   const [restoreError, setRestoreError] = useState<string>();
   useErrorNotification(restoreError, "draft-history");
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    element?.showModal();
-    return () => element?.close();
-  }, []);
   return (
-    <div
-      className="dialog-scrim"
-      role="presentation"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+    <SessionDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
+      title="Browser history"
+      description="Restore a previously saved version of this workspace."
+      descriptionHidden
+      className="history-dialog"
+      pending={!!restoringRevision}
     >
-      <dialog
-        ref={dialog}
-        className="history-dialog"
-        aria-labelledby="history-title"
-        onCancel={onClose}
-      >
-        <header className="dialog-header">
-          <div>
-            <span className="eyebrow">Workspace</span>
-            <h2 id="history-title">Browser history</h2>
-          </div>
-          <button
-            className="icon-button"
-            type="button"
-            aria-label="Close draft history"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-        {historyQuery.isPending ? <p className="dialog-state">Loading saved versions…</p> : null}
-        {historyQuery.error ? (
-          <p className="dialog-state result-error">{errorMessage(historyQuery.error)}</p>
-        ) : null}
+      {historyQuery.isPending ? <p className="dialog-state">Loading saved versions…</p> : null}
+      {historyQuery.error ? (
+        <p className="dialog-state result-error">{errorMessage(historyQuery.error)}</p>
+      ) : null}
 
-        <ol className="history-list">
-          {historyQuery.data?.map((item) => (
-            <li key={String(item.id)}>
-              <div>
-                <strong>Revision {String(item.id)}</strong>
-                <time dateTime={item.savedAt}>{new Date(item.savedAt).toLocaleString()}</time>
-                <pre>{item.source.slice(0, 220)}</pre>
-              </div>
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={!!restoringRevision}
-                onClick={async () => {
-                  setRestoringRevision(String(item.id));
-                  setRestoreError(undefined);
-                  try {
-                    await onRestore(item.source, String(item.id));
-                    onClose();
-                  } catch (cause) {
-                    setRestoreError(errorMessage(cause));
-                  } finally {
-                    setRestoringRevision(undefined);
-                  }
-                }}
-              >
-                {restoringRevision === String(item.id) ? "Restoring…" : "Restore"}
-              </button>
-            </li>
-          ))}
-        </ol>
-        {historyQuery.data?.length === 0 ? (
-          <p className="dialog-state">No previous saves yet.</p>
-        ) : null}
-        <Notifications id="draft-history" />
-      </dialog>
-    </div>
+      <ol className="history-list">
+        {historyQuery.data?.map((item) => (
+          <li key={String(item.id)}>
+            <div>
+              <strong>Revision {String(item.id)}</strong>
+              <time dateTime={item.savedAt}>{new Date(item.savedAt).toLocaleString()}</time>
+              <pre>{item.source.slice(0, 220)}</pre>
+            </div>
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={!!restoringRevision}
+              onClick={async () => {
+                setRestoringRevision(String(item.id));
+                setRestoreError(undefined);
+                try {
+                  await onRestore(item.source, String(item.id));
+                  onClose();
+                } catch (cause) {
+                  setRestoreError(errorMessage(cause));
+                } finally {
+                  setRestoringRevision(undefined);
+                }
+              }}
+            >
+              {restoringRevision === String(item.id) ? "Restoring…" : "Restore"}
+            </button>
+          </li>
+        ))}
+      </ol>
+      {historyQuery.data?.length === 0 ? (
+        <p className="dialog-state">No previous saves yet.</p>
+      ) : null}
+      <Notifications id="draft-history" />
+    </SessionDialog>
   );
 }

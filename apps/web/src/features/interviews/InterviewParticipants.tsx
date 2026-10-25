@@ -1,6 +1,6 @@
 /** @file InterviewParticipants.tsx @description Readable participant roster and role management. @module interviews */
 import type { InterviewSnapshot, InterviewRole } from "@quorem/contracts";
-import * as Popover from "@radix-ui/react-popover";
+import * as Popover from "../../ui/Popover";
 import { SelectField } from "../../ui/SelectField";
 import { Tooltip } from "../editor/components/Tooltip";
 import { Icon } from "../editor/components/Icon";

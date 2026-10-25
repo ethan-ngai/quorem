@@ -3,6 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { BookOpen, Home, SquarePen, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "./sidebar.css";
+import { Tooltip } from "../../ui/Tooltip";
 
 /** Desktop keeps the same rail mounted; mobile uses a modal drawer. */
 export function WorkspaceSidebar({
@@ -127,44 +128,47 @@ function SidebarLinks({
       aria-label={peek ? "Quick navigation" : "Main navigation"}
       className="sidebar-content"
     >
-      <a className="sidebar-link" href="/" aria-label="Home" title="Home">
-        <Home size={17} />
-        <span>Home</span>
-      </a>
-      <a
-        className="sidebar-link"
-        href="/practice"
-        aria-label="Practice"
-        title="Practice"
-        aria-current={pathname.startsWith("/practice") ? "page" : undefined}
-      >
-        <BookOpen size={17} />
-        <span>Practice</span>
-      </a>
-      {interviews && (
-        <a
-          className="sidebar-link"
-          href="/interviews"
-          aria-label="Interviews"
-          title="Interviews"
-          aria-current={pathname.startsWith("/interview") ? "page" : undefined}
-        >
-          <Users size={17} />
-          <span>Interviews</span>
-        </a>
-      )}
-      {admin && (
-        <a
-          className="sidebar-link"
-          href="/admin/questions"
-          aria-label="Question Editor"
-          title="Question Editor"
-          aria-current={pathname.startsWith("/admin") ? "page" : undefined}
-        >
-          <SquarePen size={17} />
-          <span>Question Editor</span>
-        </a>
-      )}
+      {[
+        { href: "/", label: "Home", icon: Home, active: pathname === "/" },
+        {
+          href: "/practice",
+          label: "Practice",
+          icon: BookOpen,
+          active: pathname.startsWith("/practice"),
+        },
+        ...(interviews
+          ? [
+              {
+                href: "/interviews",
+                label: "Interviews",
+                icon: Users,
+                active: pathname.startsWith("/interview"),
+              },
+            ]
+          : []),
+        ...(admin
+          ? [
+              {
+                href: "/admin/questions",
+                label: "Question Editor",
+                icon: SquarePen,
+                active: pathname.startsWith("/admin"),
+              },
+            ]
+          : []),
+      ].map(({ href, label, icon: LinkIcon, active }) => (
+        <Tooltip key={href} content={label} side="right" disabled={!peek}>
+          <a
+            className="sidebar-link"
+            href={href}
+            aria-label={label}
+            aria-current={active ? "page" : undefined}
+          >
+            <LinkIcon size={17} />
+            <span>{label}</span>
+          </a>
+        </Tooltip>
+      ))}
     </nav>
   );
 }

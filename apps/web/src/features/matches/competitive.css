@@ -775,34 +775,6 @@
   z-index: 100;
   transform-origin: var(--radix-popover-content-transform-origin);
 }
-.problem-picker-popover[data-state="open"] {
-  animation: problem-picker-in var(--motion-standard) var(--motion-easing);
-}
-.problem-picker-popover[data-state="closed"] {
-  animation: problem-picker-out var(--motion-fast) var(--motion-easing);
-}
-@keyframes problem-picker-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-@keyframes problem-picker-out {
-  to {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .problem-picker-popover[data-state] {
-    animation-duration: 1ms;
-    transform: none;
-  }
-}
 
 .problem-picker-search input:focus-visible {
   outline: none;

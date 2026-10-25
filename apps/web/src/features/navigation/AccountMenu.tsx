@@ -1,7 +1,7 @@
 /** @file AccountMenu.tsx @description Profile menu and accessible account dialogs. @module navigation */
 import { useErrorNotification } from "../../ui/Notifications";
-import * as Popover from "@radix-ui/react-popover";
-import { SquarePen, ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
+import * as Popover from "../../ui/Popover";
+import { ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
 import { useState, type Ref } from "react";
 import { signOut, type Session } from "../auth/session";
 import { useProfile } from "../auth/profile";
@@ -34,7 +34,9 @@ export function AccountMenu({
   }
   const returnTo =
     typeof location !== "undefined" &&
-    /^\/(practice|match|invite|admin)(\/|$)/.test(location.pathname)
+    /^\/(practice|match|invite|admin|interview|interviews|interview-invite)(\/|$)/.test(
+      location.pathname,
+    )
       ? `${location.pathname}${location.search}`
       : "";
   if (!session || session.kind === "guest")
@@ -106,12 +108,6 @@ export function AccountMenu({
                       <Settings />
                       <span>Settings</span>
                     </button>
-                  ) : null}
-                  {session.user.role === "admin" ? (
-                    <a href="/admin/questions">
-                      <SquarePen />
-                      <span>Question Editor</span>
-                    </a>
                   ) : null}
                 </div>
                 <div className="account-menu-footer">
