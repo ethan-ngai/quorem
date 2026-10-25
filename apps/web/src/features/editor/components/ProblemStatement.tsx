@@ -33,11 +33,13 @@ export function ProblemStatement({
   children,
   navigation,
   beforeExamples,
+  allowTopics = true,
 }: {
   problem: StatementProblem;
   children?: ReactNode;
   navigation?: ReactNode;
   beforeExamples?: ReactNode;
+  allowTopics?: boolean;
 }) {
   const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
   const topicsVisible = revealedTopicsFor === problem.id;
@@ -50,7 +52,7 @@ export function ProblemStatement({
           <span className={`difficulty difficulty-${problem.difficulty}`}>
             {problem.difficulty}
           </span>
-          {problem.tags.length > 0 && (
+          {allowTopics && problem.tags.length > 0 && (
             <button
               className="topics-toggle"
               aria-label={topicsVisible ? "Hide topics" : "Show topics"}
@@ -64,7 +66,7 @@ export function ProblemStatement({
           )}
         </div>
       </div>
-      {problem.tags.length > 0 && (
+      {allowTopics && problem.tags.length > 0 && (
         <div
           id={topicsId}
           className="topic-list"

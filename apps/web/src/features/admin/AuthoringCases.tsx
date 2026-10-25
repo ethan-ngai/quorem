@@ -1,3 +1,5 @@
+import { Icon } from "../editor/components/Icon";
+import "../../ui/result-tabs.css";
 import { useEffect, useId, useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { TestCases } from "../editor/components/TestCases";
@@ -98,8 +100,24 @@ export function AuthoringCases({
             id={`${id}-${tab}`}
             aria-selected={collection === tab}
             aria-controls={`${id}-cases`}
+            tabIndex={collection === tab ? 0 : -1}
             onClick={() => setCollection(tab)}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const next =
+                event.key === "Home"
+                  ? "public"
+                  : event.key === "End"
+                    ? "hidden"
+                    : tab === "public"
+                      ? "hidden"
+                      : "public";
+              setCollection(next);
+              document.getElementById(`${id}-${next}`)?.focus();
+            }}
           >
+            <Icon name={tab === "public" ? "samples" : "lock"} />
             {tab === "public" ? "Examples" : "Private tests"} ({values[tab].length})
           </button>
         ))}

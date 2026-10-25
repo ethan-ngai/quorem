@@ -1,3 +1,6 @@
+import "../../ui/result-tabs.css";
+import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
+import type { QuestionHints } from "@quorem/contracts";
 import { QuestionBasics } from "../../ui/QuestionBasics";
 /** @file QuestionSetup.tsx @description Existing or custom interview questions with typed tests. @module interviews */
 import { useId, useRef, useState, type FormEvent } from "react";
@@ -37,12 +40,19 @@ export function QuestionSetup({
   busy,
   label = "Create interview",
   showTitle = true,
+  initialHints = {},
+  showHints = true,
 }: {
   onSubmit: (question: InterviewQuestionInput, title: string) => void;
   busy: boolean;
   label?: string;
   showTitle?: boolean;
+  initialHints?: QuestionHints;
+  showHints?: boolean;
 }) {
+  const [hints, setHints] = useState<QuestionHints>(initialHints);
+  const submitQuestion = (question: InterviewQuestionInput, title: string) =>
+    onSubmit({ ...question, ...(showHints ? { hints } : {}) }, title);
   const session = useSession();
   const canAuthor =
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
@@ -82,9 +92,9 @@ export function QuestionSetup({
   const catalog = useQuery({
     queryKey: ["interview-catalog", session.data?.user.id, search],
     queryFn: () =>
-      interviewRequest<{ items: { id: string; title: string; slug: string }[] }>(
-        `/v1/problems?limit=100&q=${encodeURIComponent(search)}`,
-      ),
+      interviewRequest<{
+        items: { id: string; title: string; slug: string; complexityLanguages?: string[] }[];
+      }>(`/v1/problems?limit=100&q=${encodeURIComponent(search)}`),
     enabled: mode === "catalog",
   });
   function updateSignature(next: Signature) {
@@ -111,7 +121,7 @@ export function QuestionSetup({
         setError("Choose a question.");
         return;
       }
-      onSubmit(
+      submitQuestion(
         { language, problemVersionId: selected },
         title.trim() ||
           catalog.data?.items.find((item) => item.id === selected)?.title ||
@@ -129,7 +139,7 @@ export function QuestionSetup({
           throw new Error("Add a question title and starter code.");
         }
         const staged = parseStages(stages);
-        onSubmit(
+        submitQuestion(
           {
             language,
             custom: {
@@ -159,7 +169,7 @@ export function QuestionSetup({
         setError("Add a question title and starter code.");
         return;
       }
-      onSubmit(
+      submitQuestion(
         {
           language,
           custom: {
@@ -328,6 +338,19 @@ export function QuestionSetup({
         <p className="admin-error" role="alert">
           {error}
         </p>
+      )}
+      {showHints && (
+        <QuestionHintsControls
+          complexityAvailable={
+            mode === "catalog" &&
+            !!catalog.data?.items
+              .find((item) => item.id === selected)
+              ?.complexityLanguages?.includes(language)
+          }
+          value={hints}
+          onChange={setHints}
+          disabled={busy}
+        />
       )}
       <footer className="competitive-dialog-actions">
         <span />

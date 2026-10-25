@@ -18,9 +18,10 @@ type CustomQuestion struct {
 	PrivateCases       []problems.Case    `json:"privateCases"`
 }
 type QuestionInput struct {
-	ProblemVersionID string          `json:"problemVersionId,omitempty"`
-	Custom           *CustomQuestion `json:"custom,omitempty"`
-	Language         string          `json:"language"`
+	Hints            *problems.HintVisibility `json:"hints,omitempty"`
+	ProblemVersionID string                   `json:"problemVersionId,omitempty"`
+	Custom           *CustomQuestion          `json:"custom,omitempty"`
+	Language         string                   `json:"language"`
 }
 type Create struct {
 	Title    string        `json:"title"`
@@ -47,19 +48,20 @@ type Question struct {
 	PrivateCases       []problems.Case  `json:"privateCases,omitempty"`
 }
 type Snapshot struct {
-	QuestionEpoch      string       `json:"questionEpoch"`
-	Invites            *InvitePaths `json:"invites,omitempty"`
-	LatestSubmissionID string       `json:"latestSubmissionId,omitempty"`
-	ID                 string       `json:"id"`
-	Title              string       `json:"title"`
-	State              string       `json:"state"`
-	HostID             string       `json:"hostId"`
-	Role               string       `json:"role"`
-	Members            []Member     `json:"members"`
-	Question           Question     `json:"question"`
-	Document           Document     `json:"document"`
-	InvitePath         string       `json:"invitePath,omitempty"`
-	Version            int64        `json:"version"`
+	Hints              *problems.HintVisibility `json:"hints,omitempty"`
+	QuestionEpoch      string                   `json:"questionEpoch"`
+	Invites            *InvitePaths             `json:"invites,omitempty"`
+	LatestSubmissionID string                   `json:"latestSubmissionId,omitempty"`
+	ID                 string                   `json:"id"`
+	Title              string                   `json:"title"`
+	State              string                   `json:"state"`
+	HostID             string                   `json:"hostId"`
+	Role               string                   `json:"role"`
+	Members            []Member                 `json:"members"`
+	Question           Question                 `json:"question"`
+	Document           Document                 `json:"document"`
+	InvitePath         string                   `json:"invitePath,omitempty"`
+	Version            int64                    `json:"version"`
 }
 type Update struct {
 	ClientID string          `json:"clientID"`

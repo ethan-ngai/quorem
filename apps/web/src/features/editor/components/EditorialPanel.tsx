@@ -33,22 +33,24 @@ export function EditorialPanel({
   versionId,
   language = "python",
   inMatch = false,
+  available = true,
 }: {
   identity: DevelopmentIdentity;
   versionId: string;
   language?: string;
   inMatch?: boolean;
+  available?: boolean;
 }) {
   const [complexityOpen, setComplexityOpen] = useState(false);
   const regionId = useId();
   const complexity = useQuery({
     queryKey: ["complexity", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
-    enabled: complexityOpen && !inMatch,
+    enabled: complexityOpen && !inMatch && available,
     retry: false,
   });
   const selected = complexity.data?.find((item) => item.language === language);
-  if (inMatch) return null;
+  if (inMatch || !available) return null;
   return (
     <section className="editorial-section" aria-label="Complexity">
       <button

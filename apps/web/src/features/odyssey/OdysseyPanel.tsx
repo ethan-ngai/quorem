@@ -12,6 +12,7 @@ export function OdysseyPanel({
   introduction,
   children,
   selectedLevel,
+  allowTopics = true,
 }: {
   progress: OdysseyProgress;
   problem?: StatementProblem;
@@ -19,6 +20,7 @@ export function OdysseyPanel({
   introduction?: string;
   children?: ReactNode;
   selectedLevel?: number;
+  allowTopics?: boolean;
 }) {
   const index = Math.min((selectedLevel ?? progress.level) - 1, progress.levels.length - 1);
   const level = progress.levels[index];
@@ -37,6 +39,7 @@ export function OdysseyPanel({
   return (
     <ProblemStatement
       problem={statement}
+      allowTopics={allowTopics}
       navigation={
         <>
           {(problem?.statementMarkdown ?? introduction) && (

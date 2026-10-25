@@ -2571,6 +2571,61 @@
           }
         }
       }
+    },
+    "/v1/interviews/{id}/hints": {
+      "post": {
+        "operationId": "setInterviewHints",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionHints"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2895,6 +2950,15 @@
           },
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
+          },
+          "complexityLanguages": {
+            "type": "array",
+            "description": "Languages with published complexity; contains no costs or solution source.",
+            "items": {
+              "$ref": "#/components/schemas/Language"
+            },
+            "maxItems": 4,
+            "uniqueItems": true
           }
         },
         "required": [
@@ -3402,6 +3466,9 @@
               },
               "focus": {
                 "$ref": "#/components/schemas/MatchRuleAction"
+              },
+              "hints": {
+                "$ref": "#/components/schemas/QuestionHints"
               }
             },
             "additionalProperties": false
@@ -3756,6 +3823,9 @@
           },
           "focus": {
             "$ref": "#/components/schemas/MatchRuleAction"
+          },
+          "hints": {
+            "$ref": "#/components/schemas/QuestionHints"
           }
         },
         "required": ["clipboard", "focus"],
@@ -4480,6 +4550,9 @@
           },
           "language": {
             "$ref": "#/components/schemas/Language"
+          },
+          "hints": {
+            "$ref": "#/components/schemas/QuestionHints"
           }
         },
         "required": ["language"],
@@ -4589,6 +4662,9 @@
           },
           "invites": {
             "$ref": "#/components/schemas/InterviewInvitePaths"
+          },
+          "hints": {
+            "$ref": "#/components/schemas/QuestionHints"
           }
         },
         "required": [
@@ -4742,6 +4818,20 @@
         },
         "required": ["index", "status", "caseId", "case"],
         "additionalProperties": false
+      },
+      "QuestionHints": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "topics": {
+            "type": "boolean",
+            "description": "Allow revealing topics; defaults to true."
+          },
+          "complexity": {
+            "type": "boolean",
+            "description": "Allow revealing published complexity; defaults to false for sessions."
+          }
+        }
       }
     }
   }

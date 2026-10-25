@@ -308,6 +308,15 @@
         },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
+        },
+        "complexityLanguages": {
+          "type": "array",
+          "description": "Languages with published complexity; contains no costs or solution source.",
+          "items": {
+            "$ref": "#/$defs/Language"
+          },
+          "maxItems": 4,
+          "uniqueItems": true
         }
       },
       "required": [
@@ -815,6 +824,9 @@
             },
             "focus": {
               "$ref": "#/$defs/MatchRuleAction"
+            },
+            "hints": {
+              "$ref": "#/$defs/QuestionHints"
             }
           },
           "additionalProperties": false
@@ -1169,6 +1181,9 @@
         },
         "focus": {
           "$ref": "#/$defs/MatchRuleAction"
+        },
+        "hints": {
+          "$ref": "#/$defs/QuestionHints"
         }
       },
       "required": ["clipboard", "focus"],
@@ -1893,6 +1908,9 @@
         },
         "language": {
           "$ref": "#/$defs/Language"
+        },
+        "hints": {
+          "$ref": "#/$defs/QuestionHints"
         }
       },
       "required": ["language"],
@@ -2002,6 +2020,9 @@
         },
         "invites": {
           "$ref": "#/$defs/InterviewInvitePaths"
+        },
+        "hints": {
+          "$ref": "#/$defs/QuestionHints"
         }
       },
       "required": [
@@ -2155,6 +2176,20 @@
       },
       "required": ["index", "status", "caseId", "case"],
       "additionalProperties": false
+    },
+    "QuestionHints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "topics": {
+          "type": "boolean",
+          "description": "Allow revealing topics; defaults to true."
+        },
+        "complexity": {
+          "type": "boolean",
+          "description": "Allow revealing published complexity; defaults to false for sessions."
+        }
+      }
     }
   },
   "$ref": "#/$defs/EventEnvelope"

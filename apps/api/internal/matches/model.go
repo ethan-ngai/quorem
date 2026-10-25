@@ -1,6 +1,7 @@
 package matches
 
 import (
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"time"
 )
@@ -22,8 +23,9 @@ type InvitePreview struct {
 }
 
 type Rules struct {
-	Clipboard string `json:"clipboard"`
-	Focus     string `json:"focus"`
+	Hints     *problems.HintVisibility `json:"hints,omitempty"`
+	Clipboard string                   `json:"clipboard"`
+	Focus     string                   `json:"focus"`
 }
 type RuleEvent struct {
 	ID         string    `json:"id"`

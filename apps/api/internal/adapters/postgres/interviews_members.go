@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 	"strings"
 	"unicode/utf8"
@@ -30,7 +31,14 @@ func (s *Store) UpdateInterviewQuestion(ctx context.Context, user, id, key strin
 				return err
 			}
 		}
-		data, err := json.Marshal(f)
+		hints := q.Hints
+		if hints == nil {
+			hints = v.snapshot.Hints
+		}
+		if user != v.snapshot.HostID && (hints.TopicsAllowed() != v.snapshot.Hints.TopicsAllowed() || hints.ComplexityAllowed() != v.snapshot.Hints.ComplexityAllowed()) {
+			return failure("forbidden", 403, "Only the host can change question hints")
+		}
+		data, err := encodeInterviewQuestion(f, hints)
 		if err != nil {
 			return err
 		}
@@ -246,4 +254,19 @@ func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name
 		return empty, err
 	}
 	return s.Interview(ctx, user, id)
+}
+
+// Changing disclosures never replaces the question or shared document.
+func (s *Store) SetInterviewHints(ctx context.Context, user, id, key string, hints problems.HintVisibility) (interviews.Snapshot, error) {
+	return s.mutateInterview(ctx, user, id, key, "hints", hints, func(tx pgx.Tx, v interviewRecord) error {
+		if user != v.snapshot.HostID {
+			return failure("forbidden", 403, "Only the host can change question hints")
+		}
+		data, err := json.Marshal(hints)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE interviews SET question=jsonb_set(question,'{hints}',$2::jsonb) WHERE id=$1`, id, data)
+		return err
+	})
 }
