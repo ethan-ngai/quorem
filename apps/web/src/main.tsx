@@ -33,6 +33,20 @@ const MatchPage = lazy(() =>
   import("./features/matches/MatchPage").then((module) => ({ default: module.MatchPage })),
 );
 
+const InterviewHub = lazy(() =>
+  import("./features/interviews/InterviewHub").then((module) => ({ default: module.InterviewHub })),
+);
+const InterviewPage = lazy(() =>
+  import("./features/interviews/InterviewPage").then((module) => ({
+    default: module.InterviewPage,
+  })),
+);
+const InterviewInvite = lazy(() =>
+  import("./features/interviews/InterviewInvite").then((module) => ({
+    default: module.InterviewInvite,
+  })),
+);
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, refetchOnWindowFocus: false },
@@ -120,7 +134,61 @@ const adminRoute = createRoute({
     </Suspense>
   ),
 });
+const interviewsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/interviews",
+  component: () => (
+    <Suspense
+      fallback={
+        <main className="workspace-loading" role="status">
+          Opening interviews…
+        </main>
+      }
+    >
+      <InterviewHub />
+    </Suspense>
+  ),
+});
+const interviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/interview/$id",
+  component: function InterviewRoute() {
+    const { id } = interviewRoute.useParams();
+    return (
+      <Suspense
+        fallback={
+          <main className="workspace-loading" role="status">
+            Opening interview…
+          </main>
+        }
+      >
+        <InterviewPage id={id} />
+      </Suspense>
+    );
+  },
+});
+const interviewInviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/interview-invite/$token",
+  component: function InterviewInviteRoute() {
+    const { token } = interviewInviteRoute.useParams();
+    return (
+      <Suspense
+        fallback={
+          <main className="workspace-loading" role="status">
+            Opening invitation…
+          </main>
+        }
+      >
+        <InterviewInvite token={token} />
+      </Suspense>
+    );
+  },
+});
 const routeTree = rootRoute.addChildren([
+  interviewsRoute,
+  interviewRoute,
+  interviewInviteRoute,
   adminRoute,
   indexRoute,
   loginRoute,

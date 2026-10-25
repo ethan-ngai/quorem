@@ -1,0 +1,78 @@
+/** @file SessionDialog.tsx @description Shared competitive dialog chrome for session setup and membership. @module ui */
+import * as Dialog from "@radix-ui/react-dialog";
+import type { ReactNode } from "react";
+import { Icon } from "../features/editor/components/Icon";
+import { Tooltip } from "../features/editor/components/Tooltip";
+
+export function SessionDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  descriptionHidden = false,
+  children,
+  actions,
+  pending = false,
+  className = "",
+  onExited,
+  returnFocus,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: ReactNode;
+  description: string;
+  descriptionHidden?: boolean;
+  children: ReactNode;
+  actions?: ReactNode;
+  pending?: boolean;
+  className?: string;
+  onExited?: () => void;
+  returnFocus?: () => void;
+}) {
+  return (
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!pending) onOpenChange(value);
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="settings-backdrop" />
+        <Dialog.Content
+          className={`competitive-dialog ${className}`}
+          onCloseAutoFocus={(event) => {
+            if (returnFocus) {
+              event.preventDefault();
+              returnFocus();
+            }
+          }}
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget && !open) onExited?.();
+          }}
+        >
+          <header className="competitive-dialog-heading">
+            <div>
+              <Dialog.Title>{title}</Dialog.Title>
+              <Dialog.Description
+                className={descriptionHidden ? "match-dialog-description" : undefined}
+              >
+                {description}
+              </Dialog.Description>
+            </div>
+            <div className="lobby-heading-actions">
+              {actions}
+              <Tooltip content="Close">
+                <Dialog.Close asChild>
+                  <button className="icon-button" aria-label="Close" disabled={pending}>
+                    <Icon name="close" />
+                  </button>
+                </Dialog.Close>
+              </Tooltip>
+            </div>
+          </header>
+          {children}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}

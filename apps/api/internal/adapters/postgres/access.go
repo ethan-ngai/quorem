@@ -9,7 +9,7 @@ import (
 )
 
 func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabilities, error) {
-	c := access.Capabilities{GuestConcurrency: 2}
+	c := access.Capabilities{GuestConcurrency: 2, InterviewConcurrency: 1}
 	var kind string
 	var disabled bool
 	if err := tx.QueryRow(ctx, "SELECT kind,disabled FROM users WHERE id=$1", owner).Scan(&kind, &disabled); err != nil {
@@ -20,6 +20,14 @@ func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabili
 	}
 
 	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','matches.host_guests') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp())),EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','intelligence.hosted') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp())),EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','experimental') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, owner).Scan(&c.HostGuests, &c.HostedIntelligence, &c.Experimental)
+	if err != nil {
+		return c, err
+	}
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp())),EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','problems.odyssey') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, owner).Scan(&c.Interviews, &c.Odyssey)
+	if err != nil {
+		return c, err
+	}
+	err = tx.QueryRow(ctx, `SELECT role='admin' OR EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','questions.custom') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp())) FROM users WHERE id=$1`, owner).Scan(&c.AuthorCustomQuestions)
 	if err != nil {
 		return c, err
 	}
@@ -35,6 +43,8 @@ func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabili
 			return c, err
 		}
 		switch key {
+		case "interview_concurrency":
+			c.InterviewConcurrency = min(value, 100)
 		case "guest_concurrency":
 			c.GuestConcurrency = min(value, 8)
 		}
@@ -59,7 +69,7 @@ func (s *Store) ApplyGrant(ctx context.Context, g access.Grant, dry bool) error 
 	if g.OperationID == "" || g.UserID == "" || g.Actor == "" || g.Reason == "" || g.Reference == "" {
 		return failure("invalid_input", 400, "Operation, target, actor, reason and reference are required")
 	}
-	if g.Scope != "admin" && g.Scope != "internal" && g.Scope != "matches.host_guests" && g.Scope != "intelligence.hosted" && g.Scope != "experimental" {
+	if g.Scope != "admin" && g.Scope != "internal" && g.Scope != "matches.host_guests" && g.Scope != "intelligence.hosted" && g.Scope != "experimental" && g.Scope != "interviews.host" && g.Scope != "problems.odyssey" && g.Scope != "questions.custom" {
 		return failure("invalid_input", 400, "Unknown access scope")
 	}
 	if g.Source != "manual" && g.Source != "internal" && g.Source != "subscription" {
@@ -149,6 +159,8 @@ func (s *Store) ApplyQuota(ctx context.Context, owner, resource, actor, reason, 
 	switch resource {
 	case "guest_concurrency":
 		maxValue = 8
+	case "interview_concurrency":
+		maxValue = 100
 	}
 	if value < 1 || value > maxValue || actor == "" || reason == "" || operation == "" {
 		return failure("invalid_input", 400, "Invalid quota override")

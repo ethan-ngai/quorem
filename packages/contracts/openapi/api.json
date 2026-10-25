@@ -937,6 +937,14 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "library",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["global", "private"]
+            }
           }
         ]
       }
@@ -1552,6 +1560,1017 @@
           }
         }
       }
+    },
+    "/v1/workspaces/{id}/odyssey": {
+      "get": {
+        "operationId": "getOdysseyProgress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OdysseyProgress"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews": {
+      "get": {
+        "operationId": "listInterviews",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterviewSnapshot"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createInterview",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}": {
+      "get": {
+        "operationId": "getInterview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteInterview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Interview deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["deleted"],
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/question": {
+      "put": {
+        "operationId": "setInterviewQuestion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewQuestionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/document": {
+      "get": {
+        "operationId": "getInterviewDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/updates": {
+      "get": {
+        "operationId": "getInterviewUpdates",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "epoch",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewUpdates"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "pushInterviewUpdates",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewUpdates"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewPush"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/members": {
+      "post": {
+        "operationId": "setInterviewMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "$ref": "#/components/schemas/InterviewRole"
+                  }
+                },
+                "required": ["userId", "role"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/members/{userId}/remove": {
+      "post": {
+        "operationId": "removeInterviewMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/close": {
+      "post": {
+        "operationId": "closeInterview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/submissions": {
+      "post": {
+        "operationId": "runInterviewSubmission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Submission"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["run", "submit"]
+                  }
+                },
+                "required": ["kind"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/submissions/{submissionId}": {
+      "get": {
+        "operationId": "getInterviewSubmission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Submission"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interview-invites/{token}": {
+      "get": {
+        "operationId": "previewInterviewInvite",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewPreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interview-invites/{token}/join": {
+      "post": {
+        "operationId": "joinInterviewInvite",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/presence": {
+      "get": {
+        "operationId": "getInterviewPresence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterviewPresence"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "setInterviewPresence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterviewPresence"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewPresence"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/language": {
+      "post": {
+        "operationId": "switchInterviewLanguage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "$ref": "#/components/schemas/Language"
+                  },
+                  "epoch": {
+                    "type": "string"
+                  }
+                },
+                "required": ["language", "epoch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/cases/{caseId}/visibility": {
+      "post": {
+        "operationId": "setInterviewCaseVisibility",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "caseId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revealed": {
+                    "type": "boolean"
+                  },
+                  "questionEpoch": {
+                    "type": "string"
+                  }
+                },
+                "required": ["revealed", "questionEpoch"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1779,6 +2798,12 @@
           },
           "expected": {
             "$ref": "#/components/schemas/WireValue"
+          },
+          "calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MethodCall"
+            }
           }
         },
         "required": ["args"],
@@ -1798,9 +2823,15 @@
           },
           "explanation": {
             "type": "string"
+          },
+          "calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MethodCall"
+            }
           }
         },
-        "required": ["args", "expected"],
+        "required": ["args"],
         "additionalProperties": false
       },
       "ProblemVersion": {
@@ -1861,6 +2892,9 @@
             "items": {
               "$ref": "#/components/schemas/LanguageImplementation"
             }
+          },
+          "odyssey": {
+            "$ref": "#/components/schemas/Odyssey"
           }
         },
         "required": [
@@ -1974,6 +3008,9 @@
               "$ref": "#/components/schemas/CustomCase"
             },
             "maxItems": 20
+          },
+          "level": {
+            "type": "integer"
           }
         },
         "required": ["workspaceId", "kind", "source"],
@@ -2146,6 +3183,12 @@
           },
           "infrastructureError": {
             "type": "string"
+          },
+          "privateCaseResults": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewCaseResult"
+            }
           }
         },
         "required": ["id", "workspaceId", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
@@ -2913,6 +3956,9 @@
             "items": {
               "$ref": "#/components/schemas/LanguageImplementation"
             }
+          },
+          "odyssey": {
+            "$ref": "#/components/schemas/Odyssey"
           }
         },
         "additionalProperties": false,
@@ -2965,6 +4011,15 @@
             "maxItems": 4,
             "items": {
               "$ref": "#/components/schemas/EditorialSolution"
+            }
+          },
+          "odysseyHiddenCases": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/CustomCase"
+              }
             }
           }
         },
@@ -3165,9 +4220,523 @@
           },
           "guestConcurrency": {
             "type": "integer"
+          },
+          "interviews": {
+            "type": "boolean"
+          },
+          "odyssey": {
+            "type": "boolean"
+          },
+          "authorCustomQuestions": {
+            "type": "boolean"
+          },
+          "interviewConcurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
           }
         },
-        "required": ["hostGuests", "hostedIntelligence", "experimental", "guestConcurrency"]
+        "required": [
+          "hostGuests",
+          "hostedIntelligence",
+          "experimental",
+          "guestConcurrency",
+          "authorCustomQuestions",
+          "interviewConcurrency"
+        ]
+      },
+      "MethodCall": {
+        "type": "object",
+        "properties": {
+          "methodName": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WireValue"
+            }
+          },
+          "expected": {
+            "$ref": "#/components/schemas/WireValue"
+          }
+        },
+        "required": ["methodName", "args"],
+        "additionalProperties": false
+      },
+      "OdysseyLevel": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "statementMarkdown": {
+            "type": "string"
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Signature"
+            },
+            "minItems": 1,
+            "maxItems": 16
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemExample"
+            },
+            "minItems": 1,
+            "maxItems": 20
+          }
+        },
+        "required": ["title", "statementMarkdown", "methods", "examples"],
+        "additionalProperties": false
+      },
+      "Odyssey": {
+        "type": "object",
+        "properties": {
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OdysseyLevel"
+            },
+            "minItems": 1,
+            "maxItems": 8
+          }
+        },
+        "required": ["levels"],
+        "additionalProperties": false
+      },
+      "OdysseyProgress": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "integer"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OdysseyLevel"
+            }
+          },
+          "totalLevels": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          }
+        },
+        "required": ["level", "completed", "levels"],
+        "additionalProperties": false
+      },
+      "InterviewRole": {
+        "type": "string",
+        "enum": ["interviewer", "interviewee"]
+      },
+      "InterviewDocument": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "epoch": {
+            "type": "string"
+          }
+        },
+        "required": ["source", "version", "epoch"],
+        "additionalProperties": false
+      },
+      "InterviewUpdate": {
+        "type": "object",
+        "properties": {
+          "clientID": {
+            "type": "string"
+          },
+          "changes": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": ["clientID", "changes"],
+        "additionalProperties": false
+      },
+      "InterviewUpdates": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "epoch": {
+            "type": "string"
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewUpdate"
+            }
+          }
+        },
+        "required": ["version", "epoch", "updates"],
+        "additionalProperties": false
+      },
+      "InterviewPush": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "epoch": {
+            "type": "string"
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewUpdate"
+            },
+            "minItems": 1,
+            "maxItems": 32
+          }
+        },
+        "required": ["version", "epoch", "updates"],
+        "additionalProperties": false
+      },
+      "InterviewCustomQuestion": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "statementMarkdown": {
+            "type": "string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/Signature"
+          },
+          "starterSource": {
+            "type": "string"
+          },
+          "publicCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomCase"
+            }
+          },
+          "privateCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomCase"
+            }
+          },
+          "odyssey": {
+            "$ref": "#/components/schemas/Odyssey"
+          },
+          "odysseyHiddenCases": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/components/schemas/CustomCase"
+              }
+            }
+          }
+        },
+        "required": [
+          "title",
+          "statementMarkdown",
+          "signature",
+          "starterSource",
+          "publicCases",
+          "privateCases"
+        ],
+        "additionalProperties": false,
+        "dependentRequired": {
+          "odyssey": ["odysseyHiddenCases"],
+          "odysseyHiddenCases": ["odyssey"]
+        }
+      },
+      "InterviewQuestionInput": {
+        "type": "object",
+        "properties": {
+          "problemVersionId": {
+            "type": "string"
+          },
+          "custom": {
+            "$ref": "#/components/schemas/InterviewCustomQuestion"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          }
+        },
+        "required": ["language"],
+        "additionalProperties": false
+      },
+      "InterviewMember": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/InterviewRole"
+          },
+          "guest": {
+            "type": "boolean"
+          }
+        },
+        "required": ["userId", "name", "role", "guest"],
+        "additionalProperties": false
+      },
+      "InterviewQuestion": {
+        "type": "object",
+        "properties": {
+          "problem": {
+            "$ref": "#/components/schemas/ProblemVersion"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          },
+          "privateCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomCase"
+            }
+          },
+          "progress": {
+            "$ref": "#/components/schemas/OdysseyProgress"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Language"
+            }
+          },
+          "privateCaseDetails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewCaseDetail"
+            }
+          },
+          "revealedCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewCaseDetail"
+            }
+          }
+        },
+        "required": ["problem", "language", "languages"],
+        "additionalProperties": false
+      },
+      "InterviewSnapshot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["active", "closed"]
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/InterviewRole"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewMember"
+            }
+          },
+          "question": {
+            "$ref": "#/components/schemas/InterviewQuestion"
+          },
+          "document": {
+            "$ref": "#/components/schemas/InterviewDocument"
+          },
+          "invitePath": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "latestSubmissionId": {
+            "type": "string"
+          },
+          "questionEpoch": {
+            "type": "string"
+          },
+          "invites": {
+            "$ref": "#/components/schemas/InterviewInvitePaths"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "state",
+          "hostId",
+          "role",
+          "members",
+          "question",
+          "document",
+          "version",
+          "questionEpoch"
+        ],
+        "additionalProperties": false
+      },
+      "InterviewCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "question": {
+            "$ref": "#/components/schemas/InterviewQuestionInput"
+          }
+        },
+        "required": ["title", "question"],
+        "additionalProperties": false
+      },
+      "InterviewPreview": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/InterviewRole"
+          }
+        },
+        "required": ["title", "sessionId", "state", "role"],
+        "additionalProperties": false
+      },
+      "InterviewPresence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clientID", "version", "epoch", "anchor", "head"],
+        "properties": {
+          "clientID": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "epoch": {
+            "type": "string"
+          },
+          "anchor": {
+            "type": "integer"
+          },
+          "head": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "InterviewInvitePaths": {
+        "type": "object",
+        "properties": {
+          "interviewer": {
+            "type": "string"
+          },
+          "interviewee": {
+            "type": "string"
+          }
+        },
+        "required": ["interviewer", "interviewee"],
+        "additionalProperties": false
+      },
+      "InterviewCaseDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CustomCase"
+          },
+          "revealed": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "case", "revealed"],
+        "additionalProperties": false
+      },
+      "InterviewCaseResult": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "executed",
+              "accepted",
+              "wrong_answer",
+              "syntax_error",
+              "runtime_error",
+              "time_limit",
+              "memory_limit",
+              "output_limit",
+              "invalid_output"
+            ]
+          },
+          "actual": {
+            "$ref": "#/components/schemas/WireValue"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/WireValue"
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            }
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/CustomCase"
+          }
+        },
+        "required": ["index", "status", "caseId", "case"],
+        "additionalProperties": false
       }
     }
   }

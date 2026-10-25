@@ -1,40 +1,25 @@
-/** @file InvitationActions.tsx @description Shared lobby invitation controls and feedback. @module matches */
-import { Icon } from "../editor/components/Icon";
-import { Tooltip } from "../editor/components/Tooltip";
-import { CopyFeedbackIcon } from "./CopyFeedbackIcon";
-
+/** @file InvitationActions.tsx @description Competitive invitations use the shared share controls. @module matches */
+import { ShareActions } from "../../ui/ShareActions";
 export function InvitationActions({
+  url,
   copied,
   sharing,
   onCopy,
   onShare,
 }: {
+  url: string;
   copied: boolean;
   sharing: boolean;
   onCopy: () => void;
   onShare: () => void;
 }) {
   return (
-    <div className="invitation-actions">
-      <Tooltip content={copied ? "Copied" : "Copy invitation"}>
-        <button
-          className={`icon-button copy-invitation ${copied ? "is-copied" : ""}`}
-          aria-label={copied ? "Copied" : "Copy invitation"}
-          onClick={onCopy}
-        >
-          <CopyFeedbackIcon copied={copied} />
-        </button>
-      </Tooltip>
-      <Tooltip content="Share invitation, or copy if sharing is unavailable">
-        <button
-          className="icon-button"
-          aria-label="Share invitation"
-          disabled={sharing}
-          onClick={onShare}
-        >
-          <Icon name="share" />
-        </button>
-      </Tooltip>
-    </div>
+    <ShareActions
+      data={{ title: "Quorem match", text: "Join my coding match on Quorem.", url }}
+      copied={copied}
+      sharing={sharing}
+      onCopy={onCopy}
+      onShare={onShare}
+    />
   );
 }

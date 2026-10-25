@@ -66,8 +66,10 @@ func (s *Server) Handler() http.Handler {
 		r.SetPathValue("action", "settings")
 		s.mutateMatch(w, r)
 	})
+	s.registerInterviews(mux)
 	s.registerMatchLanguages(mux)
 	s.registerAdminQuestions(mux)
+	s.registerOdyssey(mux)
 	s.registerEditorials(mux)
 	s.registerRealtime(mux)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +86,7 @@ func (s *Server) Handler() http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", u)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key, X-Dev-User, Authorization")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)
@@ -92,8 +94,9 @@ func (s *Server) Handler() http.Handler {
 		}
 		r.Header.Del("X-Quorem-Owner")
 		public := r.URL.Path == "/health" || (r.Method == "GET" && (r.URL.Path == "/v1/problems" || strings.HasPrefix(r.URL.Path, "/v1/problems/") || strings.HasPrefix(r.URL.Path, "/v1/problem-versions/") || strings.HasPrefix(r.URL.Path, "/v1/match-invites/")))
+		public = public || interviewPath(r.URL.Path)
 		public = public || (r.Method == "POST" && (r.URL.Path == "/v1/guest-sessions" || (strings.HasPrefix(r.URL.Path, "/v1/match-invites/") && strings.HasSuffix(r.URL.Path, "/guest"))))
-		if s.PublicGuestRequest != nil && (strings.HasPrefix(r.URL.Path, "/v1/match-invites/") || r.URL.Path == "/v1/guest-sessions") {
+		if s.PublicGuestRequest != nil && (strings.HasPrefix(r.URL.Path, "/v1/match-invites/") || strings.HasPrefix(r.URL.Path, "/v1/interview-invites/") || r.URL.Path == "/v1/guest-sessions") {
 			peer, _, _ := net.SplitHostPort(r.RemoteAddr)
 			allowed, err := s.PublicGuestRequest(r.Context(), peer)
 			if err != nil {
@@ -122,7 +125,21 @@ func (s *Server) Handler() http.Handler {
 			}
 			r = r.WithContext(identity.With(r.Context(), principal))
 			r.Header.Set("X-Quorem-Owner", principal.UserID)
-		} else if cookie, e := r.Cookie(guestCookie); e == nil && s.Store != nil {
+		} else if cookie, e := r.Cookie(interviewGuestCookie); e == nil && interviewPath(r.URL.Path) && s.Store != nil {
+			repo, ok := s.Store.(InterviewRepository)
+			if !ok {
+				s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Interviews unavailable"})
+				return
+			}
+			p, e := repo.InterviewGuestIdentity(r.Context(), cookie.Value)
+			if e == nil {
+				if r.Method != "GET" && !s.guestOrigin(w, r) {
+					return
+				}
+				r = r.WithContext(identity.With(r.Context(), p))
+				r.Header.Set("X-Quorem-Owner", p.UserID)
+			}
+		} else if cookie, e := r.Cookie(guestCookie); e == nil && s.Store != nil && !interviewPath(r.URL.Path) {
 			p, e := s.Store.GuestIdentity(r.Context(), cookie.Value)
 			if e != nil {
 				if !public {

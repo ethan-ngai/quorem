@@ -359,7 +359,7 @@ kbd {
   flex-shrink: 0;
 }
 .workspace-tooltip {
-  z-index: 100;
+  z-index: var(--layer-tooltip, 400);
   max-width: min(280px, var(--radix-tooltip-content-available-width));
   padding: 5px 8px;
   border: 1px solid var(--color-border);
@@ -663,18 +663,9 @@ kbd {
   inset: 0;
   z-index: 20;
 }
-.dialog-scrim {
-  position: fixed;
-  z-index: 30;
-  inset: 0;
+.competitive-dialog.history-dialog {
   display: grid;
-  place-items: center;
-  padding: 24px;
-  background: oklch(0.1 0 0 / 0.35);
-}
-.history-dialog {
-  display: grid;
-  width: min(760px, 100%);
+  width: min(760px, calc(100vw - 32px));
   max-height: min(700px, 90dvh);
   padding: 0;
   border: 1px solid var(--color-border);
@@ -683,22 +674,9 @@ kbd {
   color: var(--color-text);
   grid-template-rows: auto minmax(0, 1fr);
 }
-.history-dialog::backdrop,
-.match-dialog::backdrop {
-  background: oklch(0.1 0 0 / 0.45);
-}
-.dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.history-dialog .competitive-dialog-heading {
   padding: 18px 24px;
   border-bottom: 1px solid var(--color-border);
-}
-.dialog-header h2 {
-  margin: 4px 0 0;
-  font-size: 20px;
-  font-weight: 550;
-  letter-spacing: -0.035em;
 }
 .history-list {
   margin: 0;
@@ -1518,6 +1496,15 @@ kbd {
   min-width: 0;
   overflow: hidden;
 }
+.authoring-case-browser {
+  height: 280px;
+  margin: var(--space-3) 0 var(--space-5);
+  background: var(--color-field);
+}
+.case-call + .case-call {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
 .case-rail {
   display: flex;
   flex-direction: column;
@@ -1661,8 +1648,24 @@ kbd {
 }
 
 .icon-button.destructive-icon,
-.icon-button.destructive-icon:hover {
-  color: var(--color-error);
+.button.button-destructive-hover {
+  transition:
+    color var(--motion-fast) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing),
+    border-color var(--motion-fast) var(--motion-easing);
+}
+.icon-button.destructive-icon:hover,
+.icon-button.destructive-icon:focus-visible,
+.button.button-destructive-hover:hover,
+.button.button-destructive-hover:focus-visible {
+  color: var(--color-error-button);
+  background: color-mix(in oklch, var(--color-error) 12%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .icon-button.destructive-icon,
+  .button.button-destructive-hover {
+    transition: none;
+  }
 }
 .mobile-tabs button {
   display: inline-flex;
@@ -1825,12 +1828,13 @@ kbd {
   stroke-dashoffset: 1;
   opacity: 0;
   transition:
-    stroke-dashoffset var(--interaction-reveal) var(--interaction-ease),
-    opacity var(--interaction-fast) var(--interaction-ease);
+    stroke-dashoffset var(--motion-standard) var(--motion-easing),
+    opacity 0s linear var(--motion-standard);
 }
 .visibility-icon[data-visible="false"] .eye-slash {
   stroke-dashoffset: 0;
   opacity: 1;
+  transition-delay: 0s;
 }
 .app-shell details::details-content {
   opacity: 0;
@@ -2275,4 +2279,40 @@ kbd {
 .python-editor .cm-scroller::-webkit-scrollbar-track:horizontal {
   margin-left: calc(var(--workspace-control-inset) - 3px);
   margin-right: calc(var(--workspace-control-inset) - 3px);
+}
+
+.case-group-label {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 8px 8px 4px;
+}
+.case-group-label:not(:first-child) {
+  border-top: 1px solid var(--color-border);
+  margin-top: 8px;
+}
+.case-visibility-action {
+  display: flex;
+  justify-content: flex-end;
+  height: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.case-visibility-action .icon-button {
+  position: relative;
+  background: var(--color-field);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eye-slash {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-tooltip[data-state] {
+    animation: none;
+  }
 }

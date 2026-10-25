@@ -8,7 +8,11 @@ it("invokes native sharing synchronously from the gesture without copying", asyn
   const share = vi.fn().mockResolvedValue(undefined);
   const writeText = vi.fn();
   const result = shareInvitation(url, { share, clipboard: { writeText } });
-  expect(share).toHaveBeenCalledWith({ title: "Quorem match", url });
+  expect(share).toHaveBeenCalledWith({
+    title: "Quorem match",
+    text: "Join my coding match on Quorem.",
+    url,
+  });
   expect(await result).toBe("shared");
   expect(writeText).not.toHaveBeenCalled();
 });

@@ -6,6 +6,10 @@ export type Session = {
   strongUntil?: number;
   capabilities?: {
     hostGuests: boolean;
+    authorCustomQuestions: boolean;
+    interviewConcurrency: number;
+    interviews: boolean;
+    odyssey: boolean;
     hostedIntelligence: boolean;
     experimental: boolean;
     guestConcurrency: number;
@@ -84,7 +88,9 @@ export async function authMethod(): Promise<"password" | "cognito"> {
 }
 export function signInDestination(search: string = location.search ?? ""): string {
   const requested = new URLSearchParams(search).get("returnTo") ?? "";
-  return /^\/(practice|match|invite|admin)(\/|\?|#|$)/.test(requested) &&
+  return /^\/(practice|match|invite|admin|interviews|interview|interview-invite)(\/|\?|#|$)/.test(
+    requested,
+  ) &&
     !requested.includes("\\") &&
     !/[\r\n]/.test(requested)
     ? requested

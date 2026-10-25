@@ -1,11 +1,20 @@
 /** @file WorkspaceSidebar.tsx @description In-place desktop rail expansion and a mobile navigation drawer. @module navigation */
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Home, SquarePen } from "lucide-react";
+import { BookOpen, Home, SquarePen, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "./sidebar.css";
+import { Tooltip } from "../../ui/Tooltip";
 
 /** Desktop keeps the same rail mounted; mobile uses a modal drawer. */
-export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin: boolean }) {
+export function WorkspaceSidebar({
+  pathname,
+  admin,
+  interviews = false,
+}: {
+  pathname: string;
+  admin: boolean;
+  interviews?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [mobile, setMobile] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
@@ -54,7 +63,13 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
               <NavigationToggleIcon open={open} />
             </button>
           </div>
-          <SidebarLinks pathname={pathname} admin={admin} peek={!open} id="desktop-navigation" />
+          <SidebarLinks
+            pathname={pathname}
+            admin={admin}
+            interviews={interviews}
+            peek={!open}
+            id="desktop-navigation"
+          />
         </aside>
       </>
     );
@@ -86,7 +101,7 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
               <span className="brand-mark" aria-hidden="true" />
             </a>
           </div>
-          <SidebarLinks pathname={pathname} admin={admin} />
+          <SidebarLinks pathname={pathname} admin={admin} interviews={interviews} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -97,11 +112,13 @@ export function WorkspaceSidebar({ pathname, admin }: { pathname: string; admin:
 function SidebarLinks({
   pathname,
   admin,
+  interviews,
   peek = false,
   id,
 }: {
   pathname: string;
   admin: boolean;
+  interviews?: boolean;
   peek?: boolean;
   id?: string;
 }) {
@@ -111,32 +128,47 @@ function SidebarLinks({
       aria-label={peek ? "Quick navigation" : "Main navigation"}
       className="sidebar-content"
     >
-      <a className="sidebar-link" href="/" aria-label="Home" title="Home">
-        <Home size={17} />
-        <span>Home</span>
-      </a>
-      <a
-        className="sidebar-link"
-        href="/practice"
-        aria-label="Practice"
-        title="Practice"
-        aria-current={pathname.startsWith("/practice") ? "page" : undefined}
-      >
-        <BookOpen size={17} />
-        <span>Practice</span>
-      </a>
-      {admin && (
-        <a
-          className="sidebar-link"
-          href="/admin/questions"
-          aria-label="Question Editor"
-          title="Question Editor"
-          aria-current={pathname.startsWith("/admin") ? "page" : undefined}
-        >
-          <SquarePen size={17} />
-          <span>Question Editor</span>
-        </a>
-      )}
+      {[
+        { href: "/", label: "Home", icon: Home, active: pathname === "/" },
+        {
+          href: "/practice",
+          label: "Practice",
+          icon: BookOpen,
+          active: pathname.startsWith("/practice"),
+        },
+        ...(interviews
+          ? [
+              {
+                href: "/interviews",
+                label: "Interviews",
+                icon: Users,
+                active: pathname.startsWith("/interview"),
+              },
+            ]
+          : []),
+        ...(admin
+          ? [
+              {
+                href: "/admin/questions",
+                label: "Question Editor",
+                icon: SquarePen,
+                active: pathname.startsWith("/admin"),
+              },
+            ]
+          : []),
+      ].map(({ href, label, icon: LinkIcon, active }) => (
+        <Tooltip key={href} content={label} side="right" disabled={!peek}>
+          <a
+            className="sidebar-link"
+            href={href}
+            aria-label={label}
+            aria-current={active ? "page" : undefined}
+          >
+            <LinkIcon size={17} />
+            <span>{label}</span>
+          </a>
+        </Tooltip>
+      ))}
     </nav>
   );
 }

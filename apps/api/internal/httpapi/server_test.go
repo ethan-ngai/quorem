@@ -6,6 +6,24 @@ import (
 	"testing"
 )
 
+func TestInterviewDeletionPreflightAllowsOnlyConfiguredOrigins(t *testing.T) {
+	for _, origin := range []string{"https://quorem.example", "https://untrusted.example"} {
+		request := httptest.NewRequest("OPTIONS", "/v1/interviews/00000000-0000-4000-8000-000000000000", nil)
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Access-Control-Request-Method", "DELETE")
+		request.Header.Set("Access-Control-Request-Headers", "Authorization")
+		response := httptest.NewRecorder()
+		(&Server{Origins: []string{"https://quorem.example"}}).Handler().ServeHTTP(response, request)
+		if origin == "https://quorem.example" {
+			if response.Code != 204 || response.Header().Get("Access-Control-Allow-Origin") != origin || !strings.Contains(response.Header().Get("Access-Control-Allow-Methods"), "DELETE") {
+				t.Fatalf("deletion preflight rejected: %d %v", response.Code, response.Header())
+			}
+		} else if response.Code != 403 || response.Header().Get("Access-Control-Allow-Origin") != "" {
+			t.Fatalf("untrusted origin admitted: %d %v", response.Code, response.Header())
+		}
+	}
+}
+
 func TestLocalIdentityFailsClosedAndCommandsRejectUnknownFields(t *testing.T) {
 	tests := []struct {
 		name, remote, origin, user, path, body string

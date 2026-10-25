@@ -19,7 +19,13 @@ type Signature struct {
 	Parameters []Parameter `json:"parameters"`
 	ReturnType string      `json:"returnType"`
 }
+type MethodCall struct {
+	MethodName string            `json:"methodName"`
+	Args       []json.RawMessage `json:"args"`
+	Expected   json.RawMessage   `json:"expected,omitempty"`
+}
 type Case struct {
+	Calls    []MethodCall      `json:"calls,omitempty"`
 	Args     []json.RawMessage `json:"args"`
 	Expected json.RawMessage   `json:"expected,omitempty"`
 }
@@ -53,7 +59,23 @@ type EditorialSolution struct {
 	ComplexityNotes     string `json:"complexityNotes"`
 }
 
+type OdysseyLevel struct {
+	Title             string           `json:"title"`
+	StatementMarkdown string           `json:"statementMarkdown"`
+	Methods           []Signature      `json:"methods"`
+	Examples          []ProblemExample `json:"examples"`
+}
+type Odyssey struct {
+	Levels []OdysseyLevel `json:"levels"`
+}
+type OdysseyProgress struct {
+	TotalLevels int            `json:"totalLevels"`
+	Level       int            `json:"level"`
+	Completed   bool           `json:"completed"`
+	Levels      []OdysseyLevel `json:"levels"`
+}
 type Problem struct {
+	Odyssey           *Odyssey                 `json:"odyssey,omitempty"`
 	Languages         []LanguageImplementation `json:"languages"`
 	ID                string                   `json:"id"`
 	Slug              string                   `json:"slug"`
@@ -70,12 +92,13 @@ type Problem struct {
 	Limits            execution.Limits         `json:"limits"`
 }
 type Fixture struct {
-	Problem         Problem `json:"problem"`
-	HarnessRevision string  `json:"harnessRevision"`
-	Comparator      string  `json:"comparator"`
-	Attribution     string  `json:"attribution"`
-	HiddenCases     []Case  `json:"hiddenCases"`
-	ReferenceSource string  `json:"referenceSource"`
+	OdysseyHiddenCases [][]Case `json:"odysseyHiddenCases,omitempty"`
+	Problem            Problem  `json:"problem"`
+	HarnessRevision    string   `json:"harnessRevision"`
+	Comparator         string   `json:"comparator"`
+	Attribution        string   `json:"attribution"`
+	HiddenCases        []Case   `json:"hiddenCases"`
+	ReferenceSource    string   `json:"referenceSource"`
 }
 
 func LoadFixtures(dir string) ([]Fixture, error) {

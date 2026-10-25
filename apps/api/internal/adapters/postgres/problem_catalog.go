@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 )
@@ -21,8 +22,8 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 		return result, err
 	}
 	defer tx.Rollback(ctx)
-	where := ` WHERE v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=ANY(string_to_array($2,','))) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array($3,','))))`
-	args := []any{f.Query, f.Difficulty, f.Topic}
+	where := ` WHERE (p.owner_id IS NULL OR p.owner_id=$4) AND ($5='' OR ($5='global' AND p.owner_id IS NULL) OR ($5='private' AND p.owner_id=$4)) AND v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=ANY(string_to_array($2,','))) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array($3,','))))`
+	args := []any{f.Query, f.Difficulty, f.Topic, identity.Subject(ctx).UserID, f.Library}
 	err = tx.QueryRow(ctx, `SELECT count(*) FROM problem_versions v JOIN problems p ON p.id=v.problem_id`+where, args...).Scan(&result.Total)
 	if err != nil {
 		return result, err
@@ -36,7 +37,7 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 	if f.Sort == "difficulty" {
 		order = "CASE v.difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END" + direction + ", " + order
 	}
-	rows, err := tx.Query(ctx, publicProblemSQL+where+" ORDER BY "+order+" LIMIT $4 OFFSET $5", append(args, f.Limit, (f.Page-1)*f.Limit)...)
+	rows, err := tx.Query(ctx, publicProblemSQL+where+" ORDER BY "+order+" LIMIT $6 OFFSET $7", append(args, f.Limit, (f.Page-1)*f.Limit)...)
 	if err != nil {
 		return result, err
 	}
@@ -58,7 +59,7 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 	if err != nil {
 		return result, err
 	}
-	rows, err = tx.Query(ctx, `SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id ORDER BY t.tag`)
+	rows, err = tx.Query(ctx, `SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id WHERE (p.owner_id IS NULL OR p.owner_id=$1) AND ($2='' OR ($2='global' AND p.owner_id IS NULL) OR ($2='private' AND p.owner_id=$1)) ORDER BY t.tag`, identity.Subject(ctx).UserID, f.Library)
 	if err != nil {
 		return result, err
 	}

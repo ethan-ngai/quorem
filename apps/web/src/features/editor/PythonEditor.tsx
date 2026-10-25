@@ -61,13 +61,15 @@ type PythonEditorProps = {
   wrap: boolean;
   readOnly?: boolean;
   intelligenceExtensions?: Extension[];
+  collaborationExtension?: Extension;
   completionEnabled?: boolean;
   onSourceChange: (source: string) => void;
 };
 
 const workspaceKeymap = keymap.of([
   ...closeBracketsKeymap,
-  ...defaultKeymap,
+  // The workspace Run shortcut owns Mod-Enter; CodeMirror otherwise inserts a blank line first.
+  ...defaultKeymap.filter((binding) => binding.key !== "Mod-Enter"),
   ...historyKeymap,
   ...foldKeymap,
   ...searchKeymap,
@@ -130,6 +132,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
     wrap,
     readOnly = false,
     intelligenceExtensions = emptyExtensions,
+    collaborationExtension = emptyExtensions,
     completionEnabled = true,
     onSourceChange,
   },
@@ -174,6 +177,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
       parent: mountRef.current,
       state: editorStateCache.restore(documentKey, initialSource, [
         ...baseExtensions,
+        collaborationExtension,
         completionSlot.current.of(completionEnabled ? completionExtension : []),
         languageSlot.current.of(language === "python" ? pythonExtensions : []),
         EditorView.contentAttributes.of({

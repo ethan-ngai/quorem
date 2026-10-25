@@ -68,9 +68,9 @@ func languageType(kind, language string) (string, error) {
 		}
 	}
 	types := map[string]map[string]string{
-		"java":       {"int": "int", "float": "double", "bool": "boolean", "str": "String", "ListNode": "ListNode", "TreeNode": "TreeNode"},
-		"typescript": {"int": "number", "float": "number", "bool": "boolean", "str": "string", "ListNode": "ListNode | null", "TreeNode": "TreeNode | null"},
-		"ocaml":      {"int": "int", "float": "float", "bool": "bool", "str": "string", "ListNode": "list_node option", "TreeNode": "tree_node option"},
+		"java":       {"void": "void", "int": "int", "float": "double", "bool": "boolean", "str": "String", "ListNode": "ListNode", "TreeNode": "TreeNode"},
+		"typescript": {"void": "void", "int": "number", "float": "number", "bool": "boolean", "str": "string", "ListNode": "ListNode | null", "TreeNode": "TreeNode | null"},
+		"ocaml":      {"void": "unit", "int": "int", "float": "float", "bool": "bool", "str": "string", "ListNode": "list_node option", "TreeNode": "tree_node option"},
 	}
 	value, ok := types[language][kind]
 	if !ok {

@@ -11,7 +11,10 @@ function marketingPages(): Plugin {
   const web = resolve(fileURLToPath(new URL("./dist/", import.meta.url)));
   const serve = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
-    const app = /^\/(practice|match|invite|login|admin)(\/|$)/.test(path);
+    const app =
+      /^\/(practice|match|invite|login|admin|interviews|interview|interview-invite)(\/|$)/.test(
+        path,
+      );
     if (!app && path !== "/" && !path.startsWith("/_marketing/")) return next();
     const base = web;
     const file = resolve(base, app ? "app.html" : path === "/" ? "index.html" : `.${path}`);

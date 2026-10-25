@@ -118,30 +118,13 @@
   }
 }
 .nav-popover {
-  z-index: 40;
+  z-index: var(--layer-popover, 180);
   width: 240px;
   max-width: calc(100vw - 16px);
   padding: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-overlay);
   color: var(--color-text);
-  animation: tooltip-enter var(--motion-standard) var(--motion-easing);
-}
-.nav-popover[data-state="closed"] {
-  animation: nav-popover-exit var(--motion-fast) var(--motion-easing);
-}
-@keyframes nav-popover-exit {
-  to {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .nav-popover,
-  .nav-popover[data-state="closed"] {
-    animation: none;
-  }
   .nav-menu-trigger:hover svg,
   .nav-profile-trigger:hover svg,
   .create-match-trigger:hover svg {

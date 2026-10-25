@@ -67,6 +67,7 @@ function encode(t:string,v:any,d=0):any {if(d>100||(d>0&&++count>10000))throw Er
 if(t.startsWith('optional<'))return v===null?null:encode(t.slice(9,-1),v,d+1);
 if(t.startsWith('list<')){if(!Array.isArray(v)||seen.has(v))throw Error('invalid_output');seen.add(v);return v.map(x=>encode(t.slice(5,-1),x,d+1));}
 if(t==='ListNode'||t==='TreeNode'){if(v===null)return null;const q=[v],a:any[]=[];for(let i=0;i<q.length;i++){const n=q[i];if(n===null){a.push(null);continue;}if(!(n instanceof (t==='ListNode'?ListNode:TreeNode))||seen.has(n)||q.length>10000)throw Error('invalid_output');seen.add(n);a.push(encode('int',n.val,d+1));if(t==='ListNode'){if((n as any).next!==null)q.push((n as any).next);}else q.push((n as any).left,(n as any).right);}while(a.at(-1)===null)a.pop();return a.length?a:null;}
+if(t==='void'){if(v!==undefined&&v!==null)throw Error('invalid_output');return null;}
 if(t==='int'&&(!Number.isInteger(v)||v< -2147483648||v>2147483647)||t==='float'&&(typeof v!=='number'||!Number.isFinite(v))||t==='str'&&typeof v!=='string'||t==='bool'&&typeof v!=='boolean')throw Error('invalid_output');return v;}
 '''
 OCAML_TYPES='''type list_node = { mutable value:int; mutable next:list_node option }
@@ -86,12 +87,42 @@ let enc_node d v = match v with None -> "null" | Some _ -> let rec loop acc n = 
 let enc_tree d v = match v with None -> "null" | Some _ -> let rec loop acc = function [] -> List.rev acc | None::xs -> guard (d+1); loop ("null"::acc) xs | Some (x:tree_node)::xs -> loop (enc_int (d+1) x.value::acc) (xs@[x.left;x.right]) in let rec trim = function "null"::xs -> trim xs | xs -> xs in "["^String.concat "," (List.rev (trim (List.rev (loop [] [v]))))^"]"
 '''
 def ocaml_encoder(t):
+    if t=='void': return '(fun _ () -> \"null\")'
     if t.startswith('optional<'): return '(enc_optional '+ocaml_encoder(t[9:-1])+')'
     if t.startswith('list<'): return '(enc_list '+ocaml_encoder(t[5:-1])+')'
     return {'int':'enc_int','float':'enc_float','bool':'enc_bool','str':'enc_str','ListNode':'enc_node','TreeNode':'enc_tree'}[t]
 
+def sequence_body(r,lang):
+    expressions=[]
+    for call in r['calls']:
+        sig=r['methods'][call['methodName']]
+        args=[literal(p['type'],v,lang) for p,v in zip(sig['parameters'],call['args'])]
+        method=call['methodName']; ret=sig['returnType']
+        if lang=='java' and ret=='void': expressions.append('solution.'+method+'('+','.join(args)+');results.add(\"null\");')
+        elif lang=='java': expressions.append('count=0;seen.clear();results.add(encode('+json.dumps(ret)+',solution.'+method+'('+','.join(args)+'),0));')
+        elif lang=='typescript': expressions.append('count=0;seen.clear();results.push(encode('+json.dumps(ret)+',solution.'+method+'('+','.join(args)+')));')
+        else: expressions.append('let value=Solution.'+method+' '+(' '.join('('+a+')' for a in args) if args else '()')+' in count:=0; '+ocaml_encoder(ret)+' 0 value')
+    if lang=='java': return 'Solution solution=new Solution();java.util.ArrayList<String> results=new java.util.ArrayList<>();'+''.join(expressions)+'String output="["+String.join(",",results)+"]";System.err.print("\\nQUOREM_RESULT:"+output);'
+    if lang=='typescript':return 'const solution=new Solution();const results:any[]=[];'+''.join(expressions)+'process.stderr.write("\\nQUOREM_RESULT:"+JSON.stringify(results));'
+    # OCaml evaluates list operands in an unspecified order; explicit lets fence stateful calls.
+    bindings=''.join('let result'+str(i)+' = ('+e+') in ' for i,e in enumerate(expressions))
+    return bindings+'prerr_string ("\\nQUOREM_RESULT:[" ^ String.concat "," ['+';'.join('result'+str(i) for i in range(len(expressions)))+'] ^ "]")'
+
 def prepare(r,lang):
     s=r['signature']; args=[literal(p['type'],v,lang) for p,v in zip(s['parameters'],r['args'])]; method=s['methodName']; ret=s['returnType']
+    if r.get('calls'):
+        body=sequence_body(r,lang)
+        if lang=='java':
+            source='import java.util.*;\n'+JAVA_TYPES+r['source']+'\nclass Main {\n'+JAVA_ENCODER+'\npublic static void main(String[] a)throws Exception {try{'+body+'}catch(IllegalArgumentException e){System.exit(42);}}}'
+            open('/tmp/Main.java','w').write(source)
+            return ['javac','-J-Xmx128m','-J-XX:ActiveProcessorCount=1','-J-XX:+UseSerialGC','-J-XX:-UsePerfData','/tmp/Main.java'], ['java','-Xmx128m','-XX:ActiveProcessorCount=1','-XX:+UseSerialGC','-XX:-UsePerfData','-cp','/tmp','Main']
+        if lang=='typescript':
+            source=TS_TYPES+r['source']+'\n'+TS_ENCODER+'\ntry{'+body+'}catch(e){if(e instanceof Error && e.message==="invalid_output")process.exit(42);throw e;}'
+            open('/tmp/main.ts','w').write('declare const process:any;\n'+source)
+            return ['tsc','--strict','--target','ES2022','--module','commonjs','--skipLibCheck','--outDir','/tmp','/tmp/main.ts'], ['node','--max-old-space-size=128','/tmp/main.js']
+        source=OCAML_TYPES+'\nmodule Solution = struct\n'+r['source']+'\nend\n'+OCAML_ENCODER+'\nlet () = try '+body+' with Failure _ -> exit 42\n'
+        open('/tmp/main.ml','w').write(source)
+        return ['ocamlc','-o','/tmp/main.byte','/tmp/main.ml'], ['ocamlrun','/tmp/main.byte']
     if lang=='java':
         source='import java.util.*;\n'+JAVA_TYPES+r['source']+'\nclass Main {\n'+JAVA_ENCODER+'\npublic static void main(String[] a)throws Exception { Object v=new '+s['className']+'().'+method+'('+','.join(args)+'); String output;try{output=encode('+json.dumps(ret)+',v,0);}catch(Throwable e){System.err.print("invalid_output");System.exit(42);return;} System.err.print("\\nQUOREM_RESULT:"+output);}}'
         open('/tmp/Main.java','w').write(source)

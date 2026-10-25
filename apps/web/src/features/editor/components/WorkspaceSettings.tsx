@@ -22,9 +22,9 @@ export type SettingsProps = {
   onTabSizeChange: (size: 2 | 4) => void;
   wrap: boolean;
   onWrapChange: (wrap: boolean) => void;
-  onHistory: () => void;
-  onClearRecovery: () => void;
-  onImportDrafts: (file: File) => Promise<void>;
+  onHistory?: () => void;
+  onClearRecovery?: () => void;
+  onImportDrafts?: (file: File) => Promise<void>;
 };
 
 export const workspaceSections = [
@@ -173,7 +173,7 @@ export function WorkspaceSettingsContent({
             className="settings-action"
             onClick={() => {
               props.onClose?.();
-              props.onHistory();
+              props.onHistory?.();
             }}
           >
             <Icon name="history" />
@@ -189,7 +189,7 @@ export function WorkspaceSettingsContent({
               className="sr-only"
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
-                if (file) void props.onImportDrafts(file);
+                if (file) void props.onImportDrafts?.(file);
                 event.currentTarget.value = "";
               }}
             />
