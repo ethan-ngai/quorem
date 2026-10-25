@@ -1,25 +1,22 @@
-/** @file SaveIndicator.tsx @description Announces draft persistence state. @module editor */
+/** @file SaveIndicator.tsx @description Shows draft persistence failures and recovery. @module editor */
 import { Tooltip } from "./Tooltip";
 
 export type SaveState = "saved" | "dirty" | "saving" | "offline" | "error";
 
-/** Displays a quiet, text-backed save status. */
+/** Keep routine autosaves silent; surface failures with retry. */
 export function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry?: () => void }) {
+  if (state !== "offline" && state !== "error") return null;
   const label = {
-    saved: "Saved in this browser",
-    dirty: "Unsaved changes",
-    saving: "Saving…",
     offline: "Offline · saved locally",
     error: "Browser save failed",
   }[state];
-  const actionable = state === "offline" || state === "error";
   const content = (
     <>
       <i aria-hidden="true" />
-      <span className={actionable ? undefined : "sr-only"}>{label}</span>
+      <span>{label}</span>
     </>
   );
-  if (actionable && onRetry)
+  if (onRetry)
     return (
       <Tooltip content={`${label}. Click to retry saving.`}>
         <button

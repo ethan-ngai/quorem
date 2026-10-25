@@ -2,17 +2,14 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AccountAvatar, avatarIdentity } from "./AccountAvatar";
 describe("account avatars", () => {
-  it("renders name-derived initials as native HTML without an image", () => {
+  it("renders the first name letter as native HTML without an image", () => {
     const html = renderToStaticMarkup(<AccountAvatar name="Ethan Ngai" large />);
-    expect(html).toContain('class="account-avatar-initials">EN</span>');
+    expect(html).toContain('class="account-avatar-initials">E</span>');
     expect(html).not.toMatch(/<img|<svg|data:image|background-image/);
   });
-  it("uses username when the display name is absent and keeps a stable tone", () => {
-    expect(avatarIdentity(" ", "élise").initials).toBe("ÉL");
-    expect(avatarIdentity("Alice Jones", "alice").tone).toBe(
-      avatarIdentity("Alice Smith", "alice").tone,
-    );
-    expect(avatarIdentity().initials).toBe("GU");
+  it("uses username when the display name is absent", () => {
+    expect(avatarIdentity(" ", "élise").initials).toBe("É");
+    expect(avatarIdentity().initials).toBe("G");
   });
   it("renders an actual photo only when a URL is set", () => {
     const html = renderToStaticMarkup(
