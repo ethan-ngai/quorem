@@ -2,14 +2,24 @@ import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout, CatalogTable } from "./CatalogLayout";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+  Layers,
+  Globe,
+  LockKeyhole,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, requireData } from "../editor/api";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
-import { SelectField } from "../../ui/SelectField";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import { CatalogFilter } from "./CatalogFilter";
 import { addFilter, filterValues } from "./catalogSearch";
 import type { CatalogSearch } from "./catalogSearch";
@@ -25,6 +35,9 @@ export function PracticeBrowser() {
   const { identity } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
   const search = useSearch({ from: "/practice" });
+  const canChooseLibrary =
+    session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
+  const library = canChooseLibrary ? search.library : undefined;
   const navigate = useNavigate({ from: "/practice" });
   const [query, setQuery] = useState(search.q ?? "");
   const [editing, setEditing] = useState(false);
@@ -48,7 +61,7 @@ export function PracticeBrowser() {
     queryKey: [
       "public-problems",
       session.data?.user.id,
-      search.library,
+      library,
       search.q,
       search.difficulty,
       search.topic,
@@ -60,7 +73,7 @@ export function PracticeBrowser() {
       const { data, error } = await api().GET("/v1/problems", {
         params: {
           query: {
-            library: search.library,
+            library,
             q: search.q,
             difficulty: search.difficulty,
             topic: search.topic,
@@ -89,7 +102,7 @@ export function PracticeBrowser() {
     staleTime: 60_000,
   });
   const topics = metadata.data ?? catalog.data?.topics ?? [];
-  const filtered = Boolean(search.q || search.difficulty || search.topic || search.library);
+  const filtered = Boolean(search.q || search.difficulty || search.topic || library);
   const sort = search.sort ?? "title";
   const SortIcon = search.order === "desc" ? ArrowDown : ArrowUp;
   const sortBy = (next: "title" | "difficulty") =>
@@ -137,25 +150,32 @@ export function PracticeBrowser() {
           </label>
         </div>
         <div className="practice-filters">
-          {session.data && (
-            <SelectField
+          {canChooseLibrary && (
+            <SegmentedControl
+              iconOnly
               label="Question library"
               value={search.library ?? "all"}
               onChange={(value) =>
                 update({ library: value === "all" ? undefined : (value as "private" | "global") })
               }
               options={[
-                { value: "all", label: "All questions" },
-                { value: "global", label: "Global questions" },
-                { value: "private", label: "Private library" },
+                {
+                  value: "all",
+                  label: "All questions",
+                  icon: <Layers size={16} aria-hidden="true" />,
+                },
+                {
+                  value: "global",
+                  label: "Global questions",
+                  icon: <Globe size={16} aria-hidden="true" />,
+                },
+                {
+                  value: "private",
+                  label: "Private library",
+                  icon: <LockKeyhole size={16} aria-hidden="true" />,
+                },
               ]}
             />
-          )}
-          {(session.data?.user.role === "admin" ||
-            session.data?.capabilities?.authorCustomQuestions) && (
-            <Link className="quiet-button" to="/admin/questions">
-              Question editor
-            </Link>
           )}
           <CatalogFilter
             label="Difficulty"

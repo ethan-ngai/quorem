@@ -31,12 +31,25 @@
   transition: color var(--motion-fast) var(--motion-easing);
 }
 .segmented-control > button[aria-checked="true"] {
-  color: var(--color-text-primary);
+  color: var(--color-text);
   font-weight: 500;
 }
 @media (prefers-reduced-motion: reduce) {
   .segmented-control-selection,
   .segmented-control > button {
     transition: none;
+  }
+}
+
+.segmented-control[data-icon-only="true"] > button {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  padding: 3px 8px;
+}
+@media (pointer: coarse) {
+  .segmented-control[data-icon-only="true"] > button {
+    min-width: 44px;
+    min-height: 38px;
   }
 }

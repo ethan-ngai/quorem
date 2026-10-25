@@ -1,5 +1,5 @@
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 /** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -13,7 +13,7 @@ import { QuestionSetup } from "./QuestionSetup";
 import { useErrorNotification } from "../../ui/Notifications";
 import "../../styles/workspace.css";
 import { CatalogLayout, CatalogTable } from "../practice/CatalogLayout";
-import { Trash2, Square } from "lucide-react";
+import { Trash2, Power, Users, CircleDot, Archive } from "lucide-react";
 import { Tooltip } from "../editor/components/Tooltip";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -22,6 +22,7 @@ import { SessionDialog } from "../../ui/SessionDialog";
 export function InterviewHub() {
   const account = useSession();
   const theme = useTheme();
+  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<InterviewSnapshot>();
   const [busy, setBusy] = useState(false);
@@ -113,7 +114,7 @@ export function InterviewHub() {
           </div>
         ) : (
           <section
-            className="practice-catalog"
+            className="practice-catalog interview-catalog"
             aria-label="Interviews"
             aria-busy={sessions.isFetching}
           >
@@ -133,7 +134,9 @@ export function InterviewHub() {
                   heading={
                     <tr>
                       <th scope="col">Interview</th>
-                      <th scope="col">Status</th>
+                      <th scope="col" className="interview-role-column">
+                        Your role
+                      </th>
                       <th scope="col">
                         <span className="sr-only">Actions</span>
                       </th>
@@ -145,22 +148,56 @@ export function InterviewHub() {
                       key={session.id}
                       onClick={(event) => {
                         if (!(event.target as Element).closest("a, button"))
-                          window.location.assign(`/interview/${session.id}`);
+                          void navigate({ to: "/interview/$id", params: { id: session.id } });
                       }}
                     >
                       <td>
-                        <Link to="/interview/$id" params={{ id: session.id }}>
-                          {session.title}
-                        </Link>
+                        <div className="interview-title-line">
+                          <Tooltip
+                            content={
+                              session.state === "closed"
+                                ? "Closed: read-only interview"
+                                : "Active: editing available"
+                            }
+                          >
+                            <span
+                              className="interview-row-status"
+                              data-state={session.state}
+                              tabIndex={0}
+                              role="img"
+                              aria-label={
+                                session.state === "closed" ? "Closed interview" : "Active interview"
+                              }
+                            >
+                              {session.state === "closed" ? (
+                                <Archive size={15} aria-hidden="true" />
+                              ) : (
+                                <CircleDot size={15} aria-hidden="true" />
+                              )}
+                            </span>
+                          </Tooltip>
+                          <Link to="/interview/$id" params={{ id: session.id }}>
+                            {session.title}
+                          </Link>
+                        </div>
+                        <span className="interview-row-detail">
+                          {session.question.problem.title}
+                        </span>
+                        <span className="interview-mobile-meta">
+                          {session.role === "interviewer" ? "Interviewer" : "Interviewee"} ·{" "}
+                          {session.members.length}{" "}
+                          {session.members.length === 1 ? "member" : "members"}
+                        </span>
                       </td>
-                      <td>
-                        {session.state === "closed"
-                          ? "Closed"
-                          : session.role === "interviewer"
-                            ? "Interviewer"
-                            : "Interviewee"}
+                      <td className="interview-role-column">
+                        {session.role === "interviewer" ? "Interviewer" : "Interviewee"}
+                        <span className="interview-row-detail interview-member-count">
+                          <Users size={13} aria-hidden="true" />
+                          {session.members.length}{" "}
+                          {session.members.length === 1 ? "member" : "members"}
+                        </span>
                       </td>
-                      <td>
+                      <td className="catalog-actions">
                         {session.hostId === account.data?.user.id && (
                           <Tooltip
                             content={
@@ -181,7 +218,7 @@ export function InterviewHub() {
                               {session.state === "closed" ? (
                                 <Trash2 size={16} />
                               ) : (
-                                <Square size={16} />
+                                <Power size={16} />
                               )}
                             </button>
                           </Tooltip>
