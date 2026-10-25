@@ -11,7 +11,7 @@ import { StrictMode, Suspense, lazy } from "react";
 import { initializeTheme } from "./features/editor/useTheme";
 import { LoadingScreen } from "./ui/LoadingScreen";
 import { Notifications } from "./ui/Notifications";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { LoginPage } from "./features/auth/LoginPage";
 import { InvitePage } from "./features/matches/InvitePage";
 import { practiceSearch } from "./features/navigation/matchCreationIntent";
@@ -173,7 +173,10 @@ declare module "@tanstack/react-router" {
   }
 }
 
-createRoot(document.getElementById("root")!).render(
+// Entry-module HMR reuses the mounted root instead of creating a competing React tree.
+const root: Root = import.meta.hot?.data.root ?? createRoot(document.getElementById("root")!);
+if (import.meta.hot) import.meta.hot.data.root = root;
+root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />

@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { SessionDialog } from "./SessionDialog";
 
 const handlers = vi.hoisted(() => ({
   change: (_open: boolean) => {},
   focus: (_event: Event) => {},
+  close: (_event: Event) => {},
 }));
 vi.mock("@radix-ui/react-dialog", () => ({
   Root: ({
@@ -23,11 +24,14 @@ vi.mock("@radix-ui/react-dialog", () => ({
   Content: ({
     children,
     onOpenAutoFocus,
+    onCloseAutoFocus,
   }: {
     children: ReactNode;
     onOpenAutoFocus: (event: Event) => void;
+    onCloseAutoFocus: (event: Event) => void;
   }) => {
     handlers.focus = onOpenAutoFocus;
+    handlers.close = onCloseAutoFocus;
     return <section>{children}</section>;
   },
   Title: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
@@ -78,4 +82,32 @@ it("focuses the provided least destructive action without scrolling", () => {
   handlers.focus(event);
   expect(event.defaultPrevented).toBe(true);
   expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+it("restores the opener for programmatic dialogs without a Radix trigger", () => {
+  class Element {
+    isConnected = true;
+    focus = vi.fn();
+  }
+  const opener = new Element();
+  vi.stubGlobal("HTMLElement", Element);
+  vi.stubGlobal("document", { activeElement: opener });
+  renderToStaticMarkup(
+    <SessionDialog
+      open
+      onOpenChange={() => {}}
+      title="Leave?"
+      description="Confirm leaving"
+      initialFocus={{ current: { focus: vi.fn() } as unknown as HTMLElement }}
+    >
+      <button>Keep playing</button>
+    </SessionDialog>,
+  );
+  handlers.focus(new Event("openAutoFocus", { cancelable: true }));
+  const close = new Event("closeAutoFocus", { cancelable: true });
+  handlers.close(close);
+  expect(close.defaultPrevented).toBe(true);
+  expect(opener.focus).toHaveBeenCalledWith({ preventScroll: true });
 });

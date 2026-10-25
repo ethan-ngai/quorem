@@ -1,7 +1,7 @@
 import { createReconnectingSocket } from "./reconnectingSocket";
 /** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
-import { authenticatedFetch } from "../auth/session";
-import { createApiClient, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
+import { api, requireData } from "../../api/client";
+import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -20,10 +20,6 @@ type MatchSyncState = MatchEventBuffer & {
   gapTimer: number | undefined;
 };
 
-function apiBaseUrl() {
-  return import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
-}
-
 function eventSocketUrl(matchId: string, identity: DevelopmentIdentity) {
   const base = import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
   const url = new URL(`/v1/matches/${encodeURIComponent(matchId)}/events`, base);
@@ -37,21 +33,11 @@ async function fetchMatchSnapshot(
   matchId: string,
   signal: AbortSignal,
 ): Promise<MatchSnapshot> {
-  const { data, error } = await createApiClient({
-    baseUrl: apiBaseUrl(),
-    identity,
-    fetch: authenticatedFetch,
-  }).GET("/v1/matches/{id}", {
+  const { data, error } = await api(identity).GET("/v1/matches/{id}", {
     params: { path: { id: matchId } },
     signal,
   });
-  if (data === undefined) {
-    const message =
-      typeof error === "object" && error !== null && "error" in error
-        ? String((error as { error: { message?: string } }).error.message ?? "Could not load match")
-        : "Could not load match";
-    throw new Error(message);
-  }
+  requireData(data, error);
   if (!isMatchSnapshot(data, matchId)) throw new Error("Match response did not match the contract");
   return data;
 }

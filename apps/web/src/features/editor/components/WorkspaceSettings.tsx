@@ -3,7 +3,7 @@ import { ToggleSwitch as Toggle } from "../../../ui/ToggleSwitch";
 import { Monitor, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { SelectField } from "../../../ui/SelectField";
-import type { ThemePreference } from "../editorSettings";
+import { editorFontSizes, type ThemePreference } from "../editorSettings";
 import { editorSchemes, type EditorScheme } from "../editorSchemes";
 import { workspaceShortcuts } from "../workspaceShortcuts";
 import { ShortcutKeys } from "./ShortcutKeys";
@@ -102,7 +102,7 @@ export function WorkspaceSettingsContent({
               label="Code font size"
               value={String(props.fontSize)}
               onChange={(value) => props.onFontSizeChange(Number(value))}
-              options={[12, 13, 14, 15, 16, 18, 20, 22, 24].map((size) => ({
+              options={editorFontSizes.map((size) => ({
                 value: String(size),
                 label: `${size}px`,
               }))}
