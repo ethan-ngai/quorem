@@ -106,7 +106,7 @@ func TestPublishingRequiresRecentStrongSession(t *testing.T) {
 	mux := http.NewServeMux()
 	s.registerAdminQuestions(mux)
 	for _, until := range []int64{0, time.Now().Add(-time.Minute).Unix()} {
-		r := httptest.NewRequest("POST", "/v1/admin/question-drafts/00000000-0000-4000-8000-000000000001/publish", strings.NewReader(`{"revision":"1","strongUntil":4102444800}`))
+		r := httptest.NewRequest("POST", "/v1/admin/question-drafts/00000000-0000-4000-8000-000000000001/publish", strings.NewReader(`{"revision":"1","visibility":"global"}`))
 		r = r.WithContext(identity.With(r.Context(), identity.Principal{UserID: "admin", Admin: true, EmailVerified: true, StrongUntil: until}))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
@@ -182,5 +182,43 @@ func TestGuestSessionEndsWithParticipation(t *testing.T) {
 	}
 	if w := send("GET", "/v1/session"); w.Code != 401 || len(w.Result().Cookies()) != 1 {
 		t.Fatal("passive guest cleanup", w.Code)
+	}
+}
+
+func TestPrivatePublicationSkipsGlobalStepUpAndRejectsForgedFields(t *testing.T) {
+	store := streamStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	if _, err := store.Pool.Exec(ctx, "UPDATE users SET role='admin' WHERE id='alice'"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Pool.Exec(ctx, "UPDATE users SET role='user' WHERE id='alice'") })
+	p, err := store.Problem(ctx, "run-widths", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := store.QuestionContent(ctx, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := store.CreateQuestionDraft(ctx, "alice", content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	(&Server{Store: store}).registerAdminQuestions(mux)
+	for _, test := range []struct {
+		body   string
+		status int
+	}{
+		{`{"revision":"1","strongUntil":4102444800,"visibility":"global"}`, 400},
+		{`{"revision":"1","visibility":"global"}`, 403},
+		{`{"revision":"1","visibility":"private"}`, 200},
+	} {
+		request := httptest.NewRequest("POST", "/v1/admin/question-drafts/"+draft.ID+"/publish", strings.NewReader(test.body)).WithContext(ctx)
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		if response.Code != test.status {
+			t.Fatal(response.Code, response.Body.String())
+		}
 	}
 }

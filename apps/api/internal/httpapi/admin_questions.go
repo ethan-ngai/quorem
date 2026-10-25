@@ -130,20 +130,21 @@ func (s *Server) updateQuestionDraft(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, draft)
 }
 func (s *Server) publishQuestionDraft(w http.ResponseWriter, r *http.Request) {
-	if identity.Subject(r.Context()).Admin && !s.Local && identity.Subject(r.Context()).StrongUntil <= time.Now().Unix() {
-		s.err(w, r, &application.Error{Code: "step_up_required", Status: 403, Message: "Sign in with a verified passkey again before publishing"})
-		return
-	}
 	if !s.adminDraftRequest(w, r) {
 		return
 	}
 	var request struct {
-		Revision string `json:"revision"`
+		Revision   string `json:"revision"`
+		Visibility string `json:"visibility"`
 	}
 	if !s.decode(w, r, &request, 1024) {
 		return
 	}
-	draft, err := s.Store.PublishQuestionDraft(r.Context(), identity.Subject(r.Context()).UserID, r.PathValue("id"), request.Revision)
+	if request.Visibility != "private" && identity.Subject(r.Context()).Admin && !s.Local && identity.Subject(r.Context()).StrongUntil <= time.Now().Unix() {
+		s.err(w, r, &application.Error{Code: "step_up_required", Status: 403, Message: "Sign in with a verified passkey again before publishing globally"})
+		return
+	}
+	draft, err := s.Store.PublishQuestionDraftTo(r.Context(), identity.Subject(r.Context()).UserID, r.PathValue("id"), request.Revision, request.Visibility)
 	if err != nil {
 		s.err(w, r, err)
 		return

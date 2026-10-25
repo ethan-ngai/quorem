@@ -3,7 +3,7 @@
 Issues: #14, #34–#37. Auth/login precedes admin implementation.
 
 - `/login`: real Better Auth sessions. Local preview uses seeded username/password accounts; deployed login uses Cognito. Application JWTs stay in memory; Go checks live sessions and server-owned roles.
-- `/admin/questions`: create or fork drafts; edit statement/topics/signature/constraints/examples/20 hidden cases, per-language templates/private references/editorials/Big-O definitions. Save explicitly, then publish. Invalid JSON blocks save/preview; publication validates supported codecs/pins/bounds. Draft listing uses 50-row keyset pages; detail is fetched only on opening.
+- `/admin/questions`: create or fork drafts; edit statement/topics/signature/constraints/examples/20 hidden cases, per-language templates/private references/editorials/Big-O definitions. Save explicitly, then publish. The Question, Tests/Steps & tests and Solutions panels reuse interview authoring controls. Typed call sequences replace step JSON; incomplete steps can be saved as drafts. Invalid typed values block save/preview; publication validates supported codecs/pins/bounds. Draft listing uses 50-row keyset pages; detail is fetched only on opening.
 - Publishing locks the draft and slug, creates a fresh immutable version and all artifacts/editorials, seals it, advances the publication pointer and consumes the draft atomically. Existing workspaces/submissions/matches keep their version IDs. Published drafts are read-only; create next version to edit.
 - Practice and active matches select Python/Java/TypeScript/OCaml independently. Match language changes retain per-language workspaces, private browser drafts and pinned execution revisions; busy/closed/forfeited participants cannot switch.
 - Practice solutions are temporarily removed. Complexity starts hidden, uses the Topics eye toggle, and renders Big-O plus free variables with LaTeX; existing plain-text publication notes are annotated for display. Cost-only requests never return code. Editorial source is explicitly published separately from judge references. Authenticated active participants are denied editorial API access; anonymous public editorial access is not an anti-cheating boundary.
@@ -25,7 +25,7 @@ Actual Cognito callback, email verification/reset and Google federation require 
 
 ## Private libraries
 
-Global authoring requires the server-owned admin role. Non-admin authors require an active `questions.custom` grant (or internal entitlement); their drafts and publications always belong to their private library. Grant through the existing operator tool:
+Global authoring requires the server-owned admin role. Admins choose Private or Global through the shared segmented control; private publication defaults to their own library and global publication retains recent-passkey verification in managed environments. Non-admin authors require an active `questions.custom` grant (or internal entitlement); their publications always belong to their private library. Grant through the existing operator tool:
 
 ```sh
 go run ./apps/api/cmd/access grant --user '<product-user-id>' --scope questions.custom --actor '<operator>' --reason 'Private question authoring' --op-id '<unique-operation>' --ref '<tracking-reference>'

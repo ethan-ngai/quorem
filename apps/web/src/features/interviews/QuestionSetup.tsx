@@ -1,5 +1,7 @@
+import { QuestionBasics } from "../../ui/QuestionBasics";
 /** @file QuestionSetup.tsx @description Existing or custom interview questions with typed tests. @module interviews */
 import { useId, useRef, useState, type FormEvent } from "react";
+import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { useSession } from "../auth/session";
 import { useQuery } from "@tanstack/react-query";
 import type { InterviewQuestionInput, Signature } from "@quorem/contracts";
@@ -219,40 +221,16 @@ export function QuestionSetup({
       </div>
       {mode !== "catalog" && <p>Saved to your private library.</p>}
       {mode !== "catalog" && (
-        <div
-          className="result-tabs authoring-section-tabs"
-          role="tablist"
-          aria-label="Question authoring"
-        >
-          {(["question", "tests"] as const).map((tab, index) => (
-            <button
-              type="button"
-              key={tab}
-              role="tab"
-              id={`${sectionId}-${tab}`}
-              aria-controls={`${sectionId}-${tab}-panel`}
-              aria-selected={authorSection === tab}
-              tabIndex={authorSection === tab ? 0 : -1}
-              onClick={() => setAuthorSection(tab)}
-              onKeyDown={(event) => {
-                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-                event.preventDefault();
-                const next =
-                  event.key === "Home"
-                    ? "question"
-                    : event.key === "End"
-                      ? "tests"
-                      : index === 0
-                        ? "tests"
-                        : "question";
-                setAuthorSection(next);
-                document.getElementById(`${sectionId}-${next}`)?.focus();
-              }}
-            >
-              {tab === "question" ? "Question" : mode === "staged" ? "Steps & tests" : "Tests"}
-            </button>
-          ))}
-        </div>
+        <AuthoringTabs
+          id={sectionId}
+          label="Question authoring"
+          value={authorSection}
+          onChange={setAuthorSection}
+          tabs={[
+            { value: "question", label: "Question" },
+            { value: "tests", label: mode === "staged" ? "Steps & tests" : "Tests" },
+          ]}
+        />
       )}
       <fieldset className="admin-fields" hidden={mode !== "catalog"} disabled={mode !== "catalog"}>
         <label className="admin-field">
@@ -283,33 +261,16 @@ export function QuestionSetup({
           role="tabpanel"
           aria-labelledby={`${sectionId}-question`}
         >
-          <label className="admin-field">
-            <span>Question title</span>
-            <input
-              required
-              maxLength={120}
-              value={customTitle}
-              onChange={(event) => setCustomTitle(event.target.value)}
-            />
-          </label>
-          <label className="admin-field">
-            <span>{mode === "staged" ? "Introduction" : "Statement"}</span>
-            <textarea
-              rows={4}
-              value={statement}
-              onChange={(event) => setStatement(event.target.value)}
-            />
-          </label>
-          <label className="admin-field">
-            <span>{mode === "staged" ? "Initial starter code" : "Starter code"}</span>
-            <textarea
-              className="admin-code"
-              rows={8}
-              value={starter}
-              onChange={(event) => setStarter(event.target.value)}
-              spellCheck={false}
-            />
-          </label>
+          <QuestionBasics
+            title={customTitle}
+            statement={statement}
+            starter={starter}
+            staged={mode === "staged"}
+            required
+            onTitleChange={setCustomTitle}
+            onStatementChange={setStatement}
+            onStarterChange={setStarter}
+          />
         </fieldset>
         <fieldset
           className="admin-fields"

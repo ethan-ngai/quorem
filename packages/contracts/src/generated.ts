@@ -1213,6 +1213,11 @@ export interface components {
         };
         PublishQuestionDraftRequest: {
             revision: string;
+            /**
+             * @description Private library or admin-only global publication. Omitted preserves the draft destination.
+             * @enum {string}
+             */
+            visibility?: "private" | "global";
         };
         InvitePreview: {
             mode: components["schemas"]["MatchMode"];

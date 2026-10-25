@@ -1,0 +1,42 @@
+.segmented-control {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  border: 1px solid var(--color-border);
+}
+.segmented-control-selection {
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  width: calc((100% - 6px) / var(--segment-count));
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: var(--color-overlay);
+  transform: translateX(calc(var(--segment-index) * 100%));
+  transition: transform var(--motion-standard) var(--motion-easing);
+  pointer-events: none;
+}
+.segmented-control > button {
+  position: relative;
+  min-height: 26px;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  transition: color var(--motion-fast) var(--motion-easing);
+}
+.segmented-control > button[aria-checked="true"] {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+@media (prefers-reduced-motion: reduce) {
+  .segmented-control-selection,
+  .segmented-control > button {
+    transition: none;
+  }
+}
