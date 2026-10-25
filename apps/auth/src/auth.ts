@@ -1,6 +1,8 @@
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { createAuthMiddleware, APIError } from "better-auth/api";
+import { google, apple, github, cognito } from "better-auth/social-providers";
+import { socialEmail } from "./social-email.ts";
 import { jwt, username } from "better-auth/plugins";
 import { accountMailer } from "./account-mailer.ts";
 import { verificationMail } from "./infrastructure.ts";
@@ -19,11 +21,13 @@ export function createAuth(allowSeed = false) {
     throw new Error("Seeding requires local password mode");
   const sendVerification =
     !allowSeed && verificationMail ? accountMailer(database, verificationMail) : undefined;
-  return betterAuth({
+  const emailFlow = socialEmail(database, config.origin, verificationMail);
+  const service = betterAuth({
     baseURL: config.origin,
     secret: config.secret,
     database,
     trustedOrigins: [config.origin],
+    onAPIError: { errorURL: `${config.origin}/login` },
     emailAndPassword: {
       enabled: config.method === "password",
       disableSignUp: !allowSeed && !config.registration,
@@ -156,6 +160,8 @@ export function createAuth(allowSeed = false) {
             "/reset-password",
             "/change-password",
             "/set-password",
+            "/link-social",
+            "/unlink-account",
           ].includes(ctx.path) &&
           ctx.method === "POST" &&
           ctx.headers?.get("origin") !== config.origin
@@ -219,9 +225,34 @@ export function createAuth(allowSeed = false) {
           throw new APIError("FORBIDDEN", { message: "Invalid origin" });
       }),
     },
-    account: { accountLinking: { enabled: false } },
+    account: {
+      accountLinking: { enabled: true, disableImplicitLinking: true, allowDifferentEmails: true },
+    },
     socialProviders: {
-      ...config.social,
+      ...(config.social.google
+        ? {
+            google: {
+              ...config.social.google,
+              getUserInfo: emailFlow.provider(google(config.social.google)),
+            },
+          }
+        : {}),
+      ...(config.social.apple
+        ? {
+            apple: {
+              ...config.social.apple,
+              getUserInfo: emailFlow.provider(apple(config.social.apple)),
+            },
+          }
+        : {}),
+      ...(config.social.github
+        ? {
+            github: {
+              ...config.social.github,
+              getUserInfo: emailFlow.provider(github(config.social.github)),
+            },
+          }
+        : {}),
       ...(config.method === "cognito"
         ? {
             cognito: {
@@ -230,6 +261,15 @@ export function createAuth(allowSeed = false) {
               domain: config.domain,
               region: config.region,
               userPoolId: config.userPoolId,
+              getUserInfo: emailFlow.provider(
+                cognito({
+                  clientId: config.clientId,
+                  clientSecret: config.clientSecret,
+                  domain: config.domain,
+                  region: config.region,
+                  userPoolId: config.userPoolId,
+                }),
+              ),
             },
           }
         : {}),
@@ -308,5 +348,8 @@ export function createAuth(allowSeed = false) {
       }),
     ],
   });
+  const handler = service.handler;
+  service.handler = (request) => emailFlow.handle(request, handler);
+  return service;
 }
 export const auth = createAuth();

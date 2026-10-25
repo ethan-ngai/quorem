@@ -45,8 +45,19 @@ export function GlobalNav({
   }, []);
   const profileTrigger = useRef<HTMLButtonElement>(null);
   const settingsTrigger = useRef<HTMLButtonElement>(null);
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("appearance");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(() =>
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("settings")
+      : null) === "social"
+      ? "social"
+      : "appearance",
+  );
+  const [settingsOpen, setSettingsOpen] = useState(
+    () =>
+      (typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("settings")
+        : null) === "social",
+  );
   function openSettings(section: SettingsSection) {
     setSettingsSection(section);
     setSettingsOpen(true);

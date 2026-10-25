@@ -14,6 +14,7 @@ export async function migrateAuth(database: Pool) {
       "004_email_registration.sql",
       "005_rate_limits.sql",
       "006_session_assurance.sql",
+      "007_social_email.sql",
     ]) {
       await client.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
     }
