@@ -143,6 +143,13 @@ jobs:
       TF_VAR_region: ${{ vars.NEON_REGION || 'aws-us-east-1' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Require current main
+        run: |
+          main_revision="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$main_revision" != "$GITHUB_SHA" ]; then
+            echo "::error::Main advanced; deploy its current revision instead."
+            exit 1
+          fi
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
         with:
           node-version-file: .node-version
