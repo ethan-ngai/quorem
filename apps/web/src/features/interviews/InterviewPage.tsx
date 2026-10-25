@@ -1,3 +1,5 @@
+import { ToggleSwitch } from "../../ui/ToggleSwitch";
+import { LockKeyhole } from "lucide-react";
 import { InterviewAlerts } from "./InterviewAlerts";
 import { InterviewMonitoringControls } from "./InterviewMonitoringControls";
 import { useInterviewMonitoring } from "./useInterviewMonitoring";
@@ -31,7 +33,7 @@ import { InterviewParticipants } from "./InterviewParticipants";
 import { InterviewInvitations } from "./InterviewInvitations";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
-import { ArrowLeft, Archive, Trash2, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Archive, Trash2, Settings } from "lucide-react";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
@@ -332,12 +334,27 @@ function InterviewPad({
                   <Tooltip content="Interview settings">
                     <Popover.Trigger asChild>
                       <button className="icon-button" aria-label="Interview settings">
-                        <SlidersHorizontal size={16} />
+                        <Settings size={16} />
                       </button>
                     </Popover.Trigger>
                   </Tooltip>
                   <Popover.Portal>
                     <Popover.Content className="interview-hints-popover">
+                      <fieldset className="question-hints-controls" disabled={busy}>
+                        <legend>Room access</legend>
+                        <label>
+                          <span>
+                            <LockKeyhole size={16} aria-hidden="true" />
+                            Lock room
+                          </span>
+                          <ToggleSwitch
+                            label="Lock room"
+                            checked={snapshot.admissionLocked === true}
+                            disabled={busy}
+                            onChange={(locked) => void mutate("admission", { locked })}
+                          />
+                        </label>
+                      </fieldset>
                       <InterviewMonitoringControls
                         value={snapshot.monitoring ?? {}}
                         disabled={busy}

@@ -1,4 +1,6 @@
 /** @file presence.ts @description Advisory remote selections with version-safe positions. @module interviews */
+import { toast } from "sonner";
+import { createParticipantTracker } from "./participantEvents";
 import { getSyncedVersion, sendableUpdates } from "@codemirror/collab";
 import { StateEffect } from "@codemirror/state";
 import {
@@ -46,6 +48,7 @@ export function presenceExtension(transport: InterviewSocket, epoch: string, cli
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
+      participants = createParticipantTracker(clientID);
       timer: ReturnType<typeof setTimeout> | undefined;
       heartbeat: ReturnType<typeof setInterval>;
       disposed = false;
@@ -61,6 +64,7 @@ export function presenceExtension(transport: InterviewSocket, epoch: string, cli
           void this.publish();
         }, 10_000);
         this.stopStatus = transport.onStatus((connected) => {
+          if (!connected) this.participants.reset();
           if (connected && !this.disposed) this.schedule();
         });
       }
@@ -81,13 +85,19 @@ export function presenceExtension(transport: InterviewSocket, epoch: string, cli
           do {
             this.readAgain = false;
             const peers = await transport.request<InterviewPresence[]>("peers");
-            if (!this.disposed) this.view.dispatch({ effects: receivedPresence.of(peers) });
+            if (!this.disposed) this.receive(peers);
           } while (this.readAgain && !this.disposed);
         } catch {
           /* A reconnect refreshes advisory selections. */
         } finally {
           this.reading = false;
         }
+      }
+      receive(peers: InterviewPresence[]) {
+        for (const event of this.participants.update(peers)) {
+          toast(`${event.name} ${event.joined ? "joined" : "left"} the interview`);
+        }
+        this.view.dispatch({ effects: receivedPresence.of(peers) });
       }
       async publish() {
         if (this.disposed || sendableUpdates(this.view.state).length) return;
@@ -97,7 +107,7 @@ export function presenceExtension(transport: InterviewSocket, epoch: string, cli
           const peers = await transport.request<InterviewPresence[]>("presence", {
             presence: { clientID, epoch, version, anchor, head },
           });
-          if (!this.disposed) this.view.dispatch({ effects: receivedPresence.of(peers) });
+          if (!this.disposed) this.receive(peers);
         } catch {
           /* Presence never blocks document synchronization. */
         }
