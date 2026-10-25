@@ -113,18 +113,11 @@ resource "restapi_object" "rollout" {
     step_percentage      = 100
   })
 }
-resource "cloudflare_workers_deployment" "app" {
-  account_id  = var.account_id
-  script_name = var.worker_name
-  strategy    = "percentage"
-  versions    = [{ percentage = 100, version_id = cloudflare_worker_version.app.id }]
-  depends_on  = [restapi_object.rollout]
-}
 resource "cloudflare_workers_custom_domain" "app" {
   account_id = var.account_id
   hostname   = var.domain
   zone_id    = var.zone_id
   service    = var.worker_name
-  depends_on = [cloudflare_workers_deployment.app]
+  depends_on = [restapi_object.rollout]
 }
 output "origin" { value = local.origin }
