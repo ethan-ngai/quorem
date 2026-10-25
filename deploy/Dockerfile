@@ -9,9 +9,12 @@ RUN CGO_ENABLED=0 go build -o /out/api ./apps/api/cmd/api \
  && CGO_ENABLED=0 go build -o /out/provision ./apps/api/cmd/provision \
  && CGO_ENABLED=0 go build -o /out/runner ./apps/runner/cmd/runner
 
+FROM docker:29.9.2-dind AS docker-engine
+
 FROM node:24.21.0-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends docker.io nginx python3 ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends nginx python3 ca-certificates \
  && rm -rf /var/lib/apt/lists/*
+COPY --from=docker-engine /usr/local/bin/ /usr/local/bin/
 WORKDIR /app
 COPY --from=go-build /out bin
 COPY apps/auth apps/auth

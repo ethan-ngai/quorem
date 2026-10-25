@@ -7,12 +7,43 @@ export class Quorem extends DurableObject {
     if (!container) return new Response("Service unavailable", { status: 503 });
     if (!container.running)
       container.start({ enableInternet: true, env: JSON.parse(this.env.RUNTIME_ENV) });
+    await container.setInactivityTimeout(10 * 60 * 1000);
+    if (!this.monitoring) {
+      this.monitoring = true;
+      this.stopped = false;
+      this.ctx.waitUntil(
+        container
+          .monitor()
+          .catch((error) => {
+            console.error("Container stopped", {
+              message: error.message,
+              exitCode: error.exitCode,
+            });
+          })
+          .finally(() => {
+            this.stopped = true;
+            this.monitoring = false;
+          }),
+      );
+    }
     const port = container.getTcpPort(8088);
     // Only readiness probes retry; replaying a command could duplicate its effects.
-    for (let attempt = 0; attempt < 120; attempt++) {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline && !this.stopped) {
       try {
-        const health = await port.fetch("http://container/health");
-        if (health.ok) return port.fetch(request);
+        const health = await port.fetch("http://container/health", {
+          signal: AbortSignal.timeout(2000),
+        });
+        const ready = health.ok;
+        await health.body?.cancel();
+        if (ready) {
+          const url = new URL(request.url);
+          url.protocol = "http:";
+          url.host = "container";
+          const forwarded = new Request(url, request);
+          forwarded.headers.delete("host");
+          return port.fetch(forwarded);
+        }
       } catch {
         /* The process may still be starting. */
       }

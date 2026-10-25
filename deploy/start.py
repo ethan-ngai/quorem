@@ -1,6 +1,7 @@
 """Supervise trusted services; contestant code runs only inside bounded inner containers."""
 from pathlib import Path
 import argparse
+import errno
 import signal
 import subprocess
 import time
@@ -18,9 +19,33 @@ def stop(_signal=None, _frame=None):
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 try:
+    for identity in ("self", "1"):
+        print(f"cgroup {identity}: " + Path(f"/proc/{identity}/cgroup").read_text().strip(), flush=True)
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        if " - cgroup" in line:
+            print("cgroup mount: " + line, flush=True)
+    # Moby's dind setup: domain controllers require an empty parent cgroup.
+    cgroup = Path("/sys/fs/cgroup")
+    if (cgroup / "cgroup.controllers").exists():
+        (cgroup / "init").mkdir(exist_ok=True)
+        for attempt in range(20):
+            for pid in (cgroup / "cgroup.procs").read_text().split():
+                try:
+                    (cgroup / "init/cgroup.procs").write_text(pid)
+                except OSError as error:
+                    if error.errno != errno.ESRCH:
+                        raise
+            controllers = (cgroup / "cgroup.controllers").read_text().split()
+            try:
+                (cgroup / "cgroup.subtree_control").write_text(" ".join("+" + name for name in controllers))
+                break
+            except OSError as error:
+                if error.errno != errno.EBUSY or attempt == 19:
+                    raise
+                time.sleep(0.05)
     processes.append(subprocess.Popen([
         "dockerd", "--iptables=false", "--ip6tables=false", "--ip-forward=false",
-        "--bridge=none", "--storage-driver=vfs", "--host=unix:///var/run/docker.sock",
+        "--bridge=none", "--host=unix:///var/run/docker.sock",
         "--exec-opt", "native.cgroupdriver=cgroupfs",
     ]))
     for _ in range(150):

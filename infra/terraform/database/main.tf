@@ -27,7 +27,10 @@ resource "neon_project" "production" {
     autoscaling_limit_max_cu = 1
     suspend_timeout_seconds  = 300
   }
-  lifecycle { prevent_destroy = true }
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [branch, primary_compute, history_retention_seconds]
+  }
 }
 output "database_url" {
   value     = neon_project.production.connection_uri
