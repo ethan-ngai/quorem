@@ -2069,6 +2069,7 @@ export interface operations {
                 page?: number;
                 limit?: number;
                 library?: "global" | "private";
+                type?: "classic" | "odyssey";
             };
             header?: never;
             path?: never;

@@ -43,6 +43,7 @@ import {
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
+import { publicOdysseyPreview } from "../odyssey/publicPreview";
 import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { interviewRequest } from "../interviews/api";
 import type { OdysseyProgress } from "@quorem/contracts";
@@ -379,6 +380,8 @@ export function WorkspacePage({
     enabled: !!workspace && !!problem?.odyssey && serverWorkspace,
     refetchInterval: problem?.odyssey ? 2000 : false,
   });
+  const displayedOdyssey =
+    odyssey.data ?? (!serverWorkspace ? publicOdysseyPreview(problem) : undefined);
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const runExamples = useMemo(
     () => odyssey.data?.levels.flatMap((level) => level.examples),
@@ -659,10 +662,10 @@ export function WorkspacePage({
         problem={
           <>
             {problem.odyssey ? (
-              odyssey.data ? (
+              displayedOdyssey ? (
                 <OdysseyPanel
                   allowTopics={match?.rules.hints?.topics !== false}
-                  progress={odyssey.data}
+                  progress={displayedOdyssey}
                   problem={problem}
                   selectedLevel={selectedLevel}
                 >
@@ -745,7 +748,7 @@ export function WorkspacePage({
         results={
           <WorkspaceTests
             problem={problem}
-            progress={odyssey.data}
+            progress={displayedOdyssey}
             submission={submission}
             busy={admissionPending || (execution.isPending && !!execution.submissionId)}
             error={execution.error}

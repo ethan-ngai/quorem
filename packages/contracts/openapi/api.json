@@ -945,6 +945,14 @@
               "type": "string",
               "enum": ["global", "private"]
             }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["classic", "odyssey"]
+            }
           }
         ]
       }

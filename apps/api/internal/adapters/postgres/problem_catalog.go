@@ -13,7 +13,7 @@ type ProblemPage = problems.ProblemPage
 
 // A stable snapshot keeps the page, count and unfiltered topic options consistent.
 func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPage, error) {
-	if f.Page < 1 || f.Page > 10000 || f.Limit < 1 || f.Limit > 100 {
+	if (f.Type != "" && f.Type != "classic" && f.Type != "odyssey") || f.Page < 1 || f.Page > 10000 || f.Limit < 1 || f.Limit > 100 {
 		return ProblemPage{}, failure("invalid_input", 400, "Invalid question pagination")
 	}
 	result := ProblemPage{Items: []problems.Problem{}, Topics: []string{}, Page: f.Page, Limit: f.Limit}
@@ -22,8 +22,8 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 		return result, err
 	}
 	defer tx.Rollback(ctx)
-	where := ` WHERE (p.owner_id IS NULL OR p.owner_id=$4) AND ($5='' OR ($5='global' AND p.owner_id IS NULL) OR ($5='private' AND p.owner_id=$4)) AND v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=ANY(string_to_array($2,','))) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array($3,','))))`
-	args := []any{f.Query, f.Difficulty, f.Topic, identity.Subject(ctx).UserID, f.Library}
+	where := ` WHERE (p.owner_id IS NULL OR p.owner_id=$4) AND ($5='' OR ($5='global' AND p.owner_id IS NULL) OR ($5='private' AND p.owner_id=$4)) AND ($6='' OR ($6='odyssey' AND v.public->'odyssey' IS NOT NULL) OR ($6='classic' AND v.public->'odyssey' IS NULL)) AND v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=ANY(string_to_array($2,','))) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array($3,','))))`
+	args := []any{f.Query, f.Difficulty, f.Topic, identity.Subject(ctx).UserID, f.Library, f.Type}
 	err = tx.QueryRow(ctx, `SELECT count(*) FROM problem_versions v JOIN problems p ON p.id=v.problem_id`+where, args...).Scan(&result.Total)
 	if err != nil {
 		return result, err
@@ -37,7 +37,7 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 	if f.Sort == "difficulty" {
 		order = "CASE v.difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END" + direction + ", " + order
 	}
-	rows, err := tx.Query(ctx, publicProblemSQL+where+" ORDER BY "+order+" LIMIT $6 OFFSET $7", append(args, f.Limit, (f.Page-1)*f.Limit)...)
+	rows, err := tx.Query(ctx, publicProblemSQL+where+" ORDER BY "+order+" LIMIT $7 OFFSET $8", append(args, f.Limit, (f.Page-1)*f.Limit)...)
 	if err != nil {
 		return result, err
 	}
