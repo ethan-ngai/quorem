@@ -11,7 +11,7 @@ repository = os.environ["GITHUB_REPOSITORY"]
 inputs = ["apps", "packages", "internal", "fixtures", "go.mod", "go.sum",
           "pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json", ".node-version",
           "vite.config.*", "scripts/build-site.mjs", "scripts/package-auth.py",
-          "scripts/build-judge-images.py", "deploy"]
+          "scripts/build-judge-images.py", "deploy/Dockerfile", "deploy/start.py", "deploy/nginx.conf"]
 if previous.isdigit():
     try:
         run = json.loads(subprocess.check_output([
