@@ -19,6 +19,11 @@ def stop(_signal=None, _frame=None):
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 try:
+    for identity in ("self", "1"):
+        print(f"cgroup {identity}: " + Path(f"/proc/{identity}/cgroup").read_text().strip(), flush=True)
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        if " - cgroup" in line:
+            print("cgroup mount: " + line, flush=True)
     # Moby's dind setup: domain controllers require an empty parent cgroup.
     cgroup = Path("/sys/fs/cgroup")
     if (cgroup / "cgroup.controllers").exists():
