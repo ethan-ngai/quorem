@@ -661,10 +661,19 @@ export function WorkspacePage({
             {problem.odyssey ? (
               odyssey.data ? (
                 <OdysseyPanel
+                  allowTopics={match?.rules.hints?.topics !== false}
                   progress={odyssey.data}
                   problem={problem}
                   selectedLevel={selectedLevel}
-                />
+                >
+                  <EditorialPanel
+                    available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
+                    identity={identity}
+                    versionId={problem.id}
+                    language={documentLanguage}
+                    inMatch={!!match && match.rules.hints?.complexity !== true}
+                  />
+                </OdysseyPanel>
               ) : (
                 <p className="result-message" role="status">
                   {!account.data
@@ -675,13 +684,17 @@ export function WorkspacePage({
                 </p>
               )
             ) : (
-              <ProblemStatement problem={problem}>
+              <ProblemStatement
+                problem={problem}
+                allowTopics={match?.rules.hints?.topics !== false}
+              >
                 <EditorialPanel
+                  available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
                   key={`${identity}:${problem.id}`}
                   identity={identity}
                   versionId={problem.id}
                   language={documentLanguage}
-                  inMatch={!!match}
+                  inMatch={!!match && match.rules.hints?.complexity !== true}
                 />
               </ProblemStatement>
             )}

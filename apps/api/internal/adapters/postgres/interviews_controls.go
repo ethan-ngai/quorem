@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
@@ -67,7 +66,7 @@ func (s *Store) SwitchInterviewLanguage(ctx context.Context, user, id, key, lang
 		v.fixture.Problem.StarterSource = implementation.StarterSource
 		v.fixture.Problem.RuntimeRevision = implementation.RuntimeRevision
 		v.fixture.HarnessRevision = implementation.HarnessRevision
-		data, _ := json.Marshal(v.fixture)
+		data, _ := encodeInterviewQuestion(v.fixture, v.snapshot.Hints)
 		if _, err = tx.Exec(ctx, `UPDATE interviews SET language=$2,source=$3,document_version=0,document_epoch=$4,question=$5,version=version+1,updated_at=clock_timestamp() WHERE id=$1`, id, language, source, ID(), data); err != nil {
 			return empty, err
 		}

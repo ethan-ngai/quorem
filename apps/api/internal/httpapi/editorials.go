@@ -11,7 +11,7 @@ func (s *Server) registerEditorials(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/problem-versions/{id}/complexity", s.complexity)
 }
 
-func (s *Server) allowEditorial(w http.ResponseWriter, r *http.Request) bool {
+func (s *Server) allowEditorial(w http.ResponseWriter, r *http.Request, complexityOnly bool) bool {
 	if !uuid.MatchString(r.PathValue("id")) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid problem ID", Status: 400})
 		return false
@@ -22,6 +22,16 @@ func (s *Server) allowEditorial(w http.ResponseWriter, r *http.Request) bool {
 		s.err(w, r, err)
 		return false
 	}
+	if active && complexityOnly {
+		match, err := s.Store.ActiveMatch(r.Context(), owner(r))
+		if err != nil {
+			s.err(w, r, err)
+			return false
+		}
+		if match != nil && match.ProblemVersionID == r.PathValue("id") && match.Rules.Hints.ComplexityAllowed() {
+			return true
+		}
+	}
 	if active {
 		s.err(w, r, &application.Error{Code: "forbidden", Message: "Editorial unavailable during an active match", Status: 403})
 		return false
@@ -30,7 +40,7 @@ func (s *Server) allowEditorial(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (s *Server) editorials(w http.ResponseWriter, r *http.Request) {
-	if !s.allowEditorial(w, r) {
+	if !s.allowEditorial(w, r, false) {
 		return
 	}
 	items, err := s.Store.Solutions(r.Context(), r.PathValue("id"))
@@ -42,7 +52,7 @@ func (s *Server) editorials(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) complexity(w http.ResponseWriter, r *http.Request) {
-	if !s.allowEditorial(w, r) {
+	if !s.allowEditorial(w, r, true) {
 		return
 	}
 	items, err := s.Store.Solutions(r.Context(), r.PathValue("id"))

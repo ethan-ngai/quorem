@@ -1,3 +1,6 @@
+import * as Popover from "../../ui/Popover";
+import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
+import { EditorialPanel } from "../editor/components/EditorialPanel";
 /** @file InterviewPage.tsx @description Shared coding workspace, role controls and private judging. @module interviews */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +28,7 @@ import { InterviewParticipants } from "./InterviewParticipants";
 import { InterviewInvitations } from "./InterviewInvitations";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Archive, Trash2, Lightbulb } from "lucide-react";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
@@ -232,14 +235,9 @@ function InterviewPad({
   const documentKey = `interview:${id}:${initial.document.epoch}`;
   const account = useSession();
   const host = snapshot.hostId === account.data?.user.id;
-  const wasClosed = useRef(closed);
-  useEffect(() => {
-    if (closed && !wasClosed.current && host) setLifecycle("delete");
-    wasClosed.current = closed;
-  }, [closed, host]);
   async function applyLifecycle() {
     if (lifecycle === "end") {
-      if (await mutate("close")) setLifecycle(host ? "delete" : undefined);
+      if (await mutate("close")) setLifecycle(undefined);
       return;
     }
     setBusy(true);
@@ -296,6 +294,18 @@ function InterviewPad({
                 </a>
               </Tooltip>
               <strong title={snapshot.title}>{snapshot.title}</strong>
+              {closed && (
+                <Tooltip content="Interview ended: code and results are read-only">
+                  <span
+                    className="interview-closed-status"
+                    role="img"
+                    aria-label="Closed interview"
+                    tabIndex={0}
+                  >
+                    <Archive size={16} />
+                  </span>
+                </Tooltip>
+              )}
             </div>
             {question.progress && (
               <OdysseyStepper
@@ -305,6 +315,40 @@ function InterviewPad({
               />
             )}
             <div className="interview-session-actions">
+              {host && !closed && (
+                <Popover.Root>
+                  <Tooltip content="Question hints">
+                    <Popover.Trigger asChild>
+                      <button className="icon-button" aria-label="Question hints">
+                        <Lightbulb size={16} />
+                      </button>
+                    </Popover.Trigger>
+                  </Tooltip>
+                  <Popover.Portal>
+                    <Popover.Content className="interview-hints-popover">
+                      <QuestionHintsControls
+                        complexityAvailable={
+                          question.problem.complexityLanguages?.includes(language) ?? false
+                        }
+                        value={snapshot.hints ?? {}}
+                        disabled={busy}
+                        onChange={(hints) => void mutate("hints", hints)}
+                      />
+                    </Popover.Content>
+                  </Popover.Portal>
+                </Popover.Root>
+              )}
+              {host && closed && (
+                <Tooltip content="Delete interview">
+                  <button
+                    className="icon-button interview-delete"
+                    aria-label="Delete interview"
+                    onClick={() => setLifecycle("delete")}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </Tooltip>
+              )}
               <InterviewParticipants
                 snapshot={snapshot}
                 open={members}
@@ -356,19 +400,6 @@ function InterviewPad({
               </button>
             </div>
           )}
-          {closed && (
-            <div className="match-rule-notice" role="status">
-              <span>Interview ended. Code and results remain available.</span>
-              {host && (
-                <button
-                  className="quiet-button button-destructive-hover"
-                  onClick={() => setLifecycle("delete")}
-                >
-                  Delete interview
-                </button>
-              )}
-            </div>
-          )}
           {status === "offline" && (
             <div className="match-rule-notice" role="status">
               Connection interrupted. Keep this tab open; your edits retry automatically.
@@ -382,9 +413,31 @@ function InterviewPad({
             progress={question.progress}
             problem={question.problem}
             selectedLevel={selectedLevel}
-          />
+            allowTopics={snapshot.hints?.topics !== false}
+          >
+            {snapshot.hints?.complexity === true &&
+              question.problem.complexityLanguages?.includes(language) && (
+                <EditorialPanel
+                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                  versionId={question.problem.id}
+                  language={language}
+                />
+              )}
+          </OdysseyPanel>
         ) : (
-          <ProblemStatement problem={question.problem} />
+          <ProblemStatement
+            problem={question.problem}
+            allowTopics={snapshot.hints?.topics !== false}
+          >
+            {snapshot.hints?.complexity === true &&
+              question.problem.complexityLanguages?.includes(language) && (
+                <EditorialPanel
+                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                  versionId={question.problem.id}
+                  language={language}
+                />
+              )}
+          </ProblemStatement>
         )
       }
       editor={
@@ -474,6 +527,7 @@ function InterviewPad({
       >
         <QuestionSetup
           showTitle={false}
+          showHints={false}
           onSubmit={(question) => void replace(question)}
           busy={busy}
           label="Replace question and code"

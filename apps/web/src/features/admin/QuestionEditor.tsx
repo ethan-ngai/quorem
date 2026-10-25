@@ -14,7 +14,10 @@ import { api, requireData } from "../editor/api";
 import { createDraft, getDraft, listDrafts, publishDraft, saveDraft } from "./api";
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
-import { SelectField } from "../../ui/SelectField";
+import { ProblemPicker } from "../practice/ProblemPicker";
+import { Globe, LockKeyhole, FileJson } from "lucide-react";
+import { Tooltip } from "../../ui/Tooltip";
+import "../../ui/question-hints.css";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { PreviewBoundary } from "./PreviewBoundary";
 import { parseQuestionImport, questionImportLimit } from "./importQuestion";
@@ -149,13 +152,6 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           <h1>Question editor</h1>
         </div>
         <div className="admin-toolbar">
-          <a
-            className="quiet-button"
-            href={questionSchema}
-            download="quorem-question-v1.schema.json"
-          >
-            JSON schema
-          </a>
           <input
             ref={importInput}
             type="file"
@@ -195,15 +191,12 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         <aside className="admin-rail" aria-label="Question drafts">
           <label>
             Edit published question
-            <SelectField
-              label="Edit published question"
+            <ProblemPicker
+              items={problems.data ?? []}
               value={cloneId}
-              onChange={setCloneId}
-              options={[
-                { value: "", label: "Choose question" },
-                ...(problems.data?.map((item) => ({ value: item.id, label: item.title })) ?? []),
-              ]}
+              onChange={(id) => setCloneId(id ?? "")}
               disabled={busy}
+              label="Edit published question"
             />
           </label>
           <button
@@ -254,6 +247,18 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
               Load more drafts
             </button>
           )}
+          <div className="admin-rail-tools">
+            <Tooltip content="Download question JSON schema">
+              <a
+                className="icon-button"
+                href={questionSchema}
+                download="quorem-question-v1.schema.json"
+                aria-label="Download question JSON schema"
+              >
+                <FileJson size={16} />
+              </a>
+            </Tooltip>
+          </div>
         </aside>
         <section className="admin-form-pane" aria-label="Question content">
           <SessionDialog
@@ -323,12 +328,21 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                     {admin && (
                       <SegmentedControl
                         label="Publish to"
+                        iconOnly
                         value={visibility}
                         disabled={busy}
                         onChange={(value) => setVisibility(value as "private" | "global")}
                         options={[
-                          { value: "private", label: "Private" },
-                          { value: "global", label: "Global" },
+                          {
+                            value: "private",
+                            label: "Private",
+                            icon: <LockKeyhole size={16} aria-hidden="true" />,
+                          },
+                          {
+                            value: "global",
+                            label: "Global",
+                            icon: <Globe size={16} aria-hidden="true" />,
+                          },
                         ]}
                       />
                     )}

@@ -1,3 +1,4 @@
+import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
@@ -46,11 +47,11 @@ export function MatchSettings({
   identity: DevelopmentIdentity;
   participantCount?: number;
   showHostRules?: boolean;
-  catalog?: { id: string; title: string; difficulty: string }[];
+  catalog?: { id: string; title: string; difficulty: string; complexityLanguages?: string[] }[];
 }) {
-  const [problems, setProblems] = useState<{ id: string; title: string; difficulty: string }[]>(
-    catalog ?? [],
-  );
+  const [problems, setProblems] = useState<
+    { id: string; title: string; difficulty: string; complexityLanguages?: string[] }[]
+  >(catalog ?? []);
   const [catalogError, setCatalogError] = useState<string>();
   useEffect(() => {
     if (catalog) {
@@ -196,6 +197,20 @@ export function MatchSettings({
           }))}
         />
       </div>
+      <QuestionHintsControls
+        complexityAvailable={
+          selectedProblem
+            ? !!selectedProblem.complexityLanguages?.length
+            : problems.some(
+                (problem) =>
+                  pools.includes(problem.difficulty as (typeof pools)[number]) &&
+                  !!problem.complexityLanguages?.length,
+              )
+        }
+        value={rules.hints ?? {}}
+        disabled={disabled}
+        onChange={(hints) => onChange({ ...value, rules: { ...rules, hints } })}
+      />
       {showHostRules && (
         <>
           <div className="match-rules-heading">
