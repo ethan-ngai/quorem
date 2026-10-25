@@ -14,6 +14,7 @@
 
 - GitHub issues/PRs are the work ledger. Inspect them and Git status/worktrees at task start; link substantive work to an issue.
 - `dev` is the integration branch. Solo work, regardless of size, commits and pushes directly to `dev` in the existing checkout; no feature branch or PR.
+- Within one conversation, do not commit unfinished work awaiting human input. During active back-and-forth edits, commits are allowed; squash previous related commits from that conversation.
 - Separate feature branches/PRs are required only when multiple agents work concurrently under an orchestrating superagent. Target `dev`; merge promptly after relevant checks pass, without asking for additional approval. Delete merged feature branches once no unmerged dependent work needs them.
 - For concurrent work with dependencies, prefer stacked PRs: base each on its predecessor, record the order, merge bottom-up, and retarget remaining PRs to `dev` as dependencies land. Keep predecessor branches until dependents are retargeted.
 - Keep PR descriptions short: `Changes`, `Validation`; add `Dependencies` or `Limitations` only when needed. Draft only while unfinished.

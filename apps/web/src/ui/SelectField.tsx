@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode, type ComponentProps } from "react";
 import "./select-field.css";
 
 export type SelectOption = { value: string; label: string; leading?: ReactNode };
@@ -12,6 +12,10 @@ type SelectFieldProps = {
   onChange: (value: string) => void;
   disabled?: boolean;
   className?: string;
+  triggerProps?: Pick<
+    ComponentProps<"button">,
+    "id" | "aria-describedby" | "aria-invalid" | "onBlur"
+  >;
 };
 
 export function SelectField({
@@ -21,11 +25,44 @@ export function SelectField({
   onChange,
   disabled,
   className = "",
+  triggerProps,
 }: SelectFieldProps) {
+  const [open, setOpen] = useState(false);
+  const closingPointer = useRef(false);
   const selected = options.find((option) => option.value === value);
   return (
-    <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
-      <Select.Trigger className={`select-field ${className}`} aria-label={label}>
+    <Select.Root
+      value={value}
+      onValueChange={onChange}
+      disabled={disabled}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <Select.Trigger
+        {...triggerProps}
+        className={`select-field ${className}`}
+        aria-label={label}
+        // Radix blocks lower-layer pointer events while open; keep the trigger from clicking through its parent popover.
+        style={open ? { pointerEvents: "auto" } : undefined}
+        onPointerDown={(event) => {
+          closingPointer.current = false;
+          if (open && event.button === 0 && !event.ctrlKey) {
+            event.preventDefault();
+            closingPointer.current = true;
+            setOpen(false);
+          }
+        }}
+        onClick={(event) => {
+          // Touch may dispatch a click after pointer dismissal; it must not reopen the menu.
+          if (closingPointer.current) {
+            event.preventDefault();
+            closingPointer.current = false;
+          }
+        }}
+        onKeyDown={() => {
+          closingPointer.current = false;
+        }}
+      >
         {selected?.leading}
         <Select.Value>{selected?.label}</Select.Value>
         <Select.Icon className="select-field-chevron">

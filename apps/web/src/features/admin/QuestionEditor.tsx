@@ -11,6 +11,8 @@ import { api, requireData } from "../editor/api";
 import { createDraft, getDraft, listDrafts, publishDraft, saveDraft } from "./api";
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
+import { SelectField } from "../../ui/SelectField";
+import { SessionDialog } from "../../ui/SessionDialog";
 import { PreviewBoundary } from "./PreviewBoundary";
 import "./admin.css";
 
@@ -34,33 +36,36 @@ export function QuestionEditor() {
           <h1>Sign in required</h1>
           <a href="/login">Sign in</a>
         </main>
-      ) : session.data.user.role !== "admin" ? (
+      ) : session.data.user.role !== "admin" &&
+        !session.data.capabilities?.authorCustomQuestions ? (
         <main className="admin-access">
-          <h1>Administrator access required</h1>
+          <h1>Question authoring access required</h1>
           <p>Your account cannot edit questions.</p>
           <a href="/practice">Return to practice</a>
         </main>
       ) : (
-        <AuthoringWorkspace />
+        <AuthoringWorkspace admin={session.data.user.role === "admin"} />
       )}
     </>
   );
 }
 
 /** Keeps unsaved edits local; changing drafts requires an explicit discard. */
-function AuthoringWorkspace() {
+function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const cache = useQueryClient();
   const drafts = useInfiniteQuery({
-    queryKey: ["admin-drafts"],
+    queryKey: ["admin-drafts", admin],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => listDrafts(pageParam),
     getNextPageParam: (page) => page.nextCursor,
   });
   const draftItems = drafts.data?.pages.flatMap((page) => page.items);
   const problems = useQuery({
-    queryKey: ["admin-problems"],
+    queryKey: ["admin-problems", admin],
     queryFn: async () => {
-      const { data, error } = await api().GET("/v1/problems");
+      const { data, error } = await api().GET("/v1/problems", {
+        params: { query: { limit: 100, ...(admin ? {} : { library: "private" as const }) } },
+      });
       return requireData(data, error).items;
     },
   });
@@ -114,7 +119,9 @@ function AuthoringWorkspace() {
       <header className="admin-heading">
         <div>
           <h1>Question editor</h1>
-          <p>Save drafts. Publish new immutable versions.</p>
+          <p>
+            {admin ? "Publish global questions." : "Create questions for your private library."}
+          </p>
         </div>
         <button
           className="button button-secondary"
@@ -130,14 +137,16 @@ function AuthoringWorkspace() {
         <aside className="admin-rail" aria-label="Question drafts">
           <label>
             Edit published question
-            <select value={cloneId} onChange={(event) => setCloneId(event.target.value)}>
-              <option value="">Choose question</option>
-              {problems.data?.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </select>
+            <SelectField
+              label="Edit published question"
+              value={cloneId}
+              onChange={setCloneId}
+              options={[
+                { value: "", label: "Choose question" },
+                ...(problems.data?.map((item) => ({ value: item.id, label: item.title })) ?? []),
+              ]}
+              disabled={busy}
+            />
           </label>
           <button
             className="button button-secondary"
@@ -189,9 +198,15 @@ function AuthoringWorkspace() {
           )}
         </aside>
         <section className="admin-form-pane" aria-label="Question content">
-          {discardTarget && (
-            <div className="admin-notice" role="alert">
-              <p>Unsaved edits will be discarded.</p>
+          <SessionDialog
+            open={!!discardTarget}
+            onOpenChange={(open) => {
+              if (!open) setDiscardTarget(undefined);
+            }}
+            title="Discard unsaved edits?"
+            description="Your saved draft will remain unchanged."
+          >
+            <footer className="competitive-dialog-actions">
               <button
                 className="button button-secondary"
                 onClick={() => setDiscardTarget(undefined)}
@@ -199,13 +214,13 @@ function AuthoringWorkspace() {
                 Keep editing
               </button>
               <button
-                className="button button-secondary"
-                onClick={() => void perform(() => getDraft(discardTarget), "")}
+                className="button button-primary"
+                onClick={() => discardTarget && void perform(() => getDraft(discardTarget), "")}
               >
                 Discard and open
               </button>
-            </div>
-          )}
+            </footer>
+          </SessionDialog>
           {!content || !draft ? (
             <p>Select a draft or create a question.</p>
           ) : (
@@ -253,11 +268,13 @@ function AuthoringWorkspace() {
                       onClick={() =>
                         void perform(
                           () => publishDraft(draft),
-                          "Published. Existing workspaces keep their previous version.",
+                          admin
+                            ? "Global question published."
+                            : "Question added to your private library.",
                         )
                       }
                     >
-                      {busy ? "Working…" : "Publish version"}
+                      {busy ? "Working…" : admin ? "Publish globally" : "Save to private library"}
                     </button>
                   </>
                 )}
@@ -271,8 +288,9 @@ function AuthoringWorkspace() {
                   key={`${draft.id}:${draft.revision}`}
                   content={content}
                   disabled={locked}
+                  invalidCases={[...invalidFields].some((key) => key.startsWith("cases:"))}
                   onValidityChange={(label, invalid) => (
-                    setDirty(true),
+                    invalid && setDirty(true),
                     setInvalidFields((previous) => {
                       const next = new Set(previous);
                       if (invalid) next.add(label);

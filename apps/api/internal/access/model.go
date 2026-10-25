@@ -4,10 +4,14 @@ import "time"
 
 // Capabilities are product benefits; admin remains a separate authorization role.
 type Capabilities struct {
-	HostGuests         bool `json:"hostGuests"`
-	HostedIntelligence bool `json:"hostedIntelligence"`
-	Experimental       bool `json:"experimental"`
-	GuestConcurrency   int  `json:"guestConcurrency"`
+	AuthorCustomQuestions bool `json:"authorCustomQuestions"`
+	InterviewConcurrency  int  `json:"interviewConcurrency"`
+	HostGuests            bool `json:"hostGuests"`
+	HostedIntelligence    bool `json:"hostedIntelligence"`
+	Experimental          bool `json:"experimental"`
+	Interviews            bool `json:"interviews"`
+	Odyssey               bool `json:"odyssey"`
+	GuestConcurrency      int  `json:"guestConcurrency"`
 }
 type Grant struct {
 	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`

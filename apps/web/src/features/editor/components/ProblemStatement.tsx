@@ -7,8 +7,21 @@ import { bindArguments } from "../argumentBinding";
 import { constraintMarkup } from "../constraintMarkup";
 import type { ProblemVersion } from "@quorem/contracts";
 
+export type StatementProblem = Pick<
+  ProblemVersion,
+  | "id"
+  | "title"
+  | "difficulty"
+  | "tags"
+  | "statementMarkdown"
+  | "signature"
+  | "examples"
+  | "constraints"
+  | "odyssey"
+>;
+
 /** @returns Named argument values in the public function's declared order. */
-export function exampleInput(problem: ProblemVersion, args: unknown[]) {
+export function exampleInput(problem: Pick<ProblemVersion, "signature">, args: unknown[]) {
   return bindArguments(problem.signature, args)
     .map(({ name, value }) => `${name} = ${JSON.stringify(value)}`)
     .join(", ");
@@ -18,9 +31,13 @@ export function exampleInput(problem: ProblemVersion, args: unknown[]) {
 export function ProblemStatement({
   problem,
   children,
+  navigation,
+  beforeExamples,
 }: {
-  problem: ProblemVersion;
+  problem: StatementProblem;
   children?: ReactNode;
+  navigation?: ReactNode;
+  beforeExamples?: ReactNode;
 }) {
   const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
   const topicsVisible = revealedTopicsFor === problem.id;
@@ -61,9 +78,11 @@ export function ProblemStatement({
           ))}
         </div>
       )}
+      {navigation}
       <div className="problem-copy">
         <StatementMarkdown source={problem.statementMarkdown} />
       </div>
+      {beforeExamples}
       {problem.examples.length > 0 && (
         <section className="problem-section" aria-labelledby="examples-heading">
           <h2 id="examples-heading">Examples</h2>
@@ -78,7 +97,26 @@ export function ProblemStatement({
                           <Icon name="input" />
                         </span>
                       </Tooltip>
-                      <code>{exampleInput(problem, example.args)}</code>
+                      <code>
+                        {example.calls?.length
+                          ? example.calls
+                              .map((call) => {
+                                const signature = problem.odyssey?.levels
+                                  .flatMap((level) => level.methods)
+                                  .find((method) => method.methodName === call.methodName);
+                                return `${call.methodName}(${
+                                  signature
+                                    ? bindArguments(signature, call.args)
+                                        .map(
+                                          ({ name, value }) => `${name} = ${JSON.stringify(value)}`,
+                                        )
+                                        .join(", ")
+                                    : call.args.map((value) => JSON.stringify(value)).join(", ")
+                                })`;
+                              })
+                              .join("; ")
+                          : exampleInput(problem, example.args)}
+                      </code>
                     </div>
                     <div>
                       <Tooltip content="Output">
@@ -86,7 +124,13 @@ export function ProblemStatement({
                           <Icon name="output" />
                         </span>
                       </Tooltip>
-                      <code>{JSON.stringify(example.expected)}</code>
+                      <code>
+                        {JSON.stringify(
+                          example.calls?.length
+                            ? example.calls.map((call) => call.expected)
+                            : example.expected,
+                        )}
+                      </code>
                     </div>
                   </div>
                   <div className="example-explanation">
@@ -107,14 +151,16 @@ export function ProblemStatement({
           </ol>
         </section>
       )}
-      <section className="problem-section" aria-labelledby="constraints-heading">
-        <h2 id="constraints-heading">Constraints</h2>
-        <ul className="constraint-list">
-          {problem.constraints.map((constraint, constraintIndex) => {
-            return <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>;
-          })}
-        </ul>
-      </section>
+      {problem.constraints.length > 0 && (
+        <section className="problem-section" aria-labelledby="constraints-heading">
+          <h2 id="constraints-heading">Constraints</h2>
+          <ul className="constraint-list">
+            {problem.constraints.map((constraint, constraintIndex) => {
+              return <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>;
+            })}
+          </ul>
+        </section>
+      )}
       {children}
     </div>
   );

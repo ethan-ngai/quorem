@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/workspace"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
@@ -12,9 +13,18 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner, problemID, language 
 	if _, ok := execution.LanguageRuntime(language); !ok {
 		return workspace.Workspace{}, failure("invalid_input", 400, "Unsupported language")
 	}
-	p, err := s.Problem(ctx, problemID, true)
+	p, err := s.Problem(identity.With(ctx, identity.Principal{UserID: owner}), problemID, true)
 	if err != nil {
 		return workspace.Workspace{}, err
+	}
+	if p.Odyssey != nil {
+		c, e := s.Capabilities(ctx, owner)
+		if e != nil {
+			return workspace.Workspace{}, e
+		}
+		if !c.Odyssey {
+			return workspace.Workspace{}, failure("entitlement_required", 403, "Odyssey access required")
+		}
 	}
 	var supported bool
 	if err = s.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM problem_languages WHERE version_id=$1 AND language=$2)", p.ID, language).Scan(&supported); err != nil {

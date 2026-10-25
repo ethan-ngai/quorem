@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { PasswordResetSetting } from "./PasswordResetSetting";
 import { authErrorMessage } from "./errors";
 import { Pencil, Check, X, Send } from "lucide-react";
-import * as Popover from "@radix-ui/react-popover";
+import * as Popover from "../../ui/Popover";
 import { Tooltip } from "../editor/components/Tooltip";
 import { type ReactNode, useState, useEffect, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

@@ -52,7 +52,7 @@
   background: transparent;
 }
 .select-field-menu {
-  z-index: 100;
+  z-index: var(--layer-select, 240);
   min-width: max(144px, var(--radix-select-trigger-width));
   max-height: min(320px, var(--radix-select-content-available-height));
   padding: var(--space-1);
@@ -136,7 +136,7 @@
   .select-field-chevron {
     transition: none;
   }
-  .select-field-menu {
+  .select-field-menu[data-state] {
     animation: none;
   }
 }

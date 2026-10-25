@@ -9,6 +9,12 @@ describe("sign-in back referral", () => {
     );
     expect(signInReferral("?returnTo=%2Fmatch%2Fabc", "", origin)).toBe("/match/abc");
   });
+  it("returns to interview invitations after account sign-in", () => {
+    expect(signInReferral("?returnTo=%2Finterview-invite%2Ftoken", "", origin)).toBe(
+      "/interview-invite/token",
+    );
+    expect(signInReferral("", `${origin}/interview/session`, origin)).toBe("/interview/session");
+  });
   it("uses a same-origin page referral, including home", () => {
     expect(signInReferral("", `${origin}/`, origin)).toBe("/");
     expect(signInReferral("", `${origin}/practice?q=tree`, origin)).toBe("/practice?q=tree");

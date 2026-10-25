@@ -79,14 +79,15 @@ type HiddenCaseResult struct {
 }
 
 type Completion struct {
-	SubmissionID      string             `json:"submissionId"`
-	AttemptID         string             `json:"attemptId"`
-	Verdict           Verdict            `json:"verdict,omitempty"`
-	Score             *Score             `json:"score,omitempty"`
-	SafeDiagnostics   []Diagnostic       `json:"safeDiagnostics,omitempty"`
-	PublicCaseResults []PublicCaseResult `json:"publicCaseResults,omitempty"`
-	HiddenCases       []HiddenCaseResult `json:"hiddenCases,omitempty"`
-	EngineFailure     string             `json:"engineFailure,omitempty"`
+	PrivateCaseResults []PublicCaseResult `json:"privateCaseResults,omitempty"`
+	SubmissionID       string             `json:"submissionId"`
+	AttemptID          string             `json:"attemptId"`
+	Verdict            Verdict            `json:"verdict,omitempty"`
+	Score              *Score             `json:"score,omitempty"`
+	SafeDiagnostics    []Diagnostic       `json:"safeDiagnostics,omitempty"`
+	PublicCaseResults  []PublicCaseResult `json:"publicCaseResults,omitempty"`
+	HiddenCases        []HiddenCaseResult `json:"hiddenCases,omitempty"`
+	EngineFailure      string             `json:"engineFailure,omitempty"`
 }
 
 // ExecutionEngine hides runtime and queue providers from application rules.

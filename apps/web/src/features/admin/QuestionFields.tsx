@@ -1,19 +1,28 @@
 /** @file QuestionFields.tsx @description Typed metadata and language editorial authoring. @module admin */
-import { useState, type ReactNode } from "react";
+import { adaptSignature } from "./authoringSignature";
+import { AuthoringCodeField, AuthoringNumberField, TopicField } from "./AuthoringInputs";
+import { SignatureFields } from "./SignatureFields";
+import { SelectField } from "../../ui/SelectField";
+import { AuthoringCases } from "./AuthoringCases";
+import { Field, JSONField } from "./AuthoringFields";
+export { JSONField, validJSONShape } from "./AuthoringFields";
 import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
+import { OdysseyFields } from "../odyssey/OdysseyFields";
 import { revisions, languageLabels, type Language } from "./content";
 /** Field groups share the wire types, with JSON reserved for typed collections. */
 export function QuestionFields({
   content,
   disabled,
+  invalidCases = false,
   onChange,
   onValidityChange,
 }: {
   content: QuestionContent;
   disabled: boolean;
+  invalidCases?: boolean;
   onValidityChange: (label: string, invalid: boolean) => void;
   onChange: (content: QuestionContent) => void;
 }) {
@@ -70,25 +79,21 @@ export function QuestionFields({
         </div>
         <div className="admin-field-pair">
           <Field label="Difficulty">
-            <select
+            <SelectField
+              label="Difficulty"
               value={problem.difficulty}
-              onChange={(event) =>
-                setProblem({ difficulty: event.target.value as ProblemVersion["difficulty"] })
+              disabled={disabled}
+              onChange={(value) =>
+                setProblem({ difficulty: value as ProblemVersion["difficulty"] })
               }
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-          </Field>
-          <Field label="Topics, separated by commas">
-            <input
-              value={problem.tags.join(", ")}
-              onChange={(event) =>
-                setProblem({ tags: event.target.value.split(",").map((tag) => tag.trim()) })
-              }
+              options={[
+                { value: "easy", label: "Easy" },
+                { value: "medium", label: "Medium" },
+                { value: "hard", label: "Hard" },
+              ]}
             />
           </Field>
+          <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
         </div>
         <Field label="Statement">
           <textarea
@@ -106,20 +111,28 @@ export function QuestionFields({
       </section>
       <section>
         <h2>Signature and cases</h2>
-        <JSONField
-          onValidityChange={onValidityChange}
-          label="Typed signature"
-          value={problem.signature}
-          onChange={(signature) =>
-            setProblem({ signature: signature as ProblemVersion["signature"] })
-          }
-        />
-        <JSONField
-          onValidityChange={onValidityChange}
-          label="Execution limits"
-          value={problem.limits}
-          onChange={(limits) => setProblem({ limits: limits as ProblemVersion["limits"] })}
-        />
+        <fieldset className="admin-fields" disabled={disabled || invalidCases}>
+          <SignatureFields
+            value={problem.signature}
+            onChange={(signature) => onChange(adaptSignature(content, signature))}
+            onValidityChange={onValidityChange}
+          />
+        </fieldset>
+        {invalidCases && <p className="admin-error">Fix test values before changing the method.</p>}
+        <details className="admin-language">
+          <summary>Execution limits</summary>
+          <div className="admin-field-pair">
+            {Object.entries(problem.limits).map(([name, value]) => (
+              <AuthoringNumberField
+                key={name}
+                label={name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
+                value={value}
+                onValidityChange={(invalid) => onValidityChange(`limit:${name}`, invalid)}
+                onChange={(next) => setProblem({ limits: { ...problem.limits, [name]: next } })}
+              />
+            ))}
+          </div>
+        </details>
         <JSONField
           onValidityChange={onValidityChange}
           label="Structured constraints"
@@ -128,21 +141,19 @@ export function QuestionFields({
             setProblem({ constraints: constraints as ProblemVersion["constraints"] })
           }
         />
-        <JSONField
-          onValidityChange={onValidityChange}
-          label="Public examples with explanations"
-          value={problem.examples}
-          onChange={(examples) => setProblem({ examples: examples as ProblemVersion["examples"] })}
-        />
-        <JSONField
-          onValidityChange={onValidityChange}
-          label="Hidden cases (20 required)"
-          value={content.hiddenCases}
-          onChange={(hiddenCases) =>
-            onChange({ ...content, hiddenCases: hiddenCases as QuestionContent["hiddenCases"] })
-          }
-        />
+        {!problem.odyssey && (
+          <AuthoringCases
+            key={JSON.stringify([
+              problem.signature.parameters.map((p) => p.type),
+              problem.signature.returnType,
+            ])}
+            content={content}
+            onChange={onChange}
+            onValidityChange={onValidityChange}
+          />
+        )}
       </section>
+      <OdysseyFields content={content} onChange={onChange} onValidityChange={onValidityChange} />
       <section>
         <h2>Languages and solutions</h2>
         <p>Starter and trusted judge reference code are separate from published editorial code.</p>
@@ -187,26 +198,20 @@ export function QuestionFields({
               </label>
               {implementation && (
                 <>
-                  <Field label={`${languageLabels[language]} starter code`}>
-                    <textarea
-                      className="admin-code"
-                      rows={7}
-                      value={implementation.starterSource}
-                      onChange={(event) =>
-                        setImplementation(index, { starterSource: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label={`${languageLabels[language]} private judge reference`}>
-                    <textarea
-                      className="admin-code"
-                      rows={7}
-                      value={implementation.referenceSource}
-                      onChange={(event) =>
-                        setImplementation(index, { referenceSource: event.target.value })
-                      }
-                    />
-                  </Field>
+                  <AuthoringCodeField
+                    label={`${languageLabels[language]} starter code`}
+                    language={language}
+                    source={implementation.starterSource}
+                    disabled={disabled}
+                    onChange={(source) => setImplementation(index, { starterSource: source })}
+                  />
+                  <AuthoringCodeField
+                    label={`${languageLabels[language]} private judge reference`}
+                    language={language}
+                    source={implementation.referenceSource}
+                    disabled={disabled}
+                    onChange={(source) => setImplementation(index, { referenceSource: source })}
+                  />
                   <label className="admin-check">
                     <input
                       type="checkbox"
@@ -226,16 +231,13 @@ export function QuestionFields({
                   </label>
                   {solution && (
                     <>
-                      <Field label={`${languageLabels[language]} editorial code`}>
-                        <textarea
-                          className="admin-code"
-                          rows={7}
-                          value={solution.source}
-                          onChange={(event) =>
-                            setSolution(language, { source: event.target.value })
-                          }
-                        />
-                      </Field>
+                      <AuthoringCodeField
+                        label={`${languageLabels[language]} editorial code`}
+                        language={language}
+                        source={solution.source}
+                        disabled={disabled}
+                        onChange={(source) => setSolution(language, { source })}
+                      />
                       <Field label={`${languageLabels[language]} explanation`}>
                         <textarea
                           rows={5}
@@ -284,58 +286,6 @@ export function QuestionFields({
   );
 }
 
-/** @returns A labeled field that keeps native focus and keyboard behavior. */
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="admin-field">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-/** Retains invalid JSON text for correction instead of reverting the user's input. */
-function JSONField({
-  label,
-  value,
-  onChange,
-  onValidityChange,
-}: {
-  label: string;
-  value: unknown;
-  onValidityChange: (label: string, invalid: boolean) => void;
-  onChange: (value: unknown) => void;
-}) {
-  const [source, setSource] = useState(() => JSON.stringify(value, null, 2));
-  const [invalid, setInvalid] = useState(false);
-  return (
-    <Field label={label}>
-      <textarea
-        className="admin-code"
-        rows={6}
-        value={source}
-        aria-invalid={invalid}
-        onChange={(event) => {
-          setSource(event.target.value);
-          try {
-            const parsed: unknown = JSON.parse(event.target.value);
-            if (!validJSONShape(label, parsed)) throw new Error("Invalid shape");
-            setInvalid(false);
-            onValidityChange(label, false);
-            onChange(parsed);
-          } catch {
-            setInvalid(true);
-            onValidityChange(label, true);
-          }
-        }}
-      />
-      {invalid && (
-        <span className="admin-error">Invalid JSON or shape. Fix this field before saving.</span>
-      )}
-    </Field>
-  );
-}
-
 /** Public preview excludes every private reference and hidden test. */
 export function PublicPreview({ content }: { content: QuestionContent }) {
   return (
@@ -356,58 +306,4 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
       ))}
     </div>
   );
-}
-
-/** Prevents malformed typed collections from reaching preview rendering. */
-export function validJSONShape(label: string, value: unknown): boolean {
-  const record = (item: unknown): item is Record<string, unknown> =>
-    !!item && typeof item === "object" && !Array.isArray(item);
-  if (label === "Typed signature")
-    return (
-      record(value) &&
-      typeof value.className === "string" &&
-      typeof value.methodName === "string" &&
-      typeof value.returnType === "string" &&
-      Array.isArray(value.parameters) &&
-      value.parameters.every(
-        (parameter) =>
-          record(parameter) &&
-          typeof parameter.name === "string" &&
-          typeof parameter.type === "string",
-      )
-    );
-  if (label === "Execution limits")
-    return (
-      record(value) &&
-      [
-        "wallTimeMs",
-        "memoryBytes",
-        "outputBytes",
-        "maxProcesses",
-        "maxCollectionElements",
-        "maxNestingDepth",
-      ].every(
-        (name) =>
-          typeof value[name] === "number" &&
-          Number.isSafeInteger(value[name]) &&
-          Number(value[name]) > 0,
-      )
-    );
-  if (!Array.isArray(value)) return false;
-  if (label === "Structured constraints") {
-    const target = (item: unknown) =>
-      record(item) && typeof item.parameter === "string" && typeof item.projection === "string";
-    return value.every(
-      (item) =>
-        record(item) &&
-        (item.kind === "prose"
-          ? typeof item.text === "string"
-          : item.kind === "range" || item.kind === "property"
-            ? target(item.target)
-            : item.kind === "comparison"
-              ? target(item.left) && target(item.right)
-              : false),
-    );
-  }
-  return value.every((item) => record(item) && Array.isArray(item.args) && "expected" in item);
 }

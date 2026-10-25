@@ -224,6 +224,12 @@ func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
 	return result
 }
 func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
+	if p.Odyssey != nil {
+		return ValidateOdysseyCase(p, c, expectedRequired)
+	}
+	if len(c.Calls) > 0 {
+		return fmt.Errorf("method sequences require Odyssey")
+	}
 	if err := ValidateCase(p.Signature, c, expectedRequired); err != nil {
 		return err
 	}
@@ -258,6 +264,21 @@ func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
 	return nil
 }
 func ValidateProblemCustomCases(p Problem, cases []Case) error {
+	if p.Odyssey != nil {
+		if len(cases) < 1 || len(cases) > 20 {
+			return fmt.Errorf("custom cases must contain 1 to 20 cases")
+		}
+		data, err := json.Marshal(cases)
+		if err != nil || len(data) > 65536 {
+			return fmt.Errorf("custom cases exceed 64 KiB")
+		}
+		for _, c := range cases {
+			if err := ValidateOdysseyCase(p, c, false); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if err := ValidateCustomCases(p.Signature, cases); err != nil {
 		return err
 	}

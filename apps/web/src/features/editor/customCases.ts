@@ -18,6 +18,15 @@ export type RunSnapshot = {
   cases: { id: string; value: CustomCase }[];
 };
 
+/** Snapshot only executable case data, including ordered stateful calls. */
+export function caseSnapshotValue(value: CustomCase): CustomCase {
+  return {
+    args: value.args,
+    ...(value.calls ? { calls: value.calls } : {}),
+    ...(value.expected !== undefined ? { expected: value.expected } : {}),
+  };
+}
+
 export function parseTypedField(type: string, source: string, config?: InputConfig): WireValue {
   return resolveInputPreset(type, config).parse(source);
 }
