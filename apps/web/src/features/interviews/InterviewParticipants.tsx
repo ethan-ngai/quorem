@@ -1,6 +1,6 @@
 /** @file InterviewParticipants.tsx @description Readable participant roster and role management. @module interviews */
 import type { InterviewSnapshot, InterviewRole } from "@quorem/contracts";
-import { SessionDialog } from "../../ui/SessionDialog";
+import * as Popover from "@radix-ui/react-popover";
 import { SelectField } from "../../ui/SelectField";
 import { Tooltip } from "../editor/components/Tooltip";
 import { Icon } from "../editor/components/Icon";
@@ -23,65 +23,91 @@ export function InterviewParticipants({
 }) {
   const canManage = snapshot.role === "interviewer" && snapshot.state !== "closed";
   return (
-    <SessionDialog
+    <Popover.Root
       open={open}
-      onOpenChange={onOpenChange}
-      title="Participants"
-      description="One shared workspace."
-      pending={busy}
+      onOpenChange={(value) => {
+        if (!busy) onOpenChange(value);
+      }}
     >
-      <ul className="interview-roster">
-        {[...snapshot.members]
-          .sort(
-            (a, b) => Number(b.userId === snapshot.hostId) - Number(a.userId === snapshot.hostId),
-          )
-          .map((member) => {
-            const editable = canManage && member.userId !== snapshot.hostId;
-            return (
-              <li key={member.userId}>
-                <span className="account-avatar" aria-hidden="true">
-                  {member.name.slice(0, 1).toUpperCase()}
-                </span>
-                <div className="interview-person">
-                  <strong>{member.name}</strong>
-                  <span>
-                    {member.userId === snapshot.hostId ? "Host" : member.guest ? "Guest" : "Member"}
-                  </span>
-                </div>
-                {editable ? (
-                  <SelectField
-                    className="select-field--compact"
-                    label={`Role for ${member.name}`}
-                    value={member.role}
-                    disabled={busy}
-                    onChange={(role) => onRole(member.userId, role as InterviewRole)}
-                    options={[
-                      { value: "interviewer", label: "Interviewer" },
-                      { value: "interviewee", label: "Interviewee" },
-                    ]}
-                  />
-                ) : (
-                  <span className="interview-person-role">
-                    {member.role === "interviewer" ? "Interviewer" : "Interviewee"}
-                  </span>
-                )}
-                {editable && (
-                  <Tooltip content="Remove participant">
-                    <button
-                      type="button"
-                      className="icon-button destructive-icon"
-                      aria-label={`Remove ${member.name}`}
-                      disabled={busy}
-                      onClick={() => onRemove(member.userId)}
-                    >
-                      <Icon name="close" />
-                    </button>
-                  </Tooltip>
-                )}
-              </li>
-            );
-          })}
-      </ul>
-    </SessionDialog>
+      <Tooltip content="Participants">
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={`Participants (${snapshot.members.length})`}
+          >
+            <Icon name="people" />
+          </button>
+        </Popover.Trigger>
+      </Tooltip>
+      <Popover.Portal>
+        <Popover.Content
+          className="interview-invite-popover interview-people-popover"
+          aria-label="Participants"
+          sideOffset={8}
+          collisionPadding={12}
+          align="end"
+        >
+          <h2>Participants</h2>
+          <ul className="interview-roster">
+            {[...snapshot.members]
+              .sort(
+                (a, b) =>
+                  Number(b.userId === snapshot.hostId) - Number(a.userId === snapshot.hostId),
+              )
+              .map((member) => {
+                const editable = canManage && member.userId !== snapshot.hostId;
+                return (
+                  <li key={member.userId}>
+                    <span className="account-avatar" aria-hidden="true">
+                      {member.name.slice(0, 1).toUpperCase()}
+                    </span>
+                    <div className="interview-person">
+                      <strong>{member.name}</strong>
+                      <span>
+                        {member.userId === snapshot.hostId
+                          ? "Host"
+                          : member.guest
+                            ? "Guest"
+                            : "Member"}
+                      </span>
+                    </div>
+                    {editable ? (
+                      <SelectField
+                        className="select-field--compact"
+                        label={`Role for ${member.name}`}
+                        value={member.role}
+                        disabled={busy}
+                        onChange={(role) => onRole(member.userId, role as InterviewRole)}
+                        options={[
+                          { value: "interviewer", label: "Interviewer" },
+                          { value: "interviewee", label: "Interviewee" },
+                        ]}
+                      />
+                    ) : (
+                      <span className="interview-person-role">
+                        {member.role === "interviewer" ? "Interviewer" : "Interviewee"}
+                      </span>
+                    )}
+                    {editable && (
+                      <Tooltip content="Remove participant">
+                        <button
+                          type="button"
+                          className="icon-button destructive-icon"
+                          aria-label={`Remove ${member.name}`}
+                          disabled={busy}
+                          onClick={() => onRemove(member.userId)}
+                        >
+                          <Icon name="close" />
+                        </button>
+                      </Tooltip>
+                    )}
+                  </li>
+                );
+              })}
+          </ul>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

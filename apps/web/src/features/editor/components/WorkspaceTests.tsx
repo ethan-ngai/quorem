@@ -116,6 +116,9 @@ export function WorkspaceTests({
           >
             <TestCases
               key={`${problem.id}:${tab}`}
+              caseGroups={progress?.levels.flatMap((level, index) =>
+                level.examples.map(() => `Step ${index + 1}`),
+              )}
               problem={testProblem}
               customMode={tab === "custom"}
               drafts={drafts}

@@ -149,6 +149,7 @@ export function InterviewHub() {
         {created ? (
           <>
             <InterviewInvitationLinks
+              title={created.title}
               invites={created.invites ?? { interviewee: created.invitePath }}
             />
             <footer className="competitive-dialog-actions">

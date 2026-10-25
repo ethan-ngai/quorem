@@ -44,7 +44,16 @@ export function OdysseyStepper({
         <span>
           Step {selected} of {total}
         </span>
-        <strong>{progress.levels[selected - 1]?.title}</strong>
+        {progress.levels.map((level, index) => (
+          <strong
+            key={index}
+            className="odyssey-stage-title"
+            data-active={selected === index + 1}
+            aria-hidden={selected !== index + 1}
+          >
+            {level.title}
+          </strong>
+        ))}
       </span>
     </nav>
   );

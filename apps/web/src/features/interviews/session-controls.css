@@ -66,7 +66,7 @@
   font-size: 12px;
 }
 .interview-invite-popover {
-  z-index: 180;
+  z-index: var(--layer-popover, 180);
   width: min(360px, calc(100vw - 24px));
   background: var(--color-overlay);
   border: 1px solid var(--color-border);
@@ -92,7 +92,7 @@
 .interview-invite-row + .interview-invite-row {
   border-top: 1px solid var(--color-border);
 }
-.interview-invite-row > div {
+.interview-invite-row > div:first-child {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -145,4 +145,11 @@
 
 .interview-test-panel {
   display: contents;
+}
+
+.interview-people-popover {
+  width: min(440px, calc(100vw - 24px));
+}
+.interview-people-popover .interview-roster li {
+  padding: 8px 0;
 }

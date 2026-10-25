@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   list-style: none;
-  padding: 0;
+  padding: 4px 2px 7px;
   margin: 0;
   overflow-x: auto;
 }
@@ -38,11 +38,30 @@
   background: transparent;
   font-size: 11px;
 }
-.odyssey-progress button[aria-current] {
-  border-color: var(--color-primary);
-  color: var(--color-text);
-  outline: 2px solid var(--color-overlay);
-  outline-offset: 2px;
+.odyssey-progress button {
+  position: relative;
+}
+.odyssey-progress button::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-secondary);
+  left: 50%;
+  bottom: -5px;
+  transform: translateX(-50%) scaleX(0.25);
+  opacity: 0;
+  transition:
+    transform var(--motion-standard) var(--motion-easing),
+    opacity var(--motion-standard) var(--motion-easing);
+}
+.odyssey-progress button[aria-current]::after {
+  transform: translateX(-50%) scaleX(1);
+  opacity: 0.8;
+}
+.app-shell .odyssey-progress button:active:not(:disabled) {
+  transform: none;
 }
 .odyssey-progress li[data-complete="true"] button {
   background: var(--color-success);
@@ -57,9 +76,10 @@
   height: 14px;
 }
 .odyssey-current {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto;
   min-width: 0;
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -72,4 +92,32 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.odyssey-stage-title {
+  grid-area: 2 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(3px);
+  transition:
+    opacity var(--motion-standard) var(--motion-easing),
+    transform var(--motion-standard) var(--motion-easing),
+    visibility 0s var(--motion-standard);
+}
+.odyssey-stage-title[data-active="true"] {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .odyssey-progress button::after,
+  .odyssey-stage-title {
+    transition: none;
+    transform: none;
+  }
+  .odyssey-progress button::after,
+  .odyssey-progress button[aria-current]::after {
+    transform: translateX(-50%);
+  }
 }
