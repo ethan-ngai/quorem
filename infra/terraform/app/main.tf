@@ -108,18 +108,19 @@ resource "restapi_object" "container" {
   data = jsonencode({
     name              = var.worker_name
     scheduling_policy = "default"
+    observability     = { logs = { enabled = true } }
     instances         = 0
     max_instances     = 1
     configuration     = local.container_configuration
     durable_objects   = { script_name = var.worker_name, class_name = "Quorem" }
   })
-  update_data = jsonencode({ configuration = local.container_configuration })
+  update_data = jsonencode({ configuration = local.container_configuration, observability = { logs = { enabled = true } } })
   depends_on  = [cloudflare_worker_version.app]
 }
 resource "restapi_object" "rollout" {
   path                      = "/accounts/${var.account_id}/containers/applications/${restapi_object.container.id}/rollouts"
   ignore_all_server_changes = true
-  force_new                 = ["data"]
+  force_new                 = [sha256(jsonencode(local.container_configuration))]
   lifecycle { create_before_destroy = true }
   # Rollouts are immutable events; retain their history when Terraform retires a state entry.
   destroy_method = "GET"
