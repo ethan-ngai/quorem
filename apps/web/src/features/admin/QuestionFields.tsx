@@ -1,6 +1,6 @@
 /** @file QuestionFields.tsx @description Typed metadata and language editorial authoring. @module admin */
 import { adaptSignature } from "./authoringSignature";
-import { AuthoringCodeField, TopicField } from "./AuthoringInputs";
+import { AuthoringCodeField, AuthoringNumberField, TopicField } from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { AuthoringCases } from "./AuthoringCases";
@@ -123,23 +123,13 @@ export function QuestionFields({
           <summary>Execution limits</summary>
           <div className="admin-field-pair">
             {Object.entries(problem.limits).map(([name, value]) => (
-              <Field
+              <AuthoringNumberField
                 key={name}
                 label={name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
-              >
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  defaultValue={value}
-                  onChange={(event) => {
-                    const next = event.target.valueAsNumber;
-                    onValidityChange(`limit:${name}`, !Number.isSafeInteger(next) || next < 1);
-                    if (Number.isSafeInteger(next) && next > 0)
-                      setProblem({ limits: { ...problem.limits, [name]: next } });
-                  }}
-                />
-              </Field>
+                value={value}
+                onValidityChange={(invalid) => onValidityChange(`limit:${name}`, invalid)}
+                onChange={(next) => setProblem({ limits: { ...problem.limits, [name]: next } })}
+              />
             ))}
           </div>
         </details>

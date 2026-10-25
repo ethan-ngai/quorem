@@ -1,4 +1,4 @@
-import { lazy, Suspense, useId, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { Field } from "./AuthoringFields";
 import { useTheme } from "../editor/useTheme";
 import type { EditorLanguage } from "../editor/editorLanguages";
@@ -68,6 +68,50 @@ export function TopicField({
           ]);
         }}
       />
+    </Field>
+  );
+}
+
+export function AuthoringNumberField({
+  label,
+  value,
+  onChange,
+  onValidityChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  onValidityChange: (invalid: boolean) => void;
+}) {
+  const [source, setSource] = useState(String(value));
+  const [invalid, setInvalid] = useState(false);
+  const id = useId();
+  const validity = useRef(onValidityChange);
+  validity.current = onValidityChange;
+  useEffect(() => () => validity.current(false), []);
+  return (
+    <Field label={label}>
+      <input
+        type="number"
+        min={1}
+        step={1}
+        value={source}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? id : undefined}
+        onChange={(event) => {
+          setSource(event.target.value);
+          const next = event.target.valueAsNumber;
+          const bad = !Number.isSafeInteger(next) || next < 1;
+          setInvalid(bad);
+          onValidityChange(bad);
+          if (!bad) onChange(next);
+        }}
+      />
+      {invalid && (
+        <span className="admin-error" id={id}>
+          Enter a positive whole number.
+        </span>
+      )}
     </Field>
   );
 }
