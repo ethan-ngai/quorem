@@ -45,7 +45,7 @@ try:
                 time.sleep(0.05)
     processes.append(subprocess.Popen([
         "dockerd", "--iptables=false", "--ip6tables=false", "--ip-forward=false",
-        "--bridge=none", "--storage-driver=vfs", "--host=unix:///var/run/docker.sock",
+        "--bridge=none", "--host=unix:///var/run/docker.sock",
         "--exec-opt", "native.cgroupdriver=cgroupfs",
     ]))
     for _ in range(150):

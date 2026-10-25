@@ -1,6 +1,7 @@
 """Patch only the admission runner onto a source-verified, previously published image."""
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -26,6 +27,7 @@ subprocess.run(["docker", "pull", "--platform", "linux/amd64", base], check=True
 digest = json.loads(subprocess.check_output(["docker", "image", "inspect", base], text=True))[0]["RepoDigests"][0]
 if not digest.startswith(base.rsplit(":", 1)[0] + "@sha256:"):
     raise SystemExit("Unexpected verified image digest")
-(directory / "Dockerfile").write_text("ARG BASE_IMAGE\nFROM ${BASE_IMAGE}\nCOPY runner /app/bin/runner\n")
+shutil.copyfile("deploy/start.py", directory / "start.py")
+(directory / "Dockerfile").write_text("ARG BASE_IMAGE\nFROM ${BASE_IMAGE}\nCOPY runner /app/bin/runner\nCOPY start.py /app/deploy/start.py\n")
 subprocess.run(["docker", "build", "--platform", "linux/amd64", "--build-arg", "BASE_IMAGE=" + digest,
                 "-t", "quorem-production:" + os.environ["GITHUB_SHA"], str(directory)], check=True)

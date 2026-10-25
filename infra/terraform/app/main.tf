@@ -48,8 +48,10 @@ provider "restapi" {
 locals {
   origin = "https://${var.domain}"
   container_configuration = {
-    image         = var.image
-    instance_type = "standard-2"
+    image      = var.image
+    vcpu       = 1
+    memory_mib = 6144
+    disk       = { size_mb = 20000 }
   }
   runtime = {
     AUTH_ORIGIN          = local.origin

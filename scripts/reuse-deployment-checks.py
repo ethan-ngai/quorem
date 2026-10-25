@@ -46,7 +46,7 @@ if published.isdigit():
             "git", "diff", "--quiet", run["head_sha"], "HEAD", "--", *image_inputs,
         ]).returncode == 0
         patch_image = not reuse_image and verified and run["head_branch"] == "main" and subprocess.run([
-            "git", "diff", "--quiet", run["head_sha"], "HEAD", "--", *image_inputs, *probe_exclusions,
+            "git", "diff", "--quiet", run["head_sha"], "HEAD", "--", *image_inputs, *probe_exclusions, ":(exclude)deploy/start.py",
         ]).returncode == 0
         if patch_image:
             base_sha = run["head_sha"]
@@ -59,7 +59,7 @@ with open(os.environ["GITHUB_OUTPUT"], "a") as output:
     output.write(f"patch_image={str(patch_image).lower()}\nbase_sha={base_sha}\n")
     output.write(f"reuse_image={'true' if reuse_image else 'false'}\nimage_sha={image_sha}\n")
 if patch_image:
-    print(f"Only admission probe changed; patching verified image {base_sha} with the rebuilt runner.")
+    print(f"Only runtime admission/startup changed; patching verified image {base_sha} with the rebuilt runner.")
 if reuse_image:
     print(f"Container inputs unchanged; reusing published, sandbox-verified image {image_sha}.")
 if reuse:
