@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"testing"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
@@ -13,7 +14,7 @@ import (
 func adminStore(t *testing.T) *Store {
 	t.Helper()
 	s := testStore(t)
-	ctx := context.Background()
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
 	if _, err := s.Pool.Exec(ctx, "UPDATE users SET role='admin' WHERE id='alice'"); err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +23,7 @@ func adminStore(t *testing.T) *Store {
 }
 func authoringContent(t *testing.T, s *Store) problems.QuestionContent {
 	t.Helper()
-	ctx := context.Background()
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
 	p, err := s.Problem(ctx, "run-widths", false)
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +41,7 @@ func authoringContent(t *testing.T, s *Store) problems.QuestionContent {
 }
 func TestQuestionDraftPublishingPreservesPriorVersions(t *testing.T) {
 	s := adminStore(t)
-	ctx := context.Background()
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
 	c := authoringContent(t, s)
 	old := c.Problem
 	workspace, err := s.CreateWorkspace(ctx, "alice", old.ID, "python")
@@ -121,7 +122,7 @@ func TestQuestionDraftPublishingPreservesPriorVersions(t *testing.T) {
 }
 func TestQuestionDraftPublicationValidationAndAtomicRollback(t *testing.T) {
 	s := adminStore(t)
-	ctx := context.Background()
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
 	c := authoringContent(t, s)
 	empty, err := s.CreateQuestionDraft(ctx, "alice", problems.QuestionContent{})
 	if err != nil {

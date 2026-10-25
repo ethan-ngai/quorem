@@ -1,4 +1,7 @@
 /** @file QuestionFields.tsx @description Typed metadata and language editorial authoring. @module admin */
+import { SignatureFields } from "./SignatureFields";
+import { SelectField } from "../../ui/SelectField";
+import { AuthoringCases } from "./AuthoringCases";
 import { Field, JSONField } from "./AuthoringFields";
 export { JSONField, validJSONShape } from "./AuthoringFields";
 import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
@@ -72,22 +75,34 @@ export function QuestionFields({
         </div>
         <div className="admin-field-pair">
           <Field label="Difficulty">
-            <select
+            <SelectField
+              label="Difficulty"
               value={problem.difficulty}
-              onChange={(event) =>
-                setProblem({ difficulty: event.target.value as ProblemVersion["difficulty"] })
+              disabled={disabled}
+              onChange={(value) =>
+                setProblem({ difficulty: value as ProblemVersion["difficulty"] })
               }
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
+              options={[
+                { value: "easy", label: "Easy" },
+                { value: "medium", label: "Medium" },
+                { value: "hard", label: "Hard" },
+              ]}
+            />
           </Field>
           <Field label="Topics, separated by commas">
             <input
               value={problem.tags.join(", ")}
               onChange={(event) =>
-                setProblem({ tags: event.target.value.split(",").map((tag) => tag.trim()) })
+                setProblem({
+                  tags: [
+                    ...new Set(
+                      event.target.value
+                        .split(",")
+                        .map((tag) => tag.trim())
+                        .filter(Boolean),
+                    ),
+                  ],
+                })
               }
             />
           </Field>
@@ -108,20 +123,35 @@ export function QuestionFields({
       </section>
       <section>
         <h2>Signature and cases</h2>
-        <JSONField
-          onValidityChange={onValidityChange}
-          label="Typed signature"
+        <SignatureFields
           value={problem.signature}
-          onChange={(signature) =>
-            setProblem({ signature: signature as ProblemVersion["signature"] })
-          }
-        />
-        <JSONField
+          onChange={(signature) => setProblem({ signature })}
           onValidityChange={onValidityChange}
-          label="Execution limits"
-          value={problem.limits}
-          onChange={(limits) => setProblem({ limits: limits as ProblemVersion["limits"] })}
         />
+        <details className="admin-language">
+          <summary>Execution limits</summary>
+          <div className="admin-field-pair">
+            {Object.entries(problem.limits).map(([name, value]) => (
+              <Field
+                key={name}
+                label={name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
+              >
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={value}
+                  onChange={(event) => {
+                    const next = event.target.valueAsNumber;
+                    onValidityChange(`limit:${name}`, !Number.isSafeInteger(next) || next < 1);
+                    if (Number.isSafeInteger(next) && next > 0)
+                      setProblem({ limits: { ...problem.limits, [name]: next } });
+                  }}
+                />
+              </Field>
+            ))}
+          </div>
+        </details>
         <JSONField
           onValidityChange={onValidityChange}
           label="Structured constraints"
@@ -130,24 +160,14 @@ export function QuestionFields({
             setProblem({ constraints: constraints as ProblemVersion["constraints"] })
           }
         />
-        <JSONField
-          onValidityChange={onValidityChange}
-          label="Public examples with explanations"
-          value={problem.examples}
-          onChange={(examples) => setProblem({ examples: examples as ProblemVersion["examples"] })}
-        />
-        <JSONField
-          onValidityChange={onValidityChange}
-          label={
-            problem.odyssey
-              ? "Legacy hidden cases (unused for Odyssey)"
-              : "Hidden cases (20 required)"
-          }
-          value={content.hiddenCases}
-          onChange={(hiddenCases) =>
-            onChange({ ...content, hiddenCases: hiddenCases as QuestionContent["hiddenCases"] })
-          }
-        />
+        {!problem.odyssey && (
+          <AuthoringCases
+            key={JSON.stringify(problem.signature)}
+            content={content}
+            onChange={onChange}
+            onValidityChange={onValidityChange}
+          />
+        )}
       </section>
       <OdysseyFields content={content} onChange={onChange} onValidityChange={onValidityChange} />
       <section>

@@ -12,13 +12,23 @@ import (
 )
 
 func (s *Store) UpdateInterviewQuestion(ctx context.Context, user, id, key string, q interviews.QuestionInput) (interviews.Snapshot, error) {
-	f, err := s.interviewQuestion(ctx, q)
+	if q.Custom != nil {
+		if err := s.requireQuestionAuthor(ctx, user); err != nil {
+			return interviews.Snapshot{}, err
+		}
+	}
+	f, err := s.interviewQuestion(ctx, user, q)
 	if err != nil {
 		return interviews.Snapshot{}, err
 	}
 	return s.mutateInterview(ctx, user, id, key, "question", q, func(tx pgx.Tx, v interviewRecord) error {
 		if err := requireInterviewOdyssey(ctx, tx, v.snapshot.HostID, f); err != nil {
 			return err
+		}
+		if q.Custom != nil {
+			if err := saveInterviewCustomQuestion(ctx, tx, user, f); err != nil {
+				return err
+			}
 		}
 		data, err := json.Marshal(f)
 		if err != nil {

@@ -1,5 +1,6 @@
 /** @file QuestionSetup.tsx @description Existing or custom interview questions with typed tests. @module interviews */
 import { useId, useRef, useState, type FormEvent } from "react";
+import { useSession } from "../auth/session";
 import { useQuery } from "@tanstack/react-query";
 import type { InterviewQuestionInput, Signature } from "@quorem/contracts";
 import { interviewRequest } from "./api";
@@ -40,6 +41,9 @@ export function QuestionSetup({
   label?: string;
   showTitle?: boolean;
 }) {
+  const session = useSession();
+  const canAuthor =
+    session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
   const [title, setTitle] = useState("");
   const [mode, setMode] = useState("catalog");
   const [authorSection, setAuthorSection] = useState("question");
@@ -114,6 +118,7 @@ export function QuestionSetup({
       return;
     }
     try {
+      if (!canAuthor) throw new Error("Custom question access required.");
       if (mode === "staged") {
         if (Object.values(invalidTypes).some(Boolean))
           throw new Error("Fix the highlighted method types before creating the question.");
@@ -189,8 +194,12 @@ export function QuestionSetup({
             onChange={chooseMode}
             options={[
               { value: "catalog", label: "Existing question" },
-              { value: "custom", label: "Custom question" },
-              { value: "staged", label: "Custom multi-stage question" },
+              ...(canAuthor
+                ? [
+                    { value: "custom", label: "Custom question" },
+                    { value: "staged", label: "Custom multi-stage question" },
+                  ]
+                : []),
             ]}
           />
         </label>

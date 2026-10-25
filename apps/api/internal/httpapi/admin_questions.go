@@ -17,8 +17,25 @@ func (s *Server) registerAdminQuestions(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/admin/question-drafts/{id}/publish", s.publishQuestionDraft)
 }
 func (s *Server) adminDraftRequest(w http.ResponseWriter, r *http.Request) bool {
-	if !s.RequireAdmin(w, r) {
+	principal := identity.Subject(r.Context())
+	if principal.UserID == "" {
+		s.err(w, r, &application.Error{Code: "unauthorized", Status: 401, Message: "Sign in required"})
 		return false
+	}
+	if !principal.Admin {
+		if s.Store == nil {
+			s.err(w, r, &application.Error{Code: "forbidden", Status: 403, Message: "Custom question access required"})
+			return false
+		}
+		caps, err := s.Store.Capabilities(r.Context(), principal.UserID)
+		if err != nil {
+			s.err(w, r, err)
+			return false
+		}
+		if !caps.AuthorCustomQuestions {
+			s.err(w, r, &application.Error{Code: "forbidden", Status: 403, Message: "Custom question access required"})
+			return false
+		}
 	}
 	if id := r.PathValue("id"); id != "" && !uuid.MatchString(id) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid draft ID", Status: 400})

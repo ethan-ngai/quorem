@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
@@ -13,7 +14,7 @@ import (
 
 func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 	s := testStore(t)
-	ctx := context.Background()
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
 	grantInternal(t, s, "alice")
 	if _, err := s.Pool.Exec(ctx, "UPDATE users SET role='admin' WHERE id='alice'"); err != nil {
 		t.Fatal(err)

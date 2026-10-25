@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 )
@@ -27,7 +28,7 @@ func (s *Store) Problem(ctx context.Context, value string, byID bool) (problems.
 		query = publicProblemSQL + " WHERE v.id::text=$1"
 	}
 	var data []byte
-	err := s.Pool.QueryRow(ctx, query, value).Scan(&data)
+	err := s.Pool.QueryRow(ctx, query+" AND (p.owner_id IS NULL OR p.owner_id=$2)", value, identity.Subject(ctx).UserID).Scan(&data)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return problems.Problem{}, failure("not_found", 404, "Problem not found")
 	}
@@ -38,7 +39,7 @@ func (s *Store) Problem(ctx context.Context, value string, byID bool) (problems.
 	return p, err
 }
 func (s *Store) Problems(ctx context.Context) ([]problems.Problem, error) {
-	rows, err := s.Pool.Query(ctx, publicProblemSQL+" WHERE v.id=p.current_version_id ORDER BY p.slug")
+	rows, err := s.Pool.Query(ctx, publicProblemSQL+" WHERE v.id=p.current_version_id AND p.owner_id IS NULL ORDER BY p.slug")
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +60,9 @@ func (s *Store) Problems(ctx context.Context) ([]problems.Problem, error) {
 }
 
 func (s *Store) Solutions(ctx context.Context, versionID string) ([]problems.EditorialSolution, error) {
+	if _, err := s.Problem(ctx, versionID, true); err != nil {
+		return nil, err
+	}
 	var odyssey bool
 	if err := s.Pool.QueryRow(ctx, "SELECT COALESCE(public->'odyssey' IS NOT NULL,false) FROM problem_versions WHERE id::text=$1", versionID).Scan(&odyssey); err == nil && odyssey {
 		return []problems.EditorialSolution{}, nil

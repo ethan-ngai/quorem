@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
@@ -188,7 +189,12 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	if c.Title == "" || utf8.RuneCountInString(c.Title) > 120 {
 		return empty, failure("invalid_input", 400, "Choose an interview title up to 120 characters")
 	}
-	f, err := s.interviewQuestion(ctx, c.Question)
+	if c.Question.Custom != nil {
+		if err := s.requireQuestionAuthor(ctx, user); err != nil {
+			return empty, err
+		}
+	}
+	f, err := s.interviewQuestion(ctx, user, c.Question)
 	if err != nil {
 		return empty, err
 	}
@@ -227,6 +233,11 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	if count >= 10 {
 		return empty, failure("quota_exceeded", 429, "Close an interview before creating another")
 	}
+	if c.Question.Custom != nil {
+		if err = saveInterviewCustomQuestion(ctx, tx, user, f); err != nil {
+			return empty, err
+		}
+	}
 	raw := make([]byte, 32)
 	if _, err = rand.Read(raw); err != nil {
 		return empty, err
@@ -253,7 +264,7 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	}
 	return s.Interview(ctx, user, id)
 }
-func (s *Store) interviewQuestion(ctx context.Context, q interviews.QuestionInput) (problems.Fixture, error) {
+func (s *Store) interviewQuestion(ctx context.Context, actor string, q interviews.QuestionInput) (problems.Fixture, error) {
 	var f problems.Fixture
 	runtime, ok := execution.LanguageRuntime(q.Language)
 	if !ok {
@@ -263,6 +274,9 @@ func (s *Store) interviewQuestion(ctx context.Context, q interviews.QuestionInpu
 		return f, failure("invalid_input", 400, "Choose an existing question or custom question")
 	}
 	if q.Custom == nil {
+		if _, err := s.Problem(identity.With(ctx, identity.Principal{UserID: actor}), q.ProblemVersionID, true); err != nil {
+			return f, err
+		}
 		var data []byte
 		err := s.Pool.QueryRow(ctx, `SELECT v.fixture FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND p.current_version_id=v.id`, q.ProblemVersionID).Scan(&data)
 		if err == pgx.ErrNoRows {
@@ -274,7 +288,7 @@ func (s *Store) interviewQuestion(ctx context.Context, q interviews.QuestionInpu
 		if err = json.Unmarshal(data, &f); err != nil {
 			return f, err
 		}
-		p, err := s.Problem(ctx, q.ProblemVersionID, true)
+		p, err := s.Problem(identity.With(ctx, identity.Principal{UserID: actor}), q.ProblemVersionID, true)
 		if err != nil {
 			return f, err
 		}

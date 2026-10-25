@@ -10,14 +10,17 @@ import (
 )
 
 func parseProblemFilter(q url.Values) (problems.ProblemFilter, error) {
-	f := problems.ProblemFilter{Query: strings.TrimSpace(q.Get("q")), Difficulty: q.Get("difficulty"), Topic: q.Get("topic"), Sort: q.Get("sort"), Order: q.Get("order"), Page: 1, Limit: 20}
+	f := problems.ProblemFilter{Library: q.Get("library"), Query: strings.TrimSpace(q.Get("q")), Difficulty: q.Get("difficulty"), Topic: q.Get("topic"), Sort: q.Get("sort"), Order: q.Get("order"), Page: 1, Limit: 20}
 	invalid := func() (problems.ProblemFilter, error) {
 		return f, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid question filters"}
 	}
-	for _, key := range []string{"q", "difficulty", "topic", "sort", "order", "page", "limit"} {
+	for _, key := range []string{"q", "difficulty", "topic", "sort", "order", "page", "limit", "library"} {
 		if len(q[key]) > 1 {
 			return invalid()
 		}
+	}
+	if f.Library != "" && f.Library != "global" && f.Library != "private" {
+		return invalid()
 	}
 	if utf8.RuneCountInString(f.Query) > 120 {
 		return invalid()
