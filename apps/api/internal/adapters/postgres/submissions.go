@@ -131,36 +131,16 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 			return judging.Submission{}, failure("invalid_input", 400, err.Error())
 		}
 	}
-	var busy bool
-	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM submissions WHERE owner_id=$1 AND state IN ('queued','running'))", owner).Scan(&busy); err != nil {
-		return judging.Submission{}, err
-	}
-	if busy {
-		return judging.Submission{}, failure("user_busy", 409, "Another execution is active")
-	}
-	var tokens float64
-	var daily int
-	err = tx.QueryRow(ctx, "SELECT LEAST(2,admission_tokens+EXTRACT(EPOCH FROM(clock_timestamp()-tokens_updated_at))/6.0),(SELECT count(*) FROM submissions WHERE owner_id=$1 AND admitted_at>clock_timestamp()-interval '24 hours') FROM users WHERE id=$1", owner).Scan(&tokens, &daily)
+	tokens, err := ownerExecutionAdmission(ctx, tx, owner)
 	if err != nil {
 		return judging.Submission{}, err
-	}
-	if tokens < 1 || daily >= 100 {
-		return judging.Submission{}, failure("quota_exceeded", 429, "Execution quota reached")
 	}
 	sponsor, err := guestAdmission(ctx, tx, owner, matchID)
 	if err != nil {
 		return judging.Submission{}, err
 	}
-	// Serialize the global queue count with admission across API instances.
-	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740020)"); err != nil {
+	if err = executionQueueAdmission(ctx, tx); err != nil {
 		return judging.Submission{}, err
-	}
-	var pending int
-	if err = tx.QueryRow(ctx, "SELECT count(*) FROM execution_jobs WHERE NOT finished").Scan(&pending); err != nil {
-		return judging.Submission{}, err
-	}
-	if pending >= 200 {
-		return judging.Submission{}, failure("queue_saturated", 429, "Judge queue is full")
 	}
 	id := ID()
 	encoded, _ := json.Marshal(cases)
