@@ -118,7 +118,7 @@
 }
 .case-result-summary > .result-message,
 .case-result-summary > .result-running {
-  padding: 8px 18px;
+  padding: 8px var(--workspace-control-inset);
 }
 .case-result-summary > .result-complete {
   height: auto;
