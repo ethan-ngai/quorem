@@ -8,7 +8,7 @@ import type {
   MatchInvite,
   MatchSnapshot,
 } from "@quorem/contracts";
-import { api, requireData } from "../editor/api";
+import { api, requireData } from "../../api/client";
 import { recoverableCommand, rememberInvite } from "./commandRecovery";
 import { matchCreationError } from "./errors";
 

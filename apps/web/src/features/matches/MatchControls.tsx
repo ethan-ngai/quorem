@@ -5,7 +5,7 @@ import { SelectField } from "../../ui/SelectField";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useEffect, useState } from "react";
 import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
-import { api, requireData } from "../editor/api";
+import { api, requireData } from "../../api/client";
 import { Tooltip } from "../editor/components/Tooltip";
 import { FreeForAllIcon } from "./FreeForAllIcon";
 import { Icon } from "../editor/components/Icon";

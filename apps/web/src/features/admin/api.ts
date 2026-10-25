@@ -1,12 +1,10 @@
 /** @file api.ts @description Admin authoring uses the same verified transport as judging. @module admin */
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
-import { api, requireData } from "../editor/api";
-
-const client = () => api();
+import { api, requireData } from "../../api/client";
 
 /** @returns All administrative drafts; backend checks the live server-owned role. */
 export async function listDrafts(cursor?: string) {
-  const { data, error } = await client().GET("/v1/admin/question-drafts", {
+  const { data, error } = await api().GET("/v1/admin/question-drafts", {
     params: { query: { cursor } },
   });
   return requireData(data, error);
@@ -18,13 +16,13 @@ export async function createDraft(
     | { content: QuestionContent; problemVersionId?: never }
     | { problemVersionId: string; content?: never },
 ) {
-  const { data, error } = await client().POST("/v1/admin/question-drafts", { body });
+  const { data, error } = await api().POST("/v1/admin/question-drafts", { body });
   return requireData(data, error);
 }
 
 /** @returns Updated content; a stale revision fails rather than overwriting another admin. */
 export async function saveDraft(draft: QuestionDraft, content: QuestionContent) {
-  const { data, error } = await client().PUT("/v1/admin/question-drafts/{id}", {
+  const { data, error } = await api().PUT("/v1/admin/question-drafts/{id}", {
     params: { path: { id: draft.id } },
     body: { revision: draft.revision, content },
   });
@@ -33,7 +31,7 @@ export async function saveDraft(draft: QuestionDraft, content: QuestionContent) 
 
 /** @returns The sealed publication ID, committed with its language artifacts and editorial. */
 export async function publishDraft(draft: QuestionDraft, visibility: "private" | "global") {
-  const { data, error } = await client().POST("/v1/admin/question-drafts/{id}/publish", {
+  const { data, error } = await api().POST("/v1/admin/question-drafts/{id}/publish", {
     params: { path: { id: draft.id } },
     body: { revision: draft.revision, visibility },
   });
@@ -42,7 +40,7 @@ export async function publishDraft(draft: QuestionDraft, visibility: "private" |
 
 /** @returns The protected draft, fetched only when opened. */
 export async function getDraft(id: string) {
-  const { data, error } = await client().GET("/v1/admin/question-drafts/{id}", {
+  const { data, error } = await api().GET("/v1/admin/question-drafts/{id}", {
     params: { path: { id } },
   });
   return requireData(data, error);

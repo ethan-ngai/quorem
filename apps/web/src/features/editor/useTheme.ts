@@ -3,6 +3,11 @@ import { useEffect, useState } from "react";
 import { readPreference, writePreference, type ThemePreference } from "./editorSettings";
 import type { EditorTheme } from "./PythonEditor";
 
+function readThemePreference(): ThemePreference {
+  const value = readPreference<unknown>("quorem.theme.v1", "system");
+  return value === "light" || value === "dark" ? value : "system";
+}
+
 function resolveTheme(preference: ThemePreference): EditorTheme {
   if (preference !== "system") return preference;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -10,17 +15,13 @@ function resolveTheme(preference: ThemePreference): EditorTheme {
 
 /** Apply before React renders route fallbacks; page hooks own subsequent changes. */
 export function initializeTheme() {
-  document.documentElement.dataset.theme = resolveTheme(
-    readPreference<ThemePreference>("quorem.theme.v1", "system"),
-  );
+  document.documentElement.dataset.theme = resolveTheme(readThemePreference());
 }
 
 /** Keeps the app theme in sync with the user's choice and system changes. */
 export function useTheme() {
   const key = "quorem.theme.v1";
-  const [preference, setPreference] = useState<ThemePreference>(() =>
-    readPreference<ThemePreference>(key, "system"),
-  );
+  const [preference, setPreference] = useState<ThemePreference>(() => readThemePreference());
   const [theme, setTheme] = useState<EditorTheme>(() => resolveTheme(preference));
 
   useEffect(() => {
