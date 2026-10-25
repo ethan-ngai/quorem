@@ -2023,6 +2023,17 @@
         },
         "hints": {
           "$ref": "#/$defs/QuestionHints"
+        },
+        "monitoring": {
+          "$ref": "#/$defs/InterviewMonitoring"
+        },
+        "ruleEvents": {
+          "type": "array",
+          "maxItems": 100,
+          "description": "Interviewer-only event history. Omitted for interviewees.",
+          "items": {
+            "$ref": "#/$defs/InterviewRuleEvent"
+          }
         }
       },
       "required": [
@@ -2047,6 +2058,9 @@
         },
         "question": {
           "$ref": "#/$defs/InterviewQuestionInput"
+        },
+        "monitoring": {
+          "$ref": "#/$defs/InterviewMonitoring"
         }
       },
       "required": ["title", "question"],
@@ -2190,6 +2204,56 @@
           "description": "Allow revealing published complexity; defaults to false for sessions."
         }
       }
+    },
+    "InterviewMonitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "paste": {
+          "type": "boolean",
+          "description": "Enabled when omitted."
+        },
+        "focus": {
+          "type": "boolean",
+          "description": "Enabled when omitted."
+        }
+      }
+    },
+    "InterviewRuleEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["paste", "focus"]
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "name", "kind", "occurredAt"]
+    },
+    "InterviewRuleEventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["paste", "focus"]
+        }
+      },
+      "required": ["kind"]
     }
   },
   "$ref": "#/$defs/EventEnvelope"

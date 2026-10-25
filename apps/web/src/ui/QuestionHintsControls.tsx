@@ -1,3 +1,4 @@
+import { Tags, Gauge } from "lucide-react";
 import { ToggleSwitch } from "./ToggleSwitch";
 import type { QuestionHints } from "@quorem/contracts";
 import "./question-hints.css";
@@ -18,7 +19,14 @@ export function QuestionHintsControls({
       <legend>Question hints</legend>
       {(["topics", ...(complexityAvailable ? ["complexity" as const] : [])] as const).map((key) => (
         <label key={key}>
-          <span>{key === "topics" ? "Allow topics" : "Allow complexity"}</span>
+          <span>
+            {key === "topics" ? (
+              <Tags size={16} aria-hidden="true" />
+            ) : (
+              <Gauge size={16} aria-hidden="true" />
+            )}
+            {key === "topics" ? "Allow topics" : "Allow complexity"}
+          </span>
           <ToggleSwitch
             label={key === "topics" ? "Allow topics" : "Allow complexity"}
             disabled={disabled}

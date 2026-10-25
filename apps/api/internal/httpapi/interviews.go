@@ -21,6 +21,8 @@ import (
 const interviewGuestCookie = "quorem_interview_guest"
 
 type InterviewRepository interface {
+	SetInterviewMonitoring(context.Context, string, string, string, interviews.Monitoring) (interviews.Snapshot, error)
+	ReportInterviewRule(context.Context, string, string, string, string) error
 	SetInterviewHints(context.Context, string, string, string, problems.HintVisibility) (interviews.Snapshot, error)
 	SwitchInterviewLanguage(context.Context, string, string, string, string, string) (interviews.Snapshot, error)
 	SetInterviewCaseVisibility(context.Context, string, string, string, string, bool, ...string) (interviews.Snapshot, error)
@@ -63,6 +65,8 @@ func (s *Server) registerInterviews(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/interviews/{id}", s.deleteInterview)
 	mux.HandleFunc("PUT /v1/interviews/{id}/question", s.setInterviewQuestion)
 	mux.HandleFunc("POST /v1/interviews/{id}/hints", s.setInterviewHints)
+	mux.HandleFunc("POST /v1/interviews/{id}/monitoring", s.setInterviewMonitoring)
+	mux.HandleFunc("POST /v1/interviews/{id}/rule-events", s.reportInterviewRule)
 	mux.HandleFunc("POST /v1/interviews/{id}/language", s.switchInterviewLanguage)
 	mux.HandleFunc("POST /v1/interviews/{id}/cases/{caseId}/visibility", s.setInterviewCaseVisibility)
 	mux.HandleFunc("POST /v1/interviews/{id}/members", s.setInterviewMember)
@@ -486,4 +490,46 @@ func (s *Server) setInterviewHints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, v)
+}
+
+func (s *Server) setInterviewMonitoring(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var policy interviews.Monitoring
+	if !s.decode(w, r, &policy, 1024) {
+		return
+	}
+	v, err := repo.SetInterviewMonitoring(r.Context(), owner(r), r.PathValue("id"), key, policy)
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	respond(w, 200, v)
+}
+func (s *Server) reportInterviewRule(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var event struct {
+		Kind string `json:"kind"`
+	}
+	if !s.decode(w, r, &event, 1024) {
+		return
+	}
+	if err := repo.ReportInterviewRule(r.Context(), owner(r), r.PathValue("id"), key, event.Kind); err != nil {
+		s.err(w, r, err)
+		return
+	}
+	respond(w, 200, struct{}{})
 }

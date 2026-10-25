@@ -3,7 +3,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 /** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { InterviewSnapshot, InterviewQuestionInput } from "@quorem/contracts";
+import type {
+  InterviewSnapshot,
+  InterviewQuestionInput,
+  InterviewMonitoring,
+} from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
@@ -38,14 +42,18 @@ export function InterviewHub() {
     enabled: !!account.data,
     refetchInterval: 10000,
   });
-  async function create(question: InterviewQuestionInput, title: string) {
+  async function create(
+    question: InterviewQuestionInput,
+    title: string,
+    monitoring?: InterviewMonitoring,
+  ) {
     setBusy(true);
     setError(undefined);
     try {
       const session = await interviewRequest<InterviewSnapshot>(
         "/v1/interviews",
         "POST",
-        { title, question },
+        { title, question, monitoring },
         crypto.randomUUID(),
       );
       setCreated(session);
@@ -273,7 +281,10 @@ export function InterviewHub() {
             </footer>
           </>
         ) : (
-          <QuestionSetup onSubmit={(question, title) => void create(question, title)} busy={busy} />
+          <QuestionSetup
+            onSubmit={(question, title, monitoring) => void create(question, title, monitoring)}
+            busy={busy}
+          />
         )}
       </SessionDialog>
     </div>

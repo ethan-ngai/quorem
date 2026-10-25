@@ -773,6 +773,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/interviews/{id}/monitoring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setInterviewMonitoring"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/interviews/{id}/rule-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reportInterviewRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1352,10 +1384,14 @@ export interface components {
             questionEpoch: string;
             invites?: components["schemas"]["InterviewInvitePaths"];
             hints?: components["schemas"]["QuestionHints"];
+            monitoring?: components["schemas"]["InterviewMonitoring"];
+            /** @description Interviewer-only event history. Omitted for interviewees. */
+            ruleEvents?: components["schemas"]["InterviewRuleEvent"][];
         };
         InterviewCreate: {
             title: string;
             question: components["schemas"]["InterviewQuestionInput"];
+            monitoring?: components["schemas"]["InterviewMonitoring"];
         };
         InterviewPreview: {
             title: string;
@@ -1398,6 +1434,26 @@ export interface components {
             topics?: boolean;
             /** @description Allow revealing published complexity; defaults to false for sessions. */
             complexity?: boolean;
+        };
+        InterviewMonitoring: {
+            /** @description Enabled when omitted. */
+            paste?: boolean;
+            /** @description Enabled when omitted. */
+            focus?: boolean;
+        };
+        InterviewRuleEvent: {
+            /** Format: uuid */
+            id: string;
+            userId: string;
+            name: string;
+            /** @enum {string} */
+            kind: "paste" | "focus";
+            /** Format: date-time */
+            occurredAt: string;
+        };
+        InterviewRuleEventInput: {
+            /** @enum {string} */
+            kind: "paste" | "focus";
         };
     };
     responses: never;
@@ -3233,6 +3289,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setInterviewMonitoring: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewMonitoring"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reportInterviewRule: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewRuleEventInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Safe application error */

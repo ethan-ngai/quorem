@@ -1,3 +1,6 @@
+import { InterviewAlerts } from "./InterviewAlerts";
+import { InterviewMonitoringControls } from "./InterviewMonitoringControls";
+import { useInterviewMonitoring } from "./useInterviewMonitoring";
 import * as Popover from "../../ui/Popover";
 import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import { EditorialPanel } from "../editor/components/EditorialPanel";
@@ -28,7 +31,7 @@ import { InterviewParticipants } from "./InterviewParticipants";
 import { InterviewInvitations } from "./InterviewInvitations";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
-import { ArrowLeft, Archive, Trash2, Lightbulb } from "lucide-react";
+import { ArrowLeft, Archive, Trash2, SlidersHorizontal } from "lucide-react";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
@@ -134,6 +137,7 @@ function InterviewPad({
     )
       onOpenQuestion(snapshot);
   }, [changed, snapshot, initial.questionEpoch, controller, onOpenQuestion]);
+  useInterviewMonitoring(snapshot, controller.reportRule);
   const interviewer = snapshot.role === "interviewer";
   const closed = snapshot.state === "closed";
   useErrorNotification(error);
@@ -315,17 +319,30 @@ function InterviewPad({
               />
             )}
             <div className="interview-session-actions">
+              {interviewer && (
+                <InterviewAlerts
+                  key={id}
+                  sessionId={id}
+                  events={snapshot.ruleEvents ?? []}
+                  version={snapshot.version}
+                />
+              )}
               {host && !closed && (
                 <Popover.Root>
-                  <Tooltip content="Question hints">
+                  <Tooltip content="Interview settings">
                     <Popover.Trigger asChild>
-                      <button className="icon-button" aria-label="Question hints">
-                        <Lightbulb size={16} />
+                      <button className="icon-button" aria-label="Interview settings">
+                        <SlidersHorizontal size={16} />
                       </button>
                     </Popover.Trigger>
                   </Tooltip>
                   <Popover.Portal>
                     <Popover.Content className="interview-hints-popover">
+                      <InterviewMonitoringControls
+                        value={snapshot.monitoring ?? {}}
+                        disabled={busy}
+                        onChange={(monitoring) => void mutate("monitoring", monitoring)}
+                      />
                       <QuestionHintsControls
                         complexityAvailable={
                           question.problem.complexityLanguages?.includes(language) ?? false

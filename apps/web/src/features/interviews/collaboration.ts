@@ -1,3 +1,4 @@
+import { createInterviewRuleReporter } from "./ruleEvents";
 /** @file collaboration.ts @description Versioned CodeMirror collaboration with durable retry and rebasing. @module interviews */
 import { collab, getSyncedVersion, receiveUpdates, sendableUpdates } from "@codemirror/collab";
 import { ChangeSet, type Extension } from "@codemirror/state";
@@ -22,6 +23,9 @@ export function createCollaboration(
   onSnapshot?: (snapshot: InterviewSnapshot, result?: Submission) => void,
 ) {
   const transport = createInterviewSocket(id);
+  const reports = createInterviewRuleReporter((kind, key) =>
+    transport.request("rule-event", { kind, key }),
+  );
   const clientID = crypto.randomUUID();
   let view: EditorView | undefined;
   let disposed = false;
@@ -169,6 +173,7 @@ export function createCollaboration(
     if (kind !== "interview.presence" && kind !== "interview.document") void refreshSnapshot();
   });
   transport.onStatus((connected) => {
+    reports.connected(connected);
     if (!disposed) status(connected ? "connecting" : "offline");
   });
   const plugin = ViewPlugin.fromClass(
@@ -177,6 +182,7 @@ export function createCollaboration(
         view = editor;
         disposed = false;
         status("connecting");
+        reports.start();
         transport.start();
       }
       update(update: ViewUpdate) {
@@ -185,12 +191,14 @@ export function createCollaboration(
       destroy() {
         disposed = true;
         clearTimeout(timer);
+        reports.stop();
         transport.stop();
         view = undefined;
       }
     },
   );
   return {
+    reportRule: reports.report,
     isSynchronized: () => !!view && !retry && !sendableUpdates(view.state).length,
     extension: [
       collab({ startVersion: document.version, clientID }),

@@ -2626,6 +2626,117 @@
           }
         }
       }
+    },
+    "/v1/interviews/{id}/monitoring": {
+      "post": {
+        "operationId": "setInterviewMonitoring",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewMonitoring"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/interviews/{id}/rule-events": {
+      "post": {
+        "operationId": "reportInterviewRule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewRuleEventInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4665,6 +4776,17 @@
           },
           "hints": {
             "$ref": "#/components/schemas/QuestionHints"
+          },
+          "monitoring": {
+            "$ref": "#/components/schemas/InterviewMonitoring"
+          },
+          "ruleEvents": {
+            "type": "array",
+            "maxItems": 100,
+            "description": "Interviewer-only event history. Omitted for interviewees.",
+            "items": {
+              "$ref": "#/components/schemas/InterviewRuleEvent"
+            }
           }
         },
         "required": [
@@ -4689,6 +4811,9 @@
           },
           "question": {
             "$ref": "#/components/schemas/InterviewQuestionInput"
+          },
+          "monitoring": {
+            "$ref": "#/components/schemas/InterviewMonitoring"
           }
         },
         "required": ["title", "question"],
@@ -4832,6 +4957,56 @@
             "description": "Allow revealing published complexity; defaults to false for sessions."
           }
         }
+      },
+      "InterviewMonitoring": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "paste": {
+            "type": "boolean",
+            "description": "Enabled when omitted."
+          },
+          "focus": {
+            "type": "boolean",
+            "description": "Enabled when omitted."
+          }
+        }
+      },
+      "InterviewRuleEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["paste", "focus"]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "userId", "name", "kind", "occurredAt"]
+      },
+      "InterviewRuleEventInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["paste", "focus"]
+          }
+        },
+        "required": ["kind"]
       }
     }
   }

@@ -1,3 +1,5 @@
+import { InterviewMonitoringControls } from "./InterviewMonitoringControls";
+import type { InterviewMonitoring } from "@quorem/contracts";
 import "../../ui/result-tabs.css";
 import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import type { QuestionHints } from "@quorem/contracts";
@@ -43,16 +45,25 @@ export function QuestionSetup({
   initialHints = {},
   showHints = true,
 }: {
-  onSubmit: (question: InterviewQuestionInput, title: string) => void;
+  onSubmit: (
+    question: InterviewQuestionInput,
+    title: string,
+    monitoring?: InterviewMonitoring,
+  ) => void;
   busy: boolean;
   label?: string;
   showTitle?: boolean;
   initialHints?: QuestionHints;
   showHints?: boolean;
 }) {
+  const [monitoring, setMonitoring] = useState<InterviewMonitoring>({});
   const [hints, setHints] = useState<QuestionHints>(initialHints);
   const submitQuestion = (question: InterviewQuestionInput, title: string) =>
-    onSubmit({ ...question, ...(showHints ? { hints } : {}) }, title);
+    onSubmit(
+      { ...question, ...(showHints ? { hints } : {}) },
+      title,
+      showHints ? monitoring : undefined,
+    );
   const session = useSession();
   const canAuthor =
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
@@ -338,6 +349,9 @@ export function QuestionSetup({
         <p className="admin-error" role="alert">
           {error}
         </p>
+      )}
+      {showHints && (
+        <InterviewMonitoringControls value={monitoring} onChange={setMonitoring} disabled={busy} />
       )}
       {showHints && (
         <QuestionHintsControls
