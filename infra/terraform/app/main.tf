@@ -90,6 +90,7 @@ resource "cloudflare_worker_version" "app" {
   bindings = [
     { type = "durable_object_namespace", name = "QUOREM", class_name = "Quorem" },
     { type = "plain_text", name = "APP_ORIGIN", text = local.origin },
+    { type = "plain_text", name = "FRONTEND_ORIGIN", text = "https://${cloudflare_pages_project.frontend.subdomain}" },
     { type = "secret_text", name = "RUNTIME_ENV", text = jsonencode(local.runtime) },
   ]
 }
@@ -165,3 +166,12 @@ resource "cloudflare_workers_route" "api" {
 }
 output "frontend_project" { value = cloudflare_pages_project.frontend.name }
 output "frontend_url" { value = "https://${cloudflare_pages_project.frontend.subdomain}" }
+
+# Temporary hostname recovery while the DNS token permission is corrected.
+resource "cloudflare_workers_custom_domain" "cutover_fallback" {
+  account_id = var.account_id
+  hostname = var.domain
+  zone_id = var.zone_id
+  service = var.worker_name
+  depends_on = [cloudflare_worker_version.app]
+}
