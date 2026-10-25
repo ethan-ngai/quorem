@@ -70,7 +70,6 @@ func (s *Store) SwitchMatchLanguage(ctx context.Context, owner, matchID, key, la
 	if err != nil {
 		return result, err
 	}
-	result.Preferences = map[string]any{"theme": "system", "codeFontSize": 14, "tabSize": 4, "wrap": false, "paneRatios": []float64{0.42, 0.58}}
 	if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", matchID, owner, result.ID); err != nil {
 		return result, err
 	}

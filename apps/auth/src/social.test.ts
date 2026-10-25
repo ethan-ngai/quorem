@@ -17,8 +17,9 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       SMTP_HOST: "127.0.0.1",
       SMTP_PORT: "51025",
     });
-    const { auth, database } = await import("./auth");
+    const { database } = await import("./database");
     await migrateAuth(database);
+    const { auth } = await import("./auth");
     let requestNumber = 0;
     const prefix = randomUUID();
     let profile = { id: prefix, email: `${prefix}@example.test`, login: "Fixture" };

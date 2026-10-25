@@ -5,6 +5,7 @@ import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { generateContracts } from "./generate.mjs";
 import { questionSchema } from "./question-schema.mjs";
+import { eventSchema as generateEventSchema } from "./event-schema.mjs";
 assert.deepEqual(
   JSON.parse(readFileSync("questions/question-v1.schema.json", "utf8")),
   questionSchema(),
@@ -171,7 +172,7 @@ const event = {
   occurredAt: fixtures.submission.updatedAt,
   payload: fixtures.submission,
 };
-assert.deepEqual(eventSchema.$defs, schemas, "Event schemas must match OpenAPI");
+assert.deepEqual(eventSchema, generateEventSchema(), "Run vp run contracts:generate");
 const validateEvent = ajv.compile(eventSchema);
 assert(validateEvent(event), JSON.stringify(validateEvent.errors));
 assert(validateEvent({ ...event, type: "match.updated", payload: match }));
