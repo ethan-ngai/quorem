@@ -46,6 +46,5 @@ func (s *Store) Workspace(ctx context.Context, owner, id string) (workspace.Work
 	if errors.Is(err, pgx.ErrNoRows) {
 		return w, failure("not_found", 404, "Workspace not found")
 	}
-	w.Preferences = map[string]any{"theme": "system", "codeFontSize": 14, "tabSize": 4, "wrap": false, "paneRatios": []float64{0.42, 0.58}}
 	return w, err
 }

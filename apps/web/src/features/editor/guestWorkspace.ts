@@ -8,12 +8,5 @@ export function guestWorkspace(problem: ProblemVersion, language: EditorLanguage
     kind: "solo",
     problemVersionId: problem.id,
     language,
-    preferences: {
-      theme: "system",
-      paneRatios: [40, 60],
-      codeFontSize: 15,
-      tabSize: 4,
-      wrap: false,
-    },
   };
 }

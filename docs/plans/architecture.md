@@ -4,7 +4,7 @@
 
 ```text
 apps/web/              React workspace; TanStack Router/Query; Vite+
-apps/marketing/        Astro; deferred
+apps/marketing/        Astro marketing; shared read-only product previews
 apps/api/              Go HTTP entrypoints and application/domain packages
 apps/auth/             Better Auth service; Cognito provider; application sessions/JWTs
 apps/language/         Local language-service orchestration and pinned engine config
