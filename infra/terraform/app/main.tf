@@ -72,10 +72,9 @@ resource "cloudflare_worker_version" "app" {
     content_base64 = filebase64("${path.module}/../../../deploy/worker.js")
   }]
   containers = [{ class_name = "Quorem" }]
-  exports = {
-    Quorem  = { type = "durable-object", storage = "sqlite", state = "created" }
-    default = { type = "worker", state = "created" }
-  }
+  # Provider 5.28.1 cannot serialize exports; deploy the migration before attaching compute.
+  migrations = { new_tag = "v1", new_sqlite_classes = ["Quorem"] }
+  deploy     = true
   lifecycle { create_before_destroy = true }
   bindings = [
     { type = "durable_object_namespace", name = "QUOREM", class_name = "Quorem" },

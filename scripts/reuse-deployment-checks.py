@@ -37,7 +37,7 @@ if published.isdigit():
             step["name"] for step in job.get("steps", []) if step["conclusion"] == "success"
         }) for job in jobs)
         image_inputs = [path for path in inputs if path != "deploy"] + ["deploy/Dockerfile", "deploy/start.py", "deploy/nginx.conf"]
-        reuse_image = verified and run["head_branch"] == "main" and subprocess.run([
+        reuse_image = reuse and verified and run["head_branch"] == "main" and subprocess.run([
             "git", "diff", "--quiet", run["head_sha"], "HEAD", "--", *image_inputs,
         ]).returncode == 0
         if reuse_image:
