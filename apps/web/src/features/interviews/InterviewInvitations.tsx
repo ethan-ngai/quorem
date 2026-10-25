@@ -1,10 +1,10 @@
 /** @file InterviewInvitations.tsx @description Role-scoped invitation links with capability-aware native sharing. @module interviews */
 import * as Popover from "../../ui/Popover";
 import { useEffect, useState } from "react";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 import { ShareActions } from "../../ui/ShareActions";
 import { shareLink } from "../../ui/shareLink";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 import { useErrorNotification } from "../../ui/Notifications";
 import type { InterviewRole } from "@quorem/contracts";
 import "./session-controls.css";

@@ -8,7 +8,7 @@ import { useSession } from "../auth/session";
 import { pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 import { useActiveMatch } from "./useActiveMatch";
 
 export function CreateMatchDialog({

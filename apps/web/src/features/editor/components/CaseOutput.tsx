@@ -1,11 +1,12 @@
+import "./machine-values.css";
 import { bindArguments } from "../argumentBinding";
 import type { MethodCall, Signature } from "@quorem/contracts";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
-import { Tooltip } from "./Tooltip";
+import { Tooltip } from "../../../ui/Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
 import type { ReactNode } from "react";
-import { Icon } from "./Icon";
+import { Icon } from "../../../ui/Icon";
 
 export function verdictTone(status?: string) {
   return status === "accepted"

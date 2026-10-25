@@ -21,7 +21,7 @@ import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
 import { StageAuthoring } from "../odyssey/StageAuthoring";
 import { firstStage, parseStages, type StageDraft } from "../odyssey/stageDrafts";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 import "../odyssey/authoring.css";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import "../admin/admin.css";

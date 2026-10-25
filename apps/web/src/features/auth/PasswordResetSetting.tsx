@@ -2,7 +2,7 @@ import { useErrorNotification } from "../../ui/Notifications";
 import { useState } from "react";
 import * as Popover from "../../ui/Popover";
 import { Pencil, Mail, Check, LoaderCircle, X } from "lucide-react";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 import { useCooldown } from "../../ui/useCooldown";
 import { AccountRateLimitError, requestPasswordReset } from "./account";
 import { authErrorMessage } from "./errors";

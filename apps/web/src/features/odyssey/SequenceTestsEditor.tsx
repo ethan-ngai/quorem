@@ -2,8 +2,8 @@
 import { SelectField } from "../../ui/SelectField";
 import { CaseBrowserLayout } from "../editor/components/CaseBrowserLayout";
 import { TypedCaseInput } from "../editor/components/TypedCaseInput";
-import { Icon } from "../editor/components/Icon";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Icon } from "../../ui/Icon";
+import { Tooltip } from "../../ui/Tooltip";
 import {
   callDraft,
   sequenceDraft,

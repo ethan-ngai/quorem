@@ -7,7 +7,7 @@ import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/MatchControls";
 import { ModeText } from "../matches/ModeText";

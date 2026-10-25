@@ -1,5 +1,5 @@
 import { randomUUID } from "../../randomUUID";
-import { Icon } from "../editor/components/Icon";
+import { Icon } from "../../ui/Icon";
 import "../../ui/result-tabs.css";
 import { useEffect, useId, useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";

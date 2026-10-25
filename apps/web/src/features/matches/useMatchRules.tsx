@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, X } from "lucide-react";
 import { reportRuleEvent } from "./api";
 import { createRuleMonitor, observeWindowFocus } from "./ruleMonitor";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Tooltip } from "../../ui/Tooltip";
 
 export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapshot) {
   const queryClient = useQueryClient();

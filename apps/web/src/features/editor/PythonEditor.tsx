@@ -1,3 +1,4 @@
+import "./editor-surface.css";
 /** @file PythonEditor.tsx @description Owns the stable CodeMirror document and optional intelligence extensions. @module editor */
 import {
   acceptCompletion,

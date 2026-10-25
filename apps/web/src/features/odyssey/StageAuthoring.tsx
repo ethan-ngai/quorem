@@ -2,8 +2,8 @@
 import { randomUUID } from "../../randomUUID";
 import { useId, useState } from "react";
 import { SignatureFields } from "../admin/SignatureFields";
-import { Icon } from "../editor/components/Icon";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Icon } from "../../ui/Icon";
+import { Tooltip } from "../../ui/Tooltip";
 import { SequenceTestsEditor } from "./SequenceTestsEditor";
 import { methodDraft, sequenceDraft, updateMethod, type StageDraft } from "./stageDrafts";
 import "./authoring.css";

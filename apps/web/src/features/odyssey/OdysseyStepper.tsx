@@ -1,8 +1,8 @@
 /** @file OdysseyStepper.tsx @description Shared top-bar navigation across authorized Odyssey stages. @module odyssey */
 import { LockKeyhole } from "lucide-react";
 import type { OdysseyProgress } from "@quorem/contracts";
-import { Icon } from "../editor/components/Icon";
-import { Tooltip } from "../editor/components/Tooltip";
+import { Icon } from "../../ui/Icon";
+import { Tooltip } from "../../ui/Tooltip";
 import "./progress.css";
 
 export function OdysseyStepper({
