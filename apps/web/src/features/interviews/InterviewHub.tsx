@@ -11,6 +11,9 @@ import { QuestionSetup } from "./QuestionSetup";
 import { useErrorNotification } from "../../ui/Notifications";
 import "../../styles/workspace.css";
 import { CatalogLayout, CatalogTable } from "../practice/CatalogLayout";
+import { Trash2, Square } from "lucide-react";
+import { Tooltip } from "../editor/components/Tooltip";
+import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { SessionDialog } from "../../ui/SessionDialog";
 
 /** Presents existing memberships even when host rollout access has been revoked. */
@@ -20,6 +23,10 @@ export function InterviewHub() {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<InterviewSnapshot>();
   const [busy, setBusy] = useState(false);
+  const [lifecycle, setLifecycle] = useState<{
+    session: InterviewSnapshot;
+    action: "end" | "delete";
+  }>();
   const [error, setError] = useState<string>();
   useErrorNotification(error);
   const sessions = useQuery({
@@ -39,8 +46,34 @@ export function InterviewHub() {
         crypto.randomUUID(),
       );
       setCreated(session);
+      await sessions.refetch();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not create interview.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  const hosting =
+    sessions.data?.filter(
+      (session) => session.hostId === account.data?.user.id && session.state === "active",
+    ).length ?? 0;
+  const atLimit = hosting >= (account.data?.capabilities?.interviewConcurrency ?? 1);
+  async function applyLifecycle() {
+    if (!lifecycle) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const { session, action } = lifecycle;
+      await interviewRequest(
+        `/v1/interviews/${session.id}${action === "end" ? "/close" : ""}`,
+        action === "end" ? "POST" : "DELETE",
+        undefined,
+        crypto.randomUUID(),
+      );
+      await sessions.refetch();
+      setLifecycle(action === "end" ? { session, action: "delete" } : undefined);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not update interview.");
     } finally {
       setBusy(false);
     }
@@ -55,6 +88,8 @@ export function InterviewHub() {
           account.data?.capabilities?.interviews && (
             <button
               className="button button-primary"
+              disabled={sessions.isPending || atLimit}
+              title={atLimit ? "End your active interview before hosting another" : undefined}
               onClick={() => {
                 setCreated(undefined);
                 setCreating(true);
@@ -99,6 +134,9 @@ export function InterviewHub() {
                     <tr>
                       <th scope="col">Interview</th>
                       <th scope="col">Status</th>
+                      <th scope="col">
+                        <span className="sr-only">Actions</span>
+                      </th>
                     </tr>
                   }
                 >
@@ -120,6 +158,33 @@ export function InterviewHub() {
                             ? "Interviewer"
                             : "Interviewee"}
                       </td>
+                      <td>
+                        {session.hostId === account.data?.user.id && (
+                          <Tooltip
+                            content={
+                              session.state === "closed" ? "Delete interview" : "End interview"
+                            }
+                          >
+                            <button
+                              className="icon-button destructive-icon"
+                              aria-label={`${session.state === "closed" ? "Delete" : "End"} ${session.title}`}
+                              disabled={busy}
+                              onClick={() =>
+                                setLifecycle({
+                                  session,
+                                  action: session.state === "closed" ? "delete" : "end",
+                                })
+                              }
+                            >
+                              {session.state === "closed" ? (
+                                <Trash2 size={16} />
+                              ) : (
+                                <Square size={16} />
+                              )}
+                            </button>
+                          </Tooltip>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </CatalogTable>
@@ -138,6 +203,12 @@ export function InterviewHub() {
           </section>
         )}
       </CatalogLayout>
+      <InterviewLifecycleDialog
+        action={lifecycle?.action}
+        busy={busy}
+        onClose={() => setLifecycle(undefined)}
+        onConfirm={() => void applyLifecycle()}
+      />
       <SessionDialog
         open={creating}
         onOpenChange={setCreating}

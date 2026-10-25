@@ -6,6 +6,8 @@ export type Session = {
   strongUntil?: number;
   capabilities?: {
     hostGuests: boolean;
+    authorCustomQuestions: boolean;
+    interviewConcurrency: number;
     interviews: boolean;
     odyssey: boolean;
     hostedIntelligence: boolean;
