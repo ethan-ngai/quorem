@@ -553,7 +553,7 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 		return err
 	}
 	id := m.id
-	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE ($2<>'' AND id::text=$2) OR ($2='' AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1)) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID)
+	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL) AND (($2<>'' AND id::text=$2) OR ($2='' AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1))) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID)
 	if err != nil {
 		return err
 	}

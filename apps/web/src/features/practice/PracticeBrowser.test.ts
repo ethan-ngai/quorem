@@ -41,3 +41,8 @@ describe("practice URL state", () => {
     expect(Array.from(catalogSearch({ topic: "x".repeat(90) }).topic!)).toHaveLength(80);
   });
 });
+
+it("retains an explicit private library filter and rejects unknown libraries", () => {
+  expect(catalogSearch({ library: "private" })).toMatchObject({ library: "private" });
+  expect(catalogSearch({ library: "someone-else" })).not.toHaveProperty("library");
+});

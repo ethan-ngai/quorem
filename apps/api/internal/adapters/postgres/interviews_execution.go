@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Interview admission snapshots persisted source under its document lock; private fixtures never enter the catalog.
+// Interview admission snapshots persisted source under its document lock; private fixtures remain owner-scoped.
 func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) (judging.Submission, error) {
 	var out judging.Submission
 	if kind != "run" && kind != "submit" {
@@ -75,7 +75,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 	}
 	// Baseline workspace satisfies existing job FKs; the private immutable fixture lives only in interview_execution.
 	var baseline string
-	if err = tx.QueryRow(ctx, `SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id JOIN problem_languages l ON l.version_id=v.id AND l.language=$1 WHERE v.id=p.current_version_id ORDER BY v.id LIMIT 1`, v.language).Scan(&baseline); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id JOIN problem_languages l ON l.version_id=v.id AND l.language=$1 WHERE v.id=p.current_version_id AND p.owner_id IS NULL ORDER BY v.id LIMIT 1`, v.language).Scan(&baseline); err != nil {
 		return out, err
 	}
 	workspaceID := ID()

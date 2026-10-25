@@ -29,7 +29,7 @@ func cloneCustomStaged(q interviews.QuestionInput) interviews.QuestionInput {
 }
 func TestPrivateCustomStagesValidateWithoutPublication(t *testing.T) {
 	q := customStagedInterviewQuestion()
-	f, err := (&Store{}).interviewQuestion(context.Background(), q)
+	f, err := (&Store{}).interviewQuestion(context.Background(), "", q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestPrivateCustomStagesRejectInvalidDefinitions(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			q := cloneCustomStaged(customStagedInterviewQuestion())
 			change(q.Custom)
-			if _, err := (&Store{}).interviewQuestion(context.Background(), q); errorCode(err) != "invalid_input" {
+			if _, err := (&Store{}).interviewQuestion(context.Background(), "", q); errorCode(err) != "invalid_input" {
 				t.Fatal("invalid stage accepted", err)
 			}
 		})
@@ -183,7 +183,7 @@ func TestPrivateCustomStageStartersCompileInSupportedRuntimes(t *testing.T) {
 		t.Skip("QUOREM_TEST_DOCKER=1 enables trusted starter compiler checks")
 	}
 	q := customStagedInterviewQuestion()
-	f, err := (&Store{}).interviewQuestion(context.Background(), q)
+	f, err := (&Store{}).interviewQuestion(context.Background(), "", q)
 	if err != nil {
 		t.Fatal(err)
 	}
