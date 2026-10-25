@@ -27,6 +27,43 @@ for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
   assert(validateProblem(fixture.problem), `${name}: ${JSON.stringify(validateProblem.errors)}`);
 }
+const validateInterviewCustom = ajv.compile({
+  $ref: `${document.$id}#/$defs/InterviewCustomQuestion`,
+});
+const authoredStages = JSON.parse(
+  readFileSync("../../fixtures/odyssey/balance-ledger.json", "utf8"),
+);
+const stagedPad = {
+  title: "Private stages",
+  statementMarkdown: "Implement each stage.",
+  signature: authoredStages.problem.signature,
+  starterSource: authoredStages.problem.starterSource,
+  publicCases: authoredStages.problem.odyssey.levels[0].examples.map(({ args, calls }) => ({
+    args,
+    calls,
+  })),
+  privateCases: [],
+  odyssey: authoredStages.problem.odyssey,
+  odysseyHiddenCases: authoredStages.odysseyHiddenCases,
+};
+assert(validateInterviewCustom(stagedPad), JSON.stringify(validateInterviewCustom.errors));
+for (const missing of ["odyssey", "odysseyHiddenCases"]) {
+  const invalid = { ...stagedPad };
+  delete invalid[missing];
+  assert(!validateInterviewCustom(invalid), `Private stages require ${missing}`);
+}
+assert(
+  !validateInterviewCustom({
+    ...stagedPad,
+    odyssey: { levels: Array(9).fill(stagedPad.odyssey.levels[0]) },
+  }),
+);
+assert(
+  !validateInterviewCustom({
+    ...stagedPad,
+    odysseyHiddenCases: [Array(21).fill(stagedPad.odysseyHiddenCases[0][0])],
+  }),
+);
 const validateHidden = ajv.compile({ $ref: `${document.$id}#/$defs/HiddenCaseResult` });
 for (const status of schemas.HiddenCaseResult.properties.status.enum)
   assert(validateHidden({ index: 0, status }));
