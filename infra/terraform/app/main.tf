@@ -133,7 +133,9 @@ resource "restapi_object" "rollout" {
     step_percentage      = 100
   })
 }
+# Retire the old origin before attaching its hostname to Pages.
 resource "cloudflare_workers_custom_domain" "app" {
+  count      = 0
   account_id = var.account_id
   hostname   = var.domain
   zone_id    = var.zone_id
@@ -144,3 +146,31 @@ output "origin" { value = local.origin }
 
 output "application_id" { value = restapi_object.container.id }
 output "rollout_id" { value = restapi_object.rollout.id }
+
+resource "cloudflare_pages_project" "frontend" {
+  account_id        = var.account_id
+  name              = "quorem-frontend"
+  production_branch = "main"
+}
+resource "cloudflare_dns_record" "frontend" {
+  zone_id = var.zone_id
+  name    = var.domain
+  type    = "CNAME"
+  content = cloudflare_pages_project.frontend.subdomain
+  proxied = true
+  ttl     = 1
+}
+resource "cloudflare_pages_domain" "frontend" {
+  account_id   = var.account_id
+  project_name = cloudflare_pages_project.frontend.name
+  name         = var.domain
+  depends_on   = [cloudflare_dns_record.frontend]
+}
+resource "cloudflare_workers_route" "api" {
+  for_each = toset(["/v1/*", "/api/auth/*", "/health*", "/internal*"])
+  zone_id  = var.zone_id
+  pattern  = "${var.domain}${each.value}"
+  script   = var.worker_name
+}
+output "frontend_project" { value = cloudflare_pages_project.frontend.name }
+output "frontend_url" { value = "https://${cloudflare_pages_project.frontend.subdomain}" }

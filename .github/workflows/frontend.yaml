@@ -1,0 +1,76 @@
+name: Deploy frontend
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/web/**
+      - apps/marketing/**
+      - packages/ui/**
+      - scripts/build-site.mjs
+      - scripts/prepare-pages.mjs
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  publish:
+    concurrency:
+      group: frontend-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID || secrets.CLOUDFLARE_ZONE_ID }}
+      TF_VAR_domain: ${{ vars.PRODUCTION_DOMAIN || 'quorem.app' }}
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # The targeted project bootstrap has no backend dependencies or mutations.
+      TF_VAR_image: unused
+      TF_VAR_database_url: unused
+      TF_VAR_better_auth_secret: unused
+      TF_VAR_auth_internal_secret: unused
+      TF_VAR_invite_key: unused
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Require current main
+        run: bash scripts/require-main.sh
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - run: vp check --no-fmt
+      - run: vp -C apps/web test
+      - name: Build static frontend
+        run: |
+          export QUOREM_SITE_URL="https://$TF_VAR_domain"
+          export VITE_HOSTED_INTELLIGENCE=false
+          export VITE_LANGUAGE_URL="wss://$TF_VAR_domain/lsp"
+          vp run build
+          node scripts/prepare-pages.mjs
+      - name: Provision Pages project
+        run: |
+          python3 scripts/terraform-state.py --app-only
+          terraform -chdir=infra/terraform/app apply -input=false -auto-approve -lock-timeout=5m -target=cloudflare_pages_project.frontend
+      - name: Publish Pages
+        run: |
+          project="$(terraform -chdir=infra/terraform/app output -raw frontend_project)"
+          vp -C apps/realtime-cloudflare exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/dist" --project-name "$project" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=false
+      - name: Verify published frontend
+        run: |
+          url="$(terraform -chdir=infra/terraform/app output -raw frontend_url)"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors "$url/" -o /tmp/pages-home.html
+          grep -q 'Code. Clash. Conquer.' /tmp/pages-home.html
+          curl --fail --silent --show-error --retry 5 --retry-all-errors "$url/practice" -o /tmp/pages-app.html
+          test "$(sha256sum /tmp/pages-home.html | cut -d ' ' -f1)" != "$(sha256sum /tmp/pages-app.html | cut -d ' ' -f1)"
