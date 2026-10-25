@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import type { InterviewRuleEvent } from "@quorem/contracts";
 import { InterviewError } from "./api";
 export type InterviewRuleKind = InterviewRuleEvent["kind"];
@@ -59,7 +60,7 @@ export function createInterviewRuleReporter(
     report(this: void, kind: InterviewRuleKind) {
       if (stopped) return;
       if (pending.length >= 100) pending.shift();
-      pending.push({ kind, key: crypto.randomUUID() });
+      pending.push({ kind, key: randomUUID() });
       void drain();
     },
   };

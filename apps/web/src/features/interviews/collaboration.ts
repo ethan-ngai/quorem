@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import { unlockedMethodEdit } from "../odyssey/methodStubs";
 import type { OdysseyProgress } from "@quorem/contracts";
 import type { EditorLanguage } from "../editor/editorLanguages";
@@ -29,7 +30,7 @@ export function createCollaboration(
   const reports = createInterviewRuleReporter((kind, key) =>
     transport.request("rule-event", { kind, key }),
   );
-  const clientID = crypto.randomUUID();
+  const clientID = randomUUID();
   let view: EditorView | undefined;
   let disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -84,7 +85,7 @@ export function createCollaboration(
         const updates = sendableUpdates(view.state).slice(0, 32);
         if (updates.length)
           retry = {
-            key: crypto.randomUUID(),
+            key: randomUUID(),
             body: {
               epoch: document.epoch,
               version: getSyncedVersion(view.state),
@@ -121,7 +122,7 @@ export function createCollaboration(
           try {
             // Version-checked server insertion avoids duplicate stubs when peers unlock together.
             await transport.request("push", {
-              key: crypto.randomUUID(),
+              key: randomUUID(),
               push: {
                 epoch: document.epoch,
                 version,

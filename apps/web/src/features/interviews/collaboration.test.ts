@@ -1,6 +1,6 @@
 /** @file collaboration.test.ts @description Durable retry, concurrent rebasing and backlog recovery. @module interviews */
 import { unlockedMethodEdit } from "../odyssey/methodStubs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EditorState, ChangeSet, type Extension, type TransactionSpec } from "@codemirror/state";
 import { getSyncedVersion } from "@codemirror/collab";
 import { createCollaboration } from "./collaboration";
@@ -33,8 +33,12 @@ vi.mock("./socket", () => ({
 vi.mock("../odyssey/methodStubs", () => ({ unlockedMethodEdit: vi.fn() }));
 vi.mock("./presence", () => ({ presenceExtension: () => [] }));
 vi.mock("@codemirror/view", () => ({ ViewPlugin: { fromClass: (plugin: unknown) => plugin } }));
+beforeEach(() => {
+  vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+});
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
 

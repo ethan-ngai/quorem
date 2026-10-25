@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { Link, useNavigate } from "@tanstack/react-router";
 /** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
@@ -54,7 +55,7 @@ export function InterviewHub() {
         "/v1/interviews",
         "POST",
         { title, question, monitoring },
-        crypto.randomUUID(),
+        randomUUID(),
       );
       setCreated(session);
       await sessions.refetch();
@@ -79,7 +80,7 @@ export function InterviewHub() {
         `/v1/interviews/${session.id}${action === "end" ? "/close" : ""}`,
         action === "end" ? "POST" : "DELETE",
         undefined,
-        crypto.randomUUID(),
+        randomUUID(),
       );
       await sessions.refetch();
       setLifecycle(action === "end" ? { session, action: "delete" } : undefined);
