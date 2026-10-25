@@ -72,9 +72,7 @@ func validateCalls(methods map[string]Signature, c Case, required bool) error {
 		}
 		expect := call.Expected
 		if sig.ReturnType == "void" {
-			if len(expect) > 0 && string(expect) != "null" {
-				return fmt.Errorf("void expectation must be null")
-			}
+			expect = json.RawMessage("null")
 			sig.ReturnType = "optional<int>"
 		}
 		if err := ValidateCase(sig, Case{Args: call.Args, Expected: expect}, required); err != nil {
@@ -125,9 +123,6 @@ func NormalizeCaseOutput(p Problem, c Case, data json.RawMessage) (json.RawMessa
 		var v json.RawMessage
 		var err error
 		if sig.ReturnType == "void" {
-			if string(values[i]) != "null" {
-				return nil, fmt.Errorf("invalid void output")
-			}
 			v = json.RawMessage("null")
 		} else {
 			v, err = normalizeMethodOutput(sig, values[i])
@@ -139,12 +134,17 @@ func NormalizeCaseOutput(p Problem, c Case, data json.RawMessage) (json.RawMessa
 	}
 	return json.Marshal(values)
 }
-func CaseExpected(c Case) json.RawMessage {
+func CaseExpected(p Problem, c Case) json.RawMessage {
 	if len(c.Calls) == 0 {
 		return c.Expected
 	}
 	values := []json.RawMessage{}
+	methods := OdysseyMethods(p)
 	for _, call := range c.Calls {
+		if methods[call.MethodName].ReturnType == "void" {
+			values = append(values, json.RawMessage("null"))
+			continue
+		}
 		if len(call.Expected) == 0 {
 			return nil
 		}
