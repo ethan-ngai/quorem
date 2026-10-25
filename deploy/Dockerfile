@@ -21,7 +21,6 @@ COPY apps/auth apps/auth
 COPY packages/contracts packages/contracts
 ADD deploy/runtime-deps/deps.tar /app/
 COPY apps/api/migrations apps/api/migrations
-COPY deploy/site site
 COPY deploy/images images
 COPY deploy/start.py deploy/nginx.conf deploy/
 ENV APP_ENV=production AUTH_MODE=password AUTH_PASSWORD_PRODUCTION=true AUTH_LOGIN_ONLY=true \

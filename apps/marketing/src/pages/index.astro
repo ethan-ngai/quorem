@@ -1,5 +1,8 @@
 ---
 import "@fontsource-variable/geist";
+import geistFont from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
+import headlineFont from "@fontsource/barlow-condensed/files/barlow-condensed-latin-800-normal.woff2?url";
+import codeFont from "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2?url";
 import "@quorem/ui/theme.css";
 import "@quorem/ui/controls.css";
 import "../styles/marketing.css";
@@ -29,6 +32,7 @@ const socialImage = Astro.site
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {[geistFont, headlineFont, codeFont].map((font) => <link rel="preload" href={font} as="font" type="font/woff2" crossorigin="anonymous" />)}
         <meta
             name="description"
             content="Challenge friends in private coding matches. Choose Showdown or Free-for-all, pick a problem, set the rules and share an invitation."
@@ -159,7 +163,7 @@ const socialImage = Astro.site
                         </div>
                     </div>
                     <div class="hero-workspace">
-                        <HeroEditorPreview client:visible />
+                        <HeroEditorPreview client:load />
                     </div>
                 </div>
             </section>

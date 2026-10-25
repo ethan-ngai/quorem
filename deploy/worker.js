@@ -59,6 +59,12 @@ export default {
     if (url.origin !== env.APP_ORIGIN) return new Response("Unknown host", { status: 421 });
     if (url.pathname === "/internal" || url.pathname.startsWith("/internal/"))
       return new Response(null, { status: 404 });
+    if (
+      url.pathname !== "/health" &&
+      !url.pathname.startsWith("/v1/") &&
+      !url.pathname.startsWith("/api/auth/")
+    )
+      return new Response(null, { status: 404 });
     return env.QUOREM.getByName("primary").fetch(request);
   },
 };

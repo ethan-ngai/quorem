@@ -2,6 +2,26 @@ name: Deploy production
 on:
   push:
     branches: [main]
+    paths:
+      - apps/api/**
+      - apps/auth/**
+      - apps/runner/**
+      - apps/realtime-cloudflare/**
+      - internal/**
+      - packages/contracts/**
+      - infra/**
+      - deploy/**
+      - scripts/**
+      - '!scripts/build-site.mjs'
+      - '!scripts/prepare-pages.mjs'
+      - go.mod
+      - go.sum
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .node-version
+      - .github/workflows/deploy.yaml
+      - .github/workflows/frontend.yaml
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +50,9 @@ env:
   QUOREM_INVITE_KEY: ${{ secrets.QUOREM_INVITE_KEY }}
   WRANGLER_SEND_METRICS: "false"
 jobs:
+  frontend:
+    uses: ./.github/workflows/frontend.yaml
+    secrets: inherit
   build:
     outputs:
       image_sha: ${{ steps.validation.outputs.image_sha }}
@@ -89,15 +112,10 @@ jobs:
           VALIDATED_RUN_ID: ${{ vars.DEPLOY_VALIDATED_RUN }}
           PUBLISHED_IMAGE_RUN_ID: ${{ vars.DEPLOY_PUBLISHED_IMAGE_RUN }}
         run: python3 scripts/reuse-deployment-checks.py
-      - name: Build Astro and React artifact
+      - name: Package auth dependencies
         if: steps.validation.outputs.reuse_image != 'true' && steps.validation.outputs.patch_image != 'true'
         run: |
-          export QUOREM_SITE_URL="$AUTH_ORIGIN"
-          export VITE_HOSTED_INTELLIGENCE=false
-          export VITE_LANGUAGE_URL="${AUTH_ORIGIN/https:/wss:}/lsp"
-          vp run build
-          mkdir -p deploy/site deploy/images .local/deploy
-          cp -R apps/web/dist/. deploy/site/
+          mkdir -p deploy/images .local/deploy
           python3 scripts/package-auth.py
       - name: Build isolated language images
         if: steps.validation.outputs.reuse_image != 'true' && steps.validation.outputs.patch_image != 'true'
@@ -133,7 +151,7 @@ jobs:
     concurrency:
       group: production-apply-${{ github.ref }}
       cancel-in-progress: false
-    needs: build
+    needs: [build, frontend]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -145,12 +163,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Require current main
-        run: |
-          main_revision="$(git ls-remote origin refs/heads/main | cut -f1)"
-          if [ "$main_revision" != "$GITHUB_SHA" ]; then
-            echo "::error::Main advanced; deploy its current revision instead."
-            exit 1
-          fi
+        run: bash scripts/require-main.sh
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
         with:
           node-version-file: .node-version
@@ -201,7 +214,8 @@ jobs:
       - name: Provision application and domain
         if: github.ref == 'refs/heads/main'
         run: |
-          terraform -chdir=infra/terraform/app apply -input=false -auto-approve
+          terraform -chdir=infra/terraform/app apply -input=false -auto-approve -lock-timeout=5m -target=cloudflare_workers_custom_domain.app
+          terraform -chdir=infra/terraform/app apply -input=false -auto-approve -lock-timeout=5m
       - name: Wait for target rollout
         run: python3 scripts/verify-rollout.py
       - name: Verify production routes

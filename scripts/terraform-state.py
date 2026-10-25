@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 from cloudflare_api import get
 
 root = Path(__file__).resolve().parent.parent
@@ -28,6 +29,11 @@ def terraform(stack, *arguments):
     return subprocess.run(["terraform", f"-chdir=infra/terraform/{stack}", *arguments],
                           cwd=root, check=True)
 
+
+if "--app-only" in sys.argv:
+    terraform("app", "init", "-input=false", f"-backend-config={config}",
+              "-backend-config=key=app/terraform.tfstate")
+    raise SystemExit(0)
 
 exists = get(f"/accounts/{account}/r2/buckets/{bucket}", missing_ok=True) is not None
 

@@ -10,9 +10,9 @@ patch_image = False
 base_sha = ""
 image_sha = os.environ.get("GITHUB_SHA", "HEAD")
 repository = os.environ["GITHUB_REPOSITORY"]
-inputs = ["apps", "packages", "internal", "fixtures", "go.mod", "go.sum",
+inputs = ["apps/api", "apps/auth", "apps/runner", "apps/realtime-cloudflare", "packages/contracts", "internal", "fixtures", "go.mod", "go.sum",
           "pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json", ".node-version",
-          "vite.config.*", "scripts/build-site.mjs", "scripts/package-auth.py",
+          "scripts/package-auth.py",
           "scripts/build-judge-images.py"]
 # Admission has focused policy tests and probes in the actual runtime image.
 probe_exclusions = [":(exclude)apps/runner/internal/engine/preflight.go",
