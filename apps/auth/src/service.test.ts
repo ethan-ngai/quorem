@@ -48,6 +48,10 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
         'INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$2,$3,true,NOW(),NOW())',
         [id, "Mock verified user", `${id}@example.test`],
       );
+      await database.query('UPDATE "user" SET image=$2 WHERE id=$1', [
+        id,
+        "/api/auth/profile-photos/example.webp",
+      ]);
       await database.query(
         'INSERT INTO "session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,NOW()+interval \'1 hour\',NOW(),NOW())',
         [sessionId, sessionToken, id],
@@ -62,6 +66,7 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
       ) as Record<string, unknown>;
       expect(payload.sub).toBe(id);
       expect(payload.sessionId).toBe(sessionId);
+      expect(payload.image).toBe("/api/auth/profile-photos/example.webp");
       expect(payload.emailVerified).toBe(true);
       expect(payload.aud).toBe("quorem-api");
       expect(Number(payload.exp) - Number(payload.iat)).toBe(300);
