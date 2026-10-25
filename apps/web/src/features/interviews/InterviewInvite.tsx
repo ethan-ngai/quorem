@@ -1,4 +1,5 @@
 /** @file InterviewInvite.tsx @description Account and guest admission through scoped interview invitations. @module interviews */
+import { randomUUID } from "../../randomUUID";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { InterviewPreview, InterviewSnapshot } from "@quorem/contracts";
@@ -35,7 +36,7 @@ export function InterviewInvite({ token }: { token: string }) {
         `/v1/interview-invites/${encodeURIComponent(token)}/join`,
         "POST",
         { name: name.trim() || undefined },
-        crypto.randomUUID(),
+        randomUUID(),
       );
       window.location.assign(`/interview/${session.id}`);
     } catch (cause) {

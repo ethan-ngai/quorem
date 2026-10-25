@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import { Icon } from "../editor/components/Icon";
 import "../../ui/result-tabs.css";
 import { useEffect, useId, useRef, useState } from "react";
@@ -47,7 +48,7 @@ export function AuthoringCases({
   }
 
   const draft = (test: QuestionContent["hiddenCases"][number]): CustomCaseDraft => ({
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     args: p.signature.parameters.map((parameter, index) =>
       format(parameter.type, test.args[index]!, defaults.args[index]!, parameter.input),
     ),

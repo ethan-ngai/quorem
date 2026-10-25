@@ -1,4 +1,5 @@
 /** @file api.ts @description Typed browser requests for public problems and solo workspaces. @module editor */
+import { randomUUID } from "../../randomUUID";
 import { UserFacingError } from "../../ui/errors";
 import { authenticatedFetch } from "../auth/session";
 import { createApiClient } from "@quorem/contracts";
@@ -76,7 +77,7 @@ export async function createSubmission(
   kind: "run" | "submit",
   source: string,
   customCases?: CustomCase[],
-  idempotencyKey: string = crypto.randomUUID(),
+  idempotencyKey: string = randomUUID(),
   level?: number,
 ) {
   const { data, error } = await api(identity).POST("/v1/submissions", {
@@ -99,7 +100,7 @@ export async function cancelSubmission(identity: DevelopmentIdentity, id: string
   const { data, error } = await api(identity).POST("/v1/submissions/{id}/cancel", {
     params: {
       path: { id },
-      header: { "Idempotency-Key": crypto.randomUUID() },
+      header: { "Idempotency-Key": randomUUID() },
     },
   });
   return requireData(data as Submission | undefined, error);
@@ -120,7 +121,7 @@ export async function switchMatchLanguage(
   language: "python" | "java" | "typescript" | "ocaml",
 ) {
   const { data, error } = await api(identity).POST("/v1/matches/{id}/workspace-language", {
-    params: { path: { id: matchId }, header: { "Idempotency-Key": crypto.randomUUID() } },
+    params: { path: { id: matchId }, header: { "Idempotency-Key": randomUUID() } },
     body: { language },
   });
   return requireData(data as Workspace | undefined, error);

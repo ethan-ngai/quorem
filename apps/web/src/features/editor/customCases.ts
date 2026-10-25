@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import type { Constraint, CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
 
 import { bindArguments } from "./argumentBinding";
@@ -47,7 +48,7 @@ export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
   const example = problem.examples[0];
   const inputs = example ? bindArguments(problem.signature, example.args) : undefined;
   return {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     args: problem.signature.parameters.map(({ type, input }, index) =>
       formatTypedField(type, inputs ? inputs[index]!.value : defaultValue(type), input),
     ),

@@ -1,4 +1,5 @@
 /** @file stageDrafts.ts @description Lossless typed authoring drafts for ordered methods and stateful test calls. @module odyssey */
+import { randomUUID } from "../../randomUUID";
 import type { CustomCase, OdysseyLevel, Signature } from "@quorem/contracts";
 import { supportedType } from "../editor/typedValues";
 import { blankQuestion } from "../admin/content";
@@ -14,7 +15,7 @@ export type StageDraft = {
   examples: SequenceDraft[];
   tests: SequenceDraft[];
 };
-const id = () => crypto.randomUUID();
+const id = () => randomUUID();
 export function methodDraft(signature: Signature): MethodDraft {
   return { id: id(), signature };
 }

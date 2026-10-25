@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { LockKeyhole } from "lucide-react";
 import { InterviewAlerts } from "./InterviewAlerts";
@@ -158,7 +159,7 @@ function InterviewPad({
     setBusy(true);
     setError(undefined);
     try {
-      await interviewRequest(`/v1/interviews/${id}/${path}`, "POST", body, crypto.randomUUID());
+      await interviewRequest(`/v1/interviews/${id}/${path}`, "POST", body, randomUUID());
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
       return true;
     } catch (cause) {
@@ -182,7 +183,7 @@ function InterviewPad({
         `/v1/interviews/${id}/submissions`,
         "POST",
         { kind },
-        crypto.randomUUID(),
+        randomUUID(),
       );
       setAdmitted({ id: submission.id, previous: sharedSubmission });
       queryClient.setQueryData(["interview-result", id, submission.id, resultAccess], submission);
@@ -197,7 +198,7 @@ function InterviewPad({
     setBusy(true);
     setError(undefined);
     try {
-      await interviewRequest(`/v1/interviews/${id}/question`, "PUT", question, crypto.randomUUID());
+      await interviewRequest(`/v1/interviews/${id}/question`, "PUT", question, randomUUID());
       setSetup(false);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
@@ -217,7 +218,7 @@ function InterviewPad({
         `/v1/interviews/${id}/language`,
         "POST",
         { language, epoch: initial.document.epoch },
-        crypto.randomUUID(),
+        randomUUID(),
       );
       await queryClient.cancelQueries({ queryKey: ["interview", id] });
       queryClient.setQueryData(["interview", id], next);

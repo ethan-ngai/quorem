@@ -35,6 +35,7 @@ class Socket {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
   Socket.instances = [];
   vi.stubGlobal("WebSocket", Socket);
   vi.stubGlobal("window", { location: { origin: "http://localhost:5180" } });

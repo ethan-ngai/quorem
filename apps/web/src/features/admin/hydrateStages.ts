@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import type { CustomCase, QuestionContent } from "@quorem/contracts";
 import { formatTypedField } from "../editor/customCases";
 import {
@@ -14,7 +15,7 @@ export function hydrateStages(content: QuestionContent): StageDraft[] {
     const methods = level.methods.map(methodDraft);
     methods.forEach((method) => available.set(method.signature.methodName, method));
     const sequence = (test: CustomCase): SequenceDraft => ({
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       explanation:
         "explanation" in test && typeof test.explanation === "string"
           ? test.explanation
@@ -23,20 +24,20 @@ export function hydrateStages(content: QuestionContent): StageDraft[] {
         const method = available.get(call.methodName);
         if (!method)
           return {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             methodId: `unavailable:${call.methodName}`,
             values: {
-              id: crypto.randomUUID(),
+              id: randomUUID(),
               expectedEnabled: true,
               args: call.args.map((value) => JSON.stringify(value)),
               expected: JSON.stringify(call.expected ?? null),
             },
           };
         return {
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           methodId: method.id,
           values: {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             expectedEnabled: true,
             args: method.signature.parameters.map((parameter, i) =>
               formatTypedField(parameter.type, call.args[i]!, parameter.input),
@@ -50,7 +51,7 @@ export function hydrateStages(content: QuestionContent): StageDraft[] {
       }),
     });
     return {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       title: level.title,
       statement: level.statementMarkdown,
       methods,

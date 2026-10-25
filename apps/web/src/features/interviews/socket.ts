@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 /** Authorized bidirectional transport; reconnect recovery uses document versions and retry keys. */
 import { token } from "../auth/session";
 import { InterviewError } from "./api";
@@ -126,7 +127,7 @@ export function createInterviewSocket(id: string) {
         pending.size >= 64
       )
         return Promise.reject(new Error("Interview socket unavailable"));
-      const key = crypto.randomUUID();
+      const key = randomUUID();
       return new Promise<T>((resolve, reject) => {
         const timeout = setTimeout(() => {
           socket?.close();
