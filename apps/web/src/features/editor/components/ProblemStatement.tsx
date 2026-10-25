@@ -1,4 +1,8 @@
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
+import { sequenceOutputs } from "../sequenceOutputs";
+import { useQuestionLanguage } from "../QuestionLanguage";
+import { questionValue } from "../questionTypes";
+import type { EditorLanguage } from "../editorLanguages";
 import { useId, useState, type ReactNode } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "./Icon";
@@ -21,9 +25,13 @@ export type StatementProblem = Pick<
 >;
 
 /** @returns Named argument values in the public function's declared order. */
-export function exampleInput(problem: Pick<ProblemVersion, "signature">, args: unknown[]) {
+export function exampleInput(
+  problem: Pick<ProblemVersion, "signature">,
+  args: unknown[],
+  language: EditorLanguage = "python",
+) {
   return bindArguments(problem.signature, args)
-    .map(({ name, value }) => `${name} = ${JSON.stringify(value)}`)
+    .map(({ name, value }) => `${name} = ${questionValue(value, language)}`)
     .join(", ");
 }
 
@@ -33,12 +41,15 @@ export function ProblemStatement({
   children,
   navigation,
   beforeExamples,
+  allowTopics = true,
 }: {
   problem: StatementProblem;
   children?: ReactNode;
   navigation?: ReactNode;
   beforeExamples?: ReactNode;
+  allowTopics?: boolean;
 }) {
+  const language = useQuestionLanguage();
   const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
   const topicsVisible = revealedTopicsFor === problem.id;
   const topicsId = useId();
@@ -50,7 +61,7 @@ export function ProblemStatement({
           <span className={`difficulty difficulty-${problem.difficulty}`}>
             {problem.difficulty}
           </span>
-          {problem.tags.length > 0 && (
+          {allowTopics && problem.tags.length > 0 && (
             <button
               className="topics-toggle"
               aria-label={topicsVisible ? "Hide topics" : "Show topics"}
@@ -64,7 +75,7 @@ export function ProblemStatement({
           )}
         </div>
       </div>
-      {problem.tags.length > 0 && (
+      {allowTopics && problem.tags.length > 0 && (
         <div
           id={topicsId}
           className="topic-list"
@@ -108,30 +119,56 @@ export function ProblemStatement({
                                   signature
                                     ? bindArguments(signature, call.args)
                                         .map(
-                                          ({ name, value }) => `${name} = ${JSON.stringify(value)}`,
+                                          ({ name, value }) =>
+                                            `${name} = ${questionValue(value, language)}`,
                                         )
                                         .join(", ")
-                                    : call.args.map((value) => JSON.stringify(value)).join(", ")
+                                    : call.args
+                                        .map((value) => questionValue(value, language))
+                                        .join(", ")
                                 })`;
                               })
                               .join("; ")
-                          : exampleInput(problem, example.args)}
+                          : exampleInput(problem, example.args, language)}
                       </code>
                     </div>
-                    <div>
-                      <Tooltip content="Output">
-                        <span className="value-label" tabIndex={0} aria-label="Output">
-                          <Icon name="output" />
-                        </span>
-                      </Tooltip>
-                      <code>
-                        {JSON.stringify(
-                          example.calls?.length
-                            ? example.calls.map((call) => call.expected)
-                            : example.expected,
-                        )}
-                      </code>
-                    </div>
+                    {example.calls?.length ? (
+                      sequenceOutputs(
+                        problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
+                          problem.signature,
+                        ],
+                        example.calls,
+                      ).map((output) => (
+                        <div key={output.call}>
+                          <Tooltip
+                            content={`Output from ${output.methodName} (call ${output.call})`}
+                          >
+                            <span
+                              className="value-label"
+                              tabIndex={0}
+                              aria-label={`Output from ${output.methodName} (call ${output.call})`}
+                            >
+                              <Icon name="output" />
+                            </span>
+                          </Tooltip>
+                          <code>
+                            {output.methodName}:{" "}
+                            {questionValue(output.value, language, output.type)}
+                          </code>
+                        </div>
+                      ))
+                    ) : (
+                      <div>
+                        <Tooltip content="Output">
+                          <span className="value-label" tabIndex={0} aria-label="Output">
+                            <Icon name="output" />
+                          </span>
+                        </Tooltip>
+                        <code>
+                          {questionValue(example.expected, language, problem.signature.returnType)}
+                        </code>
+                      </div>
+                    )}
                   </div>
                   <div className="example-explanation">
                     {example.explanation && (

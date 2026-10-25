@@ -1,3 +1,4 @@
+import { randomUUID } from "../../randomUUID";
 import { createApiClient } from "@quorem/contracts";
 import { UserFacingError } from "../../ui/errors";
 /** @file api.ts @description Typed recoverable private match commands. @module matches */
@@ -105,7 +106,7 @@ export async function reportRuleEvent(
 ) {
   const { data, error } = await api(identity).POST("/v1/matches/{id}/rule-events", {
     body: { kind },
-    params: { path: { id }, header: { "Idempotency-Key": crypto.randomUUID() } },
+    params: { path: { id }, header: { "Idempotency-Key": randomUUID() } },
   });
   return requireData(data as MatchSnapshot | undefined, error);
 }

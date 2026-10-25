@@ -190,3 +190,76 @@
     border-top: 1px solid var(--color-border);
   }
 }
+
+/* Match the interview creator's bounded, tabbed authoring surface. */
+.admin-workspace {
+  max-width: 1160px;
+  padding: var(--space-5) var(--space-5) var(--space-6);
+}
+.admin-heading {
+  margin-bottom: var(--space-5);
+}
+.admin-layout {
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-5);
+}
+.admin-form-pane {
+  padding: 0 0 0 var(--space-5);
+}
+.admin-toolbar {
+  top: 48px;
+  margin-bottom: var(--space-4);
+  gap: var(--space-2);
+}
+.admin-toolbar > span {
+  font-size: var(--text-small);
+}
+.admin-toolbar > .select-field {
+  width: auto;
+  min-width: 148px;
+}
+.admin-draft-row {
+  padding: var(--space-2) var(--space-3);
+}
+.admin-fields .authoring-options {
+  margin-top: var(--space-5);
+}
+.authoring-options > summary {
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding-block: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-small);
+}
+.admin-fields .stage-authoring {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.admin-fields [hidden] {
+  display: none;
+}
+.admin-fields .authoring-test-collections {
+  margin-top: 0;
+}
+.admin-fields .authoring-case-browser {
+  height: 320px;
+}
+.admin-fields .authoring-section-tabs {
+  margin-bottom: var(--space-4);
+}
+@media (max-width: 900px) {
+  .admin-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-form-pane {
+    padding: var(--space-4) 0 0;
+  }
+  .admin-rail {
+    max-height: 220px;
+    overflow: auto;
+  }
+  .admin-toolbar {
+    position: static;
+  }
+}

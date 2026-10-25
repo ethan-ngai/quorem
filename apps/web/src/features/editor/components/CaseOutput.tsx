@@ -1,3 +1,7 @@
+import { bindArguments } from "../argumentBinding";
+import type { MethodCall, Signature } from "@quorem/contracts";
+import { useQuestionLanguage } from "../QuestionLanguage";
+import { questionValue } from "../questionTypes";
 import { Tooltip } from "./Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
 import type { ReactNode } from "react";
@@ -17,13 +21,16 @@ export function CaseValue({
   purpose = "input",
   parameter = false,
   tone,
+  type,
 }: {
   name: string;
   value: unknown;
   purpose?: "input" | "output" | "target";
   parameter?: boolean;
   tone?: string;
+  type?: string;
 }) {
+  const language = useQuestionLanguage();
   return (
     <div className="case-detail">
       <span className={parameter ? "parameter-name" : undefined}>{name}</span>
@@ -37,7 +44,9 @@ export function CaseValue({
             <Icon name={purpose} />
           </span>
         </Tooltip>
-        <code className={`machine-value ${tone ?? ""}`}>{JSON.stringify(value)}</code>
+        <code className={`machine-value ${tone ?? ""}`}>
+          {questionValue(value, language, type)}
+        </code>
       </div>
     </div>
   );
@@ -46,24 +55,82 @@ export function CaseValue({
 export function CaseOutput({
   result,
   showExpected = true,
+  sequence,
 }: {
   result: PublicCaseResult;
   showExpected?: boolean;
+  sequence?: { calls: readonly MethodCall[]; methods: readonly Signature[] };
 }) {
   const tone = verdictTone(result.status);
   return (
     <div className="case-run-output">
       <span className={`case-verdict ${tone}`}>{result.status.replaceAll("_", " ")}</span>
-      {result.actual !== undefined && (
-        <CaseValue name="Output" purpose="output" value={result.actual} tone={tone} />
-      )}
-      {showExpected && result.expected !== undefined && (
-        <CaseValue
-          name="Expected output"
-          purpose="target"
-          value={result.expected}
-          tone="verdict-success"
-        />
+      {sequence ? (
+        sequence.calls.map((call, index) => {
+          const signature = sequence.methods.find(
+            (method) => method.methodName === call.methodName,
+          );
+          const actual = Array.isArray(result.actual) ? result.actual[index] : undefined;
+          const expected = Array.isArray(result.expected) ? result.expected[index] : call.expected;
+          const hasOutput = signature?.returnType !== "void";
+          return (
+            <section
+              className="case-call-result"
+              key={index}
+              aria-label={`Call ${index + 1}: ${call.methodName}`}
+            >
+              <header className="case-call-heading">
+                <span className="case-call-number">{index + 1}</span>
+                <code>{call.methodName}</code>
+              </header>
+              <div className="case-call-inputs">
+                {(signature
+                  ? bindArguments(signature, call.args)
+                  : call.args.map((value, index) => ({ name: `Argument ${index + 1}`, value }))
+                ).map(({ name, value }) => (
+                  <CaseValue key={name} name={name} value={value} parameter />
+                ))}
+                {!call.args.length && <span className="case-no-inputs">No arguments</span>}
+              </div>
+              {hasOutput && (actual !== undefined || (showExpected && expected !== undefined)) && (
+                <div className="case-output-comparison">
+                  {actual !== undefined && (
+                    <CaseValue
+                      name="Output"
+                      purpose="output"
+                      value={actual}
+                      type={signature?.returnType}
+                      tone={tone}
+                    />
+                  )}
+                  {showExpected && expected !== undefined && (
+                    <CaseValue
+                      name="Expected"
+                      purpose="target"
+                      value={expected}
+                      type={signature?.returnType}
+                      tone="verdict-success"
+                    />
+                  )}
+                </div>
+              )}
+            </section>
+          );
+        })
+      ) : (
+        <div className="case-output-comparison">
+          {result.actual !== undefined && (
+            <CaseValue name="Output" purpose="output" value={result.actual} tone={tone} />
+          )}
+          {showExpected && result.expected !== undefined && (
+            <CaseValue
+              name="Expected output"
+              purpose="target"
+              value={result.expected}
+              tone="verdict-success"
+            />
+          )}
+        </div>
       )}
       {(!!result.stdout?.trim() || !!result.stderr?.trim()) && (
         <ConsoleSection label="Standard output">

@@ -1,5 +1,5 @@
 /** @file WorkspaceSettings.tsx @description Shared local preference sections and accessible controls. @module editor */
-import * as Switch from "@radix-ui/react-switch";
+import { ToggleSwitch as Toggle } from "../../../ui/ToggleSwitch";
 import { Monitor, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { SelectField } from "../../../ui/SelectField";
@@ -57,27 +57,6 @@ function Setting({
       </div>
       {children}
     </div>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <Switch.Root
-      className="settings-switch"
-      aria-label={label}
-      checked={checked}
-      onCheckedChange={onChange}
-    >
-      <Switch.Thumb className="settings-switch-thumb" />
-    </Switch.Root>
   );
 }
 

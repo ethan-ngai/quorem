@@ -57,3 +57,20 @@ it("renders structured mathematics and literal prose with named examples", () =>
   expect(markup).toContain("Use the supplied values.");
   expect(markup).toContain("The first value is 3.");
 });
+
+it("removes the topic control and all topic content when the host disables hints", () => {
+  const problem = {
+    id: "hidden-topics",
+    title: "Problem",
+    difficulty: "easy",
+    tags: ["SECRET_TOPIC"],
+    statementMarkdown: "Solve it.",
+    examples: [],
+    constraints: [],
+    signature: { parameters: [] },
+  } as unknown as ProblemVersion;
+  const markup = renderToStaticMarkup(<ProblemStatement problem={problem} allowTopics={false} />);
+  expect(markup).not.toContain("Show topics");
+  expect(markup).not.toContain("SECRET_TOPIC");
+  expect(markup).not.toContain("topic-list");
+});

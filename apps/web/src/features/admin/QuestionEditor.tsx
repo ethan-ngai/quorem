@@ -1,7 +1,10 @@
+import { useBlocker } from "@tanstack/react-router";
+import { LoadingScreen } from "../../ui/LoadingScreen";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based immutable question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
-import { userFacingErrorMessage } from "../../ui/errors";
-import { useEffect, useState } from "react";
+import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
+import { useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
@@ -11,9 +14,14 @@ import { api, requireData } from "../editor/api";
 import { createDraft, getDraft, listDrafts, publishDraft, saveDraft } from "./api";
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
-import { SelectField } from "../../ui/SelectField";
+import { ProblemPicker } from "../practice/ProblemPicker";
+import { Globe, LockKeyhole, FileJson } from "lucide-react";
+import { Tooltip } from "../../ui/Tooltip";
+import "../../ui/question-hints.css";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { PreviewBoundary } from "./PreviewBoundary";
+import { parseQuestionImport, questionImportLimit } from "./importQuestion";
+import questionSchema from "@quorem/contracts/questions/schema?url";
 import "./admin.css";
 
 /** Gates navigation as well as operations; API authorization remains authoritative. */
@@ -24,9 +32,7 @@ export function QuestionEditor() {
     <>
       <GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />
       {session.isPending ? (
-        <main className="admin-access" role="status">
-          Checking account…
-        </main>
+        <LoadingScreen label="Checking account…" />
       ) : session.isError ? (
         <main className="admin-access" role="alert">
           Account unavailable. Reload to retry.
@@ -53,6 +59,7 @@ export function QuestionEditor() {
 /** Keeps unsaved edits local; changing drafts requires an explicit discard. */
 function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const cache = useQueryClient();
+  const importInput = useRef<HTMLInputElement>(null);
   const drafts = useInfiniteQuery({
     queryKey: ["admin-drafts", admin],
     initialPageParam: undefined as string | undefined,
@@ -72,11 +79,17 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const [draft, setDraft] = useState<QuestionDraft>();
   const [content, setContent] = useState<QuestionContent>();
   const [dirty, setDirty] = useState(false);
+  const navigationBlocker = useBlocker({
+    shouldBlockFn: () => dirty,
+    enableBeforeUnload: false,
+    withResolver: true,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useErrorNotification(error);
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
+  const [visibility, setVisibility] = useState<"private" | "global">("private");
   const [cloneId, setCloneId] = useState("");
   const [discardTarget, setDiscardTarget] = useState<string>();
   const [invalidFields, setInvalidFields] = useState<Set<string>>(() => new Set());
@@ -89,6 +102,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
   function open(next: QuestionDraft) {
+    setVisibility((current) => (next.id === draft?.id ? current : "private"));
     setDraft(next);
     setContent(next.content);
     setDirty(false);
@@ -116,36 +130,73 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const locked = !!draft?.publishedVersionId || busy;
   return (
     <main className="admin-workspace">
+      <SessionDialog
+        open={navigationBlocker.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) navigationBlocker.reset?.();
+        }}
+        title="Discard unsaved edits?"
+        description="Your saved draft will remain unchanged."
+      >
+        <footer className="competitive-dialog-actions">
+          <button className="button button-secondary" onClick={() => navigationBlocker.reset?.()}>
+            Keep editing
+          </button>
+          <button className="button button-primary" onClick={() => navigationBlocker.proceed?.()}>
+            Discard and leave
+          </button>
+        </footer>
+      </SessionDialog>
       <header className="admin-heading">
         <div>
           <h1>Question editor</h1>
-          <p>
-            {admin ? "Publish global questions." : "Create questions for your private library."}
-          </p>
         </div>
-        <button
-          className="button button-secondary"
-          disabled={busy || dirty || invalidFields.size > 0}
-          onClick={() =>
-            void perform(() => createDraft({ content: blankQuestion() }), "Draft created.")
-          }
-        >
-          New question
-        </button>
+        <div className="admin-toolbar">
+          <input
+            ref={importInput}
+            type="file"
+            accept=".json,application/json"
+            aria-label="Import question JSON file"
+            hidden
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (!file) return;
+              void perform(async () => {
+                if (file.size > questionImportLimit)
+                  throw new UserFacingError("Choose a JSON file smaller than 2 MiB.");
+                return createDraft({ content: parseQuestionImport(await file.text()) });
+              }, "Question imported. Review the draft before publishing.");
+            }}
+          />
+          <button
+            className="button button-secondary"
+            disabled={busy || dirty || invalidFields.size > 0}
+            onClick={() => importInput.current?.click()}
+          >
+            Import JSON
+          </button>
+          <button
+            className="button button-secondary"
+            disabled={busy || dirty || invalidFields.size > 0}
+            onClick={() =>
+              void perform(() => createDraft({ content: blankQuestion() }), "Draft created.")
+            }
+          >
+            New question
+          </button>
+        </div>
       </header>
       <div className="admin-layout">
         <aside className="admin-rail" aria-label="Question drafts">
           <label>
             Edit published question
-            <SelectField
-              label="Edit published question"
+            <ProblemPicker
+              items={problems.data ?? []}
               value={cloneId}
-              onChange={setCloneId}
-              options={[
-                { value: "", label: "Choose question" },
-                ...(problems.data?.map((item) => ({ value: item.id, label: item.title })) ?? []),
-              ]}
+              onChange={(id) => setCloneId(id ?? "")}
               disabled={busy}
+              label="Edit published question"
             />
           </label>
           <button
@@ -162,7 +213,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           </button>
           <h2>Drafts</h2>
           {drafts.isPending ? (
-            <p role="status">Loading drafts…</p>
+            <LoadingScreen inline label="Loading drafts…" />
           ) : drafts.isError ? (
             <p role="alert">
               {userFacingErrorMessage(drafts.error, "Questions unavailable. Please try again.")}
@@ -196,6 +247,18 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
               Load more drafts
             </button>
           )}
+          <div className="admin-rail-tools">
+            <Tooltip content="Download question JSON schema">
+              <a
+                className="icon-button"
+                href={questionSchema}
+                download="quorem-question-v1.schema.json"
+                aria-label="Download question JSON schema"
+              >
+                <FileJson size={16} />
+              </a>
+            </Tooltip>
+          </div>
         </aside>
         <section className="admin-form-pane" aria-label="Question content">
           <SessionDialog
@@ -262,19 +325,44 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                     >
                       Save draft
                     </button>
+                    {admin && (
+                      <SegmentedControl
+                        label="Publish to"
+                        iconOnly
+                        value={visibility}
+                        disabled={busy}
+                        onChange={(value) => setVisibility(value as "private" | "global")}
+                        options={[
+                          {
+                            value: "private",
+                            label: "Private",
+                            icon: <LockKeyhole size={16} aria-hidden="true" />,
+                          },
+                          {
+                            value: "global",
+                            label: "Global",
+                            icon: <Globe size={16} aria-hidden="true" />,
+                          },
+                        ]}
+                      />
+                    )}
                     <button
                       className="button button-primary"
                       disabled={busy || dirty || invalidFields.size > 0}
                       onClick={() =>
                         void perform(
-                          () => publishDraft(draft),
-                          admin
+                          () => publishDraft(draft, admin ? visibility : "private"),
+                          admin && visibility === "global"
                             ? "Global question published."
                             : "Question added to your private library.",
                         )
                       }
                     >
-                      {busy ? "Working…" : admin ? "Publish globally" : "Save to private library"}
+                      {busy
+                        ? "Working…"
+                        : admin && visibility === "global"
+                          ? "Publish globally"
+                          : "Add to library"}
                     </button>
                   </>
                 )}

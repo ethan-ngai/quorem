@@ -8,6 +8,8 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { StrictMode, Suspense, lazy } from "react";
+import { initializeTheme } from "./features/editor/useTheme";
+import { LoadingScreen } from "./ui/LoadingScreen";
 import { Notifications } from "./ui/Notifications";
 import { createRoot } from "react-dom/client";
 import { LoginPage } from "./features/auth/LoginPage";
@@ -21,6 +23,8 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@quorem/ui/theme.css";
 import "./styles/global.css";
 import "./features/matches/competitive.css";
+
+initializeTheme();
 
 const QuestionEditor = lazy(() =>
   import("./features/admin/QuestionEditor").then((module) => ({ default: module.QuestionEditor })),
@@ -76,13 +80,7 @@ const problemRoute = createRoute({
   component: function ProblemRoute() {
     const { slug } = problemRoute.useParams();
     return (
-      <Suspense
-        fallback={
-          <main className="workspace-loading" role="status">
-            Opening workspace…
-          </main>
-        }
-      >
+      <Suspense fallback={<LoadingScreen label="Opening workspace…" />}>
         <WorkspacePage slug={slug} />
       </Suspense>
     );
@@ -94,13 +92,7 @@ const matchRoute = createRoute({
   component: function MatchRoute() {
     const { id } = matchRoute.useParams();
     return (
-      <Suspense
-        fallback={
-          <main className="workspace-loading" role="status">
-            Opening match…
-          </main>
-        }
-      >
+      <Suspense fallback={<LoadingScreen label="Opening match…" />}>
         <MatchPage matchId={id} />
       </Suspense>
     );
@@ -123,13 +115,7 @@ const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/questions",
   component: () => (
-    <Suspense
-      fallback={
-        <main className="admin-access" role="status">
-          Opening question editor…
-        </main>
-      }
-    >
+    <Suspense fallback={<LoadingScreen label="Opening question editor…" />}>
       <QuestionEditor />
     </Suspense>
   ),
@@ -138,13 +124,7 @@ const interviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/interviews",
   component: () => (
-    <Suspense
-      fallback={
-        <main className="workspace-loading" role="status">
-          Opening interviews…
-        </main>
-      }
-    >
+    <Suspense fallback={<LoadingScreen label="Opening interviews…" />}>
       <InterviewHub />
     </Suspense>
   ),
@@ -155,13 +135,7 @@ const interviewRoute = createRoute({
   component: function InterviewRoute() {
     const { id } = interviewRoute.useParams();
     return (
-      <Suspense
-        fallback={
-          <main className="workspace-loading" role="status">
-            Opening interview…
-          </main>
-        }
-      >
+      <Suspense fallback={<LoadingScreen label="Opening interview…" />}>
         <InterviewPage id={id} />
       </Suspense>
     );
@@ -173,13 +147,7 @@ const interviewInviteRoute = createRoute({
   component: function InterviewInviteRoute() {
     const { token } = interviewInviteRoute.useParams();
     return (
-      <Suspense
-        fallback={
-          <main className="workspace-loading" role="status">
-            Opening invitation…
-          </main>
-        }
-      >
+      <Suspense fallback={<LoadingScreen label="Opening invitation…" />}>
         <InterviewInvite token={token} />
       </Suspense>
     );

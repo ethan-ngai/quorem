@@ -169,3 +169,53 @@
   height: 28px;
   min-height: 28px;
 }
+
+.case-call,
+.case-call-result {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.case-call-result + .case-call,
+.case-call-result {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.case-call-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.case-call-heading code {
+  font: 500 13px/1.5 var(--font-code);
+}
+.case-call-number {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.case-call-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+}
+.case-call-inputs > .case-detail {
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+}
+.case-no-inputs {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.case-output-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  min-width: 0;
+}
+.case-output-comparison .machine-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}

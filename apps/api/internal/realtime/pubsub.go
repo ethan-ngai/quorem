@@ -3,6 +3,7 @@ package realtime
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 )
@@ -47,7 +48,11 @@ func (m *Memory) Subscribe(ctx context.Context, topic string) (<-chan Notice, fu
 	if m.closed || ctx.Err() != nil {
 		return nil, nil, errors.New("transport closed")
 	}
-	if m.count >= 256 || len(m.subscribers[topic]) >= 8 {
+	limit := 8
+	if strings.HasPrefix(topic, "/interviews/") {
+		limit = 48
+	}
+	if m.count >= 256 || len(m.subscribers[topic]) >= limit {
 		return nil, nil, errors.New("subscription capacity reached")
 	}
 	ch := make(chan Notice, 1)
@@ -89,7 +94,8 @@ func (m *Memory) Publish(ctx context.Context, topic string, notice Notice) error
 		case ch <- notice:
 		default:
 			select {
-			case <-ch:
+			case previous := <-ch:
+				notice = CoalesceNotice(previous, notice)
 			default:
 			}
 			ch <- notice
@@ -144,4 +150,12 @@ func (m *Memory) Close() {
 		}
 	}
 	m.subscribers = make(map[string]map[chan Notice]struct{})
+}
+
+// CoalesceNotice retains an all-state wakeup when distinct interview changes share a buffer.
+func CoalesceNotice(previous, next Notice) Notice {
+	if strings.HasPrefix(next.Type, "interview.") && previous.Type != next.Type {
+		next.Type = "interview.changed"
+	}
+	return next
 }

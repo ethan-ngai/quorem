@@ -1,6 +1,7 @@
 /** @file WorkspaceRecovery.tsx @description Shared loading and reconnect presentation. @module ui */
-import { ArrowLeft, LoaderCircle, RotateCcw, Unplug } from "lucide-react";
+import { ArrowLeft, RotateCcw, Unplug } from "lucide-react";
 import { useId, useState } from "react";
+import { LogoSpinner } from "./LoadingScreen";
 
 export function WorkspaceRecovery({
   failed,
@@ -22,7 +23,7 @@ export function WorkspaceRecovery({
   return (
     <section className="match-recovery" aria-labelledby={titleId} aria-busy={!failed || retrying}>
       <div className="match-recovery-symbol" aria-hidden="true">
-        {failed ? <Unplug /> : <LoaderCircle className="match-recovery-spinner" />}
+        {failed ? <Unplug /> : <LogoSpinner />}
       </div>
       <h1 id={titleId}>{title}</h1>
       <p role={failed ? "alert" : "status"}>{message}</p>

@@ -19,8 +19,8 @@ type Fixture = problems.Fixture
 func NormalizeCaseOutput(f Fixture, c Case, value []byte) ([]byte, error) {
 	return problems.NormalizeCaseOutput(f.Problem, c, value)
 }
-func CaseExpected(c Case) []byte     { return problems.CaseExpected(c) }
-func MethodSignatures(f Fixture) any { return problems.OdysseyMethods(f.Problem) }
+func CaseExpected(f Fixture, c Case) []byte { return problems.CaseExpected(f.Problem, c) }
+func MethodSignatures(f Fixture) any        { return problems.OdysseyMethods(f.Problem) }
 
 func Normalize(typ string, value []byte) ([]byte, error) { return problems.Normalize(typ, value) }
 func LoadFixtures(dir string) ([]Fixture, error)         { return problems.LoadFixtures(dir) }

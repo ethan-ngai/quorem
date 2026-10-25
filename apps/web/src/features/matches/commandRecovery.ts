@@ -1,4 +1,5 @@
 /** @file commandRecovery.ts @description Owner-scoped mutation retry keys and private invitation recovery. @module matches */
+import { randomUUID } from "../../randomUUID";
 import type { CreateMatchRequest, DevelopmentIdentity, MatchInvite } from "@quorem/contracts";
 import { RejectedMatchCommand } from "./errors";
 
@@ -61,7 +62,7 @@ export async function recoverableCommand<TPayload, TResult>(
   const command =
     existing && (freezePayload || JSON.stringify(existing.payload) === JSON.stringify(payload))
       ? existing
-      : { key: crypto.randomUUID(), payload };
+      : { key: randomUUID(), payload };
   volatilePending.set(storageKey(identity, operation), command);
   try {
     localStorage.setItem(storageKey(identity, operation), JSON.stringify(command));

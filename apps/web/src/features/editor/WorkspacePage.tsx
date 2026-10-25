@@ -26,7 +26,7 @@ import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { customDraftStorageKey, readCustomDrafts, type CustomCaseDraft } from "./customCases";
-import { Brand } from "./components/Icon";
+import { LogoSpinner, LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
 import { readPreference, writePreference } from "./editorSettings";
@@ -43,6 +43,8 @@ import {
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
+import { unlockedMethodEdit } from "../odyssey/methodStubs";
+import { publicOdysseyPreview } from "../odyssey/publicPreview";
 import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { interviewRequest } from "../interviews/api";
 import type { OdysseyProgress } from "@quorem/contracts";
@@ -163,6 +165,7 @@ export function WorkspacePage({
 
   const problemQuery = useQuery({
     queryKey: ["problem", identity, match?.problemVersionId ?? slug],
+    staleTime: 60_000,
     queryFn: () =>
       match ? fetchProblemVersion(identity, match.problemVersionId!) : fetchProblem(identity, slug),
     enabled: match ? !!match.problemVersionId && !!matchWorkspaceId : !!slug,
@@ -178,7 +181,7 @@ export function WorkspacePage({
       (account.data.kind !== "guest" || !!match) &&
       (match ? !!matchWorkspaceId : !!problemQuery.data),
     staleTime: 0,
-    gcTime: 0,
+    gcTime: 5 * 60_000,
   });
 
   const loadedWorkspace = useMemo(() => {
@@ -205,7 +208,6 @@ export function WorkspacePage({
       storageId: browserDraftScope(loadedWorkspace),
     };
     const previousContext = draftContextRef.current;
-    if (workspaceQuery.isFetching && previousContext?.key !== nextContext.key) return;
     if (previousContext?.key === nextContext.key) return;
     try {
       browserWriterRef.current?.flush();
@@ -373,12 +375,38 @@ export function WorkspacePage({
     !problem ||
     !workspace;
   const matchRules = useMatchRules(identity, match);
+  const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
   const odyssey = useQuery({
     queryKey: ["odyssey", workspace?.id],
     queryFn: () => interviewRequest<OdysseyProgress>(`/v1/workspaces/${workspace!.id}/odyssey`),
     enabled: !!workspace && !!problem?.odyssey && serverWorkspace,
     refetchInterval: problem?.odyssey ? 2000 : false,
   });
+  const previewOdyssey = useMemo(
+    () => (!serverWorkspace ? publicOdysseyPreview(problem) : undefined),
+    [serverWorkspace, problem],
+  );
+  const displayedOdyssey = odyssey.data ?? previewOdyssey;
+  useEffect(() => {
+    if (loading || !displayedOdyssey) return;
+    let cancelled = false;
+    async function append() {
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
+        const editor = editorRef.current;
+        if (!editor) return;
+        const before = editor.getSource();
+        const edit = await unlockedMethodEdit(before, documentLanguage, displayedOdyssey!.levels);
+        if (cancelled) return;
+        if (editor.getSource() !== before) continue;
+        if (edit) editor.applyEdit(edit.from, edit.to, edit.insert);
+        return;
+      }
+    }
+    void append();
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, displayedOdyssey, documentLanguage, workspace?.id]);
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const runExamples = useMemo(
     () => odyssey.data?.levels.flatMap((level) => level.examples),
@@ -515,7 +543,6 @@ export function WorkspacePage({
   );
 
   const loadError = problemQuery.error ?? workspaceQuery.error;
-  const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
   const virtualDocumentUri = `file:///workspace/${languageFileNames[documentLanguage]}`;
   const editorDocumentKey = workspace
     ? `${identity}:${workspace.id}:${workspace.problemVersionId}:${documentLanguage}`
@@ -557,7 +584,7 @@ export function WorkspacePage({
   if (!problem || !workspace)
     return (
       <main className="workspace-loading" aria-live="polite">
-        <Brand />
+        {loadError ? null : <LogoSpinner />}
         <h1>{loadError ? "Workspace unavailable" : "Opening workspace…"}</h1>
         {loadError && (
           <>
@@ -580,7 +607,11 @@ export function WorkspacePage({
     <>
       {loading && (
         <div className="workspace-loading workspace-transition" role="status">
-          <p>{loadError ? errorMessage(loadError) : "Opening workspace…"}</p>
+          {loadError ? (
+            <p role="alert">{errorMessage(loadError)}</p>
+          ) : (
+            <LoadingScreen label="Opening workspace…" />
+          )}
           {loadError && (
             <button
               className="button button-secondary"
@@ -595,6 +626,7 @@ export function WorkspacePage({
         </div>
       )}
       <WorkspaceLayout
+        language={documentLanguage}
         pending={loading}
         navigation={
           <GlobalNav
@@ -655,12 +687,21 @@ export function WorkspacePage({
         problem={
           <>
             {problem.odyssey ? (
-              odyssey.data ? (
+              displayedOdyssey ? (
                 <OdysseyPanel
-                  progress={odyssey.data}
+                  allowTopics={match?.rules.hints?.topics !== false}
+                  progress={displayedOdyssey}
                   problem={problem}
                   selectedLevel={selectedLevel}
-                />
+                >
+                  <EditorialPanel
+                    available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
+                    identity={identity}
+                    versionId={problem.id}
+                    language={documentLanguage}
+                    inMatch={!!match && match.rules.hints?.complexity !== true}
+                  />
+                </OdysseyPanel>
               ) : (
                 <p className="result-message" role="status">
                   {!account.data
@@ -671,13 +712,17 @@ export function WorkspacePage({
                 </p>
               )
             ) : (
-              <ProblemStatement problem={problem}>
+              <ProblemStatement
+                problem={problem}
+                allowTopics={match?.rules.hints?.topics !== false}
+              >
                 <EditorialPanel
+                  available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
                   key={`${identity}:${problem.id}`}
                   identity={identity}
                   versionId={problem.id}
                   language={documentLanguage}
-                  inMatch={!!match}
+                  inMatch={!!match && match.rules.hints?.complexity !== true}
                 />
               </ProblemStatement>
             )}
@@ -728,7 +773,7 @@ export function WorkspacePage({
         results={
           <WorkspaceTests
             problem={problem}
-            progress={odyssey.data}
+            progress={displayedOdyssey}
             submission={submission}
             busy={admissionPending || (execution.isPending && !!execution.submissionId)}
             error={execution.error}

@@ -13,7 +13,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -74,11 +73,11 @@ func main() {
 	}
 	api := &httpapi.Server{Store: store, Local: local, Origins: strings.Split(os.Getenv("AUTH_ORIGIN"), ","), GuestCreation: env("GUEST_CREATION_ENABLED", pilotDefault) == "true", GuestAdmission: env("GUEST_ADMISSION_ENABLED", pilotDefault) == "true", GuestExecution: env("GUEST_EXECUTION_ENABLED", pilotDefault) == "true"}
 	if env("APP_ENV", "production") == "local" {
-		for _, o := range api.Origins {
-			if u, e := url.Parse(o); e == nil && u.Hostname() == "localhost" {
-				api.Origins = append(api.Origins, u.Scheme+"://127.0.0.1:"+u.Port())
-			}
+		addresses, err := net.InterfaceAddrs()
+		if err != nil {
+			log.Fatal(err)
 		}
+		api.Origins = localOrigins(api.Origins, addresses)
 	}
 	api.PublicGuestRequest = store.GuestRequestAllowed
 	if !local {

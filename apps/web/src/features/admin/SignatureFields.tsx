@@ -1,4 +1,5 @@
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
+import { SelectField } from "../../ui/SelectField";
 import type { Signature } from "@quorem/contracts";
 import { useEffect, useId, useRef, useState } from "react";
 import { Field } from "./AuthoringFields";
@@ -8,6 +9,8 @@ const types = [
   "float",
   "str",
   "bool",
+  "array<int>",
+  "array<str>",
   "list<int>",
   "list<float>",
   "list<str>",
@@ -113,8 +116,32 @@ export function SignatureFields({
         value={value.returnType}
         allowVoid={allowVoid}
         onValidityChange={onValidityChange}
-        onChange={(returnType) => onChange({ ...value, returnType })}
+        onChange={(returnType) =>
+          onChange({
+            ...value,
+            returnType,
+            outputOrder:
+              returnType.startsWith("list<") || returnType.startsWith("array<")
+                ? value.outputOrder
+                : undefined,
+          })
+        }
       />
+      {(value.returnType.startsWith("list<") || value.returnType.startsWith("array<")) && (
+        <Field label="Return order">
+          <SelectField
+            label="Return order"
+            value={value.outputOrder ?? "ordered"}
+            onChange={(outputOrder) =>
+              onChange({ ...value, outputOrder: outputOrder as "ordered" | "unordered" })
+            }
+            options={[
+              { value: "ordered", label: "Ordered" },
+              { value: "unordered", label: "Any order" },
+            ]}
+          />
+        </Field>
+      )}
     </fieldset>
   );
 }

@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { authErrorMessage } from "./errors";
 import { useEffect, useState, type FormEvent } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { emailInputSchema, emailSchema, passwordSchema } from "@quorem/contracts/auth";
 import { Brand } from "../editor/components/Icon";
 import { LoginShowcase } from "./LoginShowcase";
@@ -58,6 +58,12 @@ export function PasswordReset() {
       <LoginShowcase />
       <div className="auth-form-side">
         <section className="auth-content" aria-labelledby="reset-title">
+          {!done && (
+            <a className="auth-back" href="/login">
+              <ArrowLeft size={14} aria-hidden="true" />
+              Back to sign in
+            </a>
+          )}
           <h1 id="reset-title">{done ? "Password updated" : "Reset your password"}</h1>
           {done ? (
             <>
@@ -69,7 +75,6 @@ export function PasswordReset() {
           ) : !token ? (
             <>
               <ResetEmailRequest />
-              <a href="/login">Back to sign in</a>
             </>
           ) : (
             <>

@@ -15,6 +15,7 @@ const publicProblemSQL = `SELECT jsonb_build_object(
  'id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
  'odyssey',CASE WHEN v.public->'odyssey' IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.public->'odyssey'->'levels'->0)) ELSE NULL END,
  'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,
+ 'complexityLanguages',CASE WHEN v.public->'odyssey' IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),'[]'::jsonb) END,
  'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'),
  'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'),
  'languages',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'),

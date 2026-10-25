@@ -15,11 +15,16 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 )
 
 const interviewGuestCookie = "quorem_interview_guest"
 
 type InterviewRepository interface {
+	SetInterviewAdmission(context.Context, string, string, string, bool) (interviews.Snapshot, error)
+	SetInterviewMonitoring(context.Context, string, string, string, interviews.Monitoring) (interviews.Snapshot, error)
+	ReportInterviewRule(context.Context, string, string, string, string) error
+	SetInterviewHints(context.Context, string, string, string, problems.HintVisibility) (interviews.Snapshot, error)
 	SwitchInterviewLanguage(context.Context, string, string, string, string, string) (interviews.Snapshot, error)
 	SetInterviewCaseVisibility(context.Context, string, string, string, string, bool, ...string) (interviews.Snapshot, error)
 	RotateInterviewGuestCredential(context.Context, string, string) (bool, error)
@@ -57,8 +62,13 @@ func (s *Server) registerInterviews(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/interviews", s.listInterviews)
 	mux.HandleFunc("POST /v1/interviews", s.createInterview)
 	mux.HandleFunc("GET /v1/interviews/{id}", s.getInterview)
+	mux.HandleFunc("GET /v1/interviews/{id}/events", s.interviewEvents)
 	mux.HandleFunc("DELETE /v1/interviews/{id}", s.deleteInterview)
 	mux.HandleFunc("PUT /v1/interviews/{id}/question", s.setInterviewQuestion)
+	mux.HandleFunc("POST /v1/interviews/{id}/hints", s.setInterviewHints)
+	mux.HandleFunc("POST /v1/interviews/{id}/monitoring", s.setInterviewMonitoring)
+	mux.HandleFunc("POST /v1/interviews/{id}/admission", s.setInterviewAdmission)
+	mux.HandleFunc("POST /v1/interviews/{id}/rule-events", s.reportInterviewRule)
 	mux.HandleFunc("POST /v1/interviews/{id}/language", s.switchInterviewLanguage)
 	mux.HandleFunc("POST /v1/interviews/{id}/cases/{caseId}/visibility", s.setInterviewCaseVisibility)
 	mux.HandleFunc("POST /v1/interviews/{id}/members", s.setInterviewMember)
@@ -461,4 +471,94 @@ func (s *Server) deleteInterview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, map[string]bool{"deleted": true})
+}
+
+func (s *Server) setInterviewHints(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var hints problems.HintVisibility
+	if !s.decode(w, r, &hints, 1024) {
+		return
+	}
+	v, err := repo.SetInterviewHints(r.Context(), owner(r), r.PathValue("id"), key, hints)
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	respond(w, 200, v)
+}
+
+func (s *Server) setInterviewMonitoring(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var policy interviews.Monitoring
+	if !s.decode(w, r, &policy, 1024) {
+		return
+	}
+	v, err := repo.SetInterviewMonitoring(r.Context(), owner(r), r.PathValue("id"), key, policy)
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	respond(w, 200, v)
+}
+func (s *Server) reportInterviewRule(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var event struct {
+		Kind string `json:"kind"`
+	}
+	if !s.decode(w, r, &event, 1024) {
+		return
+	}
+	if err := repo.ReportInterviewRule(r.Context(), owner(r), r.PathValue("id"), key, event.Kind); err != nil {
+		s.err(w, r, err)
+		return
+	}
+	respond(w, 200, struct{}{})
+}
+
+func (s *Server) setInterviewAdmission(w http.ResponseWriter, r *http.Request) {
+	repo, ok := s.interviewRequest(w, r)
+	if !ok {
+		return
+	}
+	key := s.matchKey(w, r)
+	if key == "" {
+		return
+	}
+	var body struct {
+		Locked *bool `json:"locked"`
+	}
+	if !s.decode(w, r, &body, 1024) {
+		return
+	}
+	if body.Locked == nil {
+		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Specify room lock state"})
+		return
+	}
+	v, err := repo.SetInterviewAdmission(r.Context(), owner(r), r.PathValue("id"), key, *body.Locked)
+	if err != nil {
+		s.err(w, r, err)
+		return
+	}
+	respond(w, 200, v)
 }

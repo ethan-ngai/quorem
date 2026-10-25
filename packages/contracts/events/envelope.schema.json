@@ -157,6 +157,11 @@
         },
         "returnType": {
           "type": "string"
+        },
+        "outputOrder": {
+          "type": "string",
+          "enum": ["ordered", "unordered"],
+          "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
         }
       },
       "required": ["className", "methodName", "parameters", "returnType"],
@@ -308,6 +313,15 @@
         },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
+        },
+        "complexityLanguages": {
+          "type": "array",
+          "description": "Languages with published complexity; contains no costs or solution source.",
+          "items": {
+            "$ref": "#/$defs/Language"
+          },
+          "maxItems": 4,
+          "uniqueItems": true
         }
       },
       "required": [
@@ -815,6 +829,9 @@
             },
             "focus": {
               "$ref": "#/$defs/MatchRuleAction"
+            },
+            "hints": {
+              "$ref": "#/$defs/QuestionHints"
             }
           },
           "additionalProperties": false
@@ -1169,6 +1186,9 @@
         },
         "focus": {
           "$ref": "#/$defs/MatchRuleAction"
+        },
+        "hints": {
+          "$ref": "#/$defs/QuestionHints"
         }
       },
       "required": ["clipboard", "focus"],
@@ -1564,6 +1584,11 @@
         "revision": {
           "type": "string",
           "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["private", "global"],
+          "description": "Private library or admin-only global publication. Omitted preserves the draft destination."
         }
       },
       "required": ["revision"]
@@ -1888,6 +1913,9 @@
         },
         "language": {
           "$ref": "#/$defs/Language"
+        },
+        "hints": {
+          "$ref": "#/$defs/QuestionHints"
         }
       },
       "required": ["language"],
@@ -1997,6 +2025,23 @@
         },
         "invites": {
           "$ref": "#/$defs/InterviewInvitePaths"
+        },
+        "hints": {
+          "$ref": "#/$defs/QuestionHints"
+        },
+        "monitoring": {
+          "$ref": "#/$defs/InterviewMonitoring"
+        },
+        "ruleEvents": {
+          "type": "array",
+          "maxItems": 100,
+          "description": "Interviewer-only event history. Omitted for interviewees.",
+          "items": {
+            "$ref": "#/$defs/InterviewRuleEvent"
+          }
+        },
+        "admissionLocked": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -2021,6 +2066,9 @@
         },
         "question": {
           "$ref": "#/$defs/InterviewQuestionInput"
+        },
+        "monitoring": {
+          "$ref": "#/$defs/InterviewMonitoring"
         }
       },
       "required": ["title", "question"],
@@ -2150,6 +2198,70 @@
       },
       "required": ["index", "status", "caseId", "case"],
       "additionalProperties": false
+    },
+    "QuestionHints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "topics": {
+          "type": "boolean",
+          "description": "Allow revealing topics; defaults to true."
+        },
+        "complexity": {
+          "type": "boolean",
+          "description": "Allow revealing published complexity; defaults to false for sessions."
+        }
+      }
+    },
+    "InterviewMonitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "paste": {
+          "type": "boolean",
+          "description": "Enabled when omitted."
+        },
+        "focus": {
+          "type": "boolean",
+          "description": "Enabled when omitted."
+        }
+      }
+    },
+    "InterviewRuleEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["paste", "focus"]
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "userId", "name", "kind", "occurredAt"]
+    },
+    "InterviewRuleEventInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["paste", "focus"]
+        }
+      },
+      "required": ["kind"]
     }
   },
   "$ref": "#/$defs/EventEnvelope"

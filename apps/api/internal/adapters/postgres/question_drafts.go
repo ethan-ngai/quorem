@@ -174,6 +174,13 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 }
 
 func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision string) (QuestionDraft, error) {
+	return s.PublishQuestionDraftTo(ctx, actor, id, revision, "")
+}
+
+func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision, visibility string) (QuestionDraft, error) {
+	if visibility != "" && visibility != "private" && visibility != "global" {
+		return QuestionDraft{}, failure("invalid_input", 400, "Choose private or global publication")
+	}
 	if err := s.requireQuestionAuthor(ctx, actor); err != nil {
 		return QuestionDraft{}, err
 	}
@@ -199,6 +206,31 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 	var privateOwner *string
 	if err = tx.QueryRow(ctx, "SELECT owner_id FROM question_drafts WHERE id=$1", id).Scan(&privateOwner); err != nil {
 		return d, err
+	}
+	if visibility == "global" {
+		var admin bool
+		if err = tx.QueryRow(ctx, "SELECT role='admin' FROM users WHERE id=$1 FOR SHARE", actor).Scan(&admin); err != nil {
+			return d, err
+		}
+		if !admin {
+			return d, failure("forbidden", 403, "Only administrators can publish globally")
+		}
+		c.Problem.Slug = strings.TrimPrefix(c.Problem.Slug, "private-"+Hash([]byte(actor))[:16]+"-")
+		privateOwner = nil
+	} else if visibility == "private" {
+		privateOwner = &actor
+	}
+	if _, err = tx.Exec(ctx, "UPDATE question_drafts SET owner_id=$1 WHERE id=$2", privateOwner, id); err != nil {
+		return d, err
+	}
+	if privateOwner == nil {
+		var privateSlug bool
+		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM problems WHERE slug=$1 AND owner_id IS NOT NULL)", c.Problem.Slug).Scan(&privateSlug); err != nil {
+			return d, err
+		}
+		if privateSlug {
+			return d, failure("invalid_input", 400, "Choose a new slug for global publication")
+		}
 	}
 	if privateOwner != nil {
 		// Namespace private slugs; a user cannot advance a global publication or another owner's version.

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+
 import { PasswordResetSetting } from "./PasswordResetSetting";
 import { authErrorMessage } from "./errors";
 import { Pencil, Check, X, Send } from "lucide-react";
@@ -14,7 +15,7 @@ import {
   usernameSchema,
 } from "@quorem/contracts/auth";
 import { fetchAuthCapabilities } from "./capabilities";
-import { AccountRateLimitError, updateAccount, requestEmailChange } from "./account";
+import { AccountRateLimitError, updateAccount, requestEmailChange, listAccounts } from "./account";
 import { fetchProfile, type AccountProfile } from "./profile";
 import { resetToken } from "./session";
 import { UsernameRules } from "./UsernameRules";
@@ -42,6 +43,11 @@ export function ProfileEditor({
   const capabilities = useQuery({
     queryKey: ["auth-capabilities"],
     queryFn: fetchAuthCapabilities,
+  });
+  const connections = useQuery({
+    queryKey: ["account-connections", userId],
+    queryFn: listAccounts,
+    enabled: section === "security",
   });
   const localCredentials = capabilities.data?.method === "password";
   async function run(
@@ -221,7 +227,16 @@ export function ProfileEditor({
             </form>
           </ProfileField>
           {capabilities.data?.registration && (
-            <PasswordResetSetting email={profile.email} disabled={busy} onOpen={() => edit(null)} />
+            <PasswordResetSetting
+              email={profile.email}
+              hasPassword={
+                connections.data
+                  ? connections.data.some((account) => account.providerId === "credential")
+                  : undefined
+              }
+              disabled={busy || connections.isPending || connections.isError}
+              onOpen={() => edit(null)}
+            />
           )}
         </>
       )}

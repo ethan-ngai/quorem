@@ -12,6 +12,7 @@ export function ProblemPicker({
   disabled,
   allowRandom = false,
   onSearchChange,
+  label = "Problem",
 }: {
   items: readonly { id: string; title: string; difficulty?: string }[];
   value?: string;
@@ -19,6 +20,7 @@ export function ProblemPicker({
   disabled?: boolean;
   allowRandom?: boolean;
   onSearchChange?: (search: string) => void;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -50,7 +52,7 @@ export function ProblemPicker({
           type="button"
           className="select-field match-choice problem-picker-trigger"
           disabled={disabled}
-          aria-label="Problem"
+          aria-label={label}
         >
           <span>
             {!value && allowRandom && <Dices size={16} />}

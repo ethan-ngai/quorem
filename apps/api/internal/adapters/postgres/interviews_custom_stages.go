@@ -61,7 +61,7 @@ func validateCustomInterviewStages(f *problems.Fixture, c *interviews.CustomQues
 func interviewStageStarter(methods []problems.Signature, language string) (string, error) {
 	if language == "python" {
 		var source strings.Builder
-		source.WriteString("class Solution:\n")
+		source.WriteString("class Solution:\n    def __init__(self):\n        pass\n\n")
 		for _, sig := range methods {
 			args := []string{"self"}
 			for _, p := range sig.Parameters {
@@ -94,5 +94,9 @@ func interviewStageStarter(methods []problems.Signature, language string) (strin
 	if language == "ocaml" {
 		return strings.Join(bodies, "\n"), nil
 	}
-	return "class Solution {\n" + strings.Join(bodies, "\n") + "}\n", nil
+	constructor := "    public Solution() {\n    }\n\n"
+	if language == "typescript" {
+		constructor = "    constructor() {\n    }\n\n"
+	}
+	return "class Solution {\n" + constructor + strings.Join(bodies, "\n") + "}\n", nil
 }

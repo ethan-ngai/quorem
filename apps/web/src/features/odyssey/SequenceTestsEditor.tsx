@@ -2,7 +2,6 @@
 import { SelectField } from "../../ui/SelectField";
 import { CaseBrowserLayout } from "../editor/components/CaseBrowserLayout";
 import { TypedCaseInput } from "../editor/components/TypedCaseInput";
-import { CaseValue } from "../editor/components/CaseOutput";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
 import {
@@ -154,9 +153,7 @@ export function SequenceTestsEditor({
                           }
                         />
                       ))}
-                      {method.signature.returnType === "void" ? (
-                        <CaseValue name="Expected output" purpose="target" value={null} />
-                      ) : (
+                      {method.signature.returnType !== "void" && (
                         <TypedCaseInput
                           id={`${call.id}-expected`}
                           name="Expected output"

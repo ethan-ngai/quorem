@@ -199,7 +199,7 @@ func (s *Store) matchCommand(ctx context.Context, owner, route, key string, body
 	err = tx.QueryRow(ctx, "SELECT body_hash,response FROM match_idempotency WHERE owner_id=$1 AND route=$2 AND key=$3 AND expires_at>clock_timestamp()", owner, route, key).Scan(&hash, &prior)
 	if err == nil {
 		legacyMatches := false
-		if settings, ok := body.(matches.Settings); ok && settings.AccessMode == "accounts_only" && !settings.AdmissionLocked && settings.Mode == matches.Showdown && len(settings.Difficulties) == 1 && settings.SelectedProblemVersionID == "" && settings.Rules.Clipboard == "off" && settings.Rules.Focus == "off" {
+		if settings, ok := body.(matches.Settings); ok && settings.AccessMode == "accounts_only" && !settings.AdmissionLocked && settings.Mode == matches.Showdown && len(settings.Difficulties) == 1 && settings.SelectedProblemVersionID == "" && settings.Rules.Clipboard == "off" && settings.Rules.Focus == "off" && settings.Rules.Hints == nil {
 			old, _ := json.Marshal(struct {
 				Difficulty      string `json:"difficulty"`
 				DurationMinutes int    `json:"durationMinutes"`

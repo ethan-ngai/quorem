@@ -4,6 +4,12 @@ import assert from "node:assert/strict";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { generateContracts } from "./generate.mjs";
+import { questionSchema } from "./question-schema.mjs";
+assert.deepEqual(
+  JSON.parse(readFileSync("questions/question-v1.schema.json", "utf8")),
+  questionSchema(),
+  "Question import schema must match OpenAPI",
+);
 
 const api = JSON.parse(readFileSync("openapi/api.json", "utf8"));
 const schemas = JSON.parse(

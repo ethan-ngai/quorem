@@ -1009,8 +1009,8 @@
 .match-recovery-symbol {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   margin: 0 auto 24px;
   color: var(--color-text-secondary);
 }

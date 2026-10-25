@@ -1,3 +1,4 @@
+@import "../ui/result-tabs.css";
 .app-shell {
   --workspace-control-inset: 18px;
   display: grid;
@@ -643,7 +644,7 @@ kbd {
   display: grid;
   min-height: 100dvh;
   place-content: center;
-  justify-items: start;
+  justify-items: center;
   gap: 16px;
   background: var(--color-background);
 }
@@ -1466,25 +1467,6 @@ kbd {
 .execution-bar .button {
   min-height: 32px;
 }
-.result-tabs {
-  display: flex;
-  align-self: stretch;
-  gap: 18px;
-}
-.result-tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-.result-tabs button[aria-selected="true"] {
-  color: var(--color-text);
-  font-weight: 550;
-}
 .case-browser {
   --case-rail-width: clamp(100px, 16%, 140px);
   --narrow-case-rail-width: 104px;
@@ -2075,31 +2057,6 @@ kbd {
     width: 44px;
     height: 44px;
   }
-}
-.settings-switch {
-  width: 34px;
-  height: 20px;
-  padding: 2px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--color-border);
-  flex-shrink: 0;
-}
-.settings-switch[data-state="checked"] {
-  background: var(--color-primary);
-}
-.settings-switch-thumb {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--color-text);
-  transform: translateX(0);
-  transition: transform 140ms ease;
-}
-.settings-switch[data-state="checked"] .settings-switch-thumb {
-  transform: translateX(14px);
-  background: var(--color-on-primary);
 }
 .shortcut-tiles {
   display: grid;

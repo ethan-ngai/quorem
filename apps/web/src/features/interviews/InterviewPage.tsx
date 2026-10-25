@@ -1,3 +1,12 @@
+import { randomUUID } from "../../randomUUID";
+import { ToggleSwitch } from "../../ui/ToggleSwitch";
+import { LockKeyhole } from "lucide-react";
+import { InterviewAlerts } from "./InterviewAlerts";
+import { InterviewMonitoringControls } from "./InterviewMonitoringControls";
+import { useInterviewMonitoring } from "./useInterviewMonitoring";
+import * as Popover from "../../ui/Popover";
+import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
+import { EditorialPanel } from "../editor/components/EditorialPanel";
 /** @file InterviewPage.tsx @description Shared coding workspace, role controls and private judging. @module interviews */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +34,7 @@ import { InterviewParticipants } from "./InterviewParticipants";
 import { InterviewInvitations } from "./InterviewInvitations";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Archive, Trash2, Settings } from "lucide-react";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
@@ -33,6 +42,14 @@ import { SessionDialog } from "../../ui/SessionDialog";
 import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
 import "../../styles/workspace.css";
 const keepSource = () => {};
+function resultAccessFor(snapshot: InterviewSnapshot) {
+  return snapshot.role === "interviewer"
+    ? "interviewer"
+    : `${snapshot.role}:${(snapshot.question.revealedCases ?? [])
+        .map((test) => test.id)
+        .sort()
+        .join(",")}`;
+}
 import "./collaboration.css";
 import "./session-controls.css";
 
@@ -42,7 +59,6 @@ export function InterviewPage({ id }: { id: string }) {
   const query = useQuery({
     queryKey: ["interview", id],
     queryFn: () => interviewRequest<InterviewSnapshot>(`/v1/interviews/${id}`),
-    refetchInterval: 2000,
     retry: false,
   });
   const [initial, setInitial] = useState<InterviewSnapshot>();
@@ -92,7 +108,15 @@ function InterviewPad({
   const editor = useRef<PythonEditorHandle>(null);
   const [status, setStatus] = useState<CollaborationStatus>("connecting");
   const controller = useMemo(
-    () => createCollaboration(id, initial.document, setStatus),
+    () =>
+      createCollaboration(id, initial.document, setStatus, (next, result) => {
+        queryClient.setQueryData(["interview", id], next);
+        if (result)
+          queryClient.setQueryData(
+            ["interview-result", id, result.id, resultAccessFor(next)],
+            result,
+          );
+      }),
     [id, initial.document.epoch],
   );
   const [error, setError] = useState<string>();
@@ -116,24 +140,18 @@ function InterviewPad({
     )
       onOpenQuestion(snapshot);
   }, [changed, snapshot, initial.questionEpoch, controller, onOpenQuestion]);
+  useInterviewMonitoring(snapshot, controller.reportRule);
   const interviewer = snapshot.role === "interviewer";
   const closed = snapshot.state === "closed";
   useErrorNotification(error);
   const sharedSubmission = snapshot.latestSubmissionId;
   const submissionId =
     sharedSubmission && sharedSubmission !== admitted?.previous ? sharedSubmission : admitted?.id;
-  const resultAccess = interviewer
-    ? "interviewer"
-    : `${snapshot.role}:${(snapshot.question.revealedCases ?? [])
-        .map((test) => test.id)
-        .sort()
-        .join(",")}`;
+  const resultAccess = resultAccessFor(snapshot);
   const result = useQuery({
     queryKey: ["interview-result", id, submissionId, resultAccess],
     queryFn: () => interviewRequest<Submission>(`/v1/interviews/${id}/submissions/${submissionId}`),
     enabled: !!submissionId,
-    refetchInterval: (query) =>
-      ["queued", "running"].includes(query.state.data?.state ?? "") ? 600 : false,
   });
   const executing =
     busy || admitting || result.data?.state === "queued" || result.data?.state === "running";
@@ -141,7 +159,7 @@ function InterviewPad({
     setBusy(true);
     setError(undefined);
     try {
-      await interviewRequest(`/v1/interviews/${id}/${path}`, "POST", body, crypto.randomUUID());
+      await interviewRequest(`/v1/interviews/${id}/${path}`, "POST", body, randomUUID());
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
       return true;
     } catch (cause) {
@@ -165,7 +183,7 @@ function InterviewPad({
         `/v1/interviews/${id}/submissions`,
         "POST",
         { kind },
-        crypto.randomUUID(),
+        randomUUID(),
       );
       setAdmitted({ id: submission.id, previous: sharedSubmission });
       queryClient.setQueryData(["interview-result", id, submission.id, resultAccess], submission);
@@ -180,7 +198,7 @@ function InterviewPad({
     setBusy(true);
     setError(undefined);
     try {
-      await interviewRequest(`/v1/interviews/${id}/question`, "PUT", question, crypto.randomUUID());
+      await interviewRequest(`/v1/interviews/${id}/question`, "PUT", question, randomUUID());
       setSetup(false);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
@@ -200,7 +218,7 @@ function InterviewPad({
         `/v1/interviews/${id}/language`,
         "POST",
         { language, epoch: initial.document.epoch },
-        crypto.randomUUID(),
+        randomUUID(),
       );
       await queryClient.cancelQueries({ queryKey: ["interview", id] });
       queryClient.setQueryData(["interview", id], next);
@@ -221,17 +239,18 @@ function InterviewPad({
   }
   const question = changed ? initial.question : snapshot.question;
   const language = initial.question.language as EditorLanguage;
+  useEffect(() => {
+    controller.setOdyssey(
+      snapshot.state === "active" ? snapshot.question.progress : undefined,
+      language,
+    );
+  }, [controller, snapshot.question.progress, snapshot.state, language]);
   const documentKey = `interview:${id}:${initial.document.epoch}`;
   const account = useSession();
   const host = snapshot.hostId === account.data?.user.id;
-  const wasClosed = useRef(closed);
-  useEffect(() => {
-    if (closed && !wasClosed.current && host) setLifecycle("delete");
-    wasClosed.current = closed;
-  }, [closed, host]);
   async function applyLifecycle() {
     if (lifecycle === "end") {
-      if (await mutate("close")) setLifecycle(host ? "delete" : undefined);
+      if (await mutate("close")) setLifecycle(undefined);
       return;
     }
     setBusy(true);
@@ -264,6 +283,7 @@ function InterviewPad({
   useHotkey(workspaceShortcuts.submit.binding, () => void execute("submit"), hotkeys);
   return (
     <WorkspaceLayout
+      language={language}
       navigation={
         <GlobalNav
           theme={theme.preference}
@@ -288,6 +308,18 @@ function InterviewPad({
                 </a>
               </Tooltip>
               <strong title={snapshot.title}>{snapshot.title}</strong>
+              {closed && (
+                <Tooltip content="Interview ended: code and results are read-only">
+                  <span
+                    className="interview-closed-status"
+                    role="img"
+                    aria-label="Closed interview"
+                    tabIndex={0}
+                  >
+                    <Archive size={16} />
+                  </span>
+                </Tooltip>
+              )}
             </div>
             {question.progress && (
               <OdysseyStepper
@@ -297,6 +329,68 @@ function InterviewPad({
               />
             )}
             <div className="interview-session-actions">
+              {interviewer && (
+                <InterviewAlerts
+                  key={id}
+                  sessionId={id}
+                  events={snapshot.ruleEvents ?? []}
+                  version={snapshot.version}
+                />
+              )}
+              {host && !closed && (
+                <Popover.Root>
+                  <Tooltip content="Interview settings">
+                    <Popover.Trigger asChild>
+                      <button className="icon-button" aria-label="Interview settings">
+                        <Settings size={16} />
+                      </button>
+                    </Popover.Trigger>
+                  </Tooltip>
+                  <Popover.Portal>
+                    <Popover.Content className="interview-hints-popover">
+                      <fieldset className="question-hints-controls" disabled={busy}>
+                        <legend>Room access</legend>
+                        <label>
+                          <span>
+                            <LockKeyhole size={16} aria-hidden="true" />
+                            Lock room
+                          </span>
+                          <ToggleSwitch
+                            label="Lock room"
+                            checked={snapshot.admissionLocked === true}
+                            disabled={busy}
+                            onChange={(locked) => void mutate("admission", { locked })}
+                          />
+                        </label>
+                      </fieldset>
+                      <InterviewMonitoringControls
+                        value={snapshot.monitoring ?? {}}
+                        disabled={busy}
+                        onChange={(monitoring) => void mutate("monitoring", monitoring)}
+                      />
+                      <QuestionHintsControls
+                        complexityAvailable={
+                          question.problem.complexityLanguages?.includes(language) ?? false
+                        }
+                        value={snapshot.hints ?? {}}
+                        disabled={busy}
+                        onChange={(hints) => void mutate("hints", hints)}
+                      />
+                    </Popover.Content>
+                  </Popover.Portal>
+                </Popover.Root>
+              )}
+              {host && closed && (
+                <Tooltip content="Delete interview">
+                  <button
+                    className="icon-button interview-delete"
+                    aria-label="Delete interview"
+                    onClick={() => setLifecycle("delete")}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </Tooltip>
+              )}
               <InterviewParticipants
                 snapshot={snapshot}
                 open={members}
@@ -348,19 +442,6 @@ function InterviewPad({
               </button>
             </div>
           )}
-          {closed && (
-            <div className="match-rule-notice" role="status">
-              <span>Interview ended. Code and results remain available.</span>
-              {host && (
-                <button
-                  className="quiet-button button-destructive-hover"
-                  onClick={() => setLifecycle("delete")}
-                >
-                  Delete interview
-                </button>
-              )}
-            </div>
-          )}
           {status === "offline" && (
             <div className="match-rule-notice" role="status">
               Connection interrupted. Keep this tab open; your edits retry automatically.
@@ -374,9 +455,31 @@ function InterviewPad({
             progress={question.progress}
             problem={question.problem}
             selectedLevel={selectedLevel}
-          />
+            allowTopics={snapshot.hints?.topics !== false}
+          >
+            {snapshot.hints?.complexity === true &&
+              question.problem.complexityLanguages?.includes(language) && (
+                <EditorialPanel
+                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                  versionId={question.problem.id}
+                  language={language}
+                />
+              )}
+          </OdysseyPanel>
         ) : (
-          <ProblemStatement problem={question.problem} />
+          <ProblemStatement
+            problem={question.problem}
+            allowTopics={snapshot.hints?.topics !== false}
+          >
+            {snapshot.hints?.complexity === true &&
+              question.problem.complexityLanguages?.includes(language) && (
+                <EditorialPanel
+                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                  versionId={question.problem.id}
+                  language={language}
+                />
+              )}
+          </ProblemStatement>
         )
       }
       editor={
@@ -466,6 +569,7 @@ function InterviewPad({
       >
         <QuestionSetup
           showTitle={false}
+          showHints={false}
           onSubmit={(question) => void replace(question)}
           busy={busy}
           label="Replace question and code"
