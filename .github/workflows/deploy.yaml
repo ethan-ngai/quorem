@@ -8,6 +8,7 @@ on:
       - apps/runner/**
       - apps/realtime-cloudflare/**
       - internal/**
+      - fixtures/**
       - packages/contracts/**
       - infra/**
       - deploy/**
@@ -21,7 +22,6 @@ on:
       - pnpm-workspace.yaml
       - .node-version
       - .github/workflows/deploy.yaml
-      - .github/workflows/frontend.yaml
   workflow_dispatch:
 permissions:
   contents: read
@@ -50,9 +50,6 @@ env:
   QUOREM_INVITE_KEY: ${{ secrets.QUOREM_INVITE_KEY }}
   WRANGLER_SEND_METRICS: "false"
 jobs:
-  frontend:
-    uses: ./.github/workflows/frontend.yaml
-    secrets: inherit
   build:
     outputs:
       image_sha: ${{ steps.validation.outputs.image_sha }}
@@ -151,7 +148,7 @@ jobs:
     concurrency:
       group: production-apply-${{ github.ref }}
       cancel-in-progress: false
-    needs: [build, frontend]
+    needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20

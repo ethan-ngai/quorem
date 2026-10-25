@@ -6,8 +6,14 @@ on:
       - apps/web/**
       - apps/marketing/**
       - packages/ui/**
+      - packages/contracts/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .node-version
       - scripts/build-site.mjs
       - scripts/prepare-pages.mjs
+      - .github/workflows/frontend.yaml
   workflow_dispatch:
   workflow_call:
 permissions:
