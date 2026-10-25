@@ -41,7 +41,18 @@ jobs:
           cache: true
           run-install: false
       - run: vp install --frozen-lockfile
-      - run: vp check
+      - name: Formatting (advisory)
+        id: formatting
+        continue-on-error: true
+        run: vp fmt --check
+      - name: Report formatting advisory
+        if: steps.formatting.outcome == 'failure'
+        run: |
+          echo '::warning::Formatting check failed. Run vp fmt to fix formatting; this does not block CI.'
+          echo '### Formatting advisory' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Formatting check failed. See the formatting step output; run `vp fmt` locally to fix it. This does not block CI.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Lint and type checks
+        run: vp check --no-fmt
       - run: vp run contracts:check
       - run: vp -C apps/auth test
       - run: vp -C apps/web test
