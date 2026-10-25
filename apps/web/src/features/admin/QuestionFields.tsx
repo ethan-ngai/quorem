@@ -1,18 +1,22 @@
-/** @file QuestionFields.tsx @description Typed metadata and language editorial authoring. @module admin */
+import { QuestionBasics } from "../../ui/QuestionBasics";
+import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
 import { AuthoringCodeField, AuthoringNumberField, TopicField } from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
+import { LanguageLogo } from "../../ui/LanguageLogo";
+import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { AuthoringCases } from "./AuthoringCases";
+import { AuthoringStages } from "./AuthoringStages";
 import { Field, JSONField } from "./AuthoringFields";
 export { JSONField, validJSONShape } from "./AuthoringFields";
 import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
-import { OdysseyFields } from "../odyssey/OdysseyFields";
+import "../odyssey/authoring.css";
 import { revisions, languageLabels, type Language } from "./content";
-/** Field groups share the wire types, with JSON reserved for typed collections. */
+
 export function QuestionFields({
   content,
   disabled,
@@ -23,10 +27,17 @@ export function QuestionFields({
   content: QuestionContent;
   disabled: boolean;
   invalidCases?: boolean;
-  onValidityChange: (label: string, invalid: boolean) => void;
   onChange: (content: QuestionContent) => void;
+  onValidityChange: (label: string, invalid: boolean) => void;
 }) {
   const problem = content.problem;
+  const [section, setSection] = useState("question");
+  const [language, setLanguage] = useState<Language>("python");
+  const id = useId();
+  const implementationIndex = content.implementations.findIndex(
+    (item) => item.language === language,
+  );
+  const implementation = content.implementations[implementationIndex];
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
@@ -59,68 +70,147 @@ export function QuestionFields({
     });
   }
   return (
-    <fieldset disabled={disabled} className="admin-fields">
+    <fieldset disabled={disabled} className="admin-fields question-authoring">
       <legend className="sr-only">Question fields</legend>
-      <section>
-        <h2>Problem</h2>
-        <div className="admin-field-pair">
-          <Field label="Title">
-            <input
-              value={problem.title}
-              onChange={(event) => setProblem({ title: event.target.value })}
-            />
-          </Field>
-          <Field label="Slug">
-            <input
-              value={problem.slug}
-              onChange={(event) => setProblem({ slug: event.target.value })}
-            />
-          </Field>
-        </div>
-        <div className="admin-field-pair">
-          <Field label="Difficulty">
-            <SelectField
-              label="Difficulty"
-              value={problem.difficulty}
-              disabled={disabled}
-              onChange={(value) =>
-                setProblem({ difficulty: value as ProblemVersion["difficulty"] })
-              }
-              options={[
-                { value: "easy", label: "Easy" },
-                { value: "medium", label: "Medium" },
-                { value: "hard", label: "Hard" },
-              ]}
-            />
-          </Field>
-          <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
-        </div>
-        <Field label="Statement">
-          <textarea
-            rows={7}
-            value={problem.statementMarkdown}
-            onChange={(event) => setProblem({ statementMarkdown: event.target.value })}
+      <div className="admin-field-pair">
+        <Field label="Question type">
+          <SelectField
+            label="Question type"
+            value={problem.odyssey ? "staged" : "single"}
+            disabled={disabled || invalidCases}
+            options={[
+              { value: "single", label: "Single question" },
+              { value: "staged", label: "Multi-stage question" },
+            ]}
+            onChange={(value) =>
+              setProblem({
+                odyssey:
+                  value === "staged"
+                    ? {
+                        levels: [
+                          {
+                            title: "Step 1",
+                            statementMarkdown: problem.statementMarkdown,
+                            methods: [problem.signature],
+                            examples: [],
+                          },
+                        ],
+                      }
+                    : undefined,
+              })
+            }
           />
         </Field>
-        <Field label="Attribution">
-          <input
-            value={content.attribution}
-            onChange={(event) => onChange({ ...content, attribution: event.target.value })}
+        <Field label="Language">
+          <SelectField
+            label="Question language"
+            value={language}
+            disabled={disabled}
+            onChange={(value) => setLanguage(value as Language)}
+            options={Object.entries(languageLabels).map(([value, label]) => ({
+              value,
+              label,
+              leading: <LanguageLogo language={value as Language} />,
+            }))}
           />
         </Field>
-      </section>
-      <section>
-        <h2>Signature and cases</h2>
-        <fieldset className="admin-fields" disabled={disabled || invalidCases}>
-          <SignatureFields
-            value={problem.signature}
-            onChange={(signature) => onChange(adaptSignature(content, signature))}
-            onValidityChange={onValidityChange}
-          />
-        </fieldset>
+      </div>
+      <AuthoringTabs
+        id={id}
+        label="Question authoring"
+        value={section}
+        onChange={setSection}
+        tabs={[
+          { value: "question", label: "Question" },
+          { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
+          { value: "solutions", label: "Solutions" },
+        ]}
+      />
+      <div
+        role="tabpanel"
+        id={`${id}-question-panel`}
+        aria-labelledby={`${id}-question`}
+        hidden={section !== "question"}
+      >
+        <QuestionBasics
+          title={problem.title}
+          statement={problem.statementMarkdown}
+          starter={implementation?.starterSource}
+          staged={!!problem.odyssey}
+          onTitleChange={(title) => {
+            const slug = (value: string) =>
+              value
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, "")
+                .slice(0, 56);
+            setProblem({
+              title,
+              ...(!problem.slug || problem.slug === slug(problem.title)
+                ? { slug: slug(title) }
+                : {}),
+            });
+          }}
+          onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
+          onStarterChange={(starterSource) =>
+            setImplementation(implementationIndex, { starterSource })
+          }
+        />
+        {!implementation && (
+          <p className="case-stale">
+            Enable {languageLabels[language]} in Solutions to add starter code.
+          </p>
+        )}
+        {!problem.odyssey && (
+          <fieldset className="admin-fields" disabled={disabled || invalidCases}>
+            <SignatureFields
+              value={problem.signature}
+              onChange={(signature) => onChange(adaptSignature(content, signature))}
+              onValidityChange={onValidityChange}
+            />
+          </fieldset>
+        )}
         {invalidCases && <p className="admin-error">Fix test values before changing the method.</p>}
-        <details className="admin-language">
-          <summary>Execution limits</summary>
+        <details className="authoring-options">
+          <summary>Question details</summary>
+          <div className="admin-field-pair">
+            <Field label="Slug">
+              <input
+                value={problem.slug}
+                onChange={(event) => setProblem({ slug: event.target.value })}
+              />
+            </Field>
+            <Field label="Difficulty">
+              <SelectField
+                label="Difficulty"
+                value={problem.difficulty}
+                disabled={disabled}
+                onChange={(value) =>
+                  setProblem({ difficulty: value as ProblemVersion["difficulty"] })
+                }
+                options={[
+                  { value: "easy", label: "Easy" },
+                  { value: "medium", label: "Medium" },
+                  { value: "hard", label: "Hard" },
+                ]}
+              />
+            </Field>
+          </div>
+          <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
+          <Field label="Attribution">
+            <input
+              value={content.attribution}
+              onChange={(event) => onChange({ ...content, attribution: event.target.value })}
+            />
+          </Field>
+          <JSONField
+            label="Structured constraints"
+            value={problem.constraints}
+            onValidityChange={onValidityChange}
+            onChange={(constraints) =>
+              setProblem({ constraints: constraints as ProblemVersion["constraints"] })
+            }
+          />
           <div className="admin-field-pair">
             {Object.entries(problem.limits).map(([name, value]) => (
               <AuthoringNumberField
@@ -133,15 +223,20 @@ export function QuestionFields({
             ))}
           </div>
         </details>
-        <JSONField
-          onValidityChange={onValidityChange}
-          label="Structured constraints"
-          value={problem.constraints}
-          onChange={(constraints) =>
-            setProblem({ constraints: constraints as ProblemVersion["constraints"] })
-          }
-        />
-        {!problem.odyssey && (
+      </div>
+      <div
+        role="tabpanel"
+        id={`${id}-tests-panel`}
+        aria-labelledby={`${id}-tests`}
+        hidden={section !== "tests"}
+      >
+        {problem.odyssey ? (
+          <AuthoringStages
+            content={content}
+            onChange={onChange}
+            onValidityChange={onValidityChange}
+          />
+        ) : (
           <AuthoringCases
             key={JSON.stringify([
               problem.signature.parameters.map((p) => p.type),
@@ -152,22 +247,19 @@ export function QuestionFields({
             onValidityChange={onValidityChange}
           />
         )}
-      </section>
-      <OdysseyFields content={content} onChange={onChange} onValidityChange={onValidityChange} />
-      <section>
-        <h2>Languages and solutions</h2>
-        <p>Starter and trusted judge reference code are separate from published editorial code.</p>
-        {(Object.keys(revisions) as Language[]).map((language) => {
+      </div>
+      <div
+        role="tabpanel"
+        id={`${id}-solutions-panel`}
+        aria-labelledby={`${id}-solutions`}
+        hidden={section !== "solutions"}
+      >
+        {[language].map((language) => {
           const index = content.implementations.findIndex((item) => item.language === language);
           const implementation = content.implementations[index];
           const solution = content.solutions.find((item) => item.language === language);
           return (
-            <details
-              className="admin-language"
-              key={language}
-              open={language === "python" ? true : undefined}
-            >
-              <summary>{languageLabels[language]}</summary>
+            <div key={language}>
               <label className="admin-check">
                 <input
                   type="checkbox"
@@ -198,13 +290,6 @@ export function QuestionFields({
               </label>
               {implementation && (
                 <>
-                  <AuthoringCodeField
-                    label={`${languageLabels[language]} starter code`}
-                    language={language}
-                    source={implementation.starterSource}
-                    disabled={disabled}
-                    onChange={(source) => setImplementation(index, { starterSource: source })}
-                  />
                   <AuthoringCodeField
                     label={`${languageLabels[language]} private judge reference`}
                     language={language}
@@ -278,15 +363,14 @@ export function QuestionFields({
                   )}
                 </>
               )}
-            </details>
+            </div>
           );
         })}
-      </section>
+      </div>
     </fieldset>
   );
 }
 
-/** Public preview excludes every private reference and hidden test. */
 export function PublicPreview({ content }: { content: QuestionContent }) {
   return (
     <div className="admin-preview">

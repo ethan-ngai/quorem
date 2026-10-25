@@ -24,7 +24,7 @@ type QuestionRepository interface {
 	QuestionContent(context.Context, string) (problems.QuestionContent, error)
 	CreateQuestionDraft(context.Context, string, problems.QuestionContent) (problems.QuestionDraft, error)
 	UpdateQuestionDraft(context.Context, string, string, string, problems.QuestionContent) (problems.QuestionDraft, error)
-	PublishQuestionDraft(context.Context, string, string, string) (problems.QuestionDraft, error)
+	PublishQuestionDraftTo(context.Context, string, string, string, string) (problems.QuestionDraft, error)
 }
 type ExecutionRepository interface {
 	CreateWorkspace(context.Context, string, string, string) (workspace.Workspace, error)

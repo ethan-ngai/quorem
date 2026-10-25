@@ -1564,6 +1564,11 @@
         "revision": {
           "type": "string",
           "pattern": "^[1-9][0-9]{0,18}$"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["private", "global"],
+          "description": "Private library or admin-only global publication. Omitted preserves the draft destination."
         }
       },
       "required": ["revision"]

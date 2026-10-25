@@ -1,3 +1,4 @@
+import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based immutable question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
@@ -77,6 +78,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   useErrorNotification(error);
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
+  const [visibility, setVisibility] = useState<"private" | "global">("private");
   const [cloneId, setCloneId] = useState("");
   const [discardTarget, setDiscardTarget] = useState<string>();
   const [invalidFields, setInvalidFields] = useState<Set<string>>(() => new Set());
@@ -89,6 +91,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
   function open(next: QuestionDraft) {
+    setVisibility((current) => (next.id === draft?.id ? current : "private"));
     setDraft(next);
     setContent(next.content);
     setDirty(false);
@@ -119,9 +122,6 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
       <header className="admin-heading">
         <div>
           <h1>Question editor</h1>
-          <p>
-            {admin ? "Publish global questions." : "Create questions for your private library."}
-          </p>
         </div>
         <button
           className="button button-secondary"
@@ -262,19 +262,35 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                     >
                       Save draft
                     </button>
+                    {admin && (
+                      <SegmentedControl
+                        label="Publish to"
+                        value={visibility}
+                        disabled={busy}
+                        onChange={(value) => setVisibility(value as "private" | "global")}
+                        options={[
+                          { value: "private", label: "Private" },
+                          { value: "global", label: "Global" },
+                        ]}
+                      />
+                    )}
                     <button
                       className="button button-primary"
                       disabled={busy || dirty || invalidFields.size > 0}
                       onClick={() =>
                         void perform(
-                          () => publishDraft(draft),
-                          admin
+                          () => publishDraft(draft, admin ? visibility : "private"),
+                          admin && visibility === "global"
                             ? "Global question published."
                             : "Question added to your private library.",
                         )
                       }
                     >
-                      {busy ? "Working…" : admin ? "Publish globally" : "Save to private library"}
+                      {busy
+                        ? "Working…"
+                        : admin && visibility === "global"
+                          ? "Publish globally"
+                          : "Add to library"}
                     </button>
                   </>
                 )}

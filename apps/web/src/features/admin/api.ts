@@ -32,10 +32,10 @@ export async function saveDraft(draft: QuestionDraft, content: QuestionContent) 
 }
 
 /** @returns The sealed publication ID, committed with its language artifacts and editorial. */
-export async function publishDraft(draft: QuestionDraft) {
+export async function publishDraft(draft: QuestionDraft, visibility: "private" | "global") {
   const { data, error } = await client().POST("/v1/admin/question-drafts/{id}/publish", {
     params: { path: { id: draft.id } },
-    body: { revision: draft.revision },
+    body: { revision: draft.revision, visibility },
   });
   return requireData(data, error);
 }
