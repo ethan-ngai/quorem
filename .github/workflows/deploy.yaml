@@ -214,7 +214,6 @@ jobs:
       - name: Provision application and domain
         if: github.ref == 'refs/heads/main'
         run: |
-          terraform -chdir=infra/terraform/app apply -input=false -auto-approve -lock-timeout=5m -target=cloudflare_workers_custom_domain.app
           terraform -chdir=infra/terraform/app apply -input=false -auto-approve -lock-timeout=5m
       - name: Wait for target rollout
         run: python3 scripts/verify-rollout.py

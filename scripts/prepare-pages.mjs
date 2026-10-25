@@ -14,7 +14,7 @@ const routes = [
 ];
 writeFileSync(
   `${directory}/_redirects`,
-  routes.flatMap((route) => [`/${route} /app.html 200`, `/${route}/* /app.html 200`]).join("\n") +
+  routes.flatMap((route) => [`/${route} /app 200`, `/${route}/* /app 200`]).join("\n") +
     "\n",
 );
 writeFileSync(
