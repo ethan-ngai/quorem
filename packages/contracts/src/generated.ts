@@ -1236,6 +1236,8 @@ export interface components {
             guestConcurrency: number;
             interviews?: boolean;
             odyssey?: boolean;
+            authorCustomQuestions: boolean;
+            interviewConcurrency: number;
         };
         MethodCall: {
             methodName: string;
