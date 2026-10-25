@@ -30,14 +30,6 @@ func scanQuestionDraft(row pgx.Row) (QuestionDraft, error) {
 	}
 	return d, err
 }
-func (s *Store) requireQuestionAdmin(ctx context.Context, actor string) error {
-	var admin bool
-	err := s.Pool.QueryRow(ctx, "SELECT role='admin' AND NOT disabled FROM users WHERE id=$1", actor).Scan(&admin)
-	if errors.Is(err, pgx.ErrNoRows) || err == nil && !admin {
-		return failure("forbidden", 403, "Administrator required")
-	}
-	return err
-}
 func (s *Store) CreateQuestionDraft(ctx context.Context, actor string, content problems.QuestionContent) (QuestionDraft, error) {
 	if err := s.requireQuestionAuthor(ctx, actor); err != nil {
 		return QuestionDraft{}, err
@@ -217,6 +209,13 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 		c.Problem.Slug = "private-" + Hash([]byte(*privateOwner))[:16] + "-" + baseSlug
 		if _, err = tx.Exec(ctx, `INSERT INTO problems(slug,owner_id) VALUES($1,$2) ON CONFLICT(slug) DO NOTHING`, c.Problem.Slug, *privateOwner); err != nil {
 			return d, err
+		}
+		var ownNamespace bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM problems WHERE slug=$1 AND owner_id=$2)`, c.Problem.Slug, *privateOwner).Scan(&ownNamespace); err != nil {
+			return d, err
+		}
+		if !ownNamespace {
+			return d, failure("forbidden", 403, "Private question namespace unavailable")
 		}
 	}
 	// Serialize new version numbers per slug across different admin drafts.

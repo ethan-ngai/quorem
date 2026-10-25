@@ -59,7 +59,7 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 	if err != nil {
 		return result, err
 	}
-	rows, err = tx.Query(ctx, `SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id ORDER BY t.tag`)
+	rows, err = tx.Query(ctx, `SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id WHERE (p.owner_id IS NULL OR p.owner_id=$1) AND ($2='' OR ($2='global' AND p.owner_id IS NULL) OR ($2='private' AND p.owner_id=$1)) ORDER BY t.tag`, identity.Subject(ctx).UserID, f.Library)
 	if err != nil {
 		return result, err
 	}

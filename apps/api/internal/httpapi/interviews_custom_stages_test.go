@@ -46,7 +46,7 @@ func TestHTTPCreatePrivateStagedInterviewWithoutPublication(t *testing.T) {
 		t.Fatal("private staged HTTP response", snapshot)
 	}
 	var publications int
-	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM problem_versions`).Scan(&publications); err != nil || publications != 0 {
+	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE p.owner_id IS NULL`).Scan(&publications); err != nil || publications != 0 {
 		t.Fatal("private pad published problem", publications, err)
 	}
 }

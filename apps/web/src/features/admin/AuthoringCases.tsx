@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { TestCases } from "../editor/components/TestCases";
 import {
@@ -21,19 +21,47 @@ export function AuthoringCases({
   const [selected, setSelected] = useState<Record<string, string | undefined>>({});
   const id = useId();
   const p = content.problem;
+  const validity = useRef(onValidityChange);
+  validity.current = onValidityChange;
+  useEffect(
+    () => () => {
+      validity.current("cases:public", false);
+      validity.current("cases:hidden", false);
+    },
+    [],
+  );
+  const defaults = createCustomDraft({ ...p, examples: [] });
+  function format(
+    type: string,
+    value: Parameters<typeof formatTypedField>[1],
+    fallback: string,
+    input?: Parameters<typeof formatTypedField>[2],
+  ) {
+    try {
+      return formatTypedField(type, value, input);
+    } catch {
+      return fallback;
+    }
+  }
+
   const draft = (test: QuestionContent["hiddenCases"][number]): CustomCaseDraft => ({
     id: crypto.randomUUID(),
     args: p.signature.parameters.map((parameter, index) =>
-      formatTypedField(parameter.type, test.args[index]!, parameter.input),
+      format(parameter.type, test.args[index]!, defaults.args[index]!, parameter.input),
     ),
     expectedEnabled: true,
-    expected: formatTypedField(p.signature.returnType, test.expected ?? null),
+    expected: format(p.signature.returnType, test.expected ?? null, defaults.expected),
   });
   const [values, setValues] = useState(() => ({
     public: p.examples.map(draft),
     hidden: content.hiddenCases.map(draft),
   }));
-  function change(next: CustomCaseDraft[]) {
+  const [explanations, setExplanations] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      values.public.map((test, index) => [test.id, p.examples[index]?.explanation ?? ""]),
+    ),
+  );
+  function change(next: CustomCaseDraft[], descriptions = explanations) {
     setValues((current) => ({ ...current, [collection]: next }));
     try {
       const tests = next.map((test) => parseCustomDraft(test, p.signature, p.constraints));
@@ -46,7 +74,7 @@ export function AuthoringCases({
             examples: tests.map((test, index) => ({
               ...test,
               expected: test.expected!,
-              explanation: p.examples[index]?.explanation,
+              explanation: descriptions[next[index]!.id],
             })),
           },
         });
@@ -114,23 +142,17 @@ export function AuthoringCases({
         </button>
       )}
       {collection === "public" &&
-        p.examples.map((example, index) => (
-          <label className="admin-field" key={index}>
+        values.public.map((example, index) => (
+          <label className="admin-field" key={example.id}>
             <span>Example {index + 1} explanation</span>
             <textarea
               rows={2}
-              value={example.explanation ?? ""}
-              onChange={(event) =>
-                onChange({
-                  ...content,
-                  problem: {
-                    ...p,
-                    examples: p.examples.map((test, i) =>
-                      i === index ? { ...test, explanation: event.target.value } : test,
-                    ),
-                  },
-                })
-              }
+              value={explanations[example.id] ?? ""}
+              onChange={(event) => {
+                const next = { ...explanations, [example.id]: event.target.value };
+                setExplanations(next);
+                change(values.public, next);
+              }}
             />
           </label>
         ))}

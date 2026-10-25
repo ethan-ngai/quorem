@@ -1,4 +1,6 @@
 /** @file QuestionFields.tsx @description Typed metadata and language editorial authoring. @module admin */
+import { adaptSignature } from "./authoringSignature";
+import { AuthoringCodeField, TopicField } from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { AuthoringCases } from "./AuthoringCases";
@@ -14,11 +16,13 @@ import { revisions, languageLabels, type Language } from "./content";
 export function QuestionFields({
   content,
   disabled,
+  invalidCases = false,
   onChange,
   onValidityChange,
 }: {
   content: QuestionContent;
   disabled: boolean;
+  invalidCases?: boolean;
   onValidityChange: (label: string, invalid: boolean) => void;
   onChange: (content: QuestionContent) => void;
 }) {
@@ -89,23 +93,7 @@ export function QuestionFields({
               ]}
             />
           </Field>
-          <Field label="Topics, separated by commas">
-            <input
-              value={problem.tags.join(", ")}
-              onChange={(event) =>
-                setProblem({
-                  tags: [
-                    ...new Set(
-                      event.target.value
-                        .split(",")
-                        .map((tag) => tag.trim())
-                        .filter(Boolean),
-                    ),
-                  ],
-                })
-              }
-            />
-          </Field>
+          <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
         </div>
         <Field label="Statement">
           <textarea
@@ -123,11 +111,14 @@ export function QuestionFields({
       </section>
       <section>
         <h2>Signature and cases</h2>
-        <SignatureFields
-          value={problem.signature}
-          onChange={(signature) => setProblem({ signature })}
-          onValidityChange={onValidityChange}
-        />
+        <fieldset className="admin-fields" disabled={disabled || invalidCases}>
+          <SignatureFields
+            value={problem.signature}
+            onChange={(signature) => onChange(adaptSignature(content, signature))}
+            onValidityChange={onValidityChange}
+          />
+        </fieldset>
+        {invalidCases && <p className="admin-error">Fix test values before changing the method.</p>}
         <details className="admin-language">
           <summary>Execution limits</summary>
           <div className="admin-field-pair">
@@ -140,7 +131,7 @@ export function QuestionFields({
                   type="number"
                   min={1}
                   step={1}
-                  value={value}
+                  defaultValue={value}
                   onChange={(event) => {
                     const next = event.target.valueAsNumber;
                     onValidityChange(`limit:${name}`, !Number.isSafeInteger(next) || next < 1);
@@ -162,7 +153,10 @@ export function QuestionFields({
         />
         {!problem.odyssey && (
           <AuthoringCases
-            key={JSON.stringify(problem.signature)}
+            key={JSON.stringify([
+              problem.signature.parameters.map((p) => p.type),
+              problem.signature.returnType,
+            ])}
             content={content}
             onChange={onChange}
             onValidityChange={onValidityChange}
@@ -214,26 +208,20 @@ export function QuestionFields({
               </label>
               {implementation && (
                 <>
-                  <Field label={`${languageLabels[language]} starter code`}>
-                    <textarea
-                      className="admin-code"
-                      rows={7}
-                      value={implementation.starterSource}
-                      onChange={(event) =>
-                        setImplementation(index, { starterSource: event.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label={`${languageLabels[language]} private judge reference`}>
-                    <textarea
-                      className="admin-code"
-                      rows={7}
-                      value={implementation.referenceSource}
-                      onChange={(event) =>
-                        setImplementation(index, { referenceSource: event.target.value })
-                      }
-                    />
-                  </Field>
+                  <AuthoringCodeField
+                    label={`${languageLabels[language]} starter code`}
+                    language={language}
+                    source={implementation.starterSource}
+                    disabled={disabled}
+                    onChange={(source) => setImplementation(index, { starterSource: source })}
+                  />
+                  <AuthoringCodeField
+                    label={`${languageLabels[language]} private judge reference`}
+                    language={language}
+                    source={implementation.referenceSource}
+                    disabled={disabled}
+                    onChange={(source) => setImplementation(index, { referenceSource: source })}
+                  />
                   <label className="admin-check">
                     <input
                       type="checkbox"
@@ -253,16 +241,13 @@ export function QuestionFields({
                   </label>
                   {solution && (
                     <>
-                      <Field label={`${languageLabels[language]} editorial code`}>
-                        <textarea
-                          className="admin-code"
-                          rows={7}
-                          value={solution.source}
-                          onChange={(event) =>
-                            setSolution(language, { source: event.target.value })
-                          }
-                        />
-                      </Field>
+                      <AuthoringCodeField
+                        label={`${languageLabels[language]} editorial code`}
+                        language={language}
+                        source={solution.source}
+                        disabled={disabled}
+                        onChange={(source) => setSolution(language, { source })}
+                      />
                       <Field label={`${languageLabels[language]} explanation`}>
                         <textarea
                           rows={5}

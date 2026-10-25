@@ -11,6 +11,26 @@ import (
 func saveInterviewCustomQuestion(ctx context.Context, tx pgx.Tx, owner string, f problems.Fixture) error {
 	f.Problem.Slug = "private-" + f.Problem.ID
 	f.Problem.Version = "1"
+	f.Problem.Examples = append([]problems.ProblemExample{}, f.Problem.Examples...)
+	f.HiddenCases = append([]problems.Case{}, f.HiddenCases...)
+	// Normalization creates the Python projection from legacy top-level fixture fields.
+	for _, impl := range f.Problem.Languages {
+		if impl.Language == "python" {
+			f.Problem.StarterSource = impl.StarterSource
+			f.Problem.RuntimeRevision = impl.RuntimeRevision
+			f.HarnessRevision = impl.HarnessRevision
+		}
+	}
+	for i := range f.Problem.Examples {
+		if len(f.Problem.Examples[i].Expected) == 0 {
+			f.Problem.Examples[i].Expected = json.RawMessage("null")
+		}
+	}
+	for i := range f.HiddenCases {
+		if len(f.HiddenCases[i].Expected) == 0 {
+			f.HiddenCases[i].Expected = json.RawMessage("null")
+		}
+	}
 	if f.ReferenceSource == "" {
 		f.ReferenceSource = "Private question uses explicit expected values"
 	}

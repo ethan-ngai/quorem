@@ -189,11 +189,6 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	if c.Title == "" || utf8.RuneCountInString(c.Title) > 120 {
 		return empty, failure("invalid_input", 400, "Choose an interview title up to 120 characters")
 	}
-	if c.Question.Custom != nil {
-		if err := s.requireQuestionAuthor(ctx, user); err != nil {
-			return empty, err
-		}
-	}
 	f, err := s.interviewQuestion(ctx, user, c.Question)
 	if err != nil {
 		return empty, err
@@ -210,6 +205,15 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	}
 	if !enabled {
 		return empty, failure("entitlement_required", 403, "Interview hosting is unavailable")
+	}
+	if c.Question.Custom != nil {
+		caps, e := capabilities(ctx, tx, user)
+		if e != nil {
+			return empty, e
+		}
+		if !caps.AuthorCustomQuestions {
+			return empty, failure("forbidden", 403, "Custom question access required")
+		}
 	}
 	if err = requireInterviewOdyssey(ctx, tx, user, f); err != nil {
 		return empty, err

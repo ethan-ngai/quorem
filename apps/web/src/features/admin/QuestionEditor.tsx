@@ -12,7 +12,7 @@ import { createDraft, getDraft, listDrafts, publishDraft, saveDraft } from "./ap
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
 import { SelectField } from "../../ui/SelectField";
-import * as Dialog from "@radix-ui/react-dialog";
+import { SessionDialog } from "../../ui/SessionDialog";
 import { PreviewBoundary } from "./PreviewBoundary";
 import "./admin.css";
 
@@ -198,31 +198,29 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           )}
         </aside>
         <section className="admin-form-pane" aria-label="Question content">
-          <Dialog.Root
+          <SessionDialog
             open={!!discardTarget}
             onOpenChange={(open) => {
               if (!open) setDiscardTarget(undefined);
             }}
+            title="Discard unsaved edits?"
+            description="Your saved draft will remain unchanged."
           >
-            <Dialog.Portal>
-              <Dialog.Overlay className="dialog-overlay" />
-              <Dialog.Content className="dialog-content competitive-dialog">
-                <Dialog.Title>Discard unsaved edits?</Dialog.Title>
-                <Dialog.Description>Your saved draft will remain unchanged.</Dialog.Description>
-                <footer className="competitive-dialog-actions">
-                  <Dialog.Close asChild>
-                    <button className="button button-secondary">Keep editing</button>
-                  </Dialog.Close>
-                  <button
-                    className="button button-primary"
-                    onClick={() => discardTarget && void perform(() => getDraft(discardTarget), "")}
-                  >
-                    Discard and open
-                  </button>
-                </footer>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
+            <footer className="competitive-dialog-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => setDiscardTarget(undefined)}
+              >
+                Keep editing
+              </button>
+              <button
+                className="button button-primary"
+                onClick={() => discardTarget && void perform(() => getDraft(discardTarget), "")}
+              >
+                Discard and open
+              </button>
+            </footer>
+          </SessionDialog>
           {!content || !draft ? (
             <p>Select a draft or create a question.</p>
           ) : (
@@ -290,6 +288,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                   key={`${draft.id}:${draft.revision}`}
                   content={content}
                   disabled={locked}
+                  invalidCases={[...invalidFields].some((key) => key.startsWith("cases:"))}
                   onValidityChange={(label, invalid) => (
                     invalid && setDirty(true),
                     setInvalidFields((previous) => {

@@ -78,7 +78,7 @@ export function QuestionSetup({
   }
   const [error, setError] = useState<string>();
   const catalog = useQuery({
-    queryKey: ["interview-catalog", search],
+    queryKey: ["interview-catalog", session.data?.user.id, search],
     queryFn: () =>
       interviewRequest<{ items: { id: string; title: string; slug: string }[] }>(
         `/v1/problems?limit=100&q=${encodeURIComponent(search)}`,
@@ -217,6 +217,7 @@ export function QuestionSetup({
           />
         </label>
       </div>
+      {mode !== "catalog" && <p>Saved to your private library.</p>}
       {mode !== "catalog" && (
         <div
           className="result-tabs authoring-section-tabs"
