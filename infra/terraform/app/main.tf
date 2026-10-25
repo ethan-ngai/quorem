@@ -50,7 +50,6 @@ locals {
   container_configuration = {
     image         = var.image
     instance_type = "standard-2"
-    observability = { logs = { enabled = true } }
   }
   runtime = {
     AUTH_ORIGIN          = local.origin
