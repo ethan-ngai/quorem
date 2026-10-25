@@ -72,3 +72,30 @@ func TestOdysseyVoidMethods(t *testing.T) {
 		t.Fatal("non-null void expectation")
 	}
 }
+
+func TestUnorderedMethodOutput(t *testing.T) {
+	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "top_k", ReturnType: "list<str>", OutputOrder: "unordered"}, {ClassName: "Solution", MethodName: "words", ReturnType: "list<str>"}}}}}}
+	c := Case{Calls: []MethodCall{{MethodName: "top_k"}, {MethodName: "words"}}}
+	a, err := NormalizeCaseOutput(p, c, []byte(`[["z","a"],["z","a"]]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := NormalizeCaseOutput(p, c, []byte(`[["a","z"],["z","a"]]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(a) != string(b) {
+		t.Fatal("unordered IDs rejected", string(a), string(b))
+	}
+	different, _ := NormalizeCaseOutput(p, c, []byte(`[["a","z"],["a","z"]]`))
+	if string(different) == string(a) {
+		t.Fatal("ordered list normalized")
+	}
+	duplicate, _ := NormalizeCaseOutput(p, c, []byte(`[["a","a"],["z","a"]]`))
+	if string(duplicate) == string(a) {
+		t.Fatal("duplicates ignored")
+	}
+	if validOutputOrder(Signature{ReturnType: "str", OutputOrder: "unordered"}) {
+		t.Fatal("unordered scalar allowed")
+	}
+}

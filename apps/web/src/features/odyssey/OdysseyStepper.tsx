@@ -1,4 +1,5 @@
 /** @file OdysseyStepper.tsx @description Shared top-bar navigation across authorized Odyssey stages. @module odyssey */
+import { LockKeyhole } from "lucide-react";
 import type { OdysseyProgress } from "@quorem/contracts";
 import { Icon } from "../editor/components/Icon";
 import { Tooltip } from "../editor/components/Tooltip";
@@ -26,7 +27,18 @@ export function OdysseyStepper({
           const label = `${title}${complete ? ", passed" : !level ? ", locked" : ""}`;
           return (
             <li key={number} data-complete={complete}>
-              <Tooltip content={complete ? title : label}>
+              <Tooltip
+                content={
+                  !level ? (
+                    <span className="odyssey-locked-tooltip">
+                      <LockKeyhole size={12} aria-hidden="true" />
+                      {number}
+                    </span>
+                  ) : (
+                    title
+                  )
+                }
+              >
                 <button
                   type="button"
                   disabled={!level}

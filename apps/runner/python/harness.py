@@ -31,6 +31,7 @@ class Capture(io.TextIOBase):
         pass
 
 def decode(kind, value):
+    kind = kind.replace("array<", "list<")
     if kind.startswith('optional<'):
         return None if value is None else decode(kind[9:-1], value)
     if kind.startswith('list<'):
@@ -61,6 +62,7 @@ def decode(kind, value):
     return value
 
 def encode(kind, value, depth=0, count=None, seen=None):
+    kind = kind.replace("array<", "list<")
     count = [0] if count is None else count
     seen = set() if seen is None else seen
     if depth > 0:

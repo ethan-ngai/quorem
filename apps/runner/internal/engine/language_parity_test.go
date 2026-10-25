@@ -113,3 +113,24 @@ func TestDockerLanguagePrimitiveParity(t *testing.T) {
 		}
 	}
 }
+
+func TestDockerCollectionPseudoTypes(t *testing.T) {
+	f := dockerTests(t)[0]
+	if err := json.Unmarshal([]byte(`{"className":"Solution","methodName":"solve","parameters":[{"name":"values","type":"list<optional<int>>"},{"name":"extra","type":"array<int>"}],"returnType":"list<list<optional<int>>>"}`), &f.Problem.Signature); err != nil {
+		t.Fatal(err)
+	}
+	cases := []worker.Case{{Args: []json.RawMessage{json.RawMessage(`[1,null,2]`), json.RawMessage(`[7,8]`)}, Expected: json.RawMessage(`[[1,null,2],[7,8]]`)}}
+	for _, test := range []struct{ language, source string }{
+		{"python", "class Solution:\n    def solve(self, values, extra):\n        return [values, extra]\n"},
+		{"java", "class Solution { public java.util.List<java.util.List<Integer>> solve(java.util.List<Integer> values,int[] extra){return java.util.List.of(values,java.util.Arrays.stream(extra).boxed().toList());}}"},
+		{"typescript", "class Solution {solve(values:(number|null)[],extra:number[]):(number|null)[][] {return [values,extra];}}"},
+		{"ocaml", "let solve (values:int option list) (extra:int array) = [values; Array.to_list (Array.map (fun n -> Some n) extra)]"},
+	} {
+		t.Run(test.language, func(t *testing.T) {
+			result := executeLanguage(t, f, test.language, test.source, "run", cases)
+			if result.Verdict != execution.Accepted {
+				t.Fatalf("%+v", result)
+			}
+		})
+	}
+}

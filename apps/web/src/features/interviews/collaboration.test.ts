@@ -1,4 +1,5 @@
 /** @file collaboration.test.ts @description Durable retry, concurrent rebasing and backlog recovery. @module interviews */
+import { unlockedMethodEdit } from "../odyssey/methodStubs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EditorState, ChangeSet, type Extension, type TransactionSpec } from "@codemirror/state";
 import { getSyncedVersion } from "@codemirror/collab";
@@ -29,6 +30,7 @@ vi.mock("./socket", () => ({
         : interviewRequest("updates", "GET"),
   }),
 }));
+vi.mock("../odyssey/methodStubs", () => ({ unlockedMethodEdit: vi.fn() }));
 vi.mock("./presence", () => ({ presenceExtension: () => [] }));
 vi.mock("@codemirror/view", () => ({ ViewPlugin: { fromClass: (plugin: unknown) => plugin } }));
 afterEach(() => {
@@ -177,4 +179,47 @@ describe("shared document synchronization", () => {
     expect(local.state.doc.toString()).toBe("pending");
     local.destroy();
   });
+});
+
+it("pulls another peer's stub insertion after a version conflict without duplicating methods", async () => {
+  const original = "class Solution:\n    def save(self):\n        pass\n";
+  const stub = "\n    def get(self):\n        raise NotImplementedError\n";
+  const local = client(original);
+  vi.mocked(unlockedMethodEdit).mockImplementation(async (source) =>
+    source.includes("def get")
+      ? undefined
+      : { from: source.length, to: source.length, insert: stub },
+  );
+  let reads = 0;
+  let writes = 0;
+  vi.mocked(interviewRequest).mockImplementation(async (_path, method) => {
+    if (method === "POST") {
+      writes++;
+      throw new InterviewError("stale_version", "peer inserted first", 409);
+    }
+    reads++;
+    return reads === 1
+      ? { epoch: "one", version: 0, updates: [] }
+      : reads === 2
+        ? {
+            epoch: "one",
+            version: 1,
+            updates: [
+              {
+                clientID: "odyssey-stubs",
+                changes: ChangeSet.of(
+                  { from: original.length, insert: stub },
+                  original.length,
+                ).toJSON(),
+              },
+            ],
+          }
+        : { epoch: "one", version: 1, updates: [] };
+  });
+  local.setOdyssey({ level: 2, completed: false, totalLevels: 2, levels: [] }, "python");
+  expect(await local.flush()).toBe(true);
+  expect(local.state.doc.toString()).toBe(original + stub);
+  expect(await local.flush()).toBe(true);
+  expect(writes).toBe(1);
+  local.destroy();
 });

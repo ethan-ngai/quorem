@@ -1,3 +1,5 @@
+import { useQuestionLanguage } from "../QuestionLanguage";
+import { questionValue } from "../questionTypes";
 import { Tooltip } from "./Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
 import type { ReactNode } from "react";
@@ -17,13 +19,16 @@ export function CaseValue({
   purpose = "input",
   parameter = false,
   tone,
+  type,
 }: {
   name: string;
   value: unknown;
   purpose?: "input" | "output" | "target";
   parameter?: boolean;
   tone?: string;
+  type?: string;
 }) {
+  const language = useQuestionLanguage();
   return (
     <div className="case-detail">
       <span className={parameter ? "parameter-name" : undefined}>{name}</span>
@@ -37,7 +42,9 @@ export function CaseValue({
             <Icon name={purpose} />
           </span>
         </Tooltip>
-        <code className={`machine-value ${tone ?? ""}`}>{JSON.stringify(value)}</code>
+        <code className={`machine-value ${tone ?? ""}`}>
+          {questionValue(value, language, type)}
+        </code>
       </div>
     </div>
   );

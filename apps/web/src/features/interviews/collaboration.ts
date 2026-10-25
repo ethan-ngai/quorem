@@ -1,3 +1,6 @@
+import { unlockedMethodEdit } from "../odyssey/methodStubs";
+import type { OdysseyProgress } from "@quorem/contracts";
+import type { EditorLanguage } from "../editor/editorLanguages";
 import { createInterviewRuleReporter } from "./ruleEvents";
 /** @file collaboration.ts @description Versioned CodeMirror collaboration with durable retry and rebasing. @module interviews */
 import { collab, getSyncedVersion, receiveUpdates, sendableUpdates } from "@codemirror/collab";
@@ -39,6 +42,7 @@ export function createCollaboration(
       }
     | undefined;
   let lastStatus: CollaborationStatus | undefined;
+  let odyssey: { progress: OdysseyProgress; language: EditorLanguage } | undefined;
   function status(value: CollaborationStatus) {
     if (value !== lastStatus) {
       lastStatus = value;
@@ -105,6 +109,37 @@ export function createCollaboration(
           await pull();
         }
       } else await pull();
+      if (view && odyssey && !retry && !sendableUpdates(view.state).length) {
+        const before = view.state.doc.toString();
+        const version = getSyncedVersion(view.state);
+        const edit = await unlockedMethodEdit(before, odyssey.language, odyssey.progress.levels);
+        if (
+          edit &&
+          before === view.state.doc.toString() &&
+          version === getSyncedVersion(view.state)
+        ) {
+          try {
+            // Version-checked server insertion avoids duplicate stubs when peers unlock together.
+            await transport.request("push", {
+              key: crypto.randomUUID(),
+              push: {
+                epoch: document.epoch,
+                version,
+                updates: [
+                  {
+                    clientID: "odyssey-stubs",
+                    changes: ChangeSet.of(edit, before.length).toJSON(),
+                  },
+                ],
+              },
+            });
+          } catch (error) {
+            if (!(error instanceof InterviewError) || error.code !== "stale_version") throw error;
+          }
+          await pull();
+          schedule(0);
+        }
+      }
       if (!disposed) {
         status("connected");
         if (view && sendableUpdates(view.state).length) schedule(0);
@@ -198,6 +233,10 @@ export function createCollaboration(
     },
   );
   return {
+    setOdyssey(progress: OdysseyProgress | undefined, language: EditorLanguage) {
+      odyssey = progress ? { progress, language } : undefined;
+      if (progress) schedule();
+    },
     reportRule: reports.report,
     isSynchronized: () => !!view && !retry && !sendableUpdates(view.state).length,
     extension: [

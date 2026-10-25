@@ -17,6 +17,8 @@ import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
 import { TestCases } from "../editor/components/TestCases";
 import { blankQuestion } from "../admin/content";
 import { SignatureFields } from "../admin/SignatureFields";
+import { initialOdysseySource } from "../odyssey/methodStubs";
+import { QuestionLanguage } from "../editor/QuestionLanguage";
 import { StageAuthoring } from "../odyssey/StageAuthoring";
 import { firstStage, parseStages, type StageDraft } from "../odyssey/stageDrafts";
 import { Icon } from "../editor/components/Icon";
@@ -90,7 +92,22 @@ export function QuestionSetup({
   const stagedInitialized = useRef(false);
   const [invalidTypes, setInvalidTypes] = useState<Record<string, boolean>>({});
   const [invalidSingleTypes, setInvalidSingleTypes] = useState<Record<string, boolean>>({});
+  const firstMethods = stages[0]?.methods.map((method) => method.signature) ?? [];
+  const starterIsDefault =
+    starter === "class Solution:\n    def solve(self, value: int) -> int:\n        pass\n" ||
+    starter === initialOdysseySource(firstMethods, language);
+  function changeStages(next: StageDraft[]) {
+    if (starterIsDefault)
+      setStarter(
+        initialOdysseySource(next[0]?.methods.map((method) => method.signature) ?? [], language),
+      );
+    setStages(next);
+  }
   function chooseMode(next: string) {
+    if (next === "staged" && starterIsDefault)
+      setStarter(
+        initialOdysseySource(stagedInitialized.current ? firstMethods : [signature], language),
+      );
     if (next === "staged" && !stagedInitialized.current) {
       setStages([
         firstStage(signature, "", publicCases, privateCases.length ? privateCases : undefined),
@@ -201,127 +218,128 @@ export function QuestionSetup({
     }
   }
   return (
-    <form className="admin-fields question-authoring" onSubmit={submit}>
-      {showTitle && (
-        <label className="admin-field">
-          <span>Interview title</span>
-          <input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />
-        </label>
-      )}
-      <div className="admin-field-pair">
-        <label className="admin-field">
-          <span>Question source</span>
-          <SelectField
-            label="Question source"
-            value={mode}
-            onChange={chooseMode}
-            options={[
-              { value: "catalog", label: "Existing question" },
-              ...(canAuthor
-                ? [
-                    { value: "custom", label: "Custom question" },
-                    { value: "staged", label: "Custom multi-stage question" },
-                  ]
-                : []),
+    <QuestionLanguage.Provider value={language}>
+      <form className="admin-fields question-authoring" onSubmit={submit}>
+        {showTitle && (
+          <label className="admin-field">
+            <span>Interview title</span>
+            <input
+              value={title}
+              maxLength={120}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </label>
+        )}
+        <div className="admin-field-pair">
+          <label className="admin-field">
+            <span>Question source</span>
+            <SelectField
+              label="Question source"
+              value={mode}
+              onChange={chooseMode}
+              options={[
+                { value: "catalog", label: "Existing question" },
+                ...(canAuthor
+                  ? [
+                      { value: "custom", label: "Custom question" },
+                      { value: "staged", label: "Custom multi-stage question" },
+                    ]
+                  : []),
+              ]}
+            />
+          </label>
+          <label className="admin-field">
+            <span>Language</span>
+            <SelectField
+              label="Interview language"
+              value={language}
+              onChange={(value) => {
+                if (mode === "staged" && starterIsDefault)
+                  setStarter(initialOdysseySource(firstMethods, value as EditorLanguage));
+                setLanguage(value as EditorLanguage);
+              }}
+              options={Object.entries(languageLabels).map(([value, text]) => ({
+                value,
+                label: text,
+                leading: <LanguageLogo language={value as EditorLanguage} />,
+              }))}
+            />
+          </label>
+        </div>
+        {mode !== "catalog" && <p>Saved to your private library.</p>}
+        {mode !== "catalog" && (
+          <AuthoringTabs
+            id={sectionId}
+            label="Question authoring"
+            value={authorSection}
+            onChange={setAuthorSection}
+            tabs={[
+              { value: "question", label: "Question" },
+              { value: "tests", label: mode === "staged" ? "Steps & tests" : "Tests" },
             ]}
           />
-        </label>
-        <label className="admin-field">
-          <span>Language</span>
-          <SelectField
-            label="Interview language"
-            value={language}
-            onChange={(value) => setLanguage(value as EditorLanguage)}
-            options={Object.entries(languageLabels).map(([value, text]) => ({
-              value,
-              label: text,
-              leading: <LanguageLogo language={value as EditorLanguage} />,
-            }))}
-          />
-        </label>
-      </div>
-      {mode !== "catalog" && <p>Saved to your private library.</p>}
-      {mode !== "catalog" && (
-        <AuthoringTabs
-          id={sectionId}
-          label="Question authoring"
-          value={authorSection}
-          onChange={setAuthorSection}
-          tabs={[
-            { value: "question", label: "Question" },
-            { value: "tests", label: mode === "staged" ? "Steps & tests" : "Tests" },
-          ]}
-        />
-      )}
-      <fieldset className="admin-fields" hidden={mode !== "catalog"} disabled={mode !== "catalog"}>
-        <label className="admin-field">
-          <span>Problem</span>
-          <ProblemPicker
-            items={catalog.data?.items ?? []}
-            value={selected}
-            onChange={(value) => setSelected(value ?? "")}
-            onSearchChange={setSearch}
-            disabled={catalog.isPending && !catalog.data}
-          />
-        </label>
-        {catalog.isError && (
-          <p role="alert">
-            Could not load questions.{" "}
-            <button type="button" className="quiet-button" onClick={() => void catalog.refetch()}>
-              Retry
-            </button>
-          </p>
         )}
-      </fieldset>
-      <fieldset className="admin-fields" hidden={mode === "catalog"} disabled={mode === "catalog"}>
         <fieldset
           className="admin-fields"
-          hidden={authorSection !== "question"}
-          disabled={authorSection !== "question"}
-          id={`${sectionId}-question-panel`}
-          role="tabpanel"
-          aria-labelledby={`${sectionId}-question`}
+          hidden={mode !== "catalog"}
+          disabled={mode !== "catalog"}
         >
-          <QuestionBasics
-            title={customTitle}
-            statement={statement}
-            starter={starter}
-            staged={mode === "staged"}
-            required
-            onTitleChange={setCustomTitle}
-            onStatementChange={setStatement}
-            onStarterChange={setStarter}
-          />
+          <label className="admin-field">
+            <span>Problem</span>
+            <ProblemPicker
+              items={catalog.data?.items ?? []}
+              value={selected}
+              onChange={(value) => setSelected(value ?? "")}
+              onSearchChange={setSearch}
+              disabled={catalog.isPending && !catalog.data}
+            />
+          </label>
+          {catalog.isError && (
+            <p role="alert">
+              Could not load questions.{" "}
+              <button type="button" className="quiet-button" onClick={() => void catalog.refetch()}>
+                Retry
+              </button>
+            </p>
+          )}
         </fieldset>
         <fieldset
           className="admin-fields"
-          hidden={mode !== "staged" || authorSection !== "tests"}
-          disabled={mode !== "staged" || authorSection !== "tests"}
-          id={mode === "staged" ? `${sectionId}-tests-panel` : undefined}
-          role="tabpanel"
-          aria-labelledby={`${sectionId}-tests`}
+          hidden={mode === "catalog"}
+          disabled={mode === "catalog"}
         >
-          <StageAuthoring
-            value={stages}
-            onChange={setStages}
-            onValidityChange={(id, invalid) =>
-              setInvalidTypes((current) =>
-                current[id] === invalid ? current : { ...current, [id]: invalid },
-              )
-            }
-          />
-        </fieldset>
-        <fieldset className="admin-fields" hidden={mode === "staged"} disabled={mode === "staged"}>
           <fieldset
             className="admin-fields"
             hidden={authorSection !== "question"}
             disabled={authorSection !== "question"}
+            id={`${sectionId}-question-panel`}
+            role="tabpanel"
+            aria-labelledby={`${sectionId}-question`}
           >
-            <SignatureFields
-              value={signature}
-              onChange={updateSignature}
+            <QuestionBasics
+              title={customTitle}
+              statement={statement}
+              starter={starter}
+              staged={mode === "staged"}
+              required
+              onTitleChange={setCustomTitle}
+              onStatementChange={setStatement}
+              onStarterChange={setStarter}
+            />
+          </fieldset>
+          <fieldset
+            className="admin-fields"
+            hidden={mode !== "staged" || authorSection !== "tests"}
+            disabled={mode !== "staged" || authorSection !== "tests"}
+            id={mode === "staged" ? `${sectionId}-tests-panel` : undefined}
+            role="tabpanel"
+            aria-labelledby={`${sectionId}-tests`}
+          >
+            <StageAuthoring
+              value={stages}
+              onChange={changeStages}
               onValidityChange={(id, invalid) =>
-                setInvalidSingleTypes((current) =>
+                setInvalidTypes((current) =>
                   current[id] === invalid ? current : { ...current, [id]: invalid },
                 )
               }
@@ -329,50 +347,75 @@ export function QuestionSetup({
           </fieldset>
           <fieldset
             className="admin-fields"
-            hidden={authorSection !== "tests"}
-            disabled={authorSection !== "tests"}
-            id={mode !== "staged" ? `${sectionId}-tests-panel` : undefined}
-            role="tabpanel"
-            aria-labelledby={`${sectionId}-tests`}
+            hidden={mode === "staged"}
+            disabled={mode === "staged"}
           >
-            <QuestionTests
-              signature={signature}
-              publicCases={publicCases}
-              privateCases={privateCases}
-              onPublicChange={setPublicCases}
-              onPrivateChange={setPrivateCases}
-            />
+            <fieldset
+              className="admin-fields"
+              hidden={authorSection !== "question"}
+              disabled={authorSection !== "question"}
+            >
+              <SignatureFields
+                value={signature}
+                onChange={updateSignature}
+                onValidityChange={(id, invalid) =>
+                  setInvalidSingleTypes((current) =>
+                    current[id] === invalid ? current : { ...current, [id]: invalid },
+                  )
+                }
+              />
+            </fieldset>
+            <fieldset
+              className="admin-fields"
+              hidden={authorSection !== "tests"}
+              disabled={authorSection !== "tests"}
+              id={mode !== "staged" ? `${sectionId}-tests-panel` : undefined}
+              role="tabpanel"
+              aria-labelledby={`${sectionId}-tests`}
+            >
+              <QuestionTests
+                signature={signature}
+                publicCases={publicCases}
+                privateCases={privateCases}
+                onPublicChange={setPublicCases}
+                onPrivateChange={setPrivateCases}
+              />
+            </fieldset>
           </fieldset>
         </fieldset>
-      </fieldset>
-      {error && (
-        <p className="admin-error" role="alert">
-          {error}
-        </p>
-      )}
-      {showHints && (
-        <InterviewMonitoringControls value={monitoring} onChange={setMonitoring} disabled={busy} />
-      )}
-      {showHints && (
-        <QuestionHintsControls
-          complexityAvailable={
-            mode === "catalog" &&
-            !!catalog.data?.items
-              .find((item) => item.id === selected)
-              ?.complexityLanguages?.includes(language)
-          }
-          value={hints}
-          onChange={setHints}
-          disabled={busy}
-        />
-      )}
-      <footer className="competitive-dialog-actions">
-        <span />
-        <button className="button button-primary" disabled={busy}>
-          {busy ? "Working…" : label}
-        </button>
-      </footer>
-    </form>
+        {error && (
+          <p className="admin-error" role="alert">
+            {error}
+          </p>
+        )}
+        {showHints && (
+          <InterviewMonitoringControls
+            value={monitoring}
+            onChange={setMonitoring}
+            disabled={busy}
+          />
+        )}
+        {showHints && (
+          <QuestionHintsControls
+            complexityAvailable={
+              mode === "catalog" &&
+              !!catalog.data?.items
+                .find((item) => item.id === selected)
+                ?.complexityLanguages?.includes(language)
+            }
+            value={hints}
+            onChange={setHints}
+            disabled={busy}
+          />
+        )}
+        <footer className="competitive-dialog-actions">
+          <span />
+          <button className="button button-primary" disabled={busy}>
+            {busy ? "Working…" : label}
+          </button>
+        </footer>
+      </form>
+    </QuestionLanguage.Provider>
   );
 }
 

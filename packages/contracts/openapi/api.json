@@ -2979,6 +2979,11 @@
           },
           "returnType": {
             "type": "string"
+          },
+          "outputOrder": {
+            "type": "string",
+            "enum": ["ordered", "unordered"],
+            "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
           }
         },
         "required": ["className", "methodName", "parameters", "returnType"],

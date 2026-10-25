@@ -1,8 +1,10 @@
 package problems
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -30,7 +32,7 @@ func ValidateOdyssey(c QuestionContent) error {
 			return fmt.Errorf("invalid Odyssey level %d", i+1)
 		}
 		for _, sig := range level.Methods {
-			if sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 || len(sig.Parameters) > 16 || (sig.ReturnType != "void" && !validType(sig.ReturnType, 0)) {
+			if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 || len(sig.Parameters) > 16 || (sig.ReturnType != "void" && !validType(sig.ReturnType, 0)) {
 				return fmt.Errorf("invalid Odyssey method")
 			}
 			if _, exists := methods[sig.MethodName]; exists {
@@ -108,7 +110,7 @@ func CompileOdyssey(f Fixture, level int, kind string) (Problem, []Case, error) 
 
 func NormalizeCaseOutput(p Problem, c Case, data json.RawMessage) (json.RawMessage, error) {
 	if len(c.Calls) == 0 {
-		return Normalize(p.Signature.ReturnType, data)
+		return normalizeMethodOutput(p.Signature, data)
 	}
 	var values []json.RawMessage
 	if err := json.Unmarshal(data, &values); err != nil || len(values) != len(c.Calls) {
@@ -128,7 +130,7 @@ func NormalizeCaseOutput(p Problem, c Case, data json.RawMessage) (json.RawMessa
 			}
 			v = json.RawMessage("null")
 		} else {
-			v, err = Normalize(sig.ReturnType, values[i])
+			v, err = normalizeMethodOutput(sig, values[i])
 		}
 		if err != nil {
 			return nil, err
@@ -150,4 +152,25 @@ func CaseExpected(c Case) json.RawMessage {
 	}
 	data, _ := json.Marshal(values)
 	return data
+}
+
+func validOutputOrder(sig Signature) bool {
+	return sig.OutputOrder == "" || sig.OutputOrder == "ordered" || (sig.OutputOrder == "unordered" && (strings.HasPrefix(sig.ReturnType, "list<") || strings.HasPrefix(sig.ReturnType, "array<")))
+}
+
+// Canonicalize the outer collection only; duplicates and nested ordering remain significant.
+func normalizeMethodOutput(sig Signature, data json.RawMessage) (json.RawMessage, error) {
+	value, err := Normalize(sig.ReturnType, data)
+	if err != nil {
+		return nil, err
+	}
+	if sig.OutputOrder != "unordered" {
+		return value, nil
+	}
+	var items []json.RawMessage
+	if err = json.Unmarshal(value, &items); err != nil {
+		return nil, err
+	}
+	sort.Slice(items, func(i, j int) bool { return bytes.Compare(items[i], items[j]) < 0 })
+	return json.Marshal(items)
 }

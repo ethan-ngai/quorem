@@ -14,10 +14,11 @@ type Parameter struct {
 	Input *InputConfig `json:"input,omitempty"`
 }
 type Signature struct {
-	ClassName  string      `json:"className"`
-	MethodName string      `json:"methodName"`
-	Parameters []Parameter `json:"parameters"`
-	ReturnType string      `json:"returnType"`
+	OutputOrder string      `json:"outputOrder,omitempty"`
+	ClassName   string      `json:"className"`
+	MethodName  string      `json:"methodName"`
+	Parameters  []Parameter `json:"parameters"`
+	ReturnType  string      `json:"returnType"`
 }
 type MethodCall struct {
 	MethodName string            `json:"methodName"`

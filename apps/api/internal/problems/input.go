@@ -75,6 +75,7 @@ var inputPresets = map[string]inputPresetCompatibility{
 }
 
 func ValidateInputConfig(typ string, config *InputConfig) error {
+	typ = strings.ReplaceAll(typ, "array<", "list<")
 	if !validType(typ, 0) {
 		return fmt.Errorf("unknown input codec %q", typ)
 	}
