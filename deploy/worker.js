@@ -64,7 +64,7 @@ export default {
       !url.pathname.startsWith("/v1/") &&
       !url.pathname.startsWith("/api/auth/")
     )
-      return fetch(new Request(new URL(url.pathname + url.search, env.FRONTEND_ORIGIN), request));
+      return new Response(null, { status: 404 });
     return env.QUOREM.getByName("primary").fetch(request);
   },
 };
