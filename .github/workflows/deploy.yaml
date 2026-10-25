@@ -92,14 +92,7 @@ jobs:
           cp -R apps/web/dist/. deploy/site/
           python3 scripts/package-auth.py
       - name: Build isolated language images
-        run: |
-          for language in python java typescript ocaml; do
-            dockerfile=apps/runner/Dockerfile
-            if [ "$language" != python ]; then dockerfile="$dockerfile.$language"; fi
-            docker build -f "$dockerfile" -t "quorem-$language:production" .
-            docker tag "quorem-$language:production" "quorem-$language:local"
-            docker save "quorem-$language:production" -o "deploy/images/$language.tar"
-          done
+        run: python3 scripts/build-judge-images.py
       - name: Validate application and judge
         env:
           QUOREM_TEST_DOCKER: "1"
@@ -111,7 +104,7 @@ jobs:
         run: |
           docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-production:$GITHUB_SHA" .
       - name: Verify nested Docker isolation
-        run: docker run --privileged --rm "quorem-production:$GITHUB_SHA" --verify-only
+        run: docker run --privileged --cgroupns=private --rm "quorem-production:$GITHUB_SHA" --verify-only
       - name: Initialize Terraform state
         if: github.ref == 'refs/heads/main'
         run: python3 scripts/terraform-state.py
