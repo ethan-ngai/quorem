@@ -1,7 +1,7 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
-import * as Dialog from "@radix-ui/react-dialog";
+import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
@@ -756,39 +756,25 @@ export function WorkspacePage({
           />
         }
       >
-        <Dialog.Root open={signInPrompt} onOpenChange={setSignInPrompt}>
-          <Dialog.Portal>
-            <Dialog.Overlay className="settings-backdrop" />
-            <Dialog.Content
-              className="competitive-dialog"
-              onCloseAutoFocus={(event) => {
-                event.preventDefault();
-                signInPromptOrigin.current?.focus();
-              }}
+        <SessionDialog
+          open={signInPrompt}
+          onOpenChange={setSignInPrompt}
+          title="Sign in to run tests"
+          description="Sign in to run tests and submit solutions. You can keep editing without an account."
+          returnFocus={() => signInPromptOrigin.current?.focus()}
+        >
+          <div className="competitive-dialog-actions">
+            <button className="button button-secondary" onClick={() => setSignInPrompt(false)}>
+              Keep editing
+            </button>
+            <a
+              className="button button-primary"
+              href={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`}
             >
-              <header className="competitive-dialog-heading">
-                <div>
-                  <Dialog.Title>Sign in to run tests</Dialog.Title>
-                  <Dialog.Description>
-                    Sign in to run tests and submit solutions. You can keep editing without an
-                    account.
-                  </Dialog.Description>
-                </div>
-              </header>
-              <div className="competitive-dialog-actions">
-                <Dialog.Close asChild>
-                  <button className="button button-secondary">Keep editing</button>
-                </Dialog.Close>
-                <a
-                  className="button button-primary"
-                  href={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`}
-                >
-                  Sign in
-                </a>
-              </div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
+              Sign in
+            </a>
+          </div>
+        </SessionDialog>
         {historyOpen && (
           <HistoryDialog
             identity={identity}
