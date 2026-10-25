@@ -8,6 +8,7 @@ on:
       - packages/ui/**
       - scripts/build-site.mjs
       - scripts/prepare-pages.mjs
+      - .github/workflows/frontend.yaml
   workflow_dispatch:
   workflow_call:
 permissions:

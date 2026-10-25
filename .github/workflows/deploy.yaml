@@ -8,6 +8,7 @@ on:
       - apps/runner/**
       - apps/realtime-cloudflare/**
       - internal/**
+      - fixtures/**
       - packages/contracts/**
       - infra/**
       - deploy/**
@@ -21,7 +22,6 @@ on:
       - pnpm-workspace.yaml
       - .node-version
       - .github/workflows/deploy.yaml
-      - .github/workflows/frontend.yaml
   workflow_dispatch:
 permissions:
   contents: read
