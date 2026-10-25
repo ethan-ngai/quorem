@@ -1,7 +1,7 @@
 import "./machine-values.css";
 import "./problem-statement.css";
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
-import { sequenceOutputs } from "../sequenceOutputs";
+import { SequenceCaseValues } from "./SequenceCaseValues";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
 import type { EditorLanguage } from "../editorLanguages";
@@ -103,63 +103,25 @@ export function ProblemStatement({
             {problem.examples.map((example, index) => (
               <li key={index} aria-label={`Example ${index + 1}`}>
                 <div className="example-content">
-                  <div className="example-data">
-                    <div>
-                      <Tooltip content="Input">
-                        <span className="value-label" tabIndex={0} aria-label="Input">
-                          <Icon name="input" />
-                        </span>
-                      </Tooltip>
-                      <code>
-                        {example.calls?.length
-                          ? example.calls
-                              .map((call) => {
-                                const signature = problem.odyssey?.levels
-                                  .flatMap((level) => level.methods)
-                                  .find((method) => method.methodName === call.methodName);
-                                return `${call.methodName}(${
-                                  signature
-                                    ? bindArguments(signature, call.args)
-                                        .map(
-                                          ({ name, value }) =>
-                                            `${name} = ${questionValue(value, language)}`,
-                                        )
-                                        .join(", ")
-                                    : call.args
-                                        .map((value) => questionValue(value, language))
-                                        .join(", ")
-                                })`;
-                              })
-                              .join("; ")
-                          : exampleInput(problem, example.args, language)}
-                      </code>
+                  {example.calls?.length ? (
+                    <div className="example-sequence">
+                      <h3>Example {index + 1}</h3>
+                      <SequenceCaseValues
+                        problem={problem}
+                        calls={example.calls}
+                        outputLabel="Output"
+                      />
                     </div>
-                    {example.calls?.length ? (
-                      sequenceOutputs(
-                        problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
-                          problem.signature,
-                        ],
-                        example.calls,
-                      ).map((output) => (
-                        <div key={output.call}>
-                          <Tooltip
-                            content={`Output from ${output.methodName} (call ${output.call})`}
-                          >
-                            <span
-                              className="value-label"
-                              tabIndex={0}
-                              aria-label={`Output from ${output.methodName} (call ${output.call})`}
-                            >
-                              <Icon name="output" />
-                            </span>
-                          </Tooltip>
-                          <code>
-                            {output.methodName}:{" "}
-                            {questionValue(output.value, language, output.type)}
-                          </code>
-                        </div>
-                      ))
-                    ) : (
+                  ) : (
+                    <div className="example-data">
+                      <div>
+                        <Tooltip content="Input">
+                          <span className="value-label" tabIndex={0} aria-label="Input">
+                            <Icon name="input" />
+                          </span>
+                        </Tooltip>
+                        <code>{exampleInput(problem, example.args, language)}</code>
+                      </div>
                       <div>
                         <Tooltip content="Output">
                           <span className="value-label" tabIndex={0} aria-label="Output">
@@ -170,8 +132,8 @@ export function ProblemStatement({
                           {questionValue(example.expected, language, problem.signature.returnType)}
                         </code>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <div className="example-explanation">
                     {example.explanation && (
                       <p>

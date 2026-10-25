@@ -1,6 +1,6 @@
 /** @file Standard CodeMirror TypeScript service isolated from the UI thread. */
-import { createWorker } from "@valtown/codemirror-ts/worker";
+import { createTypeScriptWorker } from "./typeScriptSemanticTokens";
 import { expose } from "comlink";
 import { createBrowserTypeScriptEnvironment } from "./browserTypeScriptEnvironment";
 
-expose(createWorker(createBrowserTypeScriptEnvironment));
+expose(createTypeScriptWorker(createBrowserTypeScriptEnvironment));

@@ -517,7 +517,7 @@ function InterviewPad({
               initialSource={initial.document.source}
               language={language}
               theme={theme.theme}
-              colorScheme={preferences.editorScheme}
+              colorScheme={preferences.editorSchemes[theme.theme]}
               fontSize={preferences.fontSize}
               tabSize={preferences.tabSize}
               wrap={preferences.wrap}

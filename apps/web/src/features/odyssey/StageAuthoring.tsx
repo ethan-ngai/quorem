@@ -204,7 +204,7 @@ export function StageAuthoring({
                     }}
                   >
                     <Icon name={tab === "tests" ? "lock" : "samples"} />
-                    {tab === "examples" ? "Test cases" : "Private tests"}
+                    {tab === "examples" ? "Examples" : "Private tests"}
                   </button>
                 ))}
               </div>
@@ -223,7 +223,7 @@ export function StageAuthoring({
                       [`${stage.id}-${collection}`]: id,
                     }))
                   }
-                  label={`Step ${index + 1} ${collection === "examples" ? "test cases" : "private tests"}`}
+                  label={`Step ${index + 1} ${collection === "examples" ? "examples" : "private tests"}`}
                   methods={methods}
                   value={stage[collection]}
                   onChange={(cases) => patch(stage, { [collection]: cases })}

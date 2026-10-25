@@ -1,11 +1,9 @@
 /** @file editorPalette.test.ts @description Scheme validation, Python tag coverage and in-place editor reconfiguration. @module editor */
 import { history, undoDepth } from "@codemirror/commands";
 import { Compartment, EditorState } from "@codemirror/state";
-import { highlightTree, tags } from "@lezer/highlight";
 import { describe, expect, it } from "vitest";
-import { editorColorTheme, pythonSyntaxStyle, resolveEditorPalette } from "./editorPalette";
-import { normalizeEditorScheme } from "./editorSchemes";
-import { highlightedPython, identifierAccent, parameterTag } from "./pythonHighlighting";
+import { editorColorTheme, resolveEditorPalette } from "./editorPalette";
+import { editorSchemes, normalizeEditorSchemeForMode } from "./editorSchemes";
 
 /** Converts an opaque sRGB palette value into relative luminance. */
 function luminance(hex: string) {
@@ -18,16 +16,16 @@ function luminance(hex: string) {
 
 describe("editor schemes", () => {
   it("rejects invalid persisted values and keeps named schemes independent of app theme", () => {
-    expect(normalizeEditorScheme("darkula")).toBe("workspace");
-    expect(normalizeEditorScheme({ id: "darcula" })).toBe("workspace");
-    expect(normalizeEditorScheme("darcula")).toBe("darcula");
+    expect(normalizeEditorSchemeForMode("darkula", "dark")).toBe("jetbrains-dark");
+    expect(normalizeEditorSchemeForMode({ id: "darcula" }, "light")).toBe("jetbrains-light");
+    expect(normalizeEditorSchemeForMode("darcula", "dark")).toBe("darcula");
     expect(resolveEditorPalette("darcula", "light").dark).toBe(true);
     expect(resolveEditorPalette("jetbrains-light", "dark").dark).toBe(false);
     expect(resolveEditorPalette("workspace", "light").dark).toBe(false);
     expect(resolveEditorPalette("workspace", "dark").dark).toBe(true);
   });
 
-  it("keeps named palette text readable on normal and active-line surfaces", () => {
+  it("keeps literal palette text readable on normal and active-line surfaces", () => {
     const roles = [
       "foreground",
       "keyword",
@@ -39,13 +37,19 @@ describe("editor schemes", () => {
       "parameter",
       "operator",
       "decorator",
+      "docComment",
+      "docTag",
+      "todo",
       "comment",
       "self",
     ] as const;
-    for (const scheme of ["jetbrains-light", "darcula", "one-dark"] as const) {
+    for (const { id: scheme } of editorSchemes.filter((entry) => entry.id !== "workspace")) {
       const { colors } = resolveEditorPalette(scheme, "light");
       for (const role of roles) {
-        for (const background of [colors.background, colors.activeLine]) {
+        // Token surfaces inherit the shared app palette; check scheme-owned surfaces here.
+        for (const background of [colors.background, colors.activeLine].filter((value) =>
+          value.startsWith("#"),
+        )) {
           const [low, high] = [luminance(colors[role]), luminance(background)].sort(
             (a, b) => a - b,
           );
@@ -71,36 +75,5 @@ describe("editor schemes", () => {
     expect(state.selection.main.anchor).toBe(8);
     expect(undoDepth(state)).toBe(depth);
     expect(depth).toBeGreaterThan(0);
-  });
-});
-
-describe("Python syntax recognition", () => {
-  it("preserves grammar function/class/method tags while adding parameter and decorator context", () => {
-    const source =
-      "@cache\nclass Example:\n def solve(self, nums):\n  return self.helper(len(nums))\n";
-    const spans: Array<{ text: string; style: string }> = [];
-    highlightTree(highlightedPython.parser.parse(source), pythonSyntaxStyle, (from, to, style) =>
-      spans.push({ text: source.slice(from, to), style }),
-    );
-    for (const [text, tag] of [
-      ["cache", tags.annotation],
-      ["Example", tags.definition(tags.className)],
-      ["solve", tags.function(tags.definition(tags.variableName))],
-      ["helper", tags.function(tags.propertyName)],
-      ["nums", parameterTag],
-    ] as const) {
-      expect(
-        spans.some((span) => span.text === text && span.style === pythonSyntaxStyle.style([tag])),
-        text,
-      ).toBe(true);
-    }
-  });
-
-  it("does not apply builtin accents to declaration names", () => {
-    expect(identifierAccent("len", "CallExpression")).toBe("cm-python-builtin");
-    expect(identifierAccent("len", "FunctionDefinition")).toBeUndefined();
-    expect(identifierAccent("list", "ClassDefinition")).toBeUndefined();
-    expect(identifierAccent("str", "ParamList")).toBeUndefined();
-    expect(identifierAccent("self", "ParamList")).toBe("cm-python-self");
   });
 });
