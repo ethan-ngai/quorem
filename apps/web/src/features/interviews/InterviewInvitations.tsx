@@ -1,5 +1,5 @@
 /** @file InterviewInvitations.tsx @description Role-scoped invitation links with capability-aware native sharing. @module interviews */
-import * as Popover from "@radix-ui/react-popover";
+import * as Popover from "../../ui/Popover";
 import { useEffect, useState } from "react";
 import { Icon } from "../editor/components/Icon";
 import { ShareActions } from "../../ui/ShareActions";

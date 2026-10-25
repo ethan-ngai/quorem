@@ -1,5 +1,5 @@
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
-import * as Popover from "@radix-ui/react-popover";
+import * as Popover from "../../ui/Popover";
 import { useRef, useState } from "react";
 import { Dices, Search } from "lucide-react";
 import { Icon } from "../editor/components/Icon";

@@ -124,6 +124,18 @@ export function InterviewInvite({ token }: { token: string }) {
                 >
                   View interview
                 </button>
+                {!account.data && (
+                  <a
+                    className="button button-secondary"
+                    href={`/login?returnTo=${encodeURIComponent(`/interview-invite/${token}`)}`}
+                    aria-disabled={busy || undefined}
+                    onClick={(event) => {
+                      if (busy) event.preventDefault();
+                    }}
+                  >
+                    Log in
+                  </a>
+                )}
                 <button className="button button-primary" disabled={busy || account.isPending}>
                   {busy ? "Joining…" : "Join interview"}
                 </button>
