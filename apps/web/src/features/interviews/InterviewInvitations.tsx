@@ -1,7 +1,9 @@
 /** @file InterviewInvitations.tsx @description Role-scoped invitation links with capability-aware native sharing. @module interviews */
 import * as Popover from "@radix-ui/react-popover";
 import { useEffect, useState } from "react";
-import { Copy, Check, Link, Share2 } from "lucide-react";
+import { Icon } from "../editor/components/Icon";
+import { ShareActions } from "../../ui/ShareActions";
+import { shareLink } from "../../ui/shareLink";
 import { Tooltip } from "../editor/components/Tooltip";
 import { useErrorNotification } from "../../ui/Notifications";
 import type { InterviewRole } from "@quorem/contracts";
@@ -9,8 +11,15 @@ import "./session-controls.css";
 
 export type InterviewInvites = Partial<Record<InterviewRole, string>>;
 
-export function InterviewInvitationLinks({ invites }: { invites: InterviewInvites }) {
+export function InterviewInvitationLinks({
+  invites,
+  title = "Interview",
+}: {
+  invites: InterviewInvites;
+  title?: string;
+}) {
   const [copied, setCopied] = useState<InterviewRole>();
+  const [sharing, setSharing] = useState(false);
   const [error, setError] = useState<string>();
   useErrorNotification(error);
   useEffect(() => {
@@ -21,8 +30,14 @@ export function InterviewInvitationLinks({ invites }: { invites: InterviewInvite
   async function send(role: InterviewRole, path: string, native = false) {
     const url = new URL(path, window.location.origin).href;
     setError(undefined);
+    setSharing(native);
     try {
-      if (native) await navigator.share({ title: "Quorem interview", url });
+      if (native)
+        await shareLink({
+          title: `${title} · Quorem`,
+          text: `Join ${title} on Quorem as an ${role}.`,
+          url,
+        });
       else {
         await navigator.clipboard.writeText(url);
         setCopied(role);
@@ -30,6 +45,8 @@ export function InterviewInvitationLinks({ invites }: { invites: InterviewInvite
     } catch (cause) {
       if (!(cause instanceof Error && cause.name === "AbortError"))
         setError("Could not share invitation. Try copying the link.");
+    } finally {
+      setSharing(false);
     }
   }
   return (
@@ -37,10 +54,11 @@ export function InterviewInvitationLinks({ invites }: { invites: InterviewInvite
       {(["interviewee", "interviewer"] as const).map((role) => {
         const path = invites[role];
         if (!path) return null;
-        const data = { title: "Quorem interview", url: new URL(path, window.location.origin).href };
-        const canShare =
-          typeof navigator.share === "function" &&
-          (!navigator.canShare || navigator.canShare(data));
+        const data = {
+          title: `${title} · Quorem`,
+          text: `Join ${title} on Quorem as an ${role}.`,
+          url: new URL(path, window.location.origin).href,
+        };
         const label = role === "interviewer" ? "Interviewer" : "Interviewee";
         return (
           <div className="interview-invite-row" key={role}>
@@ -52,34 +70,18 @@ export function InterviewInvitationLinks({ invites }: { invites: InterviewInvite
                   : "Collaborate and run code"}
               </span>
             </div>
-            <Tooltip
-              content={copied === role ? "Copied" : `Copy ${label.toLowerCase()} invitation`}
-            >
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={`Copy ${label.toLowerCase()} invitation`}
-                onClick={() => void send(role, path)}
-              >
-                {copied === role ? <Check size={16} /> : <Copy size={16} />}
-              </button>
-            </Tooltip>
-            {canShare && (
-              <Tooltip content={`Share ${label.toLowerCase()} invitation`}>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label={`Share ${label.toLowerCase()} invitation`}
-                  onClick={() => void send(role, path, true)}
-                >
-                  <Share2 size={16} />
-                </button>
-              </Tooltip>
-            )}
+            <ShareActions
+              data={data}
+              copied={copied === role}
+              sharing={sharing}
+              copyLabel={`Copy ${label.toLowerCase()} invitation`}
+              shareLabel={`Share ${label.toLowerCase()} invitation`}
+              onCopy={() => void send(role, path)}
+              onShare={() => void send(role, path, true)}
+            />
           </div>
         );
       })}
-      <p className="case-stale">Anyone with a link can join with that role.</p>
     </div>
   );
 }
@@ -87,8 +89,10 @@ export function InterviewInvitationLinks({ invites }: { invites: InterviewInvite
 export function InterviewInvitations({
   invites,
   onOpenChange,
+  title,
 }: {
   invites: InterviewInvites;
+  title?: string;
   onOpenChange?: (open: boolean) => void;
 }) {
   return (
@@ -96,7 +100,7 @@ export function InterviewInvitations({
       <Tooltip content="Invite people">
         <Popover.Trigger asChild>
           <button type="button" className="icon-button" aria-label="Invite people">
-            <Link size={18} />
+            <Icon name="share" />
           </button>
         </Popover.Trigger>
       </Tooltip>
@@ -109,7 +113,7 @@ export function InterviewInvitations({
           align="end"
         >
           <h2>Invite people</h2>
-          <InterviewInvitationLinks invites={invites} />
+          <InterviewInvitationLinks invites={invites} title={title} />
           <Popover.Arrow className="interview-invite-arrow" />
         </Popover.Content>
       </Popover.Portal>

@@ -264,6 +264,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
   };
   const invitationActions = (
     <InvitationActions
+      url={inviteUrl ?? ""}
       copied={copied}
       sharing={sharing}
       onCopy={() => void copyInvitation()}

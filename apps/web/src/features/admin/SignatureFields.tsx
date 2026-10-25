@@ -2,7 +2,7 @@
 import type { Signature } from "@quorem/contracts";
 import { useEffect, useId, useRef, useState } from "react";
 import { Field } from "./AuthoringFields";
-import { resolveInputPreset } from "../editor/inputPresets";
+import { supportedType } from "../editor/typedValues";
 const types = [
   "int",
   "float",
@@ -157,16 +157,7 @@ function TypeField({
         onChange={(event) => {
           const next = event.target.value;
           setSource(next);
-          let accepted = false;
-          try {
-            if (next === "void") accepted = allowVoid;
-            else {
-              resolveInputPreset(next);
-              accepted = true;
-            }
-          } catch {
-            /* Incomplete nested types remain editable. */
-          }
+          const accepted = next === "void" ? allowVoid : supportedType(next);
           setInvalid(!accepted);
           event.currentTarget.setCustomValidity(
             accepted ? "" : "Enter a supported type expression.",

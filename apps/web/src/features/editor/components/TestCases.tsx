@@ -1,6 +1,7 @@
+import { CaseBrowserLayout } from "./CaseBrowserLayout";
 import { Tooltip } from "./Tooltip";
 import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import {
   associatedResultIndex,
   createCustomDraft,
@@ -29,6 +30,9 @@ export function TestCases({
   requiredExpected = false,
   caseActions,
   caseResults,
+  caseGroups,
+  selectedCustomId,
+  onSelectCustomCase,
 }: {
   problem: ProblemVersion;
   customMode: boolean;
@@ -41,6 +45,9 @@ export function TestCases({
   minimumCases?: number;
   requiredExpected?: boolean;
   caseActions?: (index: number) => ReactNode;
+  caseGroups?: readonly (string | undefined)[];
+  selectedCustomId?: string;
+  onSelectCustomCase?: (id: string | undefined) => void;
   caseResults?: readonly (PublicCaseResult | undefined)[];
 }) {
   const hiddenCases =
@@ -52,7 +59,11 @@ export function TestCases({
       ? submission.hiddenCases
       : undefined;
   const [selectedSample, setSelectedSample] = useState(0);
-  const [selectedCustomId, setSelectedCustomId] = useState<string>();
+  const [requestedCustomId, setRequestedCustomId] = useState<string>();
+  function setSelectedCustomId(id: string | undefined) {
+    setRequestedCustomId(id);
+    onSelectCustomCase?.(id);
+  }
   // Recovered output without an admission snapshot belongs in this same case rail.
   const recoveredCases =
     !caseResults &&
@@ -69,7 +80,7 @@ export function TestCases({
   );
   const customIndex = Math.max(
     0,
-    drafts.findIndex((draft) => draft.id === selectedCustomId),
+    drafts.findIndex((draft) => draft.id === (selectedCustomId ?? requestedCustomId)),
   );
   const draft = drafts[customIndex];
   const example = problem.examples[sampleIndex];
@@ -132,193 +143,199 @@ export function TestCases({
     (_, index) => caseStatus(index),
   );
   return (
-    <div className="case-browser" aria-busy={pending}>
-      <div
-        className="case-rail"
-        aria-label={
-          customMode
-            ? "Select custom case"
-            : hiddenCases
-              ? "Select hidden case"
-              : "Select sample case"
-        }
-      >
-        {(customMode ? drafts : (hiddenCases ?? recoveredCases ?? problem.examples)).map(
-          (item, index) => (
-            <button
-              type="button"
-              key={customMode ? (item as CustomCaseDraft).id : index}
-              className="case-selector"
-              aria-pressed={index === (customMode ? customIndex : sampleIndex)}
-              aria-label={`Case ${index + 1}${runningSamples ? ": pending" : statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
-              onClick={() =>
-                customMode ? setSelectedCustomId(drafts[index]!.id) : setSelectedSample(index)
-              }
-            >
-              {runningSamples && <span className="case-spinner" aria-hidden="true" />}
-              {statuses[index] && statuses[index] !== "executed" && (
-                <Icon
-                  name={hiddenCases ? "lock" : statuses[index] === "accepted" ? "submit" : "close"}
-                  className={statuses[index] === "accepted" ? "verdict-success" : "verdict-error"}
-                />
-              )}
-              Case {index + 1}
-            </button>
-          ),
-        )}
-        {customMode && (
-          <button
-            type="button"
-            className="case-selector add-case"
-            disabled={drafts.length >= 20}
-            onClick={() => {
-              const added = { ...createCustomDraft(problem), expectedEnabled: requiredExpected };
-              onDraftsChange([...drafts, added]);
-              setSelectedCustomId(added.id);
-            }}
-          >
-            <Icon name="plus" /> Add case
-          </button>
-        )}
-      </div>
-      <div className="case-details">
-        {caseActions?.(sampleIndex)}
-        {customMode && draft ? (
-          <>
-            <div className="custom-case-heading">
-              <span>Case {customIndex + 1}</span>
-              <Tooltip content="Remove case">
+    <CaseBrowserLayout
+      busy={pending}
+      railLabel={
+        customMode
+          ? "Select custom case"
+          : hiddenCases
+            ? "Select hidden case"
+            : "Select sample case"
+      }
+      rail={
+        <>
+          {(customMode ? drafts : (hiddenCases ?? recoveredCases ?? problem.examples)).map(
+            (item, index) => (
+              <Fragment key={customMode ? (item as CustomCaseDraft).id : index}>
+                {caseGroups?.[index] &&
+                  (index === 0 || caseGroups[index] !== caseGroups[index - 1]) && (
+                    <div className="case-group-label">{caseGroups[index]}</div>
+                  )}
                 <button
                   type="button"
-                  className="icon-button destructive-icon"
-                  disabled={drafts.length <= minimumCases}
-                  aria-label={`Remove custom case ${customIndex + 1}`}
-                  onClick={() => {
-                    const remaining = drafts.filter((item) => item.id !== draft.id);
-                    onDraftsChange(remaining);
-                    setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
-                  }}
-                >
-                  <Icon name="trash" />
-                </button>
-              </Tooltip>
-            </div>
-            {problem.signature.parameters.map(({ name, type, input }, index) => (
-              <TypedCaseInput
-                key={`${draft.id}:${name}`}
-                id={`custom-${draft.id}-${index}`}
-                name={name}
-                type={type}
-                input={input}
-                value={draft.args[index] ?? ""}
-                onChange={(value) =>
-                  updateDraft({
-                    args: draft.args.map((arg, argIndex) => (argIndex === index ? value : arg)),
-                  })
-                }
-              />
-            ))}
-            {draft.expectedEnabled ? (
-              <div className="expected-field">
-                <TypedCaseInput
-                  id={`custom-${draft.id}-expected`}
-                  name="Expected output"
-                  purpose="expected"
-                  action={
-                    !requiredExpected && (
-                      <Tooltip content="Remove expected output">
-                        <button
-                          type="button"
-                          className="icon-button destructive-icon"
-                          aria-label="Remove expected output"
-                          onClick={() => updateDraft({ expectedEnabled: false })}
-                        >
-                          <Icon name="trash" />
-                        </button>
-                      </Tooltip>
-                    )
+                  key={customMode ? (item as CustomCaseDraft).id : index}
+                  className="case-selector"
+                  aria-pressed={index === (customMode ? customIndex : sampleIndex)}
+                  aria-label={`Case ${index + 1}${runningSamples ? ": pending" : statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
+                  onClick={() =>
+                    customMode ? setSelectedCustomId(drafts[index]!.id) : setSelectedSample(index)
                   }
-                  type={problem.signature.returnType}
-                  value={draft.expected}
-                  onChange={(expected) => updateDraft({ expected })}
-                />
-              </div>
-            ) : (
+                >
+                  {runningSamples && <span className="case-spinner" aria-hidden="true" />}
+                  {statuses[index] && statuses[index] !== "executed" && (
+                    <Icon
+                      name={
+                        hiddenCases ? "lock" : statuses[index] === "accepted" ? "submit" : "close"
+                      }
+                      className={
+                        statuses[index] === "accepted" ? "verdict-success" : "verdict-error"
+                      }
+                    />
+                  )}
+                  Case {index + 1}
+                </button>
+              </Fragment>
+            ),
+          )}
+          {customMode && (
+            <button
+              type="button"
+              className="case-selector add-case"
+              disabled={drafts.length >= 20}
+              onClick={() => {
+                const added = { ...createCustomDraft(problem), expectedEnabled: requiredExpected };
+                onDraftsChange([...drafts, added]);
+                setSelectedCustomId(added.id);
+              }}
+            >
+              <Icon name="plus" /> Add case
+            </button>
+          )}
+        </>
+      }
+    >
+      {caseActions?.(sampleIndex)}
+      {customMode && draft ? (
+        <>
+          <div className="custom-case-heading">
+            <span>Case {customIndex + 1}</span>
+            <Tooltip content="Remove case">
               <button
                 type="button"
-                className="quiet-button add-expected"
-                onClick={() => updateDraft({ expectedEnabled: true })}
+                className="icon-button destructive-icon"
+                disabled={drafts.length <= minimumCases}
+                aria-label={`Remove custom case ${customIndex + 1}`}
+                onClick={() => {
+                  const remaining = drafts.filter((item) => item.id !== draft.id);
+                  onDraftsChange(remaining);
+                  setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
+                }}
               >
-                <Icon name="target" /> Add expected output
+                <Icon name="trash" />
               </button>
-            )}
-          </>
-        ) : customMode ? (
-          <p className="result-message">Add a case to get started.</p>
-        ) : hiddenCases?.length ? (
-          <div className="locked-case">
-            <Icon
-              name="lock"
-              className={
-                hiddenCases[sampleIndex]?.status === "accepted"
-                  ? "verdict-success"
-                  : "verdict-error"
+            </Tooltip>
+          </div>
+          {problem.signature.parameters.map(({ name, type, input }, index) => (
+            <TypedCaseInput
+              key={`${draft.id}:${name}`}
+              id={`custom-${draft.id}-${index}`}
+              name={name}
+              type={type}
+              input={input}
+              value={draft.args[index] ?? ""}
+              onChange={(value) =>
+                updateDraft({
+                  args: draft.args.map((arg, argIndex) => (argIndex === index ? value : arg)),
+                })
               }
             />
-            <span>Hidden case {sampleIndex + 1}</span>
-            <span
-              className={
-                hiddenCases[sampleIndex]?.status === "accepted"
-                  ? "verdict-success"
-                  : "verdict-error"
-              }
+          ))}
+          {draft.expectedEnabled ? (
+            <div className="expected-field">
+              <TypedCaseInput
+                id={`custom-${draft.id}-expected`}
+                name="Expected output"
+                purpose="expected"
+                action={
+                  !requiredExpected && (
+                    <Tooltip content="Remove expected output">
+                      <button
+                        type="button"
+                        className="icon-button destructive-icon"
+                        aria-label="Remove expected output"
+                        onClick={() => updateDraft({ expectedEnabled: false })}
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    </Tooltip>
+                  )
+                }
+                type={problem.signature.returnType}
+                value={draft.expected}
+                onChange={(expected) => updateDraft({ expected })}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="quiet-button add-expected"
+              onClick={() => updateDraft({ expectedEnabled: true })}
             >
-              {hiddenCases[sampleIndex]?.status === "time_limit" ? "Time limit exceeded" : null}
-            </span>
-          </div>
-        ) : recoveredCases?.length ? null : example?.calls?.length ? (
-          <SequenceCaseValues problem={problem} calls={example.calls} />
-        ) : example ? (
-          <>
-            {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
-              <CaseValue key={index} name={name} value={value} parameter />
-            ))}
-            <CaseValue
-              name="Expected output"
-              purpose="target"
-              value={example.expected}
-              tone="verdict-success"
-            />
-          </>
-        ) : (
-          <p className="result-message">
-            {customMode ? "Add a case to get started." : "No sample cases available."}
-          </p>
-        )}
-        {editedAfterRun && (
-          <p className="case-stale">Edited since last run. Run again for this input.</p>
-        )}
-        {pending && (
-          <div className="case-loading" role="status">
-            <span className="case-spinner" aria-hidden="true" />
-            <span>
-              {submission?.state === "running"
-                ? submission.kind === "submit"
-                  ? "Judging hidden cases…"
-                  : "Running cases…"
-                : submission?.state === "queued"
-                  ? "Waiting for judge…"
-                  : "Starting…"}
-            </span>
-          </div>
-        )}
-        {result && (
-          <CaseOutput
-            result={result}
-            showExpected={!!recoveredCases?.length || (customMode && !draft?.expectedEnabled)}
+              <Icon name="target" /> Add expected output
+            </button>
+          )}
+        </>
+      ) : customMode ? (
+        <p className="result-message">Add a case to get started.</p>
+      ) : hiddenCases?.length ? (
+        <div className="locked-case">
+          <Icon
+            name="lock"
+            className={
+              hiddenCases[sampleIndex]?.status === "accepted" ? "verdict-success" : "verdict-error"
+            }
           />
-        )}
-      </div>
-    </div>
+          <span>Hidden case {sampleIndex + 1}</span>
+          <span
+            className={
+              hiddenCases[sampleIndex]?.status === "accepted" ? "verdict-success" : "verdict-error"
+            }
+          >
+            {hiddenCases[sampleIndex]?.status === "time_limit" ? "Time limit exceeded" : null}
+          </span>
+        </div>
+      ) : recoveredCases?.length ? null : example?.calls?.length ? (
+        <SequenceCaseValues problem={problem} calls={example.calls} />
+      ) : example ? (
+        <>
+          {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
+            <CaseValue key={index} name={name} value={value} parameter />
+          ))}
+          <CaseValue
+            name="Expected output"
+            purpose="target"
+            value={example.expected}
+            tone="verdict-success"
+          />
+        </>
+      ) : (
+        <p className="result-message">
+          {customMode ? "Add a case to get started." : "No sample cases available."}
+        </p>
+      )}
+      {editedAfterRun && (
+        <p className="case-stale">Edited since last run. Run again for this input.</p>
+      )}
+      {pending && (
+        <div className="case-loading" role="status">
+          <span className="case-spinner" aria-hidden="true" />
+          <span>
+            {submission?.state === "running"
+              ? submission.kind === "submit"
+                ? "Judging hidden cases…"
+                : "Running cases…"
+              : submission?.state === "queued"
+                ? "Waiting for judge…"
+                : "Starting…"}
+          </span>
+        </div>
+      )}
+      {result && (
+        <CaseOutput
+          result={result}
+          showExpected={!!recoveredCases?.length || (customMode && !draft?.expectedEnabled)}
+        />
+      )}
+    </CaseBrowserLayout>
   );
 }
