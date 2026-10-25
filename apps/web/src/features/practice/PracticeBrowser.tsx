@@ -1,3 +1,4 @@
+import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout, CatalogTable } from "./CatalogLayout";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
@@ -152,9 +153,9 @@ export function PracticeBrowser() {
           )}
           {(session.data?.user.role === "admin" ||
             session.data?.capabilities?.authorCustomQuestions) && (
-            <a className="quiet-button" href="/admin/questions">
+            <Link className="quiet-button" to="/admin/questions">
               Question editor
-            </a>
+            </Link>
           )}
           <CatalogFilter
             label="Difficulty"
@@ -188,9 +189,7 @@ export function PracticeBrowser() {
           aria-busy={catalog.isFetching}
         >
           {catalog.isPending ? (
-            <div className="practice-state" role="status">
-              Loading questions…
-            </div>
+            <LoadingScreen inline label="Loading questions…" />
           ) : catalog.isError ? (
             <div className="practice-state" role="alert">
               <p>Questions couldn’t load. Please try again.</p>

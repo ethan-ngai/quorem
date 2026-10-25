@@ -1,8 +1,10 @@
+import { useBlocker } from "@tanstack/react-router";
+import { LoadingScreen } from "../../ui/LoadingScreen";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based immutable question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
-import { userFacingErrorMessage } from "../../ui/errors";
-import { useEffect, useState } from "react";
+import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
+import { useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
@@ -15,6 +17,8 @@ import { QuestionFields, PublicPreview } from "./QuestionFields";
 import { SelectField } from "../../ui/SelectField";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { PreviewBoundary } from "./PreviewBoundary";
+import { parseQuestionImport, questionImportLimit } from "./importQuestion";
+import questionSchema from "@quorem/contracts/questions/schema?url";
 import "./admin.css";
 
 /** Gates navigation as well as operations; API authorization remains authoritative. */
@@ -25,9 +29,7 @@ export function QuestionEditor() {
     <>
       <GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />
       {session.isPending ? (
-        <main className="admin-access" role="status">
-          Checking account…
-        </main>
+        <LoadingScreen label="Checking account…" />
       ) : session.isError ? (
         <main className="admin-access" role="alert">
           Account unavailable. Reload to retry.
@@ -54,6 +56,7 @@ export function QuestionEditor() {
 /** Keeps unsaved edits local; changing drafts requires an explicit discard. */
 function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const cache = useQueryClient();
+  const importInput = useRef<HTMLInputElement>(null);
   const drafts = useInfiniteQuery({
     queryKey: ["admin-drafts", admin],
     initialPageParam: undefined as string | undefined,
@@ -73,6 +76,11 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const [draft, setDraft] = useState<QuestionDraft>();
   const [content, setContent] = useState<QuestionContent>();
   const [dirty, setDirty] = useState(false);
+  const navigationBlocker = useBlocker({
+    shouldBlockFn: () => dirty,
+    enableBeforeUnload: false,
+    withResolver: true,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useErrorNotification(error);
@@ -119,19 +127,69 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const locked = !!draft?.publishedVersionId || busy;
   return (
     <main className="admin-workspace">
+      <SessionDialog
+        open={navigationBlocker.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) navigationBlocker.reset?.();
+        }}
+        title="Discard unsaved edits?"
+        description="Your saved draft will remain unchanged."
+      >
+        <footer className="competitive-dialog-actions">
+          <button className="button button-secondary" onClick={() => navigationBlocker.reset?.()}>
+            Keep editing
+          </button>
+          <button className="button button-primary" onClick={() => navigationBlocker.proceed?.()}>
+            Discard and leave
+          </button>
+        </footer>
+      </SessionDialog>
       <header className="admin-heading">
         <div>
           <h1>Question editor</h1>
         </div>
-        <button
-          className="button button-secondary"
-          disabled={busy || dirty || invalidFields.size > 0}
-          onClick={() =>
-            void perform(() => createDraft({ content: blankQuestion() }), "Draft created.")
-          }
-        >
-          New question
-        </button>
+        <div className="admin-toolbar">
+          <a
+            className="quiet-button"
+            href={questionSchema}
+            download="quorem-question-v1.schema.json"
+          >
+            JSON schema
+          </a>
+          <input
+            ref={importInput}
+            type="file"
+            accept=".json,application/json"
+            aria-label="Import question JSON file"
+            hidden
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (!file) return;
+              void perform(async () => {
+                if (file.size > questionImportLimit)
+                  throw new UserFacingError("Choose a JSON file smaller than 2 MiB.");
+                return createDraft({ content: parseQuestionImport(await file.text()) });
+              }, "Question imported. Review the draft before publishing.");
+            }}
+          />
+          <button
+            className="button button-secondary"
+            disabled={busy || dirty || invalidFields.size > 0}
+            onClick={() => importInput.current?.click()}
+          >
+            Import JSON
+          </button>
+          <button
+            className="button button-secondary"
+            disabled={busy || dirty || invalidFields.size > 0}
+            onClick={() =>
+              void perform(() => createDraft({ content: blankQuestion() }), "Draft created.")
+            }
+          >
+            New question
+          </button>
+        </div>
       </header>
       <div className="admin-layout">
         <aside className="admin-rail" aria-label="Question drafts">
@@ -162,7 +220,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           </button>
           <h2>Drafts</h2>
           {drafts.isPending ? (
-            <p role="status">Loading drafts…</p>
+            <LoadingScreen inline label="Loading drafts…" />
           ) : drafts.isError ? (
             <p role="alert">
               {userFacingErrorMessage(drafts.error, "Questions unavailable. Please try again.")}

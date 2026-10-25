@@ -2,7 +2,7 @@
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { useSession } from "../auth/session";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
@@ -146,14 +146,15 @@ export function GlobalNav({
               !inMatch &&
               (activeMatch.match ? (
                 <Tooltip content="Finish or leave your current match before creating another.">
-                  <a
+                  <Link
                     className="nav-match-action active-match-trigger"
                     aria-label={activeMatch.label ?? undefined}
-                    href={`/match/${activeMatch.match.id}`}
+                    to="/match/$id"
+                    params={{ id: activeMatch.match.id }}
                   >
                     <ArrowRight size={18} />
                     <span>{activeMatch.label}</span>
-                  </a>
+                  </Link>
                 </Tooltip>
               ) : (
                 <Tooltip

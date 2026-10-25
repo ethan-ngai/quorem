@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/generated.ts",
-    "./auth": "./src/auth.ts"
+    "./auth": "./src/auth.ts",
+    "./questions/schema": "./questions/question-v1.schema.json"
   },
   "scripts": {
     "generate": "node scripts/generate.mjs",

@@ -1,3 +1,4 @@
+import { LoadingScreen } from "../../ui/LoadingScreen";
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
 import { useErrorNotification } from "../../ui/Notifications";
 import { authErrorMessage, AuthError } from "./errors";
@@ -278,7 +279,7 @@ function LoginForm() {
               ) : null}
             </div>
           ) : capabilities.isPending ? (
-            <p role="status">Loading sign in…</p>
+            <LoadingScreen inline label="Loading sign in…" />
           ) : capabilities.isError ? (
             <>
               <p role="alert">Sign in unavailable.</p>

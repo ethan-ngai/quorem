@@ -371,6 +371,12 @@ importers:
       '@valtown/codemirror-ts':
         specifier: ^2.3.1
         version: 2.3.1(@codemirror/autocomplete@6.20.3)(@codemirror/lint@6.9.7)(@codemirror/state@6.7.6)(@codemirror/view@6.43.14)
+      ajv:
+        specifier: 8.18.0
+        version: 8.18.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.18.0)
       better-auth:
         specifier: 1.7.7
         version: 1.7.7(pg@8.16.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3)
