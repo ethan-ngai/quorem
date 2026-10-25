@@ -1,0 +1,51 @@
+.collaboration-remote-cursor {
+  position: relative;
+  border-left: 2px solid var(--participant-color);
+  margin-left: -1px;
+  pointer-events: auto;
+}
+.collaboration-remote-cursor::before {
+  content: "";
+  position: absolute;
+  inset: -8px -12px;
+}
+.collaboration-cursor-label {
+  position: absolute;
+  bottom: 100%;
+  left: -2px;
+  z-index: 2;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm) var(--radius-sm) var(--radius-sm) 0;
+  background: var(--participant-color);
+  color: white;
+  font: 11px/1.4 var(--font-interface);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity var(--motion-fast) var(--motion-easing),
+    transform var(--motion-fast) var(--motion-easing);
+}
+.collaboration-remote-cursor[data-label-visible="true"] > .collaboration-cursor-label {
+  opacity: 1;
+  transform: translateY(0);
+}
+.collaboration-remote-selection {
+  background: color-mix(in oklch, var(--participant-color) 22%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .collaboration-cursor-label {
+    transition: none;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @starting-style {
+    .collaboration-remote-cursor[data-label-visible="true"] > .collaboration-cursor-label {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+  }
+}

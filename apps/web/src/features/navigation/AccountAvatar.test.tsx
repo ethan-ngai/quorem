@@ -11,6 +11,14 @@ describe("account avatars", () => {
     expect(avatarIdentity(" ", "élise").initials).toBe("É");
     expect(avatarIdentity().initials).toBe("G");
   });
+  it("uses participant color for initials and a ring only for photos", () => {
+    const initials = renderToStaticMarkup(<AccountAvatar name="Alice" color="green" />);
+    const photo = renderToStaticMarkup(<AccountAvatar name="Alice" color="green" image="/photo" />);
+    expect(initials).toContain("--avatar-background:green");
+    expect(initials).not.toContain("account-avatar-ring");
+    expect(photo).toContain("account-avatar-ring");
+    expect(photo).toContain("--avatar-background:green");
+  });
   it("renders an actual photo only when a URL is set", () => {
     const html = renderToStaticMarkup(
       <AccountAvatar name="Alice" image="/api/auth/profile-photos/example" />,

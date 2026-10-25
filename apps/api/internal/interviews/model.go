@@ -30,6 +30,7 @@ type Create struct {
 	Question   QuestionInput `json:"question"`
 }
 type Member struct {
+	Image  string `json:"image,omitempty"`
 	UserID string `json:"userId"`
 	Name   string `json:"name"`
 	Role   string `json:"role"`

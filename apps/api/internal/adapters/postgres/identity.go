@@ -38,6 +38,9 @@ func (s *Store) ResolveIdentity(ctx context.Context, c identity.Claims) (identit
 	if disabled {
 		return p, identity.ErrUnauthorized
 	}
+	if _, e = tx.Exec(ctx, "UPDATE users SET profile_image=$2 WHERE id=$1 AND profile_image IS DISTINCT FROM $2", p.UserID, c.Image); e != nil {
+		return p, e
+	}
 	p.Admin = role == "admin"
 	p.EmailVerified = c.EmailVerified
 	p.SessionID = c.SessionID

@@ -34,6 +34,7 @@ type Verifier interface {
 	Verify(context.Context, string) (Principal, error)
 }
 type Claims struct {
+	Image         string `json:"image"`
 	Issuer        string `json:"iss"`
 	Subject       string `json:"sub"`
 	Audience      string `json:"aud"`
