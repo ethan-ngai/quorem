@@ -1,8 +1,6 @@
+import { api, requireData } from "../../api/client";
 /** @file api.ts @description Typed browser requests for public problems and solo workspaces. @module editor */
 import { randomUUID } from "../../randomUUID";
-import { UserFacingError } from "../../ui/errors";
-import { authenticatedFetch } from "../auth/session";
-import { createApiClient } from "@quorem/contracts";
 import type {
   CustomCase,
   DevelopmentIdentity,
@@ -11,36 +9,6 @@ import type {
   SubmissionAdmission,
   Workspace,
 } from "@quorem/contracts";
-
-/** Creates a same-origin client so local requests pass through Vite's API proxy. */
-export const api = (identity: DevelopmentIdentity = "anonymous" as DevelopmentIdentity) =>
-  createApiClient({
-    baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
-    identity,
-    fetch: authenticatedFetch,
-  });
-
-/** Turns typed API error responses into messages suitable for the workspace. */
-export function requireData<T>(data: T | undefined, error: unknown): T {
-  if (data !== undefined) return data;
-  const message =
-    typeof error === "object" && error !== null && "error" in error
-      ? String((error as { error: { message?: string } }).error.message ?? "Request failed")
-      : "Request failed";
-  const code =
-    error && typeof error === "object" && "error" in error
-      ? (error.error as { code?: string })?.code
-      : undefined;
-  const safeMessages: Record<string, string> = {
-    step_up_required: "Sign in with a verified passkey again before publishing.",
-    entitlement_required: "Guest hosting requires an eligible plan or internal access.",
-    quota_exceeded: "Execution allowance reached. Please try again later.",
-    rate_limited: "Too many requests or another guest run is active. Try again shortly.",
-    room_full: "This lobby is full.",
-  };
-  if (code && safeMessages[code]) throw new UserFacingError(safeMessages[code]);
-  throw new Error(message);
-}
 
 /** Loads the latest public immutable problem version for a slug. */
 export async function fetchProblem(identity: DevelopmentIdentity, slug: string) {

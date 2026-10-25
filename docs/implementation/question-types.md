@@ -2,16 +2,16 @@
 
 Question signatures, Odyssey methods, test cases and generated stubs share one language-neutral type vocabulary. JSON remains the wire format: absence is `null`, booleans are `true`/`false`, and collections are JSON arrays. Display literals and generated source belong to the selected language; do not replace tokens inside quoted strings.
 
-| Pseudotype | Python | Java | TypeScript | OCaml |
-| --- | --- | --- | --- | --- |
-| `int` | `int` | `int` | `number` | `int` |
-| `float` | `float` | `double` | `number` | `float` |
-| `bool` | `bool` | `boolean` | `boolean` | `bool` |
-| `str` | `str` | `String` | `string` | `string` |
-| `void` (method return only) | `None` | `void` | `void` | `unit` |
-| `optional<T>` | `T \| None` | nullable boxed `T` | `T \| null` | `T option` |
-| `list<T>` | `list[T]` | `java.util.List<T>` | `T[]` | `T list` |
-| `array<T>` | `list[T]` | `T[]` | `T[]` | `T array` |
+| Pseudotype                  | Python      | Java                | TypeScript  | OCaml      |
+| --------------------------- | ----------- | ------------------- | ----------- | ---------- |
+| `int`                       | `int`       | `int`               | `number`    | `int`      |
+| `float`                     | `float`     | `double`            | `number`    | `float`    |
+| `bool`                      | `bool`      | `boolean`           | `boolean`   | `bool`     |
+| `str`                       | `str`       | `String`            | `string`    | `string`   |
+| `void` (method return only) | `None`      | `void`              | `void`      | `unit`     |
+| `optional<T>`               | `T \| None` | nullable boxed `T`  | `T \| null` | `T option` |
+| `list<T>`                   | `list[T]`   | `java.util.List<T>` | `T[]`       | `T list`   |
+| `array<T>`                  | `list[T]`   | `T[]`               | `T[]`       | `T array`  |
 
 Java generic primitives are boxed (`List<Integer>`, `List<Boolean>`, etc.). Legacy Java questions using arrays for `list<T>` remain executable; the harness adapts inputs to declared parameter types. New generated signatures distinguish lists and arrays. Both collections retain ordering and duplicate values by default.
 

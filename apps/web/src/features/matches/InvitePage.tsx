@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useErrorNotification } from "../../ui/Notifications";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
-import { requireData } from "../editor/api";
+import { requireData } from "../../api/client";
 import { Icon } from "../editor/components/Icon";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
