@@ -79,7 +79,7 @@ describe("global navigation", () => {
     const html = await renderNavigation("/practice/example", {
       theme: "system",
       onThemeChange: () => {},
-      editorScheme: "workspace",
+      editorSchemes: { light: "jetbrains-light", dark: "jetbrains-dark" },
       onEditorSchemeChange: () => {},
       fontSize: 15,
       onFontSizeChange: () => {},

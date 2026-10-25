@@ -7,7 +7,9 @@ import {
   tsLinterWorker,
   tsSyncWorker,
 } from "@valtown/codemirror-ts";
-import type { WorkerShape } from "@valtown/codemirror-ts/worker";
+import type { BrowserTypeScriptWorker } from "./typeScriptSemanticTokens";
+import { documentationTemplateProvider } from "./documentationComments";
+import { semanticHighlighting } from "./semanticHighlighting";
 import { releaseProxy, wrap } from "comlink";
 
 /** Stop analysis when the document closes, changes language, or loses authentication. */
@@ -16,7 +18,7 @@ export async function browserTypeScriptIntelligence(signal: AbortSignal, onUnava
   const worker = new Worker(new URL("./browserTypeScriptWorker.ts", import.meta.url), {
     type: "module",
   });
-  const service = wrap<WorkerShape>(worker);
+  const service = wrap<BrowserTypeScriptWorker>(worker);
   let disposed = false;
   let rejectInitialization: (reason: unknown) => void = () => {};
   const interrupted = new Promise<never>((_, reject) => {
@@ -29,7 +31,7 @@ export async function browserTypeScriptIntelligence(signal: AbortSignal, onUnava
     signal.removeEventListener("abort", dispose);
     worker.removeEventListener("error", fail);
     worker.removeEventListener("messageerror", fail);
-    void service[releaseProxy]();
+    service[releaseProxy]();
     worker.terminate();
     rejectInitialization(new Error("TypeScript session closed"));
   }
@@ -50,6 +52,12 @@ export async function browserTypeScriptIntelligence(signal: AbortSignal, onUnava
       extensions: [
         tsFacetWorker.of({ worker: service, path: "/main.ts" }),
         tsSyncWorker(),
+        documentationTemplateProvider.of((request) =>
+          service.getDocumentationTemplate({ ...request, path: "/main.ts" }),
+        ),
+        semanticHighlighting((request) =>
+          service.getSemanticTokens({ ...request, path: "/main.ts" }),
+        ),
         // Use language data so the shared authentication gate controls completion.
         typescriptLanguage.data.of({ autocomplete: tsAutocompleteWorker() }),
         tsHoverWorker(),

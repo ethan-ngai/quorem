@@ -120,7 +120,7 @@ export function WorkspacePage({
   useErrorNotification(actionError);
   const [historyOpen, setHistoryOpen] = useState(false);
   const {
-    editorScheme,
+    editorSchemes,
     onEditorSchemeChange: setEditorScheme,
     fontSize,
     onFontSizeChange: setFontSize,
@@ -648,7 +648,7 @@ export function WorkspacePage({
               },
               theme: themePreference,
               onThemeChange: setThemePreference,
-              editorScheme: editorScheme,
+              editorSchemes,
               onEditorSchemeChange: setEditorScheme,
               fontSize: fontSize,
               onFontSizeChange: setFontSize,
@@ -753,7 +753,7 @@ export function WorkspacePage({
                 documentUri={virtualDocumentUri}
                 initialSource={source}
                 theme={theme}
-                colorScheme={editorScheme}
+                colorScheme={editorSchemes[theme]}
                 fontSize={fontSize}
                 tabSize={tabSize}
                 wrap={wrap}

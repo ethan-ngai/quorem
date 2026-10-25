@@ -1,63 +1,186 @@
 /** @file editorPalette.ts @description Editor-scoped color schemes and visual extensions. @module editor */
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { syntaxHighlighting } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { tags } from "@lezer/highlight";
-import { parameterTag } from "./pythonHighlighting";
+import { editorSyntaxStyle } from "./syntaxHighlighting";
 
+import {
+  editorColor as color,
+  editorColorVariable,
+  type EditorColorRole,
+  type EditorPalette as Palette,
+} from "./editorColors";
 import type { EditorScheme } from "./editorSchemes";
 
-type Palette = {
-  dark: boolean;
-  colors: Record<
-    | "background"
-    | "foreground"
-    | "gutter"
-    | "gutterText"
-    | "activeLine"
-    | "selection"
-    | "cursor"
-    | "tooltip"
-    | "border"
-    | "keyword"
-    | "string"
-    | "number"
-    | "function"
-    | "class"
-    | "builtin"
-    | "parameter"
-    | "operator"
-    | "decorator"
-    | "comment"
-    | "self",
-    string
-  >;
-};
-
+// JetBrains new UI schemes: platform/platform-resources/src/themes/expUI in intellij-community.
+// Dim syntax accents are raised to meet 4.5:1 contrast on both editor surfaces.
 const palettes: Record<Exclude<EditorScheme, "workspace">, Palette> = {
   "jetbrains-light": {
     dark: false,
     colors: {
-      background: "#ffffff",
-      foreground: "#242424",
-      gutter: "#ffffff",
+      background: "var(--color-field)",
+      foreground: "#080808",
+      gutter: "var(--color-field)",
       gutterText: "#666666",
-      activeLine: "#fffae3",
-      selection: "#d4e2ff",
-      cursor: "#242424",
-      tooltip: "#f7f7f7",
-      border: "#d0d0d0",
-      keyword: "#000080",
+      activeLine: "#f5f8fe",
+      selection: "#a6d2ff",
+      cursor: "#080808",
+      tooltip: "var(--color-overlay)",
+      border: "var(--color-border)",
+      keyword: "#0033b3",
       string: "#067d17",
-      number: "#0000ff",
-      function: "#7a5600",
+      number: "#1750eb",
+      function: "#00627a",
       class: "#7a5600",
       builtin: "#660e7a",
       parameter: "#705b33",
       operator: "#454545",
-      decorator: "#707000",
+      decorator: "#82700b",
+      docComment: "#5c7547",
+      docTag: "#4f7138",
+      todo: "#0077b8",
       comment: "#666666",
       self: "#94558d",
+    },
+  },
+  "jetbrains-dark": {
+    dark: true,
+    colors: {
+      background: "var(--color-field)",
+      foreground: "#bcbec4",
+      gutter: "var(--color-field)",
+      gutterText: "#8d9199",
+      activeLine: "#26282e",
+      selection: "#214283",
+      cursor: "#ced0d6",
+      tooltip: "var(--color-overlay)",
+      border: "var(--color-border)",
+      keyword: "#cf8e6d",
+      string: "#6aab73",
+      number: "#2aacb8",
+      function: "#56a8f5",
+      class: "#c9a7eb",
+      builtin: "#c77dbb",
+      parameter: "#d7b88b",
+      operator: "#bcbec4",
+      decorator: "#b3ae60",
+      docComment: "#79ab6c",
+      docTag: "#67a37c",
+      todo: "#8bb33d",
+      comment: "#8d9199",
+      self: "#cf8e6d",
+    },
+  },
+  "github-light": {
+    dark: false,
+    colors: {
+      background: "#ffffff",
+      foreground: "#1f2328",
+      gutter: "#ffffff",
+      gutterText: "#59636e",
+      activeLine: "#f6f8fa",
+      selection: "#b6e3ff",
+      cursor: "#0969da",
+      tooltip: "#f6f8fa",
+      border: "#d1d9e0",
+      keyword: "#cf222e",
+      string: "#0a3069",
+      number: "#0550ae",
+      function: "#8250df",
+      class: "#953800",
+      builtin: "#0550ae",
+      parameter: "#953800",
+      operator: "#1f2328",
+      decorator: "#8250df",
+      docComment: "#59636e",
+      docTag: "#8250df",
+      todo: "#7d4e00",
+      comment: "#59636e",
+      self: "#cf222e",
+    },
+  },
+  "github-dark": {
+    dark: true,
+    colors: {
+      background: "#0d1117",
+      foreground: "#e6edf3",
+      gutter: "#0d1117",
+      gutterText: "#8b949e",
+      activeLine: "#161b22",
+      selection: "#264f78",
+      cursor: "#58a6ff",
+      tooltip: "#161b22",
+      border: "#30363d",
+      keyword: "#ff7b72",
+      string: "#a5d6ff",
+      number: "#79c0ff",
+      function: "#d2a8ff",
+      class: "#ffa657",
+      builtin: "#79c0ff",
+      parameter: "#ffa657",
+      operator: "#e6edf3",
+      decorator: "#d2a8ff",
+      docComment: "#8b949e",
+      docTag: "#d2a8ff",
+      todo: "#d29922",
+      comment: "#8b949e",
+      self: "#ff7b72",
+    },
+  },
+  "solarized-light": {
+    dark: false,
+    colors: {
+      background: "#fdf6e3",
+      foreground: "#566c73",
+      gutter: "#fdf6e3",
+      gutterText: "#657b83",
+      activeLine: "#eee8d5",
+      selection: "#cddcd9",
+      cursor: "#657b83",
+      tooltip: "#eee8d5",
+      border: "#93a1a1",
+      keyword: "#5c7000",
+      string: "#18746f",
+      number: "#276e98",
+      function: "#276e98",
+      class: "#866200",
+      builtin: "#625db0",
+      parameter: "#a34515",
+      operator: "#566c73",
+      decorator: "#a8326d",
+      docComment: "#18746f",
+      docTag: "#18746f",
+      todo: "#a8326d",
+      comment: "#566c74",
+      self: "#5c7000",
+    },
+  },
+  "solarized-dark": {
+    dark: true,
+    colors: {
+      background: "#002b36",
+      foreground: "#93a1a1",
+      gutter: "#002b36",
+      gutterText: "#839496",
+      activeLine: "#073642",
+      selection: "#164956",
+      cursor: "#93a1a1",
+      tooltip: "#073642",
+      border: "#586e75",
+      keyword: "#a0a900",
+      string: "#44aaa1",
+      number: "#52a1d0",
+      function: "#52a1d0",
+      class: "#c6a100",
+      builtin: "#9691dc",
+      parameter: "#e89354",
+      operator: "#93a1a1",
+      decorator: "#e27caf",
+      docComment: "#44aaa1",
+      docTag: "#44aaa1",
+      todo: "#e27caf",
+      comment: "#8b9c9e",
+      self: "#a0a900",
     },
   },
   darcula: {
@@ -81,6 +204,9 @@ const palettes: Record<Exclude<EditorScheme, "workspace">, Palette> = {
       parameter: "#d7b88b",
       operator: "#a9b7c6",
       decorator: "#bbb529",
+      docComment: "#79ab6c",
+      docTag: "#79ab6c",
+      todo: "#a8c023",
       comment: "#9d9d9d",
       self: "#e09049",
     },
@@ -105,7 +231,10 @@ const palettes: Record<Exclude<EditorScheme, "workspace">, Palette> = {
       builtin: "#56b6c2",
       parameter: "#d19a66",
       operator: "#56b6c2",
-      decorator: "#e5c07b",
+      decorator: "#c982dd",
+      docComment: "#98c379",
+      docTag: "#c982dd",
+      todo: "#e5c07b",
       comment: "#929cad",
       self: "#e9848b",
     },
@@ -137,42 +266,14 @@ export function resolveEditorPalette(scheme: EditorScheme, theme: "light" | "dar
       parameter: dark ? "#d7b88b" : "#815c23",
       operator: "var(--color-text-secondary)",
       decorator: dark ? "#c792ea" : "#7c3f8c",
+      docComment: "var(--color-editor-doc-comment)",
+      docTag: "var(--color-editor-doc-tag)",
+      todo: "var(--color-editor-todo)",
       comment: "var(--color-editor-comment)",
       self: "var(--color-editor-keyword)",
     },
   };
 }
-
-/** Returns a CSS variable scoped to the mounted editor. */
-function color(name: keyof Palette["colors"]) {
-  return `var(--editor-${name})`;
-}
-const literalOperators = [tags.operator, tags.operatorKeyword];
-
-/** Palette variables share parser rules across schemes without regenerating style classes. */
-export const pythonSyntaxStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: color("keyword") },
-  { tag: [tags.string, tags.special(tags.string), tags.escape], color: color("string") },
-  { tag: [tags.number, tags.bool, tags.null], color: color("number") },
-  {
-    tag: [
-      tags.function(tags.variableName),
-      tags.function(tags.propertyName),
-      tags.definition(tags.function(tags.variableName)),
-    ],
-    color: color("function"),
-  },
-  {
-    tag: [tags.typeName, tags.className, tags.definition(tags.className)],
-    color: color("class"),
-    fontWeight: "600",
-  },
-  { tag: parameterTag, color: color("parameter") },
-  { tag: tags.comment, color: color("comment"), fontStyle: "italic" },
-  { tag: literalOperators, color: color("operator") },
-  { tag: tags.punctuation, color: color("foreground") },
-  { tag: [tags.meta, tags.annotation], color: color("decorator") },
-]);
 
 /** Builds visual extensions only; a Compartment switch retains document, cursor and undo. */
 export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"): Extension {
@@ -182,7 +283,10 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
       {
         "&": {
           ...Object.fromEntries(
-            Object.entries(palette.colors).map(([key, value]) => [`--editor-${key}`, value]),
+            Object.entries(palette.colors).map(([key, value]) => [
+              editorColorVariable(key as EditorColorRole),
+              value,
+            ]),
           ),
           height: "100%",
           color: color("foreground"),
@@ -281,13 +385,11 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           backgroundColor: color("activeLine"),
           borderColor: color("border"),
         },
-        ".cm-python-builtin, .cm-python-builtin span": { color: color("builtin") },
-        ".cm-python-self, .cm-python-self span": { color: color("self") },
         ".cm-diagnostic-error": { borderLeftColor: "var(--color-error)" },
         ".cm-diagnostic-warning": { borderLeftColor: "var(--color-warning)" },
       },
       { dark: palette.dark },
     ),
-    syntaxHighlighting(pythonSyntaxStyle),
+    syntaxHighlighting(editorSyntaxStyle),
   ];
 }
