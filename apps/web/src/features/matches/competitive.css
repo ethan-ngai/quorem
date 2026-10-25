@@ -550,25 +550,6 @@
   }
 }
 
-.match-rule-announcements {
-  border-top: 1px solid var(--color-border);
-  padding: 8px 16px;
-  max-height: 90px;
-  overflow-y: auto;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-.match-rule-announcements p {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 0;
-}
-.match-rule-announcements time {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-
 .problem-picker-trigger > span:first-child {
   display: flex;
   align-items: center;
@@ -766,7 +747,6 @@
   font-weight: 600;
   letter-spacing: -0.025em;
 }
-.forfeit-dialog > p,
 .match-end-dialog > p,
 .match-results-heading p {
   color: var(--color-text-secondary);

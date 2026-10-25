@@ -55,6 +55,11 @@ import "./session-controls.css";
 
 /** Session metadata may refresh freely; document epochs change only after explicit recovery. */
 export function InterviewPage({ id }: { id: string }) {
+  return <InterviewSession key={id} id={id} />;
+}
+
+/** A route change resets the initial document and all session-scoped recovery state. */
+function InterviewSession({ id }: { id: string }) {
   const theme = useTheme();
   const query = useQuery({
     queryKey: ["interview", id],

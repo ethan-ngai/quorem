@@ -1,7 +1,7 @@
 /** @file SessionDialog.tsx @description Shared competitive dialog chrome for session setup and membership. @module ui */
 import "./session-dialog.css";
 import * as Dialog from "@radix-ui/react-dialog";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Icon } from "./Icon";
 import { Tooltip } from "./Tooltip";
 import { focusOverlayOnOpen } from "./overlayFocus";
@@ -18,6 +18,8 @@ export function SessionDialog({
   className = "",
   onExited,
   returnFocus,
+  initialFocus,
+  closeLabel = "Close",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,6 +32,8 @@ export function SessionDialog({
   className?: string;
   onExited?: () => void;
   returnFocus?: () => void;
+  initialFocus?: RefObject<HTMLElement | null>;
+  closeLabel?: string;
 }) {
   return (
     <Dialog.Root
@@ -42,7 +46,12 @@ export function SessionDialog({
         <Dialog.Overlay className="session-backdrop" />
         <Dialog.Content
           className={`competitive-dialog ${className}`}
-          onOpenAutoFocus={focusOverlayOnOpen}
+          onOpenAutoFocus={(event) => {
+            if (!event.defaultPrevented && initialFocus?.current) {
+              event.preventDefault();
+              initialFocus.current.focus({ preventScroll: true });
+            } else focusOverlayOnOpen(event);
+          }}
           onCloseAutoFocus={(event) => {
             if (returnFocus) {
               event.preventDefault();
@@ -64,9 +73,9 @@ export function SessionDialog({
             </div>
             <div className="lobby-heading-actions">
               {actions}
-              <Tooltip content="Close">
+              <Tooltip content={closeLabel}>
                 <Dialog.Close asChild>
-                  <button className="icon-button" aria-label="Close" disabled={pending}>
+                  <button className="icon-button" aria-label={closeLabel} disabled={pending}>
                     <Icon name="close" />
                   </button>
                 </Dialog.Close>

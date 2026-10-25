@@ -1,9 +1,9 @@
+import { createReconnectScheduler } from "./reconnectScheduler";
 /** @file matchSync.test.ts @description Regression coverage for match event guards and ordering. @module realtime */
 import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   bufferMatchEvent,
-  createReconnectScheduler,
   isMatchSnapshot,
   keepNewestSnapshot,
   mergeMatchEvents,

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { InterviewSnapshot } from "@quorem/contracts";
-import { createRuleMonitor, observeWindowFocus } from "../matches/ruleMonitor";
+import { createRuleMonitor, observeWindowFocus } from "../rooms/ruleMonitor";
 import { createClipboardProvenance } from "./clipboardProvenance";
 import type { InterviewRuleKind } from "./ruleEvents";
 
