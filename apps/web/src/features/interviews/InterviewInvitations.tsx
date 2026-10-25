@@ -1,11 +1,9 @@
 /** @file InterviewInvitations.tsx @description Role-scoped invitation links with capability-aware native sharing. @module interviews */
 import * as Popover from "../../ui/Popover";
-import { useEffect, useState } from "react";
 import { Icon } from "../../ui/Icon";
 import { ShareActions } from "../../ui/ShareActions";
-import { shareLink } from "../../ui/shareLink";
+import { useShareLink } from "../../ui/useShareLink";
 import { Tooltip } from "../../ui/Tooltip";
-import { useErrorNotification } from "../../ui/Notifications";
 import type { InterviewRole } from "@quorem/contracts";
 import "./session-controls.css";
 
@@ -18,37 +16,7 @@ export function InterviewInvitationLinks({
   invites: InterviewInvites;
   title?: string;
 }) {
-  const [copied, setCopied] = useState<InterviewRole>();
-  const [sharing, setSharing] = useState(false);
-  const [error, setError] = useState<string>();
-  useErrorNotification(error);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = window.setTimeout(() => setCopied(undefined), 2000);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
-  async function send(role: InterviewRole, path: string, native = false) {
-    const url = new URL(path, window.location.origin).href;
-    setError(undefined);
-    setSharing(native);
-    try {
-      if (native)
-        await shareLink({
-          title: `${title} · Quorem`,
-          text: `Join ${title} on Quorem as an ${role}.`,
-          url,
-        });
-      else {
-        await navigator.clipboard.writeText(url);
-        setCopied(role);
-      }
-    } catch (cause) {
-      if (!(cause instanceof Error && cause.name === "AbortError"))
-        setError("Could not share invitation. Try copying the link.");
-    } finally {
-      setSharing(false);
-    }
-  }
+  const { copied, sharing, copy, share } = useShareLink();
   return (
     <div className="interview-invite-links">
       {(["interviewee", "interviewer"] as const).map((role) => {
@@ -72,12 +40,12 @@ export function InterviewInvitationLinks({
             </div>
             <ShareActions
               data={data}
-              copied={copied === role}
+              copied={copied === data.url}
               sharing={sharing}
               copyLabel={`Copy ${label.toLowerCase()} invitation`}
               shareLabel={`Share ${label.toLowerCase()} invitation`}
-              onCopy={() => void send(role, path)}
-              onShare={() => void send(role, path, true)}
+              onCopy={() => void copy(data)}
+              onShare={() => void share(data)}
             />
           </div>
         );

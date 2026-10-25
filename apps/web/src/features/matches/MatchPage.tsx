@@ -1,3 +1,4 @@
+import { RoomAlerts } from "../rooms/RoomAlerts";
 import { SessionBar } from "../../ui/SessionBar";
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
@@ -32,11 +33,11 @@ import {
 } from "./api";
 import { MatchSettings, ModeIcon, defaultMatchSettings, useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
-import { InvitationActions } from "./InvitationActions";
+import { ShareActions } from "../../ui/ShareActions";
 import { ReadinessIcon } from "./ReadinessIcon";
 import { ReadyActionIcon } from "./ReadyActionIcon";
 import { ModeText } from "./ModeText";
-import { shareInvitation } from "./shareInvitation";
+import { useShareLink } from "../../ui/useShareLink";
 import { readInvite } from "./commandRecovery";
 import { lobbyWaitingLabel, outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
@@ -78,6 +79,21 @@ function MatchLedger({
       label="Match progress"
       actions={
         <>
+          <RoomAlerts
+            scope={`match:${snapshot.id}:${identity}`}
+            version={BigInt(snapshot.version)}
+            limit={20}
+            label="Match alerts"
+            events={snapshot.ruleEvents.map((event) => ({
+              ...event,
+              name:
+                snapshot.participants.find((player) => player.userId === event.userId)
+                  ?.displayName ?? "Player",
+              kind: event.kind === "clipboard" ? "paste" : "focus",
+              description:
+                event.kind === "clipboard" ? "used copy / paste" : "left the match window",
+            }))}
+          />
           {status !== "live" && (
             <Tooltip content="Connection interrupted; refreshing match state">
               <span className="sync-label">Reconnecting…</span>
@@ -168,14 +184,8 @@ export function MatchPage({ matchId }: { matchId: string }) {
   useErrorNotification(
     snapshot && error ? "Connection interrupted. Refreshing match state." : undefined,
   );
-  const [copied, setCopied] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  const { copied, sharing, copy, share } = useShareLink();
   const [conceding, setConceding] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = window.setTimeout(() => setCopied(false), 2000);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
   useEffect(() => {
     if (snapshot?.state === "completed" || snapshot?.state === "cancelled") setConceding(false);
   }, [snapshot?.state]);
@@ -240,35 +250,18 @@ export function MatchPage({ matchId }: { matchId: string }) {
   const started = ["active", "finalizing", "completed"].includes(snapshot.state);
   const ownWorkspaceId = started ? own?.workspaceId : undefined;
   const inviteUrl = readInvite(identity, matchId);
-  const inviteOpponent = async () => {
-    if (!inviteUrl || sharing) return;
-    setSharing(true);
-    setActionError(undefined);
-    try {
-      if ((await shareInvitation(inviteUrl)) === "copied") setCopied(true);
-    } catch {
-      setActionError("Sharing unavailable. Copy the invitation link instead.");
-    } finally {
-      setSharing(false);
-    }
-  };
-  const copyInvitation = async () => {
-    if (!inviteUrl) return;
-    setActionError(undefined);
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
-    } catch {
-      setActionError("Copy unavailable. Select and copy the link.");
-    }
+  const invitation = {
+    title: "Quorem match",
+    text: "Join my coding match on Quorem.",
+    url: inviteUrl ?? "",
   };
   const invitationActions = (
-    <InvitationActions
-      url={inviteUrl ?? ""}
-      copied={copied}
+    <ShareActions
+      data={invitation}
+      copied={copied === inviteUrl}
       sharing={sharing}
-      onCopy={() => void copyInvitation()}
-      onShare={() => void inviteOpponent()}
+      onCopy={() => void copy(invitation)}
+      onShare={() => void share(invitation)}
     />
   );
   const concession = (
@@ -298,26 +291,6 @@ export function MatchPage({ matchId }: { matchId: string }) {
         status={status}
         onForfeit={() => setConceding(true)}
       />
-      {!!snapshot.ruleEvents.length && (
-        <div className="match-rule-announcements" role="log" aria-label="Lobby announcements">
-          {snapshot.ruleEvents.map((event) => (
-            <p key={event.id}>
-              <Icon name="people" />
-              <span>
-                {snapshot.participants.find((player) => player.userId === event.userId)
-                  ?.displayName ?? "Player"}{" "}
-                {event.kind === "clipboard" ? "used copy / paste" : "left the match window"}
-              </span>
-              <time dateTime={event.occurredAt}>
-                {new Date(event.occurredAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </time>
-            </p>
-          ))}
-        </div>
-      )}
       {snapshot.state !== "active" && (
         <div
           className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === participantUserId(identity) ? "is-winner" : ""}`}
