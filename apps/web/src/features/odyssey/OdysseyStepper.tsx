@@ -12,12 +12,9 @@ export function OdysseyStepper({
 }: {
   progress: OdysseyProgress & { totalLevels?: number };
   selectedLevel?: number;
-  onSelect?: (level: number) => void;
+  onSelect: (level: number) => void;
 }) {
-  const selected = Math.min(
-    (onSelect ? selectedLevel : undefined) ?? progress.level,
-    progress.levels.length,
-  );
+  const selected = Math.min(selectedLevel ?? progress.level, progress.levels.length);
   const total = progress.totalLevels ?? progress.levels.length;
   return (
     <nav className="odyssey-progress" aria-label="Question stages">
@@ -47,7 +44,7 @@ export function OdysseyStepper({
                   disabled={!level}
                   aria-label={label}
                   aria-current={number === selected ? "step" : undefined}
-                  onClick={onSelect ? () => onSelect(number) : undefined}
+                  onClick={() => onSelect(number)}
                 >
                   {complete ? <Icon name="submit" /> : number}
                 </button>

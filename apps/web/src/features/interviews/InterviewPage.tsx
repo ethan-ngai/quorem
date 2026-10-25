@@ -328,25 +328,11 @@ function InterviewPad({
             {question.progress && (
               <OdysseyStepper
                 progress={question.progress}
-                selectedLevel={interviewer ? undefined : selectedLevel}
-                onSelect={interviewer ? undefined : setSelectedLevel}
+                selectedLevel={selectedLevel}
+                onSelect={setSelectedLevel}
               />
             )}
             <div className="interview-session-actions">
-              {interviewer && question.progress && !question.progress.completed && !closed && (
-                <button
-                  className="button button-secondary"
-                  disabled={disabled}
-                  onClick={() =>
-                    void mutate("pass-stage", {
-                      questionEpoch: initial.questionEpoch,
-                      level: question.progress!.level,
-                    })
-                  }
-                >
-                  Pass stage
-                </button>
-              )}
               {interviewer && (
                 <InterviewAlerts
                   key={id}
@@ -472,7 +458,7 @@ function InterviewPad({
           <OdysseyPanel
             progress={question.progress}
             problem={question.problem}
-            selectedLevel={interviewer ? undefined : selectedLevel}
+            selectedLevel={selectedLevel}
             allowTopics={snapshot.hints?.topics !== false}
           >
             {snapshot.hints?.complexity === true &&
