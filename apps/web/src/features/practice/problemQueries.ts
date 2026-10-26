@@ -59,7 +59,7 @@ export function catalogQueryOptions(
     page: search.page ?? 1,
     limit: catalogPageSize,
   };
-  return queryOptions({
+  return queryOptions<CatalogPage>({
     queryKey: ["public-problems", context.scope, filters] as const,
     enabled: context.scope !== pendingScope,
     staleTime,
