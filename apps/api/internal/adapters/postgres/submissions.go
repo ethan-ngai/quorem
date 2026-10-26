@@ -84,13 +84,6 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	cases := f.HiddenCases
 	if f.Problem.Odyssey != nil {
-		caps, e := s.Capabilities(ctx, owner)
-		if e != nil {
-			return judging.Submission{}, e
-		}
-		if !caps.Odyssey {
-			return judging.Submission{}, failure("entitlement_required", 403, "Odyssey access required")
-		}
 		if matchID != "" {
 			return judging.Submission{}, failure("invalid_input", 400, "Odyssey is unavailable in competitive matches")
 		}

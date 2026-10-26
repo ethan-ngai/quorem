@@ -15,7 +15,6 @@ import (
 func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 	s := testStore(t)
 	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
-	grantInternal(t, s, "alice")
 	if _, err := s.Pool.Exec(ctx, "UPDATE users SET role='admin' WHERE id='alice'"); err != nil {
 		t.Fatal(err)
 	}
@@ -68,8 +67,8 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 	if err != nil || len(full.Problem.Odyssey.Levels) != 2 || len(full.OdysseyHiddenCases) != 2 {
 		t.Fatalf("author roundtrip: %+v %v", full, err)
 	}
-	if _, err = s.CreateWorkspace(ctx, "bob", p.ID, "python"); errorCode(err) != "entitlement_required" {
-		t.Fatal("ungated workspace", err)
+	if _, err = s.CreateWorkspace(ctx, "bob", p.ID, "python"); err != nil {
+		t.Fatal("workspace without Odyssey grant", err)
 	}
 	w, err := s.CreateWorkspace(ctx, "alice", p.ID, "python")
 	if err != nil {

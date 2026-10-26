@@ -124,9 +124,7 @@ func (s *Store) PassInterviewStage(ctx context.Context, user, id, key, epoch str
 		if v.fixture.Problem.Odyssey == nil {
 			return failure("invalid_input", 400, "Question has no stages")
 		}
-		if err := requireInterviewOdyssey(ctx, tx, v.snapshot.HostID, v.fixture); err != nil {
-			return err
-		}
+
 		current, completed, err := interviewProgress(ctx, tx, v)
 		if err != nil {
 			return err

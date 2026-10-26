@@ -23,9 +23,7 @@ func (s *Store) UpdateInterviewQuestion(ctx context.Context, user, id, key strin
 		return interviews.Snapshot{}, err
 	}
 	return s.mutateInterview(ctx, user, id, key, "question", q, func(tx pgx.Tx, v interviewRecord) error {
-		if err := requireInterviewOdyssey(ctx, tx, v.snapshot.HostID, f); err != nil {
-			return err
-		}
+
 		if q.Custom != nil {
 			if err := saveInterviewCustomQuestion(ctx, tx, user, f); err != nil {
 				return err

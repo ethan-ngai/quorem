@@ -104,10 +104,6 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 	s := interviewTestStore(t)
 	ctx := context.Background()
 	q := customStagedInterviewQuestion()
-	if _, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "No Odyssey flag", Question: q}); errorCode(err) != "entitlement_required" {
-		t.Fatal("host flag bypass", err)
-	}
-	grantInternal(t, s, "alice")
 	v, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Custom stages", Question: q})
 	if err != nil {
 		t.Fatal(err)
