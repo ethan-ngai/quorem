@@ -8,7 +8,7 @@ export type SMTPConfiguration = {
   requireTLS?: boolean;
   auth?: { user: string; pass: string };
 };
-export function smtpEmail(config: SMTPConfiguration): EmailDelivery {
+export function smtpEmail(config: SMTPConfiguration): EmailDelivery & { verify(): Promise<void> } {
   const { from, ...connection } = config;
   const transport = nodemailer.createTransport({
     ...connection,
@@ -18,6 +18,13 @@ export function smtpEmail(config: SMTPConfiguration): EmailDelivery {
     socketTimeout: 5000,
   });
   return {
+    async verify() {
+      try {
+        await transport.verify();
+      } catch {
+        throw new Error("Email delivery unavailable");
+      }
+    },
     async send(message) {
       try {
         await transport.sendMail({ from, ...message });

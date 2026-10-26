@@ -117,6 +117,20 @@ variable "invite_key" {
   type      = string
   sensitive = true
 }
+variable "auth_environment" {
+  type      = map(string)
+  sensitive = true
+  default   = {}
+  validation {
+    condition = alltrue([for key in keys(var.auth_environment) : contains([
+      "AUTH_LOGIN_ONLY", "AUTH_EMAIL_DRIVER", "AUTH_EMAIL_FROM",
+      "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
+      "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_ID",
+      "GITHUB_CLIENT_SECRET"
+    ], key)])
+    error_message = "Only email and social provider settings belong in auth_environment."
+  }
+}
 provider "cloudflare" {}
 provider "restapi" {
   uri                  = "https://api.cloudflare.com/client/v4"
@@ -138,17 +152,23 @@ locals {
     vcpu       = var.app_vcpu
     memory_mib = var.app_memory_mib
     disk       = { size_mb = 4000 }
+    # Secrets stay in Worker bindings; a fingerprint rolls warm instances on configuration changes.
+    environment_variables = [{ name = "QUOREM_RUNTIME_REVISION", value = nonsensitive(sha256(jsonencode(local.runtime))) }]
   }
   judge_configuration = {
-    image      = var.judge_image
-    vcpu       = var.judge_vcpu
-    memory_mib = var.judge_memory_mib
-    disk       = { size_mb = 20000 }
+    image                 = var.judge_image
+    vcpu                  = var.judge_vcpu
+    memory_mib            = var.judge_memory_mib
+    disk                  = { size_mb = 20000 }
+    environment_variables = [{ name = "QUOREM_RUNTIME_REVISION", value = nonsensitive(sha256(jsonencode(local.judge_runtime))) }]
   }
-  runtime = {
+  runtime = merge({
     AUTH_ORIGIN                      = local.origin
     DATABASE_URL                     = var.database_url
     AUTH_DATABASE_URL                = var.database_url
+    AUTH_MODE                        = "password"
+    AUTH_PASSWORD_PRODUCTION         = "true"
+    AUTH_LOGIN_ONLY                  = "true"
     BETTER_AUTH_SECRET               = var.better_auth_secret
     AUTH_INTERNAL_SECRET             = var.auth_internal_secret
     QUOREM_INVITE_KEY                = var.invite_key
@@ -162,7 +182,7 @@ locals {
     QUOREM_DELIVERY_PROVIDER         = "cloudflare-dispatch"
     QUOREM_EXECUTION_WAKE_URL        = "${local.origin}/internal/judge/wake"
     QUOREM_JUDGE_CONTROL_TOKEN       = random_password.judge_control.result
-  }
+  }, var.auth_environment)
   judge_runtime = {
     DATABASE_URL               = var.database_url
     QUOREM_DATABASE_MAX_CONNS  = "2"

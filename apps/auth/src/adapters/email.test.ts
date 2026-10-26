@@ -9,6 +9,23 @@ import { cloudflareEmail } from "./cloudflare-email";
 import { verificationMailer } from "../mailer";
 const message = { to: "person@example.com", subject: "Verify", text: "A link" };
 describe("email adapters", () => {
+  it("verifies SMTP authentication without sending a message or exposing provider failures", async () => {
+    const verify = vi.fn().mockResolvedValue(true);
+    const send = vi.fn();
+    createTransport.mockReturnValue({ verify, sendMail: send });
+    const mail = smtpEmail({
+      host: "smtp.purelymail.com",
+      port: 465,
+      secure: true,
+      requireTLS: true,
+      from: "accounts@example.com",
+    });
+    await mail.verify();
+    expect(verify).toHaveBeenCalledOnce();
+    expect(send).not.toHaveBeenCalled();
+    verify.mockRejectedValueOnce(new Error("private SMTP credentials"));
+    await expect(mail.verify()).rejects.toThrow("Email delivery unavailable");
+  });
   it("maps SMTP acceptance and secure SES credentials without SDK-specific account logic", async () => {
     createTransport.mockReturnValue({ sendMail });
     sendMail.mockResolvedValue({});
