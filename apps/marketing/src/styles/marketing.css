@@ -255,11 +255,22 @@ summary:focus-visible {
 }
 .hero-cta {
   min-height: 52px;
-  padding-inline: 28px;
-  border-radius: var(--radius-sm);
+  gap: 24px;
+  padding-inline: 20px;
+  border-radius: 2px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   transition:
     transform 500ms var(--hero-easing),
     background-color 500ms var(--hero-easing);
+}
+.hero-cta svg {
+  transition: transform var(--motion-standard) var(--motion-easing);
+}
+@media (hover: hover) and (pointer: fine) {
+  .hero-cta:hover svg {
+    transform: translateX(4px);
+  }
 }
 .hero-cta:active {
   transform: translateY(0) scale(0.98);
