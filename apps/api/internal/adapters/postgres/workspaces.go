@@ -17,15 +17,6 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner, problemID, language 
 	if err != nil {
 		return workspace.Workspace{}, err
 	}
-	if p.Odyssey != nil {
-		c, e := s.Capabilities(ctx, owner)
-		if e != nil {
-			return workspace.Workspace{}, e
-		}
-		if !c.Odyssey {
-			return workspace.Workspace{}, failure("entitlement_required", 403, "Odyssey access required")
-		}
-	}
 	var supported bool
 	if err = s.Pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM problem_languages WHERE version_id=$1 AND language=$2)", p.ID, language).Scan(&supported); err != nil {
 		return workspace.Workspace{}, err

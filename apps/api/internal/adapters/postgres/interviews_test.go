@@ -235,22 +235,18 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 	if _, err = s.Pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'bob','interviews.host','manual','test','test','test')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.CreateInterview(ctx, "bob", ID(), interviews.Create{Title: "Flag isolation", Question: q}); errorCode(err) != "entitlement_required" {
-		t.Fatal("Odyssey flag bypass", err)
-	}
-	if _, err = s.Pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'bob','problems.odyssey','manual','test','test','test')`); err != nil {
-		t.Fatal(err)
-	}
-	gated, err := s.CreateInterview(ctx, "bob", ID(), interviews.Create{Title: "Flag isolation", Question: q})
+	gated, err := s.CreateInterview(ctx, "bob", ID(), interviews.Create{Title: "No Odyssey grant", Question: q})
 	if err != nil {
-		t.Fatal("host Odyssey grant", err)
+		t.Fatal("host without Odyssey grant", err)
 	}
-	if _, err = s.Pool.Exec(ctx, `UPDATE entitlement_grants SET revoked_at=clock_timestamp() WHERE user_id='bob' AND feature='problems.odyssey'`); err != nil {
+	if _, err = s.AdmitInterview(ctx, "bob", gated.ID, ID(), "run"); err != nil {
+		t.Fatal("admission without Odyssey grant", err)
+	}
+	job, err := s.Claim(ctx)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.AdmitInterview(ctx, "bob", gated.ID, ID(), "run"); errorCode(err) != "entitlement_required" {
-		t.Fatal("revoked Odyssey admission", err)
-	}
+	finishInterviewJob(t, s, job, 2, 2)
 
 	v, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Odyssey interview", Question: q})
 	if err != nil {
