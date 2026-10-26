@@ -65,6 +65,12 @@ function InterviewSession({ id }: { id: string }) {
     queryKey: ["interview", id],
     queryFn: () => interviewRequest<InterviewSnapshot>(`/v1/interviews/${id}`),
     retry: false,
+    structuralSharing(previous, next) {
+      const before = previous as InterviewSnapshot | undefined;
+      const after = next as InterviewSnapshot;
+      // A slow HTTP/result refresh must not undo newer socket progress or permissions.
+      return before && before.version > after.version ? before : after;
+    },
   });
   const [initial, setInitial] = useState<InterviewSnapshot>();
   useEffect(() => {
@@ -114,12 +120,21 @@ function InterviewPad({
   const [status, setStatus] = useState<CollaborationStatus>("connecting");
   useEffect(() => {
     const notification = `interview-connection:${id}`;
-    if (status === "offline")
-      toast.warning("Connection interrupted. Keep this tab open; your edits retry automatically.", {
-        id: notification,
-      });
-    else toast.dismiss(notification);
+    // Credential rotation normally reconnects before this notice becomes useful.
+    const timer =
+      status === "offline"
+        ? setTimeout(() => {
+            toast.warning(
+              "Connection interrupted. Keep this tab open; your edits retry automatically.",
+              {
+                id: notification,
+              },
+            );
+          }, 1500)
+        : undefined;
+    if (status !== "offline") toast.dismiss(notification);
     return () => {
+      clearTimeout(timer);
       toast.dismiss(notification);
     };
   }, [id, status]);
@@ -155,7 +170,7 @@ function InterviewPad({
       controller.isSynchronized()
     )
       onOpenQuestion(snapshot);
-  }, [changed, snapshot, initial.questionEpoch, controller, onOpenQuestion]);
+  }, [changed, snapshot, initial.questionEpoch, controller, onOpenQuestion, status]);
   useInterviewMonitoring(snapshot, controller.reportRule);
   const interviewer = snapshot.role === "interviewer";
   const closed = snapshot.state === "closed";
