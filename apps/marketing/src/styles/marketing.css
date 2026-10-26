@@ -288,9 +288,7 @@ summary:focus-visible {
 :root {
   --marketing-panel-radius: 16px;
   --marketing-panel-gap: 20px;
-  --marketing-depth:
-    0 2px 4px color-mix(in oklch, var(--color-text) 4%, transparent),
-    0 24px 64px color-mix(in oklch, var(--color-text) 10%, transparent);
+  --marketing-depth: 0 2px 6px oklch(0.2 0 0 / 0.08), 0 10px 24px -6px oklch(0.2 0 0 / 0.16);
   --marketing-highlight: color-mix(in oklch, white 60%, transparent);
   --marketing-line: color-mix(in oklch, var(--color-text) 35%, var(--color-border));
 }
@@ -2027,7 +2025,7 @@ summary:focus-visible {
 
 :root {
   --surface-light: rgb(255 255 255 / 0.5);
-  --surface-shade: rgb(39 52 70 / 0.045);
+  --surface-shade: transparent;
 }
 :root[data-theme="dark"] {
   --surface-light: rgb(200 219 255 / 0.09);
@@ -2144,8 +2142,7 @@ summary:focus-visible {
 /* Upcoming previews use quieter light and shallow depth. */
 .upcoming-feature-grid {
   --surface-light: rgb(255 255 255 / 0.15);
-  --surface-shade: rgb(39 52 70 / 0.03);
-  --marketing-depth: 0 2px 4px rgb(39 52 70 / 0.03), 0 8px 20px rgb(39 52 70 / 0.05);
+  --surface-shade: transparent;
 }
 :root[data-theme="dark"] .upcoming-feature-grid {
   --surface-light: rgb(200 219 255 / 0.025);
@@ -2939,6 +2936,11 @@ summary:focus-visible {
   padding: 24px;
   background: var(--color-field);
   box-shadow:
+    var(--marketing-depth),
+    inset 0 1px var(--surface-light);
+}
+:root[data-theme="dark"] #upcoming :is(.rival-product, .recommendation-card) {
+  box-shadow:
     0 8px 24px color-mix(in oklch, var(--surface-shade) 60%, transparent),
     0 28px 72px color-mix(in oklch, var(--surface-shade) 45%, transparent),
     0 48px 128px color-mix(in oklch, var(--surface-shade) 20%, transparent),
@@ -3138,6 +3140,11 @@ summary:focus-visible {
 }
 .walkthrough-layout :is(.demo-tests, .lobby-render) {
   position: relative;
+  box-shadow:
+    var(--marketing-depth),
+    inset 0 1px var(--surface-light);
+}
+:root[data-theme="dark"] .walkthrough-layout :is(.demo-tests, .lobby-render) {
   box-shadow:
     0 2px 8px color-mix(in oklch, var(--surface-shade) 45%, transparent),
     0 20px 56px color-mix(in oklch, var(--surface-shade) 50%, transparent),
