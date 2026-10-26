@@ -146,3 +146,49 @@ func TestOverlappingPreAdmissionWakeExtendsGraceWithoutIdlePolling(t *testing.T)
 		t.Fatalf("overlapping admission lost grace: complete=%t elapsed=%s err=%v", complete, time.Since(started), err)
 	}
 }
+
+func (r *drainRepository) ConfirmExecutionQueueEmpty(context.Context) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.jobs) == 0 && r.running == 0, r.err
+}
+
+type finalConfirmationRepository struct {
+	*drainRepository
+	confirms             int
+	confirmationError    error
+	insertOnConfirmation bool
+}
+
+func (r *finalConfirmationRepository) ConfirmExecutionQueueEmpty(ctx context.Context) (bool, error) {
+	r.confirms++
+	if r.confirmationError != nil {
+		return false, r.confirmationError
+	}
+	if r.insertOnConfirmation {
+		r.insertOnConfirmation = false
+		r.mu.Lock()
+		r.jobs = append(r.jobs, execution.Job{JobID: "committed-during-confirmation", AttemptID: "fenced"})
+		r.mu.Unlock()
+		return false, nil
+	}
+	return r.drainRepository.ConfirmExecutionQueueEmpty(ctx)
+}
+func TestDrainFinalConfirmationFailureCannotAcknowledgeWake(t *testing.T) {
+	repo := &finalConfirmationRepository{drainRepository: &drainRepository{}, confirmationError: errors.New("admission commit unresolved")}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, complete, err := New(repo).drain(ctx, &drainEngine{}, 1, time.Millisecond)
+	if err == nil || complete || repo.confirms != 1 {
+		t.Fatalf("false ACK complete=%t confirmations=%d err=%v", complete, repo.confirms, err)
+	}
+}
+func TestDrainPicksUpAdmissionDiscoveredDuringFinalConfirmation(t *testing.T) {
+	repo := &finalConfirmationRepository{drainRepository: &drainRepository{}, insertOnConfirmation: true}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, complete, err := New(repo).drain(ctx, &drainEngine{}, 1, time.Millisecond)
+	if err != nil || !complete || repo.confirms != 2 || repo.completed != 1 {
+		t.Fatalf("missed committing admission complete=%t confirmations=%d completed=%d err=%v", complete, repo.confirms, repo.completed, err)
+	}
+}
