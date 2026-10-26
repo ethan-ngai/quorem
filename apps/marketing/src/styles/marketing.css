@@ -1722,7 +1722,7 @@ summary:focus-visible {
 .race-receipt {
   padding: 18px;
   margin-bottom: 16px;
-  background: var(--color-surface);
+  background: var(--color-field);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--marketing-depth);
@@ -2888,16 +2888,25 @@ summary:focus-visible {
   overflow: visible;
   mask-image: none;
 }
+#upcoming .preview-background-shadow {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  margin: 40px 0 0 -48px;
+  width: calc(100% + 48px);
+  filter: drop-shadow(0 4px 8px oklch(0.2 0 0 / 0.1));
+}
+:root[data-theme="dark"] #upcoming .preview-background-shadow {
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.18));
+}
 #upcoming .social-product,
 #upcoming .adaptive-product {
   position: relative;
-  grid-column: 2;
-  grid-row: 1;
   left: auto;
   top: auto;
   width: 100%;
   min-width: 0;
-  margin-top: 40px;
+  margin: 0;
   opacity: 1;
   mask-image: none;
   overflow: visible;
@@ -2908,8 +2917,6 @@ summary:focus-visible {
 #upcoming .social-product,
 #upcoming .adaptive-product {
   --preview-edge: clamp(48px, 8vw, 128px);
-  margin-left: -48px;
-  width: calc(100% + 48px);
   padding-left: 48px;
   padding-right: var(--preview-edge);
   padding-bottom: 96px;
@@ -3067,15 +3074,16 @@ summary:focus-visible {
   #upcoming .recommendation-card {
     width: 94%;
   }
-  #upcoming .social-product,
-  #upcoming .adaptive-product {
-    --preview-edge: 32px;
+  #upcoming .preview-background-shadow {
     grid-column: 1;
     grid-row: 2;
     justify-self: end;
     width: 94%;
-    margin-top: -12px;
-    margin-left: 0;
+    margin: -12px 0 0;
+  }
+  #upcoming .social-product,
+  #upcoming .adaptive-product {
+    --preview-edge: 32px;
     padding-left: 0;
     padding-top: 24px;
   }
