@@ -930,9 +930,6 @@ summary:focus-visible {
   perspective: 1000px;
   mask-image: linear-gradient(transparent, black 10%, black 65%, transparent);
 }
-:root:not([data-theme="dark"]) .closing-scene {
-  mask-image: none;
-}
 .closing-light {
   position: absolute;
   inset: -80px 0 0;
@@ -955,19 +952,22 @@ summary:focus-visible {
   background-size: 56px 56px;
   mask-image: radial-gradient(ellipse at center top, black, transparent 65%);
 }
-.closing-code-plane {
+.closing-plane {
   position: absolute;
   top: 34px;
   width: 390px;
+}
+:root:not([data-theme="dark"]) .closing-plane {
+  filter: drop-shadow(0 4px 8px oklch(0.2 0 0 / 0.1));
+}
+.closing-code-plane {
   padding: 22px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background:
     radial-gradient(ellipse at var(--light-edge) 0%, var(--surface-light), transparent 80%),
     var(--color-field);
-  box-shadow:
-    var(--marketing-depth),
-    inset 0 1px var(--surface-light);
+  box-shadow: inset 0 1px var(--surface-light);
 }
 :root[data-theme="dark"] .closing-code-plane {
   box-shadow:
@@ -995,16 +995,17 @@ summary:focus-visible {
   --light-edge: 100%;
   left: calc(50% - 390px);
   transform: rotateY(22deg) rotateZ(-8deg);
+}
+.plane-you .closing-code-plane {
   mask-image: linear-gradient(90deg, transparent, black 28%);
 }
 .plane-friend {
   --light-edge: 0%;
   right: calc(50% - 390px);
   transform: rotateY(-22deg) rotateZ(8deg);
-  mask-image: linear-gradient(270deg, transparent, black 28%);
 }
-:root:not([data-theme="dark"]) .closing-code-plane {
-  mask-image: none;
+.plane-friend .closing-code-plane {
+  mask-image: linear-gradient(270deg, transparent, black 28%);
 }
 .closing-emblem {
   position: absolute;
@@ -2113,8 +2114,10 @@ summary:focus-visible {
   .closing-scene {
     height: 300px;
   }
-  .closing-code-plane {
+  .closing-plane {
     width: 320px;
+  }
+  .closing-code-plane {
     padding: 16px;
   }
   .plane-you {
