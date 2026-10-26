@@ -23,7 +23,9 @@ func TestCapacitySeparatesSocketsAndRequests(t *testing.T) {
 		go func() {
 			r := httptest.NewRequest("GET", "/work", nil)
 			if socket {
+				r.URL.Path = "/v1/interviews/e994c7a7-642b-4f38-a1ed-000000000194/events"
 				r.Header.Set("Upgrade", "websocket")
+				r.Header.Set("Connection", "keep-alive, Upgrade")
 			}
 			handler.ServeHTTP(httptest.NewRecorder(), r)
 			done <- struct{}{}
@@ -36,7 +38,9 @@ func TestCapacitySeparatesSocketsAndRequests(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/work", nil)
 		if socket {
+			r.URL.Path = "/v1/interviews/e994c7a7-642b-4f38-a1ed-000000000194/events"
 			r.Header.Set("Upgrade", "websocket")
+			r.Header.Set("Connection", "keep-alive, Upgrade")
 		}
 		handler.ServeHTTP(w, r)
 		if w.Code != 503 || w.Header().Get("Retry-After") != "1" {
@@ -56,4 +60,28 @@ func TestCapacitySeparatesSocketsAndRequests(t *testing.T) {
 	if w.Code != 204 {
 		t.Fatal("slot not released")
 	}
+}
+
+func TestUpgradeHeaderCannotBypassHTTPBudget(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	handler := WithCapacity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(entered); <-release }), 1, 4)
+	go func() {
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/submissions", nil))
+		close(done)
+	}()
+	<-entered
+	for _, route := range []struct{ method, path string }{{"POST", "/v1/submissions"}, {"GET", "/v1/session"}, {"POST", "/v1/interviews/e994c7a7-642b-4f38-a1ed-000000000194/events"}} {
+		r := httptest.NewRequest(route.method, route.path, nil)
+		r.Header.Set("Upgrade", "websocket")
+		r.Header.Set("Connection", "upgrade")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != 503 {
+			t.Fatal("upgrade header bypassed HTTP budget")
+		}
+	}
+	close(release)
+	<-done
 }

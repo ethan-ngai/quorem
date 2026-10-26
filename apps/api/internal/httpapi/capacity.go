@@ -18,7 +18,7 @@ func WithCapacity(next http.Handler, requests, sockets int) http.Handler {
 			return
 		}
 		slots := httpSlots
-		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		if realtimeUpgrade(r) {
 			slots = socketSlots
 		}
 		select {
@@ -32,4 +32,23 @@ func WithCapacity(next http.Handler, requests, sockets int) http.Handler {
 			_, _ = w.Write([]byte(`{"error":{"code":"temporarily_unavailable","message":"Service busy. Try again shortly."}}`))
 		}
 	})
+}
+
+// Only authorized event endpoints can hold the separate long-lived socket budget.
+func realtimeUpgrade(r *http.Request) bool {
+	if r.Method != http.MethodGet || !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) != 5 || parts[1] != "v1" || (parts[2] != "interviews" && parts[2] != "matches") || !uuid.MatchString(parts[3]) || parts[4] != "events" {
+		return false
+	}
+	for _, header := range r.Header.Values("Connection") {
+		for _, token := range strings.Split(header, ",") {
+			if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
+				return true
+			}
+		}
+	}
+	return false
 }
