@@ -1,0 +1,21 @@
+---
+import "../styles/marketing-navigation.css";
+import { Icon } from "../../../web/src/ui/Icon";
+interface Props { placement: "desktop" | "menu" }
+const { placement } = Astro.props;
+type NavigationLink = { href: string; label: string; icon?: "code" | "showdown" };
+const groups: { label: string; links: NavigationLink[] }[] = [
+  { label: "Explore", links: [{ href: "#modes", label: "Modes" }, { href: "#matches", label: "Gameplay" }] },
+  { label: "Play", links: [{ href: "/practice", label: "Practice", icon: "code" }, { href: "/practice?create=match", label: "Create match", icon: "showdown" }] },
+];
+---
+{groups.map(({ label, links }) => (
+  <div class:list={["navigation-group", { "navigation-play": label === "Play" }]} role="group" aria-label={label} data-placement={placement}>
+    {links.map(({ href, label, icon }) => (
+      <a href={href}>
+        {icon && <Icon name={icon} width={16} height={16} />}
+        {label}
+      </a>
+    ))}
+  </div>
+))}

@@ -1,7 +1,6 @@
 ---
 import "@fontsource-variable/geist";
 import geistFont from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
-import headlineFont from "@fontsource/barlow-condensed/files/barlow-condensed-latin-800-normal.woff2?url";
 import codeFont from "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2?url";
 import "@quorem/ui/theme.css";
 import "@quorem/ui/controls.css";
@@ -13,7 +12,8 @@ import LobbyPreview from "../components/LobbyPreview";
 import SubmissionPreview from "../components/SubmissionPreview";
 import ProblemCards from "../components/ProblemCards.astro";
 import HeroDots from "../components/HeroDots.astro";
-import BattleHeadline from "../components/BattleHeadline.astro";
+import HeroSlogan from "../components/HeroSlogan.astro";
+import QuoremWordmark from "../components/QuoremWordmark.astro";
 import UpcomingModeIllustration from "../components/UpcomingModeIllustration.astro";
 import UpcomingFeaturePreview from "../components/UpcomingFeaturePreview.astro";
 import MatchModeIllustration from "../components/MatchModeIllustration.astro";
@@ -21,6 +21,7 @@ import EditorPreview from "../components/EditorPreview";
 import HeroEditorPreview from "../components/HeroEditorPreview";
 import { SiteFooter } from "../../../web/src/ui/SiteFooter";
 import ThemeSwitch from "../components/ThemeSwitch.astro";
+import MarketingNavigationLinks from "../components/MarketingNavigationLinks.astro";
 import ClosingScene from "../components/ClosingScene.astro";
 import "@fontsource/jetbrains-mono/400.css";
 const socialImage = Astro.site
@@ -33,7 +34,7 @@ const socialImage = Astro.site
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {[geistFont, headlineFont, codeFont].map((font) => <link rel="preload" href={font} as="font" type="font/woff2" crossorigin="anonymous" />)}
+        {[geistFont, codeFont].map((font) => <link rel="preload" href={font} as="font" type="font/woff2" crossorigin="anonymous" />)}
         <meta
             name="description"
             content="Challenge friends in private coding matches. Choose Showdown or Free-for-all, pick a problem, set the rules and share an invitation."
@@ -121,25 +122,21 @@ const socialImage = Astro.site
                         </svg>
                     </summary>
                     <nav aria-label="Mobile navigation">
-                        <a href="/practice">Practice</a>
-                        <a href="/practice?create=match">Create match</a>
+                        <MarketingNavigationLinks placement="menu" />
+                        <a class="registration-menu-link" href="/login?create=1">Get started</a>
                     </nav>
                 </details>
                 <a class="brand-logo" href="/" aria-label="Quorem home">
                     <span class="brand-mark" aria-hidden="true"></span>
                 </a>
             </div>
+            <nav class="desktop-navigation" aria-label="Main navigation">
+                <MarketingNavigationLinks placement="desktop" />
+            </nav>
             <div class="header-actions">
-                <nav class="desktop-navigation" aria-label="Main navigation">
-                    <a class="quiet-link" href="/practice">
-                        Practice
-                    </a>
-                    <a class="quiet-link" href="/practice?create=match">
-                        Create match
-                    </a>
-                </nav>
-                <a class="marketing-button nav-button login-button" href="/login">Sign in</a>
                 <ThemeSwitch />
+                <a class="marketing-button nav-button login-button" href="/login">Sign in</a>
+                <a class="marketing-button nav-button primary-button registration-button" href="/login?create=1">Get started</a>
             </div>
         </header>
         <main id="main">
@@ -147,12 +144,11 @@ const socialImage = Astro.site
                 <HeroDots />
                 <div class="hero-top page-width">
                     <div class="hero-copy">
-                        <BattleHeadline />
+                        <h1 id="hero-title" class="hero-wordmark" aria-label="Quorem">
+                            <QuoremWordmark />
+                        </h1>
+                        <HeroSlogan />
                         <div class="hero-intro">
-                            <p>
-                                Invite friends to solve the same coding problem.
-                                First correct submission wins.
-                            </p>
                             <div class="hero-actions">
                                 <a
                                     class="marketing-button primary-button hero-cta"
@@ -424,6 +420,7 @@ const socialImage = Astro.site
             <div class="footer-main">
                 <a class="footer-brand" href="/" aria-label="Quorem home">
                     <span class="brand-mark" aria-hidden="true"></span>
+                    <span class="footer-wordmark" aria-hidden="true"><QuoremWordmark /></span>
                 </a>
                 <nav class="footer-sitemap" aria-label="Sitemap">
                     <div>
@@ -433,8 +430,8 @@ const socialImage = Astro.site
                     </div>
                     <div>
                         <strong>Explore</strong>
-                        <a href="#modes">Game modes</a>
-                        <a href="#matches">How it works</a>
+                        <a href="#modes">Modes</a>
+                        <a href="#matches">Gameplay</a>
                         <a href="#upcoming">Coming soon</a>
                     </div>
                     <div>

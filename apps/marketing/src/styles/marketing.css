@@ -6,7 +6,6 @@
   --marketing-section: clamp(80px, 10vw, 128px);
   --marketing-spring: linear(0, 0.18 8%, 0.55 20%, 0.84 35%, 1.015 58%, 1.005 78%, 1);
   --marketing-reveal: 560ms;
-  --hero-display: clamp(52px, 5.4vw, 80px);
   --hero-header-height: 100px;
   --hero-gap: clamp(32px, 4vw, 56px);
   --hero-padding: clamp(32px, 5vw, 64px);
@@ -95,10 +94,14 @@ summary:focus-visible {
   position: relative;
   z-index: 2;
   min-height: var(--hero-header-height);
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 24px;
+}
+.site-header .desktop-navigation {
+  grid-column: 2;
+  justify-self: center;
 }
 .brand-logo {
   display: inline-flex;
@@ -123,6 +126,8 @@ summary:focus-visible {
   font-size: 14px;
 }
 .header-actions {
+  grid-column: 3;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -167,15 +172,6 @@ summary:focus-visible {
   background: var(--color-primary);
   color: var(--color-on-primary);
   border-color: var(--color-primary);
-}
-.login-button:disabled {
-  color: var(--color-text-disabled);
-  background: transparent;
-  cursor: not-allowed;
-}
-.login-button:disabled:hover {
-  transform: none;
-  background: transparent;
 }
 .site-menu {
   display: none;
@@ -241,26 +237,18 @@ summary:focus-visible {
   gap: var(--hero-gap);
 }
 .hero-copy {
-  padding-bottom: 88px;
+  padding-bottom: 32px;
 }
-.hero h1 {
-  font-size: var(--hero-display);
-  font-weight: 550;
-  line-height: 1.06;
-  letter-spacing: -0.06em;
-}
-.hero h1 > span {
-  color: var(--color-text-secondary);
+.hero-wordmark {
+  width: 80%;
+  max-width: 480px;
+  margin: 0 0 24px;
+  color: var(--color-text);
 }
 .hero-intro {
   display: grid;
   justify-items: start;
-  gap: 28px;
   margin-top: 32px;
-}
-.hero-intro p {
-  max-width: 36ch;
-  font-size: clamp(16px, 1.25vw, 20px);
 }
 .hero-actions {
   flex-shrink: 0;
@@ -1033,13 +1021,17 @@ summary:focus-visible {
   justify-self: start;
   gap: 12px;
   color: var(--color-text);
-  font-size: 24px;
-  font-weight: 550;
-  letter-spacing: -0.04em;
 }
 .footer-brand .brand-mark {
   width: 32px;
   height: 32px;
+  flex: none;
+}
+.footer-wordmark {
+  display: flex;
+  width: 112px;
+  /* Center the letter bodies; the q tail extends below their baseline. */
+  transform: translateY(3px);
 }
 .footer-sitemap {
   display: grid;
@@ -1085,6 +1077,7 @@ summary:focus-visible {
   color: var(--color-text-secondary);
   background: transparent;
   border: 0;
+  padding: 0;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--motion-fast) var(--motion-easing);
@@ -1149,10 +1142,43 @@ summary:focus-visible {
     background: var(--color-overlay);
   }
 }
-@container (max-width: 440px) {
+.site-menu .registration-menu-link {
+  display: none;
+}
+@media (max-width: 380px) {
+  .header-actions .registration-button {
+    display: none;
+  }
+  .site-menu .registration-menu-link {
+    display: flex;
+    color: var(--color-primary);
+    border-top: 1px solid var(--color-border);
+  }
+}
+@media (max-width: 599px) {
+  .site-header {
+    gap: 12px;
+  }
+  .header-actions {
+    gap: 6px;
+  }
+  .header-actions .login-button {
+    font-size: 12px;
+    white-space: nowrap;
+    padding-inline: 8px;
+  }
+  .header-actions .nav-button {
+    min-height: 40px;
+    padding-inline: 12px;
+    font-size: 12px;
+  }
+}
+@container (max-width: 760px) {
   .site-header .desktop-navigation {
     display: none;
   }
+}
+@container (max-width: 1000px) {
   .site-menu {
     display: block;
   }
@@ -1283,9 +1309,6 @@ summary:focus-visible {
   .hero-top h1 {
     animation: marketing-enter var(--hero-entry) var(--hero-easing) 100ms both;
   }
-  .hero-intro p {
-    animation: marketing-enter var(--hero-entry) var(--hero-easing) 220ms both;
-  }
   .hero-actions,
   .match-scene {
     animation: marketing-enter var(--hero-entry) var(--hero-easing) 340ms both;
@@ -1342,9 +1365,6 @@ summary:focus-visible {
   }
   .hero-copy {
     padding-bottom: 0;
-  }
-  .hero h1 {
-    max-width: 14ch;
   }
 }
 @media (max-width: 767px) {
@@ -3136,8 +3156,4 @@ summary:focus-visible {
 .site-header .brand-mark {
   width: 36px;
   height: 35px;
-}
-.site-header .theme-switch {
-  width: 28px;
-  height: 32px;
 }
