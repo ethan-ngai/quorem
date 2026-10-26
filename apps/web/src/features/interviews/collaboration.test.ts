@@ -18,16 +18,23 @@ vi.mock("./api", () => ({
   },
   interviewRequest: vi.fn(),
 }));
+const socketEvents = vi.hoisted(() => ({
+  changed: undefined as undefined | ((kind?: string) => void),
+}));
 vi.mock("./socket", () => ({
   createInterviewSocket: () => ({
     start: vi.fn(),
     stop: vi.fn(),
-    onChange: vi.fn(),
+    onChange: (callback: (kind?: string) => void) => {
+      socketEvents.changed = callback;
+    },
     onStatus: vi.fn(),
     request: (type: string, body: Record<string, unknown>) =>
-      type === "push"
-        ? interviewRequest("updates", "POST", body.push, body.key as string)
-        : interviewRequest("updates", "GET"),
+      type === "snapshot" || type === "submission"
+        ? interviewRequest(type)
+        : type === "push"
+          ? interviewRequest("updates", "POST", body.push, body.key as string)
+          : interviewRequest("updates", "GET"),
   }),
 }));
 vi.mock("../odyssey/methodStubs", () => ({ unlockedMethodEdit: vi.fn() }));
@@ -42,11 +49,14 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function client(source = "") {
+function client(source = "", onSnapshot?: Parameters<typeof createCollaboration>[3]) {
   vi.useFakeTimers();
   const statuses: string[] = [];
-  const controller = createCollaboration("room", { source, version: 0, epoch: "one" }, (value) =>
-    statuses.push(value),
+  const controller = createCollaboration(
+    "room",
+    { source, version: 0, epoch: "one" },
+    (value) => statuses.push(value),
+    onSnapshot,
   );
   const extensions = controller.extension as unknown as [
     Extension,
@@ -222,4 +232,27 @@ it("pulls another peer's stub insertion after a version conflict without duplica
   expect(await local.flush()).toBe(true);
   expect(writes).toBe(1);
   local.destroy();
+});
+
+it("publishes advanced progress even when the previous submission cannot be read", async () => {
+  const onSnapshot = vi.fn();
+  const local = client("", onSnapshot);
+  const snapshot = {
+    version: 3,
+    latestSubmissionId: "previous-result",
+    question: { progress: { level: 2 } },
+  };
+  vi.mocked(interviewRequest).mockImplementation(async (path) => {
+    if (path === "snapshot") return snapshot;
+    if (path === "submission") throw new Error("temporary result outage");
+    return { epoch: "one", version: 0, updates: [] };
+  });
+  socketEvents.changed?.("interview.session");
+  await vi.advanceTimersByTimeAsync(0);
+  expect(onSnapshot).toHaveBeenCalledWith(snapshot);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(onSnapshot).toHaveBeenCalledTimes(2);
+  local.destroy();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(onSnapshot).toHaveBeenCalledTimes(2);
 });
