@@ -146,7 +146,6 @@ func (s *Store) InterviewSubmission(ctx context.Context, user, id, submissionID 
 	}
 	if v.snapshot.Role == "interviewee" && out.Kind == "submit" {
 		out.HiddenCases = nil
-		out.PublicCases = nil
 		out.Diagnostics = nil
 	}
 	return out, err

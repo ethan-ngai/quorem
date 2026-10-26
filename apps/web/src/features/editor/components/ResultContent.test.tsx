@@ -15,7 +15,7 @@ const result: Submission = {
   verdict: "accepted",
   score: { passed: 2, total: 2 },
   publicCases: [
-    { index: 0, status: "accepted", actual: "private-output", expected: "private-expected" },
+    { index: 0, status: "accepted", actual: "sample-output", expected: "sample-expected" },
   ],
 };
 
@@ -50,12 +50,12 @@ describe("result presentation boundaries", () => {
       renderToStaticMarkup(<ResultContent submission={result} busy={false} customMode />),
     ).toBe("");
   });
-  it("never renders case values for a full-suite submission", () => {
+  it("renders authorized public sample values for a full-suite submission", () => {
     const markup = renderToStaticMarkup(<ResultContent submission={result} busy={false} />);
     expect(markup).toContain("2/2 cases passed");
     expect(markup).toContain("2/2");
-    expect(markup).not.toContain("private-output");
-    expect(markup).not.toContain("private-expected");
+    expect(markup).toContain("sample-output");
+    expect(markup).toContain("sample-expected");
   });
   it("suppresses an earlier accepted result while a fresh admission is pending", () => {
     const markup = renderToStaticMarkup(<ResultContent submission={result} busy />);
@@ -87,8 +87,8 @@ describe("result presentation boundaries", () => {
     const markup = renderToStaticMarkup(
       <ResultContent submission={{ ...result, kind: "run" }} busy={false} />,
     );
-    expect(markup).toContain("private-output");
-    expect(markup).toContain("private-expected");
+    expect(markup).toContain("sample-output");
+    expect(markup).toContain("sample-expected");
     expect(markup).toContain('aria-label="Case 1: accepted"');
     expect(markup).not.toContain("Input:");
   });

@@ -138,7 +138,7 @@ export function ResultContent({
         </div>
         <Diagnostics items={submission.diagnostics} />
       </div>
-      {showCases && submission.kind === "run" && submission.publicCases?.length ? (
+      {showCases && submission.publicCases?.length ? (
         <RunCaseResults key={submission.id} cases={submission.publicCases} />
       ) : null}
     </div>

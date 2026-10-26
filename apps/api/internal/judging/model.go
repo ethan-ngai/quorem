@@ -31,6 +31,7 @@ type Submission struct {
 	InfrastructureError string                       `json:"infrastructureError,omitempty"`
 }
 type Spec struct {
+	SubmitSamples  []problems.Case
 	PrivateDetails bool
 	Source         string
 	Kind           string

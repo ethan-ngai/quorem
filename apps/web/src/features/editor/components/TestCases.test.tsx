@@ -102,3 +102,53 @@ describe("pending case execution", () => {
     expect(html).toContain("[2,3,1]");
   });
 });
+
+describe("Submit sample results and previous steps", () => {
+  const completed: Submission = {
+    ...submission,
+    kind: "submit",
+    state: "completed",
+    publicCases: [
+      { index: 0, status: "accepted", actual: [1, 2], expected: [1, 2] },
+      { index: 1, status: "wrong_answer", actual: [7], expected: [1] },
+    ],
+    hiddenCases: [{ index: 0, status: "wrong_answer" }],
+  };
+  it("shows public Submit outputs without exposing the hidden case collection", () => {
+    const html = renderCases(completed);
+    expect(html).toContain('aria-label="Case 1: accepted"');
+    expect(html).toContain("[1,2]");
+    expect(html).not.toContain('aria-label="Select hidden case"');
+  });
+  function staged(results: Submission) {
+    return renderToStaticMarkup(
+      <TestCases
+        problem={problem}
+        customMode={false}
+        drafts={[]}
+        onDraftsChange={() => {}}
+        submission={results}
+        caseGroups={["Step 1", "Step 2"]}
+        currentCaseGroup="Step 2"
+      />,
+    );
+  }
+  it("collapses passing previous steps and selects the current step", () => {
+    const html = staged(completed);
+    expect(html).toContain('<details class="case-group">');
+    expect(html).toContain("Step 1");
+    expect(html).toContain(": passed");
+    expect(html).toContain('aria-pressed="true" aria-label="Case 2: wrong answer"');
+  });
+  it("opens a failing previous step", () => {
+    const html = staged({
+      ...completed,
+      publicCases: [
+        { index: 0, status: "wrong_answer", actual: [7] },
+        { index: 1, status: "accepted", actual: [1] },
+      ],
+    });
+    expect(html).toContain('<details class="case-group" open="">');
+    expect(html).toContain(": failing");
+  });
+});

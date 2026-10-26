@@ -284,3 +284,20 @@
   font-size: 12px;
   font-weight: 500;
 }
+
+.case-group {
+  flex: 0 0 auto;
+}
+.case-group > .case-selector {
+  width: 100%;
+}
+summary.case-group-label {
+  cursor: pointer;
+}
+summary.case-group-label > svg {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
