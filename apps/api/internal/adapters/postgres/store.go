@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"time"
 )
 
 type Store struct {
@@ -24,13 +26,43 @@ func failure(code string, status int, message string) error {
 	return &application.Error{Code: code, Status: status, Message: message}
 }
 func ID() string { return application.ID() }
-func Open(ctx context.Context, url string) (*Store, error) {
-	p, err := pgxpool.New(ctx, url)
+
+// OpenPool bounds each replica's connections; idle compute must not retain a minimum pool.
+func OpenPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, err
 	}
-	if err = p.Ping(ctx); err != nil {
+	max := 4
+	if value := os.Getenv("QUOREM_DATABASE_MAX_CONNS"); value != "" {
+		max, err = strconv.Atoi(value)
+		if err != nil || max < 1 || max > 64 {
+			return nil, fmt.Errorf("QUOREM_DATABASE_MAX_CONNS must be between 1 and 64")
+		}
+	}
+	config.MaxConns = int32(max)
+	config.MinConns = 0
+	config.MinIdleConns = 0
+	config.MaxConnIdleTime = 30 * time.Second
+	if config.ConnConfig.ConnectTimeout == 0 {
+		config.ConnConfig.ConnectTimeout = 5 * time.Second
+	}
+	p, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+	boot, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err = p.Ping(boot); err != nil {
 		p.Close()
+		return nil, err
+	}
+	return p, nil
+}
+
+func Open(ctx context.Context, url string) (*Store, error) {
+	p, err := OpenPool(ctx, url)
+	if err != nil {
 		return nil, err
 	}
 	key, err := loadInviteKey()

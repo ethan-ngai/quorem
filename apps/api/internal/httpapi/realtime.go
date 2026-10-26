@@ -25,20 +25,65 @@ func (s *Server) StartRealtime(ctx context.Context) {
 	}
 	go func() { <-ctx.Done(); local.Close() }()
 	s.startInterviewRealtime(ctx)
+	var notifications func(context.Context) (<-chan struct{}, func(), error)
+	if repo, ok := s.Store.(interface {
+		MatchEventNotifications(context.Context) (<-chan struct{}, func(), error)
+	}); ok {
+		notifications = repo.MatchEventNotifications
+	}
+	s.startOutboxDispatcher(ctx, "/matches/", s.Store.DispatchMatchEvents, notifications)
+}
+
+// Commit signals remove dispatch latency; a bounded recovery tick repairs missed signals.
+func (s *Server) startOutboxDispatcher(ctx context.Context, topic string, publish func(context.Context, func(realtime.Notice) error) error, notifications func(context.Context) (<-chan struct{}, func(), error)) {
 	go func() {
-		tick := time.NewTicker(250 * time.Millisecond)
+		tick := time.NewTicker(time.Second)
 		defer tick.Stop()
+		var wake <-chan struct{}
+		var stop func()
+		defer func() {
+			if stop != nil {
+				stop()
+			}
+		}()
+		dispatch := func() {
+			attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			if err := publish(attempt, func(n realtime.Notice) error { return s.Events.Publish(attempt, topic+n.AggregateID, n) }); err != nil && ctx.Err() == nil {
+				log.Print("Realtime event dispatch unavailable")
+			}
+		}
+		connect := func() {
+			if notifications == nil {
+				return
+			}
+			var err error
+			wake, stop, err = notifications(ctx)
+			if err != nil {
+				wake = nil
+				log.Print("Database notifications unavailable; using bounded outbox recovery")
+			}
+		}
+		connect()
+		dispatch()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-tick.C:
-				attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-				err := s.Store.DispatchMatchEvents(attempt, func(n realtime.Notice) error { return s.Events.Publish(attempt, "/matches/"+n.AggregateID, n) })
-				cancel()
-				if err != nil && ctx.Err() == nil {
-					log.Print("Match event dispatch unavailable")
+			case _, open := <-wake:
+				if !open {
+					if stop != nil {
+						stop()
+					}
+					wake = nil
+				} else {
+					dispatch()
 				}
+			case <-tick.C:
+				if wake == nil {
+					connect()
+				}
+				dispatch()
 			}
 		}
 	}()
@@ -130,7 +175,7 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unsubscribe()
-	disconnect, err := s.Presence.Connect(topic, presenceSubject(user))
+	disconnect, err := s.connectPresence(ctx, topic, presenceSubject(user), func() { connection.Close(websocket.StatusTryAgainLater, "Connection lease expired") })
 	if err != nil {
 		connection.Close(websocket.StatusTryAgainLater, "Connection capacity reached")
 		return

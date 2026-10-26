@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
+	"strconv"
 )
 
 // FromEnv chooses fanout independently of database, jobs, identity and object storage.
@@ -12,6 +13,16 @@ func FromEnv(ctx context.Context, getenv func(string) string) (realtime.PubSub, 
 	switch getenv("QUOREM_REALTIME_PROVIDER") {
 	case "", "memory":
 		return nil, nil
+	case "postgres-notify":
+		limit := 512
+		if raw := getenv("QUOREM_REALTIME_CONNECTION_LIMIT"); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed < 1 || parsed > 4096 {
+				return nil, errors.New("invalid realtime subscription capacity")
+			}
+			limit = parsed
+		}
+		return NewPostgres(ctx, getenv("DATABASE_URL"), getenv("QUOREM_DATABASE_LISTEN_URL"), limit)
 	case "aws-appsync":
 		a := &AppSync{HTTPURL: getenv("AWS_APPSYNC_HTTP_URL"), WebSocketURL: getenv("AWS_APPSYNC_WS_URL"), APIKey: getenv("AWS_APPSYNC_API_KEY")}
 		if _, err := endpoint(a.HTTPURL, false); err != nil {

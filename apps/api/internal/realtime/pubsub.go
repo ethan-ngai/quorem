@@ -29,6 +29,11 @@ type Presence interface {
 	Online(string, string) bool
 }
 
+type LeasedPresence interface {
+	Presence
+	ConnectLease(context.Context, string, string) (func(), <-chan struct{}, error)
+}
+
 // Memory is the bounded local transport and advisory connection registry.
 type Memory struct {
 	mu          sync.Mutex
@@ -36,10 +41,18 @@ type Memory struct {
 	connections map[string]map[string]int
 	closed      bool
 	count       int
+	limit       int
 }
 
 func NewMemory() *Memory {
-	return &Memory{subscribers: make(map[string]map[chan Notice]struct{}), connections: make(map[string]map[string]int)}
+	return NewMemoryWithCapacity(256)
+}
+
+func NewMemoryWithCapacity(limit int) *Memory {
+	if limit < 1 || limit > 4096 {
+		panic("invalid realtime subscription capacity")
+	}
+	return &Memory{subscribers: make(map[string]map[chan Notice]struct{}), connections: make(map[string]map[string]int), limit: limit}
 }
 
 func (m *Memory) Subscribe(ctx context.Context, topic string) (<-chan Notice, func(), error) {
@@ -52,7 +65,7 @@ func (m *Memory) Subscribe(ctx context.Context, topic string) (<-chan Notice, fu
 	if strings.HasPrefix(topic, "/interviews/") {
 		limit = 48
 	}
-	if m.count >= 256 || len(m.subscribers[topic]) >= limit {
+	if m.count >= m.limit || len(m.subscribers[topic]) >= limit {
 		return nil, nil, errors.New("subscription capacity reached")
 	}
 	ch := make(chan Notice, 1)
