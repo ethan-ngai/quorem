@@ -20,7 +20,6 @@ import MatchModeIllustration from "../components/MatchModeIllustration.astro";
 import EditorPreview from "../components/EditorPreview";
 import HeroEditorPreview from "../components/HeroEditorPreview";
 import { SiteFooter } from "../../../web/src/ui/SiteFooter";
-import { Icon } from "../../../web/src/ui/Icon";
 import ThemeSwitch from "../components/ThemeSwitch.astro";
 import MarketingNavigationLinks from "../components/MarketingNavigationLinks.astro";
 import ClosingScene from "../components/ClosingScene.astro";
@@ -152,10 +151,10 @@ const socialImage = Astro.site
                         <div class="hero-intro">
                             <div class="hero-actions">
                                 <a
-                                    class="marketing-button primary-button hero-cta"
+                                    class="quiet-link hero-cta"
                                     href="/practice?create=match"
                                 >
-                                    <span>Create match</span><Icon name="arrow" />
+                                    Create match <span aria-hidden="true">→</span>
                                 </a>
                             </div>
                         </div>

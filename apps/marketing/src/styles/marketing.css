@@ -254,26 +254,9 @@ summary:focus-visible {
   flex-shrink: 0;
 }
 .hero-cta {
-  min-height: 52px;
-  gap: 24px;
-  padding-inline: 20px;
-  border-radius: 2px;
+  color: var(--color-primary);
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  transition:
-    transform 500ms var(--hero-easing),
-    background-color 500ms var(--hero-easing);
-}
-.hero-cta svg {
-  transition: transform var(--motion-standard) var(--motion-easing);
-}
-@media (hover: hover) and (pointer: fine) {
-  .hero-cta:hover svg {
-    transform: translateX(4px);
-  }
-}
-.hero-cta:active {
-  transform: translateY(0) scale(0.98);
 }
 :root {
   --marketing-panel-radius: 16px;
