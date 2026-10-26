@@ -12,6 +12,7 @@
 
 ## Implementation
 
+- Do not create or retain unnecessary compatibility layers, historical references, or obsolete code paths.
 - Before implementing, inspect analogous code and its consumers; identify the shared owner.
 - Implement common behavior/styles in that owner using shared primitives, composition and inheritance (DRY, single responsibility). Keep consumer-specific differences explicit.
 - Before finishing, review the diff for duplicated logic/defaults and obsolete paths; remove them and verify affected consumers.
