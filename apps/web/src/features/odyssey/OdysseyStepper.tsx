@@ -9,10 +9,12 @@ export function OdysseyStepper({
   progress,
   selectedLevel,
   onSelect,
+  passedLevels,
 }: {
   progress: OdysseyProgress & { totalLevels?: number };
   selectedLevel?: number;
   onSelect?: (level: number) => void;
+  passedLevels?: readonly number[];
 }) {
   const selected = Math.min(
     (onSelect ? selectedLevel : undefined) ?? progress.level,
@@ -25,7 +27,9 @@ export function OdysseyStepper({
         {Array.from({ length: total }, (_, index) => {
           const number = index + 1;
           const level = progress.levels[index];
-          const complete = progress.completed || number < progress.level;
+          const complete = passedLevels
+            ? passedLevels.includes(number)
+            : progress.completed || number < progress.level;
           const title = `${number}. ${level?.title ?? "Locked stage"}`;
           const label = `${title}${complete ? ", passed" : !level ? ", locked" : ""}`;
           return (

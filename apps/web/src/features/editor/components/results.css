@@ -254,9 +254,11 @@
   font-weight: 500;
   padding: 8px 8px 4px;
 }
-.case-group-label:not(:first-child) {
+.case-group + .case-group::before {
+  content: "";
+  display: block;
   border-top: 1px solid var(--color-border);
-  margin-top: 8px;
+  margin: 8px;
 }
 .case-visibility-action {
   display: flex;
@@ -294,7 +296,7 @@
 summary.case-group-label {
   cursor: pointer;
 }
-summary.case-group-label > svg {
+.case-group-label > svg {
   display: inline-block;
   width: 12px;
   height: 12px;

@@ -355,6 +355,20 @@ function InterviewPad({
             {question.progress && (
               <OdysseyStepper
                 progress={question.progress}
+                passedLevels={question.progress.levels.flatMap((level, index, levels) => {
+                  const offset = levels
+                    .slice(0, index)
+                    .reduce((count, step) => count + step.examples.length, 0);
+                  return result.data?.kind === "submit" &&
+                    result.data.verdict === "accepted" &&
+                    level.examples.length &&
+                    level.examples.every(
+                      (_, caseIndex) =>
+                        result.data?.publicCases?.[offset + caseIndex]?.status === "accepted",
+                    )
+                    ? [index + 1]
+                    : [];
+                })}
                 selectedLevel={interviewer ? undefined : selectedLevel}
                 onSelect={interviewer ? undefined : setSelectedLevel}
               />

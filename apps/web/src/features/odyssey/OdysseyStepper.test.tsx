@@ -49,3 +49,18 @@ describe("Odyssey stage navigation", () => {
     expect(html).toContain("Step 1 of 3");
   });
 });
+
+it("does not equate manually unlocked stages with verified passes", () => {
+  const html = renderToStaticMarkup(
+    <OdysseyStepper
+      progress={{
+        ...progress,
+        level: 2,
+        levels: [...progress.levels, { ...progress.levels[0]!, title: "Withdrawals" }],
+      }}
+      passedLevels={[]}
+    />,
+  );
+  expect(html).not.toContain(", passed");
+  expect(html).not.toContain('data-complete="true"');
+});
