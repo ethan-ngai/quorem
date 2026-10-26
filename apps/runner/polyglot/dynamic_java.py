@@ -28,9 +28,11 @@ def source(r, h):
     branches = []
     for name, sig in signatures.items():
         args = ','.join('decode('+json.dumps(p['type'])+',args.get('+str(i)+'))' for i,p in enumerate(sig['parameters']))
-        encoded = '"null"' if sig['returnType']=='void' else 'encode('+json.dumps(sig['returnType'])+',value,0)'
+        encoded = '"null"' if sig['returnType']=='void' else 'encodeResult('+json.dumps(sig['returnType'])+',value)'
         branches.append('case '+json.dumps(name)+':{if(args.size()!='+str(len(sig['parameters']))+')throw new IllegalArgumentException();Object value=invoke(solution,'+json.dumps(name)+',new Object[]{'+args+'});count=0;seen.clear();return '+encoded+';}')
     call = 'static String call(Object solution,String name,java.util.List<Object>args)throws Exception{switch(name){'+''.join(branches)+'default:throw new IllegalArgumentException();}}'
+    # Catch codec failures after invocation; contestant exceptions retain runtime_error.
+    call += 'static String encodeResult(String type,Object value){try{return encode(type,value,0);}catch(RuntimeException e){System.exit(42);return "";}}'
     main = '''public static void main(String[] argv)throws Exception {
  java.util.Map<String,Object>request=(java.util.Map<String,Object>)new Json(new String(System.in.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)).value(0);
  Object solution=new CLASS();java.util.List<?>calls=(java.util.List<?>)request.get("calls");String output;
