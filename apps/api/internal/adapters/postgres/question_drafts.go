@@ -10,6 +10,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type QuestionDraft = problems.QuestionDraft
@@ -282,6 +283,32 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	}
 	if _, err = tx.Exec(ctx, "INSERT INTO problem_versions(id,slug,version,public,fixture) VALUES($1,$2,$3,$4,$5)", p.ID, p.Slug, version, public, private); err != nil {
 		return d, err
+	}
+	// Catalog metadata belongs to the stable problem, not its immutable version.
+	if privateOwner != nil && p.LeetcodeID != nil {
+		return d, failure("invalid_input", 400, "LeetCode IDs are reserved for global questions")
+	}
+	if privateOwner == nil {
+		if _, err = tx.Exec(ctx, "UPDATE problems SET leetcode_id=$1 WHERE slug=$2", p.LeetcodeID, p.Slug); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return d, failure("invalid_input", 400, "LeetCode ID is already in use")
+			}
+			return d, err
+		}
+	}
+	if p.Companies != nil {
+		if _, err = tx.Exec(ctx, "DELETE FROM problem_companies WHERE problem_id=(SELECT id FROM problems WHERE slug=$1)", p.Slug); err != nil {
+			return d, err
+		}
+		for _, company := range p.Companies {
+			if _, err = tx.Exec(ctx, `INSERT INTO companies(name) VALUES($1) ON CONFLICT (lower(name)) DO NOTHING`, company); err != nil {
+				return d, err
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO problem_companies(problem_id,company_id) SELECT p.id,c.id FROM problems p JOIN companies c ON lower(c.name)=lower($2) WHERE p.slug=$1`, p.Slug, company); err != nil {
+				return d, err
+			}
+		}
 	}
 	for _, v := range c.Implementations {
 		if v.Language == "python" {

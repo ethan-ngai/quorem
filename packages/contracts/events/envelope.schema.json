@@ -272,6 +272,18 @@
         "difficulty": {
           "$ref": "#/$defs/Difficulty"
         },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "leetcodeId": {
+          "type": "integer",
+          "minimum": 1,
+          "nullable": true
+        },
         "tags": {
           "type": "array",
           "items": {
@@ -1317,6 +1329,18 @@
         "difficulty": {
           "$ref": "#/$defs/Difficulty"
         },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "leetcodeId": {
+          "type": "integer",
+          "minimum": 1,
+          "nullable": true
+        },
         "tags": {
           "type": "array",
           "items": {
@@ -1896,7 +1920,11 @@
     "InterviewMember": {
       "type": "object",
       "properties": {
-        "color": { "type": "integer", "minimum": 1, "maximum": 24 },
+        "color": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
         "image": {
           "type": "string"
         },
