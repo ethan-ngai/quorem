@@ -9,6 +9,7 @@ import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import { EditorialPanel } from "../editor/components/EditorialPanel";
 /** @file InterviewPage.tsx @description Shared coding workspace, role controls and private judging. @module interviews */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InterviewSnapshot, InterviewQuestionInput, Submission } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
@@ -111,6 +112,17 @@ function InterviewPad({
   const queryClient = useQueryClient();
   const editor = useRef<PythonEditorHandle>(null);
   const [status, setStatus] = useState<CollaborationStatus>("connecting");
+  useEffect(() => {
+    const notification = `interview-connection:${id}`;
+    if (status === "offline")
+      toast.warning("Connection interrupted. Keep this tab open; your edits retry automatically.", {
+        id: notification,
+      });
+    else toast.dismiss(notification);
+    return () => {
+      toast.dismiss(notification);
+    };
+  }, [id, status]);
   const controller = useMemo(
     () =>
       createCollaboration(id, initial.document, setStatus, (next, result) => {
@@ -458,11 +470,6 @@ function InterviewPad({
               <button className="button button-secondary" onClick={() => onOpenQuestion()}>
                 Open new question
               </button>
-            </div>
-          )}
-          {status === "offline" && (
-            <div className="match-rule-notice" role="status">
-              Connection interrupted. Keep this tab open; your edits retry automatically.
             </div>
           )}
         </>

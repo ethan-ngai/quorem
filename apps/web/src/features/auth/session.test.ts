@@ -144,3 +144,67 @@ describe("anonymous token polling", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("session continuity", () => {
+  it("does not turn a token-service outage into an anonymous session", async () => {
+    vi.stubGlobal("window", { location: { origin: "http://localhost" } });
+    const fetch = vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 }));
+    vi.stubGlobal("fetch", fetch);
+    const { fetchSession } = await import("./session");
+    await expect(fetchSession()).rejects.toThrow("Account temporarily unavailable");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("propagates token network failures without sending an unauthenticated request", async () => {
+    const fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.stubGlobal("fetch", fetch);
+    const { authenticatedFetch } = await import("./session");
+    await expect(authenticatedFetch("http://localhost/v1/session")).rejects.toThrow("offline");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it("refreshes based on JWT expiry instead of assuming a fresh five-minute token", async () => {
+    const now = Date.now();
+    const jwt = (exp: number) => `header.${btoa(JSON.stringify({ exp }))}.signature`;
+    const nearExpiry = jwt(Math.floor(now / 1000) + 20);
+    const renewed = jwt(Math.floor(now / 1000) + 300);
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ token: nearExpiry }))
+      .mockResolvedValueOnce(Response.json({ token: renewed }));
+    vi.stubGlobal("fetch", fetch);
+    const { token, tokenExpiresAt } = await import("./session");
+    expect(await token()).toBe(nearExpiry);
+    expect(tokenExpiresAt()).toBe((Math.floor(now / 1000) + 20) * 1000);
+    expect(await token()).toBe(renewed);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it("retries an expired bearer once without changing a submission body or retry key", async () => {
+    const requests: Request[] = [];
+    let credentials = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | Request) => {
+        if (typeof input === "string")
+          return Response.json({ token: ++credentials === 1 ? "old" : "new" });
+        requests.push(input);
+        return requests.length === 1
+          ? new Response(null, { status: 401 })
+          : Response.json({ id: "submission" });
+      }),
+    );
+    const { authenticatedFetch } = await import("./session");
+    const response = await authenticatedFetch("http://localhost/v1/submissions", {
+      method: "POST",
+      headers: { "Idempotency-Key": "same-operation" },
+      body: "source snapshot",
+    });
+    expect(response.ok).toBe(true);
+    expect(requests.map((request) => request.headers.get("Authorization"))).toEqual([
+      "Bearer old",
+      "Bearer new",
+    ]);
+    for (const request of requests) {
+      expect(request.headers.get("Idempotency-Key")).toBe("same-operation");
+      expect(await request.text()).toBe("source snapshot");
+    }
+  });
+});
