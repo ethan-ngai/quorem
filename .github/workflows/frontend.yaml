@@ -37,6 +37,7 @@ jobs:
       TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       # The targeted project bootstrap has no backend dependencies or mutations.
       TF_VAR_image: unused
+      TF_VAR_judge_image: unused
       TF_VAR_database_url: unused
       TF_VAR_better_auth_secret: unused
       TF_VAR_auth_internal_secret: unused
