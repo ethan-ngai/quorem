@@ -10,6 +10,12 @@
   min-width: 0;
   min-height: var(--page-height);
 }
+.page-layout:has(.workspace-grid) {
+  --page-height: 100dvh;
+}
+.page-layout:has(.workspace-grid) > .site-legal-footer {
+  display: none;
+}
 @media (max-width: 620px) {
   .page-layout {
     --page-footer-height: 76px;
