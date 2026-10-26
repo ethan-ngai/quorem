@@ -5,12 +5,14 @@ import { useId } from "react";
 export function AuthoringTabs({
   id: providedId,
   label,
+  appearance = "plain",
   tabs,
   value,
   onChange,
 }: {
   id?: string;
   label: string;
+  appearance?: "plain" | "underline";
   tabs: readonly { value: string; label: string }[];
   value: string;
   onChange: (value: string) => void;
@@ -18,7 +20,12 @@ export function AuthoringTabs({
   const generatedId = useId();
   const id = providedId ?? generatedId;
   return (
-    <div className="result-tabs authoring-section-tabs" role="tablist" aria-label={label}>
+    <div
+      className={`result-tabs${appearance === "plain" ? " authoring-section-tabs" : ""}`}
+      data-appearance={appearance}
+      role="tablist"
+      aria-label={label}
+    >
       {tabs.map((tab, index) => (
         <button
           key={tab.value}

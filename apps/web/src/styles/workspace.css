@@ -5,6 +5,7 @@
 
 .app-shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--navigation-height) minmax(0, 1fr);
   height: 100dvh;
   overflow: hidden;
@@ -592,6 +593,8 @@ kbd {
   display: block;
 }
 .match-strip {
+  min-width: 0;
+  overflow-x: auto;
   border-bottom: 1px solid var(--color-border);
 }
 .match-ledger {

@@ -26,3 +26,49 @@
   height: 14px;
   flex: 0 0 auto;
 }
+
+.result-tabs[data-appearance="underline"] button {
+  position: relative;
+  padding: var(--space-2) 0;
+  cursor: pointer;
+  font-weight: 550;
+  transition: color var(--motion-fast) var(--motion-easing);
+}
+.result-tabs[data-appearance="underline"] button::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  transform: scaleX(0);
+  opacity: 0;
+  transition:
+    transform var(--motion-standard) var(--motion-easing),
+    opacity var(--motion-standard) var(--motion-easing);
+}
+.result-tabs[data-appearance="underline"]
+  button:is(:hover, :focus-visible, [aria-selected="true"]) {
+  color: var(--color-primary);
+}
+.result-tabs[data-appearance="underline"] button[aria-selected="false"]:hover::after {
+  transform: scaleX(0.7);
+  opacity: 0.45;
+}
+.result-tabs[data-appearance="underline"] button:is([aria-selected="true"], :focus-visible)::after {
+  transform: scaleX(1);
+  opacity: 1;
+}
+.result-tabs[data-appearance="underline"] button:focus-visible {
+  outline: none;
+}
+.result-tabs[data-appearance="underline"] button:focus-visible::after {
+  height: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-tabs[data-appearance="underline"] button,
+  .result-tabs[data-appearance="underline"] button::after {
+    transition: none;
+  }
+}
