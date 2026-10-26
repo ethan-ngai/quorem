@@ -8,6 +8,7 @@ export function usePreviewSequence(
   const root = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState(finalStage);
   const [visible, setVisible] = useState(false);
+  const [automatic, setAutomatic] = useState(true);
   const [hidden, setHidden] = useState(false);
   const [reduced, setReduced] = useState(true);
   useEffect(() => {
@@ -40,5 +41,14 @@ export function usePreviewSequence(
     );
     return () => clearTimeout(timer);
   }, [stage, visible, hidden, reduced, delay, finalStage]);
-  return { root, stage, replay: () => setStage(reduced ? finalStage : 0) };
+  return {
+    root,
+    stage,
+    automatic,
+    active: visible && !hidden && !reduced,
+    replay: () => {
+      setAutomatic(false);
+      setStage(reduced ? finalStage : 0);
+    },
+  };
 }
