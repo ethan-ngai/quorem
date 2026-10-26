@@ -19,7 +19,7 @@ type DocumentSyncOptions = {
   clientID: string;
   pull: (position: { epoch: string; version: number }) => Promise<DocumentUpdates>;
   push: (body: DocumentPush, key: string) => Promise<DocumentUpdates>;
-  classifyError: (error: unknown) => "stale" | "replaced" | "offline";
+  classifyError: (error: unknown) => "stale" | "replaced" | "offline" | "retry";
   onStatus: (status: CollaborationStatus) => void;
   onSynchronized?: (document: SynchronizedDocument) => Promise<void>;
   onMount?: (view: EditorView) => void;
@@ -30,6 +30,7 @@ type DocumentSyncOptions = {
 export function createDocumentSync(options: DocumentSyncOptions) {
   let view: EditorView | undefined;
   let disposed = false;
+  let connected = true;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let active: Promise<void> | undefined;
   let rerun = false;
@@ -106,7 +107,7 @@ export function createDocumentSync(options: DocumentSyncOptions) {
       if (view && !disposed && !retry && !sendableUpdates(view.state).length)
         await options.onSynchronized?.({ view, pull, schedule });
       if (!disposed) {
-        status("connected");
+        if (connected) status("connected");
         if (view && sendableUpdates(view.state).length) schedule(0);
       }
     } catch (error) {
@@ -114,7 +115,10 @@ export function createDocumentSync(options: DocumentSyncOptions) {
       if (options.classifyError(error) === "replaced") {
         status("replaced");
         disposed = true;
-      } else status("offline");
+      } else {
+        status("offline");
+        if (connected && options.classifyError(error) === "retry") schedule(1000);
+      }
     }
   }
   function run() {
@@ -133,8 +137,11 @@ export function createDocumentSync(options: DocumentSyncOptions) {
   }
   function schedule(delay = 0) {
     if (disposed) return;
+    // Bound batching latency while typing continuously; immediate recovery may preempt the batch.
+    if (timer && delay > 0) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
+      timer = undefined;
       void run();
     }, delay);
   }
@@ -159,8 +166,12 @@ export function createDocumentSync(options: DocumentSyncOptions) {
   );
   return {
     schedule,
-    connectionChanged(connected: boolean) {
-      if (!disposed) status(connected ? "connecting" : "offline");
+    connectionChanged(next: boolean) {
+      connected = next;
+      if (!disposed) {
+        status(next ? "connecting" : "offline");
+        if (next) schedule();
+      }
     },
     isSynchronized: () => !!view && !disposed && !retry && !sendableUpdates(view.state).length,
     extension: [
@@ -172,8 +183,8 @@ export function createDocumentSync(options: DocumentSyncOptions) {
       for (let attempt = 0; attempt < 8 && view && !disposed; attempt++) {
         await run();
         if (!view || disposed) return false;
-        if (!sendableUpdates(view.state).length) return true;
         if (lastStatus === "offline") return false;
+        if (!sendableUpdates(view.state).length) return true;
       }
       return false;
     },

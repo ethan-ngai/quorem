@@ -32,6 +32,7 @@ export function createCollaboration(
   );
   const clientID = randomUUID();
   let view: EditorView | undefined;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   let odyssey: { progress: OdysseyProgress; language: EditorLanguage } | undefined;
   const sync = createDocumentSync({
     document,
@@ -44,8 +45,9 @@ export function createCollaboration(
         if (error.code === "stale_version") return "stale";
         if (["document_changed", "document_replaced", "stale_epoch"].includes(error.code))
           return "replaced";
+        return error.code === "temporarily_unavailable" ? "retry" : "offline";
       }
-      return "offline";
+      return "retry";
     },
     onMount(editor) {
       view = editor;
@@ -54,6 +56,7 @@ export function createCollaboration(
     },
     onDestroy() {
       view = undefined;
+      clearTimeout(refreshTimer);
       reports.stop();
       transport.stop();
     },
@@ -95,6 +98,7 @@ export function createCollaboration(
   let refreshAgain = false;
   async function refreshSnapshot() {
     if (!onSnapshot || !view) return;
+    clearTimeout(refreshTimer);
     if (refreshing) {
       refreshAgain = true;
       return;
@@ -104,15 +108,17 @@ export function createCollaboration(
       do {
         refreshAgain = false;
         const snapshot = await transport.request<InterviewSnapshot>("snapshot");
+        // Progress/starter recovery must not wait for a result request that can fail independently.
+        if (view) onSnapshot(snapshot);
         const result = snapshot.latestSubmissionId
           ? await transport.request<Submission>("submission", {
               submissionId: snapshot.latestSubmissionId,
             })
           : undefined;
-        if (view) onSnapshot(snapshot, result);
+        if (view && result) onSnapshot(snapshot, result);
       } while (refreshAgain && view);
     } catch {
-      /* Reconnect refreshes the current authorized snapshot. */
+      if (view) refreshTimer = setTimeout(() => void refreshSnapshot(), 1000);
     } finally {
       refreshing = false;
     }
