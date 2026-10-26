@@ -42,6 +42,7 @@ func OpenPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	}
 	config.MaxConns = int32(max)
 	config.MinConns = 0
+	config.MinIdleConns = 0
 	config.MaxConnIdleTime = 30 * time.Second
 	if config.ConnConfig.ConnectTimeout == 0 {
 		config.ConnConfig.ConnectTimeout = 5 * time.Second

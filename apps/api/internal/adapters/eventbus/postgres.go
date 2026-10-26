@@ -46,6 +46,7 @@ func NewPostgres(ctx context.Context, databaseURL, listenURL string, limit int) 
 	}
 	poolConfig.MaxConns = 1
 	poolConfig.MinConns = 0
+	poolConfig.MinIdleConns = 0
 	poolConfig.MaxConnIdleTime = 30 * time.Second
 	poolConfig.ConnConfig.ConnectTimeout = 5 * time.Second
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)

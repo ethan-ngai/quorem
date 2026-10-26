@@ -6,7 +6,6 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"github.com/jackc/pgx/v5"
 	"os"
-	"time"
 )
 
 // DispatchInterviewEvents publishes before acknowledging; a crash may replay, never skip.
@@ -62,44 +61,19 @@ func (s *Store) dispatchInterviewEventBatch(ctx context.Context, publish func(re
 
 // InterviewEventNotifications wakes dispatch after commit; the outbox repairs lost database notices.
 func (s *Store) InterviewEventNotifications(ctx context.Context) (<-chan struct{}, func(), error) {
-	acquire, cancel := context.WithTimeout(ctx, 5*time.Second)
 	config, err := interviewListenerConfig(s.Pool.Config().ConnConfig, os.Getenv("QUOREM_DATABASE_LISTEN_URL"))
 	if err != nil {
-		cancel()
 		return nil, nil, err
 	}
-	conn, err := pgx.ConnectConfig(acquire, config)
+	return pgnotify.Signals(ctx, config, "quorem_interview_outbox")
+}
+
+func (s *Store) MatchEventNotifications(ctx context.Context) (<-chan struct{}, func(), error) {
+	config, err := interviewListenerConfig(s.Pool.Config().ConnConfig, os.Getenv("QUOREM_DATABASE_LISTEN_URL"))
 	if err != nil {
-		cancel()
 		return nil, nil, err
 	}
-	if _, err = conn.Exec(acquire, "LISTEN quorem_interview_outbox"); err != nil {
-		cancel()
-		_ = conn.Close(acquire)
-		return nil, nil, err
-	}
-	cancel()
-	listen, stop := context.WithCancel(ctx)
-	wake := make(chan struct{}, 1)
-	go func() {
-		defer close(wake)
-		// LISTEN owns a dedicated session; transaction pooling cannot preserve subscriptions.
-		defer func() {
-			closeCtx, done := context.WithTimeout(context.Background(), time.Second)
-			defer done()
-			_ = conn.Close(closeCtx)
-		}()
-		for {
-			if _, err := conn.WaitForNotification(listen); err != nil {
-				return
-			}
-			select {
-			case wake <- struct{}{}:
-			default:
-			}
-		}
-	}()
-	return wake, stop, nil
+	return pgnotify.Signals(ctx, config, "quorem_match_outbox")
 }
 
 func interviewListenerConfig(primary *pgx.ConnConfig, override string) (*pgx.ConnConfig, error) {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	"strings"
+	"time"
 )
 
 func Config(primary *pgx.ConnConfig, override string) (*pgx.ConnConfig, error) {
@@ -38,8 +39,40 @@ func Listen(ctx context.Context, config *pgx.ConnConfig, channel string) (*pgx.C
 		return nil, err
 	}
 	if _, err = conn.Exec(ctx, "LISTEN "+pgx.Identifier{channel}.Sanitize()); err != nil {
-		_ = conn.Close(context.Background())
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = conn.Close(closeCtx)
 		return nil, err
 	}
 	return conn, nil
+}
+
+// Signals coalesces commit notifications; the durable queue remains the recovery source.
+func Signals(ctx context.Context, config *pgx.ConnConfig, channel string) (<-chan struct{}, func(), error) {
+	attempt, done := context.WithTimeout(ctx, 5*time.Second)
+	conn, err := Listen(attempt, config, channel)
+	done()
+	if err != nil {
+		return nil, nil, err
+	}
+	listen, stop := context.WithCancel(ctx)
+	wake := make(chan struct{}, 1)
+	go func() {
+		defer close(wake)
+		defer func() {
+			cleanup, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = conn.Close(cleanup)
+		}()
+		for {
+			if _, err := conn.WaitForNotification(listen); err != nil {
+				return
+			}
+			select {
+			case wake <- struct{}{}:
+			default:
+			}
+		}
+	}()
+	return wake, stop, nil
 }

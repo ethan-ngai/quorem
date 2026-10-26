@@ -350,52 +350,5 @@ func (s *Server) startInterviewRealtime(ctx context.Context) {
 	if !ok {
 		return
 	}
-	go func() {
-		tick := time.NewTicker(time.Second)
-		defer tick.Stop()
-		var wake <-chan struct{}
-		var stop func()
-		defer func() {
-			if stop != nil {
-				stop()
-			}
-		}()
-		dispatch := func() {
-			attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			if err := repo.DispatchInterviewEvents(attempt, func(n realtime.Notice) error { return s.Events.Publish(attempt, "/interviews/"+n.AggregateID, n) }); err != nil && ctx.Err() == nil {
-				log.Print("Interview event dispatch unavailable")
-			}
-		}
-		connect := func() {
-			var err error
-			wake, stop, err = repo.InterviewEventNotifications(ctx)
-			if err != nil {
-				wake = nil
-				log.Print("Interview database notifications unavailable; using bounded outbox recovery")
-			}
-		}
-		connect()
-		dispatch()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case _, open := <-wake:
-				if !open {
-					if stop != nil {
-						stop()
-					}
-					wake = nil
-				} else {
-					dispatch()
-				}
-			case <-tick.C:
-				if wake == nil {
-					connect()
-				}
-				dispatch()
-			}
-		}
-	}()
+	s.startOutboxDispatcher(ctx, "/interviews/", repo.DispatchInterviewEvents, repo.InterviewEventNotifications)
 }
