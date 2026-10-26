@@ -136,6 +136,7 @@ variable "auth_environment" {
 variable "auth_public_config" {
   type = object({
     method          = string
+    hostedSignIn    = optional(bool)
     preferredOrigin = string
     passkey         = bool
     registration    = bool

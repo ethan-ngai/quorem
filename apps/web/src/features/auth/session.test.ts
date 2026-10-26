@@ -81,13 +81,26 @@ describe("account identity transport", () => {
     );
     expect(assign).not.toHaveBeenCalled();
   });
-  it("rejects unknown auth configuration rather than exposing a credential form", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => Response.json({ method: "unknown" })),
-    );
-    const { authMethod } = await import("./session");
-    await expect(authMethod()).rejects.toThrow("Sign in unavailable");
+  it.each([true, false])(
+    "selects hosted endpoint based on advertised capability: %s",
+    async (hosted) => {
+      vi.stubGlobal("location", { origin: "https://quorem.test", assign: vi.fn() });
+      const fetch = vi.fn(async () => Response.json({ url: "https://identity.example" }));
+      vi.stubGlobal("fetch", fetch);
+      const { signIn } = await import("./session");
+      await signIn(hosted);
+      const [url, options] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe(hosted ? "/api/auth/sign-in/hosted" : "/api/auth/sign-in/social");
+      expect(JSON.parse(options.body as string).provider).toBe(hosted ? undefined : "cognito");
+    },
+  );
+  it("does not retry another endpoint after hosted sign-in failure", async () => {
+    vi.stubGlobal("location", { origin: "https://quorem.test", assign: vi.fn() });
+    const fetch = vi.fn(async () => new Response(null, { status: 503 }));
+    vi.stubGlobal("fetch", fetch);
+    const { signIn } = await import("./session");
+    await expect(signIn(true)).rejects.toThrow("Sign in unavailable");
+    expect(fetch).toHaveBeenCalledOnce();
   });
   it("a token request started before logout cannot restore the previous bearer", async () => {
     let finishToken: ((response: Response) => void) | undefined;

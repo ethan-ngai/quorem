@@ -145,7 +145,7 @@ function LoginForm() {
         setVisible(false);
       } else if (capabilities.data?.method === "password")
         await signInWithPassword(username.trim(), password);
-      else await signIn();
+      else await signIn(capabilities.data?.hostedEndpoint === true);
     });
   }
   return (

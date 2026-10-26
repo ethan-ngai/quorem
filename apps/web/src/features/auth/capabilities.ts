@@ -5,7 +5,8 @@ export const socialProviderLabels = { google: "Google", github: "GitHub" } as co
 export type SocialProvider = keyof typeof socialProviderLabels;
 export const socialProviders = Object.keys(socialProviderLabels) as SocialProvider[];
 export type AuthCapabilities = {
-  method: "password" | "cognito";
+  method: "password" | "hosted";
+  hostedEndpoint: boolean;
   preferredOrigin: string;
   passkey: boolean;
   registration: boolean;
@@ -33,10 +34,11 @@ export async function fetchAuthCapabilities(): Promise<AuthCapabilities> {
   const response = await fetch("/api/auth/quorem-config", { credentials: "same-origin" });
   if (!response.ok) throw new AuthError("Sign in unavailable");
   const data = await response.json();
-  if (data.method !== "password" && data.method !== "cognito")
+  if (data.hostedSignIn !== true && data.method !== "password" && data.method !== "cognito")
     throw new AuthError("Sign in unavailable");
   return {
-    method: data.method,
+    method: data.hostedSignIn === true || data.method === "cognito" ? "hosted" : "password",
+    hostedEndpoint: data.hostedSignIn === true,
     preferredOrigin: safeAuthOrigin(data.preferredOrigin),
     passkey: data.passkey === true,
     registration: data.registration === true,

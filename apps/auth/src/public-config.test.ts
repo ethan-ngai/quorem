@@ -17,6 +17,7 @@ describe("edge auth configuration", () => {
     const runtime = productionAuthEnvironment(env);
     expect(publicAuthConfiguration(productionAuthConfiguration(env, runtime))).toEqual({
       method: "password",
+      hostedSignIn: false,
       preferredOrigin: env.AUTH_ORIGIN,
       passkey: true,
       registration: true,
