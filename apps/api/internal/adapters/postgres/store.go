@@ -113,11 +113,17 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 	for _, path := range paths {
 		names[filepath.Base(path)] = true
 	}
-	legacy := []string{"001_schema.sql", "002_hot_query_indexes.sql", "002_profile_image.sql", "003_execution_wakeups.sql", "004_realtime_presence_leases.sql", "005_odyssey_feedback_reset.sql", "006_remove_odyssey_entitlement.sql"}
-	if len(appliedNames) > 0 && !appliedNames["007_schema.sql"] && names["007_schema.sql"] {
-		known := make(map[string]bool, len(legacy))
-		for _, name := range legacy {
-			known[name] = true
+	archive, err := loadMigrationArchive(dir)
+	if err != nil {
+		return fmt.Errorf("migration archive: %w", err)
+	}
+	if !names[archive.Baseline] {
+		return fmt.Errorf("migration archive baseline unavailable: %s", archive.Baseline)
+	}
+	if len(appliedNames) > 0 && !appliedNames[archive.Baseline] {
+		known := make(map[string]bool, len(archive.Migrations))
+		for _, entry := range archive.Migrations {
+			known[entry.Name] = true
 		}
 		for name := range appliedNames {
 			if !known[name] {
@@ -125,8 +131,8 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 			}
 		}
 		missing := false
-		for _, name := range legacy {
-			if appliedNames[name] {
+		for _, entry := range archive.Migrations {
+			if appliedNames[entry.Name] {
 				if missing {
 					return fmt.Errorf("legacy migration history is not a contiguous prefix")
 				}
@@ -134,25 +140,24 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 			}
 			missing = true
 		}
-		if !appliedNames[legacy[0]] {
+		if !appliedNames[archive.Migrations[0].Name] {
 			return fmt.Errorf("legacy migration baseline missing")
 		}
-		for _, name := range legacy[1:] {
-			if appliedNames[name] {
+		for _, entry := range archive.Migrations[1:] {
+			if appliedNames[entry.Name] {
 				continue
 			}
-			data, e := os.ReadFile(filepath.Join(dir, "legacy", name))
-			if e != nil {
-				return fmt.Errorf("legacy migration %s: %w", name, e)
-			}
-			if _, e = tx.Exec(ctx, string(data)); e != nil {
-				return fmt.Errorf("legacy migration %s: %w", name, e)
+			if _, e := tx.Exec(ctx, string(entry.SQL)); e != nil {
+				return fmt.Errorf("legacy migration %s: %w", entry.Name, e)
 			}
 		}
-		if _, err = tx.Exec(ctx, "DELETE FROM schema_migrations; INSERT INTO schema_migrations(name) VALUES ('007_schema.sql')"); err != nil {
+		if _, err = tx.Exec(ctx, "DELETE FROM schema_migrations"); err != nil {
 			return err
 		}
-		appliedNames = map[string]bool{"007_schema.sql": true}
+		if _, err = tx.Exec(ctx, "INSERT INTO schema_migrations(name) VALUES ($1)", archive.Baseline); err != nil {
+			return err
+		}
+		appliedNames = map[string]bool{archive.Baseline: true}
 	}
 	for name := range appliedNames {
 		if !names[name] {

@@ -1,0 +1,33 @@
+{
+  "baseline": "007_schema.sql",
+  "migrations": [
+    {
+      "name": "001_schema.sql",
+      "sha256": "c014b745c6bdbbdf4b9805fe4ac4e7027f1c5471b976050969ac4cdd66c60a11"
+    },
+    {
+      "name": "002_hot_query_indexes.sql",
+      "sha256": "951a2fae5a333a4b49d592dce758b50ac4b8cb475ab8e018876b822dcd3ae676"
+    },
+    {
+      "name": "002_profile_image.sql",
+      "sha256": "f560a265d3469ba1483b145ae003f7bc922215ecc7ef2228759d2039baba4323"
+    },
+    {
+      "name": "003_execution_wakeups.sql",
+      "sha256": "8036bab459a1d717b7ea001df6b7ed15765120d21b2fbe7f9a1a37b90c5470e7"
+    },
+    {
+      "name": "004_realtime_presence_leases.sql",
+      "sha256": "d4283d550222bd07fc29ea13146ebba056750466701ea2cc11b831f734a86f16"
+    },
+    {
+      "name": "005_odyssey_feedback_reset.sql",
+      "sha256": "636ea4bb78b45c124e98f1e943416492acbc56bc002d0888ff9a842be8fb5600"
+    },
+    {
+      "name": "006_remove_odyssey_entitlement.sql",
+      "sha256": "596b9e3fcadb3f64d149b1d209de971b849a07492485ae2b8c370801806aba9a"
+    }
+  ]
+}

@@ -2,14 +2,60 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestMigrationArchiveRejectsMissingAndModifiedFiles(t *testing.T) {
+	source := "../../../migrations/legacy"
+	for _, change := range []string{"remove", "modify", "extra"} {
+		t.Run(change, func(t *testing.T) {
+			dir := t.TempDir()
+			root := filepath.Join(dir, "legacy")
+			if err := os.Mkdir(root, 0700); err != nil {
+				t.Fatal(err)
+			}
+			files, err := os.ReadDir(source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var firstSQL string
+			for _, f := range files {
+				data, err := os.ReadFile(filepath.Join(source, f.Name()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = os.WriteFile(filepath.Join(root, f.Name()), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if firstSQL == "" && strings.HasSuffix(f.Name(), ".sql") {
+					firstSQL = filepath.Join(root, f.Name())
+				}
+			}
+			switch change {
+			case "remove":
+				err = os.Remove(firstSQL)
+			case "modify":
+				err = os.WriteFile(firstSQL, []byte("changed"), 0600)
+			case "extra":
+				err = os.WriteFile(filepath.Join(root, "extra.sql"), nil, 0600)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = loadMigrationArchive(dir); err == nil {
+				t.Fatal("invalid archive accepted")
+			}
+		})
+	}
+}
 
 func TestMigrationsPreserveDataAndRejectUnavailableHistory(t *testing.T) {
 	s := testStore(t)
@@ -51,57 +97,15 @@ func TestMigrationsPreserveDataAndRejectUnavailableHistory(t *testing.T) {
 	}
 }
 
-func TestRemoveOdysseyEntitlementMigration(t *testing.T) {
-	s := testStore(t)
-	ctx := context.Background()
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `ALTER TABLE entitlement_grants DROP CONSTRAINT entitlement_grants_feature_check;
-		ALTER TABLE entitlement_grants ADD CONSTRAINT entitlement_grants_feature_check
-		CHECK (feature IN ('problems.odyssey', 'interviews.host'));
-		INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason)
-		VALUES (gen_random_uuid(),'alice','problems.odyssey','manual','old','test','test'),
-		(gen_random_uuid(),'alice','interviews.host','manual','keep','test','test');
-		INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason)
-		VALUES ('old-odyssey','test','alice','grant:problems.odyssey','hash','test'),
-		('keep-interview','test','alice','grant:interviews.host','hash','test')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	migration, err := os.ReadFile("../../../migrations/legacy/006_remove_odyssey_entitlement.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = tx.Exec(ctx, string(migration)); err != nil {
-		t.Fatal(err)
-	}
-	var old, retained int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE feature='problems.odyssey'),
-		count(*) FILTER (WHERE feature='interviews.host') FROM entitlement_grants`).Scan(&old, &retained); err != nil || old != 0 || retained != 1 {
-		t.Fatalf("migration removed wrong grants: old=%d retained=%d err=%v", old, retained, err)
-	}
-	var triggerEnabled string
-	if err = tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE action='grant:problems.odyssey'),
-		count(*) FILTER (WHERE action='grant:interviews.host') FROM access_audit`).Scan(&old, &retained); err != nil || old != 0 || retained != 1 {
-		t.Fatalf("migration removed wrong audit entries: old=%d retained=%d err=%v", old, retained, err)
-	}
-	if err = tx.QueryRow(ctx, `SELECT tgenabled::text FROM pg_trigger WHERE tgrelid='access_audit'::regclass AND tgname='immutable_access_audit'`).Scan(&triggerEnabled); err != nil || triggerEnabled != "O" {
-		t.Fatalf("audit trigger not restored: %q %v", triggerEnabled, err)
-	}
-	if _, err = tx.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason)
-		VALUES (gen_random_uuid(),'alice','problems.odyssey','manual','new','test','test')`); err == nil {
-		t.Fatal("obsolete entitlement accepted")
-	}
-}
-
 func TestFlattenedMigrationUpgradesLegacyPrefixes(t *testing.T) {
 	base := testStore(t)
 	ctx := context.Background()
 	dir := "../../../migrations"
-	legacy := []string{"001_schema.sql", "002_hot_query_indexes.sql", "002_profile_image.sql", "003_execution_wakeups.sql", "004_realtime_presence_leases.sql", "005_odyssey_feedback_reset.sql", "006_remove_odyssey_entitlement.sql"}
+	archive, err := loadMigrationArchive(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := archive.Migrations
 	for count := 1; count <= len(legacy); count++ {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
 			schema := fmt.Sprintf("upgrade_%d", count)
@@ -116,27 +120,31 @@ func TestFlattenedMigrationUpgradesLegacyPrefixes(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer pool.Close()
-			for _, name := range legacy[:count] {
-				data, err := os.ReadFile(filepath.Join(dir, "legacy", name))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if _, err = pool.Exec(ctx, string(data)); err != nil {
-					t.Fatal(name, err)
+			for _, entry := range legacy[:count] {
+				if _, err = pool.Exec(ctx, string(entry.SQL)); err != nil {
+					t.Fatal(entry.Name, err)
 				}
 			}
 			if _, err = pool.Exec(ctx, `CREATE TABLE schema_migrations(name text PRIMARY KEY); INSERT INTO users(id,display_name) VALUES('upgrade-user','Preserved')`); err != nil {
 				t.Fatal(err)
 			}
-			for _, name := range legacy[:count] {
-				if _, err = pool.Exec(ctx, "INSERT INTO schema_migrations VALUES($1)", name); err != nil {
+			for _, entry := range legacy[:count] {
+				if _, err = pool.Exec(ctx, "INSERT INTO schema_migrations VALUES($1)", entry.Name); err != nil {
 					t.Fatal(err)
 				}
 			}
-			if count < len(legacy) {
-				if _, err = pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'upgrade-user','problems.odyssey','manual','old','test','test')`); err != nil {
+			_, grantErr := pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'upgrade-user','problems.odyssey','manual','old','test','test')`)
+			var pgErr *pgconn.PgError
+			if grantErr != nil && (!errors.As(grantErr, &pgErr) || pgErr.Code != "23514") {
+				t.Fatal(grantErr)
+			}
+			if grantErr == nil {
+				if _, err = pool.Exec(ctx, `INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES ('old-odyssey','test','upgrade-user','grant:problems.odyssey','hash','test')`); err != nil {
 					t.Fatal(err)
 				}
+			}
+			if _, err = pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'upgrade-user','interviews.host','manual','keep','test','test'); INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES ('keep-interview','test','upgrade-user','grant:interviews.host','hash','test')`); err != nil {
+				t.Fatal(err)
 			}
 			s := &Store{Pool: pool}
 			if err = s.Migrate(ctx, dir); err != nil {
@@ -146,8 +154,17 @@ func TestFlattenedMigrationUpgradesLegacyPrefixes(t *testing.T) {
 				t.Fatal(err)
 			}
 			var users, grants, ledger int
-			if err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM users WHERE id='upgrade-user'), (SELECT count(*) FROM entitlement_grants WHERE feature='problems.odyssey'), (SELECT count(*) FROM schema_migrations WHERE name='007_schema.sql')`).Scan(&users, &grants, &ledger); err != nil || users != 1 || grants != 0 || ledger != 1 {
+			if err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM users WHERE id='upgrade-user'), (SELECT count(*) FROM entitlement_grants WHERE feature='problems.odyssey'), (SELECT count(*) FROM schema_migrations WHERE name=$1)`, archive.Baseline).Scan(&users, &grants, &ledger); err != nil || users != 1 || grants != 0 || ledger != 1 {
 				t.Fatalf("upgrade state: %d %d %d %v", users, grants, ledger, err)
+			}
+			var oldAudit, keptAudit, keptGrant int
+			var enabled string
+			if err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM access_audit WHERE action='grant:problems.odyssey'), (SELECT count(*) FROM access_audit WHERE action='grant:interviews.host'), (SELECT count(*) FROM entitlement_grants WHERE feature='interviews.host'), (SELECT tgenabled::text FROM pg_trigger WHERE tgrelid='access_audit'::regclass AND tgname='immutable_access_audit')`).Scan(&oldAudit, &keptAudit, &keptGrant, &enabled); err != nil || oldAudit != 0 || keptAudit != 1 || keptGrant != 1 || enabled != "O" {
+				t.Fatalf("upgrade preservation: %d %d %d %s %v", oldAudit, keptAudit, keptGrant, enabled, err)
+			}
+			_, err = pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'upgrade-user','problems.odyssey','manual','new','test','test')`)
+			if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
+				t.Fatalf("obsolete grant accepted: %v", err)
 			}
 		})
 	}
@@ -156,11 +173,19 @@ func TestFlattenedMigrationUpgradesLegacyPrefixes(t *testing.T) {
 func TestFlattenedMigrationRejectsGappedHistory(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
-	if _, err := s.Pool.Exec(ctx, `DELETE FROM schema_migrations; INSERT INTO schema_migrations VALUES ('001_schema.sql'),('003_execution_wakeups.sql')`); err != nil {
+	archive, err := loadMigrationArchive("../../../migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Pool.Exec(ctx, `DELETE FROM schema_migrations`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO schema_migrations VALUES ($1),($2)`, archive.Migrations[0].Name, archive.Migrations[2].Name); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = s.Pool.Exec(ctx, `DELETE FROM schema_migrations; INSERT INTO schema_migrations VALUES ('007_schema.sql')`)
+		_, _ = s.Pool.Exec(ctx, `DELETE FROM schema_migrations`)
+		_, _ = s.Pool.Exec(ctx, `INSERT INTO schema_migrations VALUES ($1)`, archive.Baseline)
 	})
 	if err := s.Migrate(ctx, "../../../migrations"); err == nil || !strings.Contains(err.Error(), "contiguous prefix") {
 		t.Fatalf("gapped history accepted: %v", err)

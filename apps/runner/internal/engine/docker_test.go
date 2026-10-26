@@ -90,7 +90,7 @@ class Solution:
   assert self.calls == 0
   self.calls += 1
   assert 'DATABASE_URL' not in os.environ
-  assert not os.path.exists('/Users/engai')
+  assert not os.path.exists('/Users')
   try:
    open('/etc/quorem-probe','w').write('x')
    raise AssertionError('root writable')
