@@ -10,6 +10,9 @@ from pathlib import Path
 PIN = 'https://github.com/kamyu104/LeetCode-Solutions/tree/250c3e8ccc6d40db557684ccb66035d863e72896'
 PIN_FILE = 'https://github.com/kamyu104/LeetCode-Solutions/blob/250c3e8ccc6d40db557684ccb66035d863e72896/Python/'
 SOURCE_HASHES = {
+    1223: 'fb63d05a20dec643313aa68bd3940df94d0dff456175267c65592e34e7c60b99',
+    1235: '1491ba24eaf7299c3c1916802cc3b9fd047c6ad07b712a37e0ed13770ff8d421',
+    2477: '5cd281c74ff122770891292489a9b28b58ebb440b4616ea042f48f8211f45568',
     3290: 'd2d6649751f915ca9eeb4fd5fcb43141e6e20c1fd787496459159841f405a738',
     1872: '019f5a50b117ddac20392b4fd6ea222e25446580c98486ccbc5a8aa4c140c299',
     2435: 'f6e95f8b3b94d0d12bb2169168134bc754041580b77d7d1ef458908fc31091e8',
@@ -36,10 +39,63 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def selected_source(id, source):
+    if id not in (1235, 2477):
+        return source, set()
+    tree = ast.parse(source)
+    classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == 'Solution']
+    if len(classes) != 2:
+        raise ValueError('unexpected source class layout')
+    first = classes[0]
+    method = 'jobScheduling' if id == 1235 else 'minimumFuelCost'
+    if sum(isinstance(node, ast.FunctionDef) and node.name == method for node in first.body) != 1:
+        raise ValueError('unexpected source method layout')
+    if id == 1235:
+        class Py3Zip(ast.NodeTransformer):
+            count = 0
+            def visit_Attribute(self, node):
+                node = self.generic_visit(node)
+                if isinstance(node.value, ast.Name) and node.value.id == 'itertools' and node.attr == 'izip':
+                    self.count += 1
+                    return ast.copy_location(ast.Name(id='zip', ctx=ast.Load()), node)
+                return node
+        convert = Py3Zip()
+        first = convert.visit(first)
+        if convert.count != 1:
+            raise ValueError('unexpected Python 2 zip usage')
+    loaded = {node.id for node in ast.walk(first) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)}
+    imports = []
+    bindings = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = alias.asname or alias.name.split('.')[0]
+                if name in loaded:
+                    imports.append(ast.unparse(ast.Import(names=[alias])))
+                    bindings.add(name)
+    body = '\n'.join(imports) + ('\n\n' if imports else '') + ast.unparse(first) + '\n'
+    return body, bindings
+
+
+def without_bound_imports(prefix, bindings):
+    result = []
+    for line in prefix.splitlines():
+        if not line:
+            continue
+        node = ast.parse(line).body[0]
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            node.names = [alias for alias in node.names if (alias.asname or alias.name.split('.')[0]) not in bindings]
+            if not node.names:
+                continue
+        result.append(ast.unparse(node))
+    return '\n'.join(result) + ('\n\n' if result else '')
+
+
 def candidate(content, source):
+    source, bindings = selected_source(content['problem'].get('leetcodeId'), source)
     tree = ast.parse(source)
     uses_xrange = any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == 'xrange' for node in ast.walk(tree))
-    prefix = prepare.prelude_for_source(PRELUDE, source)
+    prefix = without_bound_imports(prepare.prelude_for_source(PRELUDE, source), bindings)
     # The pinned source targets Python 2; range supplies its lazy xrange semantics.
     prefix += 'xrange = range\n\n' if uses_xrange else ''
     reference = prefix + source
