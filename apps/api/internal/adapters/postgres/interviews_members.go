@@ -145,8 +145,11 @@ func (s *Store) InterviewGuestIdentity(ctx context.Context, token string) (ident
 		return p, identity.ErrUnauthorized
 	}
 	err := s.Pool.QueryRow(ctx, `SELECT u.id,u.display_name,g.token_hash FROM interview_guest_sessions g JOIN users u ON u.id=g.owner_id AND u.kind='guest' AND NOT u.disabled JOIN interview_members m ON m.session_id=g.session_id AND m.user_id=g.owner_id AND m.removed_at IS NULL JOIN interviews i ON i.id=g.session_id JOIN users h ON h.id=i.host_id AND NOT h.disabled WHERE g.token_hash=$1 AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()`, Hash([]byte(token))).Scan(&p.UserID, &p.DisplayName, &p.SessionID)
-	if err != nil {
+	if err == pgx.ErrNoRows {
 		return p, identity.ErrUnauthorized
+	}
+	if err != nil {
+		return p, err
 	}
 	p.Guest = true
 	return p, nil

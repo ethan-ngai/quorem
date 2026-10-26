@@ -1,10 +1,11 @@
 /** @file reconnectingSocket.ts @description Authenticated socket lifetime, retry and stale-callback fencing. @module realtime */
-import { token } from "../auth/session";
+import { token, tokenExpiresAt } from "../auth/session";
 import { createReconnectScheduler } from "./reconnectScheduler";
 
 type SocketOptions = {
   url: () => string | URL;
   timeout: number;
+  idleTimeout?: number;
   onConnecting?: () => void;
   onOpen: () => void;
   onMessage: (event: MessageEvent) => void;
@@ -18,6 +19,13 @@ export function createReconnectingSocket(options: SocketOptions) {
   let stopped = true;
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  function clearTimers() {
+    clearTimeout(timer);
+    clearTimeout(idleTimer);
+    clearTimeout(refreshTimer);
+  }
   const reconnect = createReconnectScheduler(
     () => void connect(),
     (callback, delay) => setTimeout(callback, delay),
@@ -37,30 +45,48 @@ export function createReconnectingSocket(options: SocketOptions) {
       );
       socket = current;
       const owns = () => valid() && socket === current;
+      // Browser close handshakes can stall on broken networks; detach before reconnecting.
+      const disconnect = (immediate = false) => {
+        if (!owns()) return;
+        clearTimers();
+        socket = undefined;
+        options.onDisconnect();
+        current.close();
+        if (immediate) void connect();
+        else reconnect.schedule();
+      };
+      const renewIdle = () => {
+        clearTimeout(idleTimer);
+        if (options.idleTimeout) idleTimer = setTimeout(() => disconnect(), options.idleTimeout);
+      };
       timer = setTimeout(() => {
-        if (owns()) current.close();
+        disconnect();
       }, options.timeout);
       current.onopen = () => {
         if (!owns()) return;
         clearTimeout(timer);
         reconnect.reset();
+        renewIdle();
+        const expires = tokenExpiresAt();
+        if (expires)
+          refreshTimer = setTimeout(
+            () => disconnect(true),
+            Math.max(1000, expires - Date.now() - 30_000),
+          );
         options.onOpen();
       };
       current.onmessage = (event) => {
-        if (owns()) options.onMessage(event);
+        if (owns()) {
+          renewIdle();
+          options.onMessage(event);
+        }
       };
       current.onerror = () => {
         if (!owns()) return;
         options.onError?.(new Error("Event connection failed"));
-        current.close();
+        disconnect();
       };
-      current.onclose = () => {
-        if (!owns()) return;
-        clearTimeout(timer);
-        socket = undefined;
-        options.onDisconnect();
-        reconnect.schedule();
-      };
+      current.onclose = () => disconnect();
     } catch (cause) {
       if (!valid()) return;
       options.onError?.(cause);
@@ -78,7 +104,7 @@ export function createReconnectingSocket(options: SocketOptions) {
     stop() {
       stopped = true;
       generation++;
-      clearTimeout(timer);
+      clearTimers();
       reconnect.stop();
       socket?.close();
       socket = undefined;

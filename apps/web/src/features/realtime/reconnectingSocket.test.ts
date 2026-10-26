@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createReconnectingSocket } from "./reconnectingSocket";
-import { token } from "../auth/session";
-vi.mock("../auth/session", () => ({ token: vi.fn(async () => "token") }));
+import { token, tokenExpiresAt } from "../auth/session";
+vi.mock("../auth/session", () => ({ token: vi.fn(async () => "token"), tokenExpiresAt: vi.fn() }));
 
 class Socket {
   static instances: Socket[] = [];
@@ -84,5 +84,43 @@ it("closes stalled handshakes, fences old frames, and clears the deadline on ope
   expect(onMessage).toHaveBeenCalledOnce();
   await vi.advanceTimersByTimeAsync(10_000);
   expect(onDisconnect).toHaveBeenCalledOnce();
+  connection.stop();
+});
+
+it("replaces a silent established socket even when its close handshake never finishes", async () => {
+  const disconnected = vi.fn();
+  const connection = createReconnectingSocket({
+    url: () => "ws://localhost/events",
+    timeout: 2000,
+    idleTimeout: 25_000,
+    onOpen: vi.fn(),
+    onMessage: vi.fn(),
+    onDisconnect: disconnected,
+  });
+  connection.start();
+  await Promise.resolve();
+  const silent = Socket.instances[0]!;
+  silent.onopen?.();
+  silent.close = vi.fn();
+  await vi.advanceTimersByTimeAsync(20_000);
+  silent.onmessage?.({ data: "heartbeat" } as MessageEvent);
+  await vi.advanceTimersByTimeAsync(24_999);
+  expect(disconnected).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(601);
+  expect(disconnected).toHaveBeenCalledOnce();
+  expect(Socket.instances).toHaveLength(2);
+  connection.stop();
+});
+
+it("rotates before the authenticated bearer expires and reacquires a fresh token", async () => {
+  vi.mocked(tokenExpiresAt).mockReturnValueOnce(Date.now() + 60_000);
+  const { connection } = setup();
+  connection.start();
+  await Promise.resolve();
+  Socket.instances[0]!.onopen?.();
+  vi.mocked(token).mockResolvedValue("refreshed");
+  await vi.advanceTimersByTimeAsync(30_600);
+  expect(Socket.instances).toHaveLength(2);
+  expect(Socket.instances[1]!.protocols).toContain("bearer.refreshed");
   connection.stop();
 });
