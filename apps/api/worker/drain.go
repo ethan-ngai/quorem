@@ -14,6 +14,7 @@ type executionNotifications interface {
 }
 type executionQueueState interface {
 	ExecutionQueueState(context.Context) (int, int, error)
+	ConfirmExecutionQueueEmpty(context.Context) (bool, error)
 }
 type DrainState struct {
 	Queued  int `json:"queued"`
@@ -140,6 +141,26 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 		}
 		state = DrainState{Queued: queued, Running: running}
 		if state.Queued == 0 && state.Running == 0 && !time.Now().Before(graceUntil) {
+			select {
+			case <-s.admissionWake:
+				extendGrace()
+				continue
+			default:
+			}
+			confirmation, finish := context.WithTimeout(ctx, 5*time.Second)
+			empty, err := repo.ConfirmExecutionQueueEmpty(confirmation)
+			finish()
+			if err != nil {
+				if parent.Err() != nil {
+					return state, false, nil
+				}
+				return state, false, err
+			}
+			if !empty {
+				wake()
+				continue
+			}
+			// A concurrent pre-admission wake extends grace even if it arrived during the DB fence.
 			select {
 			case <-s.admissionWake:
 				extendGrace()
