@@ -38,6 +38,27 @@ class StatementTest(unittest.TestCase):
         self.assertIn('1 | 2 |', result['examples'][0]['explanation'])
         self.assertNotIn('See below.', result['statementMarkdown'])
 
+    def test_literal_asterisks_and_additional_live_examples(self):
+        content = {'problem': {'statementMarkdown': 'old', 'signature': {'parameters': [{'name': 's', 'type': 'str'}]}, 'examples': [{'args': ['a**'], 'expected': 2}]}}
+        def parse(row, parameters):
+            import ast
+            return {'args': [ast.literal_eval(row['input'].split('=', 1)[1].strip())], 'expected': int(row['output'])}
+        html = """<p>Given <code>s</code>.</p><p><strong>Example 1:</strong></p><pre>Input: s = "a**"
+Output: 2
+Explanation: Underlined: <u>a**</u>.</pre><p><strong>Example 2:</strong></p><pre>Input: s = "b"
+Output: 0</pre><p><strong>Constraints:</strong></p><p>None.</p>"""
+        result = format_question(content, html, parse)['problem']
+        self.assertEqual(result['examples'][0]['args'], ['a**'])
+        self.assertEqual(result['examples'][1]['args'], ['b'])
+        self.assertIn('bolded', result['examples'][0]['explanation'].lower())
+        self.assertIn(r'**a\*\***', result['examples'][0]['explanation'])
+
+    def test_changed_existing_example_is_rejected(self):
+        content = {'problem': {'statementMarkdown': 'old', 'signature': {'parameters': []}, 'examples': [{'args': [1], 'expected': 9}]}}
+        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><pre>Input: x = 1\nOutput: 2</pre><p><strong>Constraints:</strong></p>'
+        with self.assertRaises(ValueError):
+            format_question(content, html, lambda row, params: {'args': [1], 'expected': 2})
+
 
 if __name__ == '__main__':
     unittest.main()
