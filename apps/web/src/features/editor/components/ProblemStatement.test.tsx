@@ -74,3 +74,26 @@ it("removes the topic control and all topic content when the host disables hints
   expect(markup).not.toContain("SECRET_TOPIC");
   expect(markup).not.toContain("topic-list");
 });
+
+it("connects example tabs to one visible panel", () => {
+  const problem = {
+    id: "examples",
+    title: "Examples",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown: "Solve it.",
+    constraints: [],
+    signature: { parameters: [{ name: "n", type: "int" }], returnType: "int" },
+    examples: [
+      { args: [1], expected: 2, explanation: "First explanation" },
+      { args: [3], expected: 4, explanation: "Second explanation" },
+    ],
+  } as unknown as ProblemVersion;
+  const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(markup.match(/role="tab"/g)).toHaveLength(2);
+  expect(markup.match(/role="tabpanel"/g)).toHaveLength(1);
+  expect(markup).toContain("First explanation");
+  expect(markup).not.toContain("Second explanation");
+  const panelId = markup.match(/role="tabpanel" id="([^"]+)"/)?.[1];
+  expect(markup).toContain(`aria-controls="${panelId}"`);
+});

@@ -1,6 +1,7 @@
 import "./machine-values.css";
 import "./problem-statement.css";
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
+import { AuthoringTabs } from "../../../ui/AuthoringTabs";
 import { SequenceCaseValues } from "./SequenceCaseValues";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
@@ -52,6 +53,12 @@ export function ProblemStatement({
   allowTopics?: boolean;
 }) {
   const language = useQuestionLanguage();
+  const [selection, setSelection] = useState({ problemId: problem.id, index: 0 });
+  const selectedExample =
+    selection.problemId === problem.id
+      ? Math.min(selection.index, Math.max(0, problem.examples.length - 1))
+      : 0;
+  const examplesId = useId();
   const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
   const topicsVisible = revealedTopicsFor === problem.id;
   const topicsId = useId();
@@ -97,15 +104,33 @@ export function ProblemStatement({
       </div>
       {beforeExamples}
       {problem.examples.length > 0 && (
-        <section className="problem-section" aria-labelledby="examples-heading">
-          <h2 id="examples-heading">Examples</h2>
-          <ol className="example-list">
-            {problem.examples.map((example, index) => (
-              <li key={index} aria-label={`Example ${index + 1}`}>
+        <section className="problem-section" aria-labelledby={`${examplesId}-heading`}>
+          <h2 id={`${examplesId}-heading`}>Examples</h2>
+          <div className="example-navigation">
+            <AuthoringTabs
+              id={examplesId}
+              label="Examples"
+              tabs={problem.examples.map((_, index) => ({
+                value: String(index),
+                label: `Example ${index + 1}`,
+              }))}
+              value={String(selectedExample)}
+              onChange={(value) => setSelection({ problemId: problem.id, index: Number(value) })}
+            />
+          </div>
+          <div className="example-list">
+            {problem.examples.slice(selectedExample, selectedExample + 1).map((example) => (
+              <div
+                key={selectedExample}
+                role="tabpanel"
+                id={`${examplesId}-${selectedExample}-panel`}
+                aria-labelledby={`${examplesId}-${selectedExample}`}
+                tabIndex={0}
+              >
                 <div className="example-content">
                   {example.calls?.length ? (
                     <div className="example-sequence">
-                      <h3>Example {index + 1}</h3>
+                      <h3>Example {selectedExample + 1}</h3>
                       <SequenceCaseValues
                         problem={problem}
                         calls={example.calls}
@@ -147,9 +172,9 @@ export function ProblemStatement({
                     )}
                   </div>
                 </div>
-              </li>
+              </div>
             ))}
-          </ol>
+          </div>
         </section>
       )}
       {problem.constraints.length > 0 && (
