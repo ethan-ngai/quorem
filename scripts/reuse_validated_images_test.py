@@ -78,12 +78,26 @@ class ReuseImagesTests(unittest.TestCase):
 
     def test_changed_runtime_docker_or_dependency_inputs_are_rejected(self):
         baseline = self.current
-        for path in ['apps/api/entry.go', 'deploy/Dockerfile', 'pnpm-lock.yaml']:
+        for path in ['apps/api/entry.go', 'apps/auth/src/server.ts',
+                     'apps/runner/cmd/runner/main.go', 'internal/execution/runtime.go',
+                     'fixtures/problems/question.json', 'packages/contracts/package.json',
+                     'deploy/Dockerfile', 'deploy/Dockerfile.judge', 'deploy/start.py',
+                     'deploy/judge-start.py', 'deploy/nginx.conf',
+                     'deploy/runtime-deps/deps.tar', 'deploy/images/python.tar',
+                     'scripts/package-auth.py', 'scripts/build-judge-images.py',
+                     'go.mod', '.node-version', 'pnpm-lock.yaml']:
             with self.subTest(path=path):
                 self.git('reset', '--hard', baseline)
                 self.write(path, 'changed input\n')
                 self.current = self.commit()
                 with self.assertRaisesRegex(RuntimeError, 'Image inputs changed'): self.resolve()
+
+    def test_worker_modules_and_separate_profiler_do_not_change_images(self):
+        for path in ['deploy/worker.js', 'deploy/router.js', 'deploy/policy.js',
+                     'deploy/container.js', 'apps/api/cmd/profile-reads/main.go']:
+            self.write(path, 'updated separate runtime or diagnostic\n')
+        self.current = self.commit()
+        self.assertEqual(self.resolve(), self.source)
 
     def test_changed_image_build_commands_are_rejected(self):
         self.write(reuse.WORKFLOW, self.workflow.replace('echo compile', 'echo different build'))
