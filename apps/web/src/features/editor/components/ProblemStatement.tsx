@@ -163,14 +163,16 @@ export function ProblemStatement({
                   )}
                   <div className="example-explanation">
                     {example.explanation && (
-                      <p>
+                      <div className="example-explanation-content">
                         <Tooltip content="Explanation">
                           <span className="explanation-icon" tabIndex={0} aria-label="Explanation">
                             <Icon name="explanation" />
                           </span>
                         </Tooltip>
-                        <span>{inlineStatement(example.explanation)}</span>
-                      </p>
+                        <div>
+                          <StatementMarkdown source={example.explanation} />
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

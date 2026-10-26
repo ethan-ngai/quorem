@@ -18,10 +18,12 @@ def main():
     parser.add_argument('fixtures', type=Path)
     parser.add_argument('html_cache', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--staged', type=Path, required=True, help='staged source directory with questions.json')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('output already exists')
     manifest = json.loads((args.fixtures / 'manifest.json').read_text())
+    staged = {item['leetcode_id']: item for item in json.loads((args.staged / 'questions.json').read_text())}
     records = []
     for item in manifest['fixtures']:
         name = item['file']
@@ -42,6 +44,10 @@ def main():
             if str(record.get('questionFrontendId')) != str(content['problem']['leetcodeId']) or record.get('titleSlug') != slug or not record.get('content'):
                 raise ValueError('invalid cached question')
             content = format_question(content, record['content'], prepare.case)
+            source = staged[content['problem']['leetcodeId']]['source']
+            if source['problem_slug'] != slug or not isinstance(source.get('topics'), list):
+                raise ValueError('invalid staged source topics')
+            content['problem']['tags'] = source['topics']
         except (OSError, ValueError, KeyError, TypeError) as error:
             failures.append({'file': name, 'reason': str(error)})
         (candidates / name).write_text(json.dumps(content, ensure_ascii=False, indent=2) + '\n')
