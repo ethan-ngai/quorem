@@ -189,7 +189,7 @@ type querier interface {
 func (s *Store) submission(ctx context.Context, q querier, owner, id string) (judging.Submission, error) {
 	var v judging.Submission
 	var data []byte
-	err := q.QueryRow(ctx, "SELECT id,workspace_id,kind,state,source_hash,admitted_at,updated_at,result FROM submissions WHERE id::text=$1 AND owner_id=$2", id, owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data)
+	err := q.QueryRow(ctx, "SELECT id,workspace_id,kind,state,source_hash,admitted_at,updated_at,result FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return v, failure("not_found", 404, "Submission not found")
 	}

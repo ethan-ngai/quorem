@@ -134,7 +134,7 @@ func (s *Store) InterviewSubmission(ctx context.Context, user, id, submissionID 
 		return out, err
 	}
 	var submitter string
-	if err = tx.QueryRow(ctx, `SELECT s.owner_id FROM submissions s JOIN interview_execution e ON e.submission_id=s.id WHERE e.session_id=$1 AND s.id::text=$2`, id, submissionID).Scan(&submitter); err == pgx.ErrNoRows {
+	if err = tx.QueryRow(ctx, `SELECT s.owner_id FROM submissions s JOIN interview_execution e ON e.submission_id=s.id WHERE e.session_id=$1 AND s.id=$2`, uuidLookup(id), uuidLookup(submissionID)).Scan(&submitter); err == pgx.ErrNoRows {
 		return out, failure("not_found", 404, "Execution unavailable")
 	}
 	if err != nil {
