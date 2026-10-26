@@ -35,6 +35,26 @@
   width: 100%;
   max-width: 400px;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .auth-enter-login {
+    animation: auth-enter-login var(--motion-standard) var(--motion-easing);
+  }
+  .auth-enter-register {
+    animation: auth-enter-register var(--motion-standard) var(--motion-easing);
+  }
+  @keyframes auth-enter-login {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+  @keyframes auth-enter-register {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+}
 .auth-content h1 {
   margin: 0;
   font-size: 30px;
@@ -156,7 +176,10 @@
   font-size: 14px;
 }
 .auth-showcase {
-  position: relative;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  align-self: start;
   min-width: 0;
   display: grid;
   place-items: center;
