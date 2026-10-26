@@ -95,7 +95,7 @@ def main():
         "company_links": sum(len(q["companies"]) for q in records),
         "issues": issues,
         "publication_ready": False,
-        "limitations": ["Source rights require review", "No private tests or reference solutions", "Source content and examples require validation"],
+        "limitations": ["No private tests or reference solutions", "Source content and examples require validation"],
     }
     args.output.mkdir(parents=True)
     for filename, data in (("questions.json", records), ("report.json", report)):
