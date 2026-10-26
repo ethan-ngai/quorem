@@ -7,9 +7,13 @@ import json
 import io
 import zipfile
 import re
+import sys
 import urllib.request
 from collections import Counter
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from leetcode_statement import format_question
 
 REVISION = "215604aeed660029df7de2fea5a4d7b6ed476a08"
 BASE = f"https://huggingface.co/datasets/newfacade/LeetCodeDataset/resolve/{REVISION}"
@@ -160,6 +164,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("staged", type=Path)
     p.add_argument("output", type=Path)
+    p.add_argument("--html-cache", type=Path, help="public GraphQL cache from fetch-leetcode-public.py")
     args = p.parse_args()
     if args.output.exists():
         p.error("output directory already exists")
@@ -203,6 +208,17 @@ def main():
             counts["kamyu_alternatives"] += 1
         try:
             importable = candidate(content, item["source"], row)
+            if args.html_cache:
+                path = args.html_cache / f'{item["leetcode_id"]}.json'
+                try:
+                    record = json.loads(path.read_text(encoding="utf-8"))["question"]
+                    if str(record.get("questionFrontendId")) != str(item["leetcode_id"]) or record.get("titleSlug") != slug or not record.get("content"):
+                        raise ValueError("invalid cached question")
+                    importable = format_question(importable, record["content"], case)
+                    counts["html_formatted"] += 1
+                except (OSError, ValueError, KeyError, TypeError) as error:
+                    failures.append({"leetcode_id": item["leetcode_id"], "reason": "HTML formatting: " + str(error)})
+                    counts["html_format_failed"] += 1
             (args.output / "candidates" / f'{item["leetcode_id"]}.json').write_text(json.dumps(importable, ensure_ascii=False, indent=2) + "\n")
             counts["candidates"] += 1
         except ValueError as error:
