@@ -77,6 +77,7 @@ type OdysseyProgress struct {
 	Levels       []OdysseyLevel               `json:"levels"`
 }
 type Problem struct {
+	SQL                 *SQLConfig               `json:"sql,omitempty"`
 	ComplexityLanguages []string                 `json:"complexityLanguages,omitempty"`
 	Odyssey             *Odyssey                 `json:"odyssey,omitempty"`
 	Languages           []LanguageImplementation `json:"languages"`

@@ -13,6 +13,34 @@ describe("question JSON import", () => {
     content.implementations[0]!.referenceSource = "private reference";
     expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);
   });
+  it("imports SQL tables, numeric results, and method-free stages", () => {
+    const content = blankQuestion();
+    content.problem.sql = { dialect: "postgresql", outputOrder: "unordered" };
+    const test = {
+      args: [
+        {
+          tables: [
+            { name: "items", columns: [{ name: "amount", type: "numeric" }], rows: [["1.250"]] },
+          ],
+        },
+      ],
+      expected: { columns: ["amount"], rows: [[{ $numeric: "1.25" }]] },
+    };
+    content.problem.odyssey = {
+      levels: [{ title: "Step 1", statementMarkdown: "Query", methods: [], examples: [test] }],
+    };
+    content.odysseyHiddenCases = [[test]];
+    content.implementations = [
+      {
+        language: "postgresql",
+        starterSource: "SELECT amount FROM items",
+        runtimeRevision: "postgresql-17.6-v1",
+        harnessRevision: "quorem-postgresql-v1",
+        referenceSource: "SELECT amount FROM items",
+      },
+    ];
+    expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);
+  });
   it.each(["{", "null", "[]", "{}", '{"problem":null}'])(
     "rejects malformed content: %s",
     (text) => {

@@ -104,6 +104,7 @@ export function QuestionSetup({
     setStages(next);
   }
   function chooseMode(next: string) {
+    if (next !== "catalog" && language === "postgresql") setLanguage("python");
     if (next === "staged" && starterIsDefault)
       setStarter(
         initialOdysseySource(stagedInitialized.current ? firstMethods : [signature], language),
@@ -258,11 +259,13 @@ export function QuestionSetup({
                   setStarter(initialOdysseySource(firstMethods, value as EditorLanguage));
                 setLanguage(value as EditorLanguage);
               }}
-              options={Object.entries(languageLabels).map(([value, text]) => ({
-                value,
-                label: text,
-                leading: <LanguageLogo language={value as EditorLanguage} />,
-              }))}
+              options={Object.entries(languageLabels)
+                .filter(([value]) => mode === "catalog" || value !== "postgresql")
+                .map(([value, text]) => ({
+                  value,
+                  label: text,
+                  leading: <LanguageLogo language={value as EditorLanguage} />,
+                }))}
             />
           </label>
         </div>

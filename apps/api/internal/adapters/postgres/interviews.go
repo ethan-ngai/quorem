@@ -366,6 +366,9 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		}
 		return f, nil
 	}
+	if q.Language == "postgresql" {
+		return f, failure("invalid_input", 400, "Custom SQL interviews require a published SQL question")
+	}
 	c := q.Custom
 	f = problems.Fixture{Problem: problems.Problem{ID: ID(), Slug: "interview-private", Version: "1", Title: strings.TrimSpace(c.Title), Difficulty: "easy", Tags: []string{}, StatementMarkdown: c.StatementMarkdown, Signature: c.Signature, StarterSource: c.StarterSource, RuntimeRevision: runtime.Revision, Limits: execution.DefaultLimits(), Constraints: []problems.Constraint{}, Examples: []problems.ProblemExample{}}, HiddenCases: c.PrivateCases, HarnessRevision: runtime.Harness, Comparator: "ordered", Attribution: "Private interview"}
 	if f.Problem.Signature.ClassName == "" {

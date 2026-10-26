@@ -148,7 +148,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		return err
 	}
 	p := c.Problem
-	if p.Odyssey != nil {
+	if p.Odyssey != nil && p.SQL == nil {
 		if err := ValidateOdyssey(c); err != nil {
 			return err
 		}
@@ -175,27 +175,34 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		}
 		seenTags[tag] = true
 	}
-	sig := p.Signature
-	if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 {
-		return fmt.Errorf("Solution class and valid method name required")
-	}
-	seenParameters := map[string]bool{}
-	for _, param := range sig.Parameters {
-		if !symbolName.MatchString(param.Name) || len(param.Name) > 80 || seenParameters[param.Name] {
-			return fmt.Errorf("invalid or duplicate parameter")
+	if p.SQL == nil {
+		sig := p.Signature
+		if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 {
+			return fmt.Errorf("Solution class and valid method name required")
 		}
-		seenParameters[param.Name] = true
-		if err := ValidateInputConfig(param.Type, param.Input); err != nil {
+		seenParameters := map[string]bool{}
+		for _, param := range sig.Parameters {
+			if !symbolName.MatchString(param.Name) || len(param.Name) > 80 || seenParameters[param.Name] {
+				return fmt.Errorf("invalid or duplicate parameter")
+			}
+			seenParameters[param.Name] = true
+			if err := ValidateInputConfig(param.Type, param.Input); err != nil {
+				return err
+			}
+		}
+		if err := ValidateInputConfig(sig.ReturnType, nil); err != nil && !(p.Odyssey != nil && sig.ReturnType == "void") {
 			return err
 		}
-	}
-	if err := ValidateInputConfig(sig.ReturnType, nil); err != nil && !(p.Odyssey != nil && sig.ReturnType == "void") {
-		return err
-	}
-	if err := ValidateConstraints(sig, p.Constraints); err != nil {
+		if err := ValidateConstraints(sig, p.Constraints); err != nil {
+			return err
+		}
+	} else if err := validateSQLPublication(c); err != nil {
 		return err
 	}
 	limits, max := p.Limits, execution.DefaultLimits()
+	if p.SQL != nil && (limits.MemoryBytes < max.MemoryBytes || limits.MaxProcesses < max.MaxProcesses) {
+		return fmt.Errorf("PostgreSQL requires the default memory and process limits")
+	}
 	if limits.WallTimeMS < 1 || limits.WallTimeMS > max.WallTimeMS || limits.MemoryBytes < 1 || limits.MemoryBytes > max.MemoryBytes || limits.OutputBytes < 1 || limits.OutputBytes > max.OutputBytes || limits.MaxProcesses < 1 || limits.MaxProcesses > max.MaxProcesses || limits.MaxCollectionElements < 1 || limits.MaxCollectionElements > max.MaxCollectionElements || limits.MaxNestingDepth < 1 || limits.MaxNestingDepth > max.MaxNestingDepth {
 		return fmt.Errorf("execution limits exceed supported bounds")
 	}
@@ -217,8 +224,11 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		}
 		languages[v.Language] = true
 	}
-	if !languages["python"] {
-		return fmt.Errorf("Python implementation required for compatibility")
+	if p.SQL == nil && (!languages["python"] || languages["postgresql"]) {
+		return fmt.Errorf("Python implementation required for coding problems")
+	}
+	if p.SQL != nil && (len(languages) != 1 || !languages["postgresql"]) {
+		return fmt.Errorf("SQL problems require the PostgreSQL implementation")
 	}
 	editorials := map[string]bool{}
 	for _, v := range c.Solutions {

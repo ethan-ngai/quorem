@@ -52,3 +52,5 @@ OCaml exposes functions, lists, optional mutable records (`list_node` with `valu
 Node values use the same JSON linked-list and breadth-first-tree codec as Python.
 Java/TypeScript/OCaml have syntax highlighting; Python alone has remote IntelliSense.
 Docker fixtures prove local compiler/codec behavior; cloud sandbox release validation remains separate.
+
+PostgreSQL 17 SQL cases use a separate ephemeral cluster per sandbox; build `apps/runner/Dockerfile.postgres` as `quorem-postgres:local`. `RUNNER_POSTGRES_IMAGE` overrides it. SQL setup, comparison, authoring, and Odyssey limits are documented in `docs/implementation/sql-problems.md`. Hosted startup runs a PostgreSQL role and deadline preflight before accepting jobs.

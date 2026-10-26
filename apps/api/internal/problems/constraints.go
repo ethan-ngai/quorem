@@ -224,6 +224,9 @@ func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
 	return result
 }
 func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
+	if p.SQL != nil {
+		return validateSQLCase(c, expectedRequired)
+	}
 	if p.Odyssey != nil {
 		return ValidateOdysseyCase(p, c, expectedRequired)
 	}

@@ -3,7 +3,9 @@
  * Do not make direct changes to the file.
  */
 
-export type WireValue = null | number | boolean | string | WireValue[];
+export type WireValue = null | number | boolean | string | WireValue[] | {
+    [key: string]: WireValue;
+};
 export interface paths {
     "/v1/problems/{slug}": {
         parameters: {
@@ -858,7 +860,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /** @enum {string} */
-        Language: "python" | "java" | "typescript" | "ocaml";
+        Language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
         /** @enum {string} */
         Difficulty: "easy" | "medium" | "hard";
         /** @enum {string} */
@@ -939,6 +941,12 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages?: components["schemas"]["LanguageImplementation"][];
+            sql?: {
+                /** @enum {string} */
+                dialect: "postgresql";
+                /** @enum {string} */
+                outputOrder: "ordered" | "unordered";
+            };
             odyssey?: components["schemas"]["Odyssey"];
             /** @description Languages with published complexity; contains no costs or solution source. */
             complexityLanguages?: components["schemas"]["Language"][];
@@ -1217,14 +1225,14 @@ export interface components {
         };
         LanguageImplementation: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             starterSource: string;
             runtimeRevision: string;
             harnessRevision: string;
         };
         EditorialSolution: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             source: string;
             explanationMarkdown: string;
             timeComplexity: string;
@@ -1233,14 +1241,14 @@ export interface components {
         };
         EditorialComplexity: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             timeComplexity: string;
             spaceComplexity: string;
             complexityNotes: string;
         };
         AuthoringImplementation: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             starterSource: string;
             runtimeRevision: string;
             harnessRevision: string;
@@ -1263,6 +1271,12 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages: components["schemas"]["LanguageImplementation"][];
+            sql?: {
+                /** @enum {string} */
+                dialect: "postgresql";
+                /** @enum {string} */
+                outputOrder: "ordered" | "unordered";
+            };
             odyssey?: components["schemas"]["Odyssey"];
         };
         QuestionContent: {
