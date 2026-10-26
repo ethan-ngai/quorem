@@ -15,7 +15,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { catalogQueryOptions, catalogTopics, catalogPageSize as pageSize } from "./problemQueries";
+import { catalogQueryOptions, catalogFacets, catalogPageSize as pageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
@@ -61,8 +61,10 @@ export function PracticeBrowser() {
   const catalog = useQuery(catalogQueryOptions(queryClient, actor, search));
   const privateIdentityError =
     search.library === "private" && actor === undefined && session.isError;
-  const topics = catalogTopics(queryClient, actor, search, catalog.data);
-  const filtered = Boolean(search.q || search.difficulty || search.topic || library || search.type);
+  const { topics, companies } = catalogFacets(queryClient, actor, search, catalog.data);
+  const filtered = Boolean(
+    search.q || search.difficulty || search.topic || search.company || library || search.type,
+  );
   const sort = search.sort ?? "title";
   const SortIcon = search.order === "desc" ? ArrowDown : ArrowUp;
   const sortBy = (next: "title" | "difficulty") =>
@@ -77,6 +79,7 @@ export function PracticeBrowser() {
       q: undefined,
       difficulty: undefined,
       topic: undefined,
+      company: undefined,
       library: undefined,
       type: undefined,
     });
@@ -98,7 +101,7 @@ export function PracticeBrowser() {
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
       <CatalogLayout
         title="Practice"
-        description="Browse questions by topic and difficulty."
+        description="Browse questions by topic, company and difficulty."
         actions={
           <span className="practice-total">
             {total} {total === 1 ? "question" : "questions"}
@@ -162,6 +165,15 @@ export function PracticeBrowser() {
             options={[...new Set([...topics, ...filterValues(search.topic)])].map((value) => ({
               value,
               label: label(value),
+            }))}
+          />
+          <CatalogFilter
+            label="Companies"
+            selected={filterValues(search.company)}
+            onChange={(values) => update({ company: values.join(",") || undefined })}
+            options={[...new Set([...companies, ...filterValues(search.company)])].map((value) => ({
+              value,
+              label: value,
             }))}
           />
           {filtered && (
@@ -280,6 +292,14 @@ export function PracticeBrowser() {
                       ? "Try another topic or a broader search."
                       : "Check back when new questions are published."}
                   </p>
+                  <CatalogFilter
+                    label="Companies"
+                    selected={filterValues(search.company)}
+                    onChange={(values) => update({ company: values.join(",") || undefined })}
+                    options={[...new Set([...companies, ...filterValues(search.company)])].map(
+                      (value) => ({ value, label: value }),
+                    )}
+                  />
                   {filtered && (
                     <button className="practice-retry" onClick={clear}>
                       Clear filters

@@ -50,6 +50,9 @@ func NormalizeQuestionDraft(c QuestionContent) QuestionContent {
 	if p.Tags == nil {
 		p.Tags = []string{}
 	}
+	if p.Companies == nil {
+		p.Companies = []string{}
+	}
 	if p.Languages == nil {
 		p.Languages = []LanguageImplementation{}
 	}
@@ -94,11 +97,22 @@ func ValidateQuestionDraft(c QuestionContent) error {
 		return fmt.Errorf("invalid UTF-8")
 	}
 	p := c.Problem
-	if len(p.Languages) > 4 || len(p.Tags) > 32 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > 20 || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
+	if len(p.Languages) > 4 || len(p.Tags) > 32 || len(p.Companies) > 64 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > 20 || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
 		return fmt.Errorf("question collection limit exceeded")
 	}
 	if len(p.ID) > 64 || len(p.Version) > 32 || len(p.StarterSource) > 65536 || len(p.RuntimeRevision) > 128 || len(p.Slug) > 80 || len(p.Title) > 160 || len(p.StatementMarkdown) > 65536 || len(c.Attribution) > 2048 {
 		return fmt.Errorf("question text limit exceeded")
+	}
+	if p.LeetcodeID != nil && (*p.LeetcodeID < 1 || *p.LeetcodeID > 2147483647) {
+		return fmt.Errorf("invalid LeetCode ID")
+	}
+	seenCompanies := map[string]bool{}
+	for _, company := range p.Companies {
+		key := strings.ToLower(company)
+		if company != strings.TrimSpace(company) || company == "" || len(company) > 80 || strings.Contains(company, ",") || seenCompanies[key] {
+			return fmt.Errorf("invalid or duplicate company")
+		}
+		seenCompanies[key] = true
 	}
 	for _, example := range p.Examples {
 		if len(example.Explanation) > 8192 {

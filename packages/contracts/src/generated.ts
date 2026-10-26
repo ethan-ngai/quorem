@@ -928,6 +928,8 @@ export interface components {
             version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
+            companies?: string[];
+            leetcodeId?: number | null;
             tags: string[];
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
@@ -1250,6 +1252,8 @@ export interface components {
             version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
+            companies?: string[];
+            leetcodeId?: number | null;
             tags: string[];
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
@@ -2096,6 +2100,7 @@ export interface operations {
                 difficulty?: string;
                 /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 topic?: string;
+                company?: string;
                 sort?: "title" | "difficulty";
                 order?: "asc" | "desc";
                 page?: number;
@@ -2120,6 +2125,7 @@ export interface operations {
                         total: number;
                         page: number;
                         limit: number;
+                        companies: string[];
                         topics: string[];
                     };
                 };

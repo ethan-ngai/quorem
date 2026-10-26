@@ -4,6 +4,7 @@ export type CatalogSearch = {
   q?: string;
   difficulty?: string;
   topic?: string;
+  company?: string;
   sort?: "difficulty";
   order?: "desc";
   page?: number;
@@ -24,6 +25,10 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
     (value) => Array.from(value).slice(0, 80).join(""),
   );
   if (topics.length) result.topic = [...new Set(topics)].join(",");
+  const companies = filterValues(
+    typeof search.company === "string" ? search.company : undefined,
+  ).map((value) => Array.from(value).slice(0, 80).join(""));
+  if (companies.length) result.company = companies.join(",");
   if (search.sort === "difficulty") result.sort = "difficulty";
   if (search.order === "desc") result.order = "desc";
   const page = Number(search.page);

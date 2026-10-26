@@ -74,6 +74,18 @@
         "difficulty": {
           "$ref": "#/$defs/Difficulty"
         },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "leetcodeId": {
+          "type": "integer",
+          "minimum": 1,
+          "nullable": true
+        },
         "tags": {
           "type": "array",
           "items": {
