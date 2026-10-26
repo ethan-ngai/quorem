@@ -28,3 +28,15 @@ func FromEnv(ctx context.Context, getenv func(string) string) (Queue, error) {
 		return nil, ErrInvalid
 	}
 }
+
+// PublisherFromEnv selects API publishing independently of a runner's queue consumer.
+func PublisherFromEnv(ctx context.Context, getenv func(string) string) (Publisher, error) {
+	if getenv("QUOREM_DELIVERY_PROVIDER") == "cloudflare-dispatch" {
+		return NewDispatch(DispatchConfig{URL: getenv("QUOREM_EXECUTION_WAKE_URL"), Token: getenv("QUOREM_JUDGE_CONTROL_TOKEN")})
+	}
+	queue, err := FromEnv(ctx, getenv)
+	if err != nil || queue == nil {
+		return nil, err
+	}
+	return queue, nil
+}

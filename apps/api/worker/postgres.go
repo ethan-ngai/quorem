@@ -7,7 +7,7 @@ import (
 
 // Open is the PostgreSQL composition facade for the separately packaged runner.
 func Open(ctx context.Context, url string, options ...Option) (*Service, error) {
-	store, err := postgres.Open(ctx, url)
+	store, err := postgres.OpenRunner(ctx, url)
 	if err != nil {
 		return nil, err
 	}
