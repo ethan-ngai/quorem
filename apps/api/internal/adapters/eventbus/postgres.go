@@ -32,17 +32,13 @@ func NewPostgres(ctx context.Context, databaseURL, listenURL string, limit int) 
 	if limit < 1 || limit > 4096 {
 		return nil, errors.New("invalid realtime subscription capacity")
 	}
-	config, err := pgx.ParseConfig(databaseURL)
-	if err != nil {
-		return nil, errors.New("invalid realtime database configuration")
-	}
-	listen, err := pgnotify.Config(config, listenURL)
-	if err != nil {
-		return nil, errors.New("invalid realtime listener configuration")
-	}
 	poolConfig, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, errors.New("invalid realtime database configuration")
+	}
+	listen, err := pgnotify.Config(poolConfig.ConnConfig, listenURL)
+	if err != nil {
+		return nil, errors.New("invalid realtime listener configuration")
 	}
 	poolConfig.MaxConns = 1
 	poolConfig.MinConns = 0
