@@ -2936,7 +2936,7 @@
     "schemas": {
       "Language": {
         "type": "string",
-        "enum": ["python", "java", "typescript", "ocaml"]
+        "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
       },
       "Difficulty": {
         "type": "string",
@@ -2990,6 +2990,10 @@
             "items": {
               "$ref": "#/components/schemas/WireValue"
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/WireValue" }
           }
         ]
       },
@@ -3244,6 +3248,15 @@
             "items": {
               "$ref": "#/components/schemas/LanguageImplementation"
             }
+          },
+          "sql": {
+            "type": "object",
+            "properties": {
+              "dialect": { "type": "string", "enum": ["postgresql"] },
+              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] }
+            },
+            "required": ["dialect", "outputOrder"],
+            "additionalProperties": false
           },
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
@@ -4137,7 +4150,7 @@
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml"]
+            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
           },
           "starterSource": {
             "type": "string"
@@ -4164,7 +4177,7 @@
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml"]
+            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
           },
           "source": {
             "type": "string"
@@ -4190,7 +4203,7 @@
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml"]
+            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
           },
           "timeComplexity": {
             "type": "string"
@@ -4209,7 +4222,7 @@
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml"]
+            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
           },
           "starterSource": {
             "type": "string"
@@ -4291,6 +4304,15 @@
             "items": {
               "$ref": "#/components/schemas/LanguageImplementation"
             }
+          },
+          "sql": {
+            "type": "object",
+            "properties": {
+              "dialect": { "type": "string", "enum": ["postgresql"] },
+              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] }
+            },
+            "required": ["dialect", "outputOrder"],
+            "additionalProperties": false
           },
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
@@ -4618,7 +4640,7 @@
             "items": {
               "$ref": "#/components/schemas/Signature"
             },
-            "minItems": 1,
+            "minItems": 0,
             "maxItems": 16
           },
           "examples": {

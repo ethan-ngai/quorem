@@ -263,16 +263,16 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	p.ID = ID()
 	p.Version = strconv.Itoa(version)
 	p.Languages = []problems.LanguageImplementation{}
-	var python problems.AuthoringImplementation
+	var primary problems.AuthoringImplementation
 	for _, v := range c.Implementations {
 		p.Languages = append(p.Languages, v.LanguageImplementation)
-		if v.Language == "python" {
-			python = v
+		if v.Language == "python" && p.SQL == nil || v.Language == "postgresql" && p.SQL != nil {
+			primary = v
 		}
 	}
-	p.StarterSource = python.StarterSource
-	p.RuntimeRevision = python.RuntimeRevision
-	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: python.HarnessRevision, Comparator: c.Comparator, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: python.ReferenceSource}
+	p.StarterSource = primary.StarterSource
+	p.RuntimeRevision = primary.RuntimeRevision
+	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Comparator: c.Comparator, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
 	public, err := json.Marshal(p)
 	if err != nil {
 		return d, err
@@ -311,7 +311,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 		}
 	}
 	for _, v := range c.Implementations {
-		if v.Language == "python" {
+		if v.Language == primary.Language {
 			continue
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,$2,$3,$4,$5,$6)`, p.ID, v.Language, v.StarterSource, v.RuntimeRevision, v.HarnessRevision, v.ReferenceSource); err != nil {

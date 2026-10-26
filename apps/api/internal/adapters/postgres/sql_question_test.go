@@ -1,0 +1,107 @@
+package postgres
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
+	"strings"
+	"testing"
+
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
+	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"github.com/ethan-ngai/quorem/internal/execution"
+)
+
+func TestSQLPublicationAndAdmission(t *testing.T) {
+	s := adminStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	c := authoringContent(t, s)
+	var test problems.Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}`), &test); err != nil {
+		t.Fatal(err)
+	}
+	c.Problem.Slug = "sql-test"
+	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}
+	c.Problem.Odyssey = nil
+	c.Problem.Examples = []problems.ProblemExample{{Case: test}}
+	c.HiddenCases = make([]problems.Case, 20)
+	for i := range c.HiddenCases {
+		c.HiddenCases[i] = test
+	}
+	runtime, _ := execution.LanguageRuntime("postgresql")
+	c.Implementations = []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "postgresql", StarterSource: "SELECT id FROM items", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness}, ReferenceSource: "SELECT id FROM items"}}
+	c.Solutions = nil
+	d, err := s.CreateQuestionDraft(ctx, "alice", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = s.PublishQuestionDraft(ctx, "alice", d.ID, d.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.Problem(ctx, d.PublishedVersionID, true)
+	if err != nil || p.SQL == nil || len(p.Languages) != 1 || p.Languages[0].Language != "postgresql" {
+		t.Fatalf("%+v %v", p, err)
+	}
+	fork, err := s.QuestionContent(ctx, p.ID)
+	if err != nil || fork.Problem.SQL == nil || len(fork.HiddenCases) != 20 {
+		t.Fatal(fork, err)
+	}
+	w, err := s.CreateWorkspace(ctx, "alice", p.ID, "postgresql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Admit(ctx, "alice", "sql-test", judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "SELECT id FROM items"}, "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
+	s := adminStore(t)
+	if _, err := s.Pool.Exec(context.Background(), `TRUNCATE interviews CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	grantInternal(t, s, "alice")
+	c := authoringContent(t, s)
+	var test problems.Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}`), &test); err != nil {
+		t.Fatal(err)
+	}
+	c.Problem.Slug = "private-sql"
+	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}
+	c.Problem.Odyssey = nil
+	c.Problem.Examples = []problems.ProblemExample{{Case: test}}
+	c.HiddenCases = make([]problems.Case, 20)
+	for i := range c.HiddenCases {
+		c.HiddenCases[i] = test
+	}
+	c.Solutions = nil
+	runtime, _ := execution.LanguageRuntime("postgresql")
+	c.Implementations = []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "postgresql", StarterSource: "SELECT id FROM items", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness}, ReferenceSource: "SELECT id FROM items"}}
+	d, err := s.CreateQuestionDraft(ctx, "alice", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = s.PublishQuestionDraftTo(ctx, "alice", d.ID, d.Revision, "private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	room, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "SQL interview", Question: interviews.QuestionInput{Language: "postgresql", ProblemVersionID: d.PublishedVersionID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.JoinInterview(ctx, "bob", strings.TrimPrefix(room.InvitePath, "/interview-invite/"), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	submission, err := s.AdmitInterview(ctx, "bob", room.ID, ID(), "run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var baseline string
+	if err = s.Pool.QueryRow(ctx, `SELECT w.problem_version_id::text FROM submissions s JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=$1`, submission.ID).Scan(&baseline); err != nil || baseline == d.PublishedVersionID {
+		t.Fatal("private version used as solo baseline", baseline, err)
+	}
+}

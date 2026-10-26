@@ -87,6 +87,8 @@ jobs:
       - run: docker build -f apps/runner/Dockerfile.java -t quorem-java:local .
       - run: docker build -f apps/runner/Dockerfile.typescript -t quorem-typescript:local .
       - run: docker build -f apps/runner/Dockerfile.ocaml -t quorem-ocaml:local .
+      - run: docker build -f apps/runner/Dockerfile.postgres -t quorem-postgres:local .
+      - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgresSandbox$'
       # Integration packages share one disposable database and reset its fixtures.
       - run: go test -p 1 ./...
       - name: Cloudflare Durable Object contract

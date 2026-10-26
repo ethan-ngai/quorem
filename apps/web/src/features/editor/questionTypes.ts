@@ -21,6 +21,7 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     python: { void: "None", int: "int", float: "float", bool: "bool", str: "str" },
     java: { void: "void", int: "int", float: "double", bool: "boolean", str: "String" },
     typescript: { void: "void", int: "number", float: "number", bool: "boolean", str: "string" },
+    postgresql: {},
     ocaml: { void: "unit", int: "int", float: "float", bool: "bool", str: "string" },
   };
   return names[language][type] ?? type;

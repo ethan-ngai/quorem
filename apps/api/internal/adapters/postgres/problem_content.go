@@ -13,6 +13,7 @@ import (
 // Aggregate only public records; judge references and hidden cases cannot enter this projection.
 const publicProblemSQL = `SELECT jsonb_build_object(
  'id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
+ 'sql',v.public->'sql',
  'odyssey',CASE WHEN v.public->'odyssey' IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.public->'odyssey'->'levels'->0)) ELSE NULL END,
  'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,
  'complexityLanguages',CASE WHEN v.public->'odyssey' IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),'[]'::jsonb) END,
@@ -22,7 +23,7 @@ const publicProblemSQL = `SELECT jsonb_build_object(
  'languages',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'),
  'starterSource',py.starter_source,'runtimeRevision',py.runtime_revision)
  FROM problem_versions v JOIN problems p ON p.id=v.problem_id
- JOIN problem_languages py ON py.version_id=v.id AND py.language='python' `
+ JOIN problem_languages py ON py.version_id=v.id AND py.language=CASE WHEN v.public->'sql' IS NOT NULL THEN 'postgresql' ELSE 'python' END `
 
 func (s *Store) Problem(ctx context.Context, value string, byID bool) (problems.Problem, error) {
 	query := publicProblemSQL + " WHERE p.slug=$1 AND v.id=p.current_version_id"
