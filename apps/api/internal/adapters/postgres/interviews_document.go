@@ -109,11 +109,7 @@ func interviewDocumentState(ctx context.Context, tx pgx.Tx, user, id string, act
 	if lock {
 		lockClause = " FOR NO KEY UPDATE OF i"
 	}
-	err := tx.QueryRow(ctx, `SELECT i.state,CASE WHEN $3 THEN i.source ELSE '' END,i.document_version,i.document_epoch,
-	EXISTS(SELECT 1 FROM entitlement_grants g WHERE g.user_id=i.host_id AND g.feature IN ('internal','interviews.host') AND g.revoked_at IS NULL AND g.valid_from<=clock_timestamp() AND (g.expires_at IS NULL OR g.expires_at>clock_timestamp()))
-	FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL
-	JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id AND NOT h.disabled
-	WHERE i.id::text=$1 AND i.deleted_at IS NULL`+lockClause, id, user, active).Scan(&v.snapshot.State, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &enabled)
+	err := tx.QueryRow(ctx, interviewDocumentStateQuery+lockClause, uuidLookup(id), user, active).Scan(&v.snapshot.State, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &enabled)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Interview unavailable")
 	}
@@ -128,3 +124,9 @@ func interviewDocumentState(ctx context.Context, tx pgx.Tx, user, id string, act
 	}
 	return v, nil
 }
+
+const interviewDocumentStateQuery = `SELECT i.state,CASE WHEN $3 THEN i.source ELSE '' END,i.document_version,i.document_epoch,
+	EXISTS(SELECT 1 FROM entitlement_grants g WHERE g.user_id=i.host_id AND g.feature IN ('internal','interviews.host') AND g.revoked_at IS NULL AND g.valid_from<=clock_timestamp() AND (g.expires_at IS NULL OR g.expires_at>clock_timestamp()))
+	FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL
+	JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id AND NOT h.disabled
+	WHERE i.id=$1 AND i.deleted_at IS NULL`

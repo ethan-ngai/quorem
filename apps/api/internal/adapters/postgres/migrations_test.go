@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -18,12 +19,16 @@ func TestMigrationsPreserveDataAndRejectUnavailableHistory(t *testing.T) {
 			t.Fatal("repeat migration", err)
 		}
 	}
+	paths, err := filepath.Glob("../../../migrations/*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var after, names int
 	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM problem_versions").Scan(&after); err != nil || after != before {
 		t.Fatal("migration changed seeded data", before, after, err)
 	}
-	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&names); err != nil || names != 2 {
-		t.Fatal("expected baseline and profile migration", names, err)
+	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&names); err != nil || names != len(paths) {
+		t.Fatal("expected every repository migration", names, err)
 	}
 	if _, err := s.Pool.Exec(ctx, "INSERT INTO schema_migrations VALUES('085_interview_admission_lock.sql')"); err != nil {
 		t.Fatal(err)
@@ -34,7 +39,7 @@ func TestMigrationsPreserveDataAndRejectUnavailableHistory(t *testing.T) {
 	if err := s.Migrate(ctx, "../../../migrations"); err == nil || !strings.Contains(err.Error(), "adopt-schema.py") {
 		t.Fatal("old history needs explicit verified adoption", err)
 	}
-	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&names); err != nil || names != 3 {
+	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&names); err != nil || names != len(paths)+1 {
 		t.Fatal("rejection must preserve ledger", names, err)
 	}
 	if err := s.Migrate(ctx, t.TempDir()); err == nil {
