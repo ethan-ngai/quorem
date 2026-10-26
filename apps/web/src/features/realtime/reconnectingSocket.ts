@@ -38,6 +38,7 @@ export function createReconnectingSocket(options: SocketOptions) {
     const valid = () => !stopped && started === generation;
     try {
       const bearer = await token();
+      const expires = bearer ? tokenExpiresAt() : undefined;
       if (!valid()) return;
       const current = new WebSocket(
         options.url(),
@@ -67,7 +68,6 @@ export function createReconnectingSocket(options: SocketOptions) {
         clearTimeout(timer);
         reconnect.reset();
         renewIdle();
-        const expires = tokenExpiresAt();
         if (expires)
           refreshTimer = setTimeout(
             () => disconnect(true),
