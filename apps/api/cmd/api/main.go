@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/eventbus"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
 	"github.com/ethan-ngai/quorem/apps/api/internal/httpapi"
@@ -15,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -87,27 +85,7 @@ func main() {
 		if issuer == "" || secret == "" || authURL == "" {
 			log.Fatal("Managed identity requires AUTH_ORIGIN, AUTH_SERVICE_URL, AUTH_INTERNAL_SECRET")
 		}
-		api.Identity = &identity.JWTVerifier{Issuer: issuer, Audience: "quorem-api", JWKSURL: authURL + "/api/auth/jwks", Resolve: func(ctx context.Context, c identity.Claims) (identity.Principal, error) {
-			req, e := http.NewRequestWithContext(ctx, "GET", authURL+"/internal/session/"+c.SessionID, nil)
-			if e != nil {
-				return identity.Principal{}, e
-			}
-			req.Header.Set("Authorization", "Bearer "+secret)
-			req.Header.Set("X-Auth-Subject", c.Subject)
-			response, e := (&http.Client{Timeout: 3 * time.Second}).Do(req)
-			if e != nil {
-				return identity.Principal{}, e
-			}
-			response.Body.Close()
-			if response.StatusCode != 204 {
-				return identity.Principal{}, fmt.Errorf("session unavailable")
-			}
-			p, e := store.ResolveIdentity(ctx, c)
-			if at, e2 := strconv.ParseInt(response.Header.Get("X-Auth-Strong-At"), 10, 64); e2 == nil && at <= time.Now().Unix() && at > time.Now().Add(-10*time.Minute).Unix() {
-				p.StrongUntil = at + 600
-			}
-			return p, e
-		}}
+		api.Identity = &identity.JWTVerifier{Issuer: issuer, Audience: "quorem-api", JWKSURL: authURL + "/api/auth/jwks", Resolve: sessionResolver(authURL, secret, store.ResolveIdentity)}
 	}
 	queue, err := delivery.FromEnv(ctx, os.Getenv)
 	if err != nil {
