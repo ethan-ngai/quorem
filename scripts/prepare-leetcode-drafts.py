@@ -5,6 +5,7 @@ import argparse
 import ast
 import json
 import io
+import importlib
 import zipfile
 import re
 import urllib.request
@@ -62,6 +63,64 @@ def case(row, parameters):
     return {"args": [values[p["name"]] for p in parameters], "expected": expected}
 
 
+
+# Corpus preludes are known standard-library imports; never import source-selected modules.
+PRELUDE_MODULES = {"typing", "functools", "collections", "itertools", "heapq", "bisect", "string", "operator", "math", "datetime", "random"}
+
+
+def prelude_for_source(lines, body):
+    """Keep referenced prelude bindings, resolving known wildcard imports explicitly."""
+    try:
+        tree = ast.parse(body)
+        if any(isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id in {"eval", "exec", "globals", "locals", "__import__"} for n in ast.walk(tree)):
+            return "\n".join(lines) + "\n" if lines else ""
+        imports = [ast.parse(line).body[0] for line in lines]
+        bindings = {}
+        for index, node in enumerate(imports):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name not in PRELUDE_MODULES:
+                        raise ValueError("unknown prelude import")
+                    bindings[alias.asname or alias.name.split(".")[0]] = index
+            elif isinstance(node, ast.ImportFrom) and not node.level and node.module in PRELUDE_MODULES:
+                for alias in node.names:
+                    if alias.name == "*":
+                        module = importlib.import_module(node.module)
+                        exports = getattr(module, "__all__", [name for name in vars(module) if not name.startswith("_")])
+                        for name in exports:
+                            bindings[name] = index
+                    else:
+                        bindings[alias.asname or alias.name] = index
+            elif isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and ast.unparse(node) == "inf = float('inf')":
+                bindings["inf"] = index
+            else:
+                raise ValueError("unknown prelude statement")
+        used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+        selected = {}
+        for name in used:
+            if name in bindings:
+                selected.setdefault(bindings[name], set()).add(name)
+        output = []
+        for index, node in enumerate(imports):
+            names = selected.get(index, set())
+            if not names:
+                continue
+            if isinstance(node, ast.ImportFrom):
+                if any(alias.name == "*" for alias in node.names):
+                    output.append(f"from {node.module} import {', '.join(sorted(names))}")
+                else:
+                    node.names = [alias for alias in node.names if (alias.asname or alias.name) in names]
+                    output.append(ast.unparse(node))
+            elif isinstance(node, ast.Import):
+                node.names = [alias for alias in node.names if (alias.asname or alias.name.split(".")[0]) in names]
+                output.append(ast.unparse(node))
+            else:
+                output.append(lines[index])
+        return "\n".join(output) + "\n\n" if output else ""
+    except (SyntaxError, ValueError, ImportError, RecursionError):
+        return "\n".join(lines) + "\n" if lines else ""
+
+
 def draft(staged, corpus):
     source = staged["source"]
     starter = corpus.get("starter_code", "")
@@ -73,7 +132,6 @@ def draft(staged, corpus):
             break
         if line.startswith(("import ", "from ")) or line == "inf = float('inf')":
             prelude.append(line)
-    prefix = "\n".join(prelude) + "\n" if prelude else ""
     cases = []
     for row in corpus.get("input_output", []):
         try:
@@ -85,14 +143,17 @@ def draft(staged, corpus):
     if not cases:
         raise ValueError("no literal cases")
     statement = corpus.get("problem_description", "")
-    reference = prefix + corpus.get("completion", "")
+    reference_body = corpus.get("completion", "")
+    starter_body = starter.rstrip() + "\n        pass\n"
+    reference = prelude_for_source(prelude, reference_body) + reference_body
+    starter_source = prelude_for_source(prelude, starter_body) + starter_body
     if not statement or not reference or len(statement) > 65536 or len(reference) > 65536:
         raise ValueError("missing or oversized content")
     runtime, harness = "python-3.12-v1", "quorem-harness-v2"
     return {
-        "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": [], "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "starterSource": prefix + starter.rstrip() + "\n        pass\n", "runtimeRevision": runtime, "languages": [], "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 10000, "maxNestingDepth": 100}},
+        "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": [], "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "starterSource": starter_source, "runtimeRevision": runtime, "languages": [], "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 10000, "maxNestingDepth": 100}},
         "hiddenCases": cases[:20], "comparator": "ordered", "attribution": "LeetCode; reference and cases from newfacade/LeetCodeDataset.",
-        "implementations": [{"language": "python", "starterSource": prefix + starter.rstrip() + "\n        pass\n", "runtimeRevision": runtime, "harnessRevision": harness, "referenceSource": reference}], "solutions": []}
+        "implementations": [{"language": "python", "starterSource": starter_source, "runtimeRevision": runtime, "harnessRevision": harness, "referenceSource": reference}], "solutions": []}
 
 
 def matches_type(typ, value):

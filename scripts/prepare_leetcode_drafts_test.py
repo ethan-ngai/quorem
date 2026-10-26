@@ -28,6 +28,19 @@ class DraftTest(unittest.TestCase):
         self.assertEqual(result['problem']['leetcodeId'], 1)
         self.assertEqual(result['hiddenCases'], [{'args': [1], 'expected': 2}])
 
+    def test_prelude_only_keeps_used_bindings_per_source(self):
+        lines = ['import collections', 'import math', 'from typing import *', 'from collections import *', 'from math import *', "inf = float('inf')"]
+        starter = 'class Solution:\n    def solve(self, nums: List[int]) -> int:\n        pass\n'
+        reference = 'class Solution:\n    def solve(self, nums: List[int]) -> int:\n        return collections.Counter(nums)[0] + ceil(inf)\n'
+        self.assertEqual(drafts.prelude_for_source(lines, starter), 'from typing import List\n\n')
+        self.assertEqual(drafts.prelude_for_source(lines, reference), "import collections\nfrom typing import List\nfrom math import ceil\ninf = float('inf')\n\n")
+
+    def test_dynamic_namespace_and_unknown_imports_preserve_prelude(self):
+        lines = ['from typing import *', 'import math']
+        self.assertEqual(drafts.prelude_for_source(lines, 'eval("sqrt(4)")'), '\n'.join(lines) + '\n')
+        unknown = ['from something_else import *']
+        self.assertEqual(drafts.prelude_for_source(unknown, 'print(1)'), unknown[0] + '\n')
+
     def test_candidates_require_distinct_typed_cases_and_clear_scalar_output(self):
         item = {'leetcode_id': 1, 'companies': ['Example'], 'source': {'problem_slug': 'sample', 'title': 'Sample', 'difficulty': 'Easy', 'examples': [{'example_text': 'Input: x = 0\nOutput: 1'}]}}
         corpus = {'starter_code': 'class Solution:\n    def solve(self, x: int) -> int:\n        ', 'input_output': [{'input': f'x = {i}', 'output': str(i + 1)} for i in range(21)], 'problem_description': 'Return the sum.', 'completion': 'class Solution: pass'}
