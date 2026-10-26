@@ -14,7 +14,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatal("usage: access inspect|grant|revoke|quota --user ID [--scope admin|internal|matches.host_guests|interviews.host|problems.odyssey|questions.custom --actor OPERATOR --reason TEXT --op-id ID --ref REF --dry-run]")
+		log.Fatal("usage: access inspect|grant|revoke|quota --user ID [--scope admin|internal|matches.host_guests|interviews.host|questions.custom --actor OPERATOR --reason TEXT --op-id ID --ref REF --dry-run]")
 	}
 	command := os.Args[1]
 	flags := flag.NewFlagSet(command, flag.ExitOnError)
