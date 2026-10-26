@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -57,5 +58,51 @@ func TestJWTVerification(t *testing.T) {
 	v.Resolve = func(context.Context, Claims) (Principal, error) { return Principal{}, ErrUnauthorized }
 	if _, e := v.Verify(context.Background(), sign(valid, priv)); e == nil {
 		t.Fatal("accepted disabled session")
+	}
+}
+
+func TestJWKSDependencyErrorsStayUnavailableDuringRefreshThrottle(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"upstream outage", http.StatusServiceUnavailable, `{}`},
+		{"upstream unauthorized is configuration failure", http.StatusUnauthorized, `{}`},
+		{"malformed keys", http.StatusOK, `{`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.WriteHeader(tc.status)
+				w.Write([]byte(tc.body))
+			}))
+			defer upstream.Close()
+			verifier := &JWTVerifier{JWKSURL: upstream.URL}
+			for i := 0; i < 2; i++ {
+				if _, err := verifier.key(context.Background(), "key"); !errors.Is(err, ErrUnavailable) || errors.Is(err, ErrUnauthorized) {
+					t.Fatalf("attempt %d: expected availability error, got %v", i, err)
+				}
+			}
+			if calls != 1 {
+				t.Fatalf("refresh throttle lost: %d requests", calls)
+			}
+		})
+	}
+}
+
+func TestJWKSNetworkFailureAndUnknownKeyDiffer(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"keys":[]}`))
+	}))
+	verifier := &JWTVerifier{JWKSURL: upstream.URL}
+	if _, err := verifier.key(context.Background(), "unknown"); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("unknown key must fail authentication: %v", err)
+	}
+	upstream.Close()
+	verifier = &JWTVerifier{JWKSURL: upstream.URL}
+	if _, err := verifier.key(context.Background(), "key"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("network failure must preserve session: %v", err)
 	}
 }

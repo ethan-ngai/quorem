@@ -120,6 +120,10 @@ func (s *Server) Handler() http.Handler {
 		if s.Identity != nil && bearer != "" {
 			principal, err := s.Identity.Verify(r.Context(), bearer)
 			if err != nil {
+				if !errors.Is(err, identity.ErrUnauthorized) {
+					s.err(w, r, identity.ErrUnavailable)
+					return
+				}
 				s.err(w, r, &application.Error{Code: "unauthenticated", Message: "Sign in required", Status: 401})
 				return
 			}
@@ -132,6 +136,10 @@ func (s *Server) Handler() http.Handler {
 				return
 			}
 			p, e := repo.InterviewGuestIdentity(r.Context(), cookie.Value)
+			if e != nil && !errors.Is(e, identity.ErrUnauthorized) {
+				s.err(w, r, identity.ErrUnavailable)
+				return
+			}
 			if e == nil {
 				if r.Method != "GET" && !s.guestOrigin(w, r) {
 					return
@@ -142,6 +150,10 @@ func (s *Server) Handler() http.Handler {
 		} else if cookie, e := r.Cookie(guestCookie); e == nil && s.Store != nil && !interviewPath(r.URL.Path) {
 			p, e := s.Store.GuestIdentity(r.Context(), cookie.Value)
 			if e != nil {
+				if !errors.Is(e, identity.ErrUnauthorized) {
+					s.err(w, r, identity.ErrUnavailable)
+					return
+				}
 				if !public {
 					http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 					s.err(w, r, &application.Error{Code: "unauthenticated", Status: 401, Message: "Guest session expired"})
