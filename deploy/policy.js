@@ -1,7 +1,8 @@
 /** Bounded demand routing; leases repair coordinator/client crashes without permanent reservations. */
 export const HTTP_LEASE_MS = 120_000;
 export const SOCKET_LEASE_MS = 45_000;
-export const APP_IDLE_MS = 120_000;
+export const APP_IDLE_MS = 600_000;
+export const ROUTE_COOKIE = "__Host-quorem-route";
 export const RENEW_MS = 15_000;
 
 export function integer(value, fallback, minimum, maximum) {
@@ -35,19 +36,25 @@ export function isSocketRequest(request) {
   );
 }
 
-export function chooseInstance(leases, kind, capacity, now) {
+export function chooseInstance(leases, kind, capacity, now, warmSlots = new Map()) {
   const counts = Array.from({ length: capacity.instances }, () => ({ http: 0, sockets: 0 }));
   for (const lease of leases.values())
     if (lease.expires > now && counts[lease.slot]) counts[lease.slot][lease.kind]++;
   const available = counts
     .map((count, slot) => ({
       slot,
+      active: count.http + count.sockets,
       http: count.http + (kind === "http" ? 1 : 0),
       sockets: count.sockets + (kind === "sockets" ? 1 : 0),
     }))
     .filter((count) => count.http <= capacity.http && count.sockets <= capacity.sockets);
-  // Fill existing slots before activating another; socket occupancy never consumes HTTP headroom.
-  return available[0]?.slot ?? -1;
+  // Warmth is advisory; every candidate still satisfies independent capacity ceilings.
+  return (
+    available.find((count) => warmSlots.get(count.slot) > now)?.slot ??
+    available.find((count) => count.active > 0)?.slot ??
+    available[0]?.slot ??
+    -1
+  );
 }
 
 export function judgeSlot(id, maximum) {
@@ -67,4 +74,28 @@ export function notification(value) {
   if (typeof value.jobId !== "string" || !/^[a-zA-Z0-9-]{8,128}$/.test(value.jobId))
     return undefined;
   return { jobId: value.jobId };
+}
+
+/** Affinity is a routing hint only; all authorization and capacity checks remain authoritative. */
+export function preferredShard(request, shards) {
+  const cookie = request.headers.get("Cookie") ?? "";
+  const match = cookie.match(new RegExp(`(?:^|;\\s*)${ROUTE_COOKIE}=([0-9]{1,2})(?:;|$)`));
+  if (match && Number(match[1]) < shards) return Number(match[1]);
+  // Coalesce parallel first loads before the browser has received its affinity cookie.
+  const client = `${request.headers.get("CF-Connecting-IP") ?? ""}:${request.headers.get("User-Agent") ?? ""}`;
+  return judgeSlot(client, shards);
+}
+
+export function withShardAffinity(response, shard) {
+  const headers = new Headers(response.headers);
+  headers.append(
+    "Set-Cookie",
+    `${ROUTE_COOKIE}=${shard}; Path=/; Max-Age=${APP_IDLE_MS / 1000}; HttpOnly; Secure; SameSite=Lax`,
+  );
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+    webSocket: response.webSocket,
+  });
 }

@@ -2,7 +2,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AppPool, Judge, Quorem } from "./router.js";
 import { ContainerLifecycle } from "./container.js";
-import { APP_IDLE_MS, SOCKET_LEASE_MS, chooseInstance, isSocketRequest, limits } from "./policy.js";
+import {
+  APP_IDLE_MS,
+  ROUTE_COOKIE,
+  SOCKET_LEASE_MS,
+  chooseInstance,
+  isSocketRequest,
+  limits,
+  preferredShard,
+  withShardAffinity,
+} from "./policy.js";
 import worker from "./worker.js";
 
 const turn = () => new Promise((resolve) => setImmediate(resolve));
@@ -17,8 +26,8 @@ function context(entries = []) {
   const data = new Map(entries);
   const ctx = {
     storage: {
-      async list() {
-        return new Map(data);
+      async list({ prefix = "" } = {}) {
+        return new Map([...data].filter(([key]) => key.startsWith(prefix)));
       },
       async put(key, value) {
         data.set(key, structuredClone(value));
@@ -123,7 +132,8 @@ void test("pool reservations survive reload and streaming completion releases ex
   await Promise.all((await Promise.all(requests)).map((response) => response.text()));
   await turn();
   assert.equal(pool.leases.size, 0);
-  assert.equal(data.size, 0);
+  assert.equal([...data.keys()].filter((key) => key.startsWith("lease:")).length, 0);
+  assert.equal(pool.warmSlots.size, 2);
 });
 
 void test("socket reservations renew and a crashed socket reservation expires", async () => {
@@ -398,4 +408,227 @@ void test("one hundred valid wakes share one authoritative drain and acknowledge
   assert.equal(calls, 1);
   assert.equal(acknowledged, 100);
   assert.equal(retried, 0);
+});
+
+void test("parallel first requests coalesce; browser affinity overrides changed client hints", async () => {
+  const calls = [];
+  const configuration = {
+    ...env,
+    POOLS: {
+      getByName(pool) {
+        return {
+          fetch: async () => {
+            calls.push(pool);
+            return new Response("ok");
+          },
+        };
+      },
+    },
+  };
+  const headers = { "CF-Connecting-IP": "192.0.2.10", "User-Agent": "fixture-browser" };
+  const request = () => new Request("https://quorem.test/v1/problems", { headers });
+  const [first, second] = await Promise.all([
+    worker.fetch(request(), configuration),
+    worker.fetch(request(), configuration),
+  ]);
+  assert.equal(calls[0], calls[1]);
+  const route = first.headers
+    .getSetCookie()
+    .find((cookie) => cookie.startsWith(ROUTE_COOKIE + "="));
+  assert.ok(route.includes(`Max-Age=${APP_IDLE_MS / 1000}`));
+  assert.match(route, /Path=\/;.*HttpOnly; Secure; SameSite=Lax/);
+  const cookie = route.split(";", 1)[0];
+  await worker.fetch(
+    new Request(request(), { headers: { Cookie: cookie, "CF-Connecting-IP": "198.51.100.9" } }),
+    configuration,
+  );
+  assert.equal(calls[2], calls[0]);
+  await first.body.cancel();
+  await second.body.cancel();
+  assert.equal(
+    preferredShard(new Request(request(), { headers: { Cookie: `${ROUTE_COOKIE}=99` } }), 4),
+    preferredShard(new Request(request(), { headers: {} }), 4),
+  );
+});
+
+void test("only pre-dispatch capacity fallback moves affinity; admitted POST failures never replay", async () => {
+  const calls = [];
+  let rejectCapacity = true;
+  const configuration = {
+    ...env,
+    APP_POOL_SHARDS: "2",
+    POOLS: {
+      getByName(pool) {
+        return {
+          fetch: async () => {
+            calls.push(pool);
+            if (pool === "0" && rejectCapacity)
+              return new Response("full", {
+                status: 503,
+                headers: { "X-Quorem-Capacity": "full" },
+              });
+            return new Response("admitted", { status: 503 });
+          },
+        };
+      },
+    },
+  };
+  const request = () =>
+    new Request("https://quorem.test/v1/submissions", {
+      method: "POST",
+      body: "once",
+      headers: { Cookie: `${ROUTE_COOKIE}=0` },
+    });
+  const fallback = await worker.fetch(request(), configuration);
+  assert.deepEqual(calls, ["0", "1"]);
+  assert.match(fallback.headers.get("Set-Cookie"), new RegExp(`${ROUTE_COOKIE}=1;`));
+  await fallback.body.cancel();
+  calls.length = 0;
+  rejectCapacity = false;
+  const failed = await worker.fetch(request(), configuration);
+  assert.equal(failed.status, 503);
+  assert.deepEqual(calls, ["0"]);
+  await failed.body.cancel();
+});
+
+void test("affinity response preserves auth cookies, WebSocket and subprotocol", () => {
+  const headers = new Headers();
+  headers.append("Set-Cookie", "session=fixture; HttpOnly; Secure");
+  headers.append("Set-Cookie", "csrf=fixture; Secure");
+  const regular = withShardAffinity(new Response("body", { headers }), 2);
+  assert.equal(regular.headers.getSetCookie().length, 3);
+  assert.ok(regular.headers.getSetCookie().some((value) => value.startsWith("session=")));
+  assert.ok(regular.headers.getSetCookie().some((value) => value.startsWith("csrf=")));
+  const NativeResponse = globalThis.Response;
+  const socket = {};
+  // Node lacks workerd's 101 Response constructor; assert its upgrade initializer explicitly.
+  globalThis.Response = class extends NativeResponse {
+    constructor(body, init) {
+      super(body, { ...init, status: 200, statusText: "OK" });
+      Object.defineProperty(this, "status", { value: init.status });
+      this.webSocket = init.webSocket;
+    }
+  };
+  try {
+    const upgraded = withShardAffinity(
+      {
+        body: null,
+        status: 101,
+        statusText: "Switching Protocols",
+        headers: { "Sec-WebSocket-Protocol": "quorem" },
+        webSocket: socket,
+      },
+      1,
+    );
+    assert.equal(upgraded.status, 101);
+    assert.equal(upgraded.webSocket, socket);
+    assert.equal(upgraded.headers.get("Sec-WebSocket-Protocol"), "quorem");
+    assert.match(upgraded.headers.get("Set-Cookie"), new RegExp(`${ROUTE_COOKIE}=1;`));
+  } finally {
+    globalThis.Response = NativeResponse;
+  }
+});
+
+void test("warm available slots survive reload, expire and never bypass capacity", async () => {
+  const calls = [];
+  const initial = context([
+    ["warm:1", Date.now() + APP_IDLE_MS],
+    ["warm:0", 0],
+    ["warm:99", Date.now() + APP_IDLE_MS],
+  ]);
+  const configuration = {
+    ...env,
+    APP_INSTANCES_PER_SHARD: "2",
+    APPS: {
+      getByName(name) {
+        return {
+          fetch: async () => {
+            calls.push(name);
+            return new Response("ok");
+          },
+        };
+      },
+    },
+  };
+  const pool = new AppPool(initial.ctx, configuration);
+  await initial.ctx.loaded;
+  assert.deepEqual([...pool.warmSlots.keys()], [1]);
+  const request = () =>
+    new Request("https://quorem.test/v1/problems", { headers: { "x-quorem-pool": "2" } });
+  await (await pool.fetch(request())).text();
+  await turn();
+  assert.equal(calls[0], "app-2-1");
+  assert.equal(pool.leases.size, 0);
+  const restored = context([...initial.data]);
+  const reloaded = new AppPool(restored.ctx, configuration);
+  await restored.ctx.loaded;
+  await (await reloaded.fetch(request())).text();
+  await turn();
+  assert.equal(calls[1], "app-2-1");
+  reloaded.warmSlots.set(1, 0);
+  await reloaded.alarm();
+  assert.equal(reloaded.warmSlots.size, 0);
+  assert.equal(restored.ctx.alarmAt, undefined);
+  await (await reloaded.fetch(request())).text();
+  assert.equal(calls[2], "app-2-0");
+  const full = new Map([["active", { slot: 1, kind: "http", expires: 100 }]]);
+  assert.equal(
+    chooseInstance(full, "http", { instances: 2, http: 1, sockets: 1 }, 0, new Map([[1, 100]])),
+    0,
+  );
+});
+
+void test("failed warm dispatch clears its hint without replay; live ready renewals refresh warmth", async () => {
+  const calls = [];
+  const { ctx, data } = context([["warm:1", Date.now() + APP_IDLE_MS]]);
+  const pool = new AppPool(ctx, {
+    ...env,
+    APPS: {
+      getByName(name) {
+        return {
+          fetch: async () => {
+            calls.push(name);
+            return new Response("unavailable", { status: 503 });
+          },
+        };
+      },
+    },
+  });
+  await ctx.loaded;
+  const failed = await pool.fetch(
+    new Request("https://quorem.test/v1/action", {
+      method: "POST",
+      body: "once",
+      headers: { "x-quorem-pool": "0" },
+    }),
+  );
+  await failed.text();
+  await turn();
+  assert.deepEqual(calls, ["app-0-1"]);
+  assert.equal(pool.warmSlots.size, 0);
+  await pool.fetch(
+    new Request("https://pool/__leases", {
+      method: "POST",
+      body: JSON.stringify({ renew: [{ id: "live", slot: 1, kind: "sockets", warm: true }] }),
+    }),
+  );
+  assert.ok(data.get("warm:1") >= Date.now() + APP_IDLE_MS - 50);
+});
+
+void test("app ten-minute grace and judge two-minute boot grace remain separate", async () => {
+  const appContext = context();
+  const app = new Quorem(appContext.ctx, env);
+  app.lastActivity = Date.now() - 180_000;
+  await app.alarm();
+  assert.equal(appContext.ctx.container.destroyed, 0);
+  app.lastActivity = Date.now() - APP_IDLE_MS - 1;
+  await app.alarm();
+  assert.equal(appContext.ctx.container.destroyed, 1);
+  const judgeContext = context();
+  judgeContext.ctx.container.running = false;
+  judgeContext.ctx.container.getTcpPort = () => ({ fetch: async () => new Response("ready") });
+  const judge = new Judge(judgeContext.ctx, env);
+  await judge.lifecycle.ensureReady();
+  assert.equal(judge.idleMs, 120_000);
+  assert.equal(judgeContext.ctx.container.idle, 120_000);
 });

@@ -22,7 +22,7 @@ class Handler(BaseHTTPRequestHandler):
         self.reply(json.dumps({'queued': 0, 'running': 0}).encode())
     def do_GET(self):
         if self.headers.get('Upgrade', '').lower() != 'websocket':
-            self.reply(json.dumps({'ready': True, 'path': self.path}).encode())
+            self.reply(json.dumps({'ready': True, 'path': self.path, 'instance': os.environ.get('HOSTNAME', 'unknown')}).encode())
             return
         accept = base64.b64encode(hashlib.sha1((self.headers['Sec-WebSocket-Key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest()).decode()
         self.send_response(101)

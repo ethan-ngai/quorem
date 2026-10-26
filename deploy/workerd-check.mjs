@@ -18,6 +18,20 @@ const message = (socket, value) =>
 try {
   const response = await fetch(base + "/health");
   assert.equal(response.status, 200);
+  const first = await response.json();
+  const route = response.headers
+    .getSetCookie()
+    .find((cookie) => cookie.startsWith("__Host-quorem-route="));
+  assert.ok(route, "Application response omitted shard affinity");
+  const affinity = route.split(";", 1)[0];
+  for (let index = 0; index < 3; index++) {
+    const repeated = await fetch(base + "/v1/fixture", { headers: { Cookie: affinity } });
+    assert.equal(
+      (await repeated.json()).instance,
+      first.instance,
+      "Affinity moved a warm HTTP request",
+    );
+  }
   const unsafe = await fetch(base + "/internal/judge/wake", { method: "POST", body: "{}" });
   assert.equal(unsafe.status, 404);
   const wake = await fetch(base + "/internal/judge/wake", {
@@ -62,7 +76,7 @@ try {
   for (const socket of sockets)
     assert.equal(await message(socket, "after-lease-renewal"), "after-lease-renewal");
   console.log(
-    "workerd: HTTP, authenticated durable wake, accepted WebSocket echo/subprotocol, pressure scale-out and 50s live-lease renewal passed",
+    "workerd: HTTP, authenticated durable wake, HTTP affinity, accepted WebSocket echo/subprotocol, pressure scale-out and 50s live-lease renewal passed",
   );
 } finally {
   for (const socket of sockets) socket.close();
