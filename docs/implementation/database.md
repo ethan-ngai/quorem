@@ -1,8 +1,8 @@
 # Database schema
 
-Product and auth each start at one preproduction baseline: `apps/api/migrations/001_schema.sql` and `apps/auth/migrations/001_schema.sql`. These declare the final tables, constraints, indexes and triggers directly. Superseded draft tables, schema alterations and data backfills are gone. Fixture identities are created by explicit local product seeding, not schema creation.
+Product and auth each start at one baseline: `apps/api/migrations/007_schema.sql` and `apps/auth/migrations/001_schema.sql`. These declare tables, constraints, indexes and triggers directly. Fixture identities are created by explicit local product seeding, not schema creation.
 
-Startup applies unapplied SQL files in filename order, inside a transaction and service-specific advisory lock. Each service records filenames in its own `schema_migrations` table. Missing migration files fail rather than silently accepting a database from another branch. Add future changes as new numbered migrations; do not change an applied baseline.
+Startup applies unapplied SQL files in filename order, inside a transaction and service-specific advisory lock. Each service records filenames in its own `schema_migrations` table. Product databases with a contiguous prefix of the archived `001`–`006` history execute remaining steps and replace the ledger with `007_schema.sql` in the same transaction. This includes removal of the retired Odyssey entitlement. Unknown or incomplete histories fail without changes. Add future changes as new numbered migrations; do not change an applied baseline.
 
 ## Existing local databases
 

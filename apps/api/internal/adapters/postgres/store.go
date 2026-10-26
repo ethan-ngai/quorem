@@ -113,6 +113,47 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 	for _, path := range paths {
 		names[filepath.Base(path)] = true
 	}
+	legacy := []string{"001_schema.sql", "002_hot_query_indexes.sql", "002_profile_image.sql", "003_execution_wakeups.sql", "004_realtime_presence_leases.sql", "005_odyssey_feedback_reset.sql", "006_remove_odyssey_entitlement.sql"}
+	if len(appliedNames) > 0 && !appliedNames["007_schema.sql"] && names["007_schema.sql"] {
+		known := make(map[string]bool, len(legacy))
+		for _, name := range legacy {
+			known[name] = true
+		}
+		for name := range appliedNames {
+			if !known[name] {
+				return fmt.Errorf("database has unavailable migration %s; for a current preproduction database run python3 scripts/adopt-schema.py --service product (see docs/implementation/database.md)", name)
+			}
+		}
+		missing := false
+		for _, name := range legacy {
+			if appliedNames[name] {
+				if missing {
+					return fmt.Errorf("legacy migration history is not a contiguous prefix")
+				}
+				continue
+			}
+			missing = true
+		}
+		if !appliedNames[legacy[0]] {
+			return fmt.Errorf("legacy migration baseline missing")
+		}
+		for _, name := range legacy[1:] {
+			if appliedNames[name] {
+				continue
+			}
+			data, e := os.ReadFile(filepath.Join(dir, "legacy", name))
+			if e != nil {
+				return fmt.Errorf("legacy migration %s: %w", name, e)
+			}
+			if _, e = tx.Exec(ctx, string(data)); e != nil {
+				return fmt.Errorf("legacy migration %s: %w", name, e)
+			}
+		}
+		if _, err = tx.Exec(ctx, "DELETE FROM schema_migrations; INSERT INTO schema_migrations(name) VALUES ('007_schema.sql')"); err != nil {
+			return err
+		}
+		appliedNames = map[string]bool{"007_schema.sql": true}
+	}
 	for name := range appliedNames {
 		if !names[name] {
 			return fmt.Errorf("database has unavailable migration %s; for a current preproduction database run python3 scripts/adopt-schema.py --service product (see docs/implementation/database.md)", name)
