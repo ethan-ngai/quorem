@@ -232,8 +232,8 @@ func ValidateQuestionPublication(c QuestionContent) error {
 	}
 	editorials := map[string]bool{}
 	for _, v := range c.Solutions {
-		if !languages[v.Language] || editorials[v.Language] || strings.TrimSpace(v.Source) == "" || strings.TrimSpace(v.ExplanationMarkdown) == "" || strings.TrimSpace(v.TimeComplexity) == "" || strings.TrimSpace(v.SpaceComplexity) == "" || strings.TrimSpace(v.ComplexityNotes) == "" {
-			return fmt.Errorf("editorial code, explanation, complexity and variable definitions required")
+		if !languages[v.Language] || editorials[v.Language] || strings.TrimSpace(v.Source) == "" {
+			return fmt.Errorf("editorial language and code required")
 		}
 		editorials[v.Language] = true
 	}

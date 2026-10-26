@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 )
@@ -62,6 +63,9 @@ func (s *Server) complexity(w http.ResponseWriter, r *http.Request) {
 	}
 	costs := make([]map[string]string, 0, len(items))
 	for _, item := range items {
+		if strings.TrimSpace(item.TimeComplexity) == "" || strings.TrimSpace(item.SpaceComplexity) == "" {
+			continue
+		}
 		costs = append(costs, map[string]string{"language": item.Language, "timeComplexity": item.TimeComplexity, "spaceComplexity": item.SpaceComplexity, "complexityNotes": item.ComplexityNotes})
 	}
 	respond(w, 200, map[string]any{"items": costs})

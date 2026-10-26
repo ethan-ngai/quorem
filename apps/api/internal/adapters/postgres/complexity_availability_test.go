@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"strings"
 	"testing"
 )
@@ -42,5 +44,33 @@ func TestComplexityAvailabilityFollowsPublishedRecords(t *testing.T) {
 	v, err = s.UpdateInterviewQuestion(ctx, "alice", v.ID, ID(), customInterviewQuestion())
 	if err != nil || len(v.Question.Problem.ComplexityLanguages) != 0 {
 		t.Fatalf("custom question invented complexity: %v", err)
+	}
+}
+
+func TestSourceOnlyEditorialPublication(t *testing.T) {
+	s := adminStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	c := authoringContent(t, s)
+	c.Problem.Slug = "source-only-editorial"
+	c.Solutions = []problems.EditorialSolution{{Language: "python", Source: "class Solution: pass"}}
+	d, err := s.CreateQuestionDraft(ctx, "alice", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = s.PublishQuestionDraftTo(ctx, "alice", d.ID, d.Revision, "private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.Problem(ctx, d.PublishedVersionID, true)
+	if err != nil || len(p.SolutionLanguages) != 1 || len(p.ComplexityLanguages) != 0 {
+		t.Fatalf("availability: %+v %v", p, err)
+	}
+	items, err := s.Solutions(ctx, p.ID)
+	if err != nil || len(items) != 1 || items[0].Source != c.Solutions[0].Source || items[0].TimeComplexity != "" {
+		t.Fatalf("solutions: %+v %v", items, err)
+	}
+	other := identity.With(context.Background(), identity.Principal{UserID: "bob"})
+	if _, err := s.Solutions(other, p.ID); errorCode(err) != "not_found" {
+		t.Fatalf("private solution exposed: %v", err)
 	}
 }

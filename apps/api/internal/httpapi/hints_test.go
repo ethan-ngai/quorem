@@ -21,7 +21,7 @@ func (r *hintsRepository) ActiveMatch(context.Context, string) (*matches.Snapsho
 	return &matches.Snapshot{ProblemVersionID: "00000000-0000-4000-8000-000000000000", Settings: matches.Settings{Rules: matches.Rules{Hints: &problems.HintVisibility{Complexity: &r.allowed}}}}, nil
 }
 func (r *hintsRepository) Solutions(context.Context, string) ([]problems.EditorialSolution, error) {
-	return []problems.EditorialSolution{{Language: "python", Source: "SECRET_SOLUTION", TimeComplexity: "O(n)", SpaceComplexity: "O(1)"}}, nil
+	return []problems.EditorialSolution{{Language: "python", Source: "SECRET_SOLUTION", TimeComplexity: "O(n)", SpaceComplexity: "O(1)"}, {Language: "java", Source: "ANOTHER_SECRET"}}, nil
 }
 func TestHostCanAllowComplexityWithoutAllowingSolutionCode(t *testing.T) {
 	for _, allowed := range []bool{false, true} {
@@ -39,7 +39,7 @@ func TestHostCanAllowComplexityWithoutAllowingSolutionCode(t *testing.T) {
 			if allowed && complexity {
 				want = 200
 			}
-			if rec.Code != want || strings.Contains(rec.Body.String(), "SECRET_SOLUTION") {
+			if rec.Code != want || strings.Contains(rec.Body.String(), "SECRET_SOLUTION") || strings.Contains(rec.Body.String(), "ANOTHER_SECRET") || strings.Contains(rec.Body.String(), `"java"`) {
 				t.Fatalf("allowed %v complexity %v: %d %s", allowed, complexity, rec.Code, rec.Body.String())
 			}
 		}

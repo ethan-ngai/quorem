@@ -1,4 +1,4 @@
-/** @file EditorialPanel.tsx @description Opt-in authored complexity; solutions are deferred. @module editor */
+/** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
 import { userFacingErrorMessage } from "../../../ui/errors";
 import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -34,12 +34,14 @@ export function EditorialPanel({
   language = "python",
   inMatch = false,
   available = true,
+  solutionAvailable = false,
 }: {
   identity: DevelopmentIdentity;
   versionId: string;
   language?: string;
   inMatch?: boolean;
   available?: boolean;
+  solutionAvailable?: boolean;
 }) {
   const [complexityOpen, setComplexityOpen] = useState(false);
   const regionId = useId();
@@ -50,34 +52,101 @@ export function EditorialPanel({
     retry: false,
   });
   const selected = complexity.data?.find((item) => item.language === language);
-  if (inMatch || !available) return null;
+  if (inMatch || (!available && !solutionAvailable)) return null;
   return (
-    <section className="editorial-section" aria-label="Complexity">
+    <>
+      {available && (
+        <section className="editorial-section" aria-label="Complexity">
+          <button
+            className="topics-toggle"
+            aria-label={complexityOpen ? "Hide complexity" : "Show complexity"}
+            aria-expanded={complexityOpen}
+            aria-controls={regionId}
+            onClick={() => setComplexityOpen(!complexityOpen)}
+          >
+            <VisibilityIcon visible={complexityOpen} />
+            Complexity
+          </button>
+          {complexityOpen && (
+            <div id={regionId}>
+              {complexity.isPending ? (
+                <p role="status">Loading complexity…</p>
+              ) : complexity.isError ? (
+                <p role="alert">
+                  {userFacingErrorMessage(
+                    complexity.error,
+                    "Complexity unavailable. Please try again.",
+                  )}
+                </p>
+              ) : selected ? (
+                <ComplexityDetails value={selected} />
+              ) : (
+                <p>No published complexity for {labels[language] ?? language}.</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+      {solutionAvailable && (
+        <SolutionDisclosure identity={identity} versionId={versionId} language={language} />
+      )}
+    </>
+  );
+}
+
+export function SolutionDisclosure({
+  identity,
+  versionId,
+  language,
+}: {
+  identity: DevelopmentIdentity;
+  versionId: string;
+  language: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const regionId = useId();
+  const solutions = useQuery({
+    queryKey: ["solutions", identity, versionId],
+    queryFn: async () => {
+      const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/solutions", {
+        params: { path: { id: versionId } },
+      });
+      return requireData(data, error).items;
+    },
+    enabled: open,
+    retry: false,
+  });
+  const selected = solutions.data?.find((item) => item.language === language);
+  return (
+    <section className="editorial-section" aria-label="Solution">
       <button
         className="topics-toggle"
-        aria-label={complexityOpen ? "Hide complexity" : "Show complexity"}
-        aria-expanded={complexityOpen}
+        aria-label={open ? "Hide solution" : "Show solution"}
+        aria-expanded={open}
         aria-controls={regionId}
-        onClick={() => setComplexityOpen(!complexityOpen)}
+        onClick={() => setOpen(!open)}
       >
-        <VisibilityIcon visible={complexityOpen} />
-        Complexity
+        <VisibilityIcon visible={open} /> Solution
       </button>
-      {complexityOpen && (
+      {open && (
         <div id={regionId}>
-          {complexity.isPending ? (
-            <p role="status">Loading complexity…</p>
-          ) : complexity.isError ? (
+          {solutions.isPending ? (
+            <p role="status">Loading solution…</p>
+          ) : solutions.isError ? (
             <p role="alert">
-              {userFacingErrorMessage(
-                complexity.error,
-                "Complexity unavailable. Please try again.",
-              )}
+              {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}
             </p>
           ) : selected ? (
-            <ComplexityDetails value={selected} />
+            <>
+              {selected.explanationMarkdown && (
+                <StatementMarkdown source={selected.explanationMarkdown} />
+              )}
+              <pre className="editorial-source">
+                <code>{selected.source}</code>
+              </pre>
+            </>
           ) : (
-            <p>No published complexity for {labels[language] ?? language}.</p>
+            <p>No published solution for {labels[language] ?? language}.</p>
           )}
         </div>
       )}
