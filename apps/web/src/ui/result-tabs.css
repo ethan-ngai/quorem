@@ -29,7 +29,7 @@
 
 .result-tabs[data-appearance="underline"] button {
   position: relative;
-  padding: var(--space-2) var(--space-1);
+  padding: var(--space-2) 0;
   cursor: pointer;
   font-weight: 550;
   transition: color var(--motion-fast) var(--motion-easing);
