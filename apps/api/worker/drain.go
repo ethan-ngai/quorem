@@ -79,6 +79,13 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 					return
 				case <-work:
 				}
+				if err := s.store.ReconcileBackground(ctx); err != nil {
+					select {
+					case failures <- err:
+					default:
+					}
+					return
+				}
 				for ctx.Err() == nil {
 					more, err := s.pollOnce(ctx, engine)
 					if err != nil {
