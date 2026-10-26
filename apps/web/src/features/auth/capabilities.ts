@@ -1,7 +1,9 @@
 import { AuthError, passkeyError, registrationError } from "./errors";
 import { resetToken, signInDestination } from "./session";
 import { signInReferral } from "./signInReferral";
-export type SocialProvider = "google" | "apple" | "github";
+export const socialProviderLabels = { google: "Google", github: "GitHub" } as const;
+export type SocialProvider = keyof typeof socialProviderLabels;
+export const socialProviders = Object.keys(socialProviderLabels) as SocialProvider[];
 export type AuthCapabilities = {
   method: "password" | "cognito";
   preferredOrigin: string;
@@ -41,7 +43,7 @@ export async function fetchAuthCapabilities(): Promise<AuthCapabilities> {
     providers: Array.isArray(data.providers)
       ? data.providers.filter(
           (value: unknown): value is SocialProvider =>
-            value === "google" || value === "apple" || value === "github",
+            typeof value === "string" && Object.hasOwn(socialProviderLabels, value),
         )
       : [],
   };

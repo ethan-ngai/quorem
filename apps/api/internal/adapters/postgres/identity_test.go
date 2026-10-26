@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"testing"
+	"time"
 )
 
 func TestIdentityBindingStableRolesAndDisable(t *testing.T) {
@@ -53,5 +54,29 @@ func TestIdentityBindingStableRolesAndDisable(t *testing.T) {
 	}
 	if _, e = s.ResolveIdentity(ctx, c); e == nil {
 		t.Fatal("disabled accepted")
+	}
+}
+
+func TestBoundIdentityReadDoesNotWaitForProjectionLock(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	c := identity.Claims{Issuer: "mock-" + ID(), Subject: "subject", SessionID: "session", EmailVerified: true, Name: "Verified user"}
+	want, err := s.ResolveIdentity(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", c.Issuer+":"+c.Subject); err != nil {
+		t.Fatal(err)
+	}
+	read, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	got, err := s.ResolveIdentity(read, c)
+	if err != nil || got.UserID != want.UserID {
+		t.Fatalf("unchanged identity read blocked behind projection: %v, %v", got, err)
 	}
 }

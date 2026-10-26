@@ -6,7 +6,7 @@ import { PasswordResetSetting } from "./PasswordResetSetting";
 
 it("lists connections, offers configured providers, and protects the last sign-in method", () => {
   const client = new QueryClient();
-  client.setQueryData(["auth-capabilities"], { providers: ["google", "github"] });
+  client.setQueryData(["auth-capabilities"], { providers: ["google", "github", "apple"] });
   client.setQueryData(["account-connections", "fixture"], [{ id: "social", providerId: "google" }]);
   const render = () =>
     renderToStaticMarkup(
@@ -18,6 +18,7 @@ it("lists connections, offers configured providers, and protects the last sign-i
   expect(html).toContain("Google");
   expect(html).toContain("Connected");
   expect(html).toContain("Connect GitHub");
+  expect(html).not.toContain("Apple");
   expect(html).toMatch(/disabled=""[^>]*aria-label="Disconnect Google"/);
   client.setQueryData(
     ["account-connections", "fixture"],
