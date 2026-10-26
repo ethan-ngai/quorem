@@ -5,5 +5,13 @@ export function databasePoolOptions(env: Record<string, string | undefined>) {
   if (!Number.isInteger(max) || max < 1 || max > 64) {
     throw new Error("AUTH_DATABASE_MAX_CONNS must be between 1 and 64");
   }
-  return { max, min: 0, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 10_000 };
+  // Bound locks and stalled network reads as well as connection establishment.
+  return {
+    max,
+    min: 0,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    statement_timeout: 5_000,
+    query_timeout: 7_000,
+  };
 }

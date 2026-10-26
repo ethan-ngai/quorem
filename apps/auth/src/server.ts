@@ -6,6 +6,7 @@ import { auth, config, database } from "./auth.ts";
 import { createProfileHandler } from "./profile.ts";
 import { createRegistrationHandler } from "./registration.ts";
 import { verificationMail, profileStorage } from "./infrastructure.ts";
+import { publicAuthConfiguration } from "./public-config.ts";
 const handler = toNodeHandler(auth);
 const registrationHandler =
   config.registration && verificationMail
@@ -42,17 +43,9 @@ const profileHandler = createProfileHandler({
 });
 const server = createServer(async (req, res) => {
   if (req.url === "/api/auth/quorem-config" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }).end(
-      JSON.stringify({
-        method: config.method,
-        preferredOrigin: config.origin,
-        passkey: config.passkey,
-        registration: config.registration,
-        providers: Object.entries(config.social)
-          .filter(([, value]) => value)
-          .map(([name]) => name),
-      }),
-    );
+    res
+      .writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+      .end(JSON.stringify(publicAuthConfiguration(config)));
     return;
   }
   if (req.url?.startsWith("/internal/session/")) {
@@ -111,3 +104,8 @@ const server = createServer(async (req, res) => {
 });
 server.requestTimeout = 15000;
 server.listen(Number(process.env.AUTH_PORT ?? 8082), process.env.AUTH_HOST ?? "127.0.0.1");
+
+// Overlap the first TLS/database handshake with login-page interaction.
+void database.query("SELECT 1").catch(() => {
+  console.warn("Auth database warmup unavailable");
+});

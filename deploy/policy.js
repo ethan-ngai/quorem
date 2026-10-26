@@ -81,9 +81,8 @@ export function preferredShard(request, shards) {
   const cookie = request.headers.get("Cookie") ?? "";
   const match = cookie.match(new RegExp(`(?:^|;\\s*)${ROUTE_COOKIE}=([0-9]{1,2})(?:;|$)`));
   if (match && Number(match[1]) < shards) return Number(match[1]);
-  // Coalesce parallel first loads before the browser has received its affinity cookie.
-  const client = `${request.headers.get("CF-Connecting-IP") ?? ""}:${request.headers.get("User-Agent") ?? ""}`;
-  return judgeSlot(client, shards);
+  // Pack low traffic into warm capacity; overflow still visits every bounded shard.
+  return 0;
 }
 
 export function withShardAffinity(response, shard) {

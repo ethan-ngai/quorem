@@ -632,3 +632,91 @@ void test("app ten-minute grace and judge two-minute boot grace remain separate"
   assert.equal(judge.idleMs, 120_000);
   assert.equal(judgeContext.ctx.container.idle, 120_000);
 });
+
+void test("public auth configuration bypasses unavailable application and database capacity", async () => {
+  const config = {
+    method: "password",
+    preferredOrigin: env.APP_ORIGIN,
+    passkey: true,
+    registration: true,
+    providers: ["google", "github"],
+  };
+  const configuration = {
+    ...env,
+    AUTH_PUBLIC_CONFIG: JSON.stringify(config),
+    POOLS: {
+      getByName() {
+        throw new Error("No application may start");
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request(`${env.APP_ORIGIN}/api/auth/quorem-config`),
+    configuration,
+  );
+  assert.deepEqual(await response.json(), config);
+  assert.equal(response.headers.get("Cache-Control"), "public, max-age=60");
+  assert.equal(response.headers.has("Set-Cookie"), false);
+  await assert.rejects(() =>
+    worker.fetch(new Request(`${env.APP_ORIGIN}/api/auth/token`), configuration),
+  );
+});
+
+void test("distinct first-time visitors pack the same shard before capacity fallback", () => {
+  for (const ip of ["192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"]) {
+    assert.equal(
+      preferredShard(
+        new Request(env.APP_ORIGIN, {
+          headers: { "CF-Connecting-IP": ip, "User-Agent": ip },
+        }),
+        4,
+      ),
+      0,
+    );
+  }
+  assert.equal(
+    preferredShard(
+      new Request(env.APP_ORIGIN, {
+        headers: { Cookie: `${ROUTE_COOKIE}=2` },
+      }),
+      4,
+    ),
+    2,
+  );
+});
+
+void test("login configuration returns while background readiness remains pending", async () => {
+  const ready = deferred();
+  let warmups = 0;
+  const pending = [];
+  const configuration = {
+    ...env,
+    AUTH_PUBLIC_CONFIG: JSON.stringify({ method: "password" }),
+    POOLS: {
+      getByName() {
+        return {
+          async fetch(request) {
+            assert.equal(new URL(request.url).pathname, "/health");
+            warmups++;
+            await ready.promise;
+            return new Response("ok");
+          },
+        };
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request(`${env.APP_ORIGIN}/api/auth/quorem-config`),
+    configuration,
+    {
+      waitUntil(promise) {
+        pending.push(promise);
+      },
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(warmups, 1);
+  assert.equal(pending.length, 1);
+  ready.resolve();
+  await Promise.all(pending);
+});

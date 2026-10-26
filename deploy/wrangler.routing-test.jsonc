@@ -5,13 +5,16 @@
   "vars": {
     "APP_ORIGIN": "http://localhost:8792",
     "APP_POOL_SHARDS": "2",
+    "AUTH_PUBLIC_CONFIG": "{\"method\":\"password\",\"preferredOrigin\":\"http://localhost:8792\",\"passkey\":false,\"registration\":false,\"providers\":[]}",
     "APP_INSTANCES_PER_SHARD": "2",
     "APP_HTTP_CAPACITY": "4",
-    "APP_WS_CAPACITY": "4"
+    "APP_WS_CAPACITY": "4",
   },
-  "durable_objects": { "bindings": [
-    { "name": "APPS", "class_name": "RoutingApp" },
-    { "name": "POOLS", "class_name": "AppPool" }
-  ] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoutingApp", "AppPool"] }]
+  "durable_objects": {
+    "bindings": [
+      { "name": "APPS", "class_name": "RoutingApp" },
+      { "name": "POOLS", "class_name": "AppPool" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoutingApp", "AppPool"] }],
 }

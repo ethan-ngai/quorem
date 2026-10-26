@@ -36,8 +36,8 @@ async function wake(request, env) {
   }
 }
 
-export default {
-  async fetch(request, env) {
+const ingress = {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.origin !== env.APP_ORIGIN) return new Response("Unknown host", { status: 421 });
     if (url.pathname === "/internal/judge/wake") return wake(request, env);
@@ -49,6 +49,23 @@ export default {
       !url.pathname.startsWith("/api/auth/")
     )
       return new Response(null, { status: 404 });
+    // Render login immediately; overlap cold startup with entering credentials.
+    if (
+      url.pathname === "/api/auth/quorem-config" &&
+      request.method === "GET" &&
+      env.AUTH_PUBLIC_CONFIG &&
+      env.AUTH_PUBLIC_CONFIG !== "null"
+    ) {
+      ctx?.waitUntil(
+        ingress
+          .fetch(new Request(new URL("/health", url), request), env)
+          .then((response) => response.body?.cancel())
+          .catch(() => {}),
+      );
+      return Response.json(JSON.parse(env.AUTH_PUBLIC_CONFIG), {
+        headers: { "Cache-Control": "public, max-age=60", "X-Content-Type-Options": "nosniff" },
+      });
+    }
     const capacity = limits(env);
     const start = preferredShard(request, capacity.shards);
     for (let attempt = 0; attempt < capacity.shards; attempt++) {
@@ -56,12 +73,19 @@ export default {
       const forwarded = new Request(request.clone());
       for (const key of ["x-quorem-lease", "x-quorem-slot"]) forwarded.headers.delete(key);
       forwarded.headers.set("x-quorem-pool", pool);
+      const started = performance.now();
       const response = await env.POOLS.getByName(pool, {
         locationHint: env.APP_LOCATION_HINT || "enam",
       }).fetch(forwarded);
       // Capacity rejects happen before dispatch; an admitted application command never replays.
-      if (response.status !== 503 || response.headers.get("X-Quorem-Capacity") !== "full")
-        return withShardAffinity(response, Number(pool));
+      if (response.status !== 503 || response.headers.get("X-Quorem-Capacity") !== "full") {
+        const result = withShardAffinity(response, Number(pool));
+        result.headers.append(
+          "Server-Timing",
+          `app;dur=${(performance.now() - started).toFixed(1)}`,
+        );
+        return result;
+      }
       await response.body?.cancel();
     }
     return new Response("Application capacity reached", {
@@ -95,3 +119,5 @@ export default {
     }
   },
 };
+
+export default ingress;

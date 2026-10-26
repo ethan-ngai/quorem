@@ -131,6 +131,16 @@ variable "auth_environment" {
     error_message = "Only email and social provider settings belong in auth_environment."
   }
 }
+variable "auth_public_config" {
+  type = object({
+    method          = string
+    preferredOrigin = string
+    passkey         = bool
+    registration    = bool
+    providers       = list(string)
+  })
+  default = null
+}
 provider "cloudflare" {}
 provider "restapi" {
   uri                  = "https://api.cloudflare.com/client/v4"
@@ -235,6 +245,7 @@ resource "cloudflare_worker_version" "app" {
     { type = "secret_text", name = "JUDGE_CONTROL_TOKEN", text = random_password.judge_control.result },
     { type = "secret_text", name = "APP_RUNTIME_ENV", text = jsonencode(local.runtime) },
     { type = "secret_text", name = "JUDGE_RUNTIME_ENV", text = jsonencode(local.judge_runtime) },
+    { type = "plain_text", name = "AUTH_PUBLIC_CONFIG", text = jsonencode(var.auth_public_config) },
     { type = "plain_text", name = "APP_POOL_SHARDS", text = tostring(var.app_pool_shards) },
     { type = "plain_text", name = "APP_INSTANCES_PER_SHARD", text = tostring(var.app_instances_per_shard) },
     { type = "plain_text", name = "APP_HTTP_CAPACITY", text = tostring(var.app_http_capacity) },
@@ -261,13 +272,14 @@ resource "restapi_object" "container" {
   data = jsonencode({
     name              = var.worker_name
     scheduling_policy = "default"
+    constraints       = { regions = ["ENAM"] }
     observability     = { logs = { enabled = true } }
     instances         = 0
     max_instances     = var.app_pool_shards * var.app_instances_per_shard
     configuration     = local.container_configuration
     durable_objects   = { script_name = var.worker_name, class_name = "Quorem" }
   })
-  update_data = jsonencode({ max_instances = var.app_pool_shards * var.app_instances_per_shard, configuration = local.container_configuration, observability = { logs = { enabled = true } } })
+  update_data = jsonencode({ constraints = { regions = ["ENAM"] }, max_instances = var.app_pool_shards * var.app_instances_per_shard, configuration = local.container_configuration, observability = { logs = { enabled = true } } })
   depends_on  = [cloudflare_worker_version.app]
 }
 resource "restapi_object" "rollout" {
@@ -292,13 +304,14 @@ resource "restapi_object" "judge_container" {
   data = jsonencode({
     name              = "${var.worker_name}-judge"
     scheduling_policy = "default"
+    constraints       = { regions = ["ENAM"] }
     observability     = { logs = { enabled = true } }
     instances         = 0
     max_instances     = var.judge_max_instances
     configuration     = local.judge_configuration
     durable_objects   = { script_name = var.worker_name, class_name = "Judge" }
   })
-  update_data = jsonencode({ max_instances = var.judge_max_instances, configuration = local.judge_configuration, observability = { logs = { enabled = true } } })
+  update_data = jsonencode({ constraints = { regions = ["ENAM"] }, max_instances = var.judge_max_instances, configuration = local.judge_configuration, observability = { logs = { enabled = true } } })
   depends_on  = [cloudflare_worker_version.app]
 }
 resource "restapi_object" "judge_rollout" {
