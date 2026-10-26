@@ -45,6 +45,8 @@ export function WorkspaceTests({
   const tabs =
     onDraftsChange && !problem.odyssey ? (["samples", "custom"] as const) : (["samples"] as const);
   const selected = tabs.length > 1 && customMode;
+  const hiddenOnly =
+    !testProblem.odyssey && !!submission?.hiddenCases?.length && !submission.publicCases?.length;
   return (
     <>
       {!hideToolbar && (
@@ -73,20 +75,12 @@ export function WorkspaceTests({
                   document.getElementById(`tests-${next}-tab`)?.focus();
                 }}
               >
-                <Icon
-                  name={
-                    tab === "custom"
-                      ? "custom"
-                      : submission?.hiddenCases?.length && !submission.publicCases?.length
-                        ? "lock"
-                        : "samples"
-                  }
-                />
+                <Icon name={tab === "custom" ? "custom" : hiddenOnly ? "lock" : "samples"} />
                 {problem.odyssey
                   ? "Examples"
                   : tab === "custom"
                     ? "Custom cases"
-                    : submission?.hiddenCases?.length && !submission.publicCases?.length
+                    : hiddenOnly
                       ? "Hidden cases"
                       : "Examples"}
               </button>
