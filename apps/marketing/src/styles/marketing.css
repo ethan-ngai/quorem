@@ -1082,6 +1082,7 @@ summary:focus-visible {
   gap: 8px 16px;
 }
 .footer-sitemap strong {
+  flex-basis: 100%;
   color: var(--color-text);
   font-weight: 500;
 }
