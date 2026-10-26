@@ -19,6 +19,7 @@ COPY deploy/judge-start.py deploy/judge-start.py
 ENV APP_ENV=production RUNNER_ADDR=0.0.0.0:8090 QUOREM_DATABASE_MAX_CONNS=2 \
     RUNNER_IMAGE=quorem-python:production RUNNER_JAVA_IMAGE=quorem-java:production \
     RUNNER_TYPESCRIPT_IMAGE=quorem-typescript:production RUNNER_OCAML_IMAGE=quorem-ocaml:production \
+    RUNNER_POSTGRES_IMAGE=quorem-postgres:production \
     RUNNER_CONCURRENCY=2
 EXPOSE 8090
 ENTRYPOINT ["python3", "/app/deploy/judge-start.py"]

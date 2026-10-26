@@ -91,6 +91,21 @@ export function validJSONShape(label: string, value: unknown): boolean {
       )
     );
   if (!Array.isArray(value)) return false;
+  if (label === "SQL stages")
+    return value.every(
+      (item) =>
+        record(item) &&
+        typeof item.title === "string" &&
+        typeof item.statementMarkdown === "string" &&
+        Array.isArray(item.methods) &&
+        Array.isArray(item.examples),
+    );
+  if (label === "SQL stage hidden cases")
+    return value.every(
+      (suite) =>
+        Array.isArray(suite) &&
+        suite.every((item) => record(item) && Array.isArray(item.args) && "expected" in item),
+    );
   if (label.startsWith("Level ") && label.endsWith("methods"))
     return value.every((item) => validJSONShape("Typed signature", item));
   if (label.startsWith("Level "))

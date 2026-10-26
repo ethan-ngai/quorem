@@ -58,7 +58,7 @@ export class TextPreset extends InputPreset {
     return source;
   }
   override format(value: WireValue) {
-    return String(value);
+    return value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
   }
 }
 export class BooleanPreset extends InputPreset {

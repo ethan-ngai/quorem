@@ -25,14 +25,16 @@ export type StatementProblem = Pick<
   | "examples"
   | "constraints"
   | "odyssey"
+  | "sql"
 >;
 
 /** @returns Named argument values in the public function's declared order. */
 export function exampleInput(
-  problem: Pick<ProblemVersion, "signature">,
+  problem: Pick<ProblemVersion, "signature" | "sql">,
   args: unknown[],
   language: EditorLanguage = "python",
 ) {
+  if (problem.sql) return JSON.stringify(args[0], null, 2);
   return bindArguments(problem.signature, args)
     .map(({ name, value }) => `${name} = ${questionValue(value, language)}`)
     .join(", ");

@@ -107,6 +107,9 @@ func CompileOdyssey(f Fixture, level int, kind string) (Problem, []Case, error) 
 }
 
 func NormalizeCaseOutput(p Problem, c Case, data json.RawMessage) (json.RawMessage, error) {
+	if p.SQL != nil {
+		return normalizeSQLResult(data, p.SQL.OutputOrder == "unordered")
+	}
 	if len(c.Calls) == 0 {
 		return normalizeMethodOutput(p.Signature, data)
 	}

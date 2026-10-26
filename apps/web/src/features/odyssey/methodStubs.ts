@@ -46,6 +46,7 @@ export async function unlockedMethodEdit(
   language: EditorLanguage,
   levels: readonly OdysseyLevel[],
 ) {
+  if (language === "postgresql") return undefined;
   const methods = levels.flatMap((level) => level.methods);
   if (!source.trim())
     return { from: 0, to: source.length, insert: initialOdysseySource(methods, language) };

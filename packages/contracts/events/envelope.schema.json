@@ -4,7 +4,7 @@
   "$defs": {
     "Language": {
       "type": "string",
-      "enum": ["python", "java", "typescript", "ocaml"]
+      "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
     },
     "Difficulty": {
       "type": "string",
@@ -56,6 +56,12 @@
         {
           "type": "array",
           "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
             "$ref": "#/$defs/WireValue"
           }
         }
@@ -322,6 +328,21 @@
           "items": {
             "$ref": "#/$defs/LanguageImplementation"
           }
+        },
+        "sql": {
+          "type": "object",
+          "properties": {
+            "dialect": {
+              "type": "string",
+              "enum": ["postgresql"]
+            },
+            "outputOrder": {
+              "type": "string",
+              "enum": ["ordered", "unordered"]
+            }
+          },
+          "required": ["dialect", "outputOrder"],
+          "additionalProperties": false
         },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
@@ -1215,7 +1236,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "starterSource": {
           "type": "string"
@@ -1242,7 +1263,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "source": {
           "type": "string"
@@ -1268,7 +1289,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "timeComplexity": {
           "type": "string"
@@ -1287,7 +1308,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "starterSource": {
           "type": "string"
@@ -1379,6 +1400,21 @@
           "items": {
             "$ref": "#/$defs/LanguageImplementation"
           }
+        },
+        "sql": {
+          "type": "object",
+          "properties": {
+            "dialect": {
+              "type": "string",
+              "enum": ["postgresql"]
+            },
+            "outputOrder": {
+              "type": "string",
+              "enum": ["ordered", "unordered"]
+            }
+          },
+          "required": ["dialect", "outputOrder"],
+          "additionalProperties": false
         },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
@@ -1706,7 +1742,7 @@
           "items": {
             "$ref": "#/$defs/Signature"
           },
-          "minItems": 1,
+          "minItems": 0,
           "maxItems": 16
         },
         "examples": {

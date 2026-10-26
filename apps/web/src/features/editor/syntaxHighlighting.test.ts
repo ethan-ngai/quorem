@@ -30,7 +30,7 @@ function spans(state: EditorState) {
   return result;
 }
 
-const examples: Record<EditorLanguage, string> = {
+const examples: Record<Exclude<EditorLanguage, "postgresql">, string> = {
   python:
     "@cache\nclass Example:\n def solve(self, items: list[int]):\n  # TODO(owner): check FIXME and @param\n  return [x for x in items if x is not None and x >= 1]\n",
   java: "@Override class Example { public int solve(int value) { /* TODO(owner): check FIXME and @param */ return this.helper(value) + 1; } }",
@@ -52,7 +52,7 @@ describe("shared syntax roles", () => {
     );
   });
 
-  it.each(Object.keys(examples) as EditorLanguage[])(
+  it.each(Object.keys(examples) as Exclude<EditorLanguage, "postgresql">[])(
     "styles actual %s grammar output",
     async (language) => {
       const state = await parsed(language, examples[language]);
@@ -181,7 +181,7 @@ function markers(state: EditorState, from = 0, to = state.doc.length) {
 }
 
 describe("comment annotations", () => {
-  it.each(Object.keys(examples) as EditorLanguage[])(
+  it.each(Object.keys(examples) as Exclude<EditorLanguage, "postgresql">[])(
     "colors task text through the end of %s comments",
     async (language) => {
       expect(markers(await parsed(language, examples[language]))).toEqual([

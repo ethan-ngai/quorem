@@ -348,7 +348,10 @@ export function TestCases({
       ) : example ? (
         <>
           <div className="case-call-inputs">
-            {bindArguments(problem.signature, example.args).map(({ name, value }, index) => (
+            {(problem.sql
+              ? [{ name: "Tables", value: example.args[0] }]
+              : bindArguments(problem.signature, example.args)
+            ).map(({ name, value }, index) => (
               <CaseValue key={index} name={name} value={value} parameter />
             ))}
           </div>

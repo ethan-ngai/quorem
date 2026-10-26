@@ -33,3 +33,25 @@ it("public preview excludes private reference code and hidden inputs", () => {
   expect(markup).toContain("PUBLIC_CODE");
   expect(markup).not.toContain("PRIVATE_");
 });
+
+it("validates SQL stages and renders public table inputs without private cases", () => {
+  expect(
+    validJSONShape("SQL stages", [
+      { title: "Step 1", statementMarkdown: "Query", methods: [], examples: [] },
+    ]),
+  ).toBe(true);
+  expect(validJSONShape("SQL stage hidden cases", [[{ args: [], expected: {} }]])).toBe(true);
+  expect(validJSONShape("SQL stage hidden cases", [{ args: [] }])).toBe(false);
+  const content = blankQuestion();
+  content.problem.sql = { dialect: "postgresql", outputOrder: "unordered" };
+  content.problem.examples = [
+    {
+      args: [{ tables: [{ name: "public_items", columns: [], rows: [] }] }],
+      expected: { columns: ["id"], rows: [] },
+    },
+  ];
+  content.hiddenCases = [{ args: ["PRIVATE_INPUT"], expected: "PRIVATE_EXPECTATION" }];
+  const markup = renderToStaticMarkup(<PublicPreview content={content} />);
+  expect(markup).toContain("public_items");
+  expect(markup).not.toContain("PRIVATE_");
+});
