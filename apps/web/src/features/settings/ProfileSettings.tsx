@@ -1,7 +1,7 @@
 import { useErrorNotification } from "../../ui/Notifications";
-import { Pencil, LoaderCircle } from "lucide-react";
+import { Pencil, LoaderCircle, X } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authErrorMessage } from "../auth/errors";
 import {
@@ -28,6 +28,8 @@ export function ProfileSettings({
   const profile = useProfile(userId);
   const client = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [editingColor, setEditingColor] = useState(false);
+  const colorOptionsId = useId();
   const [error, setError] = useState("");
   useErrorNotification(error);
   async function changePhoto(file?: File) {
@@ -122,25 +124,58 @@ export function ProfileSettings({
         )}
         <div>
           <ProfileEditor key={section} profile={account} userId={userId} section={section} />
-          {section === "profile" && (
-            <fieldset className="profile-colors" disabled={busy}>
-              <legend>Profile color</legend>
-              <div className="profile-color-options">
-                {participantColors.map((color, index) => (
-                  <button
-                    key={color}
-                    type="button"
-                    aria-label={`Color ${index + 1}`}
-                    aria-pressed={account.color === index + 1}
-                    title={`Color ${index + 1}`}
-                    onClick={() => void changeColor(index + 1)}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            </fieldset>
-          )}
         </div>
+        {section === "profile" && (
+          <section className="settings-profile-color">
+            <div className="profile-field-heading">
+              <div className="profile-color-current">
+                <span className="profile-field-label">Profile color</span>
+                <span
+                  className="profile-color-swatch"
+                  style={{ backgroundColor: participantColor(userId, account.color) }}
+                  aria-hidden="true"
+                />
+              </div>
+              <Tooltip content={editingColor ? "Close color picker" : "Edit profile color"}>
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label={editingColor ? "Close color picker" : "Edit profile color"}
+                  aria-expanded={editingColor}
+                  aria-controls={colorOptionsId}
+                  disabled={busy}
+                  onClick={() => setEditingColor((value) => !value)}
+                >
+                  {editingColor ? <X size={16} /> : <Pencil size={16} />}
+                </button>
+              </Tooltip>
+            </div>
+            <div
+              id={colorOptionsId}
+              className="profile-color-reveal"
+              data-open={editingColor}
+              aria-hidden={!editingColor}
+              inert={!editingColor}
+            >
+              <fieldset className="profile-colors" disabled={busy}>
+                <legend className="sr-only">Profile color</legend>
+                <div className="profile-color-options">
+                  {participantColors.map((color, index) => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Color ${index + 1}`}
+                      aria-pressed={color === participantColor(userId, account.color)}
+                      title={`Color ${index + 1}`}
+                      onClick={() => void changeColor(index + 1)}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          </section>
+        )}
       </div>
       {section === "security" && (
         <div className="settings-security-passkeys">
