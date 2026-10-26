@@ -88,8 +88,12 @@ func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spe
 			spec.Fixture.Problem.Odyssey = &problems.Odyssey{Levels: spec.Fixture.Problem.Odyssey.Levels[:*level]}
 		}
 	}
+	if err == nil && spec.Kind == "submit" {
+		spec.SubmitSamples = submissionSamples(spec.Fixture.Problem)
+	}
 	return spec, err
 }
+
 func (s *Store) Lease(ctx context.Context, j execution.Job, heartbeat bool) (bool, error) {
 	var cancelled bool
 	query := `SELECT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND NOT j.finished AND j.lease_until>clock_timestamp()`
@@ -184,6 +188,12 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 			result.Score = c.Score
 			result.HiddenCases = c.HiddenCases
 			result.Diagnostics = nil
+			if len(c.SubmitSampleResults) > 0 {
+				if err = validateSubmitSamples(ctx, tx, j, c.SubmitSampleResults); err != nil {
+					return err
+				}
+				result.PublicCases = c.SubmitSampleResults
+			}
 		} else {
 			result.PublicCases = c.PublicCaseResults
 		}

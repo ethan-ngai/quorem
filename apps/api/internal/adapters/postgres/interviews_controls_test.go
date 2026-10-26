@@ -134,11 +134,11 @@ func TestInterviewPrivateCaseDetailsRevealHideAndResultRedaction(t *testing.T) {
 		t.Fatal("pending fabricated private result", pending, err)
 	}
 	spec, err := s.LoadExecution(ctx, job)
-	if err != nil || !spec.PrivateDetails {
+	if err != nil || !spec.PrivateDetails || len(spec.SubmitSamples) != 1 {
 		t.Fatal("private result capture flag", spec, err)
 	}
 	raw := []execution.PublicCaseResult{{Index: 0, Status: "wrong_answer", Actual: json.RawMessage(`7`), Expected: json.RawMessage(`987655`), Stdout: "private stdout zero", Stderr: "private stderr zero"}, {Index: 1, Status: "accepted", Actual: json.RawMessage(`987655`), Expected: json.RawMessage(`987655`), Stdout: "private stdout one"}}
-	completion := execution.Completion{SubmissionID: sub.ID, AttemptID: job.AttemptID, Verdict: execution.WrongAnswer, Score: &execution.Score{Passed: 1, Total: 2}, HiddenCases: []execution.HiddenCaseResult{{Index: 0, Status: execution.WrongAnswer}, {Index: 1, Status: execution.Accepted}}, PrivateCaseResults: raw}
+	completion := execution.Completion{SubmissionID: sub.ID, AttemptID: job.AttemptID, Verdict: execution.WrongAnswer, Score: &execution.Score{Passed: 1, Total: 2}, HiddenCases: []execution.HiddenCaseResult{{Index: 0, Status: execution.WrongAnswer}, {Index: 1, Status: execution.Accepted}}, PrivateCaseResults: raw, SubmitSampleResults: []execution.PublicCaseResult{{Index: 0, Status: "accepted", Actual: json.RawMessage(`2`), Expected: json.RawMessage(`2`), Stdout: "sample stdout"}}}
 	if err = s.Complete(ctx, job, completion); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestInterviewPrivateCaseDetailsRevealHideAndResultRedaction(t *testing.T) {
 		t.Fatal("interviewer result details", staff, err)
 	}
 	candidate, err := s.InterviewSubmission(ctx, "bob", v.ID, sub.ID)
-	if err != nil || len(candidate.PrivateCaseResults) != 0 {
+	if err != nil || len(candidate.PrivateCaseResults) != 0 || len(candidate.PublicCases) != 1 || candidate.PublicCases[0].Stdout != "sample stdout" {
 		t.Fatal("unrevealed result leak", candidate, err)
 	}
 	if _, err = s.SetInterviewCaseVisibility(ctx, "bob", v.ID, ID(), "hidden:0", true); errorCode(err) != "forbidden" {

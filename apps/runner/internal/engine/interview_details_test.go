@@ -53,3 +53,28 @@ class Solution:
 		t.Fatal("regular hidden output leaked", string(data))
 	}
 }
+
+func TestDockerSubmitSamplesRemainSeparateFromHiddenScoring(t *testing.T) {
+	fixtures := dockerTests(t)
+	var fixture worker.Fixture
+	for _, f := range fixtures {
+		if f.Problem.Slug == "run-widths" {
+			fixture = f
+		}
+	}
+	d := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		return worker.Spec{Source: fixture.ReferenceSource, Kind: "submit", Fixture: fixture, Cases: fixture.HiddenCases[:1], SubmitSamples: fixture.Problem.SampleCases()}, nil
+	}}
+	job := execution.Job{SubmissionID: "submit-samples", AttemptID: rand.Text(), RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := d.Execute(ctx, job)
+	if err != nil || result.Score == nil || result.Score.Total != 1 || result.Score.Passed != 1 || len(result.HiddenCases) != 1 || len(result.PrivateCaseResults) != 0 || len(result.PublicCaseResults) != 0 || len(result.SubmitSampleResults) != len(fixture.Problem.Examples) {
+		t.Fatal("submit sample separation", result, err)
+	}
+	for i, r := range result.SubmitSampleResults {
+		if r.Index != i || r.Status != "accepted" || len(r.Actual) == 0 {
+			t.Fatal("sample output", r)
+		}
+	}
+}
