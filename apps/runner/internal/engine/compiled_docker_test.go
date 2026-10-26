@@ -82,3 +82,55 @@ func TestDockerCompiledDynamicNestedUnicodeInput(t *testing.T) {
 		})
 	}
 }
+
+func TestDockerFirstCaseCannotMutateCachedArtifact(t *testing.T) {
+	fixture := dockerTests(t)[0]
+	fixture.Problem.Signature.ClassName = "Solution"
+	fixture.Problem.Signature.MethodName = "solve"
+	fixture.Problem.Signature.Parameters = []worker.Parameter{{Name: "n", Type: "int"}}
+	fixture.Problem.Signature.ReturnType = "int"
+	runtime, _ := execution.LanguageRuntime("typescript")
+	engine := &Docker{}
+	spec := worker.Spec{Source: `class Solution {solve(n:number):number {process.getBuiltinModule('fs').writeFileSync('/tmp/main.js','corrupted');return n+1;}}`, Fixture: fixture}
+	job := execution.Job{AttemptID: rand.Text(), Language: "typescript", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	first := worker.Case{Args: []json.RawMessage{json.RawMessage(`3`)}}
+	result, err := engine.runRequest(ctx, job, 0, compiledFirstCaseRequest(spec, first), compiledArtifactLimit)
+	if err != nil || result.Status != "executed" || string(result.Actual) != "4" {
+		t.Fatalf("first case: %+v %v", result, err)
+	}
+	if err = validateCompiledArtifact(result.Artifact, "typescript"); err != nil {
+		t.Fatal(err)
+	}
+	second := worker.Case{Args: []json.RawMessage{json.RawMessage(`5`)}}
+	result, err = engine.runRequest(ctx, job, 1, compiledCaseRequest(spec, second, result.Artifact), job.Limits.OutputBytes)
+	if err != nil || result.Status != "executed" || string(result.Actual) != "6" {
+		t.Fatalf("cached case: %+v %v", result, err)
+	}
+}
+
+func TestDockerCompiledJavaRejectsInvalidReturnValues(t *testing.T) {
+	fixture := dockerTests(t)[0]
+	fixture.Problem.Signature.ClassName = "Solution"
+	fixture.Problem.Signature.MethodName = "solve"
+	fixture.Problem.Signature.Parameters = []worker.Parameter{}
+	for _, test := range []struct{ name, resultType, source string }{
+		{"wrong type", "str", `class Solution {public int solve(){return 1;}}`},
+		{"null string", "str", `class Solution {public String solve(){return null;}}`},
+		{"null primitive", "int", `class Solution {public Integer solve(){return null;}}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture.Problem.Signature.ReturnType = test.resultType
+			result := executeLanguage(t, fixture, "java", test.source, "run", []worker.Case{{Args: []json.RawMessage{}}, {Args: []json.RawMessage{}}})
+			if result.Verdict != execution.InvalidOutput || len(result.PublicCaseResults) != 2 {
+				t.Fatalf("invalid output misclassified: %+v", result)
+			}
+			for _, value := range result.PublicCaseResults {
+				if value.Status != "invalid_output" {
+					t.Fatalf("cached case misclassified: %+v", value)
+				}
+			}
+		})
+	}
+}

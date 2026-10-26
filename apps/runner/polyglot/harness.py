@@ -173,13 +173,14 @@ def main():
     else:
         compile_cmd,cmd=prepare(r,lang)
     code,out,err,exceeded=run(compile_cmd) if compile_cmd else (0,b'',b'',False)
-    sys.stdout.write('\0');sys.stdout.flush()
     result={'status':'syntax_error','stderr':(out+err).decode('utf-8','replace')[:MAX_OUTPUT]} if code else None
     artifact=None
     if result is None and operation in ('compile','compile-execute'):
         try:artifact=compiled.collect(lang)
         except (ValueError,OSError):result={'status':'output_limit'}
         if result is None and operation=='compile':result={'status':'executed','actual':artifact}
+    # Artifact preparation is trusted work, outside the contestant wall-time budget.
+    sys.stdout.write('\0');sys.stdout.flush()
     if result is None:
         data=json.dumps({'args':r.get('args',[]),'calls':r.get('calls',[])},ensure_ascii=False).encode() if operation in ('execute','compile-execute') else None
         code,out,err,exceeded=run(cmd,data)

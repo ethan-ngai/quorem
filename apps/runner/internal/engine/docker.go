@@ -26,6 +26,7 @@ const compilationBudget = 60 * time.Second
 type frame struct {
 	compilationTime time.Duration
 	Status          string          `json:"status"`
+	Artifact        json.RawMessage `json:"artifact,omitempty"`
 	Actual          json.RawMessage `json:"actual"`
 	Stdout          string          `json:"stdout"`
 	Stderr          string          `json:"stderr"`
@@ -110,6 +111,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		budget = compilationBudget
 	}
 	var fatal *frame
+	var artifact json.RawMessage
 	cases := append([]worker.Case{}, spec.Cases...)
 	if spec.Kind == "submit" {
 		cases = append(cases, spec.SubmitSamples...)
@@ -122,14 +124,30 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		var f frame
 		if fatal != nil {
 			f = frame{Status: fatal.Status, Line: fatal.Line, Stderr: fatal.Stderr}
-		} else if runtime.Language != "python" && budget-compilationTime <= time.Millisecond {
+		} else if runtime.Language != "python" && len(artifact) == 0 && budget-compilationTime <= time.Millisecond {
 			f = frame{Status: "time_limit"}
 		} else {
-			f, err = d.runCase(ctx, j, i, spec, c, budget-compilationTime)
+			compiling := runtime.Language != "python" && len(artifact) == 0
+			if runtime.Language == "python" || len(cases) == 1 {
+				// A single case already compiles once; avoid serializing an unused artifact.
+				f, err = d.runCase(ctx, j, i, spec, c, budget-compilationTime)
+			} else if compiling {
+				f, err = d.runRequest(ctx, j, i, compiledFirstCaseRequest(spec, c), compiledArtifactLimit, budget-compilationTime)
+			} else {
+				f, err = d.runRequest(ctx, j, i, compiledCaseRequest(spec, c, artifact), j.Limits.OutputBytes)
+			}
 			if err != nil {
 				return result, err
 			}
-			compilationTime += f.compilationTime
+			if compiling {
+				compilationTime += f.compilationTime
+				if len(f.Artifact) > 0 {
+					if err = validateCompiledArtifact(f.Artifact, runtime.Language); err != nil {
+						return result, err
+					}
+					artifact = f.Artifact
+				}
+			}
 			if f.Status == "syntax_error" {
 				fatal = &f
 			}
@@ -314,7 +332,11 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 	default:
 		return frame{Status: "invalid_output"}, nil
 	}
-	if len(f.Stdout) > j.Limits.OutputBytes || len(f.Stderr) > j.Limits.OutputBytes || len(f.Actual) > outputLimit {
+	actualLimit := j.Limits.OutputBytes
+	if index < 0 {
+		actualLimit = outputLimit
+	}
+	if len(f.Stdout) > j.Limits.OutputBytes || len(f.Stderr) > j.Limits.OutputBytes || len(f.Actual) > actualLimit || len(f.Artifact) > compiledArtifactLimit {
 		return frame{Status: "output_limit"}, nil
 	}
 	return f, nil
