@@ -66,7 +66,7 @@ Application and marketing product previews consume the same components and style
 
 Problem left, solution right, results below the editor; panes resize with pointer and keyboard. Keep source, undo, selection, focus and scroll stable through theme, pane and result changes. Controls align through shared insets. Narrow layouts preserve usable actions and content access without horizontal page overflow.
 
-The desktop navigation rail expands in place. Mobile navigation uses a dismissible drawer. Keep the logo mounted through navigation transitions. Align control icons and text; preserve space when optional information hides or asynchronous state changes.
+The fixed application header casts a subtle shadow to separate it from scrolling content. The desktop navigation rail expands in place. Mobile navigation uses a dismissible drawer. Keep the logo mounted through navigation transitions. Align control icons and text; preserve space when optional information hides or asynchronous state changes.
 
 Share typed input/output rendering, case navigation and execution controls across practice, competition, interviews and authoring. Render results against their admitted source/input snapshot. Authorization, hidden tests and domain-specific rules remain enforced by the server.
 
