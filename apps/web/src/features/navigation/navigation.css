@@ -15,10 +15,6 @@
   padding-inline: var(--space-5);
   gap: var(--space-5);
   background: var(--color-background);
-  box-shadow: 0 3px 10px oklch(0.2 0 0 / 0.08);
-}
-:root[data-theme="dark"] .global-nav {
-  box-shadow: 0 3px 10px oklch(0 0 0 / 0.2);
 }
 .nav-brand {
   display: flex;
