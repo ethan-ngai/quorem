@@ -2230,6 +2230,9 @@ summary:focus-visible {
 .walkthrough-column > .feature-panel {
   grid-column: auto;
 }
+:root:not([data-theme="dark"]) .walkthrough-column > .feature-panel {
+  background: color-mix(in oklch, var(--color-surface) 30%, var(--color-field));
+}
 .walkthrough-column .submission-race {
   margin: 24px;
 }
