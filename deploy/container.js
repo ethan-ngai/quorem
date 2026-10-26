@@ -2,11 +2,12 @@ import { APP_IDLE_MS, isSocketRequest } from "./policy.js";
 
 /** One cold readiness probe per boot; warm commands are forwarded exactly once. */
 export class ContainerLifecycle {
-  constructor(ctx, runtime, port, timeout = 60_000) {
+  constructor(ctx, runtime, port, timeout = 60_000, idleMs = APP_IDLE_MS) {
     this.ctx = ctx;
     this.runtime = runtime;
     this.port = port;
     this.timeout = timeout;
+    this.idleMs = idleMs;
     this.ready = false;
     this.boot = 0;
   }
@@ -28,7 +29,7 @@ export class ContainerLifecycle {
       this.expectedStop = false;
       container.start({ enableInternet: true, env: this.runtime });
     }
-    await container.setInactivityTimeout(APP_IDLE_MS);
+    await container.setInactivityTimeout(this.idleMs);
     if (this.monitoring !== this.boot) {
       const boot = this.boot;
       this.monitoring = boot;

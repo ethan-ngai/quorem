@@ -32,14 +32,43 @@ export class AppPool extends DurableObject {
     super(ctx, env);
     this.capacity = limits(env);
     this.leases = new Map();
+    this.warmSlots = new Map();
     ctx.blockConcurrencyWhile(async () => {
       const stored = await ctx.storage.list({ prefix: "lease:" });
       for (const [key, lease] of stored) {
         if (lease.expires > Date.now()) this.leases.set(key.slice(6), lease);
         else await ctx.storage.delete(key);
       }
+      const warmth = await ctx.storage.list({ prefix: "warm:" });
+      for (const [key, expires] of warmth) {
+        const slot = Number(key.slice(5));
+        if (
+          Number.isInteger(slot) &&
+          slot >= 0 &&
+          slot < this.capacity.instances &&
+          expires > Date.now()
+        )
+          this.warmSlots.set(slot, expires);
+        else await ctx.storage.delete(key);
+      }
       await this.scheduleCleanup();
     });
+  }
+
+  async rememberWarm(slot) {
+    const expires = Date.now() + APP_IDLE_MS;
+    this.warmSlots.set(slot, expires);
+    await this.ctx.storage.put("warm:" + slot, expires);
+  }
+
+  async forgetWarm(slot) {
+    this.warmSlots.delete(slot);
+    await this.ctx.storage.delete("warm:" + slot);
+  }
+
+  async pruneWarm() {
+    for (const [slot, expires] of this.warmSlots)
+      if (expires <= Date.now()) await this.forgetWarm(slot);
   }
 
   async release(id) {
@@ -49,12 +78,16 @@ export class AppPool extends DurableObject {
   }
 
   async scheduleCleanup() {
-    const next = Math.min(...[...this.leases.values()].map((lease) => lease.expires));
+    const next = Math.min(
+      ...[...this.leases.values()].map((lease) => lease.expires),
+      ...this.warmSlots.values(),
+    );
     if (Number.isFinite(next)) await this.ctx.storage.setAlarm(next);
     else await this.ctx.storage.deleteAlarm();
   }
 
   async alarm() {
+    await this.pruneWarm();
     for (const [id, lease] of this.leases) if (lease.expires <= Date.now()) await this.release(id);
     await this.scheduleCleanup();
   }
@@ -64,6 +97,7 @@ export class AppPool extends DurableObject {
     if (url.pathname === "/__leases") {
       const { renew = [], release = [] } = await request.json();
       for (const id of release) await this.release(id);
+      const warm = new Set();
       for (const item of renew) {
         const id = typeof item === "string" ? item : item.id;
         let lease = this.leases.get(id);
@@ -83,14 +117,17 @@ export class AppPool extends DurableObject {
         if (lease) {
           lease.expires = Date.now() + (lease.kind === "sockets" ? SOCKET_LEASE_MS : HTTP_LEASE_MS);
           await this.ctx.storage.put("lease:" + id, lease);
+          if (typeof item === "object" && item.warm === true) warm.add(lease.slot);
         }
       }
+      for (const slot of warm) await this.rememberWarm(slot);
       await this.scheduleCleanup();
       return new Response(null, { status: 204 });
     }
+    await this.pruneWarm();
     for (const [id, lease] of this.leases) if (lease.expires <= Date.now()) await this.release(id);
     const kind = isSocketRequest(request) ? "sockets" : "http";
-    const slot = chooseInstance(this.leases, kind, this.capacity, Date.now());
+    const slot = chooseInstance(this.leases, kind, this.capacity, Date.now(), this.warmSlots);
     if (slot < 0)
       return new Response("Application capacity reached", {
         status: 503,
@@ -113,6 +150,8 @@ export class AppPool extends DurableObject {
       let response = await this.env.APPS.getByName(name, {
         locationHint: this.env.APP_LOCATION_HINT || "enam",
       }).fetch(forwarded);
+      if (response.status === 503) await this.forgetWarm(slot);
+      else await this.rememberWarm(slot);
       if (response.status === 101 && response.webSocket) return response;
       if (response.headers.has("X-Quorem-Capacity")) {
         const headers = new Headers(response.headers);
@@ -125,6 +164,7 @@ export class AppPool extends DurableObject {
       }
       return trackedBody(response, () => this.release(id), this.ctx);
     } catch {
+      await this.forgetWarm(slot);
       await this.release(id);
       return new Response("Application temporarily unavailable", {
         status: 503,
@@ -168,7 +208,14 @@ export class Quorem extends DurableObject {
         ...this.requests.values(),
       ]) {
         if (!byPool.has(pool)) byPool.set(pool, []);
-        byPool.get(pool).push({ id: lease, slot, kind });
+        byPool
+          .get(pool)
+          .push({
+            id: lease,
+            slot,
+            kind,
+            warm: this.lifecycle.ready && this.ctx.container.running,
+          });
       }
       await Promise.all([...byPool].map(([pool, renew]) => this.lease(pool, { renew })));
       await this.active();
@@ -267,10 +314,16 @@ export class Quorem extends DurableObject {
 export class Judge extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.lifecycle = new ContainerLifecycle(ctx, JSON.parse(env.JUDGE_RUNTIME_ENV), 8090, 120_000);
+    this.idleMs = integer(env.JUDGE_IDLE_MS, 120_000, 15_000, 600_000);
+    this.lifecycle = new ContainerLifecycle(
+      ctx,
+      JSON.parse(env.JUDGE_RUNTIME_ENV),
+      8090,
+      120_000,
+      this.idleMs,
+    );
     this.generation = 0;
     this.completed = 0;
-    this.idleMs = integer(env.JUDGE_IDLE_MS, 120_000, 15_000, 600_000);
   }
 
   async runDrain() {

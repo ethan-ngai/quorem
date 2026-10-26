@@ -1,5 +1,5 @@
 /** Same-origin elastic ingress; PostgreSQL owns product state and judge leases. */
-import { judgeSlot, limits, notification } from "./policy.js";
+import { judgeSlot, limits, notification, preferredShard, withShardAffinity } from "./policy.js";
 export { AppPool, Quorem, Judge } from "./router.js";
 
 async function wake(request, env) {
@@ -50,7 +50,7 @@ export default {
     )
       return new Response(null, { status: 404 });
     const capacity = limits(env);
-    const start = crypto.getRandomValues(new Uint32Array(1))[0] % capacity.shards;
+    const start = preferredShard(request, capacity.shards);
     for (let attempt = 0; attempt < capacity.shards; attempt++) {
       const pool = String((start + attempt) % capacity.shards);
       const forwarded = new Request(request.clone());
@@ -61,7 +61,7 @@ export default {
       }).fetch(forwarded);
       // Capacity rejects happen before dispatch; an admitted application command never replays.
       if (response.status !== 503 || response.headers.get("X-Quorem-Capacity") !== "full")
-        return response;
+        return withShardAffinity(response, Number(pool));
       await response.body?.cancel();
     }
     return new Response("Application capacity reached", {
