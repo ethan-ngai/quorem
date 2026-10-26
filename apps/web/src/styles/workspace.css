@@ -7,7 +7,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--navigation-height) minmax(0, 1fr);
-  height: 100dvh;
+  height: var(--page-height, 100dvh);
   overflow: hidden;
   background: var(--color-background);
 }
@@ -21,23 +21,6 @@
   min-width: 0;
   padding: 0 16px;
   background: var(--color-background);
-}
-.brand-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  color: var(--color-text);
-  text-decoration: none;
-}
-.brand-mark {
-  display: inline-block;
-  width: 25px;
-  height: 24px;
-  background: currentColor;
-  mask: url("/logo-pixel.svg") center / contain no-repeat;
 }
 .topbar-spacer {
   flex: 1;
@@ -309,7 +292,7 @@ kbd {
 }
 .workspace-loading {
   display: grid;
-  min-height: 100dvh;
+  min-height: var(--page-height, 100dvh);
   place-content: center;
   justify-items: center;
   gap: 16px;
@@ -415,7 +398,7 @@ kbd {
   font: 10px var(--font-code);
 }
 .match-page {
-  min-height: 100dvh;
+  min-height: var(--page-height, 100dvh);
   background: var(--color-background);
 }
 .workspace-mode {

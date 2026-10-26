@@ -19,6 +19,7 @@ import UpcomingFeaturePreview from "../components/UpcomingFeaturePreview.astro";
 import MatchModeIllustration from "../components/MatchModeIllustration.astro";
 import EditorPreview from "../components/EditorPreview";
 import HeroEditorPreview from "../components/HeroEditorPreview";
+import { SiteFooter } from "../../../web/src/ui/SiteFooter";
 import ThemeSwitch from "../components/ThemeSwitch.astro";
 import ClosingScene from "../components/ClosingScene.astro";
 import "@fontsource/jetbrains-mono/400.css";
@@ -419,7 +420,7 @@ const socialImage = Astro.site
                 <ClosingScene />
             </section>
         </main>
-        <footer class="site-footer page-width" data-reveal>
+        <div class="site-footer page-width" data-reveal>
             <div class="footer-main">
                 <a class="footer-brand" href="/" aria-label="Quorem home">
                     <span class="brand-mark" aria-hidden="true"></span>
@@ -436,18 +437,15 @@ const socialImage = Astro.site
                         <a href="#matches">How it works</a>
                         <a href="#upcoming">Coming soon</a>
                     </div>
+                    <div>
+                        <strong>Legal</strong>
+                        <a href="/privacy">Privacy Policy</a>
+                        <a href="/terms">Terms of Service</a>
+                    </div>
                 </nav>
             </div>
-            <div class="footer-bottom">
-                <p>
-                    © {new Date().getFullYear()} Quorem.{" "}
-                    <span>All rights reserved.</span>
-                </p>
-                <div class="footer-appearance">
-                    <ThemeSwitch />
-                </div>
-            </div>
-        </footer>
+        </div>
+        <SiteFooter />
         <script>
             document.querySelectorAll(".site-menu a").forEach((link) =>
                 link.addEventListener("click", () => {

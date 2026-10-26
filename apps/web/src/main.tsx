@@ -1,16 +1,12 @@
 /** @file main.tsx @description Mounts the editor workspace router and query cache. @module web */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  Outlet,
-  RouterProvider,
-  createRootRoute,
-  createRoute,
-  createRouter,
-} from "@tanstack/react-router";
+import { RouterProvider, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { StrictMode, Suspense, lazy } from "react";
 import { initializeTheme } from "./features/editor/useTheme";
 import { LoadingScreen } from "./ui/LoadingScreen";
 import { Notifications } from "./ui/Notifications";
+import { NotFoundPage } from "./features/public/NotFoundPage";
+import { PageLayout } from "./features/navigation/PageLayout";
 import { createRoot, type Root } from "react-dom/client";
 import { LoginPage } from "./features/auth/LoginPage";
 import { InvitePage } from "./features/matches/InvitePage";
@@ -32,6 +28,9 @@ const QuestionEditor = lazy(() =>
 );
 
 const WorkspacePage = lazy(loadWorkspacePage);
+const LegalPage = lazy(() =>
+  import("./features/public/LegalPage").then((module) => ({ default: module.LegalPage })),
+);
 const MatchPage = lazy(() =>
   import("./features/matches/MatchPage").then((module) => ({ default: module.MatchPage })),
 );
@@ -57,7 +56,25 @@ const queryClient = new QueryClient({
   },
 });
 
-const rootRoute = createRootRoute({ component: Outlet });
+const rootRoute = createRootRoute({ component: PageLayout, notFoundComponent: NotFoundPage });
+const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/privacy",
+  component: () => (
+    <Suspense fallback={<LoadingScreen label="Opening privacy policy…" />}>
+      <LegalPage key="privacy" document="privacy" />
+    </Suspense>
+  ),
+});
+const termsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/terms",
+  component: () => (
+    <Suspense fallback={<LoadingScreen label="Opening terms of service…" />}>
+      <LegalPage key="terms" document="terms" />
+    </Suspense>
+  ),
+});
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
@@ -153,6 +170,8 @@ const interviewInviteRoute = createRoute({
   },
 });
 const routeTree = rootRoute.addChildren([
+  privacyRoute,
+  termsRoute,
   interviewsRoute,
   interviewRoute,
   interviewInviteRoute,

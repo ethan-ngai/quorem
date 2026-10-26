@@ -529,6 +529,11 @@ function LoginForm() {
               ) : null}
             </>
           )}
+          <p className="auth-terms-notice">
+            By creating an account or using Quorem, you agree to the{" "}
+            <a href="/terms">Terms of Service</a>. Read our <a href="/privacy">Privacy Policy</a>{" "}
+            for information about your data.
+          </p>
         </section>
       </div>
     </main>

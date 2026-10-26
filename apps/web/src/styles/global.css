@@ -1,5 +1,23 @@
 @import "@quorem/ui/controls.css";
 
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.brand-mark {
+  display: inline-block;
+  width: 25px;
+  height: 24px;
+  background: currentColor;
+  mask: url("/logo-pixel.svg") center / contain no-repeat;
+}
+
 * {
   box-sizing: border-box;
 }

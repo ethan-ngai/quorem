@@ -1,8 +1,10 @@
 /** @file prepare-pages.mjs @description Pages routing and cache policy for the combined static frontend. @module deployment */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const directory = "apps/web/dist";
 const routes = [
+  "privacy",
+  "terms",
   "practice",
   "match",
   "invite",
@@ -14,8 +16,7 @@ const routes = [
 ];
 writeFileSync(
   `${directory}/_redirects`,
-  routes.flatMap((route) => [`/${route} /app 200`, `/${route}/* /app 200`]).join("\n") +
-    "\n",
+  routes.flatMap((route) => [`/${route} /app 200`, `/${route}/* /app 200`]).join("\n") + "\n",
 );
 writeFileSync(
   `${directory}/_headers`,
@@ -29,8 +30,11 @@ writeFileSync(
   Cache-Control: public, max-age=31536000, immutable
 `,
 );
-// A real 404 prevents Pages' implicit SPA fallback from serving marketing HTML for unknown APIs.
+// Keep Pages' HTTP 404 status while booting the app's shared recovery screen.
 writeFileSync(
   `${directory}/404.html`,
-  "<!doctype html><title>Not found</title><h1>Not found</h1>\n",
+  readFileSync(`${directory}/app.html`, "utf8").replace(
+    "<title>Quorem · Practice</title>",
+    "<title>Page not found · Quorem</title>",
+  ),
 );

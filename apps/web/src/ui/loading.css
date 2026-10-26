@@ -1,5 +1,5 @@
 .loading-state {
-  min-height: 100dvh;
+  min-height: var(--page-height, 100dvh);
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -13,6 +13,7 @@ on:
       - .node-version
       - scripts/build-site.mjs
       - scripts/prepare-pages.mjs
+      - scripts/prepare-pages.test.mjs
       - .github/workflows/frontend.yaml
   workflow_dispatch:
   workflow_call:
@@ -59,6 +60,7 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp check --no-fmt
       - run: vp -C apps/web test
+      - run: vp node --test scripts/prepare-pages.test.mjs
       - name: Build static frontend
         run: |
           export QUOREM_SITE_URL="https://$TF_VAR_domain"
@@ -81,6 +83,8 @@ jobs:
           grep -q 'Code. Clash. Conquer.' /tmp/pages-home.html
           curl --fail --silent --show-error --retry 5 --retry-all-errors "$url/practice" -o /tmp/pages-app.html
           test "$(sha256sum /tmp/pages-home.html | cut -d ' ' -f1)" != "$(sha256sum /tmp/pages-app.html | cut -d ' ' -f1)"
-          for path in /login /practice/run-widths /interview/test; do
+          for path in /login /privacy /terms /practice/run-widths /interview/test; do
             test "$(curl --silent --show-error -o /dev/null -w '%{http_code}' "$url$path")" = 200
           done
+          test "$(curl --silent --show-error -o /tmp/pages-404.html -w '%{http_code}' "$url/missing-page-check")" = 404
+          grep -q 'Page not found' /tmp/pages-404.html
