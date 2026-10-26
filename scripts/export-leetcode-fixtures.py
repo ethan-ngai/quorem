@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+from audit_leetcode_cases import assess
 
 
 def load_results(path):
@@ -38,6 +39,8 @@ def main():
         digest = hashlib.sha256(data).hexdigest()
         s, h = structural.get(path.stem, {}), harness.get(path.stem, {})
         content = json.loads(data)
+        if not assess(content)['constraint_screen_passed']:
+            continue
         expected_cases = len(content['problem']['examples']) + len(content['hiddenCases'])
         if (s.get('sha256') != digest or s.get('error') != '' or h.get('sha256') != digest
                 or h.get('status') != 'passed' or h.get('cases') != expected_cases):
@@ -49,7 +52,7 @@ def main():
         'fixture_count': len(fixtures),
         'sources': sources,
         'corpus': corpus,
-        'limitations': ['Generated cases are public and are not secret LeetCode tests', 'Reference agreement does not prove correctness or resolve every ambiguous output'],
+        'limitations': ['Generated cases are public and are not secret LeetCode tests', 'The constraint screen and reference agreement do not prove correctness or resolve every ambiguous output'],
         'fixtures': fixtures,
     }
     (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')

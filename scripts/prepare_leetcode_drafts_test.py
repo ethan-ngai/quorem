@@ -26,6 +26,7 @@ class DraftTest(unittest.TestCase):
         self.assertEqual(result['problem']['examples'], [])
         self.assertEqual(result['problem']['companies'], ['Example'])
         self.assertEqual(result['problem']['leetcodeId'], 1)
+        self.assertEqual(result['problem']['limits']['maxCollectionElements'], 100000)
         self.assertEqual(result['hiddenCases'], [{'args': [1], 'expected': 2}])
         self.assertEqual(result['solutions'][0]['source'], result['implementations'][0]['referenceSource'])
         self.assertEqual(result['solutions'][0]['timeComplexity'], '')
@@ -42,6 +43,11 @@ class DraftTest(unittest.TestCase):
         self.assertEqual(drafts.prelude_for_source(lines, 'eval("sqrt(4)")'), '\n'.join(lines) + '\n')
         unknown = ['from something_else import *']
         self.assertEqual(drafts.prelude_for_source(unknown, 'print(1)'), unknown[0] + '\n')
+
+    def test_shadowed_local_does_not_require_prelude_import(self):
+        lines = ['from math import *', 'from typing import *']
+        body = 'class Solution:\n    def f(self, nums: List[int]) -> int:\n        e = len(nums)\n        return e\n'
+        self.assertEqual(drafts.prelude_for_source(lines, body), 'from typing import List\n\n')
 
     def test_candidates_require_distinct_typed_cases_and_clear_scalar_output(self):
         item = {'leetcode_id': 1, 'companies': ['Example'], 'source': {'problem_slug': 'sample', 'title': 'Sample', 'difficulty': 'Easy', 'examples': [{'example_text': 'Input: x = 0\nOutput: 1'}]}}
