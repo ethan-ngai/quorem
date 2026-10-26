@@ -356,12 +356,21 @@ func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 	if !s.decode(w, r, &c, 1024) {
 		return
 	}
-	v, e := repo.AdmitInterview(r.Context(), owner(r), r.PathValue("id"), key, c.Kind)
+	if c.Kind != "run" && c.Kind != "submit" {
+		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid execution command"})
+		return
+	}
+	ctx, cancel, ok := s.executionAdmission(w, r)
+	if !ok {
+		return
+	}
+	defer cancel()
+	v, e := repo.AdmitInterview(ctx, owner(r), r.PathValue("id"), key, c.Kind)
 	if e != nil {
 		s.err(w, r, e)
 		return
 	}
-	if s.NotifyExecution != nil && v.ExecutionJobID != "" {
+	if !s.RequireExecutionWake && s.NotifyExecution != nil && v.ExecutionJobID != "" {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		if err := s.NotifyExecution(ctx, v.ExecutionJobID); err != nil {
 			log.Print("Interview execution notification unavailable; database polling will recover")

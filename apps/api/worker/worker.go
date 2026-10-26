@@ -42,15 +42,16 @@ type Repository interface {
 	Complete(context.Context, execution.Job, execution.Completion) error
 }
 type Service struct {
-	store Repository
-	queue delivery.Queue
-	close func()
+	store         Repository
+	queue         delivery.Queue
+	close         func()
+	admissionWake chan struct{}
 }
 type Option func(*Service)
 
 func WithQueue(queue delivery.Queue) Option { return func(s *Service) { s.queue = queue } }
 func New(store Repository, options ...Option) *Service {
-	s := &Service{store: store}
+	s := &Service{store: store, admissionWake: make(chan struct{}, 1)}
 	for _, option := range options {
 		option(s)
 	}
@@ -67,13 +68,36 @@ func (s *Service) Load(ctx context.Context, j execution.Job) (Spec, error) {
 func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	interval := 200 * time.Millisecond
+	interval := 5 * time.Second
 	wake := make(chan struct{}, 1)
 	consumerDone := make(chan struct{})
 	if s.queue != nil {
 		interval = 5 * time.Second
 		go func() { defer close(consumerDone); s.consume(ctx, wake) }()
 		defer func() { cancel(); <-consumerDone }()
+	}
+	var databaseWake <-chan struct{}
+	var stopDatabase func()
+	connect := func() {
+		if repo, ok := s.store.(executionNotifications); ok {
+			var err error
+			databaseWake, stopDatabase, err = repo.ExecutionNotifications(ctx)
+			if err != nil {
+				databaseWake = nil
+				log.Print("Execution notifications unavailable; recovery polling active")
+			}
+		}
+	}
+	connect()
+	defer func() {
+		if stopDatabase != nil {
+			stopDatabase()
+		}
+	}()
+	// Subscribe before the initial claim so commits cannot fall into a startup gap.
+	select {
+	case wake <- struct{}{}:
+	default:
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -82,7 +106,19 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+			if databaseWake == nil {
+				connect()
+			}
 		case <-wake:
+		case _, open := <-databaseWake:
+			if !open {
+				if stopDatabase != nil {
+					stopDatabase()
+					stopDatabase = nil
+				}
+				databaseWake = nil
+				continue
+			}
 		}
 		// A coalesced wake may represent a full batch; drain durable claims in this slot.
 		for ctx.Err() == nil && s.poll(ctx, engine) {
@@ -118,34 +154,40 @@ func (s *Service) consume(ctx context.Context, wake chan<- struct{}) {
 	}
 }
 func (s *Service) poll(ctx context.Context, engine execution.ExecutionEngine) bool {
+	more, err := s.pollOnce(ctx, engine)
+	if err != nil {
+		log.Print("Execution polling unavailable")
+	}
+	return more && err == nil
+}
+func (s *Service) pollOnce(ctx context.Context, engine execution.ExecutionEngine) (bool, error) {
 	if e := s.store.ReconcileMatches(ctx); e != nil {
-		log.Print("Match reconciliation unavailable")
+		return false, e
 	}
 	attempts, e := s.store.ExpiredAttempts(ctx)
 	if e != nil {
-		log.Print("Queue reconciliation unavailable")
-		return false
+		return false, e
 	}
 	for _, attempt := range attempts {
 		reaper, ok := engine.(attemptReaper)
-		if !ok || reaper.TeardownAttempt(ctx, attempt) != nil {
-			log.Print("Sandbox reconciliation unavailable")
-			return false
+		if !ok {
+			return false, ErrTeardown
+		}
+		if err := reaper.TeardownAttempt(ctx, attempt); err != nil {
+			return false, err
 		}
 	}
 	claimStarted := time.Now()
 	job, err := s.store.Claim(ctx)
 	if err != nil {
-		log.Print("Queue claim unavailable")
-		return false
+		return false, err
 	}
 	if job.JobID == "" {
-		return false
+		return false, nil
 	}
-	s.execute(ctx, engine, job, time.Since(claimStarted))
-	return true
+	return true, s.execute(ctx, engine, job, time.Since(claimStarted))
 }
-func (s *Service) execute(parent context.Context, engine execution.ExecutionEngine, j execution.Job, claimDuration time.Duration) {
+func (s *Service) execute(parent context.Context, engine execution.ExecutionEngine, j execution.Job, claimDuration time.Duration) error {
 	started := time.Now()
 	language := "unknown"
 	if runtime, ok := execution.RuntimeForRevision(j.RuntimeRevision, j.HarnessRevision); ok {
@@ -194,7 +236,7 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 	close(done)
 	<-watchDone
 	if errors.Is(err, ErrTeardown) {
-		return
+		return err
 	}
 	outcome = "completed"
 	if err != nil {
@@ -210,4 +252,5 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 		log.Print("Queue completion unavailable")
 	}
 	completeDuration = time.Since(completeStarted)
+	return err
 }

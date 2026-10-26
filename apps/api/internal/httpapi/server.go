@@ -20,17 +20,18 @@ import (
 )
 
 type Server struct {
-	PublicGuestRequest func(context.Context, string) (bool, error)
-	GuestCreation      bool
-	GuestAdmission     bool
-	GuestExecution     bool
-	NotifyExecution    func(context.Context, string) error
-	Store              Repository
-	Events             realtime.PubSub
-	Presence           realtime.Presence
-	Identity           identity.Verifier
-	Origins            []string
-	Local              bool
+	PublicGuestRequest   func(context.Context, string) (bool, error)
+	GuestCreation        bool
+	GuestAdmission       bool
+	GuestExecution       bool
+	NotifyExecution      func(context.Context, string) error
+	RequireExecutionWake bool
+	Store                Repository
+	Events               realtime.PubSub
+	Presence             realtime.Presence
+	Identity             identity.Verifier
+	Origins              []string
+	Local                bool
 }
 
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -311,12 +312,17 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	canonical, _ := json.Marshal(body)
-	v, e := s.Store.Admit(r.Context(), owner(r), key, body, application.Hash(canonical))
+	ctx, cancel, ok := s.executionAdmission(w, r)
+	if !ok {
+		return
+	}
+	defer cancel()
+	v, e := s.Store.Admit(ctx, owner(r), key, body, application.Hash(canonical))
 	if e != nil {
 		s.err(w, r, e)
 		return
 	}
-	if s.NotifyExecution != nil && v.ExecutionJobID != "" {
+	if !s.RequireExecutionWake && s.NotifyExecution != nil && v.ExecutionJobID != "" {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		if err := s.NotifyExecution(ctx, v.ExecutionJobID); err != nil {
 			log.Print("Execution notification unavailable; database polling will recover")

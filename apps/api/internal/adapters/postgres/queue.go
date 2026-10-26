@@ -60,7 +60,7 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 	j.SourceRef = j.SubmissionID
 	j.SuiteRef = p.ID
 	j.Limits = p.Limits
-	if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET attempt_id=$2,attempts=attempts+1,lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1", j.JobID, j.AttemptID); err != nil {
+	if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET attempt_id=$2,attempts=attempts+1,lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1", uuidLookup(j.JobID), uuidLookup(j.AttemptID)); err != nil {
 		return j, err
 	}
 	if _, err = tx.Exec(ctx, "UPDATE submissions SET state='running',updated_at=clock_timestamp() WHERE id=$1", j.SubmissionID); err != nil {
@@ -71,7 +71,7 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spec, error) {
 	var spec judging.Spec
 	var fixture, cases []byte
-	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,COALESCE(ie.fixture,p.fixture),s.cases,ie.submission_id IS NOT NULL FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, j.JobID, j.AttemptID).Scan(&spec.Source, &spec.Kind, &fixture, &cases, &spec.PrivateDetails)
+	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,COALESCE(ie.fixture,p.fixture),s.cases,ie.submission_id IS NOT NULL FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&spec.Source, &spec.Kind, &fixture, &cases, &spec.PrivateDetails)
 	if err != nil {
 		return spec, err
 	}
@@ -96,8 +96,8 @@ func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spe
 
 func (s *Store) Lease(ctx context.Context, j execution.Job, heartbeat bool) (bool, error) {
 	var cancelled bool
-	query := `SELECT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND NOT j.finished AND j.lease_until>clock_timestamp()`
-	err := s.Pool.QueryRow(ctx, query, j.JobID, j.AttemptID).Scan(&cancelled)
+	query := `SELECT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp()`
+	err := s.Pool.QueryRow(ctx, query, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&cancelled)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -108,7 +108,7 @@ func (s *Store) Lease(ctx context.Context, j execution.Job, heartbeat bool) (boo
 		return false, nil
 	}
 	if heartbeat {
-		tag, e := s.Pool.Exec(ctx, "UPDATE execution_jobs SET lease_until=clock_timestamp()+interval '90 seconds' WHERE id::text=$1 AND attempt_id::text=$2 AND NOT finished AND lease_until>clock_timestamp()", j.JobID, j.AttemptID)
+		tag, e := s.Pool.Exec(ctx, "UPDATE execution_jobs SET lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1 AND attempt_id=$2 AND NOT finished AND lease_until>clock_timestamp()", uuidLookup(j.JobID), uuidLookup(j.AttemptID))
 		if e != nil {
 			return false, e
 		}
@@ -142,7 +142,7 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	var cancelled bool
 	var kind string
 	var attempts int
-	err = tx.QueryRow(ctx, `SELECT s.cancel_requested,s.kind,j.attempts FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id::text=$1 AND j.attempt_id::text=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' FOR UPDATE OF j,s`, j.JobID, j.AttemptID).Scan(&cancelled, &kind, &attempts)
+	err = tx.QueryRow(ctx, `SELECT s.cancel_requested,s.kind,j.attempts FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' FOR UPDATE OF j,s`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&cancelled, &kind, &attempts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
