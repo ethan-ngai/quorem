@@ -211,6 +211,20 @@ jobs:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
+      - name: Validate current routing policy
+        run: node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
+      - name: Verify current workerd routing before reusing images
+        if: inputs.reuse_run_id != ''
+        run: |
+          mkdir -p .local
+          vp -C apps/realtime-cloudflare exec wrangler dev --config ../../deploy/wrangler.test.jsonc --port 8791 --ip 127.0.0.1 --show-interactive-dev-session=false > .local/reused-workerd.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://localhost:8791/health > /dev/null; then break; fi
+            sleep 1
+          done
+          if ! node deploy/workerd-check.mjs; then cat .local/reused-workerd.log; exit 1; fi
       - name: Configure image
         run: |
           echo "TF_VAR_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-app:$IMAGE_REVISION" >> "$GITHUB_ENV"

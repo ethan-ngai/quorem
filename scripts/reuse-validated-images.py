@@ -6,13 +6,19 @@ import subprocess
 
 WORKFLOW = '.github/workflows/deploy.yaml'
 BUILD_IF = "    if: ${{ !inputs.reuse_run_id }}\n"
+# Worker modules ship through Terraform, not the container images. The profiler
+# is a separate main package, unreachable from either production Go entrypoint.
 IMAGE_INPUTS = [
-    'apps/api', 'apps/auth', 'apps/runner', 'internal', 'fixtures',
-    'packages/contracts', 'deploy', ':(exclude)deploy/README.md',
+    'apps/api', ':(exclude)apps/api/cmd/profile-reads',
+    'apps/auth', 'apps/runner', 'internal', 'fixtures', 'packages/contracts',
+    'deploy/Dockerfile', 'deploy/Dockerfile.judge',
+    'deploy/start.py', 'deploy/judge-start.py', 'deploy/nginx.conf',
+    'deploy/runtime-deps', 'deploy/images',
     'go.mod', 'go.sum', '.node-version', 'package.json',
     'pnpm-lock.yaml', 'pnpm-workspace.yaml',
     'scripts/package-auth.py', 'scripts/build-judge-images.py',
 ]
+
 REQUIRED_STEPS = {
     'Validate application and judge', 'Build application and judge images',
     'Verify split runtime roles', 'Verify nested Docker isolation',
