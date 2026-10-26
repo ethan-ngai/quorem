@@ -34,7 +34,7 @@ resource "neon_project" "production" {
     autoscaling_limit_min_cu = 0.25
     autoscaling_limit_max_cu = var.max_compute_cu
     # Zero uses Neon's default five-minute suspension; account policies may reject overrides.
-    suspend_timeout_seconds  = 0
+    suspend_timeout_seconds = 0
   }
   lifecycle {
     prevent_destroy = true
