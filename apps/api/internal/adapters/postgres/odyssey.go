@@ -10,15 +10,8 @@ import (
 
 func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.OdysseyProgress, error) {
 	var result problems.OdysseyProgress
-	caps, err := s.Capabilities(ctx, owner)
-	if err != nil {
-		return result, err
-	}
-	if !caps.Odyssey {
-		return result, failure("entitlement_required", 403, "Odyssey access required")
-	}
 	var data []byte
-	err = s.Pool.QueryRow(ctx, `SELECT p.fixture,COALESCE(o.level,1),COALESCE(o.completed,false) FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2`, id, owner).Scan(&data, &result.Level, &result.Completed)
+	err := s.Pool.QueryRow(ctx, `SELECT p.fixture,COALESCE(o.level,1),COALESCE(o.completed,false) FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2`, id, owner).Scan(&data, &result.Level, &result.Completed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, failure("not_found", 404, "Workspace not found")
 	}

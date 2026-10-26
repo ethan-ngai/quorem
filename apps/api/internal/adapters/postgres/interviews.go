@@ -261,9 +261,7 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 			return empty, failure("forbidden", 403, "Custom question access required")
 		}
 	}
-	if err = requireInterviewOdyssey(ctx, tx, user, f); err != nil {
-		return empty, err
-	}
+
 	hash := interviewFingerprint("create", c)
 	prior, _, err := priorInterviewOperation(ctx, tx, user, key, hash)
 	if err != nil {
@@ -431,20 +429,6 @@ func interviewProgress(ctx context.Context, tx pgx.Tx, v interviewRecord) (int, 
 		err = nil
 	}
 	return level, completed, err
-}
-
-func requireInterviewOdyssey(ctx context.Context, tx pgx.Tx, host string, f problems.Fixture) error {
-	if f.Problem.Odyssey == nil {
-		return nil
-	}
-	caps, err := capabilities(ctx, tx, host)
-	if err != nil {
-		return err
-	}
-	if !caps.Odyssey {
-		return failure("entitlement_required", 403, "Host Odyssey access required")
-	}
-	return nil
 }
 
 const interviewLatestSubmissionQuery = `SELECT COALESCE((SELECT e.submission_id::text FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN interviews i ON i.id=e.session_id WHERE e.session_id=$1 AND e.question_epoch=i.question_epoch AND EXISTS(SELECT 1 FROM execution_jobs j WHERE j.submission_id=e.submission_id AND j.language=i.language) ORDER BY s.admitted_at DESC LIMIT 1),'')`

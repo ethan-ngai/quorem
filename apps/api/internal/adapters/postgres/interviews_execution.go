@@ -28,9 +28,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 	if err != nil {
 		return out, err
 	}
-	if err = requireInterviewOdyssey(ctx, tx, v.snapshot.HostID, v.fixture); err != nil {
-		return out, err
-	}
+
 	hash := interviewFingerprint(id+":submission", kind)
 	prior, data, err := priorInterviewOperation(ctx, tx, user, key, hash)
 	if err != nil {

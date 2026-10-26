@@ -23,7 +23,8 @@ func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabili
 	if err != nil {
 		return c, err
 	}
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp())),EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','problems.odyssey') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, owner).Scan(&c.Interviews, &c.Odyssey)
+	c.Odyssey = true
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=$1 AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, owner).Scan(&c.Interviews)
 	if err != nil {
 		return c, err
 	}
