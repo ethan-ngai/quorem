@@ -264,3 +264,174 @@ describe("compiler failures", () => {
     expect(html).toContain("Line 4:");
   });
 });
+
+describe("retained evaluated step statuses", () => {
+  it.each([undefined, "queued", "running"] as const)(
+    "retains section and individual checks with latest submission %s",
+    (state) => {
+      const html = renderToStaticMarkup(
+        <WorkspaceTests
+          problem={problem}
+          progress={{ ...progress, caseStatuses: [{ index: 0, status: "accepted" }] }}
+          busy={!!state}
+          submission={
+            state
+              ? {
+                  id: "pending",
+                  workspaceId: "w",
+                  kind: "submit",
+                  state,
+                  sourceHash: "s",
+                  admittedAt: "",
+                  updatedAt: "",
+                }
+              : undefined
+          }
+        />,
+      );
+      expect(html).toContain('aria-label="Case 1: accepted"');
+      expect(html).toContain("Step 1");
+      expect(html).toContain(": passed");
+      expect(html).not.toContain('aria-label="Case 2: accepted"');
+      expect(html).not.toContain("Hidden case");
+    },
+  );
+  it("never substitutes hidden cases in a grouped browser even without Odyssey metadata", () => {
+    const html = renderToStaticMarkup(
+      <TestCases
+        problem={problem}
+        drafts={[]}
+        onDraftsChange={() => {}}
+        customMode={false}
+        caseGroups={["Step 1", "Step 2"]}
+        currentCaseGroup="Step 2"
+        submission={{
+          id: "legacy",
+          workspaceId: "w",
+          kind: "submit",
+          state: "completed",
+          sourceHash: "s",
+          admittedAt: "",
+          updatedAt: "",
+          hiddenCases: [
+            { index: 0, status: "accepted" },
+            { index: 1, status: "accepted" },
+          ],
+        }}
+      />,
+    );
+    expect(html).not.toContain("Hidden case");
+    expect(html).not.toContain('aria-label="Select hidden case"');
+    expect(html).toContain('aria-pressed="true" aria-label="Case 2"');
+  });
+});
+
+it("keeps earlier case labels accepted during a pending Run", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      progress={{ ...progress, caseStatuses: [{ index: 0, status: "accepted" }] }}
+      busy
+      submission={{
+        id: "running",
+        workspaceId: "w",
+        kind: "run",
+        state: "running",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+      }}
+    />,
+  );
+  expect(html).toContain('aria-label="Case 1: accepted"');
+  expect(html).toContain('aria-label="Case 2: pending"');
+});
+
+it("omits the score summary above Odyssey examples", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      progress={{ ...progress, caseStatuses: [{ index: 0, status: "accepted" }] }}
+      busy={false}
+      submission={{
+        id: "stage1",
+        workspaceId: "w",
+        kind: "submit",
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        verdict: "accepted",
+        score: { passed: 2, total: 2 },
+        publicCases: [{ index: 0, status: "accepted" }],
+      }}
+    />,
+  );
+  expect(html).not.toContain("examples passed");
+  expect(html).not.toContain("2/2 cases passed");
+  expect(html).not.toContain('class="run-overview"');
+});
+
+it("offers a separate hidden-test tab without putting its score above Odyssey examples", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      progress={progress}
+      busy={false}
+      submission={{
+        id: "hidden",
+        workspaceId: "workspace",
+        kind: "submit",
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        verdict: "accepted",
+        score: { passed: 2, total: 2 },
+        hiddenCases: [
+          { index: 0, status: "accepted" },
+          { index: 1, status: "accepted" },
+        ],
+        publicCases: [{ index: 0, status: "accepted" }],
+      }}
+    />,
+  );
+  expect(html).toContain("Hidden tests");
+  expect(html).toContain('id="tests-hidden-tab"');
+  expect(html).not.toContain("2/2 cases passed");
+  expect(html).not.toContain("Hidden case 1");
+  expect(html).toContain('aria-label="Case 1: accepted"');
+  expect(html).not.toContain('aria-label="Case 2: accepted"');
+});
+
+it("uses the shared locked-case UI for explicitly selected Odyssey hidden tests", () => {
+  const html = renderToStaticMarkup(
+    <TestCases
+      problem={{ ...problem, odyssey: { levels: progress.levels } }}
+      hiddenMode
+      customMode={false}
+      drafts={[]}
+      onDraftsChange={() => {}}
+      selectedSampleIndex={1}
+      submission={{
+        id: "hidden",
+        workspaceId: "w",
+        kind: "submit",
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        publicCases: [{ index: 0, status: "accepted", actual: "public-output" }],
+        hiddenCases: [
+          { index: 0, status: "accepted" },
+          { index: 1, status: "time_limit" },
+        ],
+      }}
+    />,
+  );
+  expect(html).toContain('aria-label="Select hidden case"');
+  expect(html).toContain("Hidden case 2");
+  expect(html).toContain("Time limit exceeded");
+  expect(html).not.toContain("public-output");
+  expect(html).not.toContain("Expected output");
+});

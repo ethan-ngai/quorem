@@ -517,6 +517,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{id}/odyssey/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetOdysseyProgress"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/interviews": {
         parameters: {
             query?: never;
@@ -1338,6 +1354,7 @@ export interface components {
             levels: components["schemas"]["OdysseyLevel"][];
         };
         OdysseyProgress: {
+            caseStatuses?: components["schemas"]["PublicCaseResult"][];
             level: number;
             completed: boolean;
             levels: components["schemas"]["OdysseyLevel"][];
@@ -1442,6 +1459,8 @@ export interface components {
             interviewee: string;
         };
         InterviewCaseDetail: {
+            /** @enum {string} */
+            status?: "executed" | "accepted" | "wrong_answer" | "syntax_error" | "runtime_error" | "time_limit" | "memory_limit" | "output_limit" | "invalid_output";
             id: string;
             case: components["schemas"]["CustomCase"];
             revealed: boolean;
@@ -2594,6 +2613,37 @@ export interface operations {
         };
     };
     getOdysseyProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OdysseyProgress"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resetOdysseyProgress: {
         parameters: {
             query?: never;
             header?: never;

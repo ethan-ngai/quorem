@@ -68,6 +68,7 @@ export function ResultContent({
   detailsVisible = false,
   customMode,
   runWasCustom = false,
+  showVerdict = true,
 }: {
   submission?: Submission;
   busy: boolean;
@@ -76,6 +77,7 @@ export function ResultContent({
   detailsVisible?: boolean;
   customMode?: boolean;
   runWasCustom?: boolean;
+  showVerdict?: boolean;
 }) {
   // Results belong to their admitted collection, regardless of the currently selected tab.
   if (
@@ -91,7 +93,8 @@ export function ResultContent({
         Starting…
       </p>
     );
-  if (!submission) return <p className="result-message">Run your code to see results.</p>;
+  if (!submission)
+    return showVerdict ? <p className="result-message">Run your code to see results.</p> : null;
   if (submission.state === "queued" || submission.state === "running")
     return (
       <div className="result-running" role="status">
@@ -106,6 +109,12 @@ export function ResultContent({
       </p>
     );
   if (submission.state === "cancelled") return <p className="result-message">Run cancelled</p>;
+  if (
+    !showVerdict &&
+    !submission.diagnostics?.length &&
+    (!showCases || !submission.publicCases?.length)
+  )
+    return null;
   const verdict =
     submission.verdict?.replaceAll("_", " ") ??
     (submission.kind === "run" ? "Executed" : "Completed");
@@ -113,31 +122,35 @@ export function ResultContent({
   const passed = compared.filter((item) => item.status === "accepted").length;
   return (
     <div className="result-complete">
-      <div className="result-summary">
-        <div className={`verdict-line ${verdictTone(submission.verdict)}`}>
-          {submission.score || (submission.kind === "run" && compared.length) ? (
-            <span className="run-overview">
-              <Icon
-                name={
-                  submission.kind === "submit" && !detailsVisible
-                    ? "lock"
-                    : (submission.score?.passed ?? passed) ===
-                        (submission.score?.total ?? compared.length)
-                      ? "submit"
-                      : "close"
-                }
-              />
-              <span>
-                {submission.score?.passed ?? passed}/{submission.score?.total ?? compared.length}{" "}
-                cases passed
-              </span>
-            </span>
-          ) : (
-            <strong>{verdict}</strong>
+      {(showVerdict || !!submission.diagnostics?.length) && (
+        <div className="result-summary">
+          {showVerdict && (
+            <div className={`verdict-line ${verdictTone(submission.verdict)}`}>
+              {submission.score || (submission.kind === "run" && compared.length) ? (
+                <span className="run-overview">
+                  <Icon
+                    name={
+                      submission.kind === "submit" && !detailsVisible
+                        ? "lock"
+                        : (submission.score?.passed ?? passed) ===
+                            (submission.score?.total ?? compared.length)
+                          ? "submit"
+                          : "close"
+                    }
+                  />
+                  <span>
+                    {submission.score?.passed ?? passed}/
+                    {submission.score?.total ?? compared.length} cases passed
+                  </span>
+                </span>
+              ) : (
+                <strong>{verdict}</strong>
+              )}
+            </div>
           )}
+          <Diagnostics items={submission.diagnostics} />
         </div>
-        <Diagnostics items={submission.diagnostics} />
-      </div>
+      )}
       {showCases && submission.publicCases?.length ? (
         <RunCaseResults key={submission.id} cases={submission.publicCases} />
       ) : null}

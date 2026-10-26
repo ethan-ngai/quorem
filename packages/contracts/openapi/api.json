@@ -1606,6 +1606,43 @@
         }
       }
     },
+    "/v1/workspaces/{id}/odyssey/reset": {
+      "post": {
+        "operationId": "resetOdysseyProgress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OdysseyProgress"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/interviews": {
       "get": {
         "operationId": "listInterviews",
@@ -4604,6 +4641,10 @@
       "OdysseyProgress": {
         "type": "object",
         "properties": {
+          "caseStatuses": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PublicCaseResult" }
+          },
           "level": {
             "type": "integer"
           },
@@ -4995,6 +5036,20 @@
       "InterviewCaseDetail": {
         "type": "object",
         "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "executed",
+              "accepted",
+              "wrong_answer",
+              "syntax_error",
+              "runtime_error",
+              "time_limit",
+              "memory_limit",
+              "output_limit",
+              "invalid_output"
+            ]
+          },
           "id": {
             "type": "string"
           },

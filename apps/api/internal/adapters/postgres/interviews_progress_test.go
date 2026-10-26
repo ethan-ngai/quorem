@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"github.com/ethan-ngai/quorem/internal/execution"
 	"strings"
 	"testing"
 
@@ -36,6 +37,14 @@ func TestInterviewManualStagePass(t *testing.T) {
 	if next.Question.Progress.Level != 2 || next.Question.Progress.Completed || next.Document != v.Document || next.QuestionEpoch != v.QuestionEpoch {
 		t.Fatal("progress or document", next)
 	}
+	if len(next.Question.Progress.CaseStatuses) != 0 {
+		t.Fatal("manual pass fabricated public verdicts", next)
+	}
+	for _, test := range next.Question.PrivateCaseDetails {
+		if test.Status != "" {
+			t.Fatal("manual pass fabricated private verdict", test)
+		}
+	}
 	retry, err := s.PassInterviewStage(ctx, "alice", v.ID, key, v.QuestionEpoch, 1)
 	if err != nil || retry.Version != next.Version || retry.Question.Progress.Completed {
 		t.Fatal("retry advanced again", retry, err)
@@ -68,4 +77,80 @@ func TestInterviewManualStagePass(t *testing.T) {
 		t.Fatal("classic pass", err)
 	}
 
+}
+
+func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) {
+	s := interviewTestStore(t)
+	ctx := context.Background()
+	grantInternal(t, s, "alice")
+	v, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Evaluated stages", Question: customStagedInterviewQuestion()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.JoinInterview(ctx, "bob", strings.TrimPrefix(v.InvitePath, "/interview-invite/"), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	sub, err := s.AdmitInterview(ctx, "alice", v.ID, ID(), "submit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := s.Claim(ctx)
+	if err != nil || job.SubmissionID != sub.ID {
+		t.Fatal(job, err)
+	}
+	spec, err := s.LoadExecution(ctx, job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	private := []execution.PublicCaseResult{{Index: 0, Status: "accepted"}}
+	completion := execution.Completion{SubmissionID: sub.ID, AttemptID: job.AttemptID, Verdict: execution.Accepted, Score: &execution.Score{Passed: len(spec.Cases), Total: len(spec.Cases)}, PrivateCaseResults: private}
+	for index := range spec.Cases {
+		completion.HiddenCases = append(completion.HiddenCases, execution.HiddenCaseResult{Index: index, Status: execution.Accepted})
+	}
+	for index := range spec.SubmitSamples {
+		completion.SubmitSampleResults = append(completion.SubmitSampleResults, execution.PublicCaseResult{Index: index, Status: "accepted"})
+	}
+	if err = s.Complete(ctx, job, completion); err != nil {
+		t.Fatal(err)
+	}
+	advanced, err := s.Interview(ctx, "alice", v.ID)
+	if err != nil || advanced.Question.Progress.Level != 2 || len(advanced.Question.Progress.CaseStatuses) != 1 || advanced.Question.Progress.CaseStatuses[0].Status != "accepted" {
+		t.Fatal(advanced, err)
+	}
+	if advanced.Question.PrivateCaseDetails[0].Status != "accepted" || advanced.Question.PrivateCaseDetails[1].Status != "" {
+		t.Fatal("private prefix", advanced.Question.PrivateCaseDetails)
+	}
+	if _, err = s.AdmitInterview(ctx, "bob", v.ID, ID(), "run"); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := s.Interview(ctx, "bob", v.ID)
+	if err != nil || len(pending.Question.Progress.CaseStatuses) != 1 || pending.Question.Progress.CaseStatuses[0].Status != "accepted" || len(pending.Question.RevealedCases) != 0 || len(pending.Question.PrivateCaseDetails) != 0 {
+		t.Fatal("pending feedback/privacy", pending, err)
+	}
+	if _, err = s.SetInterviewCaseVisibility(ctx, "alice", v.ID, ID(), "level:1:case:0", true, v.QuestionEpoch); err != nil {
+		t.Fatal(err)
+	}
+	revealed, err := s.Interview(ctx, "bob", v.ID)
+	if err != nil || len(revealed.Question.RevealedCases) != 1 || revealed.Question.RevealedCases[0].Status != "accepted" {
+		t.Fatal("revealed verdict", revealed, err)
+	}
+
+	runJob, err := s.Claim(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Complete(ctx, runJob, execution.Completion{SubmissionID: runJob.SubmissionID, AttemptID: runJob.AttemptID, Verdict: execution.WrongAnswer, PublicCaseResults: []execution.PublicCaseResult{{Index: 0, Status: "wrong_answer"}, {Index: 1, Status: "accepted"}}}); err != nil {
+		t.Fatal(err)
+	}
+	regression, err := s.Interview(ctx, "alice", v.ID)
+	if err != nil || len(regression.Question.Progress.CaseStatuses) != 2 || regression.Question.Progress.CaseStatuses[0].Status != "wrong_answer" || regression.Question.Progress.CaseStatuses[1].Status != "accepted" {
+		t.Fatal("new evaluation did not replace historical status", regression, err)
+	}
+	if _, err = s.UpdateInterviewQuestion(ctx, "alice", v.ID, ID(), customStagedInterviewQuestion()); err != nil {
+		t.Fatal(err)
+	}
+	replaced, err := s.Interview(ctx, "alice", v.ID)
+	if err != nil || len(replaced.Question.Progress.CaseStatuses) != 0 || replaced.Question.PrivateCaseDetails[0].Status != "" {
+		t.Fatal("old question feedback leaked", replaced, err)
+	}
 }

@@ -282,6 +282,18 @@ export function useSubmission({
     run,
     submit,
     cancel,
+    clearResult: useCallback(() => {
+      setActive(undefined);
+      setRunSnapshot(undefined);
+      setError(undefined);
+      if (workspace) {
+        try {
+          localStorage.removeItem(submissionStorageKey(identity, workspace.id));
+        } catch {
+          /* Storage may be unavailable. */
+        }
+      }
+    }, [identity, workspace]),
     clearError: useCallback(() => setError(undefined), []),
   };
 }
