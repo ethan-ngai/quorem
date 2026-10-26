@@ -1046,7 +1046,7 @@ summary:focus-visible {
   color: var(--color-text-secondary);
 }
 .site-footer + .site-legal-footer {
-  padding: 0 var(--marketing-gutter) 32px;
+  padding: 0 var(--marketing-gutter) 8px;
   border: 0;
 }
 .site-footer + .site-legal-footer .site-legal-footer-inner {
