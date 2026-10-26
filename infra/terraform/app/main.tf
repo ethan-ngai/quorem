@@ -5,12 +5,94 @@ terraform {
     cloudflare = { source = "cloudflare/cloudflare", version = "5.28.1" }
     restapi    = { source = "Mastercard/restapi", version = "~> 2.0" }
     external   = { source = "hashicorp/external", version = "2.3.5" }
+    random     = { source = "hashicorp/random", version = "3.7.2" }
   }
 }
 variable "account_id" { type = string }
 variable "zone_id" { type = string }
 variable "domain" { type = string }
 variable "image" { type = string }
+variable "judge_image" { type = string }
+variable "app_pool_shards" {
+  type    = number
+  default = 4
+  validation {
+    condition     = var.app_pool_shards >= 1 && var.app_pool_shards <= 16 && floor(var.app_pool_shards) == var.app_pool_shards
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "app_instances_per_shard" {
+  type    = number
+  default = 2
+  validation {
+    condition     = var.app_instances_per_shard >= 1 && var.app_instances_per_shard <= 8 && floor(var.app_instances_per_shard) == var.app_instances_per_shard
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "judge_max_instances" {
+  type    = number
+  default = 8
+  validation {
+    condition     = var.judge_max_instances >= 1 && var.judge_max_instances <= 8 && floor(var.judge_max_instances) == var.judge_max_instances
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "app_http_capacity" {
+  type    = number
+  default = 32
+  validation {
+    condition     = var.app_http_capacity >= 1 && var.app_http_capacity <= 256 && floor(var.app_http_capacity) == var.app_http_capacity
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "app_ws_capacity" {
+  type    = number
+  default = 512
+  validation {
+    condition     = var.app_ws_capacity >= 1 && var.app_ws_capacity <= 2048 && floor(var.app_ws_capacity) == var.app_ws_capacity
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "app_vcpu" {
+  type    = number
+  default = 1
+  validation {
+    condition     = var.app_vcpu >= 1 && var.app_vcpu <= 4 && floor(var.app_vcpu) == var.app_vcpu
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "app_memory_mib" {
+  type    = number
+  default = 1024
+  validation {
+    condition     = var.app_memory_mib >= 1024 && var.app_memory_mib <= 8192 && floor(var.app_memory_mib) == var.app_memory_mib
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "judge_vcpu" {
+  type    = number
+  default = 2
+  validation {
+    condition     = var.judge_vcpu >= 1 && var.judge_vcpu <= 4 && floor(var.judge_vcpu) == var.judge_vcpu
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "judge_memory_mib" {
+  type    = number
+  default = 4096
+  validation {
+    condition     = var.judge_memory_mib >= 2048 && var.judge_memory_mib <= 16384 && floor(var.judge_memory_mib) == var.judge_memory_mib
+    error_message = "Capacity must be a bounded positive integer."
+  }
+}
+variable "judge_idle_ms" {
+  type    = number
+  default = 120000
+  validation {
+    condition     = var.judge_idle_ms >= 15000 && var.judge_idle_ms <= 600000
+    error_message = "Judge idle grace must be between 15 seconds and ten minutes."
+  }
+}
 variable "worker_name" {
   type    = string
   default = "quorem-production"
@@ -45,23 +127,61 @@ provider "restapi" {
     "Authorization" = "Bearer ${var.cloudflare_api_token}"
   }
 }
+resource "random_password" "judge_control" {
+  length  = 64
+  special = false
+}
 locals {
   origin = "https://${var.domain}"
   container_configuration = {
     image      = var.image
-    vcpu       = 1
-    memory_mib = 6144
+    vcpu       = var.app_vcpu
+    memory_mib = var.app_memory_mib
+    disk       = { size_mb = 4000 }
+  }
+  judge_configuration = {
+    image      = var.judge_image
+    vcpu       = var.judge_vcpu
+    memory_mib = var.judge_memory_mib
     disk       = { size_mb = 20000 }
   }
   runtime = {
-    AUTH_ORIGIN          = local.origin
-    DATABASE_URL         = var.database_url
-    AUTH_DATABASE_URL    = var.database_url
-    BETTER_AUTH_SECRET   = var.better_auth_secret
-    AUTH_INTERNAL_SECRET = var.auth_internal_secret
-    QUOREM_INVITE_KEY    = var.invite_key
+    AUTH_ORIGIN                      = local.origin
+    DATABASE_URL                     = var.database_url
+    AUTH_DATABASE_URL                = var.database_url
+    BETTER_AUTH_SECRET               = var.better_auth_secret
+    AUTH_INTERNAL_SECRET             = var.auth_internal_secret
+    QUOREM_INVITE_KEY                = var.invite_key
+    QUOREM_REALTIME_PROVIDER         = "postgres-notify"
+    QUOREM_SKIP_MIGRATIONS           = "true"
+    QUOREM_DATABASE_MAX_CONNS        = "4"
+    AUTH_DATABASE_MAX_CONNS          = "4"
+    QUOREM_API_MAX_REQUESTS          = tostring(var.app_http_capacity)
+    QUOREM_REALTIME_CONNECTION_LIMIT = tostring(var.app_ws_capacity)
+    QUOREM_REQUIRE_EXECUTION_WAKE    = "true"
+    QUOREM_DELIVERY_PROVIDER         = "cloudflare-dispatch"
+    QUOREM_EXECUTION_WAKE_URL        = "${local.origin}/internal/judge/wake"
+    QUOREM_JUDGE_CONTROL_TOKEN       = random_password.judge_control.result
+  }
+  judge_runtime = {
+    DATABASE_URL               = var.database_url
+    QUOREM_DATABASE_MAX_CONNS  = "2"
+    QUOREM_JUDGE_CONTROL_TOKEN = random_password.judge_control.result
+    RUNNER_ADDR                = "0.0.0.0:8090"
+    RUNNER_CONCURRENCY         = "2"
   }
 }
+resource "cloudflare_queue" "judge" {
+  account_id = var.account_id
+  queue_name = "${var.worker_name}-judge-wake"
+  settings   = { message_retention_period = 86400 }
+}
+resource "cloudflare_queue" "judge_dead_letter" {
+  account_id = var.account_id
+  queue_name = "${var.worker_name}-judge-dead-letter"
+  settings   = { message_retention_period = 345600 }
+}
+
 resource "cloudflare_worker" "app" {
   account_id    = var.account_id
   name          = var.worker_name
@@ -73,24 +193,36 @@ resource "cloudflare_worker_version" "app" {
   worker_id          = cloudflare_worker.app.id
   compatibility_date = "2026-10-25"
   main_module        = "worker.js"
-  modules = [{
-    name           = "worker.js"
+  modules = [for name in ["worker.js", "router.js", "policy.js", "container.js"] : {
+    name           = name
     content_type   = "application/javascript+module"
-    content_base64 = filebase64("${path.module}/../../../deploy/worker.js")
+    content_base64 = filebase64("${path.module}/../../../deploy/${name}")
   }]
-  containers = [{ class_name = "Quorem" }]
+  containers = [{ class_name = "Quorem" }, { class_name = "Judge" }]
   # Provider 5.28.1 cannot serialize exports; deploy the migration before attaching compute.
   migrations = {
     old_tag            = data.external.worker_migration.result.tag
-    new_tag            = "v1"
-    new_sqlite_classes = data.external.worker_migration.result.tag == "" ? ["Quorem"] : []
+    new_tag            = "v2"
+    new_sqlite_classes = data.external.worker_migration.result.tag == "" ? ["Quorem", "AppPool", "Judge"] : (data.external.worker_migration.result.tag == "v1" ? ["AppPool", "Judge"] : [])
   }
   deploy = true
   lifecycle { create_before_destroy = true }
   bindings = [
-    { type = "durable_object_namespace", name = "QUOREM", class_name = "Quorem" },
+    { type = "durable_object_namespace", name = "APPS", class_name = "Quorem" },
+    { type = "durable_object_namespace", name = "POOLS", class_name = "AppPool" },
+    { type = "durable_object_namespace", name = "JUDGES", class_name = "Judge" },
+    { type = "queue", name = "JUDGE_WAKE", queue_name = cloudflare_queue.judge.queue_name },
+    { type = "secret_text", name = "JUDGE_CONTROL_TOKEN", text = random_password.judge_control.result },
+    { type = "secret_text", name = "APP_RUNTIME_ENV", text = jsonencode(local.runtime) },
+    { type = "secret_text", name = "JUDGE_RUNTIME_ENV", text = jsonencode(local.judge_runtime) },
+    { type = "plain_text", name = "APP_POOL_SHARDS", text = tostring(var.app_pool_shards) },
+    { type = "plain_text", name = "APP_INSTANCES_PER_SHARD", text = tostring(var.app_instances_per_shard) },
+    { type = "plain_text", name = "APP_HTTP_CAPACITY", text = tostring(var.app_http_capacity) },
+    { type = "plain_text", name = "APP_WS_CAPACITY", text = tostring(var.app_ws_capacity) },
+    { type = "plain_text", name = "JUDGE_MAX_INSTANCES", text = tostring(var.judge_max_instances) },
+    { type = "plain_text", name = "JUDGE_IDLE_MS", text = tostring(var.judge_idle_ms) },
+    { type = "plain_text", name = "APP_LOCATION_HINT", text = "enam" },
     { type = "plain_text", name = "APP_ORIGIN", text = local.origin },
-    { type = "secret_text", name = "RUNTIME_ENV", text = jsonencode(local.runtime) },
   ]
 }
 data "external" "worker_migration" {
@@ -111,11 +243,11 @@ resource "restapi_object" "container" {
     scheduling_policy = "default"
     observability     = { logs = { enabled = true } }
     instances         = 0
-    max_instances     = 1
+    max_instances     = var.app_pool_shards * var.app_instances_per_shard
     configuration     = local.container_configuration
     durable_objects   = { script_name = var.worker_name, class_name = "Quorem" }
   })
-  update_data = jsonencode({ configuration = local.container_configuration, observability = { logs = { enabled = true } } })
+  update_data = jsonencode({ max_instances = var.app_pool_shards * var.app_instances_per_shard, configuration = local.container_configuration, observability = { logs = { enabled = true } } })
   depends_on  = [cloudflare_worker_version.app]
 }
 resource "restapi_object" "rollout" {
@@ -133,6 +265,58 @@ resource "restapi_object" "rollout" {
     step_percentage      = 100
   })
 }
+resource "restapi_object" "judge_container" {
+  path                      = "/accounts/${var.account_id}/containers/applications"
+  update_method             = "PATCH"
+  ignore_all_server_changes = true
+  data = jsonencode({
+    name              = "${var.worker_name}-judge"
+    scheduling_policy = "default"
+    observability     = { logs = { enabled = true } }
+    instances         = 0
+    max_instances     = var.judge_max_instances
+    configuration     = local.judge_configuration
+    durable_objects   = { script_name = var.worker_name, class_name = "Judge" }
+  })
+  update_data = jsonencode({ max_instances = var.judge_max_instances, configuration = local.judge_configuration, observability = { logs = { enabled = true } } })
+  depends_on  = [cloudflare_worker_version.app]
+}
+resource "restapi_object" "judge_rollout" {
+  path                      = "/accounts/${var.account_id}/containers/applications/${restapi_object.judge_container.id}/rollouts"
+  ignore_all_server_changes = true
+  force_new                 = [sha256(jsonencode(local.judge_configuration))]
+  lifecycle { create_before_destroy = true }
+  destroy_method = "GET"
+  data = jsonencode({
+    description          = "Terraform judge deployment"
+    strategy             = "rolling"
+    kind                 = "full_auto"
+    target_configuration = local.judge_configuration
+    step_percentage      = 100
+  })
+}
+resource "cloudflare_queue_consumer" "judge" {
+  account_id        = var.account_id
+  queue_id          = cloudflare_queue.judge.id
+  script_name       = var.worker_name
+  type              = "worker"
+  dead_letter_queue = cloudflare_queue.judge_dead_letter.queue_name
+  settings = {
+    batch_size       = 100
+    max_concurrency  = var.judge_max_instances
+    max_retries      = 20
+    max_wait_time_ms = 0
+    retry_delay      = 2
+  }
+  depends_on = [cloudflare_worker_version.app, restapi_object.judge_container]
+}
+output "runtime_rollouts" {
+  value = {
+    app   = { application_id = restapi_object.container.id, rollout_id = restapi_object.rollout.id, image = var.image }
+    judge = { application_id = restapi_object.judge_container.id, rollout_id = restapi_object.judge_rollout.id, image = var.judge_image }
+  }
+}
+
 output "origin" { value = local.origin }
 
 output "application_id" { value = restapi_object.container.id }

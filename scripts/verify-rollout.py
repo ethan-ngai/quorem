@@ -1,31 +1,29 @@
-"""Wait for the exact Terraform rollout before probing application readiness."""
+"""Verify both exact role rollouts and images before probing production routes."""
+import json
 import os
 import subprocess
 import time
-
 from cloudflare_api import get
 
-
-def output(name):
-    return subprocess.check_output([
-        "terraform", "-chdir=infra/terraform/app", "output", "-raw", name,
-    ], text=True).strip()
-
-
-application = output("application_id")
-rollout = output("rollout_id")
-path = f"/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/containers/applications/{application}"
+roles = json.loads(subprocess.check_output([
+    "terraform", "-chdir=infra/terraform/app", "output", "-json", "runtime_rollouts",
+], text=True))
+if set(roles) != {"app", "judge"}:
+    raise SystemExit("Both application and judge rollouts must be configured")
+pending = dict(roles)
 deadline = time.monotonic() + 480
-print("Waiting for the Terraform rollout to replace its prior runtime...", flush=True)
-while time.monotonic() < deadline:
-    state = get(path + "/rollouts/" + rollout)
-    if state["status"] in ("failed", "cancelled", "replaced"):
-        raise SystemExit("Target rollout did not complete: " + state["status"])
-    if state["status"] == "completed":
-        if get(path)["configuration"]["image"] != os.environ["TF_VAR_image"]:
-            raise SystemExit("Active image differs from the Terraform target")
-        print("Target rollout completed; checking application readiness next.")
-        break
-    time.sleep(5)
-else:
-    raise SystemExit("Target rollout timed out")
+while pending and time.monotonic() < deadline:
+    for role, target in list(pending.items()):
+        path = f"/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/containers/applications/{target['application_id']}"
+        state = get(path + "/rollouts/" + target["rollout_id"])
+        if state["status"] in ("failed", "cancelled", "replaced"):
+            raise SystemExit(role + " target rollout did not complete: " + state["status"])
+        if state["status"] == "completed":
+            if get(path)["configuration"]["image"] != target["image"]:
+                raise SystemExit(role + " active image differs from Terraform target")
+            print(role + " target rollout completed", flush=True)
+            del pending[role]
+    if pending:
+        time.sleep(5)
+if pending:
+    raise SystemExit("Target rollouts timed out: " + ", ".join(pending))
