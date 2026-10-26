@@ -16,10 +16,10 @@ func (s *Store) GuestIdentity(ctx context.Context, token string) (identity.Princ
 		return p, identity.ErrUnauthorized
 	}
 	err := s.Pool.QueryRow(ctx, `UPDATE guest_sessions g SET last_seen_at=clock_timestamp() FROM users u,match_participants p,matches m,users h WHERE g.token_hash=$1 AND u.id=g.owner_id AND u.kind='guest' AND NOT u.disabled AND p.owner_id=g.owner_id AND p.match_id=g.match_id AND m.id=g.match_id AND h.id=m.host_owner_id AND NOT h.disabled AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp() AND g.last_seen_at>clock_timestamp()-interval '2 hours' RETURNING u.id,u.display_name,g.match_id::text,g.token_hash`, Hash([]byte(token))).Scan(&p.UserID, &p.DisplayName, &p.MatchID, &p.SessionID)
-	if err != nil {
+	if err == pgx.ErrNoRows {
 		return p, identity.ErrUnauthorized
 	}
-	return p, nil
+	return p, err
 }
 
 // JoinGuest atomically claims a bounded seat using a previously issued HttpOnly credential.

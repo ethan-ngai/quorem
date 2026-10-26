@@ -52,9 +52,13 @@ type JWTVerifier struct {
 	mu                        sync.Mutex
 	keys                      map[string]ed25519.PublicKey
 	fetched, attempted        time.Time
+	keyError                  error
 }
 
 var ErrUnauthorized = errors.New("identity unavailable")
+
+// ErrUnavailable means credentials could not be checked; it never grants access.
+var ErrUnavailable = errors.New("identity verification unavailable")
 
 func (v *JWTVerifier) Verify(ctx context.Context, token string) (Principal, error) {
 	if len(token) > 16384 {
@@ -94,7 +98,7 @@ func (v *JWTVerifier) Verify(ctx context.Context, token string) (Principal, erro
 	}
 	return v.Resolve(ctx, c)
 }
-func (v *JWTVerifier) key(ctx context.Context, kid string) (ed25519.PublicKey, error) {
+func (v *JWTVerifier) key(ctx context.Context, kid string) (key ed25519.PublicKey, err error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if key := v.keys[kid]; key != nil && time.Since(v.fetched) < 5*time.Minute {
@@ -102,12 +106,16 @@ func (v *JWTVerifier) key(ctx context.Context, kid string) (ed25519.PublicKey, e
 	}
 	// Bound refreshes, including attacker-controlled unknown key IDs.
 	if time.Since(v.attempted) < time.Second {
+		if v.keyError != nil {
+			return nil, v.keyError
+		}
 		return nil, ErrUnauthorized
 	}
 	v.attempted = time.Now()
+	defer func() { v.keyError = err }()
 	req, e := http.NewRequestWithContext(ctx, "GET", v.JWKSURL, nil)
 	if e != nil {
-		return nil, e
+		return nil, ErrUnavailable
 	}
 	client := v.Client
 	if client == nil {
@@ -115,17 +123,17 @@ func (v *JWTVerifier) key(ctx context.Context, kid string) (ed25519.PublicKey, e
 	}
 	resp, e := client.Do(req)
 	if e != nil {
-		return nil, ErrUnauthorized
+		return nil, ErrUnavailable
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, ErrUnauthorized
+		return nil, ErrUnavailable
 	}
 	var set struct {
 		Keys []struct{ Kid, Kty, Crv, X string }
 	}
 	if json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&set) != nil || len(set.Keys) > 20 {
-		return nil, ErrUnauthorized
+		return nil, ErrUnavailable
 	}
 	keys := map[string]ed25519.PublicKey{}
 	for _, j := range set.Keys {
