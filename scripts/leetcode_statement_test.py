@@ -20,6 +20,8 @@ class StatementTest(unittest.TestCase):
         self.assertIn('**the *answer***', result['statementMarkdown'])
         self.assertIn('Follow-up:', result['statementMarkdown'])
         self.assertNotIn('Example 1', result['statementMarkdown'])
+        self.assertNotIn('Constraints:', result['statementMarkdown'])
+        self.assertEqual(result['constraints'], [{'kind': 'prose', 'text': '`1 <= n <= 10^5`'}])
         self.assertEqual(result['examples'][0]['explanation'], '`nums[0]` is 1.')
         self.assertEqual(result['examples'][1]['explanation'], 'Return `2`.')
 
@@ -35,7 +37,7 @@ class StatementTest(unittest.TestCase):
         html = '<p><code>x</code> is a value.</p><p><strong>Example 1:</strong></p><div><p><strong>Input:</strong> x = 1</p><p><strong>Output:</strong> 2</p><p><strong>Explanation:</strong> See below.</p></div><table><tr><th>x</th><th>y</th></tr><tr><td>1</td><td>2</td></tr></table><p><strong>Constraints:</strong></p><p>None.</p>'
         result = format_question(content, html)['problem']
         self.assertIn('See below.', result['examples'][0]['explanation'])
-        self.assertIn('1 | 2 |', result['examples'][0]['explanation'])
+        self.assertIn('| 1 | 2 |', result['examples'][0]['explanation'])
         self.assertNotIn('See below.', result['statementMarkdown'])
 
     def test_literal_asterisks_and_additional_live_examples(self):
@@ -55,19 +57,19 @@ Output: 0</pre><p><strong>Constraints:</strong></p><p>None.</p>"""
 
     def test_changed_existing_example_is_rejected(self):
         content = {'problem': {'statementMarkdown': 'old', 'signature': {'parameters': []}, 'examples': [{'args': [1], 'expected': 9}]}}
-        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><pre>Input: x = 1\nOutput: 2</pre><p><strong>Constraints:</strong></p>'
+        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><pre>Input: x = 1\nOutput: 2</pre><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
         with self.assertRaises(ValueError):
             format_question(content, html, lambda row, params: {'args': [1], 'expected': 2})
 
-    def test_changed_input_preserves_original_and_metadata(self):
+    def test_changed_input_uses_current_source(self):
         content = {'problem': {'statementMarkdown': 'old', 'signature': {'parameters': []}, 'examples': [{'args': [1], 'expected': 6, 'explanation': 'Old explanation'}]}}
-        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><pre>Input: x = 2\nOutput: 7</pre><p><strong>Constraints:</strong></p>'
+        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><pre>Input: x = 2\nOutput: 7</pre><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
         result = format_question(content, html, lambda row, params: {'args': [2], 'expected': 7})
-        self.assertEqual(result['problem']['examples'], [{'args': [2], 'expected': 7}, {'args': [1], 'expected': 6, 'explanation': 'Old explanation'}])
+        self.assertEqual(result['problem']['examples'], [{'args': [2], 'expected': 7}])
 
     def test_nested_example_and_bold_image_wrappers(self):
         content = {'problem': {'statementMarkdown': 'old', 'signature': {'parameters': []}, 'examples': [{'args': [1], 'expected': 2}, {'args': [3], 'expected': 4}]}}
-        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><div class="example-block"><p><strong><img src="/img.png"></strong>​</p><p><strong>Input:</strong> 1</p><p><strong>Output:</strong> 2</p><p><strong>Example 2:</strong></p><div class="example-block"><p><strong>Input:</strong> 3</p><p><strong>Output:</strong> 4</p></div></div><p><strong>Constraints:</strong></p>'
+        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><div class="example-block"><p><strong><img src="/img.png"></strong>​</p><p><strong>Input:</strong> 1</p><p><strong>Output:</strong> 2</p><p><strong>Example 2:</strong></p><div class="example-block"><p><strong>Input:</strong> 3</p><p><strong>Output:</strong> 4</p></div></div><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
         def parse(row, params):
             return {'args': [int(row['input'])], 'expected': int(row['output'])}
         result = format_question(content, html, parse)['problem']
