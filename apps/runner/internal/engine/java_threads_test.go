@@ -29,7 +29,12 @@ func TestDockerJavaColdCompilerRespectsPIDLimitOnLargeHost(t *testing.T) {
 	defer func() {
 		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
-		if err := removeContainer(cleanup, name); err != nil {
+		client, err := (&Docker{}).engine()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if err := client.remove(cleanup, name); err != nil {
 			t.Error(err)
 		}
 	}()
