@@ -37,7 +37,7 @@ func (p *Presence) ConnectLease(parent context.Context, topic, subject string) (
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", topic+":"+subject); err != nil {
 		return nil, nil, err
 	}
-	if _, err = tx.Exec(ctx, `DELETE FROM realtime_presence_leases WHERE id IN(SELECT id FROM realtime_presence_leases WHERE expires_at<=clock_timestamp() ORDER BY expires_at LIMIT 256)`); err != nil {
+	if _, err = tx.Exec(ctx, `DELETE FROM realtime_presence_leases WHERE id IN(SELECT id FROM realtime_presence_leases WHERE expires_at<=clock_timestamp() ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT 256)`); err != nil {
 		return nil, nil, err
 	}
 	var count int

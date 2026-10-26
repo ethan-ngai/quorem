@@ -114,3 +114,27 @@ func TestPostgresPresenceExpiryFencesOldLease(t *testing.T) {
 		t.Fatal("old disconnect removed the replacement lease")
 	}
 }
+
+func TestPresenceRecoverySkipsOtherReplicasLockedCleanup(t *testing.T) {
+	ctx, first, second := presenceStores(t)
+	id := ID()
+	if _, err := first.Pool.Exec(ctx, `INSERT INTO realtime_presence_leases(id,topic,subject,expires_at) VALUES($1,'expired','expired',clock_timestamp()-interval '1 minute')`, id); err != nil {
+		t.Fatal(err)
+	}
+	defer first.Pool.Exec(ctx, "DELETE FROM realtime_presence_leases WHERE id=$1", id)
+	tx, err := first.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, "SELECT id FROM realtime_presence_leases WHERE id=$1 FOR UPDATE", id); err != nil {
+		t.Fatal(err)
+	}
+	attempt, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	release, _, err := NewPresence(ctx, second.Pool).ConnectLease(attempt, "/interviews/"+ID(), ID())
+	if err != nil {
+		t.Fatal("unrelated expiry cleanup blocked reconnect", err)
+	}
+	release()
+}
