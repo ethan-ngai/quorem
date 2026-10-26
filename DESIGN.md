@@ -8,7 +8,7 @@ colors:
     accent: { light: "oklch(0.50 0.21 260)", dark: "oklch(0.72 0.14 260)" }
     onPrimary: { light: "oklch(1 0 0)", dark: "oklch(0.15 0.006 255)" }
   neutral:
-    inlineCode: { light: "oklch(0.965 0.003 255)", dark: "oklch(0.145 0.004 255)" }
+    inlineCode: { light: "oklch(0.965 0.003 255)", dark: "oklch(0.27 0.006 255)" }
     background: { light: "oklch(1 0 0)", dark: "oklch(0.18 0.004 255)" }
     surface: { light: "oklch(0.98 0.002 255)", dark: "oklch(0.205 0.005 255)" }
     overlay: { light: "oklch(0.98 0.002 255)", dark: "oklch(0.25 0.008 255)" }
