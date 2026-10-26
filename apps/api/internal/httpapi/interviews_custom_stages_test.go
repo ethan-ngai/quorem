@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethan-ngai/quorem/apps/api/internal/access"
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
 	"github.com/ethan-ngai/quorem/apps/api/internal/httpapi"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
@@ -17,9 +16,6 @@ import (
 func TestHTTPCreatePrivateStagedInterviewWithoutPublication(t *testing.T) {
 	s := guestLifecycleStore(t)
 	ctx := context.Background()
-	if err := s.ApplyGrant(ctx, access.Grant{OperationID: postgres.ID(), UserID: "alice", Actor: "test", Reason: "Private stages fixture", Scope: "problems.odyssey", Source: "manual", Reference: "custom-stage-http"}, false); err != nil {
-		t.Fatal(err)
-	}
 	method := problems.Signature{ClassName: "Solution", MethodName: "answer", Parameters: []problems.Parameter{}, ReturnType: "int"}
 	testCase := problems.Case{Args: []json.RawMessage{}, Calls: []problems.MethodCall{{MethodName: "answer", Args: []json.RawMessage{}, Expected: json.RawMessage(`1`)}}}
 	starter := "class Solution:\n    def answer(self): return 1\n"

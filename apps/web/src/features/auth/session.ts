@@ -9,7 +9,6 @@ export type Session = {
     authorCustomQuestions: boolean;
     interviewConcurrency: number;
     interviews: boolean;
-    odyssey: boolean;
     hostedIntelligence: boolean;
     experimental: boolean;
     guestConcurrency: number;

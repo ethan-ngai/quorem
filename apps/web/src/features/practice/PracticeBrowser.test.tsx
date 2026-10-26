@@ -58,7 +58,6 @@ it("shows the library selector for admins and custom question authors", async ()
     authorCustomQuestions: true,
     interviewConcurrency: 1,
     interviews: false,
-    odyssey: false,
     hostedIntelligence: false,
     experimental: false,
     guestConcurrency: 0,
