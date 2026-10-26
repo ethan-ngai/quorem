@@ -9,6 +9,7 @@ import importlib
 import zipfile
 import re
 import sys
+import symtable
 import urllib.request
 from collections import Counter
 from pathlib import Path
@@ -99,7 +100,13 @@ def prelude_for_source(lines, body):
                 bindings["inf"] = index
             else:
                 raise ValueError("unknown prelude statement")
-        used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+        def globals_used(scope):
+            names = {s.get_name() for s in scope.get_symbols() if s.is_referenced() and s.is_global()}
+            for child in scope.get_children():
+                names.update(globals_used(child))
+            return names
+
+        used = globals_used(symtable.symtable(body, '<import>', 'exec'))
         selected = {}
         for name in used:
             if name in bindings:
