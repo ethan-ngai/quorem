@@ -2895,7 +2895,7 @@ summary:focus-visible {
   min-width: 0;
   margin: 40px 0 0 -48px;
   width: calc(100% + 48px);
-  --preview-shadow: oklch(0.2 0 0 / 0.08);
+  --preview-shadow: oklch(0.2 0 0 / 0.035);
 }
 :root[data-theme="dark"] #upcoming .preview-background-shadow {
   --preview-shadow: rgb(0 0 0 / 0.18);
