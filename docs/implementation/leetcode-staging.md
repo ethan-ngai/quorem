@@ -1,5 +1,7 @@
 # LeetCode source staging
 
+The fixture exporter also requires the automated constraint screen to pass. This partial screen cannot establish correctness; review remains necessary.
+
 Ledger: [#236](https://github.com/ethan-ngai/quorem/issues/236).
 
 `python3 scripts/stage-leetcode.py /tmp/quorem-leetcode-stage` downloads pinned GitHub commit archives and writes `questions.json` and `report.json` to a new directory. The report records repository URLs, exact commits, counts, invalid or duplicate question identities, and unmatched company rows. Re-running with another output directory produces the same files for the same source archives. To update snapshots, change the commit pins after reviewing upstream changes and compare reports.

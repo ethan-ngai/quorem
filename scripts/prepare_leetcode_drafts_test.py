@@ -26,6 +26,7 @@ class DraftTest(unittest.TestCase):
         self.assertEqual(result['problem']['examples'], [])
         self.assertEqual(result['problem']['companies'], ['Example'])
         self.assertEqual(result['problem']['leetcodeId'], 1)
+        self.assertEqual(result['problem']['limits']['maxCollectionElements'], 100000)
         self.assertEqual(result['hiddenCases'], [{'args': [1], 'expected': 2}])
         self.assertEqual(result['solutions'][0]['source'], result['implementations'][0]['referenceSource'])
         self.assertEqual(result['solutions'][0]['timeComplexity'], '')
