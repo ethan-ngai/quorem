@@ -1,3 +1,4 @@
+import { LanguageLogo } from "../../../web/src/ui/LanguageLogo";
 import { usePreviewTheme } from "./usePreviewTheme";
 import { PythonEditor } from "../../../web/src/features/editor/PythonEditor";
 import { TestCases } from "../../../web/src/features/editor/components/TestCases";
@@ -17,9 +18,12 @@ export default function EditorPreview() {
     <div ref={root} className="workspace-demo demo-tests" aria-label="Example Two Sum test run">
       <div className="demo-readonly" inert>
         <div className="code-toolbar">
-          <span className="editor-language">
-            <span className="editor-language-logo" aria-hidden="true" />
+          <span className="select-field select-field--compact">
+            <LanguageLogo language="python" />
             Python
+            <span className="select-field-chevron">
+              <Icon name="chevron" />
+            </span>
           </span>
         </div>
         <div className="preview-code">

@@ -1,3 +1,4 @@
+import { LanguageLogo } from "../../../web/src/ui/LanguageLogo";
 import { usePreviewTheme } from "./usePreviewTheme";
 import { useEffect, useRef } from "react";
 import {
@@ -86,9 +87,12 @@ export default function HeroEditorPreview() {
         aria-label="Example Python solution for Climbing Stairs, written with pauses and two corrections."
       >
         <div className="code-toolbar">
-          <span className="editor-language">
-            <span className="editor-language-logo" aria-hidden="true" />
+          <span className="select-field select-field--compact">
+            <LanguageLogo language="python" />
             Python
+            <span className="select-field-chevron">
+              <Icon name="chevron" />
+            </span>
           </span>
         </div>
         <div className="preview-code" ref={root}>

@@ -1034,19 +1034,19 @@ summary:focus-visible {
   transform: translateY(3px);
 }
 .footer-sitemap {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
 }
 .footer-sitemap > div {
-  display: grid;
-  align-content: start;
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
 }
 .footer-sitemap strong {
   color: var(--color-text);
   font-weight: 500;
-  margin-bottom: 8px;
 }
 .footer-sitemap a {
   justify-self: start;
@@ -1062,7 +1062,7 @@ summary:focus-visible {
     padding-bottom: 32px;
   }
   .footer-sitemap {
-    gap: 32px;
+    gap: 12px 24px;
   }
   .site-footer {
     padding-top: 32px;
@@ -1968,14 +1968,6 @@ summary:focus-visible {
     opacity: 1;
   }
 }
-.workspace-demo .editor-language-logo {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  background: currentColor;
-  mask: url("../../../web/src/assets/python.svg") center / contain no-repeat;
-}
-
 .workspace-demo .code-toolbar {
   height: 38px;
   border-bottom: 1px solid var(--color-border);
@@ -2014,7 +2006,7 @@ summary:focus-visible {
 
 :root {
   --surface-light: rgb(255 255 255 / 0.5);
-  --surface-shade: rgb(39 52 70 / 0.12);
+  --surface-shade: rgb(39 52 70 / 0.045);
 }
 :root[data-theme="dark"] {
   --surface-light: rgb(200 219 255 / 0.09);

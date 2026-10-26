@@ -1,7 +1,7 @@
-import python from "../assets/python-color.svg";
-import java from "../assets/java.svg";
-import typescript from "../assets/typescript.svg";
-import ocaml from "../assets/ocaml.svg";
+import python from "../assets/python-color.svg?url";
+import java from "../assets/java.svg?url";
+import typescript from "../assets/typescript.svg?url";
+import ocaml from "../assets/ocaml.svg?url";
 import type { EditorLanguage } from "../features/editor/editorLanguages";
 
 const logos = { python, java, typescript, ocaml };
