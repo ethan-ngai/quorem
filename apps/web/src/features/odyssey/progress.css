@@ -26,7 +26,7 @@
 .odyssey-progress li[data-complete="true"] + li::before {
   background: var(--color-success);
 }
-.odyssey-progress button {
+.odyssey-progress li button {
   display: grid;
   place-items: center;
   width: 26px;
@@ -38,10 +38,10 @@
   background: transparent;
   font-size: 11px;
 }
-.odyssey-progress button {
+.odyssey-progress li button {
   position: relative;
 }
-.odyssey-progress button::after {
+.odyssey-progress li button::after {
   content: "";
   position: absolute;
   width: 12px;
@@ -56,11 +56,11 @@
     transform var(--motion-standard) var(--motion-easing),
     opacity var(--motion-standard) var(--motion-easing);
 }
-.odyssey-progress button[aria-current]::after {
+.odyssey-progress li button[aria-current]::after {
   transform: translateX(-50%) scaleX(1);
   opacity: 0.8;
 }
-.app-shell .odyssey-progress button:active:not(:disabled) {
+.app-shell .odyssey-progress li button:active:not(:disabled) {
   transform: none;
 }
 .odyssey-progress li[data-complete="true"] button {
@@ -68,10 +68,10 @@
   border-color: var(--color-success);
   color: var(--color-background);
 }
-.odyssey-progress button:disabled {
+.odyssey-progress li button:disabled {
   opacity: 0.45;
 }
-.odyssey-progress button svg {
+.odyssey-progress li button svg {
   width: 14px;
   height: 14px;
 }
@@ -111,13 +111,13 @@
   transition-delay: 0s;
 }
 @media (prefers-reduced-motion: reduce) {
-  .odyssey-progress button::after,
+  .odyssey-progress li button::after,
   .odyssey-stage-title {
     transition: none;
     transform: none;
   }
-  .odyssey-progress button::after,
-  .odyssey-progress button[aria-current]::after {
+  .odyssey-progress li button::after,
+  .odyssey-progress li button[aria-current]::after {
     transform: translateX(-50%);
   }
 }

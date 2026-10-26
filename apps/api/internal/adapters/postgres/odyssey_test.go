@@ -132,4 +132,29 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 	if err != nil || !progress.Completed {
 		t.Fatal(progress, err)
 	}
+	if err = s.ResetOdyssey(ctx, "bob", w.ID); err == nil {
+		t.Fatal("another owner reset progress")
+	}
+	if err = s.ResetOdyssey(ctx, "alice", w.ID); err != nil {
+		t.Fatal(err)
+	}
+	progress, err = s.Odyssey(ctx, "alice", w.ID)
+	if err != nil || progress.Level != 1 || progress.Completed || len(progress.Levels) != 1 {
+		t.Fatal(progress, err)
+	}
+	cmd.Level = 1
+	sub, err := s.Admit(ctx, "alice", ID(), cmd, ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.ResetOdyssey(ctx, "alice", w.ID); errorCode(err) != "revision_conflict" {
+		t.Fatal("reset during judging", err)
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE submissions SET state='cancelled' WHERE id=$1`, sub.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.ResetOdyssey(ctx, "alice", w.ID); err != nil {
+		t.Fatal("reset after cancellation", err)
+	}
+
 }

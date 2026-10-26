@@ -11,7 +11,9 @@ import type {
   ProblemVersion,
   Workspace,
 } from "@quorem/contracts";
-import { useQuery } from "@tanstack/react-query";
+import { RotateCcw } from "lucide-react";
+import { Tooltip } from "../../ui/Tooltip";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect, useRef, useState, type ReactNode } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useMatchRules } from "../matches/useMatchRules";
@@ -376,6 +378,7 @@ export function WorkspacePage({
     !workspace;
   const matchRules = useMatchRules(identity, match);
   const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
+  const queryClient = useQueryClient();
   const odyssey = useQuery({
     queryKey: ["odyssey", workspace?.id],
     queryFn: () => interviewRequest<OdysseyProgress>(`/v1/workspaces/${workspace!.id}/odyssey`),
@@ -407,6 +410,7 @@ export function WorkspacePage({
       cancelled = true;
     };
   }, [loading, displayedOdyssey, documentLanguage, workspace?.id]);
+  const [resettingOdyssey, setResettingOdyssey] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const runExamples = useMemo(
     () => odyssey.data?.levels.flatMap((level) => level.examples),
@@ -424,6 +428,7 @@ export function WorkspacePage({
     problem,
     enabled:
       serverWorkspace &&
+      !resettingOdyssey &&
       (!problem?.odyssey || !!odyssey.data) &&
       !languageSwitching &&
       !matchRules.blocked &&
@@ -676,6 +681,44 @@ export function WorkspacePage({
               progress={odyssey.data}
               selectedLevel={selectedLevel}
               onSelect={setSelectedLevel}
+              actions={
+                workspace?.kind === "solo" && (
+                  <Tooltip content="Reset Odyssey progress">
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Reset Odyssey progress"
+                      disabled={
+                        resettingOdyssey ||
+                        execution.busy ||
+                        execution.admissionPending ||
+                        languageSwitching
+                      }
+                      onClick={async () => {
+                        if (resettingOdyssey || execution.busy || execution.admissionPending)
+                          return;
+                        setResettingOdyssey(true);
+                        try {
+                          await queryClient.cancelQueries({ queryKey: ["odyssey", workspace.id] });
+                          const progress = await interviewRequest<OdysseyProgress>(
+                            `/v1/workspaces/${workspace.id}/odyssey/reset`,
+                            "POST",
+                          );
+                          execution.clearResult();
+                          setSelectedLevel(undefined);
+                          queryClient.setQueryData(["odyssey", workspace.id], progress);
+                        } catch (cause) {
+                          setActionError(errorMessage(cause));
+                        } finally {
+                          setResettingOdyssey(false);
+                        }
+                      }}
+                    >
+                      <RotateCcw size={16} aria-hidden="true" />
+                    </button>
+                  </Tooltip>
+                )
+              }
             />
           ) : undefined
         }
