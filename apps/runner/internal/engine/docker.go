@@ -8,15 +8,13 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"io"
-	"os/exec"
-	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
 type Docker struct {
+	client           *dockerEngine
 	Image            string
 	Images           map[string]string
 	compilationLimit time.Duration
@@ -205,6 +203,14 @@ func sandboxRequest(spec worker.Spec, c worker.Case) []byte {
 	return request
 }
 func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spec worker.Spec, c worker.Case, compilationRemaining ...time.Duration) (result frame, resultErr error) {
+	return d.runRequest(parent, j, index, sandboxRequest(spec, c), j.Limits.OutputBytes, compilationRemaining...)
+}
+
+func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, request []byte, outputLimit int, compilationRemaining ...time.Duration) (result frame, resultErr error) {
+	client, err := d.engine()
+	if err != nil {
+		return frame{}, err
+	}
 	ctx, cancelCause := context.WithCancelCause(parent)
 	cancel := func() { cancelCause(context.Canceled) }
 	defer cancel()
@@ -229,10 +235,6 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 	if runtime.Language == "python" && d.Image != "" {
 		image = d.Image
 	}
-	request := sandboxRequest(spec, c)
-	args := []string{"run", "--rm", "-i", "--name", name, "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--memory-swap", strconv.FormatInt(j.Limits.MemoryBytes, 10), "--pids-limit", strconv.Itoa(j.Limits.MaxProcesses), "--cpus", "1", "--user", "65534:65534", "--tmpfs", "/tmp:rw,noexec,nosuid,size=16777216", image}
-	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Stdin = bytes.NewReader(request)
 	markers := 1
 	if runtime.Language != "python" {
 		markers = 2
@@ -241,7 +243,7 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 		if runtime.Language != "python" {
 			startup.Reset(startupDuration)
 		}
-	}, bounded: &bounded{limit: j.Limits.OutputBytes*6 + 1024, cancel: cancel}, start: func() {
+	}, bounded: &bounded{limit: outputLimit*6 + 1024, cancel: cancel}, start: func() {
 		startup.Stop()
 		deadline = time.AfterFunc(time.Duration(j.Limits.WallTimeMS)*time.Millisecond, func() { cancelCause(caseTimeout) })
 	}}
@@ -255,17 +257,18 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 			}
 		}
 	}()
-	cmd.Stdout = out
-	cmd.Stderr = stderr
-	err := cmd.Run()
+	exitCode, err := client.run(ctx, name, image, j.Limits, request, out, stderr)
 	startup.Stop()
 	if deadline != nil {
 		deadline.Stop()
 	}
-	// Killing the Docker client alone leaves containers running.
+	// A canceled stream does not stop its container; confirm removal before releasing the slot.
 	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cleanupCancel()
-	if cleanupErr := removeContainer(cleanupCtx, name); cleanupErr != nil {
+	if cleanupErr := client.remove(cleanupCtx, name); cleanupErr != nil {
+		return frame{}, worker.ErrTeardown
+	}
+	if errors.Is(err, worker.ErrTeardown) {
 		return frame{}, worker.ErrTeardown
 	}
 
@@ -288,18 +291,13 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 		return frame{}, errors.New("sandbox failed before harness readiness: " + stderr.buffer.String())
 	}
 	if err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
-			switch exit.ExitCode() {
-			case 137:
-				return frame{Status: "memory_limit"}, nil
-			case 125, 126, 127:
-				return frame{}, errors.New("sandbox startup failed")
-			default:
-				return frame{Status: "runtime_error"}, nil
-			}
-		}
 		return frame{}, err
+	}
+	if exitCode != 0 {
+		if exitCode == 137 {
+			return frame{Status: "memory_limit"}, nil
+		}
+		return frame{Status: "runtime_error"}, nil
 	}
 	var f frame
 	decoder := json.NewDecoder(bytes.NewReader(out.buffer.Bytes()))
@@ -316,29 +314,23 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 	default:
 		return frame{Status: "invalid_output"}, nil
 	}
-	if len(f.Stdout) > j.Limits.OutputBytes || len(f.Stderr) > j.Limits.OutputBytes || len(f.Actual) > j.Limits.OutputBytes {
+	if len(f.Stdout) > j.Limits.OutputBytes || len(f.Stderr) > j.Limits.OutputBytes || len(f.Actual) > outputLimit {
 		return frame{Status: "output_limit"}, nil
 	}
 	return f, nil
 }
 
-func removeContainer(ctx context.Context, name string) error {
-	if exec.CommandContext(ctx, "docker", "rm", "-f", name).Run() == nil {
-		return nil
-	}
-	remaining, err := exec.CommandContext(ctx, "docker", "ps", "-a", "--filter", "name=^/"+regexp.QuoteMeta(name)+"$", "--format", "{{.ID}}").Output()
-	if err != nil || strings.TrimSpace(string(remaining)) != "" {
-		return worker.ErrTeardown
-	}
-	return nil
-}
 func (d *Docker) TeardownAttempt(ctx context.Context, attempt string) error {
-	containers, err := exec.CommandContext(ctx, "docker", "ps", "-a", "--filter", "name=^/quorem-"+regexp.QuoteMeta(attempt)+"-", "--format", "{{.Names}}").Output()
+	client, err := d.engine()
 	if err != nil {
 		return worker.ErrTeardown
 	}
-	for _, name := range strings.Fields(string(containers)) {
-		if err = removeContainer(ctx, name); err != nil {
+	names, err := client.attemptContainers(ctx, attempt)
+	if err != nil {
+		return worker.ErrTeardown
+	}
+	for _, name := range names {
+		if err = client.remove(ctx, name); err != nil {
 			return err
 		}
 	}
