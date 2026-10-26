@@ -63,10 +63,10 @@ variable "app_vcpu" {
 }
 variable "app_memory_mib" {
   type    = number
-  default = 1024
+  default = 3072
   validation {
-    condition     = var.app_memory_mib >= 1024 && var.app_memory_mib <= 8192 && floor(var.app_memory_mib) == var.app_memory_mib
-    error_message = "Capacity must be a bounded positive integer."
+    condition     = var.app_memory_mib >= 3072 * var.app_vcpu && var.app_memory_mib <= 16384 && floor(var.app_memory_mib) == var.app_memory_mib
+    error_message = "Memory must be an integer from 3 GiB per vCPU to 16 GiB."
   }
 }
 variable "judge_vcpu" {
@@ -79,10 +79,10 @@ variable "judge_vcpu" {
 }
 variable "judge_memory_mib" {
   type    = number
-  default = 4096
+  default = 6144
   validation {
-    condition     = var.judge_memory_mib >= 2048 && var.judge_memory_mib <= 16384 && floor(var.judge_memory_mib) == var.judge_memory_mib
-    error_message = "Capacity must be a bounded positive integer."
+    condition     = var.judge_memory_mib >= 3072 * var.judge_vcpu && var.judge_memory_mib <= 16384 && floor(var.judge_memory_mib) == var.judge_memory_mib
+    error_message = "Memory must be an integer from 3 GiB per vCPU to 16 GiB."
   }
 }
 variable "judge_idle_ms" {
