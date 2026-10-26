@@ -31,6 +31,7 @@ export function createInterviewSocket(id: string) {
       return url;
     },
     timeout: 10_000,
+    idleTimeout: 25_000,
     onOpen() {
       for (const status of statuses) status(true);
       for (const change of changes) change();
@@ -92,7 +93,8 @@ export function createInterviewSocket(id: string) {
       const key = randomUUID();
       return new Promise<T>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          connection.current?.close();
+          pending.delete(key);
+          reject(new Error("Interview request timed out"));
         }, 10_000);
         pending.set(key, { resolve: (value) => resolve(value as T), reject, timer: timeout });
         try {
