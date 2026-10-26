@@ -2889,15 +2889,31 @@ summary:focus-visible {
   mask-image: none;
 }
 #upcoming .preview-background-shadow {
+  position: relative;
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
   margin: 40px 0 0 -48px;
   width: calc(100% + 48px);
-  filter: drop-shadow(0 4px 8px oklch(0.2 0 0 / 0.1));
+  --preview-shadow: oklch(0.2 0 0 / 0.08);
 }
 :root[data-theme="dark"] #upcoming .preview-background-shadow {
-  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.18));
+  --preview-shadow: rgb(0 0 0 / 0.18);
+}
+#upcoming .preview-background-shadow::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, transparent, var(--preview-shadow), transparent) top / 100% 24px
+      no-repeat,
+    linear-gradient(to right, transparent, var(--preview-shadow), transparent) left / 24px 100%
+      no-repeat;
+  mask-image:
+    linear-gradient(to right, black 40%, transparent 100%),
+    linear-gradient(to bottom, black 40%, transparent 100%);
+  mask-composite: intersect;
 }
 #upcoming .social-product,
 #upcoming .adaptive-product {
