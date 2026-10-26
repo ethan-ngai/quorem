@@ -292,3 +292,10 @@ jobs:
           curl "${curl_args[@]}" "$AUTH_ORIGIN/api/auth/quorem-config" -o /tmp/auth-config.json
           test "$(curl --silent -o /dev/null -w '%{http_code}' "$AUTH_ORIGIN/internal/session/test")" = 404
           echo "Production: $AUTH_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify production sign-in, API latency and revocation
+        env:
+          AUTH_BOOTSTRAP_USERNAME: ethanmngai
+          AUTH_BOOTSTRAP_PASSWORD: ${{ secrets.AUTH_BOOTSTRAP_PASSWORD }}
+        run: |
+          python3 -m unittest discover -s scripts -p 'verify_production_auth_test.py'
+          python3 scripts/verify-production-auth.py

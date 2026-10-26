@@ -80,7 +80,8 @@ jobs:
         run: |
           url="$(terraform -chdir=infra/terraform/app output -raw frontend_url)"
           curl --fail --silent --show-error --retry 5 --retry-all-errors "$url/" -o /tmp/pages-home.html
-          grep -q 'Code. Clash. Conquer.' /tmp/pages-home.html
+          grep -q '<title>Quorem' /tmp/pages-home.html
+          grep -q 'class="hero-wordmark"' /tmp/pages-home.html
           curl --fail --silent --show-error --retry 5 --retry-all-errors "$url/practice" -o /tmp/pages-app.html
           test "$(sha256sum /tmp/pages-home.html | cut -d ' ' -f1)" != "$(sha256sum /tmp/pages-app.html | cut -d ' ' -f1)"
           for path in /login /privacy /terms /practice/run-widths /interview/test; do
