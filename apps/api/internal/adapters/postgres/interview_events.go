@@ -25,7 +25,7 @@ func (s *Store) dispatchInterviewEventBatch(ctx context.Context, publish func(re
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := tx.Query(ctx, `SELECT id,session_id,sequence::text,event_type,occurred_at FROM interview_outbox WHERE published_at IS NULL ORDER BY sequence FOR UPDATE SKIP LOCKED LIMIT 64`)
+	rows, err := tx.Query(ctx, interviewPendingEventsQuery)
 	if err != nil {
 		return 0, err
 	}
@@ -128,3 +128,6 @@ func interviewListenerConfig(primary *pgx.ConnConfig, override string) (*pgx.Con
 	}
 	return config, nil
 }
+
+// Qualify the numeric column; the serialized sequence alias otherwise sorts as text.
+const interviewPendingEventsQuery = `SELECT id,session_id,sequence::text,event_type,occurred_at FROM interview_outbox WHERE published_at IS NULL ORDER BY interview_outbox.sequence FOR UPDATE SKIP LOCKED LIMIT 64`

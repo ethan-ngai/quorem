@@ -42,7 +42,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner, problemID, language 
 }
 func (s *Store) Workspace(ctx context.Context, owner, id string) (workspace.Workspace, error) {
 	var w workspace.Workspace
-	err := s.Pool.QueryRow(ctx, "SELECT id,kind,problem_version_id,language,COALESCE(match_id::text,'') FROM workspaces WHERE id::text=$1 AND owner_id=$2", id, owner).Scan(&w.ID, &w.Kind, &w.ProblemVersionID, &w.Language, &w.MatchID)
+	err := s.Pool.QueryRow(ctx, "SELECT id,kind,problem_version_id,language,COALESCE(match_id::text,'') FROM workspaces WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&w.ID, &w.Kind, &w.ProblemVersionID, &w.Language, &w.MatchID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return w, failure("not_found", 404, "Workspace not found")
 	}
