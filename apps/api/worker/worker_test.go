@@ -19,6 +19,7 @@ type memoryRepository struct {
 	job           execution.Job
 	jobs          []execution.Job
 	expired       []string
+	reconciles    int
 	claims        int
 	completion    execution.Completion
 	completed     int
@@ -29,7 +30,7 @@ type memoryRepository struct {
 func (r *memoryRepository) LoadExecution(context.Context, execution.Job) (Spec, error) {
 	return Spec{}, nil
 }
-func (r *memoryRepository) ReconcileMatches(context.Context) error            { return nil }
+func (r *memoryRepository) ReconcileBackground(context.Context) error         { r.reconciles++; return nil }
 func (r *memoryRepository) ExpiredAttempts(context.Context) ([]string, error) { return r.expired, nil }
 func (r *memoryRepository) Claim(context.Context) (execution.Job, error) {
 	r.claims++
@@ -148,6 +149,9 @@ func TestCoalescedNotificationsDrainDurableJobs(t *testing.T) {
 	// The recovery poll is five seconds away; all jobs must finish from the coalesced wake.
 	if engine.ran != 3 || repo.completed != 3 || queue.acked.Load() != delivery.MaxBatch {
 		t.Fatalf("jobs=%d completed=%d acked=%d", engine.ran, repo.completed, queue.acked.Load())
+	}
+	if repo.reconciles < 1 || repo.reconciles > 2 {
+		t.Fatalf("reconciled %d times for coalesced wakes", repo.reconciles)
 	}
 	if repo.claims > 5 {
 		t.Fatalf("empty queue busy loop: %d claims", repo.claims)

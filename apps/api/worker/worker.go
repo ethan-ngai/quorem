@@ -35,7 +35,7 @@ type attemptReaper interface {
 // Repository owns atomic claims, leases, fencing, and durable completion.
 type Repository interface {
 	LoadExecution(context.Context, execution.Job) (Spec, error)
-	ReconcileMatches(context.Context) error
+	ReconcileBackground(context.Context) error
 	ExpiredAttempts(context.Context) ([]string, error)
 	Claim(context.Context) (execution.Job, error)
 	Lease(context.Context, execution.Job, bool) (bool, error)
@@ -120,6 +120,10 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 				continue
 			}
 		}
+		if err := s.store.ReconcileBackground(ctx); err != nil {
+			log.Print("Match reconciliation unavailable")
+			continue
+		}
 		// A coalesced wake may represent a full batch; drain durable claims in this slot.
 		for ctx.Err() == nil && s.poll(ctx, engine) {
 		}
@@ -161,9 +165,6 @@ func (s *Service) poll(ctx context.Context, engine execution.ExecutionEngine) bo
 	return more && err == nil
 }
 func (s *Service) pollOnce(ctx context.Context, engine execution.ExecutionEngine) (bool, error) {
-	if e := s.store.ReconcileMatches(ctx); e != nil {
-		return false, e
-	}
 	attempts, e := s.store.ExpiredAttempts(ctx)
 	if e != nil {
 		return false, e
