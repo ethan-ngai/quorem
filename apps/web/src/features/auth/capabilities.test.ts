@@ -18,11 +18,20 @@ describe("advertised authentication capabilities", () => {
     );
     expect(await fetchAuthCapabilities()).toEqual({
       method: "password",
+      hostedEndpoint: false,
       preferredOrigin: "http://localhost:5180",
       passkey: true,
       registration: false,
       providers: ["google"],
     });
+  });
+  it("recognizes the provider-neutral hosted endpoint", async () => {
+    vi.stubGlobal("location", { origin: "https://quorem.example" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ method: "cognito", hostedSignIn: true })),
+    );
+    expect(await fetchAuthCapabilities()).toMatchObject({ method: "hosted", hostedEndpoint: true });
   });
   it("never redirects credentials to a remote or different-port origin", async () => {
     vi.stubGlobal("location", { origin: "http://127.0.0.1:5180" });
@@ -45,7 +54,8 @@ describe("advertised authentication capabilities", () => {
       vi.fn(async () => Response.json({ method: "cognito" })),
     );
     expect(await fetchAuthCapabilities()).toEqual({
-      method: "cognito",
+      method: "hosted",
+      hostedEndpoint: false,
       preferredOrigin: "https://quorem.example",
       passkey: false,
       registration: false,

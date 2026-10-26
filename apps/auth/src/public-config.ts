@@ -4,6 +4,7 @@ import type { configuration } from "./config.ts";
 export function publicAuthConfiguration(config: ReturnType<typeof configuration>) {
   return {
     method: config.method,
+    hostedSignIn: config.method !== "password",
     preferredOrigin: config.origin,
     passkey: config.passkey,
     registration: config.registration,

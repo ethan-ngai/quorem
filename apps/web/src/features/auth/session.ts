@@ -110,14 +110,6 @@ export function useSession() {
     staleTime: 30_000,
   });
 }
-export async function authMethod(): Promise<"password" | "cognito"> {
-  const response = await fetch("/api/auth/quorem-config", { credentials: "same-origin" });
-  if (!response.ok) throw new AuthError("Sign in unavailable");
-  const data = (await response.json()) as { method?: string };
-  if (data.method !== "password" && data.method !== "cognito")
-    throw new AuthError("Sign in unavailable");
-  return data.method;
-}
 export function signInDestination(search: string = location.search ?? ""): string {
   const requested = new URLSearchParams(search).get("returnTo") ?? "";
   return /^\/(practice|match|invite|admin|interviews|interview|interview-invite)(\/|\?|#|$)/.test(
@@ -155,17 +147,20 @@ export async function signInWithPassword(username: string, password: string) {
   resetToken();
   location.assign(signInDestination());
 }
-export async function signIn() {
-  const response = await fetch("/api/auth/sign-in/social", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      provider: "cognito",
-      callbackURL: `${location.origin}${signInDestination()}`,
-      errorCallbackURL: `${location.origin}/login`,
-    }),
-  });
+export async function signIn(hostedEndpoint: boolean) {
+  const response = await fetch(
+    hostedEndpoint ? "/api/auth/sign-in/hosted" : "/api/auth/sign-in/social",
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...(!hostedEndpoint ? { provider: "cognito" } : {}),
+        callbackURL: `${location.origin}${signInDestination()}`,
+        errorCallbackURL: `${location.origin}/login`,
+      }),
+    },
+  );
   if (!response.ok) throw new AuthError("Sign in unavailable");
   const data = (await response.json()) as { url?: string };
   if (!data.url || new URL(data.url).protocol !== "https:")
