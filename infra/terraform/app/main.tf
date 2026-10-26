@@ -349,3 +349,7 @@ resource "cloudflare_workers_route" "api" {
 }
 output "frontend_project" { value = cloudflare_pages_project.frontend.name }
 output "frontend_url" { value = "https://${cloudflare_pages_project.frontend.subdomain}" }
+
+output "judge_queue_id" {
+  value = cloudflare_queue.judge.id
+}

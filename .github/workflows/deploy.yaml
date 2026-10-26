@@ -114,7 +114,9 @@ jobs:
           terraform -chdir=infra/terraform/database init -backend=false -input=false
           terraform -chdir=infra/terraform/database validate
       - name: Validate elastic routing policy
-        run: node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
+        run: |
+          node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
+          python3 -m unittest discover -s scripts -p 'reconcile_judge_test.py'
       - name: Validate workerd routing and WebSocket lifecycle
         run: |
           mkdir -p .local
@@ -233,6 +235,9 @@ jobs:
           terraform -chdir=infra/terraform/app apply -input=false -auto-approve -lock-timeout=5m
       - name: Wait for target rollout
         run: python3 scripts/verify-rollout.py
+      - name: Wake authoritative jobs after role rollout
+        if: github.ref == 'refs/heads/main'
+        run: python3 scripts/reconcile-judge.py
       - name: Verify production routes
         if: github.ref == 'refs/heads/main'
         run: |
