@@ -264,3 +264,85 @@ describe("compiler failures", () => {
     expect(html).toContain("Line 4:");
   });
 });
+
+describe("retained evaluated step statuses", () => {
+  it.each([undefined, "queued", "running"] as const)(
+    "retains section and individual checks with latest submission %s",
+    (state) => {
+      const html = renderToStaticMarkup(
+        <WorkspaceTests
+          problem={problem}
+          progress={{ ...progress, caseStatuses: [{ index: 0, status: "accepted" }] }}
+          busy={!!state}
+          submission={
+            state
+              ? {
+                  id: "pending",
+                  workspaceId: "w",
+                  kind: "submit",
+                  state,
+                  sourceHash: "s",
+                  admittedAt: "",
+                  updatedAt: "",
+                }
+              : undefined
+          }
+        />,
+      );
+      expect(html).toContain('aria-label="Case 1: accepted"');
+      expect(html).toContain("Step 1");
+      expect(html).toContain(": passed");
+      expect(html).not.toContain('aria-label="Case 2: accepted"');
+      expect(html).not.toContain("Hidden case");
+    },
+  );
+  it("never substitutes hidden cases in a grouped browser even without Odyssey metadata", () => {
+    const html = renderToStaticMarkup(
+      <TestCases
+        problem={problem}
+        drafts={[]}
+        onDraftsChange={() => {}}
+        customMode={false}
+        caseGroups={["Step 1", "Step 2"]}
+        currentCaseGroup="Step 2"
+        submission={{
+          id: "legacy",
+          workspaceId: "w",
+          kind: "submit",
+          state: "completed",
+          sourceHash: "s",
+          admittedAt: "",
+          updatedAt: "",
+          hiddenCases: [
+            { index: 0, status: "accepted" },
+            { index: 1, status: "accepted" },
+          ],
+        }}
+      />,
+    );
+    expect(html).not.toContain("Hidden case");
+    expect(html).not.toContain('aria-label="Select hidden case"');
+    expect(html).toContain('aria-pressed="true" aria-label="Case 2"');
+  });
+});
+
+it("keeps earlier case labels accepted during a pending Run", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      progress={{ ...progress, caseStatuses: [{ index: 0, status: "accepted" }] }}
+      busy
+      submission={{
+        id: "running",
+        workspaceId: "w",
+        kind: "run",
+        state: "running",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+      }}
+    />,
+  );
+  expect(html).toContain('aria-label="Case 1: accepted"');
+  expect(html).toContain('aria-label="Case 2: pending"');
+});

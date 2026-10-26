@@ -90,12 +90,8 @@ type Preview struct {
 	State     string `json:"state"`
 }
 
-type Progress struct {
-	TotalLevels int                     `json:"totalLevels"`
-	Level       int                     `json:"level"`
-	Completed   bool                    `json:"completed"`
-	Levels      []problems.OdysseyLevel `json:"levels"`
-}
+type Progress = problems.OdysseyProgress
+
 type PresenceInput struct {
 	ClientID string `json:"clientID"`
 	Epoch    string `json:"epoch"`
@@ -114,6 +110,7 @@ type InvitePaths struct {
 	Interviewee string `json:"interviewee"`
 }
 type CaseDetail struct {
+	Status   string        `json:"status,omitempty"`
 	ID       string        `json:"id"`
 	Case     problems.Case `json:"case"`
 	Revealed bool          `json:"revealed"`

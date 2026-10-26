@@ -108,6 +108,9 @@ export function InterviewTests({
               busy={busy}
               submission={privateSubmission}
               caseResults={results}
+              caseStatuses={tests.flatMap((test, index) =>
+                test.status ? [{ index, status: test.status }] : [],
+              )}
               currentCaseGroup={question.progress ? `Step ${question.progress.level}` : undefined}
               caseGroups={tests.map((test) => {
                 const level = test.id.match(/^level:(\d+)/)?.[1];

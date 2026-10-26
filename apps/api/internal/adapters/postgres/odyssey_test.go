@@ -112,7 +112,12 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 			}
 			statuses = append(statuses, execution.HiddenCaseResult{Index: i, Status: status})
 		}
-		err = s.Complete(ctx, j, execution.Completion{SubmissionID: sub.ID, AttemptID: j.AttemptID, Verdict: verdict, Score: &execution.Score{Passed: passed, Total: total}, HiddenCases: statuses})
+
+		completion := execution.Completion{SubmissionID: sub.ID, AttemptID: j.AttemptID, Verdict: verdict, Score: &execution.Score{Passed: passed, Total: total}, HiddenCases: statuses}
+		for index := range spec.SubmitSamples {
+			completion.SubmitSampleResults = append(completion.SubmitSampleResults, execution.PublicCaseResult{Index: index, Status: "accepted"})
+		}
+		err = s.Complete(ctx, j, completion)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,6 +126,25 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 	progress, err := s.Odyssey(ctx, "alice", w.ID)
 	if err != nil || progress.Level != 2 || progress.Completed || len(progress.Levels) != 2 {
 		t.Fatal(progress, err)
+	}
+
+	if len(progress.CaseStatuses) != 1 || progress.CaseStatuses[0].Status != "accepted" {
+		t.Fatal("lost evaluated prefix", progress)
+	}
+	cmd.Level = 2
+	pending, err := s.Admit(ctx, "alice", ID(), cmd, ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := s.Odyssey(ctx, "alice", w.ID)
+	if err != nil || len(reloaded.CaseStatuses) != 1 || reloaded.CaseStatuses[0].Status != "accepted" {
+		t.Fatal("pending job erased pass", reloaded, err)
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE submissions SET state='cancelled' WHERE id=$1;`, pending.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE execution_jobs SET finished=true WHERE submission_id=$1`, pending.ID); err != nil {
+		t.Fatal(err)
 	}
 	submit(2, execution.WrongAnswer, 2)
 	progress, err = s.Odyssey(ctx, "alice", w.ID)
@@ -139,7 +163,7 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	progress, err = s.Odyssey(ctx, "alice", w.ID)
-	if err != nil || progress.Level != 1 || progress.Completed || len(progress.Levels) != 1 {
+	if err != nil || progress.Level != 1 || progress.Completed || len(progress.Levels) != 1 || len(progress.CaseStatuses) != 0 {
 		t.Fatal(progress, err)
 	}
 	cmd.Level = 1

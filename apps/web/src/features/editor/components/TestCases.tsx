@@ -30,6 +30,7 @@ export function TestCases({
   requiredExpected = false,
   caseActions,
   caseResults,
+  caseStatuses,
   caseGroups,
   currentCaseGroup,
   selectedCustomId,
@@ -51,9 +52,11 @@ export function TestCases({
   selectedCustomId?: string;
   onSelectCustomCase?: (id: string | undefined) => void;
   caseResults?: readonly (PublicCaseResult | undefined)[];
+  caseStatuses?: readonly PublicCaseResult[];
 }) {
   const hiddenCases =
     !problem.odyssey &&
+    !caseGroups?.length &&
     !caseResults &&
     !submission?.publicCases?.length &&
     !busy &&
@@ -131,12 +134,14 @@ export function TestCases({
     onDraftsChange(drafts.map((item) => (item.id === draft?.id ? { ...item, ...change } : item)));
   }
   function caseStatus(index: number) {
-    if (pending) return undefined;
-    if (caseResults) return caseResults[index]?.status;
+    const retained = caseStatuses?.find((result) => result.index === index)?.status;
+    if (pending)
+      return currentCaseGroup && caseGroups?.[index] !== currentCaseGroup ? retained : undefined;
+    if (caseResults) return caseResults[index]?.status ?? retained;
     if (hiddenCases) return hiddenCases[index]?.status;
-    if (!submission || submission.state !== "completed") return undefined;
-    if (submission.kind === "submit") return recoveredCases?.[index]?.status;
-    if (recoveredCases) return recoveredCases[index]?.status;
+    if (!submission || submission.state !== "completed") return retained;
+    if (submission.kind === "submit") return recoveredCases?.[index]?.status ?? retained;
+    if (recoveredCases) return recoveredCases[index]?.status ?? retained;
     let value;
     try {
       value = customMode
@@ -158,18 +163,20 @@ export function TestCases({
   const groups = [...new Set(caseGroups?.filter((group): group is string => !!group))];
   function caseButton(index: number) {
     const item = items[index]!;
+    const runningCase =
+      runningSamples && (!currentCaseGroup || caseGroups?.[index] === currentCaseGroup);
     return (
       <button
         type="button"
         key={customMode ? (item as CustomCaseDraft).id : index}
         className="case-selector"
         aria-pressed={index === (customMode ? customIndex : sampleIndex)}
-        aria-label={`Case ${index + 1}${runningSamples ? ": pending" : statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
+        aria-label={`Case ${index + 1}${runningCase ? ": pending" : statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
         onClick={() =>
           customMode ? setSelectedCustomId(drafts[index]!.id) : setSelectedSample(index)
         }
       >
-        {runningSamples && <span className="case-spinner" aria-hidden="true" />}
+        {runningCase && <span className="case-spinner" aria-hidden="true" />}
         {statuses[index] && statuses[index] !== "executed" && (
           <Icon
             name={hiddenCases ? "lock" : statuses[index] === "accepted" ? "submit" : "close"}

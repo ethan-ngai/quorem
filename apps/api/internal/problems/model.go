@@ -70,10 +70,11 @@ type Odyssey struct {
 	Levels []OdysseyLevel `json:"levels"`
 }
 type OdysseyProgress struct {
-	TotalLevels int            `json:"totalLevels"`
-	Level       int            `json:"level"`
-	Completed   bool           `json:"completed"`
-	Levels      []OdysseyLevel `json:"levels"`
+	CaseStatuses []execution.PublicCaseResult `json:"caseStatuses,omitempty"`
+	TotalLevels  int                          `json:"totalLevels"`
+	Level        int                          `json:"level"`
+	Completed    bool                         `json:"completed"`
+	Levels       []OdysseyLevel               `json:"levels"`
 }
 type Problem struct {
 	ComplexityLanguages []string                 `json:"complexityLanguages,omitempty"`

@@ -1354,6 +1354,7 @@ export interface components {
             levels: components["schemas"]["OdysseyLevel"][];
         };
         OdysseyProgress: {
+            caseStatuses?: components["schemas"]["PublicCaseResult"][];
             level: number;
             completed: boolean;
             levels: components["schemas"]["OdysseyLevel"][];
@@ -1458,6 +1459,8 @@ export interface components {
             interviewee: string;
         };
         InterviewCaseDetail: {
+            /** @enum {string} */
+            status?: "executed" | "accepted" | "wrong_answer" | "syntax_error" | "runtime_error" | "time_limit" | "memory_limit" | "output_limit" | "invalid_output";
             id: string;
             case: components["schemas"]["CustomCase"];
             revealed: boolean;

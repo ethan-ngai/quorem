@@ -109,7 +109,8 @@ export function WorkspaceTests({
             hidden={selected !== (tab === "custom")}
           >
             <TestCases
-              key={`${problem.id}:${tab}:${progress?.level ?? ""}`}
+              key={`${problem.id}:${tab}`}
+              caseStatuses={progress?.caseStatuses}
               currentCaseGroup={progress ? `Step ${progress.level}` : undefined}
               caseGroups={progress?.levels.flatMap((level, index) =>
                 level.examples.map(() => `Step ${index + 1}`),

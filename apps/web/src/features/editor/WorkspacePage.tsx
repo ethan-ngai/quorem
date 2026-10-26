@@ -44,6 +44,7 @@ import {
 } from "./recovery";
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
+import { passedCaseLevels } from "../odyssey/caseFeedback";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { unlockedMethodEdit } from "../odyssey/methodStubs";
 import { publicOdysseyPreview } from "../odyssey/publicPreview";
@@ -679,6 +680,7 @@ export function WorkspacePage({
           ) : odyssey.data ? (
             <OdysseyStepper
               progress={odyssey.data}
+              passedLevels={passedCaseLevels(odyssey.data, execution.submission)}
               selectedLevel={selectedLevel}
               onSelect={setSelectedLevel}
               actions={

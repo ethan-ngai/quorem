@@ -33,6 +33,7 @@ import { SolutionToolbar } from "../editor/components/SolutionToolbar";
 import { InterviewTests } from "./InterviewTests";
 import { InterviewParticipants } from "./InterviewParticipants";
 import { InterviewInvitations } from "./InterviewInvitations";
+import { passedCaseLevels } from "../odyssey/caseFeedback";
 import { OdysseyStepper } from "../odyssey/OdysseyStepper";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { ArrowLeft, Archive, Trash2, Settings } from "lucide-react";
@@ -355,20 +356,7 @@ function InterviewPad({
             {question.progress && (
               <OdysseyStepper
                 progress={question.progress}
-                passedLevels={question.progress.levels.flatMap((level, index, levels) => {
-                  const offset = levels
-                    .slice(0, index)
-                    .reduce((count, step) => count + step.examples.length, 0);
-                  return result.data?.kind === "submit" &&
-                    result.data.verdict === "accepted" &&
-                    level.examples.length &&
-                    level.examples.every(
-                      (_, caseIndex) =>
-                        result.data?.publicCases?.[offset + caseIndex]?.status === "accepted",
-                    )
-                    ? [index + 1]
-                    : [];
-                })}
+                passedLevels={passedCaseLevels(question.progress, result.data)}
                 selectedLevel={interviewer ? undefined : selectedLevel}
                 onSelect={interviewer ? undefined : setSelectedLevel}
               />
