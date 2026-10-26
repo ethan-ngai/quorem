@@ -89,6 +89,7 @@ function LoginForm() {
   const [creating, setCreating] = useState(
     setupRequested || new URLSearchParams(location.search).get("create") === "1",
   );
+  const [modeChanged, setModeChanged] = useState(false);
   const [email, setEmail] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");
   const resend = useCooldown();
@@ -155,7 +156,10 @@ function LoginForm() {
       </div>
       <LoginShowcase />
       <div className="auth-form-side">
-        <section className="auth-content" aria-labelledby="sign-in-title">
+        <section
+          className={`auth-content${modeChanged ? (creating ? " auth-enter-register" : " auth-enter-login") : ""}`}
+          aria-labelledby="sign-in-title"
+        >
           {backDestination ? (
             <a className="auth-back" href={backDestination}>
               <ArrowLeft size={14} aria-hidden="true" />
@@ -503,6 +507,7 @@ function LoginForm() {
                     disabled={busy}
                     onClick={() => {
                       setCreating(!creating);
+                      setModeChanged(true);
                       setPassword("");
                       setVisible(false);
                       setError("");
