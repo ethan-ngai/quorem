@@ -1,7 +1,7 @@
 import { QuestionTypeFilter } from "./QuestionTypeFilter";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout, CatalogTable } from "./CatalogLayout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   ArrowDown,
@@ -15,11 +15,11 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api, requireData } from "../../api/client";
+import { catalogQueryOptions, catalogTopics, catalogPageSize as pageSize } from "./problemQueries";
+import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
-import { useSession } from "../auth/session";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { CatalogFilter } from "./CatalogFilter";
 import { addFilter, filterValues } from "./catalogSearch";
@@ -29,16 +29,16 @@ import "./practice.css";
 
 const label = (value: string) =>
   value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const pageSize = 20;
 
 export function PracticeBrowser() {
-  const session = useSession();
-  const { identity } = useAccountIdentity();
+  const { identity, account: session } = useAccountIdentity();
+  const queryClient = useQueryClient();
+  const actor = session.data === undefined ? undefined : identity;
   const { preference, setPreference } = useTheme();
   const search = useSearch({ from: "/practice" });
   const canChooseLibrary =
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
-  const library = canChooseLibrary ? search.library : undefined;
+  const library = search.library;
   const navigate = useNavigate({ from: "/practice" });
   const [query, setQuery] = useState(search.q ?? "");
   const [editing, setEditing] = useState(false);
@@ -58,53 +58,10 @@ export function PracticeBrowser() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [query, editing, search]);
-  const catalog = useQuery({
-    queryKey: [
-      "public-problems",
-      session.data?.user.id,
-      library,
-      search.type,
-      search.q,
-      search.difficulty,
-      search.topic,
-      search.sort,
-      search.order,
-      search.page,
-    ],
-    queryFn: async ({ signal }) => {
-      const { data, error } = await api().GET("/v1/problems", {
-        params: {
-          query: {
-            library,
-            type: search.type,
-            q: search.q,
-            difficulty: search.difficulty,
-            topic: search.topic,
-            sort: search.sort,
-            order: search.order,
-            page: search.page ?? 1,
-            limit: pageSize,
-          },
-        },
-        signal,
-      });
-      return requireData(data, error);
-    },
-    staleTime: 30_000,
-  });
-  // Filter options use a separate cache, so changing filters never removes available topics.
-  const metadata = useQuery({
-    queryKey: ["public-problem-topics", session.data?.user.id],
-    queryFn: async ({ signal }) => {
-      const { data, error } = await api().GET("/v1/problems", {
-        params: { query: { limit: 1 } },
-        signal,
-      });
-      return requireData(data, error).topics;
-    },
-    staleTime: 60_000,
-  });
-  const topics = metadata.data ?? catalog.data?.topics ?? [];
+  const catalog = useQuery(catalogQueryOptions(queryClient, actor, search));
+  const privateIdentityError =
+    search.library === "private" && actor === undefined && session.isError;
+  const topics = catalogTopics(queryClient, actor, search, catalog.data);
   const filtered = Boolean(search.q || search.difficulty || search.topic || library || search.type);
   const sort = search.sort ?? "title";
   const SortIcon = search.order === "desc" ? ArrowDown : ArrowUp;
@@ -128,9 +85,14 @@ export function PracticeBrowser() {
   const total = catalog.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   useEffect(() => {
-    if (catalog.data && !catalog.isFetching && page > pages)
+    if (
+      (actor !== undefined || library === "global") &&
+      catalog.data &&
+      !catalog.isFetching &&
+      page > pages
+    )
       update({ page: pages === 1 ? undefined : pages }, true);
-  }, [catalog.data, catalog.isFetching, page, pages]);
+  }, [actor, library, catalog.data, catalog.isFetching, page, pages]);
   return (
     <div className="practice-page">
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
@@ -218,15 +180,18 @@ export function PracticeBrowser() {
           aria-label="Practice questions"
           aria-busy={catalog.isFetching}
         >
-          {catalog.isPending ? (
-            <LoadingScreen inline label="Loading questions…" />
-          ) : catalog.isError ? (
+          {privateIdentityError || catalog.isError ? (
             <div className="practice-state" role="alert">
               <p>Questions couldn’t load. Please try again.</p>
-              <button className="practice-retry" onClick={() => void catalog.refetch()}>
+              <button
+                className="practice-retry"
+                onClick={() => void (privateIdentityError ? session.refetch() : catalog.refetch())}
+              >
                 Retry
               </button>
             </div>
+          ) : catalog.isPending ? (
+            <LoadingScreen inline label="Loading questions…" />
           ) : (
             <>
               <CatalogTable
@@ -267,6 +232,8 @@ export function PracticeBrowser() {
                 {catalog.data.items.map((problem) => (
                   <tr
                     key={problem.id}
+                    onPointerEnter={warmWorkspacePage}
+                    onFocusCapture={warmWorkspacePage}
                     onClick={(event) => {
                       if ((event.target as Element).closest("a, button, input")) return;
                       const href = `/practice/${problem.slug}`;

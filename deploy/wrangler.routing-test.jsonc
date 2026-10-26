@@ -1,0 +1,17 @@
+{
+  "name": "quorem-routing-local-test",
+  "main": "routing-workerd-fixture.js",
+  "compatibility_date": "2026-10-25",
+  "vars": {
+    "APP_ORIGIN": "http://localhost:8792",
+    "APP_POOL_SHARDS": "2",
+    "APP_INSTANCES_PER_SHARD": "2",
+    "APP_HTTP_CAPACITY": "4",
+    "APP_WS_CAPACITY": "4"
+  },
+  "durable_objects": { "bindings": [
+    { "name": "APPS", "class_name": "RoutingApp" },
+    { "name": "POOLS", "class_name": "AppPool" }
+  ] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoutingApp", "AppPool"] }]
+}
