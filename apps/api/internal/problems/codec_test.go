@@ -92,7 +92,7 @@ func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
 	if err := ValidateCustomCases(sig, make([]Case, 21)); err == nil {
 		t.Fatal("21 cases accepted")
 	}
-	largeString, _ := json.Marshal(string(make([]byte, 65536)))
+	largeString, _ := json.Marshal(string(make([]byte, 2<<20)))
 	if err := ValidateCustomCases(Signature{Parameters: []Parameter{{Name: "text", Type: "str"}}, ReturnType: "str"}, []Case{{Args: []json.RawMessage{largeString}}}); err == nil {
 		t.Fatal("oversized custom suite accepted")
 	}
@@ -104,6 +104,32 @@ func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
 		if _, err := Normalize(typ, json.RawMessage(input)); err == nil {
 			t.Fatal("unknown nested codec accepted", typ)
 		}
+	}
+}
+
+func TestLargeInputIsBoundedPerProblem(t *testing.T) {
+	sig := Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"}
+	data, _ := json.Marshal(make([]int, 100000))
+	c := Case{Args: []json.RawMessage{data}, Expected: json.RawMessage(`0`)}
+	p := Problem{Signature: sig}
+	p.Limits.MaxCollectionElements = 100000
+	maximum := float64(100000)
+	p.Constraints = []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "length"}, Max: &maximum}}
+	if err := ValidateProblemCustomCases(p, []Case{c}); err != nil {
+		t.Fatal(err)
+	}
+	p.Limits.MaxCollectionElements = 10000
+	if err := ValidateProblemCustomCases(p, []Case{c}); err == nil {
+		t.Fatal("problem limit was ignored")
+	}
+	p.Limits.MaxCollectionElements = 100000
+	data, _ = json.Marshal(make([]int, 100001))
+	c.Args[0] = data
+	if err := ValidateProblemCustomCases(p, []Case{c}); err == nil {
+		t.Fatal("platform input limit was ignored")
+	}
+	if _, err := Normalize("list<int>", data); err == nil {
+		t.Fatal("output collection limit changed")
 	}
 }
 

@@ -203,7 +203,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 	if p.SQL != nil && (limits.MemoryBytes < max.MemoryBytes || limits.MaxProcesses < max.MaxProcesses) {
 		return fmt.Errorf("PostgreSQL requires the default memory and process limits")
 	}
-	if limits.WallTimeMS < 1 || limits.WallTimeMS > max.WallTimeMS || limits.MemoryBytes < 1 || limits.MemoryBytes > max.MemoryBytes || limits.OutputBytes < 1 || limits.OutputBytes > max.OutputBytes || limits.MaxProcesses < 1 || limits.MaxProcesses > max.MaxProcesses || limits.MaxCollectionElements < 1 || limits.MaxCollectionElements > max.MaxCollectionElements || limits.MaxNestingDepth < 1 || limits.MaxNestingDepth > max.MaxNestingDepth {
+	if limits.WallTimeMS < 1 || limits.WallTimeMS > max.WallTimeMS || limits.MemoryBytes < 1 || limits.MemoryBytes > max.MemoryBytes || limits.OutputBytes < 1 || limits.OutputBytes > max.OutputBytes || limits.MaxProcesses < 1 || limits.MaxProcesses > max.MaxProcesses || limits.MaxCollectionElements < 1 || limits.MaxCollectionElements > execution.MaxInputElements || limits.MaxNestingDepth < 1 || limits.MaxNestingDepth > max.MaxNestingDepth {
 		return fmt.Errorf("execution limits exceed supported bounds")
 	}
 	for _, example := range p.Examples {

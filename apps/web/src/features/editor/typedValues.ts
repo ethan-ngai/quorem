@@ -1,4 +1,5 @@
 import type { CustomCase } from "@quorem/contracts";
+import { MAX_INPUT_ELEMENTS } from "./inputLimits";
 
 export type WireValue = CustomCase["args"][number];
 
@@ -26,7 +27,8 @@ export function validateTypedValue(
   if (depth === 0 && !supportedType(type))
     throw new Error(`Unsupported or excessively nested type ${type}; a server codec is required.`);
   if (depth > 100) throw new Error("Nesting exceeds 100 levels.");
-  if (depth > 0 && ++count.value > 10_000) throw new Error("Collection exceeds 10,000 elements.");
+  if (depth > 0 && ++count.value > MAX_INPUT_ELEMENTS)
+    throw new Error("Collection exceeds 100,000 elements.");
   const optional = innerType(type, "optional");
   if (optional) {
     if (value !== null) validateTypedValue(optional, value, depth + 1, count);
@@ -41,7 +43,7 @@ export function validateTypedValue(
   if (type === "ListNode" || type === "TreeNode") {
     if (value === null) return;
     if (!Array.isArray(value)) throw new Error("Enter a node array or null.");
-    if (value.length > 10_000) throw new Error("At most 10,000 node entries.");
+    if (value.length > MAX_INPUT_ELEMENTS) throw new Error("At most 100,000 node entries.");
     let length = value.length;
     if (type === "TreeNode") while (length > 0 && value[length - 1] === null) length--;
     let slots = 1;

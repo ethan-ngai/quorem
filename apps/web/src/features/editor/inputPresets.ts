@@ -1,5 +1,6 @@
 import { acceptsNumericExpression, parseNumericExpression } from "./numericExpression";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
+import { MAX_CUSTOM_CASE_BYTES, MAX_INPUT_ELEMENTS } from "./inputLimits";
 
 export type InputConfig = { preset: string; placeholder?: string; rows?: number };
 export type InputKind =
@@ -23,7 +24,7 @@ export abstract class InputPreset {
   abstract accepts(source: string): boolean;
   protected abstract parseValue(source: string): WireValue;
   parse(source: string): WireValue {
-    if (source.length > 65536) throw new Error("Input exceeds 64 KiB.");
+    if (source.length > MAX_CUSTOM_CASE_BYTES) throw new Error("Input exceeds 2 MiB.");
     const value = this.parseValue(source);
     validateTypedValue(this.type, value);
     return value;
@@ -75,7 +76,7 @@ export class BooleanPreset extends InputPreset {
 
 function scalarSource(type: string, source: string, depth = 0): WireValue {
   if (depth > 100) throw new Error("Nesting exceeds 100 levels.");
-  if (source.length > 65536) throw new Error("Input exceeds 64 KiB.");
+  if (source.length > MAX_CUSTOM_CASE_BYTES) throw new Error("Input exceeds 2 MiB.");
   const optional = innerType(type, "optional");
   if (optional) return source.trim() === "null" ? null : scalarSource(optional, source, depth + 1);
   const list = innerType(type, "list");
@@ -120,7 +121,8 @@ function splitEntries(source: string): string[] {
       entries.push(source.slice(start, index));
       start = index + 1;
     }
-    if (entries.length > 10000) throw new Error("Collection exceeds 10,000 elements.");
+    if (entries.length > MAX_INPUT_ELEMENTS)
+      throw new Error("Collection exceeds 100,000 elements.");
   }
   if (quoted || depth !== 0) throw new Error("Complete the string or nested sequence.");
   entries.push(source.slice(start));
@@ -131,7 +133,7 @@ export class SequencePreset extends InputPreset {
   override readonly delimiters = ["[", "]"] as const;
   readonly kind: InputKind = "sequence";
   accepts(source: string) {
-    if (source.length > 65536) return false;
+    if (source.length > MAX_CUSTOM_CASE_BYTES) return false;
     let quoted = false,
       escaped = false;
     const allowStrings = /(?:^|<)str(?:>|$)/.test(this.type);
