@@ -23,6 +23,12 @@ on:
       - .node-version
       - .github/workflows/deploy.yaml
   workflow_dispatch:
+    inputs:
+      reuse_run_id:
+        description: Completed production run whose verified images can be reused for an infrastructure-only retry
+        required: false
+        type: string
+        default: ''
 permissions:
   contents: read
   actions: read
@@ -51,6 +57,7 @@ env:
   WRANGLER_SEND_METRICS: "false"
 jobs:
   build:
+    if: ${{ !inputs.reuse_run_id }}
     outputs:
       image_sha: ${{ github.sha }}
     runs-on: ubuntu-latest
@@ -167,7 +174,7 @@ jobs:
       group: production-apply-${{ github.ref }}
       cancel-in-progress: false
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: ${{ always() && github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '' && needs.build.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -178,8 +185,18 @@ jobs:
       TF_VAR_max_compute_cu: ${{ vars.NEON_MAX_COMPUTE_CU || '4' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - name: Require current main
         run: bash scripts/require-main.sh
+      - name: Validate image reuse guard
+        run: python3 -m unittest discover -s scripts -p 'reuse_validated_images_test.py'
+      - name: Resolve verified image revision
+        if: inputs.reuse_run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: python3 scripts/reuse-validated-images.py
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
         with:
           node-version-file: .node-version
