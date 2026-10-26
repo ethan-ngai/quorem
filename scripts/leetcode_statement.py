@@ -40,6 +40,18 @@ def render(node, in_code=False, plain=False):
     if isinstance(node, str):
         return node
     tag = node.tag
+    if tag == 'table' and not plain:
+        def rows(element):
+            if isinstance(element, str):
+                return []
+            if element.tag == 'tr':
+                return [[clean(''.join(render(child) for child in cell.children)).replace('|', r'\|').replace('\n', ' ') for cell in element.children if isinstance(cell, Node) and cell.tag in ('th', 'td')]]
+            return [row for child in element.children for row in rows(child)]
+        table = [row for row in rows(node) if row]
+        if table:
+            width = max(len(row) for row in table)
+            line = lambda row: '| ' + ' | '.join(row + [''] * (width - len(row))) + ' |'
+            return '\n' + line(table[0]) + '\n' + line(['---'] * width) + '\n' + '\n'.join(line(row) for row in table[1:]) + '\n\n'
     content = ''.join(render(child, in_code or tag == 'code', plain) for child in node.children)
     if tag == 'sup':
         return '^' + content.strip()
@@ -59,7 +71,9 @@ def render(node, in_code=False, plain=False):
     if tag == 'br':
         return '\n'
     if tag == 'img':
-        return f"[{node.attrs.get('alt') or 'Image'}]({node.attrs.get('src', '')})"
+        return f"![{node.attrs.get('alt') or 'Image'}]({node.attrs.get('src', '')})"
+    if tag == 'a' and node.attrs.get('href') and not plain:
+        return f"[{content}]({node.attrs['href']})"
     if tag == 'li':
         return '- ' + content.strip() + '\n'
     if tag in ('p', 'div', 'pre', 'ul', 'ol', 'table', 'tr'):
@@ -77,11 +91,29 @@ def clean(text):
     return re.sub(r'\n{3,}', '\n\n', text).strip()
 
 
+def has_example_heading(node):
+    if isinstance(node, str):
+        return False
+    if re.fullmatch(r'\*\*Example\s+\d+:?\*\*', clean(render(node)), re.I):
+        return True
+    return any(has_example_heading(child) for child in node.children)
+
+
+def flatten_nested_examples(nodes):
+    for node in nodes:
+        if (isinstance(node, Node) and node.tag == 'div'
+                and 'example-block' in node.attrs.get('class', '').split()
+                and any(has_example_heading(child) for child in node.children)):
+            yield from flatten_nested_examples(node.children)
+        else:
+            yield node
+
+
 def format_question(content, html, parse_case=None):
     """Return formatted content or raise if every example cannot be matched."""
     doc = Document()
     doc.feed(html)
-    nodes = doc.root.children
+    nodes = list(flatten_nested_examples(doc.root.children))
     sections = []
     for i, node in enumerate(nodes):
         if isinstance(node, str):
@@ -97,7 +129,7 @@ def format_question(content, html, parse_case=None):
         raise ValueError('HTML examples do not match parsed examples')
     # A section without an input/output marker cannot be safely removed.
     formatted_examples = []
-    original_index = 0
+    matched_originals = set()
     boundaries = [i for i, _ in sections] + [len(nodes)]
     for index, start in enumerate(examples):
         end = min(i for i in boundaries if i > start)
@@ -114,9 +146,12 @@ def format_question(content, html, parse_case=None):
             except (SyntaxError, ValueError, TypeError, KeyError, RecursionError) as error:
                 raise ValueError('HTML example cannot be verified') from error
             originals = content['problem']['examples']
-            if original_index < len(originals) and parsed['args'] == originals[original_index]['args'] and parsed['expected'] == originals[original_index]['expected']:
-                example = dict(originals[original_index])
-                original_index += 1
+            matched = next((i for i, original in enumerate(originals)
+                            if i not in matched_originals and parsed['args'] == original['args']
+                            and parsed['expected'] == original['expected']), None)
+            if matched is not None:
+                example = dict(originals[matched])
+                matched_originals.add(matched)
             else:
                 example = parsed
         else:
@@ -126,8 +161,9 @@ def format_question(content, html, parse_case=None):
         if any(isinstance(node, Node) and contains_tag(node, 'u') for node in nodes[start + 1:end]):
             explanation = re.sub(r'\bunderlined\b', 'bolded', explanation, flags=re.I)
         before_input = text[:re.search(r'(?:\*\*)?Input:(?:\*\*)?', text, re.I).start()]
-        images = re.findall(r'\[[^\]]*\]\([^\)]+\)', before_input)
-        if clean(re.sub(r'\[[^\]]*\]\([^\)]+\)', '', before_input)):
+        images = re.findall(r'!\[[^\]]*\]\([^\)]+\)', before_input)
+        residue = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', before_input)
+        if not re.fullmatch(r'[\s*\u200b]*', residue):
             raise ValueError('unrecognised text before example input')
         if images:
             explanation = clean(' '.join(images) + '\n\n' + explanation)
@@ -136,12 +172,27 @@ def format_question(content, html, parse_case=None):
         if explanation:
             example['explanation'] = explanation
         formatted_examples.append(example)
-    if parse_case and original_index != len(content['problem']['examples']):
-        raise ValueError('HTML example changed since staging')
+    if parse_case:
+        for i, original in enumerate(content['problem']['examples']):
+            if i not in matched_originals and any(example['args'] == original['args'] for example in formatted_examples):
+                raise ValueError('HTML example changed since staging')
+        if len(formatted_examples) > 20:
+            raise ValueError('too many combined examples')
     removed = set()
     for start in examples:
         end = min(i for i in boundaries if i > start)
         removed.update(range(start, end))
+    constraint_start = next(i for i, kind in sections if kind == 'constraints' and i > examples[-1])
+    constraint_list = next((i for i in range(constraint_start + 1, len(nodes)) if isinstance(nodes[i], Node)), None)
+    if constraint_list is None or nodes[constraint_list].tag not in ('ul', 'p'):
+        raise ValueError('unrecognised constraints')
+    if nodes[constraint_list].tag == 'p':
+        constraints = [clean(render(nodes[constraint_list]))]
+    else:
+        constraints = [clean(''.join(render(child) for child in item.children)) for item in nodes[constraint_list].children if isinstance(item, Node) and item.tag == 'li']
+    if not constraints or len(constraints) > 64 or any(not value or len(value.encode()) > 4096 for value in constraints):
+        raise ValueError('invalid constraints')
+    removed.update((constraint_start, constraint_list))
     statement = clean(''.join(render(node) for i, node in enumerate(nodes) if i not in removed))
     if not statement or len(statement.encode()) > 65536:
         raise ValueError('invalid formatted statement')
@@ -149,5 +200,6 @@ def format_question(content, html, parse_case=None):
     problem = dict(content['problem'])
     problem['statementMarkdown'] = statement
     problem['examples'] = formatted_examples
+    problem['constraints'] = [{'kind': 'prose', 'text': value} for value in constraints]
     result['problem'] = problem
     return result

@@ -155,9 +155,10 @@ def draft(staged, corpus):
         raise ValueError("missing or oversized content")
     runtime, harness = "python-3.12-v1", "quorem-harness-v2"
     return {
-        "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": [], "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "starterSource": starter_source, "runtimeRevision": runtime, "languages": [], "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 10000, "maxNestingDepth": 100}},
+        "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": source.get("topics", []), "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "starterSource": starter_source, "runtimeRevision": runtime, "languages": [], "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 10000, "maxNestingDepth": 100}},
         "hiddenCases": cases[:20], "comparator": "ordered", "attribution": "LeetCode; reference and cases from newfacade/LeetCodeDataset.",
-        "implementations": [{"language": "python", "starterSource": starter_source, "runtimeRevision": runtime, "harnessRevision": harness, "referenceSource": reference}], "solutions": []}
+        "implementations": [{"language": "python", "starterSource": starter_source, "runtimeRevision": runtime, "harnessRevision": harness, "referenceSource": reference}],
+        "solutions": [{"language": "python", "source": reference, "explanationMarkdown": "", "timeComplexity": "", "spaceComplexity": "", "complexityNotes": ""}]}
 
 
 def matches_type(typ, value):
