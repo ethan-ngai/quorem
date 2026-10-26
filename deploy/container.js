@@ -22,6 +22,7 @@ export class ContainerLifecycle {
   }
 
   async start() {
+    const started = performance.now();
     const container = this.ctx.container;
     if (!container) throw new Error("Container unavailable");
     if (!container.running) {
@@ -56,6 +57,9 @@ export class ContainerLifecycle {
           .fetch("http://container/health", { signal: AbortSignal.timeout(2000) });
         await response.body?.cancel();
         if (response.ok) {
+          console.log(
+            `Container ready port=${this.port} duration_ms=${Math.round(performance.now() - started)}`,
+          );
           this.ready = true;
           return;
         }

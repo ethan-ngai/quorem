@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import sharp from "sharp";
 import type { ProfileStorage } from "./profile-storage.ts";
 
 export const photoPrefix = "/api/auth/profile-photos/";
@@ -134,6 +133,7 @@ export function createProfileHandler(options: {
         if (!bytes) return json(413, { error: "Choose an image smaller than 5 MiB" });
         let image: Buffer;
         try {
+          const { default: sharp } = await import("sharp");
           const source = sharp(bytes, { limitInputPixels: 16000000, failOn: "warning" });
           const metadata = await source.metadata();
           if (metadata.format !== format || (metadata.pages ?? 1) !== 1)

@@ -1,7 +1,12 @@
 /** Exercise production ingress and AppPool in workerd without starting Docker. */
 import assert from "node:assert/strict";
 const base = process.env.QUOREM_ROUTING_TEST_ORIGIN || "http://localhost:8792";
+const config = await fetch(base + "/api/auth/quorem-config");
+assert.equal(config.status, 200);
+assert.equal((await config.json()).method, "password");
+assert.equal(config.headers.has("Set-Cookie"), false);
 const response = await fetch(base + "/v1/problems");
+assert.match(response.headers.get("Server-Timing"), /app;dur=/);
 assert.equal(response.status, 200);
 const first = await response.json();
 const cookies = response.headers.getSetCookie();

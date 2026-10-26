@@ -24,7 +24,15 @@ export function productionAuthEnvironment(env: NodeJS.ProcessEnv): Record<string
       if (value) runtime[`${provider}_${field}`] = value;
     }
   }
-  configuration({
+  productionAuthConfiguration(env, runtime);
+  return runtime;
+}
+
+export function productionAuthConfiguration(
+  env: NodeJS.ProcessEnv,
+  runtime: Record<string, string>,
+) {
+  return configuration({
     AUTH_DATABASE_URL: "postgres://configuration-only",
     ...env,
     ...runtime,
@@ -32,5 +40,4 @@ export function productionAuthEnvironment(env: NodeJS.ProcessEnv): Record<string
     AUTH_MODE: "password",
     AUTH_PASSWORD_PRODUCTION: "true",
   });
-  return runtime;
 }
