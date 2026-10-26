@@ -115,6 +115,23 @@ func waitCount(t *testing.T, g *Gateway, n int) {
 	}
 	t.Fatalf("sessions did not reach %d", n)
 }
+
+// Counts cannot distinguish a retained old reservation from its admitted replacement.
+func waitReplacement(t *testing.T, g *Gateway, owner string, prior *session) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		g.mu.Lock()
+		current := g.sessions[owner]
+		g.mu.Unlock()
+		if current != nil && current != prior {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("replacement session was not admitted")
+}
+
 func TestAdmissionAndTakeover(t *testing.T) {
 	g, address, _ := setup(t, 1, time.Minute)
 	first := dial(t, address, "alice", false)
@@ -123,9 +140,12 @@ func TestAdmissionAndTakeover(t *testing.T) {
 	closed(t, duplicate, 4009)
 	excess := dial(t, address, "bob", false)
 	closed(t, excess, 1013)
+	g.mu.Lock()
+	prior := g.sessions["alice"]
+	g.mu.Unlock()
 	replacement := dial(t, address, "alice", true)
 	closed(t, first, 4009)
-	waitCount(t, g, 1)
+	waitReplacement(t, g, "alice", prior)
 	_ = replacement.CloseNow()
 	waitCount(t, g, 0)
 }
@@ -268,7 +288,7 @@ func TestFailedCleanupRetainsReservationAndRetries(t *testing.T) {
 	e.mu.Unlock()
 	g.config.Factory = f
 	replacement := dial(t, address, "alice", true)
-	waitCount(t, g, 1)
+	waitReplacement(t, g, "alice", s)
 	_ = replacement.CloseNow()
 	waitCount(t, g, 0)
 	e.mu.Lock()

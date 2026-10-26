@@ -86,7 +86,8 @@ jobs:
       - run: docker build -f apps/runner/Dockerfile.java -t quorem-java:local .
       - run: docker build -f apps/runner/Dockerfile.typescript -t quorem-typescript:local .
       - run: docker build -f apps/runner/Dockerfile.ocaml -t quorem-ocaml:local .
-      - run: go test ./...
+      # Integration packages share one disposable database and reset its fixtures.
+      - run: go test -p 1 ./...
       - name: Cloudflare Durable Object contract
         env:
           WRANGLER_SEND_METRICS: "false"
