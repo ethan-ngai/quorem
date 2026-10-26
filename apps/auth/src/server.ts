@@ -6,6 +6,7 @@ import { auth, config, database } from "./auth.ts";
 import { createProfileHandler } from "./profile.ts";
 import { createRegistrationHandler } from "./registration.ts";
 import { verificationMail, profileStorage } from "./infrastructure.ts";
+import { hostedSignIn } from "./hosted-sign-in.ts";
 import { publicAuthConfiguration } from "./public-config.ts";
 const handler = toNodeHandler(auth);
 const registrationHandler =
@@ -75,6 +76,7 @@ const server = createServer(async (req, res) => {
   }
   try {
     if (
+      req.url === "/api/auth/sign-in/hosted" ||
       req.url?.startsWith("/api/auth/profile") ||
       req.url?.startsWith("/api/auth/registration/")
     ) {
@@ -88,9 +90,12 @@ const server = createServer(async (req, res) => {
         requestOptions.duplex = "half";
       }
       const request = new Request(config.origin + req.url, requestOptions);
-      const response = req.url.startsWith("/api/auth/registration/")
-        ? ((await registrationHandler?.(request)) ?? new Response(null, { status: 404 }))
-        : await profileHandler(request);
+      const response =
+        req.url === "/api/auth/sign-in/hosted"
+          ? await hostedSignIn(request, config.method, auth.handler)
+          : req.url.startsWith("/api/auth/registration/")
+            ? ((await registrationHandler?.(request)) ?? new Response(null, { status: 404 }))
+            : await profileHandler(request);
       if (response) {
         response.headers.forEach((value, name) => res.setHeader(name, value));
         res.writeHead(response.status).end(Buffer.from(await response.arrayBuffer()));
