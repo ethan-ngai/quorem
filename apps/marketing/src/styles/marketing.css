@@ -3162,7 +3162,7 @@ summary:focus-visible {
 }
 
 .walkthrough-layout :is(.editor-stage, .lobby-stage) {
-  background: radial-gradient(ellipse at 50% 12%, var(--marketing-highlight), transparent 75%);
+  background: radial-gradient(ellipse 70% 60% at 50% 65%, var(--marketing-highlight), transparent);
 }
 .walkthrough-layout :is(.demo-tests, .lobby-render) {
   position: relative;
