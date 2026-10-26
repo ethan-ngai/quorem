@@ -27,6 +27,8 @@ class DraftTest(unittest.TestCase):
         self.assertEqual(result['problem']['companies'], ['Example'])
         self.assertEqual(result['problem']['leetcodeId'], 1)
         self.assertEqual(result['hiddenCases'], [{'args': [1], 'expected': 2}])
+        self.assertEqual(result['solutions'][0]['source'], result['implementations'][0]['referenceSource'])
+        self.assertEqual(result['solutions'][0]['timeComplexity'], '')
 
     def test_prelude_only_keeps_used_bindings_per_source(self):
         lines = ['import collections', 'import math', 'from typing import *', 'from collections import *', 'from math import *', "inf = float('inf')"]
