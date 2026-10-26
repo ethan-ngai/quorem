@@ -780,7 +780,7 @@ summary:focus-visible {
   gap: 6px;
   margin-top: 12px;
 }
-.recommendation-topics > span {
+.recommendation-topics > span:not(.preview-difficulty) {
   padding: 3px 6px;
   border-radius: var(--radius-sm);
   background: var(--color-overlay);
@@ -3176,12 +3176,6 @@ summary:focus-visible {
   color: var(--color-text-secondary);
   font-size: 10px;
   font-weight: 500;
-}
-.preview-difficulty.difficulty-easy {
-  color: var(--color-success);
-}
-.preview-difficulty.difficulty-medium {
-  color: var(--color-warning);
 }
 .recommendation-topics > .preview-difficulty {
   padding-inline: 0;

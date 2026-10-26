@@ -730,22 +730,6 @@ kbd {
   align-items: start;
   gap: 12px;
 }
-.difficulty {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  font-size: 12px;
-  text-transform: capitalize;
-}
-.difficulty-easy {
-  color: var(--color-success);
-}
-.difficulty-medium {
-  color: var(--color-warning);
-}
-.difficulty-hard {
-  color: var(--color-error);
-}
 .topics-toggle {
   display: inline-flex;
   align-items: center;
