@@ -208,14 +208,12 @@ export class Quorem extends DurableObject {
         ...this.requests.values(),
       ]) {
         if (!byPool.has(pool)) byPool.set(pool, []);
-        byPool
-          .get(pool)
-          .push({
-            id: lease,
-            slot,
-            kind,
-            warm: this.lifecycle.ready && this.ctx.container.running,
-          });
+        byPool.get(pool).push({
+          id: lease,
+          slot,
+          kind,
+          warm: this.lifecycle.ready && this.ctx.container.running,
+        });
       }
       await Promise.all([...byPool].map(([pool, renew]) => this.lease(pool, { renew })));
       await this.active();

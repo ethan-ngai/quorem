@@ -41,11 +41,11 @@ The URL contains public local fixture credentials. Capture the final `local_dist
 
 Measured 2026-10-25 with the harness in this change. The 2,000-client hold used foundation `b98b5cf`; preliminary 8/64-client smoke runs used `98e43e6`. Host: Apple M5 Pro, 15 physical cores, 24 GiB memory, macOS arm64, Go 1.27.2; PostgreSQL 17.6 in local Docker. Both API instances and all clients share one Go process. Default API database pools have four connections per instance; each fanout adapter has a one-connection publish pool and a dedicated listener. This was a single observed run per row, not a median or an isolated-host benchmark.
 
-| Clients / rooms | Hold | Connection ramp | Connection p50 / p95 | Notice p50 / p95 | Authorized disconnects |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 8 / 1 | 0 s smoke | 29 ms | 27.9 / 29.0 ms | 12.2 / 12.5 ms | 0 |
-| 64 / 8 | 0 s smoke | 70 ms | 16.0 / 33.9 ms | 21.2 / 25.9 ms | 0 |
-| 2,000 / 250 | 35 s | 1,755 ms | 15.1 / 22.9 ms | 12.5 / 24.5 ms | 0 |
+| Clients / rooms |      Hold | Connection ramp | Connection p50 / p95 | Notice p50 / p95 | Authorized disconnects |
+| --------------- | --------: | --------------: | -------------------: | ---------------: | ---------------------: |
+| 8 / 1           | 0 s smoke |           29 ms |       27.9 / 29.0 ms |   12.2 / 12.5 ms |                      0 |
+| 64 / 8          | 0 s smoke |           70 ms |       16.0 / 33.9 ms |   21.2 / 25.9 ms |                      0 |
+| 2,000 / 250     |      35 s |        1,755 ms |       15.1 / 22.9 ms |   12.5 / 24.5 ms |                      0 |
 
 The 2,000-client run completed in 38.2 seconds, delivered 2,000 measured document notices, validated every cross-replica pull, and retained all 1,999 nonrevoked connection leases after the hold exceeded their 30-second TTL. One deliberate member revocation is excluded from the authorized-disconnect count. The test uses a 1,016-socket ceiling per instance, above the production 512 default. Delivery samples precede the idle hold; they do not measure sustained typing during lease-renewal bursts.
 

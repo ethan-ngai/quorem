@@ -4,8 +4,14 @@ import { configuration } from "./config.ts";
 export function productionAuthEnvironment(env: NodeJS.ProcessEnv): Record<string, string> {
   const runtime: Record<string, string> = {};
   const mailKeys = [
-    "AUTH_EMAIL_DRIVER", "AUTH_EMAIL_FROM", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME",
-    "SMTP_PASSWORD", "AUTH_EMAIL_SES_REGION", "AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID",
+    "AUTH_EMAIL_DRIVER",
+    "AUTH_EMAIL_FROM",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USERNAME",
+    "SMTP_PASSWORD",
+    "AUTH_EMAIL_SES_REGION",
+    "AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID",
     "AUTH_EMAIL_CLOUDFLARE_API_TOKEN",
   ];
   const mailConfigured = mailKeys.some((key) => Boolean(env[key]));
@@ -22,8 +28,14 @@ export function productionAuthEnvironment(env: NodeJS.ProcessEnv): Record<string
   if (env.AUTH_MODE) runtime.AUTH_MODE = env.AUTH_MODE;
   runtime.AUTH_LOGIN_ONLY = mode === "password" && !mailConfigured ? "true" : "false";
   if (mode === "cognito") {
-    for (const key of ["COGNITO_CLIENT_ID", "COGNITO_CLIENT_SECRET", "COGNITO_DOMAIN",
-      "COGNITO_REGION", "COGNITO_USERPOOL_ID"]) if (env[key]) runtime[key] = env[key]!;
+    for (const key of [
+      "COGNITO_CLIENT_ID",
+      "COGNITO_CLIENT_SECRET",
+      "COGNITO_DOMAIN",
+      "COGNITO_REGION",
+      "COGNITO_USERPOOL_ID",
+    ])
+      if (env[key]) runtime[key] = env[key]!;
   }
   for (const provider of ["GOOGLE", "GITHUB"]) {
     for (const field of ["CLIENT_ID", "CLIENT_SECRET"]) {
