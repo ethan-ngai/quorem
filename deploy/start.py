@@ -1,79 +1,49 @@
-"""Supervise trusted services; contestant code runs only inside bounded inner containers."""
-from pathlib import Path
+"""Supervise API/auth only; schema changes run once in GitHub Actions before rollout."""
 import argparse
-import errno
 import signal
 import subprocess
 import time
+import urllib.request
 
-processes = []
 parser = argparse.ArgumentParser()
-parser.add_argument("--verify-only", action="store_true")
+parser.add_argument('--verify-only', action='store_true')
 arguments = parser.parse_args()
-
-
-def stop(_signal=None, _frame=None):
+if arguments.verify_only:
+    subprocess.run(['/app/bin/api', '--help'], check=True)
+    subprocess.run(['node', '--check', '--experimental-strip-types', 'apps/auth/src/server.ts'], check=True)
     raise SystemExit(0)
 
-
+processes = []
+def stop(_signal=None, _frame=None):
+    raise SystemExit(0)
 signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 try:
-    for identity in ("self", "1"):
-        print(f"cgroup {identity}: " + Path(f"/proc/{identity}/cgroup").read_text().strip(), flush=True)
-    for line in Path("/proc/self/mountinfo").read_text().splitlines():
-        if " - cgroup" in line:
-            print("cgroup mount: " + line, flush=True)
-    # Moby's dind setup: domain controllers require an empty parent cgroup.
-    cgroup = Path("/sys/fs/cgroup")
-    if (cgroup / "cgroup.controllers").exists():
-        (cgroup / "init").mkdir(exist_ok=True)
-        for attempt in range(20):
-            for pid in (cgroup / "cgroup.procs").read_text().split():
-                try:
-                    (cgroup / "init/cgroup.procs").write_text(pid)
-                except OSError as error:
-                    if error.errno != errno.ESRCH:
-                        raise
-            controllers = (cgroup / "cgroup.controllers").read_text().split()
-            try:
-                (cgroup / "cgroup.subtree_control").write_text(" ".join("+" + name for name in controllers))
-                break
-            except OSError as error:
-                if error.errno != errno.EBUSY or attempt == 19:
-                    raise
-                time.sleep(0.05)
-    processes.append(subprocess.Popen([
-        "dockerd", "--iptables=false", "--ip6tables=false", "--ip-forward=false",
-        "--bridge=none", "--host=unix:///var/run/docker.sock",
-        "--exec-opt", "native.cgroupdriver=cgroupfs",
-    ]))
-    for _ in range(150):
-        if subprocess.run(["docker", "info"], stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL).returncode == 0:
-            break
-        if processes[0].poll() is not None:
-            raise RuntimeError("Docker daemon exited")
-        time.sleep(0.2)
-    else:
-        raise RuntimeError("Docker daemon unavailable")
-    for image in sorted(Path("/app/images").glob("*.tar")):
-        subprocess.run(["docker", "load", "-i", str(image)], check=True)
-    subprocess.run(["/app/bin/runner", "--verify-sandbox"], check=True)
-    if arguments.verify_only:
-        raise SystemExit(0)
-    subprocess.run(["/app/bin/provision"], check=True)
-    subprocess.run(["node", "--experimental-strip-types", "apps/auth/src/migrate.ts"], check=True)
     for command in (
-        ["/app/bin/api"],
-        ["node", "--experimental-strip-types", "apps/auth/src/server.ts"],
-        ["/app/bin/runner"],
+        ['/app/bin/api'],
+        ['node', '--experimental-strip-types', 'apps/auth/src/server.ts'],
     ):
         processes.append(subprocess.Popen(command))
-    processes.append(subprocess.Popen(["nginx", "-c", "/app/deploy/nginx.conf", "-g", "daemon off;"]))
-    while all(p.poll() is None for p in processes):
+    pending = {'http://127.0.0.1:8080/health', 'http://127.0.0.1:8082/api/auth/quorem-config'}
+    deadline = time.monotonic() + 55
+    while pending and time.monotonic() < deadline:
+        if any(process.poll() is not None for process in processes):
+            raise RuntimeError('Application service exited before readiness')
+        for endpoint in list(pending):
+            try:
+                with urllib.request.urlopen(endpoint, timeout=1) as response:
+                    if response.status == 200:
+                        pending.remove(endpoint)
+            except OSError:
+                pass
+        if pending:
+            time.sleep(0.1)
+    if pending:
+        raise RuntimeError('API/auth readiness timed out')
+    processes.append(subprocess.Popen(['nginx', '-c', '/app/deploy/nginx.conf', '-g', 'daemon off;']))
+    while all(process.poll() is None for process in processes):
         time.sleep(0.5)
-    raise RuntimeError("Production service exited")
+    raise RuntimeError('Application service exited')
 finally:
     for process in reversed(processes):
         if process.poll() is None:

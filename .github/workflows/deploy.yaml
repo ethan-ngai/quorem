@@ -13,8 +13,8 @@ on:
       - infra/**
       - deploy/**
       - scripts/**
-      - '!scripts/build-site.mjs'
-      - '!scripts/prepare-pages.mjs'
+      - "!scripts/build-site.mjs"
+      - "!scripts/prepare-pages.mjs"
       - go.mod
       - go.sum
       - package.json
@@ -52,7 +52,7 @@ env:
 jobs:
   build:
     outputs:
-      image_sha: ${{ steps.validation.outputs.image_sha }}
+      image_sha: ${{ github.sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
@@ -102,48 +102,64 @@ jobs:
       - run: vp run contracts:check
       - name: Validate sandbox admission policy
         run: go test ./apps/runner/internal/engine -run TestSandboxNoSwapEvidence -count=1
-      - name: Check reusable validation
-        id: validation
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VALIDATED_RUN_ID: ${{ vars.DEPLOY_VALIDATED_RUN }}
-          PUBLISHED_IMAGE_RUN_ID: ${{ vars.DEPLOY_PUBLISHED_IMAGE_RUN }}
-        run: python3 scripts/reuse-deployment-checks.py
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - name: Validate Terraform configuration
+        run: |
+          terraform fmt -check infra/terraform/app/main.tf infra/terraform/database/main.tf
+          terraform -chdir=infra/terraform/app init -backend=false -input=false
+          terraform -chdir=infra/terraform/app validate
+          terraform -chdir=infra/terraform/database init -backend=false -input=false
+          terraform -chdir=infra/terraform/database validate
+      - name: Validate elastic routing policy
+        run: node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
+      - name: Validate workerd routing and WebSocket lifecycle
+        run: |
+          mkdir -p .local
+          vp -C apps/realtime-cloudflare exec wrangler dev --config ../../deploy/wrangler.test.jsonc --port 8791 --ip 127.0.0.1 --show-interactive-dev-session=false > .local/workerd.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://localhost:8791/health > /dev/null; then break; fi
+            sleep 1
+          done
+          if ! node deploy/workerd-check.mjs; then cat .local/workerd.log; exit 1; fi
       - name: Package auth dependencies
-        if: steps.validation.outputs.reuse_image != 'true' && steps.validation.outputs.patch_image != 'true'
         run: |
           mkdir -p deploy/images .local/deploy
           python3 scripts/package-auth.py
       - name: Build isolated language images
-        if: steps.validation.outputs.reuse_image != 'true' && steps.validation.outputs.patch_image != 'true'
         run: python3 scripts/build-judge-images.py
       - name: Validate application and judge
-        if: steps.validation.outputs.reuse != 'true'
         env:
           QUOREM_TEST_DOCKER: "1"
         run: |
           vp -C apps/auth test
           vp -C apps/web test
           go test -p 1 ./...
-      - name: Build application image
-        if: steps.validation.outputs.reuse_image != 'true'
+      - name: Build application and judge images
         run: |
-          if [ "${{ steps.validation.outputs.patch_image }}" = true ]; then
-            python3 scripts/build-runtime-image.py "${{ steps.validation.outputs.base_sha }}"
-          else
-            docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-production:$GITHUB_SHA" .
-          fi
+          docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-app:$GITHUB_SHA" .
+          docker build --platform linux/amd64 -f deploy/Dockerfile.judge -t "quorem-judge:$GITHUB_SHA" .
+      - name: Verify split runtime roles
+        run: |
+          docker run --rm "quorem-app:$GITHUB_SHA" --verify-only
+          docker run --rm --entrypoint sh "quorem-app:$GITHUB_SHA" -c 'test ! -e /app/bin/runner && ! command -v docker && ! command -v dockerd'
+          docker run --rm --entrypoint sh "quorem-judge:$GITHUB_SHA" -c 'test ! -e /app/bin/api && test ! -e /app/apps/auth && test -z "$BETTER_AUTH_SECRET$AUTH_INTERNAL_SECRET$QUOREM_INVITE_KEY$AUTH_DATABASE_URL"'
       - name: Verify nested Docker isolation
-        if: steps.validation.outputs.reuse_image != 'true'
-        # Model Cloudflare native disks instead of nesting overlayfs on the CI overlay root.
-        run: docker run --privileged --cgroupns=private --mount type=volume,destination=/var/lib/docker --mount type=volume,destination=/var/lib/containerd --rm "quorem-production:$GITHUB_SHA" --verify-only
-      - name: Push application image
-        if: github.ref == 'refs/heads/main' && steps.validation.outputs.reuse_image != 'true'
+        # Judge startup runs the real per-case isolation/limits/teardown preflight before any claims.
+        run: docker run --privileged --cgroupns=private --mount type=volume,destination=/var/lib/docker --mount type=volume,destination=/var/lib/containerd --rm "quorem-judge:$GITHUB_SHA" --verify-only
+      - name: Push application and judge images
+        if: github.ref == 'refs/heads/main'
         run: |
-          image="registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$GITHUB_SHA"
-          docker tag "quorem-production:$GITHUB_SHA" "$image"
-          vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
-          echo "TF_VAR_image=$image" >> "$GITHUB_ENV"
+          for role in app judge; do
+            image="registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-$role:$GITHUB_SHA"
+            docker tag "quorem-$role:$GITHUB_SHA" "$image"
+            vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
+          done
+
   deploy:
     concurrency:
       group: production-apply-${{ github.ref }}
@@ -157,6 +173,7 @@ jobs:
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
       TF_VAR_project_name: ${{ vars.NEON_PROJECT_NAME || 'quorem-production' }}
       TF_VAR_region: ${{ vars.NEON_REGION || 'aws-us-east-1' }}
+      TF_VAR_max_compute_cu: ${{ vars.NEON_MAX_COMPUTE_CU || '4' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Require current main
@@ -176,7 +193,9 @@ jobs:
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - name: Configure image
-        run: echo "TF_VAR_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-production:$IMAGE_REVISION" >> "$GITHUB_ENV"
+        run: |
+          echo "TF_VAR_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-app:$IMAGE_REVISION" >> "$GITHUB_ENV"
+          echo "TF_VAR_judge_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-judge:$IMAGE_REVISION" >> "$GITHUB_ENV"
       - name: Initialize Terraform state
         if: github.ref == 'refs/heads/main'
         run: python3 scripts/terraform-state.py

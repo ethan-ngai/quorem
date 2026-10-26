@@ -1,55 +1,38 @@
-/** @file worker.js @description Same-origin entrypoint for the production container. @module deployment */
-import { DurableObject } from "cloudflare:workers";
+/** Same-origin elastic ingress; PostgreSQL owns product state and judge leases. */
+import { judgeSlot, limits, notification } from "./policy.js";
+export { AppPool, Quorem, Judge } from "./router.js";
 
-export class Quorem extends DurableObject {
-  async fetch(request) {
-    const container = this.ctx.container;
-    if (!container) return new Response("Service unavailable", { status: 503 });
-    if (!container.running)
-      container.start({ enableInternet: true, env: JSON.parse(this.env.RUNTIME_ENV) });
-    await container.setInactivityTimeout(10 * 60 * 1000);
-    if (!this.monitoring) {
-      this.monitoring = true;
-      this.stopped = false;
-      this.ctx.waitUntil(
-        container
-          .monitor()
-          .catch((error) => {
-            console.error("Container stopped", {
-              message: error.message,
-              exitCode: error.exitCode,
-            });
-          })
-          .finally(() => {
-            this.stopped = true;
-            this.monitoring = false;
-          }),
-      );
-    }
-    const port = container.getTcpPort(8088);
-    // Only readiness probes retry; replaying a command could duplicate its effects.
-    const deadline = Date.now() + 60_000;
-    while (Date.now() < deadline && !this.stopped) {
-      try {
-        const health = await port.fetch("http://container/health", {
-          signal: AbortSignal.timeout(2000),
-        });
-        const ready = health.ok;
-        await health.body?.cancel();
-        if (ready) {
-          const url = new URL(request.url);
-          url.protocol = "http:";
-          url.host = "container";
-          const forwarded = new Request(url, request);
-          forwarded.headers.delete("host");
-          return port.fetch(forwarded);
-        }
-      } catch {
-        /* The process may still be starting. */
+async function wake(request, env) {
+  if (typeof env.JUDGE_CONTROL_TOKEN !== "string" || env.JUDGE_CONTROL_TOKEN.length < 32)
+    return new Response(null, { status: 503 });
+  if (
+    request.method !== "POST" ||
+    request.headers.get("Authorization") !== `Bearer ${env.JUDGE_CONTROL_TOKEN}`
+  )
+    return new Response(null, { status: 404 });
+  const reader = request.body?.getReader();
+  if (!reader) return new Response(null, { status: 400 });
+  let bytes = new Uint8Array(0);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (bytes.length + value.length > 1024) {
+        await reader.cancel();
+        return new Response(null, { status: 413 });
       }
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const next = new Uint8Array(bytes.length + value.length);
+      next.set(bytes);
+      next.set(value, bytes.length);
+      bytes = next;
     }
-    return new Response("Service starting", { status: 503, headers: { "Retry-After": "5" } });
+    const message = notification(JSON.parse(new TextDecoder().decode(bytes)));
+    if (!message) return new Response(null, { status: 400 });
+    // A successful response is durable before admission can commit, including a fully idle fleet.
+    await env.JUDGE_WAKE.send(message);
+    return new Response(null, { status: 202 });
+  } catch {
+    return new Response("Execution wake unavailable", { status: 503 });
   }
 }
 
@@ -57,6 +40,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.origin !== env.APP_ORIGIN) return new Response("Unknown host", { status: 421 });
+    if (url.pathname === "/internal/judge/wake") return wake(request, env);
     if (url.pathname === "/internal" || url.pathname.startsWith("/internal/"))
       return new Response(null, { status: 404 });
     if (
@@ -65,6 +49,49 @@ export default {
       !url.pathname.startsWith("/api/auth/")
     )
       return new Response(null, { status: 404 });
-    return env.QUOREM.getByName("primary").fetch(request);
+    const capacity = limits(env);
+    const start = crypto.getRandomValues(new Uint32Array(1))[0] % capacity.shards;
+    for (let attempt = 0; attempt < capacity.shards; attempt++) {
+      const pool = String((start + attempt) % capacity.shards);
+      const forwarded = new Request(request.clone());
+      for (const key of ["x-quorem-lease", "x-quorem-slot"]) forwarded.headers.delete(key);
+      forwarded.headers.set("x-quorem-pool", pool);
+      const response = await env.POOLS.getByName(pool, {
+        locationHint: env.APP_LOCATION_HINT || "enam",
+      }).fetch(forwarded);
+      // Capacity rejects happen before dispatch; an admitted application command never replays.
+      if (response.status !== 503 || response.headers.get("X-Quorem-Capacity") !== "full")
+        return response;
+      await response.body?.cancel();
+    }
+    return new Response("Application capacity reached", {
+      status: 503,
+      headers: { "Retry-After": "1" },
+    });
+  },
+
+  async queue(batch, env) {
+    const valid = [];
+    for (const message of batch.messages) {
+      if (notification(message.body)) valid.push(message);
+      else message.retry({ delaySeconds: 30 });
+    }
+    if (!valid.length) return;
+    let empty = false;
+    try {
+      const maximum = limits(env).judges;
+      const response = await env.JUDGES.getByName(`judge-${judgeSlot(valid[0].id, maximum)}`, {
+        locationHint: env.APP_LOCATION_HINT || "enam",
+      }).fetch("https://judge/wake", { method: "POST" });
+      const body = await response.json();
+      empty = response.status === 200 && body.queued === 0 && body.running === 0;
+    } catch {
+      /* Durable messages retry when startup, drain or dependencies are unavailable. */
+    }
+    // One quiet-grace drain covers every pre-admission wake already present in this batch.
+    for (const message of valid) {
+      if (empty) message.ack();
+      else message.retry({ delaySeconds: Math.min(30, 2 ** Math.min(message.attempts ?? 1, 5)) });
+    }
   },
 };

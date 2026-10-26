@@ -1,0 +1,30 @@
+{
+  "name": "quorem-elastic-local-test",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-25",
+  "vars": {
+    "APP_ORIGIN": "http://localhost:8791",
+    "APP_RUNTIME_ENV": "{}",
+    "JUDGE_RUNTIME_ENV": "{}",
+    "JUDGE_CONTROL_TOKEN": "local-contract-fixture-token-at-least-32-chars",
+    "APP_POOL_SHARDS": "2",
+    "APP_INSTANCES_PER_SHARD": "2",
+    "APP_HTTP_CAPACITY": "4",
+    "APP_WS_CAPACITY": "4",
+    "JUDGE_MAX_INSTANCES": "2"
+  },
+  "durable_objects": { "bindings": [
+    { "name": "APPS", "class_name": "Quorem" },
+    { "name": "POOLS", "class_name": "AppPool" },
+    { "name": "JUDGES", "class_name": "Judge" }
+  ] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Quorem", "AppPool", "Judge"] }],
+  "containers": [
+    { "class_name": "Quorem", "image": "./Dockerfile.test", "max_instances": 4 },
+    { "class_name": "Judge", "image": "./Dockerfile.test", "max_instances": 2 }
+  ],
+  "queues": {
+    "producers": [{ "binding": "JUDGE_WAKE", "queue": "quorem-judge-local" }],
+    "consumers": [{ "queue": "quorem-judge-local", "max_batch_size": 100, "max_batch_timeout": 0, "max_retries": 3 }]
+  }
+}
