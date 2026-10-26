@@ -1,5 +1,5 @@
 .page-layout {
-  --page-footer-height: 48px;
+  --page-footer-height: 56px;
   --page-height: calc(100dvh - var(--page-footer-height));
   display: flex;
   flex-direction: column;
@@ -10,14 +10,16 @@
   min-width: 0;
   min-height: var(--page-height);
 }
-.page-layout:has(.workspace-grid) {
+.page-layout:has(.workspace-grid),
+.page-layout:has(.auth-page) {
   --page-height: 100dvh;
 }
-.page-layout:has(.workspace-grid) > .site-legal-footer {
+.page-layout:has(.workspace-grid) > .site-legal-footer,
+.page-layout:has(.auth-page) > .site-legal-footer {
   display: none;
 }
 @media (max-width: 620px) {
   .page-layout {
-    --page-footer-height: 76px;
+    --page-footer-height: 84px;
   }
 }

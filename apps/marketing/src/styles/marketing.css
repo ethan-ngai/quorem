@@ -254,22 +254,41 @@ summary:focus-visible {
   flex-shrink: 0;
 }
 .hero-cta {
-  min-height: 52px;
-  padding-inline: 28px;
-  border-radius: var(--radius-sm);
-  transition:
-    transform 500ms var(--hero-easing),
-    background-color 500ms var(--hero-easing);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-primary);
+  font-size: 15px;
+  font-weight: 600;
 }
-.hero-cta:active {
-  transform: translateY(0) scale(0.98);
+.hero-cta span {
+  position: relative;
+}
+.hero-cta span::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -4px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.hero-cta:is(:hover, :focus-visible) span::after {
+  transform: scaleX(1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-cta span::after,
+  .hero-cta svg {
+    transition: transform var(--motion-standard) var(--motion-easing);
+  }
+  .hero-cta:is(:hover, :focus-visible) svg {
+    transform: translateX(3px);
+  }
 }
 :root {
   --marketing-panel-radius: 16px;
   --marketing-panel-gap: 20px;
-  --marketing-depth:
-    0 2px 4px color-mix(in oklch, var(--color-text) 4%, transparent),
-    0 24px 64px color-mix(in oklch, var(--color-text) 10%, transparent);
+  --marketing-depth: 0 2px 6px oklch(0.2 0 0 / 0.08), 0 10px 24px -6px oklch(0.2 0 0 / 0.16);
   --marketing-highlight: color-mix(in oklch, white 60%, transparent);
   --marketing-line: color-mix(in oklch, var(--color-text) 35%, var(--color-border));
 }
@@ -761,7 +780,7 @@ summary:focus-visible {
   gap: 6px;
   margin-top: 12px;
 }
-.recommendation-topics > span {
+.recommendation-topics > span:not(.preview-difficulty) {
   padding: 3px 6px;
   border-radius: var(--radius-sm);
   background: var(--color-overlay);
@@ -933,16 +952,24 @@ summary:focus-visible {
   background-size: 56px 56px;
   mask-image: radial-gradient(ellipse at center top, black, transparent 65%);
 }
-.closing-code-plane {
+.closing-plane {
   position: absolute;
   top: 34px;
   width: 390px;
+}
+:root:not([data-theme="dark"]) .closing-plane {
+  filter: drop-shadow(0 4px 8px oklch(0.2 0 0 / 0.1));
+}
+.closing-code-plane {
   padding: 22px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background:
     radial-gradient(ellipse at var(--light-edge) 0%, var(--surface-light), transparent 80%),
     var(--color-field);
+  box-shadow: inset 0 1px var(--surface-light);
+}
+:root[data-theme="dark"] .closing-code-plane {
   box-shadow:
     inset 0 1px var(--surface-light),
     0 32px 64px var(--surface-shade);
@@ -968,12 +995,16 @@ summary:focus-visible {
   --light-edge: 100%;
   left: calc(50% - 390px);
   transform: rotateY(22deg) rotateZ(-8deg);
+}
+.plane-you .closing-code-plane {
   mask-image: linear-gradient(90deg, transparent, black 28%);
 }
 .plane-friend {
   --light-edge: 0%;
   right: calc(50% - 390px);
   transform: rotateY(-22deg) rotateZ(8deg);
+}
+.plane-friend .closing-code-plane {
   mask-image: linear-gradient(270deg, transparent, black 28%);
 }
 .closing-emblem {
@@ -986,6 +1017,12 @@ summary:focus-visible {
   height: 80px;
   border: 1px solid var(--color-border);
   border-radius: 20px;
+  background: var(--color-field);
+  box-shadow:
+    var(--marketing-depth),
+    inset 0 1px var(--surface-light);
+}
+:root[data-theme="dark"] .closing-emblem {
   background: linear-gradient(135deg, var(--color-overlay), var(--color-field));
   box-shadow:
     inset 0 1px var(--surface-light),
@@ -1003,21 +1040,27 @@ summary:focus-visible {
   opacity: 0.25;
 }
 .site-footer {
-  padding-block: 56px 24px;
+  padding-block: 48px 32px;
   border-top: 1px solid var(--color-border);
   font-size: 13px;
   color: var(--color-text-secondary);
 }
+.site-footer + .site-legal-footer {
+  padding-inline: var(--marketing-gutter);
+  border: 0;
+}
+.site-footer + .site-legal-footer .site-legal-footer-inner {
+  max-width: var(--marketing-width);
+}
 .footer-main {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(160px, 1fr) minmax(280px, 2fr);
   gap: 64px;
-  padding-bottom: 48px;
 }
 .footer-brand {
   display: inline-flex;
   align-items: center;
-  align-self: start;
+  align-self: center;
   justify-self: start;
   gap: 12px;
   color: var(--color-text);
@@ -1034,19 +1077,25 @@ summary:focus-visible {
   transform: translateY(3px);
 }
 .footer-sitemap {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 48px;
+  max-width: 500px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px 32px;
 }
 .footer-sitemap > div {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 8px;
+}
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 .footer-sitemap strong {
   color: var(--color-text);
   font-weight: 500;
-  margin-bottom: 8px;
 }
 .footer-sitemap a {
   justify-self: start;
@@ -1058,14 +1107,10 @@ summary:focus-visible {
 @media (max-width: 620px) {
   .footer-main {
     grid-template-columns: 1fr;
-    gap: 32px;
-    padding-bottom: 32px;
+    gap: 20px;
   }
   .footer-sitemap {
-    gap: 32px;
-  }
-  .site-footer {
-    padding-top: 32px;
+    gap: 16px 24px;
   }
 }
 .theme-switch {
@@ -1384,6 +1429,9 @@ summary:focus-visible {
   justify-self: end;
   margin-top: 48px;
 }
+:root:not([data-theme="dark"]) .hero-workspace {
+  --marketing-depth: 0 2px 6px oklch(0.2 0 0 / 0.06), 0 10px 24px -6px oklch(0.2 0 0 / 0.1);
+}
 .hero-problem-description {
   position: relative;
   padding: 20px;
@@ -1682,7 +1730,7 @@ summary:focus-visible {
 .race-receipt {
   padding: 18px;
   margin-bottom: 16px;
-  background: var(--color-surface);
+  background: var(--color-field);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--marketing-depth);
@@ -1800,6 +1848,9 @@ summary:focus-visible {
   padding: 14px 16px 12px;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
+}
+:root:not([data-theme="dark"]) :is(.hero-problem-description, .hero-scoreboard) {
+  background: var(--color-field);
 }
 .hero-scoreboard > div {
   display: flex;
@@ -1948,7 +1999,7 @@ summary:focus-visible {
 }
 @media (prefers-reduced-motion: no-preference) {
   .demo-cursor {
-    animation: demo-run-click 900ms var(--marketing-spring) both;
+    animation: demo-run-click 1400ms var(--motion-easing) both;
   }
 }
 @keyframes demo-run-click {
@@ -1956,26 +2007,23 @@ summary:focus-visible {
     transform: translate(20px, 24px);
     opacity: 0;
   }
-  50% {
-    transform: translate(0, 0);
+  25% {
+    transform: translate(0, 0) scale(1);
     opacity: 1;
   }
-  75% {
-    transform: scale(0.85);
+  45% {
+    transform: translate(0, 0) scale(0.85);
+    opacity: 1;
+  }
+  55% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
   }
   100% {
-    transform: scale(1);
-    opacity: 1;
+    transform: translate(12px, 16px) scale(1);
+    opacity: 0;
   }
 }
-.workspace-demo .editor-language-logo {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  background: currentColor;
-  mask: url("../../../web/src/assets/python.svg") center / contain no-repeat;
-}
-
 .workspace-demo .code-toolbar {
   height: 38px;
   border-bottom: 1px solid var(--color-border);
@@ -1989,8 +2037,15 @@ summary:focus-visible {
   border-bottom: 1px solid var(--color-border);
 }
 .workspace-demo .demo-result-summary {
+  display: flex;
+  align-items: center;
+  height: 52px;
   padding: 8px 18px;
-  min-height: 34px;
+  overflow: hidden;
+}
+.workspace-demo .demo-result-summary .result-summary {
+  max-height: none;
+  padding: 0;
 }
 .workspace-demo .demo-case-browser {
   height: 220px;
@@ -2014,7 +2069,7 @@ summary:focus-visible {
 
 :root {
   --surface-light: rgb(255 255 255 / 0.5);
-  --surface-shade: rgb(39 52 70 / 0.12);
+  --surface-shade: transparent;
 }
 :root[data-theme="dark"] {
   --surface-light: rgb(200 219 255 / 0.09);
@@ -2079,8 +2134,10 @@ summary:focus-visible {
   .closing-scene {
     height: 300px;
   }
-  .closing-code-plane {
+  .closing-plane {
     width: 320px;
+  }
+  .closing-code-plane {
     padding: 16px;
   }
   .plane-you {
@@ -2131,8 +2188,7 @@ summary:focus-visible {
 /* Upcoming previews use quieter light and shallow depth. */
 .upcoming-feature-grid {
   --surface-light: rgb(255 255 255 / 0.15);
-  --surface-shade: rgb(39 52 70 / 0.03);
-  --marketing-depth: 0 2px 4px rgb(39 52 70 / 0.03), 0 8px 20px rgb(39 52 70 / 0.05);
+  --surface-shade: transparent;
 }
 :root[data-theme="dark"] .upcoming-feature-grid {
   --surface-light: rgb(200 219 255 / 0.025);
@@ -2193,6 +2249,9 @@ summary:focus-visible {
 }
 .walkthrough-column > .feature-panel {
   grid-column: auto;
+}
+:root:not([data-theme="dark"]) .walkthrough-column > .feature-panel {
+  background: color-mix(in oklch, var(--color-surface) 30%, var(--color-field));
 }
 .walkthrough-column .submission-race {
   margin: 24px;
@@ -2852,16 +2911,41 @@ summary:focus-visible {
   overflow: visible;
   mask-image: none;
 }
-#upcoming .social-product,
-#upcoming .adaptive-product {
+#upcoming .preview-background-shadow {
   position: relative;
   grid-column: 2;
   grid-row: 1;
+  min-width: 0;
+  margin: 40px 0 0 -48px;
+  width: calc(100% + 48px);
+  --preview-shadow: oklch(0.2 0 0 / 0.035);
+}
+:root[data-theme="dark"] #upcoming .preview-background-shadow {
+  --preview-shadow: rgb(0 0 0 / 0.18);
+}
+#upcoming .preview-background-shadow::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, transparent, var(--preview-shadow), transparent) top / 100% 24px
+      no-repeat,
+    linear-gradient(to right, transparent, var(--preview-shadow), transparent) left / 24px 100%
+      no-repeat;
+  mask-image:
+    linear-gradient(to right, black 40%, transparent 100%),
+    linear-gradient(to bottom, black 40%, transparent 100%);
+  mask-composite: intersect;
+}
+#upcoming .social-product,
+#upcoming .adaptive-product {
+  position: relative;
   left: auto;
   top: auto;
   width: 100%;
   min-width: 0;
-  margin-top: 40px;
+  margin: 0;
   opacity: 1;
   mask-image: none;
   overflow: visible;
@@ -2872,8 +2956,6 @@ summary:focus-visible {
 #upcoming .social-product,
 #upcoming .adaptive-product {
   --preview-edge: clamp(48px, 8vw, 128px);
-  margin-left: -48px;
-  width: calc(100% + 48px);
   padding-left: 48px;
   padding-right: var(--preview-edge);
   padding-bottom: 96px;
@@ -2925,6 +3007,11 @@ summary:focus-visible {
   margin: 0;
   padding: 24px;
   background: var(--color-field);
+  box-shadow:
+    var(--marketing-depth),
+    inset 0 1px var(--surface-light);
+}
+:root[data-theme="dark"] #upcoming :is(.rival-product, .recommendation-card) {
   box-shadow:
     0 8px 24px color-mix(in oklch, var(--surface-shade) 60%, transparent),
     0 28px 72px color-mix(in oklch, var(--surface-shade) 45%, transparent),
@@ -3026,15 +3113,16 @@ summary:focus-visible {
   #upcoming .recommendation-card {
     width: 94%;
   }
-  #upcoming .social-product,
-  #upcoming .adaptive-product {
-    --preview-edge: 32px;
+  #upcoming .preview-background-shadow {
     grid-column: 1;
     grid-row: 2;
     justify-self: end;
     width: 94%;
-    margin-top: -12px;
-    margin-left: 0;
+    margin: -12px 0 0;
+  }
+  #upcoming .social-product,
+  #upcoming .adaptive-product {
+    --preview-edge: 32px;
     padding-left: 0;
     padding-top: 24px;
   }
@@ -3109,22 +3197,21 @@ summary:focus-visible {
   font-size: 10px;
   font-weight: 500;
 }
-.preview-difficulty.difficulty-easy {
-  color: var(--color-success);
-}
-.preview-difficulty.difficulty-medium {
-  color: var(--color-warning);
-}
 .recommendation-topics > .preview-difficulty {
   padding-inline: 0;
   background: transparent;
 }
 
 .walkthrough-layout :is(.editor-stage, .lobby-stage) {
-  background: radial-gradient(ellipse at 50% 12%, var(--marketing-highlight), transparent 75%);
+  background: radial-gradient(ellipse 70% 60% at 50% 65%, var(--marketing-highlight), transparent);
 }
 .walkthrough-layout :is(.demo-tests, .lobby-render) {
   position: relative;
+  box-shadow:
+    var(--marketing-depth),
+    inset 0 1px var(--surface-light);
+}
+:root[data-theme="dark"] .walkthrough-layout :is(.demo-tests, .lobby-render) {
   box-shadow:
     0 2px 8px color-mix(in oklch, var(--surface-shade) 45%, transparent),
     0 20px 56px color-mix(in oklch, var(--surface-shade) 50%, transparent),

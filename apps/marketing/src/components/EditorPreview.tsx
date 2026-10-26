@@ -1,3 +1,4 @@
+import { LanguageLogo } from "../../../web/src/ui/LanguageLogo";
 import { usePreviewTheme } from "./usePreviewTheme";
 import { PythonEditor } from "../../../web/src/features/editor/PythonEditor";
 import { TestCases } from "../../../web/src/features/editor/components/TestCases";
@@ -8,8 +9,8 @@ import { usePreviewSequence } from "./usePreviewSequence";
 /** Shared editor and case output, with read-only illustrative judging. */
 export default function EditorPreview() {
   const theme = usePreviewTheme();
-  const { root, stage, replay } = usePreviewSequence(4, true, (step) =>
-    step === 0 ? 220 : step === 1 ? 1700 : 1400,
+  const { root, stage, replay, automatic, active } = usePreviewSequence(4, true, (step) =>
+    step === 0 ? 700 : step === 1 ? 1700 : 1400,
   );
   const selectedCase = Math.min(Math.max(stage - 2, 0), 2);
   const submission = previewSubmission(stage);
@@ -17,9 +18,12 @@ export default function EditorPreview() {
     <div ref={root} className="workspace-demo demo-tests" aria-label="Example Two Sum test run">
       <div className="demo-readonly" inert>
         <div className="code-toolbar">
-          <span className="editor-language">
-            <span className="editor-language-logo" aria-hidden="true" />
+          <span className="select-field select-field--compact">
+            <LanguageLogo language="python" />
             Python
+            <span className="select-field-chevron">
+              <Icon name="chevron" />
+            </span>
           </span>
         </div>
         <div className="preview-code">
@@ -73,7 +77,7 @@ export default function EditorPreview() {
       </div>
       <footer className="execution-bar demo-execution-bar">
         <div className="run-actions">
-          {stage === 0 && (
+          {automatic && active && stage < 2 && (
             <span className="demo-cursor" aria-hidden="true">
               <svg viewBox="0 0 24 28">
                 <path d="m3 2 1 22 6-5 5 8 4-2-5-8 8-2Z" />

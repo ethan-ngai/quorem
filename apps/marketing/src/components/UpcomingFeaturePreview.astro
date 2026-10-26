@@ -1,17 +1,18 @@
 ---
+import { Icon } from "../../../web/src/ui/Icon";
 interface Props { variant: "social" | "adaptive" }
 const { variant } = Astro.props;
 const players = [
-  { name: "Jamie", initials: "JL", wins: 24, losses: 12 },
-  { name: "You", initials: "YO", wins: 21, losses: 15 },
-  { name: "Sam", initials: "SK", wins: 18, losses: 14 },
-  { name: "Riley", initials: "RC", wins: 16, losses: 15 },
+  { name: "Jamie", initials: "J", wins: 24, losses: 12 },
+  { name: "You", initials: "Y", wins: 21, losses: 15 },
+  { name: "Sam", initials: "S", wins: 18, losses: 14 },
+  { name: "Riley", initials: "R", wins: 16, losses: 15 },
 ];
 ---
 {variant === "social" ?
   <figure class="social-preview-stage" role="img" aria-label="Illustrative Social preview: a leaderboard with player ranks and win/loss totals, plus your twelve-match rivalry with Jamie: seven wins and five losses.">
-    <div class="social-product product-window" aria-hidden="true">
-      <div class="product-topbar"><span class="product-brand brand-mark"></span><span>Social</span><span class="product-avatar self-avatar">YO</span></div>
+    <div class="preview-background-shadow" aria-hidden="true"><div class="social-product product-window">
+      <div class="product-topbar"><span class="product-brand brand-mark"></span><span>Social</span><span class="product-avatar self-avatar">Y</span></div>
       <div class="product-tabs"><span class="selected">Leaderboard</span><span>Nemeses</span></div>
       <div class="leaderboard-header"><strong>Your standings</strong><span>All time <svg viewBox="0 0 16 16"><path d="m5 6 3 3 3-3" /></svg></span></div>
       <div class="leaderboard-table">
@@ -22,9 +23,9 @@ const players = [
           <span>{player.wins}</span><span>{player.losses}</span>
         </div>)}
       </div>
-    </div>
+    </div></div>
     <div class="rival-product product-window" aria-hidden="true">
-      <div class="rival-heading"><span class="product-avatar">JL</span><div><strong>Jamie</strong><span>Your nemesis</span></div><span class="rival-swords"><svg viewBox="0 0 24 24"><path d="m5 3 12 12m2 2 2 2M3 5l12 12m2 2 2 2M4 4l4-1-1 4m10 6-4 4M19 3 7 15M21 5 9 17m11-13-4-1 1 4M7 13l4 4m-6 0-2 2m4 0-2 2" /></svg></span></div>
+      <div class="rival-heading"><span class="product-avatar">J</span><div><strong>Jamie</strong><span>Your nemesis</span></div><span class="rival-swords"><Icon name="showdown" /></span></div>
       <div class="rival-score"><div><strong>7</strong><span>Your wins</span></div><span>—</span><div><strong>5</strong><span>Your losses</span></div></div>
       <div class="rival-balance"><span></span><span></span></div>
       <div class="rival-history"><span>Last 5 matches</span><div><i>W</i><i class="lost">L</i><i>W</i><i>W</i><i class="lost">L</i></div></div>
@@ -32,10 +33,10 @@ const players = [
   </figure>
 :
   <figure class="adaptive-preview-stage" role="img" aria-label="Illustrative Adaptive preview: a failed Rotting Oranges graph problem leads to a recommendation for Number of Islands, a medium graph problem, for practice or a competitive match.">
-    <div class="adaptive-product product-window preview-backdrop" aria-hidden="true">
+    <div class="preview-background-shadow" aria-hidden="true"><div class="adaptive-product product-window preview-backdrop">
       <div class="product-topbar"><span class="product-brand brand-mark"></span><span>For you</span></div>
       <div class="performance-history"><span class="preview-label">Recent performance</span><div><span>Two Sum <small class="performance-tags"><span class="preview-difficulty difficulty-easy">Easy</span><span class="preview-topic">Arrays</span></small><i>✓</i></span><span>Climbing Stairs <small class="performance-tags"><span class="preview-difficulty difficulty-easy">Easy</span><span class="preview-topic">Dynamic Programming</span></small><i>✓</i></span><span>Rotting Oranges <small class="performance-tags"><span class="preview-difficulty difficulty-medium">Medium</span><span class="preview-topic">Graphs</span></small><i class="failed" aria-label="Failed">×</i></span></div></div>
-    </div>
+    </div></div>
       <div class="recommendation-card product-window preview-foreground" aria-hidden="true">
         <div class="recommendation-context"><span>Previously missed</span><strong>Rotting Oranges</strong><div class="performance-tags"><span class="preview-difficulty difficulty-medium">Medium</span><span class="preview-topic">Graphs</span><span class="missed-verdict">× Failed</span></div></div>
         <span class="recommendation-label"><span></span>Recommended next</span>
