@@ -48,7 +48,8 @@
     transform var(--motion-standard) var(--motion-easing),
     opacity var(--motion-standard) var(--motion-easing);
 }
-.result-tabs[data-appearance="underline"] button:is(:hover, :focus-visible, [aria-selected="true"]) {
+.result-tabs[data-appearance="underline"]
+  button:is(:hover, :focus-visible, [aria-selected="true"]) {
   color: var(--color-primary);
 }
 .result-tabs[data-appearance="underline"] button[aria-selected="false"]:hover::after {
