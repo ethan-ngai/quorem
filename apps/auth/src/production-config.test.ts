@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productionAuthEnvironment } from "./production-config";
+import { productionAuthConfiguration, productionAuthEnvironment } from "./production-config";
 import { configuration } from "./config";
 
 const base = {
@@ -44,10 +44,33 @@ describe("production auth composition", () => {
     "rejects partial email configuration missing %s",
     (key) => {
       expect(() => productionAuthEnvironment({ ...base, ...smtp, [key]: undefined })).toThrow(
-        `${key} required`,
+        key === "AUTH_EMAIL_FROM" ? `${key} required` : "SMTP credentials required",
       );
     },
   );
+
+  it.each([
+    [{ ...smtp, AUTH_EMAIL_DRIVER: "smtp", SMTP_HOST: "smtp.example.com", SMTP_PORT: "587" }, "smtp"],
+    [{ ...smtp, AUTH_EMAIL_DRIVER: "ses-smtp", AUTH_EMAIL_SES_REGION: "us-east-1" }, "ses-smtp"],
+    [{ AUTH_EMAIL_DRIVER: "cloudflare", AUTH_EMAIL_FROM: smtp.AUTH_EMAIL_FROM,
+       AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID: "a".repeat(32), AUTH_EMAIL_CLOUDFLARE_API_TOKEN: "token" }, "cloudflare"],
+  ])("uses the selected email adapter", (mail, driver) => {
+    const env = { ...base, ...mail };
+    const runtime = productionAuthEnvironment(env);
+    const config = configuration({ ...env, ...runtime, AUTH_DATABASE_URL: "postgres://fixture",
+      APP_ENV: "production", AUTH_MODE: "password", AUTH_PASSWORD_PRODUCTION: "true" });
+    expect(config.mail?.driver).toBe(driver);
+    expect(config.registration).toBe(true);
+  });
+
+  it("honors Cognito mode without forcing login-only", () => {
+    const env = { ...base, AUTH_MODE: "cognito", COGNITO_CLIENT_ID: "id",
+      COGNITO_CLIENT_SECRET: "secret", COGNITO_DOMAIN: "domain", COGNITO_REGION: "region",
+      COGNITO_USERPOOL_ID: "pool" };
+    const runtime = productionAuthEnvironment(env);
+    expect(runtime).not.toHaveProperty("AUTH_LOGIN_ONLY");
+    expect(productionAuthConfiguration(env, runtime).method).toBe("cognito");
+  });
 
   it.each(["GOOGLE", "GITHUB"])("maps complete %s OAuth credentials", (provider) => {
     const runtime = productionAuthEnvironment({
