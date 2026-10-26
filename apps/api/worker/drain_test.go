@@ -22,7 +22,7 @@ type drainRepository struct {
 func (r *drainRepository) LoadExecution(context.Context, execution.Job) (Spec, error) {
 	return Spec{}, nil
 }
-func (r *drainRepository) ReconcileMatches(context.Context) error            { return nil }
+func (r *drainRepository) ReconcileBackground(context.Context) error         { return nil }
 func (r *drainRepository) ExpiredAttempts(context.Context) ([]string, error) { return nil, nil }
 func (r *drainRepository) Claim(context.Context) (execution.Job, error) {
 	r.mu.Lock()
