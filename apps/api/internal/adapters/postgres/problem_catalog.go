@@ -16,14 +16,14 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 	if (f.Type != "" && f.Type != "classic" && f.Type != "odyssey") || f.Page < 1 || f.Page > 10000 || f.Limit < 1 || f.Limit > 100 {
 		return ProblemPage{}, failure("invalid_input", 400, "Invalid question pagination")
 	}
-	result := ProblemPage{Items: []problems.Problem{}, Topics: []string{}, Page: f.Page, Limit: f.Limit}
+	result := ProblemPage{Items: []problems.Problem{}, Topics: []string{}, Companies: []string{}, Page: f.Page, Limit: f.Limit}
 	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return result, err
 	}
 	defer tx.Rollback(ctx)
-	where := ` WHERE (p.owner_id IS NULL OR p.owner_id=$4) AND ($5='' OR ($5='global' AND p.owner_id IS NULL) OR ($5='private' AND p.owner_id=$4)) AND ($6='' OR ($6='odyssey' AND v.public->'odyssey' IS NOT NULL) OR ($6='classic' AND v.public->'odyssey' IS NULL)) AND v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=ANY(string_to_array($2,','))) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array($3,','))))`
-	args := []any{f.Query, f.Difficulty, f.Topic, identity.Subject(ctx).UserID, f.Library, f.Type}
+	where := ` WHERE (p.owner_id IS NULL OR p.owner_id=$4) AND ($5='' OR ($5='global' AND p.owner_id IS NULL) OR ($5='private' AND p.owner_id=$4)) AND ($6='' OR ($6='odyssey' AND v.public->'odyssey' IS NOT NULL) OR ($6='classic' AND v.public->'odyssey' IS NULL)) AND v.id=p.current_version_id AND ($1='' OR strpos(lower(v.title||' '||p.slug),lower($1))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower($1))>0)) AND ($2='' OR v.difficulty=ANY(string_to_array($2,','))) AND ($3='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array($3,',')))) AND ($7='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array($7,','))))`
+	args := []any{f.Query, f.Difficulty, f.Topic, identity.Subject(ctx).UserID, f.Library, f.Type, f.Company}
 	err = tx.QueryRow(ctx, `SELECT count(*) FROM problem_versions v JOIN problems p ON p.id=v.problem_id`+where, args...).Scan(&result.Total)
 	if err != nil {
 		return result, err
@@ -37,7 +37,7 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 	if f.Sort == "difficulty" {
 		order = "CASE v.difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END" + direction + ", " + order
 	}
-	rows, err := tx.Query(ctx, publicProblemSQL+where+" ORDER BY "+order+" LIMIT $7 OFFSET $8", append(args, f.Limit, (f.Page-1)*f.Limit)...)
+	rows, err := tx.Query(ctx, publicProblemSQL+where+" ORDER BY "+order+" LIMIT $8 OFFSET $9", append(args, f.Limit, (f.Page-1)*f.Limit)...)
 	if err != nil {
 		return result, err
 	}
@@ -70,6 +70,23 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 			return result, err
 		}
 		result.Topics = append(result.Topics, tag)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return result, err
+	}
+	rows, err = tx.Query(ctx, `SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id JOIN problems p ON p.id=pc.problem_id WHERE p.current_version_id IS NOT NULL AND (p.owner_id IS NULL OR p.owner_id=$1) AND ($2='' OR ($2='global' AND p.owner_id IS NULL) OR ($2='private' AND p.owner_id=$1)) ORDER BY c.name`, identity.Subject(ctx).UserID, f.Library)
+	if err != nil {
+		return result, err
+	}
+	for rows.Next() {
+		var company string
+		if err = rows.Scan(&company); err != nil {
+			rows.Close()
+			return result, err
+		}
+		result.Companies = append(result.Companies, company)
 	}
 	err = rows.Err()
 	rows.Close()

@@ -3,7 +3,12 @@ import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
-import { AuthoringCodeField, AuthoringNumberField, TopicField } from "./AuthoringInputs";
+import {
+  AuthoringCodeField,
+  AuthoringNumberField,
+  LeetcodeIDField,
+  TopicField,
+} from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
@@ -217,6 +222,16 @@ export function QuestionFields({
               </Field>
             </div>
             <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
+            <TopicField
+              label="Companies, separated by commas"
+              tags={problem.companies ?? []}
+              onChange={(companies) => setProblem({ companies })}
+            />
+            <LeetcodeIDField
+              value={problem.leetcodeId ?? null}
+              onChange={(leetcodeId) => setProblem({ leetcodeId })}
+              onValidityChange={(invalid) => onValidityChange("leetcodeId", invalid)}
+            />
             <Field label="Attribution">
               <input
                 value={content.attribution}
