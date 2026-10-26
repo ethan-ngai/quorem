@@ -8,11 +8,14 @@ export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
 type CatalogPage = paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
 const publicScope = "public";
 const pendingScope = "pending";
+const signedOutPrivateScope = "signed-out-private";
 const staleTime = 30_000;
 export const catalogPageSize = 20;
 
 // Only explicitly global responses enter the shared public scope.
 function catalogContext(actor: ProblemActor, library: CatalogSearch["library"]) {
+  if (actor === "anonymous" && library === "private")
+    return { scope: signedOutPrivateScope, library };
   const scope =
     library === "global" || actor === "anonymous" || (actor === undefined && library !== "private")
       ? publicScope
@@ -71,6 +74,9 @@ export function catalogQueryOptions(
         : undefined,
     queryFn: async ({ signal }) => {
       if (context.scope === pendingScope) throw new Error("Account still loading");
+      // A local development server may assign an owner even without browser credentials.
+      if (context.scope === signedOutPrivateScope)
+        return { items: [], topics: [], total: 0, page: filters.page, limit: filters.limit };
       const started = Date.now();
       const transport =
         context.scope === publicScope ? publicApi() : api(actor as DevelopmentIdentity);
