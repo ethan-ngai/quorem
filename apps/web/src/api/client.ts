@@ -3,12 +3,27 @@ import { createApiClient, type DevelopmentIdentity } from "@quorem/contracts";
 import { authenticatedFetch } from "../features/auth/session";
 import { UserFacingError } from "../ui/errors";
 
+const apiOrigin = () => import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
+
 /** Creates a same-origin client so local requests pass through Vite's API proxy. */
 export const api = (identity: DevelopmentIdentity = "anonymous" as DevelopmentIdentity) =>
   createApiClient({
-    baseUrl: import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
+    baseUrl: apiOrigin(),
     identity,
     fetch: authenticatedFetch,
+  });
+
+/** Explicit public reads cannot inherit account or guest credentials. */
+export const publicApi = () =>
+  createApiClient({
+    baseUrl: apiOrigin(),
+    fetch: (input, init) => {
+      const request = new Request(input, { ...init, credentials: "omit" });
+      request.headers.delete("Authorization");
+      request.headers.delete("Cookie");
+      request.headers.delete("X-Dev-User");
+      return fetch(request);
+    },
   });
 
 /** Turns typed API error responses into messages suitable for the workspace. */
