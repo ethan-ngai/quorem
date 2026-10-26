@@ -217,3 +217,45 @@ it("does not initialize a newly resolved account from expired public details", a
   expect(requests).toHaveLength(2);
   expect(requests[1]!.headers.get("Authorization")).toBe("Bearer account-a");
 });
+
+it("resolves a signed-out private library empty without contacting an implicitly privileged local server", async () => {
+  const cache = client();
+  const inheritedOwnerFetch = vi.fn(() => Promise.resolve(Response.json(page([privateProblem]))));
+  vi.stubGlobal("fetch", inheritedOwnerFetch);
+  const observer = new QueryObserver(
+    cache,
+    catalogQueryOptions(cache, undefined, { library: "private" }),
+  );
+  const stop = observer.subscribe(() => {});
+  expect(observer.getCurrentResult().data).toBeUndefined();
+  expect(inheritedOwnerFetch).not.toHaveBeenCalled();
+  observer.setOptions(catalogQueryOptions(cache, "anonymous", { library: "private" }));
+  await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+  expect(observer.getCurrentResult().data).toEqual({
+    items: [],
+    topics: [],
+    total: 0,
+    page: 1,
+    limit: 20,
+  });
+  expect(inheritedOwnerFetch).not.toHaveBeenCalled();
+  expect(auth.calls).toBe(0);
+  expect(
+    cache.getQueryData(problemQueryOptions(cache, "anonymous", privateProblem.slug).queryKey),
+  ).toBeUndefined();
+  stop();
+});
+
+it("uses the credential-free catalog transport only with an explicit global filter", async () => {
+  const cache = client();
+  for (const identity of [undefined, "anonymous" as const, actor("account-a")]) {
+    for (const library of [undefined, "global" as const, "private" as const]) {
+      const options = catalogQueryOptions(cache, identity, { library });
+      if (options.enabled) await cache.fetchQuery(options);
+    }
+  }
+  for (const request of requests) {
+    if (!request.headers.has("Authorization"))
+      expect(new URL(request.url).searchParams.get("library")).toBe("global");
+  }
+});
