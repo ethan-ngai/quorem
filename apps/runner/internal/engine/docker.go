@@ -112,7 +112,12 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		budget = compilationBudget
 	}
 	var fatal *frame
-	for i, c := range spec.Cases {
+	cases := append([]worker.Case{}, spec.Cases...)
+	if spec.Kind == "submit" {
+		cases = append(cases, spec.SubmitSamples...)
+	}
+	for i, c := range cases {
+		sample := i >= len(spec.Cases)
 		if ctx.Err() != nil {
 			return result, ctx.Err()
 		}
@@ -144,32 +149,39 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 				}
 				if bytes.Equal(actual, expected) {
 					status = "accepted"
-					passed++
+					if !sample {
+						passed++
+					}
 				} else {
 					status = "wrong_answer"
 				}
 			} else {
-				allCompared = false
+				if !sample {
+					allCompared = false
+				}
 			}
 		}
-		if status != "accepted" && status != "executed" && result.Verdict == "" {
+		if !sample && status != "accepted" && status != "executed" && result.Verdict == "" {
 			result.Verdict = execution.Verdict(status)
 		}
-		if spec.Kind == "submit" {
+		if spec.Kind == "submit" && !sample {
 			hiddenStatus := execution.WrongAnswer
 			if status == "accepted" || status == "time_limit" {
 				hiddenStatus = execution.Verdict(status)
 			}
 			result.HiddenCases = append(result.HiddenCases, execution.HiddenCaseResult{Index: i, Status: hiddenStatus})
 		}
-		if spec.Kind == "run" || spec.PrivateDetails {
+		if spec.Kind == "run" || spec.PrivateDetails || sample {
 			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
 			if f.Line > 0 {
 				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
 			}
 			public.Stdout = f.Stdout
 			public.Stderr = f.Stderr
-			if spec.Kind == "run" {
+			if sample {
+				public.Index = i - len(spec.Cases)
+				result.SubmitSampleResults = append(result.SubmitSampleResults, public)
+			} else if spec.Kind == "run" {
 				result.PublicCaseResults = append(result.PublicCaseResults, public)
 			} else {
 				result.PrivateCaseResults = append(result.PrivateCaseResults, public)

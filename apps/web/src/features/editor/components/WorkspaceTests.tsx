@@ -77,7 +77,7 @@ export function WorkspaceTests({
                   name={
                     tab === "custom"
                       ? "custom"
-                      : submission?.hiddenCases?.length
+                      : submission?.hiddenCases?.length && !submission.publicCases?.length
                         ? "lock"
                         : "samples"
                   }
@@ -86,7 +86,7 @@ export function WorkspaceTests({
                   ? "Examples"
                   : tab === "custom"
                     ? "Custom cases"
-                    : submission?.hiddenCases?.length
+                    : submission?.hiddenCases?.length && !submission.publicCases?.length
                       ? "Hidden cases"
                       : "Examples"}
               </button>
@@ -115,7 +115,8 @@ export function WorkspaceTests({
             hidden={selected !== (tab === "custom")}
           >
             <TestCases
-              key={`${problem.id}:${tab}`}
+              key={`${problem.id}:${tab}:${progress?.level ?? ""}`}
+              currentCaseGroup={progress ? `Step ${progress.level}` : undefined}
               caseGroups={progress?.levels.flatMap((level, index) =>
                 level.examples.map(() => `Step ${index + 1}`),
               )}
