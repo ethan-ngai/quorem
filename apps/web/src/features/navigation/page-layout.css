@@ -1,5 +1,5 @@
 .page-layout {
-  --page-footer-height: 48px;
+  --page-footer-height: 56px;
   --page-height: calc(100dvh - var(--page-footer-height));
   display: flex;
   flex-direction: column;
@@ -20,6 +20,6 @@
 }
 @media (max-width: 620px) {
   .page-layout {
-    --page-footer-height: 76px;
+    --page-footer-height: 84px;
   }
 }
