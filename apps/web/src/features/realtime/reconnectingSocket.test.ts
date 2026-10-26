@@ -124,3 +124,17 @@ it("rotates before the authenticated bearer expires and reacquires a fresh token
   expect(Socket.instances[1]!.protocols).toContain("bearer.refreshed");
   connection.stop();
 });
+
+it("rotates using its own bearer expiry when another request refreshes during handshake", async () => {
+  vi.mocked(tokenExpiresAt).mockReturnValue(Date.now() + 60_000);
+  const { connection } = setup();
+  connection.start();
+  await Promise.resolve();
+  vi.mocked(tokenExpiresAt).mockReturnValue(Date.now() + 300_000);
+  Socket.instances[0]!.onopen?.();
+  vi.mocked(token).mockResolvedValue("refreshed");
+  await vi.advanceTimersByTimeAsync(30_001);
+  expect(Socket.instances).toHaveLength(2);
+  expect(Socket.instances[1]!.protocols).toContain("bearer.refreshed");
+  connection.stop();
+});
