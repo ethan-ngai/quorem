@@ -75,3 +75,30 @@ run "reject_runtime_override" {
   }
   expect_failures = [var.auth_environment]
 }
+
+run "alternate_auth_providers" {
+  command = plan
+  variables {
+    auth_environment = {
+      AUTH_MODE = "cognito"
+      AUTH_LOGIN_ONLY = "false"
+      COGNITO_CLIENT_ID = "fixture-id"
+      COGNITO_CLIENT_SECRET = "fixture-secret"
+      COGNITO_DOMAIN = "auth.example.com"
+      COGNITO_REGION = "us-east-1"
+      COGNITO_USERPOOL_ID = "fixture-pool"
+      AUTH_EMAIL_DRIVER = "cloudflare"
+      AUTH_EMAIL_FROM = "accounts@example.com"
+      AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      AUTH_EMAIL_CLOUDFLARE_API_TOKEN = "fixture-token"
+    }
+  }
+  assert {
+    condition = local.runtime.AUTH_MODE == "cognito" && local.runtime.COGNITO_CLIENT_SECRET == "fixture-secret" && local.runtime.AUTH_EMAIL_CLOUDFLARE_API_TOKEN == "fixture-token"
+    error_message = "Selected provider settings must reach the application runtime."
+  }
+  assert {
+    condition = !contains(keys(local.judge_runtime), "COGNITO_CLIENT_SECRET") && !contains(keys(local.judge_runtime), "AUTH_EMAIL_CLOUDFLARE_API_TOKEN")
+    error_message = "Provider secrets must not reach judges."
+  }
+}

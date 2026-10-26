@@ -216,6 +216,18 @@ jobs:
         run: node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
       - name: Configure production email and social providers
         env:
+          AUTH_MODE: ${{ vars.AUTH_MODE }}
+          AUTH_EMAIL_DRIVER: ${{ vars.AUTH_EMAIL_DRIVER }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          AUTH_EMAIL_SES_REGION: ${{ vars.AUTH_EMAIL_SES_REGION }}
+          AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID: ${{ vars.AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID }}
+          AUTH_EMAIL_CLOUDFLARE_API_TOKEN: ${{ secrets.AUTH_EMAIL_CLOUDFLARE_API_TOKEN }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          COGNITO_CLIENT_SECRET: ${{ secrets.COGNITO_CLIENT_SECRET }}
+          COGNITO_DOMAIN: ${{ vars.COGNITO_DOMAIN }}
+          COGNITO_REGION: ${{ vars.COGNITO_REGION }}
+          COGNITO_USERPOOL_ID: ${{ vars.COGNITO_USERPOOL_ID }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
