@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
 	"strings"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
@@ -14,12 +15,12 @@ func (s *Store) InterviewDocument(ctx context.Context, user, id string) (intervi
 }
 func (s *Store) InterviewUpdates(ctx context.Context, user, id, epoch string, version int64) (interviews.Updates, error) {
 	var out interviews.Updates
-	tx, err := s.Pool.Begin(ctx)
+	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return out, err
 	}
 	defer tx.Rollback(ctx)
-	v, err := lockInterview(ctx, tx, user, id, false, false)
+	v, err := interviewDocumentState(ctx, tx, user, id, false, false)
 	if err != nil {
 		return out, err
 	}
@@ -58,7 +59,7 @@ func (s *Store) PushInterviewUpdates(ctx context.Context, user, id, key string, 
 		return out, err
 	}
 	defer tx.Rollback(ctx)
-	v, err := lockInterview(ctx, tx, user, id, false, true)
+	v, err := interviewDocumentState(ctx, tx, user, id, true, true)
 	if err != nil {
 		return out, err
 	}
@@ -98,4 +99,32 @@ func (s *Store) PushInterviewUpdates(ctx context.Context, user, id, key string, 
 		return out, err
 	}
 	return out, tx.Commit(ctx)
+}
+
+// Hot document/presence paths need access and version state, never the private question fixture.
+func interviewDocumentState(ctx context.Context, tx pgx.Tx, user, id string, active, lock bool) (interviewRecord, error) {
+	var v interviewRecord
+	var enabled bool
+	lockClause := ""
+	if lock {
+		lockClause = " FOR NO KEY UPDATE OF i"
+	}
+	err := tx.QueryRow(ctx, `SELECT i.state,CASE WHEN $3 THEN i.source ELSE '' END,i.document_version,i.document_epoch,
+	EXISTS(SELECT 1 FROM entitlement_grants g WHERE g.user_id=i.host_id AND g.feature IN ('internal','interviews.host') AND g.revoked_at IS NULL AND g.valid_from<=clock_timestamp() AND (g.expires_at IS NULL OR g.expires_at>clock_timestamp()))
+	FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL
+	JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id AND NOT h.disabled
+	WHERE i.id::text=$1 AND i.deleted_at IS NULL`+lockClause, id, user, active).Scan(&v.snapshot.State, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &enabled)
+	if err == pgx.ErrNoRows {
+		return v, failure("not_found", 404, "Interview unavailable")
+	}
+	if err != nil {
+		return v, err
+	}
+	if active && v.snapshot.State != "active" {
+		return v, failure("invalid_transition", 409, "Interview is closed")
+	}
+	if active && !enabled {
+		return v, failure("entitlement_required", 403, "Interview access is disabled")
+	}
+	return v, nil
 }

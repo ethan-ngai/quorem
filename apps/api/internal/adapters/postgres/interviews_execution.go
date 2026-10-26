@@ -124,12 +124,12 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 }
 func (s *Store) InterviewSubmission(ctx context.Context, user, id, submissionID string) (judging.Submission, error) {
 	var out judging.Submission
-	tx, err := s.Pool.Begin(ctx)
+	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return out, err
 	}
 	defer tx.Rollback(ctx)
-	v, err := lockInterview(ctx, tx, user, id, false, false)
+	v, err := loadInterview(ctx, tx, user, id, false, false, false)
 	if err != nil {
 		return out, err
 	}

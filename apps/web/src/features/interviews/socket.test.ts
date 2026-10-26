@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createInterviewSocket } from "./socket";
 import { token } from "../auth/session";
-vi.mock("../auth/session", () => ({ token: vi.fn(async () => "signed-token") }));
+vi.mock("../auth/session", () => ({
+  token: vi.fn(async () => "signed-token"),
+  tokenExpiresAt: vi.fn(),
+}));
 class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];
@@ -63,7 +66,10 @@ describe("interview socket", () => {
     await expect(response).resolves.toEqual({ version: 1 });
     socket.frame({ type: "changed", kind: "interview.document" });
     expect(changed).toHaveBeenLastCalledWith("interview.document");
-    await vi.advanceTimersByTimeAsync(60_000);
+    for (let tick = 0; tick < 6; tick++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+      socket.frame({ type: "changed" });
+    }
     expect(socket.sent).toHaveLength(1);
     transport.stop();
   });
@@ -103,6 +109,23 @@ describe("interview socket", () => {
       status: 500,
       message: "Interview request failed. Your code is still here.",
     });
+    transport.stop();
+  });
+  it("times out one advisory request without closing healthy document transport", async () => {
+    const transport = createInterviewSocket("room");
+    transport.start();
+    await Promise.resolve();
+    const socket = Socket.instances[0]!;
+    socket.open();
+    const response = transport.request("peers");
+    const rejected = expect(response).rejects.toThrow("timed out");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejected;
+    expect(socket.readyState).toBe(Socket.OPEN);
+    const push = transport.request("push", { key: "unchanged-retry-key" });
+    const frame = JSON.parse(socket.sent.at(-1)!);
+    socket.frame({ type: "response", id: frame.id, value: { version: 1 } });
+    await expect(push).resolves.toEqual({ version: 1 });
     transport.stop();
   });
   it("fences an old token lookup across stop/start", async () => {

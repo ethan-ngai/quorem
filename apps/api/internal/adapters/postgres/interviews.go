@@ -23,11 +23,19 @@ type interviewRecord struct {
 }
 
 func lockInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, active bool) (interviewRecord, error) {
+	return loadInterview(ctx, tx, user, id, manage, active, true)
+}
+
+func loadInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, active, lock bool) (interviewRecord, error) {
 	var v interviewRecord
 	var data []byte
 	var disabled bool
 	var complexityLanguages []string
-	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled,i.monitoring,i.admission_locked,ARRAY(SELECT ps.language FROM problem_solutions ps WHERE ps.version_id=NULLIF(i.question->'problem'->>'id','')::uuid AND COALESCE(i.question->'problem'->'odyssey','null'::jsonb)='null'::jsonb AND btrim(ps.time_complexity)<>'' AND btrim(ps.space_complexity)<>'' ORDER BY ps.language) FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 AND i.deleted_at IS NULL FOR UPDATE OF i`, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled, &v.snapshot.Monitoring, &v.snapshot.AdmissionLocked, &complexityLanguages)
+	lockClause := ""
+	if lock {
+		lockClause = " FOR NO KEY UPDATE OF i"
+	}
+	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled,i.monitoring,i.admission_locked,ARRAY(SELECT ps.language FROM problem_solutions ps WHERE ps.version_id=NULLIF(i.question->'problem'->>'id','')::uuid AND COALESCE(i.question->'problem'->'odyssey','null'::jsonb)='null'::jsonb AND btrim(ps.time_complexity)<>'' AND btrim(ps.space_complexity)<>'' ORDER BY ps.language) FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id::text=$1 AND i.deleted_at IS NULL`+lockClause, id, user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled, &v.snapshot.Monitoring, &v.snapshot.AdmissionLocked, &complexityLanguages)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Interview unavailable")
 	}
@@ -146,12 +154,12 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 	return out, rows.Err()
 }
 func (s *Store) Interview(ctx context.Context, user, id string) (interviews.Snapshot, error) {
-	tx, err := s.Pool.Begin(ctx)
+	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return interviews.Snapshot{}, err
 	}
 	defer tx.Rollback(ctx)
-	v, err := lockInterview(ctx, tx, user, id, false, false)
+	v, err := loadInterview(ctx, tx, user, id, false, false, false)
 	if err != nil {
 		return interviews.Snapshot{}, err
 	}

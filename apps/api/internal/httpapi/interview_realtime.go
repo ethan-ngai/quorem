@@ -2,10 +2,14 @@ package httpapi
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -48,6 +52,16 @@ func (s *Server) interviewEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.CloseNow()
+	var closeCode atomic.Int64
+	closeCode.Store(int64(websocket.StatusNormalClosure))
+	var closeReason atomic.Value
+	closeReason.Store("handler ended")
+	closeSocket := func(code websocket.StatusCode, reason string) {
+		closeCode.Store(int64(code))
+		closeReason.Store(reason)
+		c.Close(code, reason)
+	}
+	defer func() { log.Printf("Interview socket closed code=%d reason=%s", closeCode.Load(), closeReason.Load()) }()
 	c.SetReadLimit(256 << 10)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -59,30 +73,10 @@ func (s *Server) interviewEvents(w http.ResponseWriter, r *http.Request) {
 	defer stop()
 	disconnect, err := s.Presence.Connect(topic, user)
 	if err != nil {
-		c.Close(websocket.StatusTryAgainLater, "Connection capacity reached")
+		closeSocket(websocket.StatusTryAgainLater, "Connection capacity reached")
 		return
 	}
 	defer disconnect()
-	commands := make(chan interviewCommand, 1)
-	go func() {
-		defer cancel()
-		for {
-			_, body, e := c.Read(ctx)
-			if e != nil {
-				return
-			}
-			var command interviewCommand
-			if json.Unmarshal(body, &command) != nil || len(command.ID) == 0 || len(command.ID) > 128 {
-				c.Close(websocket.StatusPolicyViolation, "Invalid command")
-				return
-			}
-			select {
-			case commands <- command:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 	write := func(value any) error {
 		data, e := json.Marshal(value)
 		if e != nil {
@@ -90,13 +84,24 @@ func (s *Server) interviewEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		attempt, done := context.WithTimeout(ctx, 5*time.Second)
 		defer done()
-		return c.Write(attempt, websocket.MessageText, data)
+		if err := c.Write(attempt, websocket.MessageText, data); err != nil {
+			closeCode.Store(int64(websocket.CloseStatus(err)))
+			closeReason.Store("write failed")
+			return err
+		}
+		return nil
 	}
 	bearer, _ := requestBearer(r)
-	credentials := func() error {
+	verifyCredentials := func(attempt context.Context) error {
 		if bearer != "" {
-			p, e := s.Identity.Verify(ctx, bearer)
-			if e != nil || p.UserID != user {
+			if s.Identity == nil {
+				return identity.ErrUnauthorized
+			}
+			p, e := s.Identity.Verify(attempt, bearer)
+			if e != nil {
+				return e
+			}
+			if p.UserID != user {
 				return identity.ErrUnauthorized
 			}
 		}
@@ -105,61 +110,122 @@ func (s *Server) interviewEvents(w http.ResponseWriter, r *http.Request) {
 			if e != nil {
 				return identity.ErrUnauthorized
 			}
-			p, e := repo.InterviewGuestIdentity(ctx, cookie.Value)
-			if e != nil || p.UserID != user {
+			p, e := repo.InterviewGuestIdentity(attempt, cookie.Value)
+			if e != nil {
+				return e
+			}
+			if p.UserID != user {
 				return identity.ErrUnauthorized
 			}
 		}
 		return nil
 	}
-	authorize := func() error {
-		if err := credentials(); err != nil {
+	var credentialMu sync.Mutex
+	var checkedUntil time.Time
+	var bearerExpiry time.Time
+	if parts := strings.Split(bearer, "."); len(parts) == 3 {
+		var claims struct {
+			Expiry int64 `json:"exp"`
+		}
+		if data, e := base64.RawURLEncoding.DecodeString(parts[1]); e == nil && json.Unmarshal(data, &claims) == nil && claims.Expiry > 0 {
+			bearerExpiry = time.Unix(claims.Expiry, 0)
+		}
+	}
+	credentials := func(attempt context.Context) error {
+		credentialMu.Lock()
+		defer credentialMu.Unlock()
+		if time.Now().Before(checkedUntil) {
+			return nil
+		}
+		if err := verifyCredentials(attempt); err != nil {
 			return err
 		}
-		_, err := repo.Interview(ctx, user, id)
+		// Bound session-service amplification; repository membership checks still run per command.
+		checkedUntil = time.Now().Add(2 * time.Second)
+		if !bearerExpiry.IsZero() && bearerExpiry.Before(checkedUntil) {
+			checkedUntil = bearerExpiry
+		}
+		return nil
+	}
+	authorize := func() error {
+		attempt, done := context.WithTimeout(ctx, 5*time.Second)
+		defer done()
+		if err := credentials(attempt); err != nil {
+			return err
+		}
+		_, err := repo.InterviewPresence(attempt, user, id)
 		return err
+	}
+	denied := func(err error) bool {
+		var known *application.Error
+		return errors.Is(err, identity.ErrUnauthorized) || (errors.As(err, &known) && (known.Status == 401 || known.Status == 403 || known.Status == 404))
 	}
 	if err = write(map[string]any{"type": "changed"}); err != nil {
 		return
 	}
-	credits, lastCommand := 120.0, time.Now()
-	heartbeat := time.NewTicker(10 * time.Second)
-	defer heartbeat.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case notice, open := <-notices:
-			if !open {
+	commands := make(chan interviewCommand, 16)
+	advisory := make(chan interviewCommand, 16)
+	go func() {
+		defer cancel()
+		credits, lastCommand := 120.0, time.Now()
+		for {
+			_, data, err := c.Read(ctx)
+			if err != nil {
+				closeCode.Store(int64(websocket.CloseStatus(err)))
+				closeReason.Store("read ended")
 				return
 			}
-			if authorize() != nil {
-				c.Close(websocket.StatusPolicyViolation, "Interview access changed")
+			var command interviewCommand
+			if json.Unmarshal(data, &command) != nil || len(command.ID) == 0 || len(command.ID) > 128 {
+				closeSocket(websocket.StatusPolicyViolation, "Invalid command")
 				return
 			}
-			if write(map[string]any{"type": "changed", "kind": notice.Type}) != nil {
-				return
-			}
-		case command := <-commands:
 			now := time.Now()
-			credits += now.Sub(lastCommand).Seconds() * 60
+			credits = min(120, credits+now.Sub(lastCommand).Seconds()*60)
 			lastCommand = now
-			if credits > 120 {
-				credits = 120
-			}
 			if credits < 1 {
-				c.Close(websocket.StatusPolicyViolation, "Command rate exceeded")
+				closeSocket(websocket.StatusPolicyViolation, "Command rate exceeded")
 				return
 			}
 			credits--
-			// Repository commands authorize membership and role inside their own transaction.
-			if credentials() != nil {
-				c.Close(websocket.StatusPolicyViolation, "Interview access changed")
-				return
+			lane := advisory
+			if command.Type == "push" || command.Type == "pull" || command.Type == "rule-event" {
+				lane = commands
 			}
-			var value any
-			var e error
-			attempt, done := context.WithTimeout(ctx, 5*time.Second)
+			select {
+			case lane <- command:
+			case <-ctx.Done():
+				return
+			default:
+				if write(map[string]any{"type": "response", "id": command.ID, "error": map[string]any{"code": "temporarily_unavailable", "status": 503, "message": "Interview busy; retry"}}) != nil {
+					return
+				}
+			}
+		}
+	}()
+	execute := func(command interviewCommand) bool {
+		started := time.Now()
+		defer func() {
+			if elapsed := time.Since(started); elapsed >= 250*time.Millisecond {
+				kind := command.Type
+				switch kind {
+				case "pull", "push", "presence", "peers", "submission", "rule-event", "snapshot":
+				default:
+					kind = "unknown"
+				}
+				log.Printf("Interview socket slow command=%s duration_ms=%d", kind, elapsed.Milliseconds())
+			}
+		}()
+		// Repository commands authorize membership and role inside their own transaction.
+		attempt, done := context.WithTimeout(ctx, 5*time.Second)
+		defer done()
+		var value any
+		e := credentials(attempt)
+		if denied(e) {
+			closeSocket(websocket.StatusPolicyViolation, "Interview access changed")
+			return false
+		}
+		if e == nil {
 			switch command.Type {
 			case "pull":
 				value, e = repo.InterviewUpdates(attempt, user, id, command.Epoch, command.Version)
@@ -183,34 +249,92 @@ func (s *Server) interviewEvents(w http.ResponseWriter, r *http.Request) {
 			default:
 				e = &application.Error{Code: "invalid_input", Status: 400, Message: "Unknown command"}
 			}
-			done()
-			response := map[string]any{"id": command.ID, "type": "response"}
-			if e != nil {
-				safe := &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Interview unavailable"}
-				var known *application.Error
-				if errors.As(e, &known) {
-					safe = known
+		}
+		done()
+		response := map[string]any{"id": command.ID, "type": "response"}
+		if e != nil {
+			safe := &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Interview unavailable"}
+			var known *application.Error
+			if errors.As(e, &known) {
+				safe = known
+			}
+			response["error"] = map[string]any{"code": safe.Code, "status": safe.Status, "message": safe.Message}
+		} else {
+			response["value"] = value
+		}
+		if write(response) != nil {
+			return false
+		}
+
+		return true
+	}
+	for _, lane := range []<-chan interviewCommand{commands, advisory} {
+		go func() {
+			defer cancel()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case command := <-lane:
+					if !execute(command) {
+						return
+					}
 				}
-				response["error"] = map[string]any{"code": safe.Code, "status": safe.Status, "message": safe.Message}
-			} else {
-				response["value"] = value
 			}
-			if write(response) != nil {
+		}()
+	}
+	// Transport liveness must not wait for command, authorization or fanout database work.
+	go func() {
+		defer cancel()
+		heartbeat := time.NewTicker(10 * time.Second)
+		defer heartbeat.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-heartbeat.C:
+				ping, done := context.WithTimeout(ctx, 5*time.Second)
+				pingErr := c.Ping(ping)
+				done()
+				if pingErr != nil {
+					closeCode.Store(int64(websocket.CloseStatus(pingErr)))
+					closeReason.Store("heartbeat failed")
+					return
+				}
+				if write(map[string]any{"type": "heartbeat"}) != nil {
+					return
+				}
+				if access := authorize(); access != nil {
+					if denied(access) {
+						closeSocket(websocket.StatusPolicyViolation, "Interview access changed")
+						return
+					}
+					continue
+				}
+				// Also repairs notices lost by a managed fanout connection without HTTP polling.
+				if write(map[string]any{"type": "changed"}) != nil {
+					return
+				}
+			}
+		}
+	}()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case notice, open := <-notices:
+			if !open {
+				closeSocket(websocket.StatusTryAgainLater, "Realtime temporarily unavailable")
 				return
 			}
-		case <-heartbeat.C:
-			if authorize() != nil {
-				c.Close(websocket.StatusPolicyViolation, "Interview access changed")
-				return
+			if access := authorize(); access != nil {
+				if denied(access) {
+					closeSocket(websocket.StatusPolicyViolation, "Interview access changed")
+					return
+				}
+				continue
 			}
-			ping, done := context.WithTimeout(ctx, 5*time.Second)
-			err = c.Ping(ping)
-			done()
-			if err != nil {
-				return
-			}
-			// Also repairs notices lost by a managed fanout connection without HTTP polling.
-			if write(map[string]any{"type": "changed"}) != nil {
+			if write(map[string]any{"type": "changed", "kind": notice.Type}) != nil {
 				return
 			}
 		}
@@ -227,7 +351,7 @@ func (s *Server) startInterviewRealtime(ctx context.Context) {
 		return
 	}
 	go func() {
-		tick := time.NewTicker(5 * time.Second)
+		tick := time.NewTicker(time.Second)
 		defer tick.Stop()
 		var wake <-chan struct{}
 		var stop func()
@@ -248,6 +372,7 @@ func (s *Server) startInterviewRealtime(ctx context.Context) {
 			wake, stop, err = repo.InterviewEventNotifications(ctx)
 			if err != nil {
 				wake = nil
+				log.Print("Interview database notifications unavailable; using bounded outbox recovery")
 			}
 		}
 		connect()

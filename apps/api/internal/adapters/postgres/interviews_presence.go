@@ -10,12 +10,12 @@ import (
 )
 
 func (s *Store) InterviewPresence(ctx context.Context, user, id string) ([]interviews.Presence, error) {
-	tx, err := s.Pool.Begin(ctx)
+	tx, err := s.Pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	if _, err = lockInterview(ctx, tx, user, id, false, false); err != nil {
+	if _, err = interviewDocumentState(ctx, tx, user, id, false, false); err != nil {
 		return nil, err
 	}
 	return readInterviewPresence(ctx, tx, id)
@@ -42,7 +42,11 @@ func (s *Store) UpdateInterviewPresence(ctx context.Context, user, id string, p 
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	v, err := lockInterview(ctx, tx, user, id, false, true)
+	// Only this actor's window quota needs serialization; document writes stay independent.
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('interview-presence:' || $1 || ':' || $2,0))`, id, user); err != nil {
+		return nil, err
+	}
+	v, err := interviewDocumentState(ctx, tx, user, id, true, false)
 	if err != nil {
 		return nil, err
 	}

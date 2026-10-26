@@ -308,3 +308,63 @@ func interviewAppSyncFixture(t *testing.T) realtime.PubSub {
 	t.Cleanup(server.Close)
 	return &eventbus.AppSync{HTTPURL: server.URL, WebSocketURL: strings.Replace(server.URL, "http", "ws", 1), APIKey: "server-only"}
 }
+
+func TestInterviewSocketReadsContinueWhileDocumentWriteWaits(t *testing.T) {
+	store := streamStore(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if _, err := store.Pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'alice','interviews.host','manual','concurrent','test','test'),(gen_random_uuid(),'alice','questions.custom','manual','concurrent','test','test')`); err != nil {
+		t.Fatal(err)
+	}
+	q := interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Increment", StatementMarkdown: "Increment n.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, StarterSource: "class Solution:\n    def increment(self, n):\n        pass\n", PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}, PrivateCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`2`)}, Expected: json.RawMessage(`3`)}}}}
+	pad, err := store.CreateInterview(ctx, "alice", postgres.ID(), interviews.Create{Title: "Concurrent socket", Question: q})
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := &Server{Store: store, Local: true, Events: realtime.NewMemory()}
+	server := httptest.NewServer(api.Handler())
+	defer server.Close()
+	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/v1/interviews/"+pad.ID+"/events", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": []string{"http://localhost:5173"}, "X-Dev-User": []string{"alice"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+	tx, err := store.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, "SELECT id FROM interviews WHERE id=$1 FOR NO KEY UPDATE", pad.ID); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(map[string]any{"id": "waiting-write", "type": "push", "key": postgres.ID(), "push": interviews.Push{Epoch: pad.Document.Epoch, Version: pad.Document.Version, Updates: []interviews.Update{{ClientID: "writer", Changes: json.RawMessage(`[0,"# hello\n"]`)}}}})
+	if err = c.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = json.Marshal(map[string]any{"id": "independent-read", "type": "snapshot"})
+	if err = c.Write(ctx, websocket.MessageText, data); err != nil {
+		t.Fatal(err)
+	}
+	deadline, done := context.WithTimeout(ctx, time.Second)
+	defer done()
+	for {
+		_, data, err = c.Read(deadline)
+		if err != nil {
+			t.Fatalf("read queued behind document lock: %v", err)
+		}
+		var frame struct {
+			ID    string
+			Value interviews.Snapshot
+			Error json.RawMessage
+		}
+		if err = json.Unmarshal(data, &frame); err != nil {
+			t.Fatal(err)
+		}
+		if frame.ID == "independent-read" {
+			if len(frame.Error) > 0 || frame.Value.ID != pad.ID {
+				t.Fatalf("bad snapshot: %s", data)
+			}
+			break
+		}
+	}
+}
