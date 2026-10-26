@@ -9,6 +9,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
+	"github.com/ethan-ngai/quorem/internal/execution"
 	"io"
 	"log"
 	"net"
@@ -302,12 +303,12 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body judging.Command
-	if !s.decode(w, r, &body, 600000) {
+	if !s.decode(w, r, &body, execution.MaxCustomCasesBytes+512*1024) {
 		return
 	}
 	key := r.Header.Get("Idempotency-Key")
 	custom, _ := json.Marshal(body.CustomCases)
-	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > 65536 || len(body.CustomCases) > 20 || (body.CustomCases != nil && len(body.CustomCases) == 0) {
+	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > execution.MaxCustomCasesBytes || len(body.CustomCases) > 20 || (body.CustomCases != nil && len(body.CustomCases) == 0) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid execution command", Status: 400})
 		return
 	}

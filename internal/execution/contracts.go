@@ -9,6 +9,9 @@ import (
 const HarnessRevision = "quorem-harness-v2"
 const RuntimeRevision = "python-3.12-v1"
 
+const MaxInputElements = 100000
+const MaxCustomCasesBytes = 2 << 20
+
 //go:embed public/quorem_types.py
 var PublicPythonDeclarations string
 
