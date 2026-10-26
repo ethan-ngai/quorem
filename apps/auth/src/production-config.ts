@@ -18,8 +18,13 @@ export function productionAuthEnvironment(env: NodeJS.ProcessEnv): Record<string
     }
     for (const key of mailKeys) if (env[key]) runtime[key] = env[key]!;
   }
-  if ((env.AUTH_MODE ?? "password") === "password")
-    runtime.AUTH_LOGIN_ONLY = mailConfigured ? "false" : "true";
+  const mode = env.AUTH_MODE || "password";
+  if (env.AUTH_MODE) runtime.AUTH_MODE = env.AUTH_MODE;
+  runtime.AUTH_LOGIN_ONLY = mode === "password" && !mailConfigured ? "true" : "false";
+  if (mode === "cognito") {
+    for (const key of ["COGNITO_CLIENT_ID", "COGNITO_CLIENT_SECRET", "COGNITO_DOMAIN",
+      "COGNITO_REGION", "COGNITO_USERPOOL_ID"]) if (env[key]) runtime[key] = env[key]!;
+  }
   for (const provider of ["GOOGLE", "GITHUB"]) {
     for (const field of ["CLIENT_ID", "CLIENT_SECRET"]) {
       // GitHub repository secrets cannot use a GITHUB_ prefix.
@@ -35,12 +40,13 @@ export function productionAuthConfiguration(
   env: NodeJS.ProcessEnv,
   runtime: Record<string, string>,
 ) {
+  const populated = Object.fromEntries(Object.entries(env).filter(([, value]) => value !== ""));
   return configuration({
     AUTH_DATABASE_URL: "postgres://configuration-only",
-    ...env,
+    ...populated,
     ...runtime,
     APP_ENV: "production",
-    AUTH_MODE: env.AUTH_MODE ?? "password",
+    AUTH_MODE: env.AUTH_MODE || "password",
     AUTH_PASSWORD_PRODUCTION: "true",
   });
 }

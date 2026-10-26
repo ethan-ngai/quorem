@@ -18,6 +18,16 @@ describe("production auth composition", () => {
     expect(productionAuthEnvironment(base)).toEqual({ AUTH_LOGIN_ONLY: "true" });
   });
 
+  it("treats unset Actions variables as absent", () => {
+    const empty = { AUTH_MODE: "", AUTH_EMAIL_DRIVER: "", SMTP_HOST: "", SMTP_PORT: "",
+      SMTP_USERNAME: "", SMTP_PASSWORD: "", AUTH_EMAIL_FROM: "", AUTH_EMAIL_SES_REGION: "",
+      AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID: "", AUTH_EMAIL_CLOUDFLARE_API_TOKEN: "" };
+    expect(productionAuthEnvironment({ ...base, ...empty })).toEqual({ AUTH_LOGIN_ONLY: "true" });
+    const configured = { ...base, ...empty, ...smtp, AUTH_EMAIL_DRIVER: "smtp", SMTP_HOST: "smtp.example.com" };
+    const runtime = productionAuthEnvironment(configured);
+    expect(productionAuthConfiguration(configured, runtime).mail).toMatchObject({ port: 465 });
+  });
+
   it("enables registration through authenticated Purelymail TLS", () => {
     const runtime = productionAuthEnvironment({ ...base, ...smtp });
     const config = configuration({
@@ -68,7 +78,8 @@ describe("production auth composition", () => {
       COGNITO_CLIENT_SECRET: "secret", COGNITO_DOMAIN: "domain", COGNITO_REGION: "region",
       COGNITO_USERPOOL_ID: "pool" };
     const runtime = productionAuthEnvironment(env);
-    expect(runtime).not.toHaveProperty("AUTH_LOGIN_ONLY");
+    expect(runtime.AUTH_LOGIN_ONLY).toBe("false");
+    expect(runtime.COGNITO_CLIENT_SECRET).toBe("secret");
     expect(productionAuthConfiguration(env, runtime).method).toBe("cognito");
   });
 

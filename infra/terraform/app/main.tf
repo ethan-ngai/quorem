@@ -123,12 +123,14 @@ variable "auth_environment" {
   default   = {}
   validation {
     condition = alltrue([for key in keys(var.auth_environment) : contains([
-      "AUTH_LOGIN_ONLY", "AUTH_EMAIL_DRIVER", "AUTH_EMAIL_FROM",
+      "AUTH_MODE", "AUTH_LOGIN_ONLY", "AUTH_EMAIL_DRIVER", "AUTH_EMAIL_FROM",
+      "AUTH_EMAIL_SES_REGION", "AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID", "AUTH_EMAIL_CLOUDFLARE_API_TOKEN",
+      "COGNITO_CLIENT_ID", "COGNITO_CLIENT_SECRET", "COGNITO_DOMAIN", "COGNITO_REGION", "COGNITO_USERPOOL_ID",
       "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD",
       "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_ID",
       "GITHUB_CLIENT_SECRET"
     ], key)])
-    error_message = "Only email and social provider settings belong in auth_environment."
+    error_message = "Only auth provider settings belong in auth_environment."
   }
 }
 variable "auth_public_config" {
