@@ -53,6 +53,7 @@ export function TestCases({
   caseResults?: readonly (PublicCaseResult | undefined)[];
 }) {
   const hiddenCases =
+    !problem.odyssey &&
     !caseResults &&
     !submission?.publicCases?.length &&
     !busy &&
@@ -79,8 +80,11 @@ export function TestCases({
     submission.state === "completed"
       ? submission.publicCases
       : undefined;
+  // Unlocked samples outlive a submission; hidden verdicts are a different indexed suite.
   const displayCases =
-    hiddenCases ?? (submission?.kind === "submit" ? undefined : recoveredCases) ?? problem.examples;
+    hiddenCases ??
+    (submission?.kind === "submit" || problem.odyssey ? undefined : recoveredCases) ??
+    problem.examples;
   const sampleIndex = Math.min(
     selectedSampleIndex ?? selectedSample,
     Math.max(0, displayCases.length - 1),
@@ -325,7 +329,7 @@ export function TestCases({
             {hiddenCases[sampleIndex]?.status === "time_limit" ? "Time limit exceeded" : null}
           </span>
         </div>
-      ) : recoveredCases?.length ? null : example?.calls?.length ? (
+      ) : recoveredCases?.[sampleIndex] ? null : example?.calls?.length ? (
         !result && <SequenceCaseValues problem={problem} calls={example.calls} />
       ) : example ? (
         <>

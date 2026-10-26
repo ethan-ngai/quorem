@@ -191,3 +191,51 @@ describe("authorized case details", () => {
     expect(html).not.toContain("private-actual");
   });
 });
+
+describe("advancing beyond the last executed Odyssey step", () => {
+  const previous: Submission = {
+    id: "previous-step",
+    workspaceId: "workspace",
+    kind: "submit",
+    state: "completed",
+    sourceHash: "source",
+    admittedAt: "2026-10-25T12:00:00Z",
+    updatedAt: "2026-10-25T12:00:01Z",
+    hiddenCases: Array.from({ length: 4 }, (_, index) => ({ index, status: "accepted" as const })),
+  };
+  function advanced(result: Submission) {
+    return renderToStaticMarkup(
+      <WorkspaceTests
+        problem={{ ...problem, odyssey: { levels: progress.levels.slice(0, 1) } }}
+        progress={progress}
+        submission={result}
+        busy={false}
+      />,
+    );
+  }
+  it("never maps legacy hidden verdicts onto newly unlocked public examples", () => {
+    const html = advanced(previous);
+    expect(html).toContain('aria-pressed="true" aria-label="Case 2"');
+    expect(html).not.toContain('aria-label="Case 2: accepted"');
+    expect(html).not.toContain("Hidden case");
+    expect(html).not.toContain('aria-label="Select hidden case"');
+    expect(html).toContain("Expected output");
+    expect(html).toContain(">9<");
+  });
+  it.each(["run", "submit"] as const)(
+    "retains %s results only for the executed prefix and displays the new step unrun",
+    (kind) => {
+      const html = advanced({
+        ...previous,
+        kind,
+        publicCases: [{ index: 0, status: "accepted", actual: [5], expected: [5] }],
+      });
+      expect(html).toContain('aria-label="Case 1: accepted"');
+      expect(html).toContain('aria-pressed="true" aria-label="Case 2"');
+      expect(html).not.toContain('aria-label="Case 2: accepted"');
+      expect(html).toContain("Expected output");
+      expect(html).toContain(">9<");
+      expect(html).not.toContain("Hidden case");
+    },
+  );
+});
