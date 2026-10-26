@@ -29,4 +29,22 @@ describe("shared API responses", () => {
       requireData(undefined, { error: { code: "room_full", message: "internal" } }),
     ).toThrow("This lobby is full.");
   });
+
+  it("distinguishes entitlement failures without exposing unapproved details", () => {
+    expect(() =>
+      requireData(undefined, {
+        error: { code: "entitlement_required", message: "Guest hosting is unavailable" },
+      }),
+    ).toThrow("Guest hosting requires an eligible plan or internal access.");
+    expect(() =>
+      requireData(undefined, {
+        error: { code: "entitlement_required", message: "Interview hosting is unavailable" },
+      }),
+    ).toThrow("Interview hosting is not enabled for this account.");
+    expect(() =>
+      requireData(undefined, {
+        error: { code: "entitlement_required", message: "private details" },
+      }),
+    ).toThrow("This feature is not enabled for this account.");
+  });
 });
