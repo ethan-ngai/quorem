@@ -44,7 +44,7 @@ The editor is the focal point. Optimize for reading, writing, testing and recove
 
 Use clear hierarchy and factual labels. Show information that helps someone decide or act. Omit ornamental eyebrows, repeated headings, routine connection/autosave chatter, internal IDs and fabricated progress. Present unavailable capabilities honestly.
 
-Preserve approved product language, branding and interactions. Quorem uses its supplied logo alone. Marketing retains “Code. Clash. Conquer.”, crossed swords and interactive dots. Treat references as evidence: inspect the actual app before claiming a match.
+Preserve approved product language, branding and interactions. Quorem uses its supplied logo for navigation. Marketing navigation centers its public links, separating same-page exploration from Practice and Create match with a divider and brighter, medium-weight app links; theme, Sign in and Get started sit on the right. On-page links collapse into the menu before Practice and Create match. Get started opens the existing registration flow. The marketing footer pairs the logo with the same wordmark artwork as the hero, sized for a compact horizontal lockup. The marketing hero uses Russo One outlines: squared bowls, a blocky m, a full-width lower e terminal and a custom stepped q tail drawn from the mark. Keep the wordmark compact, capped at 480px. Marketing uses “Compete beyond the algorithm” below the wordmark in upright regular Silkscreen, with wide blocky pixel letterforms, kept on one line with blue emphasis on “beyond”. Keep the hero copy to the wordmark, slogan and CTA; omit the description. Preserve the interactive dots. Treat references as evidence: inspect the actual app before claiming a match.
 
 ## Shared foundations
 
