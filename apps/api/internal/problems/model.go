@@ -79,6 +79,7 @@ type OdysseyProgress struct {
 type Problem struct {
 	SQL                 *SQLConfig               `json:"sql,omitempty"`
 	ComplexityLanguages []string                 `json:"complexityLanguages,omitempty"`
+	SolutionLanguages   []string                 `json:"solutionLanguages,omitempty"`
 	Odyssey             *Odyssey                 `json:"odyssey,omitempty"`
 	Languages           []LanguageImplementation `json:"languages"`
 	ID                  string                   `json:"id"`

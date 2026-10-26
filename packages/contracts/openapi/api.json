@@ -3261,6 +3261,12 @@
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
           },
+          "solutionLanguages": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/Language"},
+            "maxItems": 5,
+            "uniqueItems": true
+          },
           "complexityLanguages": {
             "type": "array",
             "description": "Languages with published complexity; contains no costs or solution source.",

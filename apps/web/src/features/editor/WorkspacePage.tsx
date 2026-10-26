@@ -760,6 +760,9 @@ export function WorkspacePage({
               >
                 <EditorialPanel
                   available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
+                  solutionAvailable={
+                    !match && (problem.solutionLanguages?.includes(documentLanguage) ?? false)
+                  }
                   key={`${identity}:${problem.id}`}
                   identity={identity}
                   versionId={problem.id}
