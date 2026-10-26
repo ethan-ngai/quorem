@@ -849,6 +849,7 @@
                       "type": "integer",
                       "minimum": 0
                     },
+                    "companies": { "type": "array", "items": { "type": "string" } },
                     "topics": {
                       "type": "array",
                       "items": {
@@ -856,7 +857,7 @@
                       }
                     }
                   },
-                  "required": ["items", "total", "page", "limit", "topics"],
+                  "required": ["items", "total", "page", "limit", "topics", "companies"],
                   "additionalProperties": false
                 }
               }
@@ -899,6 +900,11 @@
               "maxLength": 1295
             },
             "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "schema": { "type": "string", "maxLength": 1295 }
           },
           {
             "name": "sort",
@@ -3198,6 +3204,8 @@
           "difficulty": {
             "$ref": "#/components/schemas/Difficulty"
           },
+          "companies": { "type": "array", "items": { "type": "string" }, "maxItems": 64 },
+          "leetcodeId": { "type": "integer", "minimum": 1, "nullable": true },
           "tags": {
             "type": "array",
             "items": {
@@ -4243,6 +4251,8 @@
           "difficulty": {
             "$ref": "#/components/schemas/Difficulty"
           },
+          "companies": { "type": "array", "items": { "type": "string" }, "maxItems": 64 },
+          "leetcodeId": { "type": "integer", "minimum": 1, "nullable": true },
           "tags": {
             "type": "array",
             "items": {

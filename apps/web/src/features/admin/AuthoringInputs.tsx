@@ -49,13 +49,15 @@ export function AuthoringCodeField({
 export function TopicField({
   tags,
   onChange,
+  label = "Topics, separated by commas",
 }: {
   tags: string[];
+  label?: string;
   onChange: (tags: string[]) => void;
 }) {
   const [source, setSource] = useState(tags.join(", "));
   return (
-    <Field label="Topics, separated by commas">
+    <Field label={label}>
       <input
         value={source}
         onChange={(event) => {
@@ -114,6 +116,45 @@ export function AuthoringNumberField({
           Enter a positive whole number.
         </span>
       )}
+    </Field>
+  );
+}
+
+export function LeetcodeIDField({
+  value,
+  onChange,
+  onValidityChange,
+}: {
+  value: number | null;
+  onChange: (value: number | null) => void;
+  onValidityChange: (invalid: boolean) => void;
+}) {
+  const [source, setSource] = useState(value === null ? "" : String(value));
+  const [invalid, setInvalid] = useState(false);
+  const validity = useRef(onValidityChange);
+  validity.current = onValidityChange;
+  useEffect(() => () => validity.current(false), []);
+  return (
+    <Field label="LeetCode ID (global questions)">
+      <input
+        type="number"
+        min={1}
+        max={2147483647}
+        step={1}
+        value={source}
+        aria-invalid={invalid}
+        onChange={(event) => {
+          const text = event.target.value;
+          const number = event.target.valueAsNumber;
+          const bad =
+            text !== "" && (!Number.isInteger(number) || number < 1 || number > 2147483647);
+          setSource(text);
+          setInvalid(bad);
+          onValidityChange(bad);
+          if (!bad) onChange(text === "" ? null : number);
+        }}
+      />
+      {invalid && <span className="admin-error">Enter a positive whole number.</span>}
     </Field>
   );
 }

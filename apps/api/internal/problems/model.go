@@ -86,6 +86,8 @@ type Problem struct {
 	Title               string                   `json:"title"`
 	Difficulty          string                   `json:"difficulty"`
 	Tags                []string                 `json:"tags"`
+	Companies           []string                 `json:"companies"`
+	LeetcodeID          *int                     `json:"leetcodeId,omitempty"`
 	StatementMarkdown   string                   `json:"statementMarkdown"`
 	Examples            []ProblemExample         `json:"examples"`
 	Constraints         []Constraint             `json:"constraints"`
