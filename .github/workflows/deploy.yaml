@@ -28,7 +28,7 @@ on:
         description: Completed production run whose verified images can be reused for an infrastructure-only retry
         required: false
         type: string
-        default: ''
+        default: ""
 permissions:
   contents: read
   actions: read

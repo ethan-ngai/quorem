@@ -10,15 +10,15 @@ Application rules depend on domain values and consumer-owned ports. `httpapi.Rep
 
 Provider selection is per capability, not a global `CLOUD` switch. A Cloudflare frontend, AWS judge host, R2 avatars, SQS wakeups and external PostgreSQL are a valid composition. Runtime bindings and provider event handlers belong in deployment shells, not application rules. Domain interfaces describe the required semantics; adapters may use different protocols and topology.
 
-| Capability          | Local                 | AWS                                                  | Cloudflare                                                            |
-| ------------------- | --------------------- | ---------------------------------------------------- | --------------------------------------------------------------------- |
-| Database            | PostgreSQL            | PostgreSQL/Aurora connection                         | External PostgreSQL connection                                        |
-| Job notifications   | PostgreSQL notifications + recovery | SQS SDK | Native Queues push to on-demand judge; legacy REST pull adapter available |
-| Realtime fanout     | bounded memory        | AppSync Events HTTP + WebSocket                      | PostgreSQL safe notice fanout; optional private Durable Object relay |
-| Avatar objects      | Garage S3             | S3                                                   | R2 S3 API                                                             |
-| Transactional email | Mailpit SMTP          | SES SMTP                                             | outbound Email Service REST (beta; onboarding required)               |
-| API/auth runtime    | Go/Node processes     | ordinary container/process                           | container/process candidate; Workers-native port unnecessary          |
-| Judge sandbox       | bounded Docker engine | compatible isolated runner host, validation required | separate runner host; no nested-Docker or sandbox equivalence assumed |
+| Capability          | Local                               | AWS                                                  | Cloudflare                                                                |
+| ------------------- | ----------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| Database            | PostgreSQL                          | PostgreSQL/Aurora connection                         | External PostgreSQL connection                                            |
+| Job notifications   | PostgreSQL notifications + recovery | SQS SDK                                              | Native Queues push to on-demand judge; legacy REST pull adapter available |
+| Realtime fanout     | bounded memory                      | AppSync Events HTTP + WebSocket                      | PostgreSQL safe notice fanout; optional private Durable Object relay      |
+| Avatar objects      | Garage S3                           | S3                                                   | R2 S3 API                                                                 |
+| Transactional email | Mailpit SMTP                        | SES SMTP                                             | outbound Email Service REST (beta; onboarding required)                   |
+| API/auth runtime    | Go/Node processes                   | ordinary container/process                           | container/process candidate; Workers-native port unnecessary              |
+| Judge sandbox       | bounded Docker engine               | compatible isolated runner host, validation required | separate runner host; no nested-Docker or sandbox equivalence assumed     |
 
 Adapters are implemented for delivery, realtime, storage and email. Compute deployment is implemented in separate deployment shells and Terraform modules; a Cloudflare Container is not the Docker execution interface. Do not deploy untrusted judging there until process/filesystem/network/resource isolation and teardown are demonstrated. Keep the Go API/Node auth runtime instead of translating product logic into Worker code. A Worker connecting directly to PostgreSQL may need Hyperdrive; our Go process uses its normal PostgreSQL connection pool.
 

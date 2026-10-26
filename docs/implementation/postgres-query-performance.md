@@ -19,13 +19,13 @@ The test runs `ANALYZE`, then captures `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`
 
 Single-run execution times and total shared buffer hits plus reads from the top plan node:
 
-| Query | Before ms / buffers | After ms / buffers | Observed plan change |
-| --- | ---: | ---: | --- |
-| Document authorization/version read | 0.459 / 75 | 0.048 / 15 | Typed room key and unrevoked-grant index; the old plan could already reach the room PK through its membership join |
-| Owner-scoped submission lookup | 0.113 / 25 | 0.007 / 4 | Owner-history bitmap scan/filter becomes submission PK lookup |
-| Latest current-question result | 1.034 / 298 | 0.052 / 71 | Session-history bitmap/hash filtering becomes question-epoch index lookup |
-| Host entitlement existence | 0.035 / 63 | 0.008 / 3 | All-history grant bitmap becomes unrevoked-grant index lookup |
-| Pending interview outbox batch | 5.074 / 2203 | 0.173 / 395 | Lexical sequence sort removed; numeric ordered index produces the limited batch directly |
+| Query                               | Before ms / buffers | After ms / buffers | Observed plan change                                                                                               |
+| ----------------------------------- | ------------------: | -----------------: | ------------------------------------------------------------------------------------------------------------------ |
+| Document authorization/version read |          0.459 / 75 |         0.048 / 15 | Typed room key and unrevoked-grant index; the old plan could already reach the room PK through its membership join |
+| Owner-scoped submission lookup      |          0.113 / 25 |          0.007 / 4 | Owner-history bitmap scan/filter becomes submission PK lookup                                                      |
+| Latest current-question result      |         1.034 / 298 |         0.052 / 71 | Session-history bitmap/hash filtering becomes question-epoch index lookup                                          |
+| Host entitlement existence          |          0.035 / 63 |          0.008 / 3 | All-history grant bitmap becomes unrevoked-grant index lookup                                                      |
+| Pending interview outbox batch      |        5.074 / 2203 |        0.173 / 395 | Lexical sequence sort removed; numeric ordered index produces the limited batch directly                           |
 
 These are local plan observations, not median benchmarks, production latency estimates, or capacity claims. Later probes benefit from pages warmed by earlier probes. Recently updated outbox index entries have not been vacuumed, affecting buffer counts. Buffer reductions, index conditions and removed sorts support the changes independently of millisecond ratios; repeat on the hosted data distribution for production evidence.
 
@@ -33,17 +33,17 @@ These are local plan observations, not median benchmarks, production latency est
 
 Observed after plans, without adding duplicate indexes:
 
-| Path | Index / evidence |
-| --- | --- |
-| Identity binding plus user lookup | `identity_bindings_pkey(issuer,subject)` and `users_pkey`; 0.033 ms / 6 buffers |
-| Incremental document pull | `interview_updates_pkey(session_id,epoch,version)`; 0.025 ms / 23 buffers for 20 updates |
-| Presence by room | `interview_presence_pkey(session_id,user_id,client_id)`; 0.009 ms / 3 buffers |
-| Membership authorization | Existing room/user PK and `interview_members_user` partial index |
-| Owner execution exclusion | `owner_busy` partial unique index; 0.020 ms / 2 buffers |
-| Global pending-job count | `jobs_claim` partial index-only scan; 0.021 ms / 4 buffers for 100 pending jobs |
-| Ready-job selection shape | `jobs_claim` ordered scan plus incremental tie sort; 0.028 ms / 4 buffers |
-| Match and interview pending notices | Existing partial sequence indexes; interview SQL fixed rather than another index added |
-| Interview guest credential | Existing token-hash PK and unique owner key |
+| Path                                | Index / evidence                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| Identity binding plus user lookup   | `identity_bindings_pkey(issuer,subject)` and `users_pkey`; 0.033 ms / 6 buffers          |
+| Incremental document pull           | `interview_updates_pkey(session_id,epoch,version)`; 0.025 ms / 23 buffers for 20 updates |
+| Presence by room                    | `interview_presence_pkey(session_id,user_id,client_id)`; 0.009 ms / 3 buffers            |
+| Membership authorization            | Existing room/user PK and `interview_members_user` partial index                         |
+| Owner execution exclusion           | `owner_busy` partial unique index; 0.020 ms / 2 buffers                                  |
+| Global pending-job count            | `jobs_claim` partial index-only scan; 0.021 ms / 4 buffers for 100 pending jobs          |
+| Ready-job selection shape           | `jobs_claim` ordered scan plus incremental tie sort; 0.028 ms / 4 buffers                |
+| Match and interview pending notices | Existing partial sequence indexes; interview SQL fixed rather than another index added   |
+| Interview guest credential          | Existing token-hash PK and unique owner key                                              |
 
 The separate Better Auth schema already has session token uniqueness, `auth_session_user`, identity provider/account uniqueness, user/email keys, and assurance-session PKs. This was a schema audit; the table above measures the product identity binding, not Better Auth request latency. No auth migration was needed.
 
