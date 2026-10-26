@@ -23,6 +23,6 @@ Fixed HTTP LAN hashing without Web Crypto, interview state retained across route
 
 `make check` passed with separate disposable product/auth databases: formatting/lint/types, contracts, 307 web tests, 59 auth tests, language tests, Go tests and vet. Full Go race tests also passed. Optional service-dependent tests remain skipped by their existing gates.
 
-Live Vite/HMR: original checkout `/Users/engai/CS/Projects/quorem`, `http://localhost:5180`. Marketing checked in both themes and narrow/desktop layouts; shared padding, controls and no horizontal overflow verified. App checks covered create dialog/select stacking, editor/result geometry, a real Alice/Bob match rule-event toast and persistent history, and safe forfeit focus/cancel/restoration. The verification match was completed afterward.
+Live Vite/HMR: original checkout, `http://localhost:5180`. Marketing checked in both themes and narrow/desktop layouts; shared padding, controls and no horizontal overflow verified. App checks covered create dialog/select stacking, editor/result geometry, a real Alice/Bob match rule-event toast and persistent history, and safe forfeit focus/cancel/restoration. The verification match was completed afterward.
 
 This audit preserves distinct execution semantics: interviews flush collaborative documents and validate epochs; competitive submissions admit independent immutable source snapshots. Sharing transport and admission policy does not combine these authorities.

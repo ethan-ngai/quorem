@@ -2,7 +2,7 @@
 
 Ledger: [#91](https://github.com/ethan-ngai/quorem/issues/91). [Plan and gates](../plans/guest-access-and-entitlements.md).
 
-Local stack: `make dev`; this workspace currently uses `http://localhost:5180`. Sign in as seeded **Alice** using the existing local fixture password: admin authoring + internal benefits, including guest hosting. **Bob** remains a free-account comparison. Credentials are generated in ignored `.local/auth-preview.json`; do not publish them. No production sample account exists.
+Local stack: `make dev`; open `WEB_ORIGIN` (default `http://localhost:5173`). Sign in as seeded **Alice** using the existing local fixture password: admin authoring + internal benefits, including guest hosting. **Bob** remains a free-account comparison. Credentials are generated in ignored `.local/auth-preview.json`; do not publish them. No production sample account exists.
 
 On Create match or an open hosted lobby, enable the **Allow guests** icon (off by default). Free regular hosting is unchanged. Invitees see the lobby behind a dialog: signed-in people accept explicitly; anonymous people sign in or enter a guest name. Regular invitations offer sign-in only. Guest practice Run/Submit still requires an account. Guests are visibly unverified and cannot host/administer/use hosted intelligence. Browser-local Python/TypeScript intelligence is available to everyone. Guest navigation always offers Sign in. Match completion or forfeiture revokes the guest credential and clears the cookie; an in-memory result summary remains visible until navigation. Anonymous draft editing remains available.
 
