@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, extname } from "node:path";
+import { marketingDevBase, marketingDevHtml } from "../../scripts/marketing-dev.mjs";
 
 /** Serve the assembled production artifact; development proxies live Astro/HMR. */
 function marketingPages(): Plugin {
@@ -42,12 +43,7 @@ function marketingPages(): Plugin {
           );
           res.statusCode = response.status;
           res.setHeader("Content-Type", response.headers.get("Content-Type") ?? "text/html");
-          // Astro 6 emits root-relative island URLs even with a namespaced Vite base.
-          const html = (await response.text()).replace(
-            /(["'])\/(src\/|@id\/|@fs\/|node_modules\/)/g,
-            "$1/_marketing/$2",
-          );
-          res.end(html);
+          res.end(marketingDevHtml(await response.text(), marketingEntry));
         } catch {
           res.statusCode = 503;
           res.end("Marketing dev server unavailable. Start make dev or the Astro dev server.");
@@ -61,7 +57,7 @@ function marketingPages(): Plugin {
 }
 
 const marketingOrigin = process.env.QUOREM_MARKETING_DEV_ORIGIN ?? "http://127.0.0.1:4321";
-const marketingEntry = `${process.env.QUOREM_MARKETING_BASE ?? "/"}/`.replace(/\/+/g, "/");
+const marketingEntry = marketingDevBase(process.env.QUOREM_MARKETING_BASE);
 
 export default defineConfig({
   plugins: [marketingPages(), react()],
@@ -70,7 +66,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/_marketing": { target: marketingOrigin, ws: true },
+      [marketingEntry.replace(/\/$/, "")]: { target: marketingOrigin, ws: true },
       "/v1": { target: process.env.QUOREM_API_DEV_ORIGIN ?? "http://127.0.0.1:8080", ws: true },
       "/api/auth": process.env.QUOREM_AUTH_DEV_ORIGIN ?? "http://127.0.0.1:8082",
     },
