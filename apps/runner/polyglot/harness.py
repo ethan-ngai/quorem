@@ -1,5 +1,6 @@
 """Compile and execute inside the bounded container, never on the runner host."""
 import json, os, subprocess, sys
+import compiled
 
 MAX_OUTPUT = 65536
 
@@ -149,23 +150,39 @@ def prepare(r,lang):
     open('/tmp/main.ml','w').write(source)
     return ['ocamlc','-o','/tmp/main.byte','/tmp/main.ml'], ['ocamlrun','/tmp/main.byte']
 
-def run(cmd):
+def run(cmd, data=None):
     # Drain to files: contestant output cannot grow the trusted supervisor's memory.
     with open('/tmp/stdout','w+b') as out, open('/tmp/stderr','w+b') as err:
-        code=subprocess.call(cmd,stdout=out,stderr=err)
+        code=subprocess.run(cmd,input=data,stdout=out,stderr=err).returncode
         sizes=[out.tell(),err.tell()]
         out.seek(0);err.seek(0)
         return code,out.read(MAX_OUTPUT+1),err.read(MAX_OUTPUT+1),max(sizes)>MAX_OUTPUT
 
 def main():
     sys.stdout.write('\0');sys.stdout.flush()
-    r=json.loads(sys.stdin.buffer.read(400000)); lang=os.environ['QUOREM_LANGUAGE']
-    compile_cmd,cmd=prepare(r,lang)
-    code,out,err,exceeded=run(compile_cmd)
+    r=json.loads(sys.stdin.buffer.read(6*1024*1024)); lang=os.environ['QUOREM_LANGUAGE']
+    operation=r.get('operation')
+    if operation=='execute':
+        compiled.install(r['artifact'],lang)
+        compile_cmd=None
+        cmd=compiled.command(lang)
+    elif operation in ('compile','compile-execute'):
+        compiler_request={key:r[key] for key in ('source','signature','methods') if key in r}
+        compile_cmd=compiled.prepare(compiler_request,lang,globals())
+        cmd=compiled.command(lang) if operation=='compile-execute' else None
+    else:
+        compile_cmd,cmd=prepare(r,lang)
+    code,out,err,exceeded=run(compile_cmd) if compile_cmd else (0,b'',b'',False)
     sys.stdout.write('\0');sys.stdout.flush()
     result={'status':'syntax_error','stderr':(out+err).decode('utf-8','replace')[:MAX_OUTPUT]} if code else None
+    artifact=None
+    if result is None and operation in ('compile','compile-execute'):
+        try:artifact=compiled.collect(lang)
+        except (ValueError,OSError):result={'status':'output_limit'}
+        if result is None and operation=='compile':result={'status':'executed','actual':artifact}
     if result is None:
-        code,out,err,exceeded=run(cmd)
+        data=json.dumps({'args':r.get('args',[]),'calls':r.get('calls',[])},ensure_ascii=False).encode() if operation in ('execute','compile-execute') else None
+        code,out,err,exceeded=run(cmd,data)
         marker=b'\nQUOREM_RESULT:'
         if exceeded: result={'status':'output_limit'}
         elif code==42: result={'status':'invalid_output'}
@@ -176,5 +193,6 @@ def main():
             try: result={'status':'executed','actual':json.loads(encoded),'stdout':out.decode('utf-8','replace'),'stderr':capture.decode('utf-8','replace')}
             except ValueError: result={'status':'invalid_output'}
     if exceeded:result={'status':'output_limit'}
+    if operation=='compile-execute' and artifact is not None:result['artifact']=artifact
     sys.stdout.write(json.dumps(result,ensure_ascii=False));sys.stdout.flush()
 if __name__=='__main__':main()
