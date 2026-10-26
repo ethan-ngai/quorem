@@ -1,6 +1,7 @@
 /** @file WorkspaceTests.tsx @description Shared test tabs, verdict and case browser. @module editor */
 import type { ProblemVersion, Submission, OdysseyProgress } from "@quorem/contracts";
 import type { CustomCaseDraft, RunSnapshot } from "../customCases";
+import { useState } from "react";
 import { Icon } from "../../../ui/Icon";
 import { ResultContent } from "./ResultContent";
 import { TestCases } from "./TestCases";
@@ -42,9 +43,28 @@ export function WorkspaceTests({
         examples: progress.levels.flatMap((level) => level.examples),
       }
     : problem;
-  const tabs =
-    onDraftsChange && !problem.odyssey ? (["samples", "custom"] as const) : (["samples"] as const);
-  const selected = tabs.length > 1 && customMode;
+  const odyssey = !!testProblem.odyssey;
+  const hiddenAvailable =
+    odyssey &&
+    submission?.kind === "submit" &&
+    submission.state === "completed" &&
+    !!submission.hiddenCases?.length;
+  const tabs: ("samples" | "custom" | "hidden")[] = hiddenAvailable
+    ? ["samples", "hidden"]
+    : onDraftsChange && !odyssey
+      ? ["samples", "custom"]
+      : ["samples"];
+  const [collection, setCollection] = useState<"samples" | "hidden">("samples");
+  const selected = tabs.includes("custom") && customMode;
+  const selectedTab = selected
+    ? "custom"
+    : collection === "hidden" && hiddenAvailable
+      ? "hidden"
+      : "samples";
+  function selectTab(tab: "samples" | "custom" | "hidden") {
+    setCollection(tab === "hidden" ? "hidden" : "samples");
+    onCustomModeChange?.(tab === "custom");
+  }
   const hiddenOnly =
     !testProblem.odyssey && !!submission?.hiddenCases?.length && !submission.publicCases?.length;
   return (
@@ -57,10 +77,10 @@ export function WorkspaceTests({
                 key={tab}
                 id={`tests-${tab}-tab`}
                 role="tab"
-                aria-selected={selected === (tab === "custom")}
+                aria-selected={selectedTab === tab}
                 aria-controls={`tests-${tab}-panel`}
-                tabIndex={selected === (tab === "custom") ? 0 : -1}
-                onClick={() => onCustomModeChange?.(tab === "custom")}
+                tabIndex={selectedTab === tab ? 0 : -1}
+                onClick={() => selectTab(tab)}
                 onKeyDown={(event) => {
                   if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
                   event.preventDefault();
@@ -69,20 +89,30 @@ export function WorkspaceTests({
                       ? 0
                       : event.key === "End"
                         ? tabs.length - 1
-                        : (index + 1) % tabs.length;
+                        : (index + (event.key === "ArrowLeft" ? tabs.length - 1 : 1)) % tabs.length;
                   const next = tabs[target]!;
-                  onCustomModeChange?.(next === "custom");
+                  selectTab(next);
                   document.getElementById(`tests-${next}-tab`)?.focus();
                 }}
               >
-                <Icon name={tab === "custom" ? "custom" : hiddenOnly ? "lock" : "samples"} />
-                {problem.odyssey
-                  ? "Examples"
-                  : tab === "custom"
-                    ? "Custom cases"
-                    : hiddenOnly
-                      ? "Hidden cases"
-                      : "Examples"}
+                <Icon
+                  name={
+                    tab === "custom"
+                      ? "custom"
+                      : tab === "hidden" || hiddenOnly
+                        ? "lock"
+                        : "samples"
+                  }
+                />
+                {tab === "hidden"
+                  ? "Hidden tests"
+                  : odyssey
+                    ? "Examples"
+                    : tab === "custom"
+                      ? "Custom cases"
+                      : hiddenOnly
+                        ? "Hidden cases"
+                        : "Examples"}
               </button>
             ))}
           </div>
@@ -95,6 +125,7 @@ export function WorkspaceTests({
             busy={busy}
             error={error}
             showCases={false}
+            showVerdict={!odyssey || selectedTab === "hidden"}
             detailsVisible={detailsVisible}
             customMode={selected}
             runWasCustom={snapshot?.custom}
@@ -106,23 +137,32 @@ export function WorkspaceTests({
             id={`tests-${tab}-panel`}
             role="tabpanel"
             aria-labelledby={`tests-${tab}-tab`}
-            hidden={selected !== (tab === "custom")}
+            hidden={selectedTab !== tab}
           >
-            <TestCases
-              key={`${problem.id}:${tab}`}
-              caseStatuses={progress?.caseStatuses}
-              currentCaseGroup={progress ? `Step ${progress.level}` : undefined}
-              caseGroups={progress?.levels.flatMap((level, index) =>
-                level.examples.map(() => `Step ${index + 1}`),
-              )}
-              problem={testProblem}
-              customMode={tab === "custom"}
-              drafts={drafts}
-              onDraftsChange={onDraftsChange ?? keepDrafts}
-              submission={submission}
-              snapshot={snapshot}
-              busy={busy}
-            />
+            {(tab !== "hidden" || selectedTab === "hidden") && (
+              <TestCases
+                hiddenMode={tab === "hidden"}
+                key={`${problem.id}:${tab}`}
+                caseStatuses={tab === "samples" ? progress?.caseStatuses : undefined}
+                currentCaseGroup={
+                  progress && tab === "samples" ? `Step ${progress.level}` : undefined
+                }
+                caseGroups={
+                  tab === "samples"
+                    ? progress?.levels.flatMap((level, index) =>
+                        level.examples.map(() => `Step ${index + 1}`),
+                      )
+                    : undefined
+                }
+                problem={testProblem}
+                customMode={tab === "custom"}
+                drafts={drafts}
+                onDraftsChange={onDraftsChange ?? keepDrafts}
+                submission={submission}
+                snapshot={snapshot}
+                busy={busy}
+              />
+            )}
           </div>
         ))}
       </div>

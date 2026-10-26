@@ -20,6 +20,7 @@ import { SequenceCaseValues } from "./SequenceCaseValues";
 export function TestCases({
   problem,
   customMode,
+  hiddenMode = false,
   drafts,
   onDraftsChange,
   submission,
@@ -38,6 +39,7 @@ export function TestCases({
 }: {
   problem: ProblemVersion;
   customMode: boolean;
+  hiddenMode?: boolean;
   drafts: CustomCaseDraft[];
   onDraftsChange: (drafts: CustomCaseDraft[]) => void;
   submission?: Submission;
@@ -55,10 +57,9 @@ export function TestCases({
   caseStatuses?: readonly PublicCaseResult[];
 }) {
   const hiddenCases =
-    !problem.odyssey &&
-    !caseGroups?.length &&
+    (hiddenMode || (!problem.odyssey && !caseGroups?.length)) &&
     !caseResults &&
-    !submission?.publicCases?.length &&
+    (hiddenMode || !submission?.publicCases?.length) &&
     !busy &&
     !customMode &&
     submission?.kind === "submit" &&
@@ -77,6 +78,7 @@ export function TestCases({
   }
   // Recovered output without an admission snapshot belongs in this same case rail.
   const recoveredCases =
+    !hiddenMode &&
     !caseResults &&
     !busy &&
     (!snapshot || submission?.kind === "submit" || !!problem.odyssey) &&
