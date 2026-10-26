@@ -121,7 +121,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		}
 		var f frame
 		if fatal != nil {
-			f = frame{Status: fatal.Status}
+			f = frame{Status: fatal.Status, Line: fatal.Line, Stderr: fatal.Stderr}
 		} else if runtime.Language != "python" && budget-compilationTime <= time.Millisecond {
 			f = frame{Status: "time_limit"}
 		} else {

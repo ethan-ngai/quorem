@@ -210,6 +210,7 @@ describe("advancing beyond the last executed Odyssey step", () => {
         progress={progress}
         submission={result}
         busy={false}
+        snapshot={{ problemVersionId: problem.id, custom: false, cases: [] }}
       />,
     );
   }
@@ -238,4 +239,28 @@ describe("advancing beyond the last executed Odyssey step", () => {
       expect(html).not.toContain("Hidden case");
     },
   );
+});
+
+describe("compiler failures", () => {
+  it("shows submission diagnostics in the case pane when compilation has no case output", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceTests
+        problem={problem}
+        busy={false}
+        submission={{
+          id: "syntax",
+          workspaceId: "workspace",
+          kind: "run",
+          state: "completed",
+          sourceHash: "source",
+          admittedAt: "",
+          updatedAt: "",
+          verdict: "syntax_error",
+          diagnostics: [{ line: 4, message: "SyntaxError: expected ':'" }],
+        }}
+      />,
+    );
+    expect(html).toContain('aria-label="Diagnostics"');
+    expect(html).toContain("Line 4:");
+  });
 });

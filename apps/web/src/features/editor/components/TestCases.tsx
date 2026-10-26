@@ -62,9 +62,11 @@ export function TestCases({
     submission.state === "completed"
       ? submission.hiddenCases
       : undefined;
-  const [selectedSample, setSelectedSample] = useState(() =>
-    Math.max(0, caseGroups?.indexOf(currentCaseGroup) ?? 0),
-  );
+  const currentGroupStart = Math.max(0, caseGroups?.indexOf(currentCaseGroup) ?? 0);
+  const [selectedSample, setSelectedSample] = useState(currentGroupStart);
+  useEffect(() => {
+    if (currentCaseGroup) setSelectedSample(currentGroupStart);
+  }, [currentCaseGroup, currentGroupStart]);
   const [requestedCustomId, setRequestedCustomId] = useState<string>();
   function setSelectedCustomId(id: string | undefined) {
     setRequestedCustomId(id);
@@ -74,7 +76,7 @@ export function TestCases({
   const recoveredCases =
     !caseResults &&
     !busy &&
-    (!snapshot || submission?.kind === "submit") &&
+    (!snapshot || submission?.kind === "submit" || !!problem.odyssey) &&
     !customMode &&
     (submission?.kind === "run" || submission?.kind === "submit") &&
     submission.state === "completed"
@@ -216,7 +218,10 @@ export function TestCases({
                   </CaseGroupDisclosure>
                 ) : (
                   <div className="case-group" key={group}>
-                    <div className="case-group-label">{group}</div>
+                    <div className="case-group-label">
+                      {group}
+                      <CaseGroupStatus failed={failed} passed={passed} />
+                    </div>
                     {buttons}
                   </div>
                 );
@@ -367,6 +372,18 @@ export function TestCases({
           </span>
         </div>
       )}
+      {!pending &&
+        !result &&
+        submission?.state === "completed" &&
+        submission.verdict === "syntax_error" && (
+          <CaseOutput
+            result={{
+              index: sampleIndex,
+              status: "syntax_error",
+              diagnostics: submission.diagnostics,
+            }}
+          />
+        )}
       {result && (
         <CaseOutput
           result={result}
@@ -408,7 +425,8 @@ function CaseGroupDisclosure({
   const [open, setOpen] = useState(failed);
   useEffect(() => {
     if (failed) setOpen(true);
-  }, [failed, executionID]);
+    else if (passed) setOpen(false);
+  }, [failed, passed, executionID]);
   return (
     <details
       className="case-group"
@@ -417,15 +435,24 @@ function CaseGroupDisclosure({
     >
       <summary className="case-group-label">
         {label}
-        {(failed || passed) && (
-          <Icon
-            name={failed ? "close" : "submit"}
-            className={failed ? "verdict-error" : "verdict-success"}
-          />
-        )}
-        <span className="sr-only">{failed ? ": failing" : passed ? ": passed" : ""}</span>
+        <CaseGroupStatus failed={failed} passed={passed} />
       </summary>
       {children}
     </details>
+  );
+}
+
+/** Shared verdict for current and previous case groups. */
+function CaseGroupStatus({ failed, passed }: { failed: boolean; passed: boolean }) {
+  return (
+    <>
+      {(failed || passed) && (
+        <Icon
+          name={failed ? "close" : "submit"}
+          className={failed ? "verdict-error" : "verdict-success"}
+        />
+      )}
+      <span className="sr-only">{failed ? ": failing" : passed ? ": passed" : ""}</span>
+    </>
   );
 }
