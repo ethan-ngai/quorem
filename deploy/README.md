@@ -19,6 +19,24 @@ Judge `/health` and authenticated `/internal/drain` use port 8090. Drain calls a
 
 ## Database and secrets
 
+### Purelymail and social login
+
+Production auth settings come from repository configuration, validated by `scripts/configure-production-auth.ts` before Terraform applies. Configured SMTP must pass a TLS/authentication check; this sends no email. Set secrets with `gh secret set NAME` or GitHub's repository secrets UI; never commit credentials or pass them on a command line. Until email is fully configured, deployment preserves login-only mode. Partial SMTP or OAuth credentials fail deployment before mutation.
+
+| Repository configuration | Purpose |
+| --- | --- |
+| Secret `SMTP_USERNAME` | Full Purelymail mailbox address |
+| Secret `SMTP_PASSWORD` | Purelymail app password |
+| Variable `AUTH_EMAIL_FROM` | `Quorem <noreply@quorem.app>` |
+| Secrets `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET` | Google web OAuth client |
+| Secrets `AUTH_GITHUB_CLIENT_ID`, `AUTH_GITHUB_CLIENT_SECRET` | GitHub OAuth app |
+
+Register `https://quorem.app/api/auth/callback/google` for Google's web OAuth client and `https://quorem.app/api/auth/callback/github` for GitHub's OAuth app. Existing password accounts must sign in and explicitly link providers in Settings; matching email addresses never implicitly link accounts. Apple remains disabled: its web setup requires a developer account, Services ID and associated primary App ID ([Apple requirements](https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web)).
+
+Purelymail uses `smtp.purelymail.com:465` with implicit TLS and certificate verification. Complete Purelymail's domain ownership/SPF/DKIM setup before activating a custom-domain sender; preserve existing mail records rather than replacing unrelated services. Mailbox creation and provider console registration require their account owners. Setting all three mail values enables registration, verification and password recovery. Auth settings enter only the application's secret Worker binding; judges receive none. A hash of each role's runtime configuration triggers its container rollout on secret-only changes, without exposing secret values in container configuration.
+
+Provider setup: [Purelymail SMTP](https://purelymail.com/docs/setup/technical), [Purelymail domains](https://purelymail.com/docs/domainDocs), [Better Auth OAuth callbacks](https://www.better-auth.com/docs/concepts/oauth).
+
 Application PostgreSQL pools default to four connections and auth pools to four. The PostgreSQL realtime publisher and three dedicated listeners bring the application budget to 12 connections per instance, up to 96 across eight applications. Eight active judges add at most 16 query connections and eight dedicated execution listeners: 120 steady-state connections before deployment/migration overhead. Neon max compute defaults to 4 CU; the deployed account uses a 2-CU ceiling through `NEON_MAX_COMPUTE_CU`. Suspension uses the account default (`0`, normally five minutes), because this account rejects explicit suspend-interval overrides. Terraform applies compute bounds instead of ignoring them. Validate provider connection/cost limits for the declared workload before promotion.
 
 Terraform generates a sensitive 64-character judge control token. Only the application runtime and private Worker/judge boundary receive it; the judge receives only its database URL and control token. Schema migrations, provisioning and bootstrap run once in GitHub Actions before the role rollouts; cold starts skip migrations. Both exact target rollout IDs and image revisions must finish before production probes pass. After both role rollouts, GitHub Actions publishes one durable `deployment-reconcile` wake to the nonsecret Terraform queue ID using the existing scoped deployment token. This recovers queued or leased jobs inherited from the old polling runtime without requiring another user submission or a periodic keep-alive cron. Failed publication fails deployment; safe duplicate wakes may retry. No judge control token is exported to the workflow.

@@ -12,7 +12,7 @@ describe("advertised authentication capabilities", () => {
           preferredOrigin: "http://localhost:5180",
           passkey: true,
           registration: false,
-          providers: ["google", "fake"],
+          providers: ["google", "apple", "fake"],
         }),
       ),
     );

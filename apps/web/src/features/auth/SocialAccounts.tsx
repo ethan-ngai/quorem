@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "lucide-react";
-import { fetchAuthCapabilities, type SocialProvider } from "./capabilities";
+import {
+  fetchAuthCapabilities,
+  socialProviders,
+  socialProviderLabels as labels,
+  type SocialProvider,
+} from "./capabilities";
 import { accountRequest, connectProvider, listAccounts, type ConnectedAccount } from "./account";
 import { authErrorMessage } from "./errors";
 import { useErrorNotification } from "../../ui/Notifications";
 
-const labels = { google: "Google", apple: "Apple", github: "GitHub" };
 export function SocialAccounts({ userId }: { userId: string }) {
   const capabilities = useQuery({
     queryKey: ["auth-capabilities"],
@@ -32,13 +36,10 @@ export function SocialAccounts({ userId }: { userId: string }) {
       setBusy(false);
     }
   }
-  const providers = Array.from(
-    new Set([
-      ...(capabilities.data?.providers ?? []),
-      ...(accounts.data ?? [])
-        .map((a) => a.providerId)
-        .filter((id): id is SocialProvider => Object.hasOwn(labels, id)),
-    ]),
+  const providers = socialProviders.filter(
+    (provider) =>
+      capabilities.data?.providers.includes(provider) ||
+      accounts.data?.some((account) => account.providerId === provider),
   );
   return (
     <section className="account-passkeys" aria-label="Social accounts">

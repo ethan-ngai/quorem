@@ -118,6 +118,7 @@ jobs:
           terraform fmt -check infra/terraform/app/main.tf infra/terraform/database/main.tf
           terraform -chdir=infra/terraform/app init -backend=false -input=false
           terraform -chdir=infra/terraform/app validate
+          terraform -chdir=infra/terraform/app test
           terraform -chdir=infra/terraform/database init -backend=false -input=false
           terraform -chdir=infra/terraform/database validate
       - name: Validate elastic routing policy
@@ -213,6 +214,16 @@ jobs:
       - run: vp install --frozen-lockfile
       - name: Validate current routing policy
         run: node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
+      - name: Configure production email and social providers
+        env:
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          AUTH_EMAIL_FROM: ${{ vars.AUTH_EMAIL_FROM }}
+          AUTH_GOOGLE_CLIENT_ID: ${{ secrets.AUTH_GOOGLE_CLIENT_ID }}
+          AUTH_GOOGLE_CLIENT_SECRET: ${{ secrets.AUTH_GOOGLE_CLIENT_SECRET }}
+          AUTH_GITHUB_CLIENT_ID: ${{ secrets.AUTH_GITHUB_CLIENT_ID }}
+          AUTH_GITHUB_CLIENT_SECRET: ${{ secrets.AUTH_GITHUB_CLIENT_SECRET }}
+        run: node --experimental-strip-types scripts/configure-production-auth.ts
       - name: Verify current workerd routing before reusing images
         if: inputs.reuse_run_id != ''
         run: |
