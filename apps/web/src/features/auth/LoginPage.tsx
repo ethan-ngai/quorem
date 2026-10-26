@@ -21,6 +21,8 @@ import {
   completeRegistration,
   signInWithPasskey,
   signInWithProvider,
+  socialProviders,
+  socialProviderLabels,
 } from "./capabilities";
 import { Brand } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
@@ -305,7 +307,7 @@ function LoginForm() {
               {!finishing && (
                 <>
                   <div className="auth-providers" aria-label="Social sign in">
-                    {(["google", "apple", "github"] as const).map((provider) => {
+                    {socialProviders.map((provider) => {
                       const enabled = capabilities.data?.providers.includes(provider);
                       return (
                         <button
@@ -326,7 +328,7 @@ function LoginForm() {
                             >
                               <path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.34-3.8-1.34-.52-1.31-1.26-1.66-1.26-1.66-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.5-.29-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.29-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16a10.8 10.8 0 0 1 5.64 0c2.15-1.45 3.1-1.16 3.1-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.64 5.27-5.15 5.55.41.36.77 1.05.77 2.12v3.08c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z" />
                             </svg>
-                          ) : provider === "google" ? (
+                          ) : (
                             <svg
                               width="18"
                               height="18"
@@ -336,27 +338,15 @@ function LoginForm() {
                             >
                               <path d="M21.8 12.2c0-.7-.06-1.4-.19-2.1H12v4h5.5a4.7 4.7 0 0 1-2 3.1 6 6 0 1 1-.2-10.1l3-3A10.2 10.2 0 1 0 12 22.2c5.7 0 9.8-4 9.8-10Z" />
                             </svg>
-                          ) : (
-                            <svg
-                              width="18"
-                              height="18"
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M17.05 12.54c.02 3.12 2.74 4.16 2.77 4.17-.02.07-.43 1.48-1.43 2.93-.86 1.25-1.75 2.5-3.16 2.52-1.38.03-1.83-.82-3.41-.82-1.57 0-2.07.79-3.38.85-1.36.05-2.39-1.36-3.26-2.6-1.77-2.55-3.12-7.2-1.3-10.34.9-1.56 2.5-2.55 4.24-2.58 1.32-.03 2.57.9 3.38.9.82 0 2.34-1.11 3.95-.94.67.03 2.56.27 3.78 2.06-.1.06-2.26 1.32-2.24 3.85ZM14.45 4.94c.72-.87 1.21-2.08 1.08-3.29-1.04.04-2.3.69-3.05 1.56-.67.77-1.26 2-1.1 3.18 1.16.09 2.35-.59 3.07-1.45Z" />
-                            </svg>
                           )}
-                          {provider === "google"
-                            ? "Google"
-                            : provider === "apple"
-                              ? "Apple"
-                              : "GitHub"}
+                          {socialProviderLabels[provider]}
                         </button>
                       );
                     })}
                   </div>
-                  {capabilities.data?.providers.length !== 3 ? (
+                  {socialProviders.some(
+                    (provider) => !capabilities.data?.providers.includes(provider),
+                  ) ? (
                     <p id="auth-provider-note" className="auth-note">
                       Unavailable providers aren’t configured yet.
                     </p>
