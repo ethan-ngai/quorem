@@ -324,28 +324,40 @@
   border-top: 1px solid var(--color-border);
 }
 .profile-color-current {
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
 }
 .profile-color-swatch {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
+}
+.profile-color-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--motion-standard) var(--settings-ease),
+    opacity var(--motion-fast) var(--settings-ease);
+}
+.profile-color-reveal[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
 }
 .profile-colors {
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   border: 0;
-  padding: var(--space-4) 0 0;
+  padding: 0;
   margin: 0;
-}
-.profile-colors[hidden] {
-  display: none;
 }
 .profile-color-options {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  padding: 3px;
+  padding: var(--space-4) 3px 3px;
 }
 .profile-color-options button {
   width: 28px;

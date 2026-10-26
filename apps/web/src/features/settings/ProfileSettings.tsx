@@ -150,27 +150,30 @@ export function ProfileSettings({
                 </button>
               </Tooltip>
             </div>
-            <fieldset
+            <div
               id={colorOptionsId}
-              className="profile-colors"
-              disabled={busy}
-              hidden={!editingColor}
+              className="profile-color-reveal"
+              data-open={editingColor}
+              aria-hidden={!editingColor}
+              inert={!editingColor}
             >
-              <legend className="sr-only">Profile color</legend>
-              <div className="profile-color-options">
-                {participantColors.map((color, index) => (
-                  <button
-                    key={color}
-                    type="button"
-                    aria-label={`Color ${index + 1}`}
-                    aria-pressed={color === participantColor(userId, account.color)}
-                    title={`Color ${index + 1}`}
-                    onClick={() => void changeColor(index + 1)}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-            </fieldset>
+              <fieldset className="profile-colors" disabled={busy}>
+                <legend className="sr-only">Profile color</legend>
+                <div className="profile-color-options">
+                  {participantColors.map((color, index) => (
+                    <button
+                      key={color}
+                      type="button"
+                      aria-label={`Color ${index + 1}`}
+                      aria-pressed={color === participantColor(userId, account.color)}
+                      title={`Color ${index + 1}`}
+                      onClick={() => void changeColor(index + 1)}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </fieldset>
+            </div>
           </section>
         )}
       </div>
