@@ -77,11 +77,29 @@ def clean(text):
     return re.sub(r'\n{3,}', '\n\n', text).strip()
 
 
+def has_example_heading(node):
+    if isinstance(node, str):
+        return False
+    if re.fullmatch(r'\*\*Example\s+\d+:?\*\*', clean(render(node)), re.I):
+        return True
+    return any(has_example_heading(child) for child in node.children)
+
+
+def flatten_nested_examples(nodes):
+    for node in nodes:
+        if (isinstance(node, Node) and node.tag == 'div'
+                and 'example-block' in node.attrs.get('class', '').split()
+                and any(has_example_heading(child) for child in node.children)):
+            yield from flatten_nested_examples(node.children)
+        else:
+            yield node
+
+
 def format_question(content, html, parse_case=None):
     """Return formatted content or raise if every example cannot be matched."""
     doc = Document()
     doc.feed(html)
-    nodes = doc.root.children
+    nodes = list(flatten_nested_examples(doc.root.children))
     sections = []
     for i, node in enumerate(nodes):
         if isinstance(node, str):
@@ -97,7 +115,7 @@ def format_question(content, html, parse_case=None):
         raise ValueError('HTML examples do not match parsed examples')
     # A section without an input/output marker cannot be safely removed.
     formatted_examples = []
-    original_index = 0
+    matched_originals = set()
     boundaries = [i for i, _ in sections] + [len(nodes)]
     for index, start in enumerate(examples):
         end = min(i for i in boundaries if i > start)
@@ -114,9 +132,12 @@ def format_question(content, html, parse_case=None):
             except (SyntaxError, ValueError, TypeError, KeyError, RecursionError) as error:
                 raise ValueError('HTML example cannot be verified') from error
             originals = content['problem']['examples']
-            if original_index < len(originals) and parsed['args'] == originals[original_index]['args'] and parsed['expected'] == originals[original_index]['expected']:
-                example = dict(originals[original_index])
-                original_index += 1
+            matched = next((i for i, original in enumerate(originals)
+                            if i not in matched_originals and parsed['args'] == original['args']
+                            and parsed['expected'] == original['expected']), None)
+            if matched is not None:
+                example = dict(originals[matched])
+                matched_originals.add(matched)
             else:
                 example = parsed
         else:
@@ -127,7 +148,8 @@ def format_question(content, html, parse_case=None):
             explanation = re.sub(r'\bunderlined\b', 'bolded', explanation, flags=re.I)
         before_input = text[:re.search(r'(?:\*\*)?Input:(?:\*\*)?', text, re.I).start()]
         images = re.findall(r'\[[^\]]*\]\([^\)]+\)', before_input)
-        if clean(re.sub(r'\[[^\]]*\]\([^\)]+\)', '', before_input)):
+        residue = re.sub(r'\[[^\]]*\]\([^\)]+\)', '', before_input)
+        if not re.fullmatch(r'[\s*\u200b]*', residue):
             raise ValueError('unrecognised text before example input')
         if images:
             explanation = clean(' '.join(images) + '\n\n' + explanation)
@@ -136,8 +158,15 @@ def format_question(content, html, parse_case=None):
         if explanation:
             example['explanation'] = explanation
         formatted_examples.append(example)
-    if parse_case and original_index != len(content['problem']['examples']):
-        raise ValueError('HTML example changed since staging')
+    if parse_case:
+        for i, original in enumerate(content['problem']['examples']):
+            if i in matched_originals:
+                continue
+            if any(example['args'] == original['args'] for example in formatted_examples):
+                raise ValueError('HTML example changed since staging')
+            formatted_examples.append(dict(original))
+        if len(formatted_examples) > 20:
+            raise ValueError('too many combined examples')
     removed = set()
     for start in examples:
         end = min(i for i in boundaries if i > start)

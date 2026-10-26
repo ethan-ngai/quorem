@@ -59,6 +59,22 @@ Output: 0</pre><p><strong>Constraints:</strong></p><p>None.</p>"""
         with self.assertRaises(ValueError):
             format_question(content, html, lambda row, params: {'args': [1], 'expected': 2})
 
+    def test_changed_input_preserves_original_and_metadata(self):
+        content = {'problem': {'statementMarkdown': 'old', 'signature': {'parameters': []}, 'examples': [{'args': [1], 'expected': 6, 'explanation': 'Old explanation'}]}}
+        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><pre>Input: x = 2\nOutput: 7</pre><p><strong>Constraints:</strong></p>'
+        result = format_question(content, html, lambda row, params: {'args': [2], 'expected': 7})
+        self.assertEqual(result['problem']['examples'], [{'args': [2], 'expected': 7}, {'args': [1], 'expected': 6, 'explanation': 'Old explanation'}])
+
+    def test_nested_example_and_bold_image_wrappers(self):
+        content = {'problem': {'statementMarkdown': 'old', 'signature': {'parameters': []}, 'examples': [{'args': [1], 'expected': 2}, {'args': [3], 'expected': 4}]}}
+        html = '<p>Intro.</p><p><strong>Example 1:</strong></p><div class="example-block"><p><strong><img src="/img.png"></strong>​</p><p><strong>Input:</strong> 1</p><p><strong>Output:</strong> 2</p><p><strong>Example 2:</strong></p><div class="example-block"><p><strong>Input:</strong> 3</p><p><strong>Output:</strong> 4</p></div></div><p><strong>Constraints:</strong></p>'
+        def parse(row, params):
+            return {'args': [int(row['input'])], 'expected': int(row['output'])}
+        result = format_question(content, html, parse)['problem']
+        self.assertEqual(len(result['examples']), 2)
+        self.assertIn('/img.png', result['examples'][0]['explanation'])
+        self.assertNotIn('Example 2', result['statementMarkdown'])
+
 
 if __name__ == '__main__':
     unittest.main()
