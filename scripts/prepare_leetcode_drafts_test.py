@@ -20,14 +20,16 @@ class DraftTest(unittest.TestCase):
             drafts.signature('class Solution:\n    def go(self, x: Dict[str, int]) -> int:\n        ')
 
     def test_incomplete_draft_has_no_public_examples(self):
-        item = {'source': {'problem_slug': 'sample', 'title': 'Sample', 'difficulty': 'Easy'}}
+        item = {'leetcode_id': 1, 'companies': ['Example'], 'source': {'problem_slug': 'sample', 'title': 'Sample', 'difficulty': 'Easy'}}
         corpus = {'starter_code': 'class Solution:\n    def solve(self, x: int) -> int:\n        ', 'input_output': [{'input': 'x = 1', 'output': '2'}], 'problem_description': 'Statement', 'completion': 'class Solution: pass'}
         result = drafts.draft(item, corpus)
         self.assertEqual(result['problem']['examples'], [])
+        self.assertEqual(result['problem']['companies'], ['Example'])
+        self.assertEqual(result['problem']['leetcodeId'], 1)
         self.assertEqual(result['hiddenCases'], [{'args': [1], 'expected': 2}])
 
     def test_candidates_require_distinct_typed_cases_and_clear_scalar_output(self):
-        item = {'source': {'problem_slug': 'sample', 'title': 'Sample', 'difficulty': 'Easy', 'examples': [{'example_text': 'Input: x = 0\nOutput: 1'}]}}
+        item = {'leetcode_id': 1, 'companies': ['Example'], 'source': {'problem_slug': 'sample', 'title': 'Sample', 'difficulty': 'Easy', 'examples': [{'example_text': 'Input: x = 0\nOutput: 1'}]}}
         corpus = {'starter_code': 'class Solution:\n    def solve(self, x: int) -> int:\n        ', 'input_output': [{'input': f'x = {i}', 'output': str(i + 1)} for i in range(21)], 'problem_description': 'Return the sum.', 'completion': 'class Solution: pass'}
         content = drafts.draft(item, corpus)
         candidate = drafts.candidate(content, item['source'], corpus)

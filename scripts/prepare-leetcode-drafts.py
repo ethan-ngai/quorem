@@ -90,7 +90,7 @@ def draft(staged, corpus):
         raise ValueError("missing or oversized content")
     runtime, harness = "python-3.12-v1", "quorem-harness-v2"
     return {
-        "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": [], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "starterSource": prefix + starter.rstrip() + "\n        pass\n", "runtimeRevision": runtime, "languages": [], "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 10000, "maxNestingDepth": 100}},
+        "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": [], "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "starterSource": prefix + starter.rstrip() + "\n        pass\n", "runtimeRevision": runtime, "languages": [], "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 10000, "maxNestingDepth": 100}},
         "hiddenCases": cases[:20], "comparator": "ordered", "attribution": "LeetCode; reference and cases from newfacade/LeetCodeDataset.",
         "implementations": [{"language": "python", "starterSource": prefix + starter.rstrip() + "\n        pass\n", "runtimeRevision": runtime, "harnessRevision": harness, "referenceSource": reference}], "solutions": []}
 
@@ -209,7 +209,7 @@ def main():
             counts["candidate_blocked: " + str(error)] += 1
         counts["drafts"] += 1
         counts["drafts_with_20_cases"] += len(content["hiddenCases"]) == 20
-    report = {"corpus": f"https://huggingface.co/datasets/newfacade/LeetCodeDataset/tree/{REVISION}", "alternative_source": f"https://github.com/kamyu104/LeetCode-Solutions/tree/{KAMYU}", "counts": dict(counts), "failures": failures, "publication_ready": False, "limitations": ["Draft examples intentionally empty; candidate examples are parsed from source", "Publicly available generated cases may overlap examples and are not private", "Cases and ordered comparison unverified", "Reference and starter execution unverified", "Company tags and LeetCode IDs remain in staging metadata"]}
+    report = {"corpus": f"https://huggingface.co/datasets/newfacade/LeetCodeDataset/tree/{REVISION}", "alternative_source": f"https://github.com/kamyu104/LeetCode-Solutions/tree/{KAMYU}", "counts": dict(counts), "failures": failures, "publication_ready": False, "limitations": ["Draft examples intentionally empty; candidate examples are parsed from source", "Publicly available generated cases may overlap examples and are not private", "Cases and ordered comparison unverified", "Reference and starter execution unverified", "Company tags are historical source associations"]}
     (args.output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     print(f"Prepared {counts['drafts']} incomplete drafts; {counts['drafts_with_20_cases']} have 20 cases; {len(failures)} skipped")
 
