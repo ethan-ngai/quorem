@@ -11,19 +11,21 @@ export function AccountAvatar({
   image,
   large = false,
   color,
+  outline = false,
 }: {
   name?: string;
   username?: string | null;
   image?: string | null;
   large?: boolean;
   color?: string;
+  outline?: boolean;
 }) {
   const [failedImage, setFailedImage] = useState<string>();
   const { initials } = avatarIdentity(name, username);
   const hasImage = !!image && image !== failedImage;
   return (
     <span
-      className={`account-avatar${large ? " account-avatar-large" : ""}${color && hasImage ? " account-avatar-ring" : ""}`}
+      className={`account-avatar${large ? " account-avatar-large" : ""}${color && hasImage && outline ? " account-avatar-ring" : ""}`}
       style={
         color
           ? ({ "--avatar-background": color, "--avatar-foreground": "white" } as CSSProperties)

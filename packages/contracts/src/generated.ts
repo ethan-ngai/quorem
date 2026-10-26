@@ -1398,6 +1398,7 @@ export interface components {
             hints?: components["schemas"]["QuestionHints"];
         };
         InterviewMember: {
+            color?: number;
             image?: string;
             userId: string;
             name: string;

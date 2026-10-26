@@ -6,6 +6,7 @@ export type AccountProfile = {
   email: string;
   username?: string | null;
   image?: string | null;
+  color?: number;
 };
 export const photoTypes = ["image/jpeg", "image/png", "image/webp"];
 export const photoSizeLimit = 5 * 1024 * 1024;
@@ -19,6 +20,16 @@ async function readProfile(response: Response): Promise<AccountProfile> {
     throw new AuthError("Profile unavailable. Try again.");
   }
   return response.json() as Promise<AccountProfile>;
+}
+export async function updateProfileColor(color: number): Promise<AccountProfile> {
+  return readProfile(
+    await fetch("/api/auth/profile", {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color }),
+    }),
+  );
 }
 export async function fetchProfile(): Promise<AccountProfile> {
   return readProfile(await fetch("/api/auth/profile", { credentials: "same-origin" }));

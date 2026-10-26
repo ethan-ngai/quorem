@@ -143,14 +143,14 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 	if err := interviewCaseProjection(ctx, tx, v, &out); err != nil {
 		return out, err
 	}
-	rows, err := tx.Query(ctx, `SELECT m.user_id,u.display_name,m.role,u.kind='guest',u.profile_image FROM interview_members m JOIN users u ON u.id=m.user_id WHERE m.session_id=$1 AND m.removed_at IS NULL ORDER BY m.role,m.user_id`, out.ID)
+	rows, err := tx.Query(ctx, `SELECT m.user_id,u.display_name,m.role,u.kind='guest',u.profile_image,u.profile_color FROM interview_members m JOIN users u ON u.id=m.user_id WHERE m.session_id=$1 AND m.removed_at IS NULL ORDER BY m.role,m.user_id`, out.ID)
 	if err != nil {
 		return out, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var m interviews.Member
-		if err = rows.Scan(&m.UserID, &m.Name, &m.Role, &m.Guest, &m.Image); err != nil {
+		if err = rows.Scan(&m.UserID, &m.Name, &m.Role, &m.Guest, &m.Image, &m.Color); err != nil {
 			return out, err
 		}
 		out.Members = append(out.Members, m)

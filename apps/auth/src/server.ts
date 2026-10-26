@@ -24,10 +24,16 @@ const profileHandler = createProfileHandler({
   repository: {
     async read(id) {
       const result = await database.query(
-        'SELECT id,name,email,username,image FROM "user" WHERE id=$1',
+        'SELECT id,name,email,username,image,profile_color FROM "user" WHERE id=$1',
         [id],
       );
       return result.rows[0];
+    },
+    async setColor(id, color) {
+      await database.query(
+        'UPDATE "user" SET profile_color=$2,profile_color_revision=GREATEST(profile_color_revision+1, floor(extract(epoch from clock_timestamp()) * 1000)::bigint),"updatedAt"=NOW() WHERE id=$1',
+        [id, color],
+      );
     },
     async replace(id, previous, next) {
       const result = await database.query(

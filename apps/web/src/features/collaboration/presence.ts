@@ -22,6 +22,7 @@ export type CollaborationPresence = {
   clientID: string;
   userId: string;
   name: string;
+  color?: number;
   version: number;
   epoch: string;
   anchor: number;
@@ -137,7 +138,7 @@ export function presenceExtension(
                   label = { visibleUntil: Date.now() + CURSOR_LABEL_DELAY };
                   this.labels.set(peer.clientID, label);
                 }
-                const color = participantColor(peer.userId);
+                const color = participantColor(peer.userId, peer.color);
                 return [
                   ...(peer.anchor !== peer.head
                     ? [

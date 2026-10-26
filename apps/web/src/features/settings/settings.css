@@ -317,3 +317,35 @@
     font-size: 28px;
   }
 }
+
+.profile-colors {
+  border: 0;
+  padding: 16px 0 0;
+  margin: 0;
+}
+.profile-colors legend {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.profile-color-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.profile-color-options button {
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.profile-color-options button[aria-pressed="true"] {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+.profile-color-options button:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}

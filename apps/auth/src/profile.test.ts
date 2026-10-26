@@ -24,6 +24,9 @@ function fixture(image: string | null = null) {
       headers.get("cookie") === "session=alice" ? { user: { id: "alice" } } : null,
     repository: {
       read: async () => profile,
+      setColor: async (_id, color) => {
+        profile = { ...profile, profile_color: color };
+      },
       contains: async (image) => image === profile.image,
       replace: async (id, previous, next) => {
         if (failUpdate) throw new Error("database unavailable");
@@ -66,6 +69,40 @@ function fixture(image: string | null = null) {
   };
 }
 describe("profile photos", () => {
+  it("validates and saves account colors with origin and session checks", async () => {
+    let color = 4;
+    const handler = createProfileHandler({
+      origin,
+      session: async (headers) => (headers.get("cookie") ? { user: { id: "alice" } } : null),
+      repository: {
+        read: async () => ({
+          id: "alice",
+          name: "Alice",
+          email: "a@example.test",
+          profile_color: color,
+        }),
+        contains: async () => false,
+        replace: async () => false,
+        setColor: async (_id, value) => {
+          color = value;
+        },
+      },
+    });
+    const call = (body: string, requestOrigin = origin, cookie = "session") =>
+      handler(
+        new Request(origin + "/api/auth/profile", {
+          method: "PATCH",
+          headers: { Origin: requestOrigin, Cookie: cookie },
+          body,
+        }),
+      );
+    expect((await call('{"color":25}'))?.status).toBe(400);
+    expect((await call('{"color":3}', "https://evil.test"))?.status).toBe(403);
+    expect((await call('{"color":3}', origin, ""))?.status).toBe(401);
+    const result = await call('{"color":3}');
+    expect((await result!.json()).color).toBe(3);
+    expect(color).toBe(3);
+  });
   it("returns no image for legacy remote URLs and embedded image data", async () => {
     for (const image of [
       "https://example.test/photo.jpg",
@@ -178,6 +215,12 @@ describe.skipIf(!databaseURL)("profile with real Better Auth session", () => {
         origin,
         session: (headers) => auth.api.getSession({ headers }),
         repository: {
+          setColor: async (subject, color) => {
+            await database.query('UPDATE "user" SET profile_color=$2 WHERE id=$1', [
+              subject,
+              color,
+            ]);
+          },
           read: async (subject) =>
             (
               await database.query('SELECT id,name,email,username,image FROM "user" WHERE id=$1', [

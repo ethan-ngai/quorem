@@ -34,6 +34,19 @@ func TestIdentityBindingStableRolesAndDisable(t *testing.T) {
 	if e = s.Pool.QueryRow(ctx, "SELECT profile_image FROM users WHERE id=$1", p.UserID).Scan(&image); e != nil || image != "" {
 		t.Fatal("photo removal", image, e)
 	}
+	c.Color, c.ColorRevision = 5, 20
+	if _, e = s.ResolveIdentity(ctx, c); e != nil {
+		t.Fatal(e)
+	}
+	older := c
+	older.Color, older.ColorRevision = 2, 10
+	if _, e = s.ResolveIdentity(ctx, older); e != nil {
+		t.Fatal(e)
+	}
+	var color int
+	if e = s.Pool.QueryRow(ctx, "SELECT profile_color FROM users WHERE id=$1", p.UserID).Scan(&color); e != nil || color != 5 {
+		t.Fatal("stale color projection", color, e)
+	}
 	_, e = s.Pool.Exec(ctx, "UPDATE users SET role='admin' WHERE id=$1", p.UserID)
 	if e != nil {
 		t.Fatal(e)

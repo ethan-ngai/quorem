@@ -7,6 +7,7 @@ import { signOut, type Session } from "../auth/session";
 import { useProfile } from "../auth/profile";
 import { Tooltip } from "../../ui/Tooltip";
 import { AccountAvatar } from "./AccountAvatar";
+import { participantColor } from "../collaboration/participantColor";
 
 export function AccountMenu({
   session,
@@ -58,7 +59,12 @@ export function AccountMenu({
               className="icon-button nav-profile-trigger"
               aria-label="Profile"
             >
-              <AccountAvatar name={name} username={account?.username} image={account?.image} />
+              <AccountAvatar
+                name={name}
+                username={account?.username}
+                image={account?.image}
+                color={participantColor(session.user.id, account?.color)}
+              />
             </button>
           </Popover.Trigger>
         </Tooltip>
@@ -76,6 +82,7 @@ export function AccountMenu({
                 name={name}
                 username={account?.username}
                 image={account?.image}
+                color={participantColor(session.user.id, account?.color)}
                 large
               />
               <div className="account-menu-identity">

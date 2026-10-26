@@ -30,6 +30,7 @@ type Create struct {
 	Question   QuestionInput `json:"question"`
 }
 type Member struct {
+	Color  int    `json:"color,omitempty"`
 	Image  string `json:"image,omitempty"`
 	UserID string `json:"userId"`
 	Name   string `json:"name"`
@@ -100,6 +101,7 @@ type PresenceInput struct {
 	Head     int    `json:"head"`
 }
 type Presence struct {
+	Color int `json:"color,omitempty"`
 	PresenceInput
 	UserID string `json:"userId"`
 	Name   string `json:"name"`

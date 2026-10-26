@@ -13,7 +13,9 @@ describe("account avatars", () => {
   });
   it("uses participant color for initials and a ring only for photos", () => {
     const initials = renderToStaticMarkup(<AccountAvatar name="Alice" color="green" />);
-    const photo = renderToStaticMarkup(<AccountAvatar name="Alice" color="green" image="/photo" />);
+    const photo = renderToStaticMarkup(
+      <AccountAvatar name="Alice" color="green" image="/photo" outline />,
+    );
     expect(initials).toContain("--avatar-background:green");
     expect(initials).not.toContain("account-avatar-ring");
     expect(photo).toContain("account-avatar-ring");

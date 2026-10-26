@@ -10,11 +10,13 @@ export type Profile = {
   email: string;
   username?: string | null;
   image?: string | null;
+  profile_color?: number;
 };
 export interface ProfileRepository {
   read(id: string): Promise<Profile | undefined>;
   replace(id: string, previous: string | null, next: string | null): Promise<boolean>;
   contains(image: string): Promise<boolean>;
+  setColor(id: string, color: number): Promise<void>;
 }
 type SessionReader = (headers: Headers) => Promise<{ user: { id: string } } | null>;
 const json = (status: number, value: unknown) =>
@@ -22,7 +24,8 @@ const json = (status: number, value: unknown) =>
     status,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
-const publicProfile = ({ name, email, username, image }: Profile) => ({
+const publicProfile = ({ name, email, username, image, profile_color }: Profile) => ({
+  color: profile_color,
   name,
   email,
   username,
@@ -95,7 +98,7 @@ export function createProfileHandler(options: {
     if (pathname !== "/api/auth/profile" && pathname !== "/api/auth/profile-photo")
       return undefined;
     if (
-      (pathname === "/api/auth/profile" && request.method !== "GET") ||
+      (pathname === "/api/auth/profile" && !["GET", "PATCH"].includes(request.method)) ||
       (pathname === "/api/auth/profile-photo" && !["PUT", "DELETE"].includes(request.method))
     )
       return json(405, { error: "Method not allowed" });
@@ -106,6 +109,20 @@ export function createProfileHandler(options: {
     const profile = await options.repository.read(session.user.id);
     if (!profile) return json(401, { error: "Sign in required" });
     if (request.method === "GET") return json(200, publicProfile(profile));
+    if (pathname === "/api/auth/profile") {
+      let color: unknown;
+      try {
+        const bytes = await boundedBody(request);
+        if (!bytes || bytes.length > 1024) return json(400, { error: "Invalid color" });
+        color = (JSON.parse(bytes.toString("utf8")) as { color?: unknown }).color;
+      } catch {
+        return json(400, { error: "Invalid color" });
+      }
+      if (!Number.isInteger(color) || (color as number) < 1 || (color as number) > 24)
+        return json(400, { error: "Invalid color" });
+      await options.repository.setColor(profile.id, color as number);
+      return json(200, publicProfile({ ...profile, profile_color: color as number }));
+    }
     if (!options.storage) return json(503, { error: "Photo storage unavailable" });
     const now = Date.now();
     for (const [id, window] of attempts) if (now - window.starts >= 60000) attempts.delete(id);
