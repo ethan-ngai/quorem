@@ -21,7 +21,7 @@ func (s *Store) InterviewPresence(ctx context.Context, user, id string) ([]inter
 	return readInterviewPresence(ctx, tx, id)
 }
 func readInterviewPresence(ctx context.Context, tx pgx.Tx, id string) ([]interviews.Presence, error) {
-	rows, err := tx.Query(ctx, `SELECT p.client_id,p.user_id,u.display_name,p.epoch,p.version,p.anchor,p.head FROM interview_presence p JOIN interview_members m ON m.session_id=p.session_id AND m.user_id=p.user_id AND m.removed_at IS NULL JOIN users u ON u.id=p.user_id AND NOT u.disabled JOIN interviews i ON i.id=p.session_id AND i.document_epoch=p.epoch WHERE p.session_id=$1 AND p.updated_at>clock_timestamp()-interval '20 seconds' ORDER BY p.user_id,p.client_id LIMIT 48`, id)
+	rows, err := tx.Query(ctx, `SELECT p.client_id,p.user_id,u.display_name,u.profile_color,p.epoch,p.version,p.anchor,p.head FROM interview_presence p JOIN interview_members m ON m.session_id=p.session_id AND m.user_id=p.user_id AND m.removed_at IS NULL JOIN users u ON u.id=p.user_id AND NOT u.disabled JOIN interviews i ON i.id=p.session_id AND i.document_epoch=p.epoch WHERE p.session_id=$1 AND p.updated_at>clock_timestamp()-interval '20 seconds' ORDER BY p.user_id,p.client_id LIMIT 48`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func readInterviewPresence(ctx context.Context, tx pgx.Tx, id string) ([]intervi
 	out := []interviews.Presence{}
 	for rows.Next() {
 		var p interviews.Presence
-		if err = rows.Scan(&p.ClientID, &p.UserID, &p.Name, &p.Epoch, &p.Version, &p.Anchor, &p.Head); err != nil {
+		if err = rows.Scan(&p.ClientID, &p.UserID, &p.Name, &p.Color, &p.Epoch, &p.Version, &p.Anchor, &p.Head); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

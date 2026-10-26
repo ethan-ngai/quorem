@@ -9,8 +9,11 @@ import (
 
 // ResolveIdentity binds immutable provider subjects; email never links accounts.
 func (s *Store) ResolveIdentity(ctx context.Context, c identity.Claims) (identity.Principal, error) {
-	p, image, e := boundIdentity(ctx, s.Pool, c)
-	if e == nil && image == c.Image {
+	p, image, _, revision, e := boundIdentity(ctx, s.Pool, c)
+	if c.Color < 0 || c.Color > 24 {
+		c.Color = 0
+	}
+	if e == nil && image == c.Image && revision >= c.ColorRevision {
 		return p, nil
 	}
 	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
@@ -38,33 +41,35 @@ func (s *Store) ResolveIdentity(ctx context.Context, c identity.Claims) (identit
 			return p, e
 		}
 	}
-	p, image, e = boundIdentity(ctx, tx, c)
+	p, image, _, revision, e = boundIdentity(ctx, tx, c)
 	if e != nil {
 		return p, e
 	}
-	if image != c.Image {
-		if _, e = tx.Exec(ctx, "UPDATE users SET profile_image=$2 WHERE id=$1 AND profile_image IS DISTINCT FROM $2", p.UserID, c.Image); e != nil {
+	if image != c.Image || revision < c.ColorRevision {
+		if _, e = tx.Exec(ctx, "UPDATE users SET profile_image=$2, profile_color=CASE WHEN profile_color_revision < $4 THEN $3 ELSE profile_color END, profile_color_revision=GREATEST(profile_color_revision,$4) WHERE id=$1", p.UserID, c.Image, c.Color, c.ColorRevision); e != nil {
 			return p, e
 		}
 	}
 	return p, tx.Commit(ctx)
 }
 
-func boundIdentity(ctx context.Context, q querier, c identity.Claims) (identity.Principal, string, error) {
+func boundIdentity(ctx context.Context, q querier, c identity.Claims) (identity.Principal, string, int, int64, error) {
 	var p identity.Principal
 	var disabled bool
 	var role, image string
-	err := q.QueryRow(ctx, "SELECT u.id,u.display_name,u.role,u.disabled,u.profile_image FROM users u JOIN identity_bindings b ON b.user_id=u.id WHERE b.issuer=$1 AND b.subject=$2", c.Issuer, c.Subject).Scan(&p.UserID, &p.DisplayName, &role, &disabled, &image)
+	var color int
+	var revision int64
+	err := q.QueryRow(ctx, "SELECT u.id,u.display_name,u.role,u.disabled,u.profile_image,u.profile_color,u.profile_color_revision FROM users u JOIN identity_bindings b ON b.user_id=u.id WHERE b.issuer=$1 AND b.subject=$2", c.Issuer, c.Subject).Scan(&p.UserID, &p.DisplayName, &role, &disabled, &image, &color, &revision)
 	if err != nil {
-		return p, image, err
+		return p, image, color, revision, err
 	}
 	if disabled {
-		return p, image, identity.ErrUnauthorized
+		return p, image, color, revision, identity.ErrUnauthorized
 	}
 	p.Admin = role == "admin"
 	p.EmailVerified = c.EmailVerified
 	p.SessionID = c.SessionID
-	return p, image, nil
+	return p, image, color, revision, nil
 }
 
 func (s *Store) DevelopmentIdentity(ctx context.Context, user string) (identity.Principal, error) {

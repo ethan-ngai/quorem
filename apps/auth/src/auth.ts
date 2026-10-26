@@ -337,14 +337,24 @@ export function createAuth(allowSeed = false) {
           issuer: config.origin,
           audience: "quorem-api",
           expirationTime: "5m",
-          definePayload: ({ user, session }) => ({
-            emailVerified: user.emailVerified === true,
-            image: user.image?.startsWith("/api/auth/profile-photos/") ? user.image : "",
-            name:
-              user.name ||
-              ("username" in user && typeof user.username === "string" ? user.username : ""),
-            sessionId: session.id,
-          }),
+          definePayload: async ({ user, session }) => {
+            const profile = (
+              await database.query(
+                'SELECT profile_color,profile_color_revision FROM "user" WHERE id=$1',
+                [user.id],
+              )
+            ).rows[0];
+            return {
+              color: profile?.profile_color ?? 0,
+              colorRevision: Number(profile?.profile_color_revision ?? 0),
+              emailVerified: user.emailVerified === true,
+              image: user.image?.startsWith("/api/auth/profile-photos/") ? user.image : "",
+              name:
+                user.name ||
+                ("username" in user && typeof user.username === "string" ? user.username : ""),
+              sessionId: session.id,
+            };
+          },
         },
       }),
     ],

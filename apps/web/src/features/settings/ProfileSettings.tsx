@@ -4,10 +4,18 @@ import { Tooltip } from "../../ui/Tooltip";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { authErrorMessage } from "../auth/errors";
-import { useProfile, uploadProfilePhoto, removeProfilePhoto, photoTypes } from "../auth/profile";
+import {
+  useProfile,
+  uploadProfilePhoto,
+  removeProfilePhoto,
+  updateProfileColor,
+  photoTypes,
+} from "../auth/profile";
 import { ProfileEditor } from "../auth/ProfileEditor";
 import { PasskeySettings } from "../auth/PasskeySettings";
 import { AccountAvatar } from "../navigation/AccountAvatar";
+import { participantColor, participantColors } from "../collaboration/participantColor";
+import { resetToken, fetchSession } from "../auth/session";
 
 export function ProfileSettings({
   userId,
@@ -30,6 +38,20 @@ export function ProfileSettings({
       client.setQueryData(["account-profile", userId], updated);
     } catch (cause) {
       setError(authErrorMessage(cause, "Photo update unavailable. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function changeColor(color: number) {
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await updateProfileColor(color);
+      client.setQueryData(["account-profile", userId], updated);
+      resetToken();
+      await fetchSession();
+    } catch (cause) {
+      setError(authErrorMessage(cause, "Color update unavailable. Try again."));
     } finally {
       setBusy(false);
     }
@@ -63,6 +85,7 @@ export function ProfileSettings({
                   name={account.name || account.username || "Account"}
                   username={account.username}
                   image={account.image}
+                  color={participantColor(userId, account.color)}
                   large
                 />
                 <span className="profile-photo-pencil" aria-hidden="true">
@@ -97,7 +120,27 @@ export function ProfileSettings({
             </div>
           </div>
         )}
-        <ProfileEditor key={section} profile={account} userId={userId} section={section} />
+        <div>
+          <ProfileEditor key={section} profile={account} userId={userId} section={section} />
+          {section === "profile" && (
+            <fieldset className="profile-colors" disabled={busy}>
+              <legend>Profile color</legend>
+              <div className="profile-color-options">
+                {participantColors.map((color, index) => (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-label={`Color ${index + 1}`}
+                    aria-pressed={account.color === index + 1}
+                    title={`Color ${index + 1}`}
+                    onClick={() => void changeColor(index + 1)}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </fieldset>
+          )}
+        </div>
       </div>
       {section === "security" && (
         <div className="settings-security-passkeys">

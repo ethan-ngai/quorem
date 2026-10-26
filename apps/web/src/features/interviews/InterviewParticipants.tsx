@@ -64,7 +64,8 @@ export function InterviewParticipants({
                     <AccountAvatar
                       name={member.name}
                       image={member.image}
-                      color={participantColor(member.userId)}
+                      color={participantColor(member.userId, member.color)}
+                      outline
                     />
                     <div className="interview-person">
                       <strong>{member.name}</strong>

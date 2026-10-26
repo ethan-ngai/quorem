@@ -185,7 +185,10 @@ func TestFlattenedMigrationRejectsGappedHistory(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_, _ = s.Pool.Exec(ctx, `DELETE FROM schema_migrations`)
-		_, _ = s.Pool.Exec(ctx, `INSERT INTO schema_migrations VALUES ($1)`, archive.Baseline)
+		paths, _ := filepath.Glob("../../../migrations/*.sql")
+		for _, path := range paths {
+			_, _ = s.Pool.Exec(ctx, `INSERT INTO schema_migrations VALUES ($1)`, filepath.Base(path))
+		}
 	})
 	if err := s.Migrate(ctx, "../../../migrations"); err == nil || !strings.Contains(err.Error(), "contiguous prefix") {
 		t.Fatalf("gapped history accepted: %v", err)
