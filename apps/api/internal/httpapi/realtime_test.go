@@ -246,6 +246,13 @@ func TestMatchOutboxPublishFailureAndCommitOrder(t *testing.T) {
 	if e = store.DispatchMatchEvents(ctx, publish); e != nil || count != 3 {
 		t.Fatal("acknowledged event replay", count, e)
 	}
+	// A single coalesced wake drains more than one batch without a recovery-tick delay.
+	if _, e = store.Pool.Exec(ctx, `INSERT INTO match_outbox(id,match_id,version,event_type) SELECT gen_random_uuid(),$1,version,'match.updated' FROM generate_series(22,171) version`, created.ID); e != nil {
+		t.Fatal(e)
+	}
+	if e = store.DispatchMatchEvents(ctx, publish); e != nil || count != 153 {
+		t.Fatal("recovery backlog left after one dispatch", count, e)
+	}
 }
 
 type revocableVerifier struct{ state atomic.Int32 }

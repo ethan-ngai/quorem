@@ -10,8 +10,13 @@ import (
 
 // DispatchInterviewEvents publishes before acknowledging; a crash may replay, never skip.
 func (s *Store) DispatchInterviewEvents(ctx context.Context, publish func(realtime.Notice) error) error {
+	return drainEventBatches(ctx, func(ctx context.Context) (int, error) { return s.dispatchInterviewEventBatch(ctx, publish) })
+}
+
+// One coalesced notification drains recovery backlogs within the caller's deadline.
+func drainEventBatches(ctx context.Context, batch func(context.Context) (int, error)) error {
 	for {
-		count, err := s.dispatchInterviewEventBatch(ctx, publish)
+		count, err := batch(ctx)
 		if err != nil || count < 64 {
 			return err
 		}
