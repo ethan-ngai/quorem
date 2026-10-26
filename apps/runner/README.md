@@ -21,6 +21,10 @@ credentials, root privileges, or writable root filesystem. Per-case limits:
 Development containers are not public isolation certification; public execution
 requires the planned dedicated-host/gVisor validation.
 
+Input collections are bounded by the problem snapshot, up to 100,000 elements;
+custom inputs have a 2 MiB aggregate limit. Outputs remain capped at 10,000
+elements and 64 KiB. Large authored interview cases retain separate request bounds.
+
 Attempt IDs fence heartbeats/completions. Infrastructure failures retry twice;
 expired abandoned attempts are reaped before a new lease. Cancellation releases
 its owner slot only after confirmed teardown or queued nonexecution. Unconfirmed

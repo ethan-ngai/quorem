@@ -80,15 +80,15 @@ describe("typed custom cases", () => {
         signature,
       ),
     ).toThrow("between 1 and 20");
-    expect(() => parseTypedField("list<int>", JSON.stringify(Array(10001).fill(0)))).toThrow(
-      "10,000",
+    expect(() => parseTypedField("list<int>", JSON.stringify(Array(100001).fill(0)))).toThrow(
+      "100,000",
     );
     expect(() =>
       parseTypedField(
         "list<list<int>>",
-        JSON.stringify([Array(5000).fill(0), Array(5000).fill(0)]),
+        JSON.stringify([Array(50000).fill(0), Array(50000).fill(0)]),
       ),
-    ).toThrow("10,000");
+    ).toThrow("100,000");
     let type = "int";
     let value: unknown = 0;
     for (let depth = 0; depth < 102; depth++) {
@@ -97,8 +97,8 @@ describe("typed custom cases", () => {
     }
     expect(() => validateTypedValue(type, value)).toThrow("nested type");
     const strings: Signature = { ...signature, parameters: [{ name: "text", type: "str" }] };
-    expect(() => parseCustomDrafts([{ ...draft, args: ["é".repeat(33000)] }], strings)).toThrow(
-      "64 KiB",
+    expect(() => parseCustomDrafts([{ ...draft, args: ["é".repeat(1_050_000)] }], strings)).toThrow(
+      "2 MiB",
     );
   });
 

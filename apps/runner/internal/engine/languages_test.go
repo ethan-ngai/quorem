@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"os"
@@ -17,7 +18,9 @@ func executeLanguage(t *testing.T, f worker.Fixture, language, source, kind stri
 	if !ok {
 		t.Fatal(language)
 	}
-	docker := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+	docker := &Docker{Image: os.Getenv("QUOREM_TEST_PYTHON_IMAGE"), Images: map[string]string{
+		"java": os.Getenv("QUOREM_TEST_JAVA_IMAGE"), "typescript": os.Getenv("QUOREM_TEST_TYPESCRIPT_IMAGE"), "ocaml": os.Getenv("QUOREM_TEST_OCAML_IMAGE"),
+	}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 		return worker.Spec{Source: source, Kind: kind, Fixture: f, Cases: cases}, nil
 	}}
 	job := execution.Job{Language: language, JobID: "test", SubmissionID: "test", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()}
@@ -60,6 +63,32 @@ func TestDockerLanguageCorpus(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestDockerLargeInput(t *testing.T) {
+	f := dockerTests(t)[0]
+	f.Problem.Signature.MethodName = "length"
+	f.Problem.Signature.Parameters = []worker.Parameter{{Name: "values", Type: "list<int>"}}
+	f.Problem.Signature.ReturnType = "int"
+	values := make([]int, 100000)
+	for i := range values {
+		values[i] = 2147483647
+	}
+	data, _ := json.Marshal(values)
+	cases := []worker.Case{{Args: []json.RawMessage{data}, Expected: json.RawMessage(`100000`)}}
+	for _, test := range []struct{ language, source string }{
+		{"python", "class Solution:\n def length(self, values): return len(values)"},
+		{"java", "class Solution {public int length(int[] values){return values.length;}}"},
+		{"typescript", "class Solution {length(values:number[]):number{return values.length;}}"},
+		{"ocaml", "let length values = List.length values"},
+	} {
+		t.Run(test.language, func(t *testing.T) {
+			result := executeLanguage(t, f, test.language, test.source, "run", cases)
+			if result.Verdict != execution.Accepted {
+				t.Fatalf("large input failed: %+v", result)
+			}
+		})
 	}
 }
 

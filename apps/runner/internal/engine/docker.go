@@ -128,8 +128,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 			f = frame{Status: "time_limit"}
 		} else {
 			compiling := runtime.Language != "python" && runtime.Language != "postgresql" && len(artifact) == 0
-			if runtime.Language == "python" || runtime.Language == "postgresql" || len(cases) == 1 {
-				// A single case already compiles once; avoid serializing an unused artifact.
+			if runtime.Language == "python" || runtime.Language == "postgresql" {
 				f, err = d.runCase(ctx, j, i, spec, c, budget-compilationTime)
 			} else if compiling {
 				f, err = d.runRequest(ctx, j, i, compiledFirstCaseRequest(spec, c), compiledArtifactLimit, budget-compilationTime)
