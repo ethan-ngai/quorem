@@ -1,3 +1,4 @@
+import "./result-tabs.css";
 import { useId } from "react";
 
 /** Shared authoring navigation preserves mounted drafts across keyboard-accessible panels. */
@@ -41,6 +42,9 @@ export function AuthoringTabs({
               ]!;
             onChange(next.value);
             document.getElementById(`${id}-${next.value}`)?.focus();
+            document
+              .getElementById(`${id}-${next.value}`)
+              ?.scrollIntoView({ block: "nearest", inline: "nearest" });
           }}
         >
           {tab.label}
