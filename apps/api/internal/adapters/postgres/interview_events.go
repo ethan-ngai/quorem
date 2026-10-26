@@ -2,11 +2,10 @@ package postgres
 
 import (
 	"context"
+	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/pgnotify"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"github.com/jackc/pgx/v5"
 	"os"
-	"strings"
-	"time"
 )
 
 // DispatchInterviewEvents publishes before acknowledging; a crash may replay, never skip.
@@ -62,71 +61,23 @@ func (s *Store) dispatchInterviewEventBatch(ctx context.Context, publish func(re
 
 // InterviewEventNotifications wakes dispatch after commit; the outbox repairs lost database notices.
 func (s *Store) InterviewEventNotifications(ctx context.Context) (<-chan struct{}, func(), error) {
-	acquire, cancel := context.WithTimeout(ctx, 5*time.Second)
 	config, err := interviewListenerConfig(s.Pool.Config().ConnConfig, os.Getenv("QUOREM_DATABASE_LISTEN_URL"))
 	if err != nil {
-		cancel()
 		return nil, nil, err
 	}
-	conn, err := pgx.ConnectConfig(acquire, config)
+	return pgnotify.Signals(ctx, config, "quorem_interview_outbox")
+}
+
+func (s *Store) MatchEventNotifications(ctx context.Context) (<-chan struct{}, func(), error) {
+	config, err := interviewListenerConfig(s.Pool.Config().ConnConfig, os.Getenv("QUOREM_DATABASE_LISTEN_URL"))
 	if err != nil {
-		cancel()
 		return nil, nil, err
 	}
-	if _, err = conn.Exec(acquire, "LISTEN quorem_interview_outbox"); err != nil {
-		cancel()
-		_ = conn.Close(acquire)
-		return nil, nil, err
-	}
-	cancel()
-	listen, stop := context.WithCancel(ctx)
-	wake := make(chan struct{}, 1)
-	go func() {
-		defer close(wake)
-		// LISTEN owns a dedicated session; transaction pooling cannot preserve subscriptions.
-		defer func() {
-			closeCtx, done := context.WithTimeout(context.Background(), time.Second)
-			defer done()
-			_ = conn.Close(closeCtx)
-		}()
-		for {
-			if _, err := conn.WaitForNotification(listen); err != nil {
-				return
-			}
-			select {
-			case wake <- struct{}{}:
-			default:
-			}
-		}
-	}()
-	return wake, stop, nil
+	return pgnotify.Signals(ctx, config, "quorem_match_outbox")
 }
 
 func interviewListenerConfig(primary *pgx.ConnConfig, override string) (*pgx.ConnConfig, error) {
-	if override != "" {
-		return pgx.ParseConfig(override)
-	}
-	config := primary.Copy()
-	// Neon exposes paired direct/pooler endpoints. Keep credentials and TLS verification intact.
-	labels := strings.Split(config.Host, ".")
-	if len(labels) > 1 && strings.HasSuffix(config.Host, ".neon.tech") && strings.HasSuffix(labels[0], "-pooler") {
-		labels[0] = strings.TrimSuffix(labels[0], "-pooler")
-		direct := strings.Join(labels, ".")
-		pooled := config.Host
-		config.Host = direct
-		if config.TLSConfig != nil {
-			config.TLSConfig.ServerName = direct
-		}
-		for _, fallback := range config.Fallbacks {
-			if fallback.Host == pooled {
-				fallback.Host = direct
-				if fallback.TLSConfig != nil {
-					fallback.TLSConfig.ServerName = direct
-				}
-			}
-		}
-	}
-	return config, nil
+	return pgnotify.Config(primary, override)
 }
 
 // Qualify the numeric column; the serialized sequence alias otherwise sorts as text.
