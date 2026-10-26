@@ -64,3 +64,16 @@ it("does not equate manually unlocked stages with verified passes", () => {
   expect(html).not.toContain(", passed");
   expect(html).not.toContain('data-complete="true"');
 });
+
+it("composes optional practice actions without stage-button styling", () => {
+  const html = renderToStaticMarkup(
+    <OdysseyStepper
+      progress={progress}
+      actions={<button type="button" className="icon-button" aria-label="Reset Odyssey progress" />}
+    />,
+  );
+  expect(html).toContain('class="icon-button" aria-label="Reset Odyssey progress"');
+  expect(html.indexOf('aria-label="Reset Odyssey progress"')).toBeGreaterThan(
+    html.indexOf("</ol>"),
+  );
+});

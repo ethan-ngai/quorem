@@ -1,4 +1,5 @@
 /** @file OdysseyStepper.tsx @description Shared top-bar navigation across authorized Odyssey stages. @module odyssey */
+import type { ReactNode } from "react";
 import { LockKeyhole } from "lucide-react";
 import type { OdysseyProgress } from "@quorem/contracts";
 import { Icon } from "../../ui/Icon";
@@ -10,11 +11,13 @@ export function OdysseyStepper({
   selectedLevel,
   onSelect,
   passedLevels,
+  actions,
 }: {
   progress: OdysseyProgress & { totalLevels?: number };
   selectedLevel?: number;
   onSelect?: (level: number) => void;
   passedLevels?: readonly number[];
+  actions?: ReactNode;
 }) {
   const selected = Math.min(
     (onSelect ? selectedLevel : undefined) ?? progress.level,
@@ -75,6 +78,7 @@ export function OdysseyStepper({
           </strong>
         ))}
       </span>
+      {actions}
     </nav>
   );
 }

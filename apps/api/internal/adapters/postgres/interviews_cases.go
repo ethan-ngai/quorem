@@ -55,7 +55,17 @@ func interviewCaseProjection(ctx context.Context, tx pgx.Tx, v interviewRecord, 
 	if err != nil {
 		return err
 	}
-	for _, c := range interviewPrivateCases(v.fixture, level) {
+
+	statuses, err := latestCaseStatuses(ctx, tx, `SELECT s.id,s.admitted_at,CASE WHEN jsonb_array_length(e.private_results)>0 THEN e.private_results ELSE s.result->'hiddenCases' END AS cases FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id WHERE e.session_id=$1 AND e.question_epoch=$2 AND j.language=$3 AND s.kind='submit' AND s.state='completed'`, out.ID, out.QuestionEpoch, v.language)
+	if err != nil {
+		return err
+	}
+	byIndex := map[int]string{}
+	for _, result := range statuses {
+		byIndex[result.Index] = result.Status
+	}
+	for index, c := range interviewPrivateCases(v.fixture, level) {
+		c.Status = byIndex[index]
 		c.Revealed = reveals[c.ID]
 		if out.Role == "interviewer" {
 			out.Question.PrivateCaseDetails = append(out.Question.PrivateCaseDetails, c)
