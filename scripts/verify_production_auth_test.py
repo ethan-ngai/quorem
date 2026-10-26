@@ -24,6 +24,7 @@ class AuthenticationProbeTests(unittest.TestCase):
 
         class Opener:
             def open(self, request, timeout):
+                self_test.assertEqual(request.get_header("User-agent"), "Quorem-Deployment-Probe/1.0")
                 calls.append(request)
                 route = request.full_url.removeprefix('https://quorem.test')
                 if route == '/api/auth/token':

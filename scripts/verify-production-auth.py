@@ -21,7 +21,7 @@ def verify(origin, username, password):
         NoRedirect(), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
     def call(path, body=None, bearer=None, expected=200):
-        headers = {"Origin": origin}
+        headers = {"Origin": origin, "User-Agent": "Quorem-Deployment-Probe/1.0"}
         if body is not None:
             headers["Content-Type"] = "application/json"
         if bearer:
