@@ -948,6 +948,7 @@ export interface components {
                 outputOrder: "ordered" | "unordered";
             };
             odyssey?: components["schemas"]["Odyssey"];
+            solutionLanguages?: components["schemas"]["Language"][];
             /** @description Languages with published complexity; contains no costs or solution source. */
             complexityLanguages?: components["schemas"]["Language"][];
         };

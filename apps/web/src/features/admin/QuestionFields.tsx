@@ -533,14 +533,18 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
       {content.solutions.map((solution) => (
         <section key={solution.language}>
           <h2>{languageLabels[solution.language as Language]} solution</h2>
-          <StatementMarkdown source={solution.explanationMarkdown} />
+          {solution.explanationMarkdown && (
+            <StatementMarkdown source={solution.explanationMarkdown} />
+          )}
           <pre className="editorial-source">
             <code>{solution.source}</code>
           </pre>
-          <p>
-            Time: {solution.timeComplexity} · Auxiliary space: {solution.spaceComplexity}
-          </p>
-          <StatementMarkdown source={solution.complexityNotes} />
+          {solution.timeComplexity && solution.spaceComplexity && (
+            <p>
+              Time: {solution.timeComplexity} · Auxiliary space: {solution.spaceComplexity}
+            </p>
+          )}
+          {solution.complexityNotes && <StatementMarkdown source={solution.complexityNotes} />}
         </section>
       ))}
     </div>
