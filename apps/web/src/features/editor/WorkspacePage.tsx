@@ -15,13 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect, useRef, useState, type ReactNode } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useMatchRules } from "../matches/useMatchRules";
-import {
-  fetchProblem,
-  fetchProblemVersion,
-  fetchWorkspace,
-  createWorkspace,
-  switchMatchLanguage,
-} from "./api";
+import { fetchWorkspace, createWorkspace, switchMatchLanguage } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
@@ -68,6 +62,7 @@ function errorMessage(error: unknown) {
 /** Opens one public problem in the resizable practice workspace. */
 import { guestWorkspace } from "./guestWorkspace";
 import { useSession } from "../auth/session";
+import { problemQueryOptions } from "../practice/problemQueries";
 import { languageFileNames, type EditorLanguage } from "./editorLanguages";
 
 export function WorkspacePage({
@@ -163,12 +158,16 @@ export function WorkspacePage({
     });
   }
 
+  const queryClient = useQueryClient();
+  const problemOptions = problemQueryOptions(
+    queryClient,
+    account.data === undefined ? undefined : identity,
+    match?.problemVersionId ?? slug,
+    !!match,
+  );
   const problemQuery = useQuery({
-    queryKey: ["problem", identity, match?.problemVersionId ?? slug],
-    staleTime: 60_000,
-    queryFn: () =>
-      match ? fetchProblemVersion(identity, match.problemVersionId!) : fetchProblem(identity, slug),
-    enabled: match ? !!match.problemVersionId && !!matchWorkspaceId : !!slug,
+    ...problemOptions,
+    enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),
   });
   const workspaceQuery = useQuery({
     queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id, selectedLanguage],
@@ -542,7 +541,16 @@ export function WorkspacePage({
     [identity, workspace, saveCurrentDraft],
   );
 
-  const loadError = problemQuery.error ?? workspaceQuery.error;
+  const loadError = problemQuery.error ?? workspaceQuery.error ?? account.error;
+  const retryLoading = () => {
+    if (account.data === undefined) {
+      void account.refetch();
+      return;
+    }
+    if (problemOptions.enabled && (!match || !!matchWorkspaceId)) void problemQuery.refetch();
+    if (serverWorkspace && (match ? !!matchWorkspaceId : !!problemQuery.data))
+      void workspaceQuery.refetch();
+  };
   const virtualDocumentUri = `file:///workspace/${languageFileNames[documentLanguage]}`;
   const editorDocumentKey = workspace
     ? `${identity}:${workspace.id}:${workspace.problemVersionId}:${documentLanguage}`
@@ -589,13 +597,7 @@ export function WorkspacePage({
         {loadError && (
           <>
             <p>{errorMessage(loadError)}</p>
-            <button
-              className="button button-secondary"
-              onClick={() => {
-                void problemQuery.refetch();
-                void workspaceQuery.refetch();
-              }}
-            >
+            <button className="button button-secondary" onClick={retryLoading}>
               Retry
             </button>
           </>
@@ -613,13 +615,7 @@ export function WorkspacePage({
             <LoadingScreen label="Opening workspace…" />
           )}
           {loadError && (
-            <button
-              className="button button-secondary"
-              onClick={() => {
-                void problemQuery.refetch();
-                void workspaceQuery.refetch();
-              }}
-            >
+            <button className="button button-secondary" onClick={retryLoading}>
               Retry
             </button>
           )}

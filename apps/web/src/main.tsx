@@ -16,6 +16,7 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { InvitePage } from "./features/matches/InvitePage";
 import { practiceSearch } from "./features/navigation/matchCreationIntent";
 import { catalogSearch } from "./features/practice/catalogSearch";
+import { loadWorkspacePage } from "./features/editor/preloadWorkspace";
 import { PracticeBrowser } from "./features/practice/PracticeBrowser";
 import "@fontsource-variable/geist";
 import "@fontsource/jetbrains-mono/400.css";
@@ -30,9 +31,7 @@ const QuestionEditor = lazy(() =>
   import("./features/admin/QuestionEditor").then((module) => ({ default: module.QuestionEditor })),
 );
 
-const WorkspacePage = lazy(() =>
-  import("./features/editor/WorkspacePage").then((module) => ({ default: module.WorkspacePage })),
-);
+const WorkspacePage = lazy(loadWorkspacePage);
 const MatchPage = lazy(() =>
   import("./features/matches/MatchPage").then((module) => ({ default: module.MatchPage })),
 );
