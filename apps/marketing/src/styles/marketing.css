@@ -930,6 +930,9 @@ summary:focus-visible {
   perspective: 1000px;
   mask-image: linear-gradient(transparent, black 10%, black 65%, transparent);
 }
+:root:not([data-theme="dark"]) .closing-scene {
+  mask-image: none;
+}
 .closing-light {
   position: absolute;
   inset: -80px 0 0;
@@ -999,6 +1002,9 @@ summary:focus-visible {
   right: calc(50% - 390px);
   transform: rotateY(-22deg) rotateZ(8deg);
   mask-image: linear-gradient(270deg, transparent, black 28%);
+}
+:root:not([data-theme="dark"]) .closing-code-plane {
+  mask-image: none;
 }
 .closing-emblem {
   position: absolute;
