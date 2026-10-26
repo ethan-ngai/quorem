@@ -110,6 +110,7 @@ export function ProblemStatement({
             <AuthoringTabs
               id={examplesId}
               label="Examples"
+              appearance="underline"
               tabs={problem.examples.map((_, index) => ({
                 value: String(index),
                 label: `Example ${index + 1}`,
@@ -130,7 +131,6 @@ export function ProblemStatement({
                 <div className="example-content">
                   {example.calls?.length ? (
                     <div className="example-sequence">
-                      <h3>Example {selectedExample + 1}</h3>
                       <SequenceCaseValues
                         problem={problem}
                         calls={example.calls}

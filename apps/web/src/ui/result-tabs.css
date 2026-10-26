@@ -26,3 +26,46 @@
   height: 14px;
   flex: 0 0 auto;
 }
+
+.result-tabs[data-appearance="underline"] {
+  border-bottom: 1px solid var(--color-border);
+}
+.result-tabs[data-appearance="underline"] button {
+  position: relative;
+  padding: var(--space-2) var(--space-1);
+  cursor: pointer;
+  font-weight: 550;
+  transition: color var(--motion-fast) var(--motion-easing);
+}
+.result-tabs[data-appearance="underline"] button::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  transform: scaleX(0);
+  opacity: 0;
+  transition:
+    transform var(--motion-standard) var(--motion-easing),
+    opacity var(--motion-standard) var(--motion-easing);
+}
+.result-tabs[data-appearance="underline"] button:is(:hover, [aria-selected="true"]) {
+  color: var(--color-primary);
+}
+.result-tabs[data-appearance="underline"] button[aria-selected="true"]::after {
+  transform: scaleX(1);
+  opacity: 1;
+}
+.result-tabs[data-appearance="underline"] button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-tabs[data-appearance="underline"] button,
+  .result-tabs[data-appearance="underline"] button::after {
+    transition: none;
+  }
+}
