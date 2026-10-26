@@ -12,7 +12,7 @@ function marketingPages(): Plugin {
   const serve = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
     const app =
-      /^\/(practice|match|invite|login|admin|interviews|interview|interview-invite)(\/|$)/.test(
+      /^\/(privacy|terms|practice|match|invite|login|admin|interviews|interview|interview-invite)(\/|$)/.test(
         path,
       );
     if (!app && path !== "/" && !path.startsWith("/_marketing/")) return next();

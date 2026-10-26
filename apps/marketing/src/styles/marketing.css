@@ -1043,7 +1043,7 @@ summary:focus-visible {
 }
 .footer-sitemap {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 48px;
 }
 .footer-sitemap > div {
@@ -1062,33 +1062,6 @@ summary:focus-visible {
 }
 .footer-sitemap a:hover {
   color: var(--color-text);
-}
-.footer-bottom {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--color-border);
-  font-size: 11px;
-}
-.footer-bottom p {
-  margin: 0;
-}
-.footer-bottom p span {
-  display: inline-block;
-}
-.footer-appearance {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.footer-appearance .theme-switch {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-field);
 }
 @media (max-width: 620px) {
   .footer-main {

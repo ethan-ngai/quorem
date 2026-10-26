@@ -1,9 +1,23 @@
 .auth-page {
-  min-height: 100dvh;
+  min-height: var(--page-height, 100dvh);
   display: grid;
   grid-template-columns: 48% 52%;
   position: relative;
   background: var(--color-background);
+}
+.auth-terms-notice {
+  margin: var(--space-5) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+  line-height: 1.5;
+}
+.auth-content .auth-terms-notice a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-terms-notice a:hover {
+  color: var(--color-primary);
 }
 .auth-brand {
   position: absolute;
@@ -271,7 +285,7 @@
     display: none;
   }
   .auth-form-side {
-    min-height: 100dvh;
+    min-height: var(--page-height, 100dvh);
     padding: 112px 24px 48px;
   }
   .auth-brand {
