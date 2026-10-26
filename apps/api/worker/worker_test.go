@@ -1,8 +1,12 @@
 package worker
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,13 +16,14 @@ import (
 )
 
 type memoryRepository struct {
-	job        execution.Job
-	jobs       []execution.Job
-	expired    []string
-	claims     int
-	completion execution.Completion
-	completed  int
-	leaseAlive bool
+	job           execution.Job
+	jobs          []execution.Job
+	expired       []string
+	claims        int
+	completion    execution.Completion
+	completed     int
+	leaseAlive    bool
+	completionErr error
 }
 
 func (r *memoryRepository) LoadExecution(context.Context, execution.Job) (Spec, error) {
@@ -43,7 +48,7 @@ func (r *memoryRepository) Lease(context.Context, execution.Job, bool) (bool, er
 func (r *memoryRepository) Complete(_ context.Context, j execution.Job, c execution.Completion) error {
 	r.completed++
 	r.completion = c
-	return nil
+	return r.completionErr
 }
 
 type fakeEngine struct {
@@ -159,5 +164,46 @@ func TestDrainingStopsBeforeNextClaimWhenCancelled(t *testing.T) {
 	}
 	if engine.ran != 1 || repo.claims != 1 {
 		t.Fatalf("claim after cancellation: executions=%d claims=%d", engine.ran, repo.claims)
+	}
+}
+
+type timingEngine struct{ err error }
+
+func (e timingEngine) Execute(_ context.Context, j execution.Job) (execution.Completion, error) {
+	time.Sleep(2 * time.Millisecond)
+	return execution.Completion{SubmissionID: j.SubmissionID, AttemptID: j.AttemptID,
+		PublicCaseResults:   []execution.PublicCaseResult{{Actual: json.RawMessage(`"private-actual"`), Expected: json.RawMessage(`"private-expected"`), Stdout: "private-output", Stderr: "private-diagnostic"}},
+		SubmitSampleResults: []execution.PublicCaseResult{{Actual: json.RawMessage(`"private-sample"`)}},
+	}, e.err
+}
+
+func TestExecutionTimingIsAvailableWithoutPrivatePayloads(t *testing.T) {
+	for _, tc := range []struct {
+		name, outcome            string
+		engineErr, completionErr error
+	}{
+		{"completed", "completed", nil, nil},
+		{"engine failure", "engine_unavailable", errors.New("private-engine-error"), nil},
+		{"teardown failure", "teardown_unconfirmed", ErrTeardown, nil},
+		{"completion failure", "completion_unavailable", nil, errors.New("private-completion-error")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var output bytes.Buffer
+			previous := log.Writer()
+			log.SetOutput(&output)
+			defer log.SetOutput(previous)
+			repo := &memoryRepository{leaseAlive: true, completionErr: tc.completionErr}
+			job := execution.Job{Language: "private-untrusted-language", JobID: "private-job", SubmissionID: "private-submission", AttemptID: "private-attempt", SourceRef: "private-source", SuiteRef: "private-suite", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision}
+			New(repo).execute(context.Background(), timingEngine{tc.engineErr}, job, 3*time.Millisecond)
+			line := output.String()
+			for _, field := range []string{"Judge execution timing language=python", "claim_ms=3", "execute_ms=", "complete_ms=", "total_ms=", "cases=1", "samples=1", "outcome=" + tc.outcome} {
+				if !strings.Contains(line, field) {
+					t.Fatalf("missing timing field %q in %q", field, line)
+				}
+			}
+			if strings.Contains(line, "private-") {
+				t.Fatalf("private execution data leaked: %q", line)
+			}
+		})
 	}
 }

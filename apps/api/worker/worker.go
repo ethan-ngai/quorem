@@ -133,6 +133,7 @@ func (s *Service) poll(ctx context.Context, engine execution.ExecutionEngine) bo
 			return false
 		}
 	}
+	claimStarted := time.Now()
 	job, err := s.store.Claim(ctx)
 	if err != nil {
 		log.Print("Queue claim unavailable")
@@ -141,10 +142,22 @@ func (s *Service) poll(ctx context.Context, engine execution.ExecutionEngine) bo
 	if job.JobID == "" {
 		return false
 	}
-	s.execute(ctx, engine, job)
+	s.execute(ctx, engine, job, time.Since(claimStarted))
 	return true
 }
-func (s *Service) execute(parent context.Context, engine execution.ExecutionEngine, j execution.Job) {
+func (s *Service) execute(parent context.Context, engine execution.ExecutionEngine, j execution.Job, claimDuration time.Duration) {
+	started := time.Now()
+	language := "unknown"
+	if runtime, ok := execution.RuntimeForRevision(j.RuntimeRevision, j.HarnessRevision); ok {
+		language = runtime.Language
+	}
+	var executeDuration, completeDuration time.Duration
+	cases, samples := 0, 0
+	outcome := "teardown_unconfirmed"
+	// Aggregate timings only: source, case values, diagnostics and actor/job IDs stay private.
+	defer func() {
+		log.Printf("Judge execution timing language=%s claim_ms=%d execute_ms=%d complete_ms=%d total_ms=%d cases=%d samples=%d outcome=%s", language, claimDuration.Milliseconds(), executeDuration.Milliseconds(), completeDuration.Milliseconds(), (time.Since(started) + claimDuration).Milliseconds(), cases, samples, outcome)
+	}()
 	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
 	defer cancel()
 	done := make(chan struct{})
@@ -173,19 +186,28 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 			}
 		}
 	}()
+	executeStarted := time.Now()
 	completion, err := engine.Execute(ctx, j)
+	executeDuration = time.Since(executeStarted)
+	cases = len(completion.HiddenCases) + len(completion.PublicCaseResults)
+	samples = len(completion.SubmitSampleResults)
 	close(done)
 	<-watchDone
 	if errors.Is(err, ErrTeardown) {
 		return
 	}
+	outcome = "completed"
 	if err != nil {
+		outcome = "engine_unavailable"
 		completion = execution.Completion{SubmissionID: j.SubmissionID, AttemptID: j.AttemptID, EngineFailure: "Execution engine unavailable"}
 	}
 	// Engine returns only after teardown, so cancellation may release the owner slot now.
 	finalCtx, finalCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer finalCancel()
+	completeStarted := time.Now()
 	if err = s.store.Complete(finalCtx, j, completion); err != nil {
+		outcome = "completion_unavailable"
 		log.Print("Queue completion unavailable")
 	}
+	completeDuration = time.Since(completeStarted)
 }
