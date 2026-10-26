@@ -11,7 +11,7 @@ import type {
   ProblemVersion,
   Workspace,
 } from "@quorem/contracts";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect, useRef, useState, type ReactNode } from "react";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useMatchRules } from "../matches/useMatchRules";
