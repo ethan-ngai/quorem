@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +25,17 @@ func env(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+func capacity(name string, fallback int) int {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 || n > 4096 {
+		log.Fatalf("%s must be between 1 and 4096", name)
+	}
+	return n
 }
 func main() {
 	seed := flag.Bool("seed", false, "Migrate and seed, then exit")
@@ -41,8 +53,11 @@ func main() {
 		log.Fatal(err)
 	}
 	defer store.Pool.Close()
-	if err = store.Migrate(ctx, "apps/api/migrations"); err != nil {
-		log.Fatal(err)
+	skipMigrations := env("QUOREM_SKIP_MIGRATIONS", "false") == "true" && !*seed
+	if !skipMigrations {
+		if err = store.Migrate(ctx, "apps/api/migrations"); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if local || (*seed && env("APP_ENV", "production") == "local") {
 		fixtures, err := problems.LoadFixtures("fixtures/problems")
@@ -59,8 +74,10 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	if err = store.Cleanup(ctx); err != nil {
-		log.Fatal(err)
+	if !skipMigrations {
+		if err = store.Cleanup(ctx); err != nil {
+			log.Fatal(err)
+		}
 	}
 	if *seed {
 		return
@@ -87,7 +104,7 @@ func main() {
 		}
 		api.Identity = &identity.JWTVerifier{Issuer: issuer, Audience: "quorem-api", JWKSURL: authURL + "/api/auth/jwks", Resolve: sessionResolver(authURL, secret, store.ResolveIdentity)}
 	}
-	queue, err := delivery.FromEnv(ctx, os.Getenv)
+	queue, err := delivery.PublisherFromEnv(ctx, os.Getenv)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,9 +113,16 @@ func main() {
 			return queue.Publish(ctx, delivery.Notification{JobID: jobID})
 		}
 	}
+	api.RequireExecutionWake = env("QUOREM_REQUIRE_EXECUTION_WAKE", "false") == "true"
+	if api.RequireExecutionWake && queue == nil {
+		log.Fatal("Required execution wake publisher is missing")
+	}
 	api.Events, err = eventbus.FromEnv(ctx, os.Getenv)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if env("QUOREM_REALTIME_PROVIDER", "") == "postgres-notify" {
+		api.Presence = postgres.NewPresence(ctx, store.Pool)
 	}
 	go func() {
 		ticker := time.NewTicker(time.Hour)
@@ -119,7 +143,7 @@ func main() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
-			if e := store.ReconcileMatches(ctx); e != nil && ctx.Err() == nil {
+			if e := store.ReconcileBackground(ctx); e != nil && ctx.Err() == nil {
 				log.Print("Match reconciliation unavailable")
 			}
 			select {
@@ -129,14 +153,14 @@ func main() {
 			}
 		}
 	}()
-	server := &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: addr, Handler: httpapi.WithCapacity(api.Handler(), capacity("QUOREM_API_MAX_REQUESTS", 32), capacity("QUOREM_REALTIME_CONNECTION_LIMIT", 512)), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		server.Shutdown(shutdown)
 	}()
-	log.Printf("Local API listening %s", addr)
+	log.Printf("API listening %s", addr)
 	if err = server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

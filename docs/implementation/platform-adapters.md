@@ -13,18 +13,18 @@ Provider selection is per capability, not a global `CLOUD` switch. A Cloudflare 
 | Capability          | Local                 | AWS                                                  | Cloudflare                                                            |
 | ------------------- | --------------------- | ---------------------------------------------------- | --------------------------------------------------------------------- |
 | Database            | PostgreSQL            | PostgreSQL/Aurora connection                         | External PostgreSQL connection                                        |
-| Job notifications   | DB polling            | SQS SDK                                              | Queues REST pull consumer                                             |
-| Realtime fanout     | bounded memory        | AppSync Events HTTP + WebSocket                      | private Worker + Durable Object relay                                 |
+| Job notifications   | PostgreSQL notifications + recovery | SQS SDK | Native Queues push to on-demand judge; legacy REST pull adapter available |
+| Realtime fanout     | bounded memory        | AppSync Events HTTP + WebSocket                      | PostgreSQL safe notice fanout; optional private Durable Object relay |
 | Avatar objects      | Garage S3             | S3                                                   | R2 S3 API                                                             |
 | Transactional email | Mailpit SMTP          | SES SMTP                                             | outbound Email Service REST (beta; onboarding required)               |
 | API/auth runtime    | Go/Node processes     | ordinary container/process                           | container/process candidate; Workers-native port unnecessary          |
 | Judge sandbox       | bounded Docker engine | compatible isolated runner host, validation required | separate runner host; no nested-Docker or sandbox equivalence assumed |
 
-Adapters are implemented for delivery, realtime, storage and email. Compute deployment and Terraform modules are separate work: a Cloudflare Container is not the Docker execution interface. Do not deploy untrusted judging there until process/filesystem/network/resource isolation and teardown are demonstrated. Keep the Go API/Node auth runtime instead of translating product logic into Worker code. A Worker connecting directly to PostgreSQL may need Hyperdrive; our Go process uses its normal PostgreSQL connection pool.
+Adapters are implemented for delivery, realtime, storage and email. Compute deployment is implemented in separate deployment shells and Terraform modules; a Cloudflare Container is not the Docker execution interface. Do not deploy untrusted judging there until process/filesystem/network/resource isolation and teardown are demonstrated. Keep the Go API/Node auth runtime instead of translating product logic into Worker code. A Worker connecting directly to PostgreSQL may need Hyperdrive; our Go process uses its normal PostgreSQL connection pool.
 
 ## Independent configuration
 
-All omitted selections preserve `make dev`: memory fanout, PostgreSQL job polling, Garage avatars, Mailpit email. Cloud credentials are not loaded for unselected adapters. Auth details and examples: `apps/auth/README.md`, `apps/auth/.env.example`.
+All omitted selections preserve `make dev`: memory fanout, PostgreSQL job notifications with recovery polling, Garage avatars, Mailpit email. Cloud credentials are not loaded for unselected adapters. Auth details and examples: `apps/auth/README.md`, `apps/auth/.env.example`.
 
 ```sh
 # Notification transport; set consistently on API and runner.
@@ -93,3 +93,17 @@ Validation: cross-instance Go API tests with real PostgreSQL, AppSync HTTP/WebSo
 Interview monitoring (#144): `rule-event` socket commands carry `key` and `kind` (`paste` or `focus`), never clipboard text. The server checks current interviewee membership, active state and host monitoring settings; retries are idempotent and reports are bounded per actor/kind. Event insertion, the session version and existing transactional session notice commit together. Only current interviewers receive the most recent 100 events in snapshots. Host-only `POST /v1/interviews/{id}/monitoring` changes policies without changing document/question epochs. Existing sessions default to both monitors enabled. The browser reuses match focus deduplication, exempts recent same-tab copy/cut fingerprints, and retains a bounded in-memory retry queue while reconnecting.
 
 Interview database notifications use a dedicated PostgreSQL session outside the query pool. Transaction-pooling endpoints cannot retain `LISTEN` state. Set `QUOREM_DATABASE_LISTEN_URL` to a session-capable direct endpoint when needed; Neon `-pooler` endpoints automatically select their matching direct hostname while preserving TLS verification. No credentials are logged. Slow socket commands log only their bounded command type and duration; socket close logs contain codes and safe reason categories.
+
+## Elastic app and judge composition (#194)
+
+The deployed Cloudflare app uses `QUOREM_REALTIME_PROVIDER=postgres-notify`: dedicated session-capable listeners broadcast safe notices to every app replica. Private snapshots remain on authenticated Go sockets. A lost fanout listener closes its subscriptions; clients reconnect and recover versioned state. Expiring PostgreSQL presence leases enforce the per-user window quota across replicas. Match and interview outbox dispatch use commit notifications with bounded recovery ticks. A shared database cadence prevents every app replica from reconciling matches independently each second.
+
+`QUOREM_DATABASE_MAX_CONNS` bounds each Go query pool (default 4; judge deployment 2); `AUTH_DATABASE_MAX_CONNS` bounds Node auth pools (default 4). Pools retain no minimum idle connections. Each app also uses three dedicated notification sessions and at most one fanout publishing connection: the default deployment ceiling is 12 connections per app replica, plus judge pools and migration/operator headroom. Neon pooled query connections and direct notification sessions have different limits; verify both in the hosted plan. `QUOREM_API_MAX_REQUESTS=32` and `QUOREM_REALTIME_CONNECTION_LIMIT=512` bound independent request/socket budgets. Overload returns retryable 503 responses.
+
+Production images set `QUOREM_SKIP_MIGRATIONS=true`; deployment applies migrations once before replacing containers. Cold replicas skip migration and retention scans. Local startup and explicit `--seed` retain migration behavior.
+
+Required judge wakes use `QUOREM_DELIVERY_PROVIDER=cloudflare-dispatch`, `QUOREM_EXECUTION_WAKE_URL` and the scoped `QUOREM_JUDGE_CONTROL_TOKEN`, with `QUOREM_REQUIRE_EXECUTION_WAKE=true`. The API durably publishes a wake before its bounded admission transaction. A failed wake admits no job; an unused wake safely drains an empty queue. Queue consumers wake independent judge containers and acknowledge only an authenticated drain response reporting no queued/running jobs. PostgreSQL owns claim leases, fencing and results; native Queues own delivery and waking compute from zero. The dispatch credential cannot administer Cloudflare resources.
+
+An HTTP-mode judge starts no idle polling/listener; `runner --http` drains with bounded concurrency when invoked. Admission grace and overlapping-wake extension cover notifications that arrive before the job commits. Continuous local runners instead use transactional PostgreSQL notifications with recovery polling. Idle app/judge containers may stop, and idle database compute may suspend; active sockets or jobs require compute. Stored data persists. Cold starts add latency, so scale-to-zero cannot promise a warm-instance response time.
+
+Provider deployment, nested sandbox isolation under the hosted runtime, account quotas and representative production load remain validation gates. Local multi-replica socket tests exercise application correctness; they do not establish hosted throughput or zero-cost storage.
