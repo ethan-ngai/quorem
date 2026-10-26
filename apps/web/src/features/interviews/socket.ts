@@ -54,7 +54,10 @@ export function createInterviewSocket(id: string) {
         if (!request) return;
         pending.delete(frame.id);
         clearTimeout(request.timer);
-        if (frame.error) request.reject(new InterviewError(frame.error.code, frame.error.status));
+        if (frame.error)
+          request.reject(
+            new InterviewError(frame.error.code, frame.error.status, frame.error.message),
+          );
         else request.resolve(frame.value);
       } catch {
         connection.current?.close(1002, "Invalid interview frame");
