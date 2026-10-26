@@ -1047,7 +1047,7 @@ summary:focus-visible {
 }
 .footer-main {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(160px, 1fr) minmax(280px, 2fr);
   gap: 64px;
 }
 .footer-brand {
@@ -1070,6 +1070,7 @@ summary:focus-visible {
   transform: translateY(3px);
 }
 .footer-sitemap {
+  max-width: 500px;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
