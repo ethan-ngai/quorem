@@ -68,7 +68,7 @@ const env = {
   APP_ORIGIN: "https://quorem.test",
 };
 
-test("independent HTTP/socket pressure packs existing instances; stale leases free capacity", () => {
+void test("independent HTTP/socket pressure packs existing instances; stale leases free capacity", () => {
   const cap = { instances: 2, http: 2, sockets: 4 };
   const leases = new Map([
     ["a", { slot: 0, kind: "http", expires: 100 }],
@@ -82,7 +82,7 @@ test("independent HTTP/socket pressure packs existing instances; stale leases fr
   assert.throws(() => limits({ APP_POOL_SHARDS: 0 }));
 });
 
-test("pool reservations survive reload and streaming completion releases exact capacity", async () => {
+void test("pool reservations survive reload and streaming completion releases exact capacity", async () => {
   const { ctx, data } = context();
   const pending = [];
   const configuration = {
@@ -126,7 +126,7 @@ test("pool reservations survive reload and streaming completion releases exact c
   assert.equal(data.size, 0);
 });
 
-test("socket reservations renew and a crashed socket reservation expires", async () => {
+void test("socket reservations renew and a crashed socket reservation expires", async () => {
   const id = "socket-id";
   const lease = { slot: 0, kind: "sockets", expires: Date.now() + 500 };
   const { ctx, data } = context([
@@ -150,7 +150,7 @@ test("socket reservations renew and a crashed socket reservation expires", async
   assert.equal(pool.leases.size, 0);
 });
 
-test("concurrent cold requests share readiness; warm failures never replay mutating requests", async () => {
+void test("concurrent cold requests share readiness; warm failures never replay mutating requests", async () => {
   const { ctx } = context();
   ctx.container.running = false;
   let health = 0,
@@ -184,7 +184,7 @@ test("concurrent cold requests share readiness; warm failures never replay mutat
   assert.equal(commands, 3);
 });
 
-test("new judge arrival during drain waits for a subsequent generation", async () => {
+void test("new judge arrival during drain waits for a subsequent generation", async () => {
   const { ctx } = context();
   const judge = new Judge(ctx, env);
   const drains = [];
@@ -212,7 +212,7 @@ test("new judge arrival during drain waits for a subsequent generation", async (
   assert.equal(ctx.container.destroyed, 1);
 });
 
-test("wake authentication and durable queue send precede success", async () => {
+void test("wake authentication and durable queue send precede success", async () => {
   const queued = deferred();
   let sent = 0;
   const configuration = {
@@ -252,7 +252,7 @@ test("wake authentication and durable queue send precede success", async () => {
   assert.equal((await worker.fetch(unsafe, configuration)).status, 400);
 });
 
-test("queue only acknowledges a successful authoritative empty drain", async () => {
+void test("queue only acknowledges a successful authoritative empty drain", async () => {
   for (const [status, body, ack] of [
     [202, { queued: 1, running: 0 }, false],
     [200, { queued: 0, running: 1 }, false],
@@ -286,7 +286,7 @@ test("queue only acknowledges a successful authoritative empty drain", async () 
   }
 });
 
-test("idle application reaches zero; an active connection prevents destruction", async () => {
+void test("idle application reaches zero; an active connection prevents destruction", async () => {
   const { ctx } = context();
   const app = new Quorem(ctx, {
     ...env,
@@ -302,7 +302,7 @@ test("idle application reaches zero; an active connection prevents destruction",
   assert.equal(ctx.container.destroyed, 1);
 });
 
-test("socket saturation retains independently bounded HTTP headroom", () => {
+void test("socket saturation retains independently bounded HTTP headroom", () => {
   const cap = { instances: 1, http: 2, sockets: 2 };
   const leases = new Map([
     ["a", { slot: 0, kind: "sockets", expires: 100 }],
@@ -314,7 +314,7 @@ test("socket saturation retains independently bounded HTTP headroom", () => {
   assert.equal(chooseInstance(leases, "http", cap, 0), -1);
 });
 
-test("a new arrival waits for idle destruction to finish before starting", async () => {
+void test("a new arrival waits for idle destruction to finish before starting", async () => {
   const { ctx } = context();
   const stopped = deferred();
   ctx.container.destroy = async () => {
@@ -334,7 +334,7 @@ test("a new arrival waits for idle destruction to finish before starting", async
   assert.equal(lifecycle.ready, true);
 });
 
-test("an established WebSocket has no lingering handshake abort timer", async () => {
+void test("an established WebSocket has no lingering handshake abort timer", async () => {
   const { ctx } = context();
   let signal;
   ctx.container.getTcpPort = () => ({
@@ -355,7 +355,7 @@ test("an established WebSocket has no lingering handshake abort timer", async ()
   assert.equal(signal.aborted, false);
 });
 
-test("only supported GET event upgrades consume the socket budget", () => {
+void test("only supported GET event upgrades consume the socket budget", () => {
   const headers = { Upgrade: "websocket", Connection: "keep-alive, Upgrade" };
   const path = "https://app/v1/interviews/00000000-0000-4000-8000-000000000001/events";
   assert.equal(isSocketRequest(new Request(path, { headers })), true);
@@ -365,7 +365,7 @@ test("only supported GET event upgrades consume the socket budget", () => {
   assert.equal(isSocketRequest(new Request(path, { headers: { Upgrade: "websocket" } })), false);
 });
 
-test("one hundred valid wakes share one authoritative drain and acknowledge together", async () => {
+void test("one hundred valid wakes share one authoritative drain and acknowledge together", async () => {
   let calls = 0,
     acknowledged = 0,
     retried = 0;
