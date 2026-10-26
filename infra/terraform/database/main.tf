@@ -13,6 +13,14 @@ variable "region" {
   type    = string
   default = "aws-us-east-1"
 }
+variable "max_compute_cu" {
+  type    = number
+  default = 4
+  validation {
+    condition     = var.max_compute_cu >= 0.25 && var.max_compute_cu <= 16
+    error_message = "Database compute must remain between 0.25 and 16 CU."
+  }
+}
 provider "neon" {}
 resource "neon_project" "production" {
   name      = var.project_name
@@ -24,12 +32,12 @@ resource "neon_project" "production" {
   }
   primary_compute {
     autoscaling_limit_min_cu = 0.25
-    autoscaling_limit_max_cu = 1
+    autoscaling_limit_max_cu = var.max_compute_cu
     suspend_timeout_seconds  = 300
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [branch, primary_compute, history_retention_seconds]
+    ignore_changes  = [branch, history_retention_seconds]
   }
 }
 output "database_url" {
