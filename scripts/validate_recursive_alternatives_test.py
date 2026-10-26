@@ -18,8 +18,9 @@ class BoundaryTest(unittest.TestCase):
         self.assertEqual(args[0][0], [0, 1])
         self.assertEqual(args[0][-1], [1498, 1499])
         self.assertEqual(expected, 1500)
-        self.assertNotIn(2477, cases)
-        self.assertNotIn(1235, cases)
+        self.assertEqual(cases[2477][1], 1124250)
+        self.assertEqual(cases[1235][1], 1500)
+        self.assertEqual(cases[1223][1], 665544190)
 
     def test_boundary_failure_is_not_a_pass(self):
         fixture = {'problem': {'signature': {}, 'examples': [{'args': [], 'expected': 3}]},

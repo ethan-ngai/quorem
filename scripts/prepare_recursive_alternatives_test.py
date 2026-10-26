@@ -31,6 +31,21 @@ class CandidateTest(unittest.TestCase):
         reference = iterative.candidate(fixture, source)['solutions'][0]['source']
         self.assertEqual(reference, 'from typing import Counter\n\n' + source)
 
+    def test_selects_first_upstream_solution_and_converts_only_izip(self):
+        source = 'import itertools\nimport bisect\nclass Solution:\n def jobScheduling(self, x):\n  return bisect.bisect_right(list(itertools.izip(x, x)), (0, 0))\nclass Solution:\n def jobScheduling(self, x):\n  return -1\n'
+        body, bindings = iterative.selected_source(1235, source)
+        self.assertEqual(bindings, {'bisect'})
+        self.assertIn('import bisect', body)
+        self.assertIn('zip(x, x)', body)
+        self.assertNotIn('itertools', body)
+        self.assertNotIn('return -1', body)
+        with self.assertRaises(ValueError):
+            iterative.selected_source(1235, source.replace('itertools.izip', 'zip'))
+
+    def test_rejects_unexpected_class_layout(self):
+        with self.assertRaises(ValueError):
+            iterative.selected_source(2477, 'class Solution: pass\n')
+
 
 if __name__ == '__main__':
     unittest.main()

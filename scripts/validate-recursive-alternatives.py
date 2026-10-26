@@ -14,7 +14,14 @@ from pathlib import Path
 def boundary_cases():
     n = 1500
     edges = [[i, i + 1] for i in range(n - 1)]
+    # Six symbols, with no run longer than 15; count prefixes modulo 1e9+7.
+    counts = [1] + [0] * n
+    for i in range(1, n + 1):
+        counts[i] = pow(6, i, 1000000007) if i <= 15 else (6 * counts[i - 1] - (6 if i == 16 else 5 * counts[i - 16])) % 1000000007
     return {
+        1223: ([n, [15] * 6], counts[n]),
+        1235: ([list(range(1, n + 1)), list(range(2, n + 2)), [1] * n], n),
+        2477: ([edges, 1], n * (n - 1) // 2),
         3290: ([[1] * 4, [1] * n], 4),
         1872: ([[0] * n], 0),
         2435: ([[[0] * n], 1], 1),
