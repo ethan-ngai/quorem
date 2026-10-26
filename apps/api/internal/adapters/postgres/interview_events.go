@@ -2,10 +2,10 @@ package postgres
 
 import (
 	"context"
+	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/pgnotify"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"github.com/jackc/pgx/v5"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -103,30 +103,7 @@ func (s *Store) InterviewEventNotifications(ctx context.Context) (<-chan struct{
 }
 
 func interviewListenerConfig(primary *pgx.ConnConfig, override string) (*pgx.ConnConfig, error) {
-	if override != "" {
-		return pgx.ParseConfig(override)
-	}
-	config := primary.Copy()
-	// Neon exposes paired direct/pooler endpoints. Keep credentials and TLS verification intact.
-	labels := strings.Split(config.Host, ".")
-	if len(labels) > 1 && strings.HasSuffix(config.Host, ".neon.tech") && strings.HasSuffix(labels[0], "-pooler") {
-		labels[0] = strings.TrimSuffix(labels[0], "-pooler")
-		direct := strings.Join(labels, ".")
-		pooled := config.Host
-		config.Host = direct
-		if config.TLSConfig != nil {
-			config.TLSConfig.ServerName = direct
-		}
-		for _, fallback := range config.Fallbacks {
-			if fallback.Host == pooled {
-				fallback.Host = direct
-				if fallback.TLSConfig != nil {
-					fallback.TLSConfig.ServerName = direct
-				}
-			}
-		}
-	}
-	return config, nil
+	return pgnotify.Config(primary, override)
 }
 
 // Qualify the numeric column; the serialized sequence alias otherwise sorts as text.

@@ -71,7 +71,7 @@ func (s *Server) interviewEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer stop()
-	disconnect, err := s.Presence.Connect(topic, user)
+	disconnect, err := s.connectPresence(ctx, topic, user, func() { closeSocket(websocket.StatusTryAgainLater, "Connection lease expired") })
 	if err != nil {
 		closeSocket(websocket.StatusTryAgainLater, "Connection capacity reached")
 		return

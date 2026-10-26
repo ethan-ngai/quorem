@@ -130,7 +130,7 @@ func (s *Server) matchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unsubscribe()
-	disconnect, err := s.Presence.Connect(topic, presenceSubject(user))
+	disconnect, err := s.connectPresence(ctx, topic, presenceSubject(user), func() { connection.Close(websocket.StatusTryAgainLater, "Connection lease expired") })
 	if err != nil {
 		connection.Close(websocket.StatusTryAgainLater, "Connection capacity reached")
 		return
