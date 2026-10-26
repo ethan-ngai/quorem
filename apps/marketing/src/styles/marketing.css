@@ -254,9 +254,36 @@ summary:focus-visible {
   flex-shrink: 0;
 }
 .hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   color: var(--color-primary);
   font-size: 15px;
   font-weight: 600;
+}
+.hero-cta span {
+  position: relative;
+}
+.hero-cta span::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -4px;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.hero-cta:is(:hover, :focus-visible) span::after {
+  transform: scaleX(1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-cta span::after,
+  .hero-cta svg {
+    transition: transform var(--motion-standard) var(--motion-easing);
+  }
+  .hero-cta:is(:hover, :focus-visible) svg {
+    transform: translateX(3px);
+  }
 }
 :root {
   --marketing-panel-radius: 16px;
