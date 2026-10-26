@@ -1991,7 +1991,7 @@ summary:focus-visible {
 }
 @media (prefers-reduced-motion: no-preference) {
   .demo-cursor {
-    animation: demo-run-click 900ms var(--marketing-spring) both;
+    animation: demo-run-click 1400ms var(--motion-easing) both;
   }
 }
 @keyframes demo-run-click {
@@ -1999,16 +1999,21 @@ summary:focus-visible {
     transform: translate(20px, 24px);
     opacity: 0;
   }
-  50% {
-    transform: translate(0, 0);
+  25% {
+    transform: translate(0, 0) scale(1);
     opacity: 1;
   }
-  75% {
-    transform: scale(0.85);
+  45% {
+    transform: translate(0, 0) scale(0.85);
+    opacity: 1;
+  }
+  55% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
   }
   100% {
-    transform: scale(1);
-    opacity: 1;
+    transform: translate(12px, 16px) scale(1);
+    opacity: 0;
   }
 }
 .workspace-demo .code-toolbar {
@@ -2024,8 +2029,15 @@ summary:focus-visible {
   border-bottom: 1px solid var(--color-border);
 }
 .workspace-demo .demo-result-summary {
+  display: flex;
+  align-items: center;
+  height: 52px;
   padding: 8px 18px;
-  min-height: 34px;
+  overflow: hidden;
+}
+.workspace-demo .demo-result-summary .result-summary {
+  max-height: none;
+  padding: 0;
 }
 .workspace-demo .demo-case-browser {
   height: 220px;
