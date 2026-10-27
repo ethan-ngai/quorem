@@ -1,5 +1,12 @@
 /** Same-origin elastic ingress; PostgreSQL owns product state and judge leases. */
-import { judgeSlot, limits, notification, preferredShard, withShardAffinity } from "./policy.js";
+import {
+  POOL_REVISION_PATH,
+  judgeSlot,
+  limits,
+  notification,
+  preferredShard,
+  withShardAffinity,
+} from "./policy.js";
 export { AppPool, Quorem, Judge } from "./router.js";
 
 async function wake(request, env) {
@@ -67,19 +74,30 @@ const ingress = {
       });
     }
     const capacity = limits(env);
+    if (!env.APP_RUNTIME_REVISION)
+      return new Response("Application configuration unavailable", { status: 503 });
     const start = preferredShard(request, capacity.shards);
     for (let attempt = 0; attempt < capacity.shards; attempt++) {
-      const pool = String((start + attempt) % capacity.shards);
+      const shard = (start + attempt) % capacity.shards;
+      const pool = `${shard}-${env.APP_RUNTIME_REVISION}`;
       const forwarded = new Request(request.clone());
-      for (const key of ["x-quorem-lease", "x-quorem-slot"]) forwarded.headers.delete(key);
+      for (const key of ["x-quorem-lease", "x-quorem-slot", "x-quorem-revision"])
+        forwarded.headers.delete(key);
       forwarded.headers.set("x-quorem-pool", pool);
       const started = performance.now();
-      const response = await env.POOLS.getByName(pool, {
+      const coordinator = env.POOLS.getByName(pool, {
         locationHint: env.APP_LOCATION_HINT || "enam",
-      }).fetch(forwarded);
+      });
+      // Omit lease headers so an old coordinator cannot start a container during the probe.
+      const check = await coordinator.fetch(new Request("https://pool" + POOL_REVISION_PATH));
+      const current =
+        check.status === 204 && check.headers.get("x-quorem-revision") === env.APP_RUNTIME_REVISION;
+      await check.body?.cancel();
+      if (!current) continue;
+      const response = await coordinator.fetch(forwarded);
       // Capacity rejects happen before dispatch; an admitted application command never replays.
       if (response.status !== 503 || response.headers.get("X-Quorem-Capacity") !== "full") {
-        const result = withShardAffinity(response, Number(pool));
+        const result = withShardAffinity(response, shard);
         result.headers.append(
           "Server-Timing",
           `app;dur=${(performance.now() - started).toFixed(1)}`,

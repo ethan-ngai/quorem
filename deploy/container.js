@@ -89,7 +89,13 @@ export class ContainerLifecycle {
     url.protocol = "http:";
     url.host = "container";
     const forwarded = new Request(url, request);
-    for (const key of ["host", "x-quorem-pool", "x-quorem-lease", "x-quorem-slot"])
+    for (const key of [
+      "host",
+      "x-quorem-pool",
+      "x-quorem-lease",
+      "x-quorem-slot",
+      "x-quorem-revision",
+    ])
       forwarded.headers.delete(key);
     const upgrade = isSocketRequest(request);
     const controller = upgrade ? new AbortController() : undefined;

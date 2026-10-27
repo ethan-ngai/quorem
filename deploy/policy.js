@@ -3,6 +3,8 @@ export const HTTP_LEASE_MS = 120_000;
 export const SOCKET_LEASE_MS = 45_000;
 export const APP_IDLE_MS = 600_000;
 export const ROUTE_COOKIE = "__Host-quorem-route";
+export const POOL_REVISION_PATH = "/__pool_revision";
+export const APP_REVISION_PATH = "/__app_revision";
 export const RENEW_MS = 15_000;
 
 export function integer(value, fallback, minimum, maximum) {

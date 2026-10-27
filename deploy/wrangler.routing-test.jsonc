@@ -4,6 +4,7 @@
   "compatibility_date": "2026-10-25",
   "vars": {
     "APP_ORIGIN": "http://localhost:8792",
+    "APP_RUNTIME_REVISION": "fixture",
     "APP_POOL_SHARDS": "2",
     "AUTH_PUBLIC_CONFIG": "{\"method\":\"password\",\"preferredOrigin\":\"http://localhost:8792\",\"passkey\":false,\"registration\":false,\"providers\":[]}",
     "APP_INSTANCES_PER_SHARD": "2",
