@@ -7,6 +7,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/postgres"
 	"github.com/ethan-ngai/quorem/apps/api/internal/httpapi"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
+	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/delivery"
 	"log"
@@ -138,22 +139,11 @@ func main() {
 			}
 		}
 	}()
-	api.StartRealtime(ctx)
+	if err = api.StartRealtime(ctx); err != nil {
+		log.Fatal(err)
+	}
 	api.StartMembershipRealtime(ctx)
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			if e := store.ReconcileBackground(ctx); e != nil && ctx.Err() == nil {
-				log.Print("Match reconciliation unavailable")
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
+	go matches.RunDeadlineScheduler(ctx, store)
 	server := &http.Server{Addr: addr, Handler: httpapi.WithCapacity(api.Handler(), capacity("QUOREM_API_MAX_REQUESTS", 32), capacity("QUOREM_REALTIME_CONNECTION_LIMIT", 512)), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	go func() {
 		<-ctx.Done()

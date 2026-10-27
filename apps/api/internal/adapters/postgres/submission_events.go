@@ -24,7 +24,7 @@ func (s *Store) DispatchSubmissionEvents(ctx context.Context, publish func(realt
 			return 0, err
 		}
 		defer tx.Rollback(ctx)
-		rows, err := tx.Query(ctx, `SELECT id,submission_id,sequence::text,occurred_at FROM submission_outbox WHERE published_at IS NULL ORDER BY sequence FOR UPDATE SKIP LOCKED LIMIT 64`)
+		rows, err := tx.Query(ctx, `SELECT id,submission_id,sequence::text,occurred_at FROM submission_outbox WHERE published_at IS NULL ORDER BY sequence FOR UPDATE LIMIT 64`)
 		if err != nil {
 			return 0, err
 		}
