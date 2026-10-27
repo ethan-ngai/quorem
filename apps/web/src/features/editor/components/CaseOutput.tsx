@@ -83,7 +83,16 @@ export function CaseOutput({
   const tone = verdictTone(result.status);
   return (
     <div className="case-run-output">
-      <span className={`case-verdict ${tone}`}>{result.status.replaceAll("_", " ")}</span>
+      <div className="case-verdict-group">
+        <span className={`case-verdict ${tone}`}>{result.status.replaceAll("_", " ")}</span>
+        {tone === "verdict-error" &&
+          result.diagnostics?.map((item, index) => (
+            <code className="case-error-message" key={index}>
+              {item.line ? `Line ${item.line}: ` : ""}
+              {item.message}
+            </code>
+          ))}
+      </div>
       {sequence ? (
         sequence.calls.map((call, index) => {
           const signature = sequence.methods.find(
@@ -173,7 +182,7 @@ export function CaseOutput({
           )}
         </ConsoleSection>
       )}
-      {!!result.diagnostics?.length && (
+      {tone !== "verdict-error" && !!result.diagnostics?.length && (
         <ConsoleSection label="Diagnostics">
           {result.diagnostics.map((item, index) => (
             <div key={index}>

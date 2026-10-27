@@ -303,3 +303,21 @@ summary.case-group-label {
   margin-left: 6px;
   vertical-align: middle;
 }
+
+.case-group-label--locked {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.case-group-label--locked > svg {
+  flex: 0 0 12px;
+  margin: 0;
+}
+.case-group-label--locked .case-group-chevron {
+  margin-left: auto;
+  transform: rotate(-90deg);
+}
+.case-group[open] .case-group-chevron {
+  transform: none;
+}

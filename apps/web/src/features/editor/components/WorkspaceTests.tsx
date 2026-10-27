@@ -1,7 +1,6 @@
 /** @file WorkspaceTests.tsx @description Shared test tabs, verdict and case browser. @module editor */
 import type { ProblemVersion, Submission, OdysseyProgress } from "@quorem/contracts";
 import type { CustomCaseDraft, RunSnapshot } from "../customCases";
-import { useState } from "react";
 import { Icon } from "../../../ui/Icon";
 import { ResultContent } from "./ResultContent";
 import { TestCases } from "./TestCases";
@@ -44,29 +43,14 @@ export function WorkspaceTests({
       }
     : problem;
   const odyssey = !!testProblem.odyssey;
-  const hiddenAvailable =
-    odyssey &&
-    submission?.kind === "submit" &&
-    submission.state === "completed" &&
-    !!submission.hiddenCases?.length;
-  const tabs: ("samples" | "custom" | "hidden")[] = hiddenAvailable
-    ? ["samples", "hidden"]
-    : onDraftsChange && !odyssey && !problem.sql
-      ? ["samples", "custom"]
-      : ["samples"];
-  const [collection, setCollection] = useState<"samples" | "hidden">("samples");
+  const tabs: ("samples" | "custom")[] = ["samples"];
+  if (onDraftsChange && !odyssey && !problem.sql) tabs.push("custom");
   const selected = tabs.includes("custom") && customMode;
-  const selectedTab = selected
-    ? "custom"
-    : collection === "hidden" && hiddenAvailable
-      ? "hidden"
-      : "samples";
-  function selectTab(tab: "samples" | "custom" | "hidden") {
-    setCollection(tab === "hidden" ? "hidden" : "samples");
+  const selectedTab = selected ? "custom" : "samples";
+  function selectTab(tab: "samples" | "custom") {
     onCustomModeChange?.(tab === "custom");
   }
-  const hiddenOnly =
-    !testProblem.odyssey && !!submission?.hiddenCases?.length && !submission.publicCases?.length;
+
   return (
     <>
       {!hideToolbar && (
@@ -95,24 +79,8 @@ export function WorkspaceTests({
                   document.getElementById(`tests-${next}-tab`)?.focus();
                 }}
               >
-                <Icon
-                  name={
-                    tab === "custom"
-                      ? "custom"
-                      : tab === "hidden" || hiddenOnly
-                        ? "lock"
-                        : "samples"
-                  }
-                />
-                {tab === "hidden"
-                  ? "Hidden tests"
-                  : odyssey
-                    ? "Examples"
-                    : tab === "custom"
-                      ? "Custom cases"
-                      : hiddenOnly
-                        ? "Hidden cases"
-                        : "Examples"}
+                <Icon name={tab === "custom" ? "custom" : "samples"} />
+                {tab === "custom" ? "Custom cases" : "Examples"}
               </button>
             ))}
           </div>
@@ -125,7 +93,7 @@ export function WorkspaceTests({
             busy={busy}
             error={error}
             showCases={false}
-            showVerdict={!odyssey || selectedTab === "hidden"}
+            showVerdict={!odyssey}
             detailsVisible={detailsVisible}
             customMode={selected}
             runWasCustom={snapshot?.custom}
@@ -139,30 +107,27 @@ export function WorkspaceTests({
             aria-labelledby={`tests-${tab}-tab`}
             hidden={selectedTab !== tab}
           >
-            {(tab !== "hidden" || selectedTab === "hidden") && (
-              <TestCases
-                hiddenMode={tab === "hidden"}
-                key={`${problem.id}:${tab}`}
-                caseStatuses={tab === "samples" ? progress?.caseStatuses : undefined}
-                currentCaseGroup={
-                  progress && tab === "samples" ? `Step ${progress.level}` : undefined
-                }
-                caseGroups={
-                  tab === "samples"
-                    ? progress?.levels.flatMap((level, index) =>
-                        level.examples.map(() => `Step ${index + 1}`),
-                      )
-                    : undefined
-                }
-                problem={testProblem}
-                customMode={tab === "custom"}
-                drafts={drafts}
-                onDraftsChange={onDraftsChange ?? keepDrafts}
-                submission={submission}
-                snapshot={snapshot}
-                busy={busy}
-              />
-            )}
+            <TestCases
+              key={`${problem.id}:${tab}`}
+              caseStatuses={tab === "samples" ? progress?.caseStatuses : undefined}
+              currentCaseGroup={
+                progress && tab === "samples" ? `Step ${progress.level}` : undefined
+              }
+              caseGroups={
+                tab === "samples"
+                  ? progress?.levels.flatMap((level, index) =>
+                      level.examples.map(() => `Step ${index + 1}`),
+                    )
+                  : undefined
+              }
+              problem={testProblem}
+              customMode={tab === "custom"}
+              drafts={drafts}
+              onDraftsChange={onDraftsChange ?? keepDrafts}
+              submission={submission}
+              snapshot={snapshot}
+              busy={busy}
+            />
           </div>
         ))}
       </div>

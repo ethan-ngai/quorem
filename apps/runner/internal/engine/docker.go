@@ -148,7 +148,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 					artifact = f.Artifact
 				}
 			}
-			if f.Status == "syntax_error" {
+			if f.Status == "syntax_error" && runtime.Language != "postgresql" {
 				fatal = &f
 			}
 		}
@@ -200,11 +200,18 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 			if typeMismatch {
 				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Output column types do not match the SQL schema."})
 			}
-			if f.Line > 0 {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
+			if runtime.Language == "postgresql" && status != "executed" && status != "accepted" && f.Stderr != "" {
+				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: f.Stderr, Line: f.Line})
+			} else {
+				if f.Line > 0 {
+					public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
+				}
+				public.Stderr = f.Stderr
+			}
+			if runtime.Language == "postgresql" && status == "invalid_output" && f.Stderr == "" {
+				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "The query returned an invalid or unsupported result."})
 			}
 			public.Stdout = f.Stdout
-			public.Stderr = f.Stderr
 			if sample {
 				public.Index = i - len(spec.Cases)
 				result.SubmitSampleResults = append(result.SubmitSampleResults, public)
