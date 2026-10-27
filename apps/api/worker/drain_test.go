@@ -37,6 +37,9 @@ func (r *drainRepository) Claim(context.Context) (execution.Job, error) {
 	return j, nil
 }
 func (r *drainRepository) Lease(context.Context, execution.Job, bool) (bool, error) { return true, nil }
+func (r *drainRepository) ExecutionCancellations(ctx context.Context) (<-chan string, func(), error) {
+	return testCancellationNotifications(ctx)
+}
 func (r *drainRepository) Complete(context.Context, execution.Job, execution.Completion) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

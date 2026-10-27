@@ -46,6 +46,16 @@ func (r *memoryRepository) Claim(context.Context) (execution.Job, error) {
 func (r *memoryRepository) Lease(context.Context, execution.Job, bool) (bool, error) {
 	return r.leaseAlive, nil
 }
+func (r *memoryRepository) ExecutionCancellations(ctx context.Context) (<-chan string, func(), error) {
+	return testCancellationNotifications(ctx)
+}
+
+func testCancellationNotifications(parent context.Context) (<-chan string, func(), error) {
+	ctx, cancel := context.WithCancel(parent)
+	events := make(chan string)
+	go func() { <-ctx.Done(); close(events) }()
+	return events, cancel, nil
+}
 func (r *memoryRepository) Complete(_ context.Context, j execution.Job, c execution.Completion) error {
 	r.completed++
 	r.completion = c
