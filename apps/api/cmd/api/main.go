@@ -138,7 +138,9 @@ func main() {
 			}
 		}
 	}()
-	api.StartRealtime(ctx)
+	if err = api.StartRealtime(ctx); err != nil {
+		log.Fatal(err)
+	}
 	api.StartMembershipRealtime(ctx)
 	go func() {
 		ticker := time.NewTicker(time.Second)
