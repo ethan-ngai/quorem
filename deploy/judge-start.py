@@ -58,8 +58,9 @@ try:
         time.sleep(0.2)
     else:
         raise RuntimeError("Docker daemon unavailable")
-    for image in sorted(Path("/app/images").glob("*.tar")):
-        subprocess.run(["docker", "load", "-i", str(image)], check=True)
+    # Verify both sandbox families before accepting jobs; other runtimes load on demand.
+    for language in ("python", "postgres"):
+        subprocess.run(["docker", "load", "-i", f"/app/images/{language}.tar"], check=True)
     subprocess.run(["/app/bin/runner", "--verify-sandbox"], check=True)
     if arguments.verify_only:
         raise SystemExit(0)
