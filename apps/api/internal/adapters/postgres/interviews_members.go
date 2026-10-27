@@ -2,14 +2,11 @@ package postgres
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
-	"strings"
-	"unicode/utf8"
 )
 
 func (s *Store) UpdateInterviewQuestion(ctx context.Context, user, id, key string, q interviews.QuestionInput) (interviews.Snapshot, error) {
@@ -124,7 +121,7 @@ func (s *Store) mutateInterview(ctx context.Context, user, id, key, action strin
 }
 func (s *Store) PreviewInterviewInvite(ctx context.Context, token string) (interviews.Preview, error) {
 	var v interviews.Preview
-	if !validInterviewToken(token) {
+	if !identity.ValidGuestToken(token) {
 		return v, failure("not_found", 404, "Invitation unavailable")
 	}
 	err := s.Pool.QueryRow(ctx, `SELECT i.title,i.id,i.state,CASE WHEN i.interviewer_invite_hash=$1 THEN 'interviewer' ELSE 'interviewee' END FROM interviews i JOIN users u ON u.id=i.host_id AND NOT u.disabled WHERE (i.invite_hash=$1 OR i.interviewer_invite_hash=$1) AND i.state='active' AND EXISTS(SELECT 1 FROM entitlement_grants WHERE user_id=i.host_id AND feature IN ('internal','interviews.host') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()))`, Hash([]byte(token))).Scan(&v.Title, &v.SessionID, &v.State, &v.Role)
@@ -133,13 +130,9 @@ func (s *Store) PreviewInterviewInvite(ctx context.Context, token string) (inter
 	}
 	return v, err
 }
-func validInterviewToken(token string) bool {
-	raw, err := base64.RawURLEncoding.DecodeString(token)
-	return err == nil && len(raw) == 32
-}
 func (s *Store) InterviewGuestIdentity(ctx context.Context, token string) (identity.Principal, error) {
 	var p identity.Principal
-	if !validInterviewToken(token) {
+	if !identity.ValidGuestToken(token) {
 		return p, identity.ErrUnauthorized
 	}
 	err := s.Pool.QueryRow(ctx, `SELECT u.id,u.display_name,g.token_hash FROM interview_guest_sessions g JOIN users u ON u.id=g.owner_id AND u.kind='guest' AND NOT u.disabled JOIN interview_members m ON m.session_id=g.session_id AND m.user_id=g.owner_id AND m.removed_at IS NULL JOIN interviews i ON i.id=g.session_id JOIN users h ON h.id=i.host_id AND NOT h.disabled WHERE g.token_hash=$1 AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()`, Hash([]byte(token))).Scan(&p.UserID, &p.DisplayName, &p.SessionID)
@@ -154,7 +147,7 @@ func (s *Store) InterviewGuestIdentity(ctx context.Context, token string) (ident
 }
 func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name string) (interviews.Snapshot, error) {
 	var empty interviews.Snapshot
-	if !validInterviewToken(token) {
+	if !identity.ValidGuestToken(token) {
 		return empty, failure("not_found", 404, "Invitation unavailable")
 	}
 	tx, err := s.Pool.Begin(ctx)
@@ -183,11 +176,12 @@ func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name
 	}
 	guest := user == ""
 	if guest {
-		if !validInterviewToken(credential) {
+		if !identity.ValidGuestToken(credential) {
 			return empty, failure("unauthenticated", 401, "Guest credential required")
 		}
-		name = strings.TrimSpace(name)
-		if utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 40 || strings.ContainsAny(name, "\r\n\t") {
+		var validName bool
+		name, validName = identity.GuestName(name)
+		if !validName {
 			return empty, failure("invalid_input", 400, "Choose a name between 1 and 40 characters")
 		}
 		var priorRoom string
@@ -210,8 +204,8 @@ func (s *Store) JoinInterview(ctx context.Context, user, token, credential, name
 			if joins >= 64 {
 				return empty, failure("quota_exceeded", 429, "Guest admission limit reached")
 			}
-			user = ID()
-			if _, err = tx.Exec(ctx, `INSERT INTO users(id,participant_id,display_name,kind) VALUES($1::text,$1::text::uuid,$2,'guest')`, user, name); err != nil {
+			user, err = createGuestUser(ctx, tx, name)
+			if err != nil {
 				return empty, err
 			}
 			if _, err = tx.Exec(ctx, `INSERT INTO interview_guest_sessions(token_hash,owner_id,session_id) VALUES($1,$2,$3)`, Hash([]byte(credential)), user, id); err != nil {

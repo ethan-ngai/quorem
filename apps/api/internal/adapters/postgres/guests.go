@@ -2,17 +2,21 @@ package postgres
 
 import (
 	"context"
-	"encoding/base64"
+
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/jackc/pgx/v5"
-	"strings"
-	"unicode/utf8"
 )
+
+func createGuestUser(ctx context.Context, tx pgx.Tx, name string) (string, error) {
+	user := ID()
+	_, err := tx.Exec(ctx, "INSERT INTO users(id,participant_id,display_name,kind) VALUES($1::text,$1::text::uuid,$2,'guest')", user, name)
+	return user, err
+}
 
 func (s *Store) GuestIdentity(ctx context.Context, token string) (identity.Principal, error) {
 	p := identity.Principal{Guest: true}
-	if len(token) != 43 {
+	if !identity.ValidGuestToken(token) {
 		return p, identity.ErrUnauthorized
 	}
 	err := s.Pool.QueryRow(ctx, `UPDATE guest_sessions g SET last_seen_at=clock_timestamp() FROM users u,match_participants p,matches m,users h WHERE g.token_hash=$1 AND u.id=g.owner_id AND u.kind='guest' AND NOT u.disabled AND p.owner_id=g.owner_id AND p.match_id=g.match_id AND m.id=g.match_id AND h.id=m.host_owner_id AND NOT h.disabled AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp() AND g.last_seen_at>clock_timestamp()-interval '2 hours' RETURNING u.id,u.display_name,g.match_id::text,g.token_hash`, Hash([]byte(token))).Scan(&p.UserID, &p.DisplayName, &p.MatchID, &p.SessionID)
@@ -25,12 +29,11 @@ func (s *Store) GuestIdentity(ctx context.Context, token string) (identity.Princ
 // JoinGuest atomically claims a bounded seat using a previously issued HttpOnly credential.
 func (s *Store) JoinGuest(ctx context.Context, token, credential, name string) (matches.Snapshot, error) {
 	var empty matches.Snapshot
-	name = strings.TrimSpace(name)
-	if utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 40 || strings.ContainsAny(name, "\r\n\t") {
+	name, validName := identity.GuestName(name)
+	if !validName {
 		return empty, failure("invalid_input", 400, "Choose a name between 1 and 40 characters")
 	}
-	raw, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil || len(raw) != 32 || len(credential) != 43 {
+	if !identity.ValidGuestToken(token) || !identity.ValidGuestToken(credential) {
 		return empty, failure("not_found", 404, "Invitation unavailable")
 	}
 	tx, err := s.Pool.Begin(ctx)
@@ -90,8 +93,8 @@ func (s *Store) JoinGuest(ctx context.Context, token, credential, name string) (
 	if seat == 0 {
 		return empty, failure("room_full", 409, "Lobby is full")
 	}
-	owner = ID()
-	if _, err = tx.Exec(ctx, "INSERT INTO users(id,participant_id,display_name,kind) VALUES($1::text,$1::text::uuid,$2,'guest')", owner, name); err != nil {
+	owner, err = createGuestUser(ctx, tx, name)
+	if err != nil {
 		return empty, err
 	}
 	if _, err = tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,$3)", id, owner, seat); err != nil {
