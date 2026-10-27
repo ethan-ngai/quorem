@@ -66,15 +66,21 @@ def main():
             sys.stdout.buffer.flush()
             try:
                 cursor.execute(request["source"])
-                if cursor.description is None or any(column.type_code not in OUTPUT_TYPES for column in cursor.description):
-                    result = {"status": "invalid_output"}
+                if not cursor.description:
+                    result = {"status": "invalid_output", "stderr": "The query must return at least one column."}
+                elif any(column.type_code not in OUTPUT_TYPES for column in cursor.description):
+                    result = {"status": "invalid_output", "stderr": "The query returned an unsupported column type. Return supported scalar values."}
                 else:
                     columns = [column.name for column in cursor.description]
                     rows = cursor.fetchmany(10001)
                     rows = [[{"$bigint": str(value)} if isinstance(value, int) and not isinstance(value, bool) and (value > 2147483647 or value < -2147483648) else value for value in row] for row in rows]
                     result = {"status": "executed", "actual": {"columns": columns, "rows": rows}, "sqlTypes": [OUTPUT_TYPE_NAMES[column.type_code] for column in cursor.description]}
-            except psycopg2.Error:
-                result = {"status": "runtime_error"}
+            except psycopg2.Error as error:
+                message = (error.diag.message_primary or "The query could not be executed.")[:1024]
+                result = {"status": "syntax_error" if error.pgcode == "42601" else "runtime_error", "stderr": message}
+                position = error.diag.statement_position
+                if position and position.isdigit():
+                    result["line"] = request["source"][:max(0, int(position) - 1)].count("\n") + 1
             print(json.dumps(result, default=encode, allow_nan=False, separators=(",", ":")))
         connection.close()
     finally:

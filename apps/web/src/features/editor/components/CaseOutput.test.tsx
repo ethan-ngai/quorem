@@ -41,3 +41,18 @@ describe("case output", () => {
     expect(markup).toContain("machine-value verdict-neutral");
   });
 });
+
+it("shows the SQL error and line next to the result", () => {
+  const markup = renderToStaticMarkup(
+    <CaseOutput
+      result={{
+        index: 0,
+        status: "runtime_error",
+        diagnostics: [{ line: 2, message: 'column "missing" does not exist' }],
+      }}
+    />,
+  );
+  expect(markup).toContain('aria-label="Diagnostics"');
+  expect(markup).toContain("Line 2:");
+  expect(markup).toContain("column &quot;missing&quot; does not exist");
+});
