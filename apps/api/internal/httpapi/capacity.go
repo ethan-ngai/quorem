@@ -40,6 +40,16 @@ func realtimeUpgrade(r *http.Request) bool {
 		return false
 	}
 	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) == 4 && parts[1] == "v1" && parts[2] == "memberships" && parts[3] == "events" {
+		for _, header := range r.Header.Values("Connection") {
+			for _, token := range strings.Split(header, ",") {
+				if strings.EqualFold(strings.TrimSpace(token), "upgrade") {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	if len(parts) != 5 || parts[1] != "v1" || (parts[2] != "interviews" && parts[2] != "matches") || !uuid.MatchString(parts[3]) || parts[4] != "events" {
 		return false
 	}

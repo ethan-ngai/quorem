@@ -139,6 +139,7 @@ func main() {
 		}
 	}()
 	api.StartRealtime(ctx)
+	api.StartMembershipRealtime(ctx)
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()

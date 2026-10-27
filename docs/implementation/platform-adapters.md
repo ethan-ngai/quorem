@@ -50,7 +50,7 @@ CLOUDFLARE_REALTIME_URL=https://YOUR_PRIVATE_RELAY.workers.dev
 CLOUDFLARE_REALTIME_TOKEN=AT_LEAST_32_RANDOM_CHARACTERS
 ```
 
-Queue adapters reject invalid bounded batches/receipts and redact provider failures. AWS uses its standard credential chain; Cloudflare API tokens need only the selected account/queue permissions. AppSync requires the `matches` and `interviews` channel namespaces and server connect/publish/subscribe authorization. Cloudflare Queues requires an HTTP pull consumer; configure visibility/retry/DLQ per operational policy. Tokens and keys belong in deployment secrets, not Terraform state literals or frontend variables.
+Queue adapters reject invalid bounded batches/receipts and redact provider failures. AWS uses its standard credential chain; Cloudflare API tokens need only the selected account/queue permissions. AppSync requires the `matches`, `interviews`, and `memberships` channel namespaces and server connect/publish/subscribe authorization. Cloudflare Queues requires an HTTP pull consumer; configure visibility/retry/DLQ per operational policy. Tokens and keys belong in deployment secrets, not Terraform state literals or frontend variables.
 
 Cloudflare relay source is `apps/realtime-cloudflare`; Wrangler config declares its Durable Object binding and SQLite migration. Set its `RELAY_TOKEN` secret equal to the API relay token. Only API instances connect; clients use the existing Go WebSocket endpoint, with identity, origin, membership and periodic revocation checks. The relay sends notices only, never source, hidden cases, private snapshots or match transitions. Per-match socket bounds and per-message limits are enforced. Presence remains advisory and process-local; it cannot decide forfeits or outcomes. Shared presence, if required, needs a separate expiring lease adapter rather than changing fanout authority.
 
@@ -107,3 +107,6 @@ Required judge wakes use `QUOREM_DELIVERY_PROVIDER=cloudflare-dispatch`, `QUOREM
 An HTTP-mode judge starts no idle polling/listener; `runner --http` drains with bounded concurrency when invoked. Admission grace and overlapping-wake extension cover notifications that arrive before the job commits. Continuous local runners instead use transactional PostgreSQL notifications with recovery polling. Idle app/judge containers may stop, and idle database compute may suspend; active sockets or jobs require compute. Stored data persists. Cold starts add latency, so scale-to-zero cannot promise a warm-instance response time.
 
 Provider deployment, nested sandbox isolation under the hosted runtime, account quotas and representative production load remain validation gates. Local multi-replica socket tests exercise application correctness; they do not establish hosted throughput or zero-cost storage.
+
+
+Current-match discovery uses an authenticated owner-scoped WebSocket. Committed reservation and match changes enqueue private invalidation notices; each reconnect reloads the authoritative current match. Event payloads carry no membership or source data. PostgreSQL and provider outage recovery remain authoritative through the outbox.
