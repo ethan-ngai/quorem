@@ -166,6 +166,9 @@ overrides:
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vitest: 5.0.3
 
+patchedDependencies:
+  monaco-pyright-lsp@0.1.7: c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c
+
 importers:
 
   .:
@@ -415,7 +418,7 @@ importers:
         version: 3.1.0
       monaco-pyright-lsp:
         specifier: 0.1.7
-        version: 0.1.7
+        version: 0.1.7(patch_hash=c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c)
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -7852,7 +7855,7 @@ snapshots:
 
   monaco-editor@0.52.2: {}
 
-  monaco-pyright-lsp@0.1.7:
+  monaco-pyright-lsp@0.1.7(patch_hash=c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c):
     dependencies:
       monaco-editor: 0.52.2
       vscode-languageserver: 9.0.1
