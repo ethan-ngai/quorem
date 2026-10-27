@@ -86,7 +86,7 @@ func guestRoute(r *http.Request, p identity.Principal, public bool) bool {
 	if path == "/v1/guest-sessions/end" && r.Method == "POST" {
 		return true
 	}
-	if r.Method == "GET" && (path == "/v1/session" || path == "/v1/matches/current" || strings.HasPrefix(path, "/v1/workspaces/") || strings.HasPrefix(path, "/v1/submissions/")) {
+	if r.Method == "GET" && (path == "/v1/session" || path == "/v1/matches/current" || path == "/v1/memberships/events" || strings.HasPrefix(path, "/v1/workspaces/") || strings.HasPrefix(path, "/v1/submissions/")) {
 		return true
 	}
 	if r.Method == "POST" && (path == "/v1/submissions" || (strings.HasPrefix(path, "/v1/submissions/") && strings.HasSuffix(path, "/cancel"))) {

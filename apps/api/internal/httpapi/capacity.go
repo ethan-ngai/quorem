@@ -41,12 +41,14 @@ func realtimeUpgrade(r *http.Request) bool {
 		return false
 	}
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) != 5 || parts[1] != "v1" || parts[4] != "events" {
-		return false
+	membership := len(parts) == 4 && parts[1] == "v1" && parts[2] == "memberships" && parts[3] == "events"
+	other := false
+	if len(parts) == 5 && parts[1] == "v1" && parts[4] == "events" {
+		decoded, decodeErr := base64.RawURLEncoding.DecodeString(parts[3])
+		invite := parts[2] == "match-invites" && decodeErr == nil && len(decoded) == 32
+		other = invite || ((parts[2] == "interviews" || parts[2] == "matches") && uuid.MatchString(parts[3]))
 	}
-	decoded, decodeErr := base64.RawURLEncoding.DecodeString(parts[3])
-	invite := parts[2] == "match-invites" && decodeErr == nil && len(decoded) == 32
-	if !invite && !((parts[2] == "interviews" || parts[2] == "matches") && uuid.MatchString(parts[3])) {
+	if !membership && !other {
 		return false
 	}
 	for _, header := range r.Header.Values("Connection") {

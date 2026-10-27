@@ -370,6 +370,14 @@ void test("only supported GET event upgrades consume the socket budget", () => {
   const path = "https://app/v1/interviews/00000000-0000-4000-8000-000000000001/events";
   assert.equal(isSocketRequest(new Request(path, { headers })), true);
   assert.equal(
+    isSocketRequest(new Request("https://app/v1/memberships/events", { headers })),
+    true,
+  );
+  assert.equal(
+    isSocketRequest(new Request("https://app/v1/interviews/current/events", { headers })),
+    false,
+  );
+  assert.equal(
     isSocketRequest(
       new Request(`https://app/v1/match-invites/${"A".repeat(43)}/events`, { headers }),
     ),
