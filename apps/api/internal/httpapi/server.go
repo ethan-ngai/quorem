@@ -157,7 +157,7 @@ func (s *Server) Handler() http.Handler {
 					return
 				}
 				if !public {
-					http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+					clearGuestCookie(w)
 					s.err(w, r, &application.Error{Code: "unauthenticated", Status: 401, Message: "Guest session expired"})
 					return
 				}

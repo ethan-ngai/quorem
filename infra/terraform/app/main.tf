@@ -117,6 +117,18 @@ variable "invite_key" {
   type      = string
   sensitive = true
 }
+variable "guest_creation_enabled" {
+  type    = bool
+  default = true
+}
+variable "guest_admission_enabled" {
+  type    = bool
+  default = true
+}
+variable "guest_execution_enabled" {
+  type    = bool
+  default = true
+}
 variable "auth_environment" {
   type      = map(string)
   sensitive = true
@@ -185,6 +197,9 @@ locals {
     BETTER_AUTH_SECRET               = var.better_auth_secret
     AUTH_INTERNAL_SECRET             = var.auth_internal_secret
     QUOREM_INVITE_KEY                = var.invite_key
+    GUEST_CREATION_ENABLED           = tostring(var.guest_creation_enabled)
+    GUEST_ADMISSION_ENABLED          = tostring(var.guest_admission_enabled)
+    GUEST_EXECUTION_ENABLED          = tostring(var.guest_execution_enabled)
     QUOREM_REALTIME_PROVIDER         = "postgres-notify"
     QUOREM_SKIP_MIGRATIONS           = "true"
     QUOREM_DATABASE_MAX_CONNS        = "4"

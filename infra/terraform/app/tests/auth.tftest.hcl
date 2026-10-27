@@ -46,6 +46,10 @@ variables {
 run "auth_secrets_and_rollout" {
   command = plan
   assert {
+    condition     = local.runtime.GUEST_CREATION_ENABLED == "true" && local.runtime.GUEST_ADMISSION_ENABLED == "true" && local.runtime.GUEST_EXECUTION_ENABLED == "true"
+    error_message = "The bounded match guest pilot must enable creation, admission, and execution."
+  }
+  assert {
     condition     = local.runtime.AUTH_LOGIN_ONLY == "false" && local.runtime.SMTP_PASSWORD == "fixture-mail-password" && local.runtime.GOOGLE_CLIENT_ID == "fixture-google-id"
     error_message = "Application auth settings must reach its runtime."
   }
@@ -68,6 +72,19 @@ run "auth_secrets_and_rollout" {
 
 }
 
+run "guest_pause_controls" {
+  command = plan
+  variables {
+    guest_creation_enabled  = false
+    guest_admission_enabled = false
+    guest_execution_enabled = false
+  }
+  assert {
+    condition     = local.runtime.GUEST_CREATION_ENABLED == "false" && local.runtime.GUEST_ADMISSION_ENABLED == "false" && local.runtime.GUEST_EXECUTION_ENABLED == "false"
+    error_message = "Guest rollout controls must support pausing each operation."
+  }
+}
+
 run "reject_runtime_override" {
   command = plan
   variables {
@@ -80,25 +97,25 @@ run "alternate_auth_providers" {
   command = plan
   variables {
     auth_environment = {
-      AUTH_MODE = "cognito"
-      AUTH_LOGIN_ONLY = "false"
-      COGNITO_CLIENT_ID = "fixture-id"
-      COGNITO_CLIENT_SECRET = "fixture-secret"
-      COGNITO_DOMAIN = "auth.example.com"
-      COGNITO_REGION = "us-east-1"
-      COGNITO_USERPOOL_ID = "fixture-pool"
-      AUTH_EMAIL_DRIVER = "cloudflare"
-      AUTH_EMAIL_FROM = "accounts@example.com"
+      AUTH_MODE                        = "cognito"
+      AUTH_LOGIN_ONLY                  = "false"
+      COGNITO_CLIENT_ID                = "fixture-id"
+      COGNITO_CLIENT_SECRET            = "fixture-secret"
+      COGNITO_DOMAIN                   = "auth.example.com"
+      COGNITO_REGION                   = "us-east-1"
+      COGNITO_USERPOOL_ID              = "fixture-pool"
+      AUTH_EMAIL_DRIVER                = "cloudflare"
+      AUTH_EMAIL_FROM                  = "accounts@example.com"
       AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      AUTH_EMAIL_CLOUDFLARE_API_TOKEN = "fixture-token"
+      AUTH_EMAIL_CLOUDFLARE_API_TOKEN  = "fixture-token"
     }
   }
   assert {
-    condition = local.runtime.AUTH_MODE == "cognito" && local.runtime.COGNITO_CLIENT_SECRET == "fixture-secret" && local.runtime.AUTH_EMAIL_CLOUDFLARE_API_TOKEN == "fixture-token"
+    condition     = local.runtime.AUTH_MODE == "cognito" && local.runtime.COGNITO_CLIENT_SECRET == "fixture-secret" && local.runtime.AUTH_EMAIL_CLOUDFLARE_API_TOKEN == "fixture-token"
     error_message = "Selected provider settings must reach the application runtime."
   }
   assert {
-    condition = !contains(keys(local.judge_runtime), "COGNITO_CLIENT_SECRET") && !contains(keys(local.judge_runtime), "AUTH_EMAIL_CLOUDFLARE_API_TOKEN")
+    condition     = !contains(keys(local.judge_runtime), "COGNITO_CLIENT_SECRET") && !contains(keys(local.judge_runtime), "AUTH_EMAIL_CLOUDFLARE_API_TOKEN")
     error_message = "Provider secrets must not reach judges."
   }
 }

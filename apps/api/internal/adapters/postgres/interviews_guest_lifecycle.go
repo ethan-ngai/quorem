@@ -3,12 +3,13 @@ package postgres
 import (
 	"context"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/jackc/pgx/v5"
 )
 
 // A credential never changes session scope; finished or expired participation gets a fresh credential.
 func (s *Store) RotateInterviewGuestCredential(ctx context.Context, credential, inviteToken string) (bool, error) {
-	if !validInterviewToken(credential) {
+	if !identity.ValidGuestToken(credential) {
 		return true, nil
 	}
 	var same, expired, revoked bool

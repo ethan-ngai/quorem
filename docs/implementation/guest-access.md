@@ -6,6 +6,8 @@ Local stack: `make dev`; open `WEB_ORIGIN` (default `http://localhost:5173`). Si
 
 On Create match or an open hosted lobby, enable the **Allow guests** icon (off by default). Free regular hosting is unchanged. Invitees see the lobby behind a dialog: signed-in people accept explicitly; anonymous people sign in or enter a guest name. Regular invitations offer sign-in only. Guest practice Run/Submit still requires an account. Guests are visibly unverified and cannot host/administer/use hosted intelligence. Browser-local Python/TypeScript intelligence is available to everyone. Guest navigation always offers Sign in. Match completion or forfeiture revokes the guest credential and clears the cookie; an in-memory result summary remains visible until navigation. Anonymous draft editing remains available.
 
+Match and interview guests share token generation and validation, name validation, guest-user creation, cookie construction, and sponsor concurrency accounting. Credentials remain separately scoped to their room type; admission, membership, expiry and rollout switches retain their room-specific rules.
+
 Host controls: the lock icon beside Leave opens/closes admission without resetting readiness; the replace-link icon rotates invitations; remove a guest before start. The animated guest icon sits immediately left of the lock and is hidden from ineligible accounts. Guest execution currently has no cumulative room or monthly allowance; metering remains, along with participant/global rate limits and sponsor concurrency protection. Legacy job/time overrides are inactive. Rotating affects future admission only. Existing open-link guests cannot be securely identified after cookie deletion; use admission locking/rotation for stronger control. This is an eight-seat pilot, not classroom capacity certification.
 
 ## Private operator access
@@ -26,7 +28,7 @@ Use `revoke` with the same scope/source/ref and a new operation ID. Optional `--
 
 ## Rollout and rollback
 
-`GUEST_CREATION_ENABLED`, `GUEST_ADMISSION_ENABLED`, `GUEST_EXECUTION_ENABLED` default false in production, true locally. Explicit `false` overrides local defaults. Stop new admissions first, then drain jobs; execution pause blocks new runs without hiding existing results. Flags are read on API startup; change deployment configuration and restart. Provision/deploy via Terraform/GitHub Actions only.
+The Cloudflare production configuration enables `GUEST_CREATION_ENABLED`, `GUEST_ADMISSION_ENABLED`, and `GUEST_EXECUTION_ENABLED` for the bounded match pilot; host eligibility still requires an active `matches.host_guests` or `internal` grant. The API defaults these flags off outside local development when not configured. Terraform variables `guest_creation_enabled`, `guest_admission_enabled`, and `guest_execution_enabled` independently pause the operations. Stop new admissions first, then drain jobs; execution pause blocks new runs without hiding existing results. Flags are read on API startup; provision/deploy via Terraform/GitHub Actions only.
 
 PostgreSQL request limits use connection-peer addresses, deliberately ignoring untrusted proxy headers. A reverse proxy may share one bucket across clients. Tune only after measuring; do not use restrictive per-campus-IP limits as primary accounting.
 

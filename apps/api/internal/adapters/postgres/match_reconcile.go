@@ -49,7 +49,7 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		return err
 	}
 	submissions := []matches.SubmissionProgress{}
-	rows, err = tx.Query(ctx, "SELECT owner_id,state,match_sequence,result FROM submissions WHERE match_id=$1 AND kind='submit' ORDER BY admitted_at,match_sequence", m.id)
+	rows, err = tx.Query(ctx, `SELECT s.owner_id,s.state,s.match_sequence,s.result,COALESCE(s.odyssey_level < jsonb_array_length(p.fixture->'problem'->'odyssey'->'levels'),false) FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id WHERE s.match_id=$1 AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`, m.id)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,8 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		var owner, state string
 		var sequence int64
 		var resultData []byte
-		if err = rows.Scan(&owner, &state, &sequence, &resultData); err != nil {
+		var intermediate bool
+		if err = rows.Scan(&owner, &state, &sequence, &resultData, &intermediate); err != nil {
 			rows.Close()
 			return err
 		}
@@ -71,7 +72,7 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 				return err
 			}
 		}
-		submissions = append(submissions, matches.SubmissionProgress{Owner: owner, State: state, Verdict: result.Verdict, Score: result.Score})
+		submissions = append(submissions, matches.SubmissionProgress{Owner: owner, State: state, Verdict: result.Verdict, Score: result.Score, Intermediate: intermediate})
 	}
 	err = rows.Err()
 	rows.Close()
