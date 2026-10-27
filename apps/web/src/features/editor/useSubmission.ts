@@ -11,7 +11,7 @@ import { submissionStream } from "./submissionStream";
 import { forgetMissingSubmission } from "./submissionRecovery";
 import {
   parseCustomCases,
-  parseCustomDrafts,
+  parseProblemDrafts,
   caseSnapshotValue,
   type CustomCaseDraft,
   type RunSnapshot,
@@ -195,9 +195,9 @@ export function useSubmission({
       let customCases;
       if (kind === "run" && customMode) {
         try {
-          customCases = parseCustomDrafts(drafts, problem.signature, problem.constraints);
+          customCases = parseProblemDrafts(drafts, problem);
         } catch (cause) {
-          setError(errorMessage(cause));
+          setError(cause instanceof Error ? cause.message : "Check the custom cases.");
           return false;
         }
       }

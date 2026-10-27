@@ -218,8 +218,8 @@ describe("advancing beyond the last executed Odyssey step", () => {
     const html = advanced(previous);
     expect(html).toContain('aria-pressed="true" aria-label="Case 2"');
     expect(html).not.toContain('aria-label="Case 2: accepted"');
-    expect(html).not.toContain("Hidden case");
-    expect(html).not.toContain('aria-label="Select hidden case"');
+    expect(html).not.toContain('class="locked-case"');
+    expect(html).toContain('aria-label="Select test case"');
     expect(html).toContain("Expected output");
     expect(html).toContain(">9<");
   });
@@ -236,7 +236,7 @@ describe("advancing beyond the last executed Odyssey step", () => {
       expect(html).not.toContain('aria-label="Case 2: accepted"');
       expect(html).toContain("Expected output");
       expect(html).toContain(">9<");
-      expect(html).not.toContain("Hidden case");
+      expect(html).not.toContain('class="locked-case"');
     },
   );
 });
@@ -260,7 +260,7 @@ describe("compiler failures", () => {
         }}
       />,
     );
-    expect(html).toContain('aria-label="Diagnostics"');
+    expect(html).toContain('class="case-error-message"');
     expect(html).toContain("Line 4:");
   });
 });
@@ -293,7 +293,7 @@ describe("retained evaluated step statuses", () => {
       expect(html).toContain("Step 1");
       expect(html).toContain(": passed");
       expect(html).not.toContain('aria-label="Case 2: accepted"');
-      expect(html).not.toContain("Hidden case");
+      expect(html).not.toContain('class="locked-case"');
     },
   );
   it("never substitutes hidden cases in a grouped browser even without Odyssey metadata", () => {
@@ -320,8 +320,8 @@ describe("retained evaluated step statuses", () => {
         }}
       />,
     );
-    expect(html).not.toContain("Hidden case");
-    expect(html).not.toContain('aria-label="Select hidden case"');
+    expect(html).not.toContain('class="locked-case"');
+    expect(html).toContain('aria-label="Select test case"');
     expect(html).toContain('aria-pressed="true" aria-label="Case 2"');
   });
 });
@@ -372,7 +372,7 @@ it("omits the score summary above Odyssey examples", () => {
   expect(html).not.toContain('class="run-overview"');
 });
 
-it("offers a separate hidden-test tab without putting its score above Odyssey examples", () => {
+it("groups hidden tests in the case rail without putting their score above Odyssey examples", () => {
   const html = renderToStaticMarkup(
     <WorkspaceTests
       problem={problem}
@@ -396,23 +396,21 @@ it("offers a separate hidden-test tab without putting its score above Odyssey ex
       }}
     />,
   );
-  expect(html).toContain("Hidden tests");
-  expect(html).toContain('id="tests-hidden-tab"');
+  expect(html).toContain('class="case-group-label case-group-label--locked"');
+  expect(html).not.toContain('id="tests-hidden-tab"');
   expect(html).not.toContain("2/2 cases passed");
-  expect(html).not.toContain("Hidden case 1");
+  expect(html).toContain('aria-label="Hidden case 1: passed"');
   expect(html).toContain('aria-label="Case 1: accepted"');
   expect(html).not.toContain('aria-label="Case 2: accepted"');
 });
 
-it("uses the shared locked-case UI for explicitly selected Odyssey hidden tests", () => {
+it("keeps public results separate from hidden case statuses", () => {
   const html = renderToStaticMarkup(
     <TestCases
       problem={{ ...problem, odyssey: { levels: progress.levels } }}
-      hiddenMode
       customMode={false}
       drafts={[]}
       onDraftsChange={() => {}}
-      selectedSampleIndex={1}
       submission={{
         id: "hidden",
         workspaceId: "w",
@@ -429,9 +427,111 @@ it("uses the shared locked-case UI for explicitly selected Odyssey hidden tests"
       }}
     />,
   );
-  expect(html).toContain('aria-label="Select hidden case"');
-  expect(html).toContain("Hidden case 2");
-  expect(html).toContain("Time limit exceeded");
-  expect(html).not.toContain("public-output");
-  expect(html).not.toContain("Expected output");
+  expect(html).toContain('aria-label="Hidden case 1: passed"');
+  expect(html).toContain('aria-label="Hidden case 2: time limit exceeded"');
+  expect(html).toContain("public-output");
+  expect(html).not.toContain('class="locked-case"');
+});
+
+it("renders SQL table examples without binding method arguments", () => {
+  const sqlProblem: ProblemVersion = {
+    ...problem,
+    signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+    sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const },
+    examples: [
+      {
+        args: [{ tables: [{ name: "items", columns: [], rows: [] }] }],
+        expected: { columns: ["id"], rows: [] },
+      },
+    ],
+  };
+  const html = renderToStaticMarkup(<WorkspaceTests problem={sqlProblem} busy={false} />);
+  expect(html).toContain("Tables");
+  expect(html).toContain("items");
+  expect(html).not.toContain("Custom cases");
+});
+
+it.each(["coding", "sql"] as const)(
+  "offers hidden cases after a %s submission with public samples",
+  (kind) => {
+    const tested =
+      kind === "sql"
+        ? { ...problem, sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const } }
+        : problem;
+    const html = renderToStaticMarkup(
+      <WorkspaceTests
+        problem={tested}
+        busy={false}
+        onDraftsChange={() => {}}
+        submission={{
+          id: "submit",
+          workspaceId: "workspace",
+          kind: "submit",
+          state: "completed",
+          sourceHash: "s",
+          admittedAt: "",
+          updatedAt: "",
+          hiddenCases: [
+            { index: 0, status: "accepted" },
+            { index: 1, status: "wrong_answer" },
+          ],
+          publicCases: [{ index: 0, status: "accepted", actual: "public-result" }],
+        }}
+      />,
+    );
+    expect(html).not.toContain('id="tests-hidden-tab"');
+    expect(html).toContain('class="case-group-label case-group-label--locked"');
+    expect(html).toContain('aria-label="Hidden case 1: passed"');
+    expect(html).toContain('aria-label="Hidden case 2: failed"');
+    expect(html).toContain("public-result");
+    expect(html).toContain('aria-label="Select test case"');
+    expect(html).toContain('id="tests-custom-tab"');
+  },
+);
+
+it("does not offer stale hidden cases while a new submission starts", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      busy
+      submission={{
+        id: "old",
+        workspaceId: "workspace",
+        kind: "submit",
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        hiddenCases: [{ index: 0, status: "accepted" }],
+      }}
+    />,
+  );
+  expect(html).not.toContain('class="case-group-label case-group-label--locked"');
+});
+
+it("shows a shared custom run separately from local drafts", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      busy={false}
+      customMode
+      onCustomModeChange={() => {}}
+      drafts={[createCustomDraft(problem)]}
+      onDraftsChange={() => {}}
+      submission={{
+        id: "shared",
+        workspaceId: "w",
+        kind: "run",
+        customRun: true,
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        publicCases: [{ index: 0, status: "executed", actual: 42 }],
+      }}
+    />,
+  );
+  expect(html).toContain("inputs may differ from your drafts");
+  expect(html).toContain('aria-label="Select run result"');
+  expect(html).toContain("42");
 });

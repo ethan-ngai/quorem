@@ -220,7 +220,7 @@ func TestInterviewBaselineAndMatchesExcludePrivateQuestions(t *testing.T) {
 	if _, err = s.JoinInterview(ctx, "bob", strings.TrimPrefix(v.InvitePath, "/interview-invite/"), "", ""); err != nil {
 		t.Fatal(err)
 	}
-	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "run")
+	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "run", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

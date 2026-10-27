@@ -102,7 +102,7 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 		}
 		out.Question.Problem = p
 		out.Question.Progress = &interviews.Progress{Level: level, Completed: completed, Levels: p.Odyssey.Levels, TotalLevels: len(v.fixture.Problem.Odyssey.Levels)}
-		out.Question.Progress.CaseStatuses, err = latestCaseStatuses(ctx, tx, `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id WHERE e.session_id=$1 AND e.question_epoch=$2 AND j.language=$3 AND s.state='completed'`, out.ID, out.QuestionEpoch, v.language)
+		out.Question.Progress.CaseStatuses, err = latestCaseStatuses(ctx, tx, `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id WHERE e.session_id=$1 AND e.question_epoch=$2 AND j.language=$3 AND s.state='completed' AND NOT s.custom_run`, out.ID, out.QuestionEpoch, v.language)
 		if err != nil {
 			return out, err
 		}
@@ -370,7 +370,7 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		return f, failure("invalid_input", 400, "Custom SQL interviews require a published SQL question")
 	}
 	c := q.Custom
-	f = problems.Fixture{Problem: problems.Problem{ID: ID(), Slug: "interview-private", Version: "1", Title: strings.TrimSpace(c.Title), Difficulty: "easy", Tags: []string{}, StatementMarkdown: c.StatementMarkdown, Signature: c.Signature, StarterSource: c.StarterSource, RuntimeRevision: runtime.Revision, Limits: execution.DefaultLimits(), Constraints: []problems.Constraint{}, Examples: []problems.ProblemExample{}}, HiddenCases: c.PrivateCases, HarnessRevision: runtime.Harness, Comparator: "ordered", Attribution: "Private interview"}
+	f = problems.Fixture{Problem: problems.Problem{ID: ID(), Slug: "interview-private", Version: "1", Title: strings.TrimSpace(c.Title), Difficulty: "easy", Tags: []string{}, StatementMarkdown: c.StatementMarkdown, Signature: c.Signature, StarterSource: c.StarterSource, RuntimeRevision: runtime.Revision, Limits: execution.DefaultLimits(), Constraints: []problems.Constraint{}, Examples: []problems.ProblemExample{}}, HiddenCases: c.PrivateCases, HarnessRevision: runtime.Harness, Attribution: "Private interview"}
 	if f.Problem.Signature.ClassName == "" {
 		f.Problem.Signature.ClassName = "Solution"
 	}
@@ -383,14 +383,12 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		}
 	} else {
 		// Reuse authoring/type validation without publishing private content or requiring a reference solution.
-		validation := problems.QuestionContent{Problem: f.Problem, HiddenCases: []problems.Case{}, Comparator: "ordered", Attribution: f.Attribution, Implementations: []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "python", StarterSource: "private", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision}, ReferenceSource: "private"}}}
+		validation := problems.QuestionContent{Problem: f.Problem, HiddenCases: []problems.Case{}, Attribution: f.Attribution, Implementations: []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "python", StarterSource: "private", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision}, ReferenceSource: "private"}}}
 		validation.Problem.Slug = "interview-private"
 		if len(c.PublicCases) == 0 || len(c.PublicCases) > 20 || len(c.PrivateCases) > 100 {
 			return f, failure("invalid_input", 400, "Provide 1-20 public tests and at most 100 private tests")
 		}
-		for len(validation.HiddenCases) < 20 {
-			validation.HiddenCases = append(validation.HiddenCases, c.PublicCases[0])
-		}
+		validation.HiddenCases = []problems.Case{c.PublicCases[0]}
 		if err := problems.ValidateQuestionPublication(validation); err != nil {
 			return f, failure("invalid_input", 400, err.Error())
 		}

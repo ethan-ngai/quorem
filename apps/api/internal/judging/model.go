@@ -14,6 +14,7 @@ type Command struct {
 	CustomCases []problems.Case `json:"customCases,omitempty"`
 }
 type Submission struct {
+	CustomRun           bool                         `json:"customRun,omitempty"`
 	PrivateCaseResults  []InterviewCaseResult        `json:"privateCaseResults,omitempty"`
 	ExecutionJobID      string                       `json:"-"`
 	ID                  string                       `json:"id"`

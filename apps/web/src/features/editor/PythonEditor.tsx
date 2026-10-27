@@ -30,7 +30,7 @@ import type { EditorScheme } from "./editorSchemes";
 import {
   pythonExtensions,
   loadLanguageExtensions,
-  languageLabels,
+  solutionLanguageLabel,
   type EditorLanguage,
 } from "./editorLanguages";
 
@@ -186,7 +186,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
         completionSlot.current.of(completionEnabled ? completionExtension : []),
         languageSlot.current.of(language === "python" ? pythonExtensions : []),
         EditorView.contentAttributes.of({
-          "aria-label": `${languageLabels[language]} solution editor`,
+          "aria-label": `${solutionLanguageLabel(language)} solution editor`,
           spellcheck: "false",
           autocapitalize: "off",
           autocomplete: "off",

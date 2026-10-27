@@ -193,7 +193,6 @@
       "expected": [3, 2, 1]
     }
   ],
-  "comparator": "ordered",
   "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "implementations": [
     {

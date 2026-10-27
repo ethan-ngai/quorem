@@ -97,3 +97,43 @@ it("connects example tabs to one visible panel", () => {
   const panelId = markup.match(/role="tabpanel" id="([^"]+)"/)?.[1];
   expect(markup).toContain(`aria-controls="${panelId}"`);
 });
+
+it("shows the shared SQL schema and row-only example tables", () => {
+  const problem = {
+    id: "sql",
+    title: "SQL",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown: "Query.",
+    constraints: [],
+    signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+    sql: {
+      dialect: "postgresql",
+      outputOrder: "unordered",
+      tables: [{ name: "items", columns: [{ name: "id", type: "integer" }] }],
+      output: [{ name: "id", type: "integer" }],
+    },
+    examples: [{ args: [{ tables: [{ name: "items", rows: [[1]] }] }], expected: { rows: [[1]] } }],
+  } as unknown as ProblemVersion;
+  const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(html).toContain('aria-label="SQL schema"');
+  expect(html).toContain('aria-label="items"');
+  expect(html).toContain('aria-label="Output"');
+  expect(html).not.toContain('"tables"');
+});
+
+it("preserves uppercase topic labels", () => {
+  const problem = {
+    id: "topics",
+    title: "Topics",
+    difficulty: "easy",
+    tags: ["SQL", "hash-table"],
+    statementMarkdown: "Solve it.",
+    constraints: [],
+    examples: [],
+    signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+  } as unknown as ProblemVersion;
+  const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(html).toContain(">SQL</span>");
+  expect(html).toContain(">Hash Table</span>");
+});

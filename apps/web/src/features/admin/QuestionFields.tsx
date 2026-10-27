@@ -22,7 +22,8 @@ import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
-import { revisions, languageLabels, type Language } from "./content";
+import { revisions, type Language } from "./content";
+import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
 
 export function QuestionFields({
   content,
@@ -93,8 +94,8 @@ export function QuestionFields({
               options={[
                 { value: "single", label: "Single question" },
                 { value: "staged", label: "Multi-stage question" },
-                { value: "sql-single", label: "PostgreSQL question" },
-                { value: "sql-staged", label: "PostgreSQL multi-stage question" },
+                { value: "sql-single", label: "SQL question" },
+                { value: "sql-staged", label: "SQL multi-stage question" },
               ]}
               onChange={(value) => {
                 const isSQL = value.startsWith("sql-");
@@ -118,7 +119,14 @@ export function QuestionFields({
                     ...content,
                     problem: {
                       ...problem,
-                      sql: isSQL ? { dialect: "postgresql", outputOrder: "unordered" } : undefined,
+                      sql: isSQL
+                        ? {
+                            dialect: "postgresql",
+                            outputOrder: "unordered",
+                            tables: [],
+                            output: [],
+                          }
+                        : undefined,
                       odyssey,
                       examples: [],
                     },
@@ -158,9 +166,9 @@ export function QuestionFields({
               }}
             />
           </Field>
-          <Field label="Language">
+          <Field label={problem.sql ? "Dialect" : "Language"}>
             <SelectField
-              label="Question language"
+              label={problem.sql ? "SQL dialect" : "Question language"}
               value={language}
               disabled={disabled}
               onChange={(value) => setLanguage(value as Language)}
@@ -296,6 +304,32 @@ export function QuestionFields({
         >
           {problem.sql ? (
             <>
+              <JSONField
+                label="SQL input schema"
+                value={problem.sql.tables ?? []}
+                onValidityChange={onValidityChange}
+                onChange={(tables) =>
+                  setProblem({
+                    sql: {
+                      ...problem.sql!,
+                      tables: tables as NonNullable<NonNullable<ProblemVersion["sql"]>["tables"]>,
+                    },
+                  })
+                }
+              />
+              <JSONField
+                label="SQL output schema"
+                value={problem.sql.output ?? []}
+                onValidityChange={onValidityChange}
+                onChange={(output) =>
+                  setProblem({
+                    sql: {
+                      ...problem.sql!,
+                      output: output as NonNullable<NonNullable<ProblemVersion["sql"]>["output"]>,
+                    },
+                  })
+                }
+              />
               <Field label="Result row order">
                 <SelectField
                   label="Result row order"
@@ -362,8 +396,9 @@ export function QuestionFields({
                 </>
               )}
               <p>
-                Each case uses one table setup in args and a result with columns and rows. Numeric
-                results use {`{"$numeric":"1.25"}`} to retain precision.
+                Each case supplies table names and rows in args, and result rows in expected. Column
+                names and types come from the schema. Numeric results use {`{"$numeric":"1.25"}`} to
+                retain precision.
               </p>
             </>
           ) : problem.odyssey ? (
@@ -432,7 +467,7 @@ export function QuestionFields({
                 {implementation && (
                   <>
                     <AuthoringCodeField
-                      label={`${languageLabels[language]} private judge reference`}
+                      label={`${solutionLanguageLabel(language)} private judge reference`}
                       language={language}
                       source={implementation.referenceSource}
                       disabled={disabled}
@@ -458,13 +493,13 @@ export function QuestionFields({
                     {solution && (
                       <>
                         <AuthoringCodeField
-                          label={`${languageLabels[language]} editorial code`}
+                          label={`${solutionLanguageLabel(language)} editorial code`}
                           language={language}
                           source={solution.source}
                           disabled={disabled}
                           onChange={(source) => setSolution(language, { source })}
                         />
-                        <Field label={`${languageLabels[language]} explanation`}>
+                        <Field label={`${solutionLanguageLabel(language)} explanation`}>
                           <textarea
                             rows={5}
                             value={solution.explanationMarkdown}
@@ -474,7 +509,7 @@ export function QuestionFields({
                           />
                         </Field>
                         <div className="admin-field-pair">
-                          <Field label={`${languageLabels[language]} time complexity`}>
+                          <Field label={`${solutionLanguageLabel(language)} time complexity`}>
                             <input
                               value={solution.timeComplexity}
                               onChange={(event) =>
@@ -482,7 +517,9 @@ export function QuestionFields({
                               }
                             />
                           </Field>
-                          <Field label={`${languageLabels[language]} auxiliary space complexity`}>
+                          <Field
+                            label={`${solutionLanguageLabel(language)} auxiliary space complexity`}
+                          >
                             <input
                               value={solution.spaceComplexity}
                               onChange={(event) =>
@@ -491,7 +528,7 @@ export function QuestionFields({
                             />
                           </Field>
                         </div>
-                        <Field label={`${languageLabels[language]} complexity definitions`}>
+                        <Field label={`${solutionLanguageLabel(language)} complexity definitions`}>
                           <textarea
                             rows={3}
                             value={solution.complexityNotes}
@@ -519,7 +556,7 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
       <ProblemStatement problem={content.problem} />
       {content.solutions.map((solution) => (
         <section key={solution.language}>
-          <h2>{languageLabels[solution.language as Language]} solution</h2>
+          <h2>{solutionLanguageLabel(solution.language as Language)} solution</h2>
           {solution.explanationMarkdown && (
             <StatementMarkdown source={solution.explanationMarkdown} />
           )}

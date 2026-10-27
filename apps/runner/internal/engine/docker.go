@@ -17,6 +17,7 @@ type Docker struct {
 	client           *dockerEngine
 	Image            string
 	Images           map[string]string
+	EnsureImage      func(context.Context, string) error
 	compilationLimit time.Duration
 	Resolve          func(context.Context, execution.Job) (worker.Spec, error)
 }
@@ -26,6 +27,7 @@ const compilationBudget = 60 * time.Second
 type frame struct {
 	compilationTime time.Duration
 	Status          string          `json:"status"`
+	SQLTypes        []string        `json:"sqlTypes,omitempty"`
 	Artifact        json.RawMessage `json:"artifact,omitempty"`
 	Actual          json.RawMessage `json:"actual"`
 	Stdout          string          `json:"stdout"`
@@ -99,6 +101,11 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	if !supported || (j.Language != "" && runtime.Language != j.Language) {
 		return result, errors.New("unsupported execution revision")
 	}
+	if d.EnsureImage != nil {
+		if err := d.EnsureImage(ctx, runtime.Language); err != nil {
+			return result, err
+		}
+	}
 	spec, err := d.Resolve(ctx, j)
 	if err != nil {
 		return result, err
@@ -147,22 +154,24 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 					artifact = f.Artifact
 				}
 			}
-			if f.Status == "syntax_error" {
+			if f.Status == "syntax_error" && runtime.Language != "postgresql" {
 				fatal = &f
 			}
 		}
 		status := f.Status
 		var actual, expected json.RawMessage
+		typeMismatch := false
 		if status == "executed" {
 			actual, err = worker.NormalizeCaseOutput(spec.Fixture, c, f.Actual)
 			if err != nil {
 				status = "invalid_output"
 			} else if len(worker.CaseExpected(spec.Fixture, c)) > 0 {
+				typeMismatch = !sqlOutputTypesMatch(spec.Fixture.Problem.SQL, f.SQLTypes)
 				expected, err = worker.NormalizeCaseOutput(spec.Fixture, c, worker.CaseExpected(spec.Fixture, c))
 				if err != nil {
 					return result, errors.New("invalid trusted expectation")
 				}
-				if bytes.Equal(actual, expected) {
+				if bytes.Equal(actual, expected) && !typeMismatch {
 					status = "accepted"
 					if !sample {
 						passed++
@@ -171,7 +180,10 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 					status = "wrong_answer"
 				}
 			} else {
-				if !sample {
+				typeMismatch = !sqlOutputTypesMatch(spec.Fixture.Problem.SQL, f.SQLTypes)
+				if typeMismatch {
+					status = "wrong_answer"
+				} else if !sample {
 					allCompared = false
 				}
 			}
@@ -188,11 +200,24 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		}
 		if spec.Kind == "run" || spec.PrivateDetails || sample {
 			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
-			if f.Line > 0 {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
+			if len(actual) > 0 && spec.Fixture.Problem.SQL != nil {
+				public.SQLTypes = f.SQLTypes
+			}
+			if typeMismatch {
+				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Output column types do not match the SQL schema."})
+			}
+			if runtime.Language == "postgresql" && status != "executed" && status != "accepted" && f.Stderr != "" {
+				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: f.Stderr, Line: f.Line})
+			} else {
+				if f.Line > 0 {
+					public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
+				}
+				public.Stderr = f.Stderr
+			}
+			if runtime.Language == "postgresql" && status == "invalid_output" && f.Stderr == "" {
+				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "The query returned an invalid or unsupported result."})
 			}
 			public.Stdout = f.Stdout
-			public.Stderr = f.Stderr
 			if sample {
 				public.Index = i - len(spec.Cases)
 				result.SubmitSampleResults = append(result.SubmitSampleResults, public)
@@ -211,12 +236,26 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	}
 	return result, nil
 }
+func sqlOutputTypesMatch(schema *worker.SQLConfig, actual []string) bool {
+	if schema == nil || len(schema.Output) == 0 {
+		return true
+	}
+	if len(actual) != len(schema.Output) {
+		return false
+	}
+	for i, column := range schema.Output {
+		if actual[i] != column.Type {
+			return false
+		}
+	}
+	return true
+}
 func sandboxRequest(spec worker.Spec, c worker.Case) []byte {
 	calls := make([]map[string]any, 0, len(c.Calls))
 	for _, call := range c.Calls {
 		calls = append(calls, map[string]any{"methodName": call.MethodName, "args": call.Args})
 	}
-	request, _ := json.Marshal(map[string]any{"source": spec.Source, "signature": spec.Fixture.Problem.Signature, "args": c.Args, "calls": calls, "methods": worker.MethodSignatures(spec.Fixture)})
+	request, _ := json.Marshal(map[string]any{"source": spec.Source, "signature": spec.Fixture.Problem.Signature, "args": c.Args, "calls": calls, "methods": worker.MethodSignatures(spec.Fixture), "sql": spec.Fixture.Problem.SQL})
 	return request
 }
 func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spec worker.Spec, c worker.Case, compilationRemaining ...time.Duration) (result frame, resultErr error) {

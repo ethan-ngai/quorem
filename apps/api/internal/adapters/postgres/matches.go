@@ -40,6 +40,15 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	if err := tx.QueryRow(ctx, "SELECT participant_id,clock_timestamp() FROM users WHERE id=$1", m.host).Scan(&v.HostUserID, &v.ServerNow); err != nil {
 		return v, err
 	}
+	total := 0
+	if m.started != nil {
+		err := tx.QueryRow(ctx, `SELECT CASE WHEN fixture->'problem'->'odyssey' IS NOT NULL THEN
+			COALESCE((SELECT sum(jsonb_array_length(stage)) FROM jsonb_array_elements(fixture->'odysseyHiddenCases') stage), 0)
+			ELSE jsonb_array_length(fixture->'hiddenCases') END FROM problem_versions WHERE id::text=$1`, m.problem).Scan(&total)
+		if err != nil {
+			return v, err
+		}
+	}
 	rows, err := tx.Query(ctx, `SELECT p.owner_id,u.participant_id,u.display_name,p.ready,p.presence,COALESCE(p.workspace_id::text,''),p.best_passed,COALESCE(p.submission_state,''),p.forfeited,u.kind='guest' FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=$1 ORDER BY p.seat`, m.id)
 	if err != nil {
 		return v, err
@@ -59,7 +68,7 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 			p.WorkspaceID = ""
 		}
 		if m.started != nil {
-			p.BestScore = &execution.Score{Passed: passed, Total: 20}
+			p.BestScore = &execution.Score{Passed: passed, Total: total}
 		}
 		v.Participants = append(v.Participants, p)
 	}

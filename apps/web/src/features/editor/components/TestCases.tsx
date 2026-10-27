@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   associatedResultIndex,
   createCustomDraft,
-  parseCustomDraft,
+  parseProblemDraft,
   caseSnapshotValue,
   type CustomCaseDraft,
   type RunSnapshot,
@@ -20,7 +20,6 @@ import { SequenceCaseValues } from "./SequenceCaseValues";
 export function TestCases({
   problem,
   customMode,
-  hiddenMode = false,
   drafts,
   onDraftsChange,
   submission,
@@ -28,6 +27,7 @@ export function TestCases({
   selectedSampleIndex,
   busy = false,
   minimumCases = 1,
+  maximumCases = 20,
   requiredExpected = false,
   caseActions,
   caseResults,
@@ -39,7 +39,6 @@ export function TestCases({
 }: {
   problem: ProblemVersion;
   customMode: boolean;
-  hiddenMode?: boolean;
   drafts: CustomCaseDraft[];
   onDraftsChange: (drafts: CustomCaseDraft[]) => void;
   submission?: Submission;
@@ -47,6 +46,7 @@ export function TestCases({
   selectedSampleIndex?: number;
   busy?: boolean;
   minimumCases?: number;
+  maximumCases?: number;
   requiredExpected?: boolean;
   caseActions?: (index: number) => ReactNode;
   caseGroups?: readonly (string | undefined)[];
@@ -57,15 +57,18 @@ export function TestCases({
   caseStatuses?: readonly PublicCaseResult[];
 }) {
   const hiddenCases =
-    (hiddenMode || (!problem.odyssey && !caseGroups?.length)) &&
-    !caseResults &&
-    (hiddenMode || !submission?.publicCases?.length) &&
-    !busy &&
     !customMode &&
+    !caseResults &&
+    !busy &&
     submission?.kind === "submit" &&
     submission.state === "completed"
       ? submission.hiddenCases
       : undefined;
+  const [selectedHidden, setSelectedHidden] = useState<number>();
+  useEffect(() => {
+    setSelectedHidden(undefined);
+  }, [submission?.id, busy]);
+  const showingHidden = selectedHidden !== undefined && !!hiddenCases?.[selectedHidden];
   const currentGroupStart = Math.max(0, caseGroups?.indexOf(currentCaseGroup) ?? 0);
   const [selectedSample, setSelectedSample] = useState(currentGroupStart);
   useEffect(() => {
@@ -78,9 +81,9 @@ export function TestCases({
   }
   // Recovered output without an admission snapshot belongs in this same case rail.
   const recoveredCases =
-    !hiddenMode &&
     !caseResults &&
     !busy &&
+    !submission?.customRun &&
     (!snapshot || submission?.kind === "submit" || !!problem.odyssey) &&
     !customMode &&
     (submission?.kind === "run" || submission?.kind === "submit") &&
@@ -89,7 +92,6 @@ export function TestCases({
       : undefined;
   // Unlocked samples outlive a submission; hidden verdicts are a different indexed suite.
   const displayCases =
-    hiddenCases ??
     (submission?.kind === "submit" || problem.odyssey ? undefined : recoveredCases) ??
     problem.examples;
   const sampleIndex = Math.min(
@@ -106,7 +108,7 @@ export function TestCases({
   try {
     currentValue =
       customMode && draft
-        ? parseCustomDraft(draft, problem.signature, problem.constraints)
+        ? parseProblemDraft(draft, problem)
         : example
           ? caseSnapshotValue(example)
           : undefined;
@@ -140,14 +142,13 @@ export function TestCases({
     if (pending)
       return currentCaseGroup && caseGroups?.[index] !== currentCaseGroup ? retained : undefined;
     if (caseResults) return caseResults[index]?.status ?? retained;
-    if (hiddenCases) return hiddenCases[index]?.status;
     if (!submission || submission.state !== "completed") return retained;
     if (submission.kind === "submit") return recoveredCases?.[index]?.status ?? retained;
     if (recoveredCases) return recoveredCases[index]?.status ?? retained;
     let value;
     try {
       value = customMode
-        ? parseCustomDraft(drafts[index]!, problem.signature, problem.constraints)
+        ? parseProblemDraft(drafts[index]!, problem)
         : caseSnapshotValue(problem.examples[index]!);
     } catch {
       return undefined;
@@ -172,16 +173,18 @@ export function TestCases({
         type="button"
         key={customMode ? (item as CustomCaseDraft).id : index}
         className="case-selector"
-        aria-pressed={index === (customMode ? customIndex : sampleIndex)}
-        aria-label={`Case ${index + 1}${runningCase ? ": pending" : statuses[index] ? `: ${hiddenCases ? (statuses[index] === "accepted" ? "passed" : statuses[index] === "time_limit" ? "time limit exceeded" : "failed") : statuses[index]!.replaceAll("_", " ")}` : ""}`}
-        onClick={() =>
-          customMode ? setSelectedCustomId(drafts[index]!.id) : setSelectedSample(index)
-        }
+        aria-pressed={!showingHidden && index === (customMode ? customIndex : sampleIndex)}
+        aria-label={`Case ${index + 1}${runningCase ? ": pending" : statuses[index] ? `: ${statuses[index]!.replaceAll("_", " ")}` : ""}`}
+        onClick={() => {
+          setSelectedHidden(undefined);
+          if (customMode) setSelectedCustomId(drafts[index]!.id);
+          else setSelectedSample(index);
+        }}
       >
         {runningCase && <span className="case-spinner" aria-hidden="true" />}
         {statuses[index] && statuses[index] !== "executed" && (
           <Icon
-            name={hiddenCases ? "lock" : statuses[index] === "accepted" ? "submit" : "close"}
+            name={statuses[index] === "accepted" ? "submit" : "close"}
             className={statuses[index] === "accepted" ? "verdict-success" : "verdict-error"}
           />
         )}
@@ -192,13 +195,7 @@ export function TestCases({
   return (
     <CaseBrowserLayout
       busy={pending}
-      railLabel={
-        customMode
-          ? "Select custom case"
-          : hiddenCases
-            ? "Select hidden case"
-            : "Select sample case"
-      }
+      railLabel={customMode ? "Select custom case" : "Select test case"}
       rail={
         <>
           {!customMode && groups.length
@@ -236,11 +233,38 @@ export function TestCases({
                 );
               })
             : items.map((_, index) => caseButton(index))}
+          {!!hiddenCases?.length && (
+            <CaseGroupDisclosure
+              label="Hidden"
+              icon="lock"
+              executionID={submission?.id}
+              failed={hiddenCases.some((item) => item.status !== "accepted")}
+              passed={hiddenCases.every((item) => item.status === "accepted")}
+              onClose={() => setSelectedHidden(undefined)}
+            >
+              {hiddenCases.map((item, index) => (
+                <button
+                  type="button"
+                  key={index}
+                  className="case-selector"
+                  aria-pressed={showingHidden && selectedHidden === index}
+                  aria-label={`Hidden case ${index + 1}: ${item.status === "accepted" ? "passed" : item.status === "time_limit" ? "time limit exceeded" : "failed"}`}
+                  onClick={() => setSelectedHidden(index)}
+                >
+                  <Icon
+                    name={item.status === "accepted" ? "submit" : "close"}
+                    className={item.status === "accepted" ? "verdict-success" : "verdict-error"}
+                  />
+                  Case {index + 1}
+                </button>
+              ))}
+            </CaseGroupDisclosure>
+          )}
           {customMode && (
             <button
               type="button"
               className="case-selector add-case"
-              disabled={drafts.length >= 20}
+              disabled={drafts.length >= maximumCases}
               onClick={() => {
                 const added = { ...createCustomDraft(problem), expectedEnabled: requiredExpected };
                 onDraftsChange([...drafts, added]);
@@ -253,8 +277,29 @@ export function TestCases({
         </>
       }
     >
-      {caseActions?.(sampleIndex)}
-      {customMode && draft ? (
+      {!showingHidden && caseActions?.(sampleIndex)}
+      {showingHidden && hiddenCases ? (
+        <div className="locked-case">
+          <Icon
+            name="lock"
+            className={
+              hiddenCases[selectedHidden]!.status === "accepted"
+                ? "verdict-success"
+                : "verdict-error"
+            }
+          />
+          <span>Hidden case {selectedHidden + 1}</span>
+          <span
+            className={
+              hiddenCases[selectedHidden]!.status === "accepted"
+                ? "verdict-success"
+                : "verdict-error"
+            }
+          >
+            {hiddenCases[selectedHidden]!.status === "time_limit" ? "Time limit exceeded" : null}
+          </span>
+        </div>
+      ) : customMode && draft ? (
         <>
           <div className="custom-case-heading">
             <span>Case {customIndex + 1}</span>
@@ -274,75 +319,108 @@ export function TestCases({
               </button>
             </Tooltip>
           </div>
-          {problem.signature.parameters.map(({ name, type, input }, index) => (
-            <TypedCaseInput
-              key={`${draft.id}:${name}`}
-              id={`custom-${draft.id}-${index}`}
-              name={name}
-              type={type}
-              input={input}
-              value={draft.args[index] ?? ""}
-              onChange={(value) =>
-                updateDraft({
-                  args: draft.args.map((arg, argIndex) => (argIndex === index ? value : arg)),
-                })
-              }
-            />
-          ))}
-          {draft.expectedEnabled ? (
-            <div className="expected-field">
-              <TypedCaseInput
-                id={`custom-${draft.id}-expected`}
-                name="Expected output"
-                purpose="expected"
-                action={
-                  !requiredExpected && (
-                    <Tooltip content="Remove expected output">
-                      <button
-                        type="button"
-                        className="icon-button destructive-icon"
-                        aria-label="Remove expected output"
-                        onClick={() => updateDraft({ expectedEnabled: false })}
-                      >
-                        <Icon name="trash" />
-                      </button>
-                    </Tooltip>
-                  )
-                }
-                type={problem.signature.returnType}
-                value={draft.expected}
-                onChange={(expected) => updateDraft({ expected })}
+          {problem.sql || problem.odyssey ? (
+            <div className="typed-case-field">
+              <label htmlFor={`custom-${draft.id}-structured`}>
+                {problem.sql ? "Tables (JSON)" : "Calls (JSON)"}
+              </label>
+              <textarea
+                id={`custom-${draft.id}-structured`}
+                className="typed-input"
+                rows={8}
+                value={draft.args[0] ?? ""}
+                onChange={(event) => updateDraft({ args: [event.target.value] })}
               />
+              {problem.sql && currentValue && (
+                <CaseValue name="Tables" value={currentValue.args[0]} parameter sql={problem.sql} />
+              )}
+              {problem.odyssey && !problem.sql && currentValue?.calls && (
+                <SequenceCaseValues problem={problem} calls={currentValue.calls} />
+              )}
             </div>
           ) : (
-            <button
-              type="button"
-              className="quiet-button add-expected"
-              onClick={() => updateDraft({ expectedEnabled: true })}
-            >
-              <Icon name="target" /> Add expected output
-            </button>
+            problem.signature.parameters.map(({ name, type, input }, index) => (
+              <TypedCaseInput
+                key={`${draft.id}:${name}`}
+                id={`custom-${draft.id}-${index}`}
+                name={name}
+                type={type}
+                input={input}
+                value={draft.args[index] ?? ""}
+                onChange={(value) =>
+                  updateDraft({
+                    args: draft.args.map((arg, argIndex) => (argIndex === index ? value : arg)),
+                  })
+                }
+              />
+            ))
           )}
+          {(!problem.odyssey || problem.sql) &&
+            (draft.expectedEnabled ? (
+              <div className="expected-field">
+                {problem.sql ? (
+                  <div className="typed-case-field">
+                    <label htmlFor={`custom-${draft.id}-expected`}>Expected output (JSON)</label>
+                    <textarea
+                      id={`custom-${draft.id}-expected`}
+                      className="typed-input"
+                      rows={4}
+                      value={draft.expected}
+                      onChange={(event) => updateDraft({ expected: event.target.value })}
+                    />
+                    {currentValue?.expected !== undefined && (
+                      <CaseValue
+                        name="Expected output"
+                        purpose="target"
+                        value={currentValue.expected}
+                        sql={problem.sql}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      onClick={() => updateDraft({ expectedEnabled: false })}
+                    >
+                      Remove expected output
+                    </button>
+                  </div>
+                ) : (
+                  <TypedCaseInput
+                    id={`custom-${draft.id}-expected`}
+                    name="Expected output"
+                    purpose="expected"
+                    action={
+                      !requiredExpected && (
+                        <Tooltip content="Remove expected output">
+                          <button
+                            type="button"
+                            className="icon-button destructive-icon"
+                            aria-label="Remove expected output"
+                            onClick={() => updateDraft({ expectedEnabled: false })}
+                          >
+                            <Icon name="trash" />
+                          </button>
+                        </Tooltip>
+                      )
+                    }
+                    type={problem.signature.returnType}
+                    value={draft.expected}
+                    onChange={(expected) => updateDraft({ expected })}
+                  />
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="quiet-button add-expected"
+                onClick={() => updateDraft({ expectedEnabled: true })}
+              >
+                <Icon name="target" /> Add expected output
+              </button>
+            ))}
         </>
       ) : customMode ? (
         <p className="result-message">Add a case to get started.</p>
-      ) : hiddenCases?.length ? (
-        <div className="locked-case">
-          <Icon
-            name="lock"
-            className={
-              hiddenCases[sampleIndex]?.status === "accepted" ? "verdict-success" : "verdict-error"
-            }
-          />
-          <span>Hidden case {sampleIndex + 1}</span>
-          <span
-            className={
-              hiddenCases[sampleIndex]?.status === "accepted" ? "verdict-success" : "verdict-error"
-            }
-          >
-            {hiddenCases[sampleIndex]?.status === "time_limit" ? "Time limit exceeded" : null}
-          </span>
-        </div>
       ) : recoveredCases?.[sampleIndex] ? null : example?.calls?.length ? (
         !result && <SequenceCaseValues problem={problem} calls={example.calls} />
       ) : example ? (
@@ -352,7 +430,7 @@ export function TestCases({
               ? [{ name: "Tables", value: example.args[0] }]
               : bindArguments(problem.signature, example.args)
             ).map(({ name, value }, index) => (
-              <CaseValue key={index} name={name} value={value} parameter />
+              <CaseValue key={index} name={name} value={value} parameter sql={problem.sql} />
             ))}
           </div>
           <CaseValue
@@ -360,6 +438,7 @@ export function TestCases({
             purpose="target"
             value={example.expected}
             tone="verdict-success"
+            sql={problem.sql}
           />
         </>
       ) : (
@@ -384,7 +463,8 @@ export function TestCases({
           </span>
         </div>
       )}
-      {!pending &&
+      {!showingHidden &&
+        !pending &&
         !result &&
         submission?.state === "completed" &&
         submission.verdict === "syntax_error" && (
@@ -396,9 +476,10 @@ export function TestCases({
             }}
           />
         )}
-      {result && (
+      {!showingHidden && result && (
         <CaseOutput
           result={result}
+          sql={problem.sql}
           sequence={
             example?.calls?.length
               ? {
@@ -426,9 +507,13 @@ function CaseGroupDisclosure({
   failed,
   passed,
   executionID,
+  icon,
+  onClose,
   children,
 }: {
   label: string;
+  icon?: "lock";
+  onClose?: () => void;
   failed: boolean;
   passed: boolean;
   executionID?: string;
@@ -443,11 +528,18 @@ function CaseGroupDisclosure({
     <details
       className="case-group"
       open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onToggle={(event) => {
+        const next = event.currentTarget.open;
+        setOpen(next);
+        if (!next) onClose?.();
+      }}
     >
-      <summary className="case-group-label">
-        {label}
+      <summary className={`case-group-label${icon ? " case-group-label--locked" : ""}`}>
+        {icon && <Icon name={icon} />}
+        <span>{label}</span>
+        {icon && <span className="sr-only"> tests</span>}
         <CaseGroupStatus failed={failed} passed={passed} />
+        {icon && <Icon name="chevron" className="case-group-chevron" />}
       </summary>
       {children}
     </details>

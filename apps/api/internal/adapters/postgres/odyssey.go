@@ -28,7 +28,7 @@ func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.Odyssey
 	}
 	result.Levels = p.Odyssey.Levels
 	result.TotalLevels = len(f.Problem.Odyssey.Levels)
-	result.CaseStatuses, err = latestCaseStatuses(ctx, s.Pool, `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM submissions s JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2 AND s.state='completed' AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`, id, owner)
+	result.CaseStatuses, err = latestCaseStatuses(ctx, s.Pool, `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM submissions s JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2 AND s.state='completed' AND NOT s.custom_run AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`, id, owner)
 	return result, err
 }
 

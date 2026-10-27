@@ -127,7 +127,7 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 	c.Problem.Odyssey = fixture.Problem.Odyssey
 	c.OdysseyHiddenCases = fixture.OdysseyHiddenCases
 
-	if err = s.Pool.QueryRow(ctx, "SELECT comparator,attribution FROM problem_versions WHERE id::text=$1", versionID).Scan(&c.Comparator, &c.Attribution); err != nil {
+	if err = s.Pool.QueryRow(ctx, "SELECT attribution FROM problem_versions WHERE id::text=$1", versionID).Scan(&c.Attribution); err != nil {
 		return c, err
 	}
 	rows, err := s.Pool.Query(ctx, "SELECT args,expected FROM problem_test_cases WHERE version_id::text=$1 ORDER BY ordinal", versionID)
@@ -284,7 +284,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	}
 	p.StarterSource = primary.StarterSource
 	p.RuntimeRevision = primary.RuntimeRevision
-	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Comparator: c.Comparator, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
+	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
 	public, err := json.Marshal(p)
 	if err != nil {
 		return d, err

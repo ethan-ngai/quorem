@@ -1,7 +1,9 @@
 import "./machine-values.css";
 import "./problem-statement.css";
+import { formatLabel } from "../../../ui/formatLabel";
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
 import { AuthoringTabs } from "../../../ui/AuthoringTabs";
+import { SqlSchema, SqlTables } from "./SqlTables";
 import { SequenceCaseValues } from "./SequenceCaseValues";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
@@ -34,7 +36,6 @@ export function exampleInput(
   args: unknown[],
   language: EditorLanguage = "python",
 ) {
-  if (problem.sql) return JSON.stringify(args[0], null, 2);
   return bindArguments(problem.signature, args)
     .map(({ name, value }) => `${name} = ${questionValue(value, language)}`)
     .join(", ");
@@ -94,9 +95,7 @@ export function ProblemStatement({
           aria-hidden={!topicsVisible}
         >
           {problem.tags.map((tag) => (
-            <span key={tag}>
-              {tag.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}
-            </span>
+            <span key={tag}>{formatLabel(tag)}</span>
           ))}
         </div>
       )}
@@ -104,6 +103,7 @@ export function ProblemStatement({
       <div className="problem-copy">
         <StatementMarkdown source={problem.statementMarkdown} />
       </div>
+      {problem.sql && <SqlSchema schema={problem.sql} />}
       {beforeExamples}
       {problem.examples.length > 0 && (
         <section className="problem-section" aria-labelledby={`${examplesId}-heading`}>
@@ -138,6 +138,12 @@ export function ProblemStatement({
                         calls={example.calls}
                         outputLabel="Output"
                       />
+                    </div>
+                  ) : problem.sql ? (
+                    <div className="sql-example-data">
+                      <div className="sql-example-label">Input</div>
+                      <SqlTables input label="Input" schema={problem.sql} value={example.args[0]} />
+                      <SqlTables label="Output" schema={problem.sql} value={example.expected} />
                     </div>
                   ) : (
                     <div className="example-data">

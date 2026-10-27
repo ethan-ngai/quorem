@@ -14,6 +14,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
 const interviewGuestCookie = "quorem_interview_guest"
@@ -43,7 +44,7 @@ type InterviewRepository interface {
 	InterviewDocument(context.Context, string, string) (interviews.Document, error)
 	InterviewUpdates(context.Context, string, string, string, int64) (interviews.Updates, error)
 	PushInterviewUpdates(context.Context, string, string, string, interviews.Push) (interviews.Updates, error)
-	AdmitInterview(context.Context, string, string, string, string) (judging.Submission, error)
+	AdmitInterview(context.Context, string, string, string, string, []problems.Case) (judging.Submission, error)
 	InterviewSubmission(context.Context, string, string, string) (judging.Submission, error)
 }
 
@@ -176,7 +177,7 @@ func (s *Server) setInterviewMember(w http.ResponseWriter, r *http.Request) {
 		UserID string `json:"userId"`
 		Role   string `json:"role"`
 	}
-	if !s.decode(w, r, &c, 1024) {
+	if !s.decode(w, r, &c, execution.MaxCustomCasesBytes+1024) {
 		return
 	}
 	v, e := repo.SetInterviewMember(r.Context(), owner(r), r.PathValue("id"), key, c.UserID, c.Role)
@@ -345,12 +346,13 @@ func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var c struct {
-		Kind string `json:"kind"`
+		Kind        string          `json:"kind"`
+		CustomCases []problems.Case `json:"customCases,omitempty"`
 	}
 	if !s.decode(w, r, &c, 1024) {
 		return
 	}
-	if c.Kind != "run" && c.Kind != "submit" {
+	if (c.Kind != "run" && c.Kind != "submit") || (c.CustomCases != nil && (c.Kind != "run" || len(c.CustomCases) == 0 || len(c.CustomCases) > 20)) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid execution command"})
 		return
 	}
@@ -359,7 +361,7 @@ func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cancel()
-	v, e := repo.AdmitInterview(ctx, owner(r), r.PathValue("id"), key, c.Kind)
+	v, e := repo.AdmitInterview(ctx, owner(r), r.PathValue("id"), key, c.Kind, c.CustomCases)
 	if e != nil {
 		s.err(w, r, e)
 		return

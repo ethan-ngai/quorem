@@ -158,7 +158,7 @@ func TestInterviewAdmissionSnapshotsSourceAndSharedResults(t *testing.T) {
 	if _, err := s.JoinInterview(ctx, "bob", strings.TrimPrefix(v.InvitePath, "/interview-invite/"), "", ""); err != nil {
 		t.Fatal(err)
 	}
-	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit")
+	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestInterviewAdmissionSnapshotsSourceAndSharedResults(t *testing.T) {
 	if err != nil || snapshot.LatestSubmissionID != sub.ID {
 		t.Fatal("latest shared execution", err)
 	}
-	if _, err = s.AdmitInterview(ctx, "bob", v.ID, ID(), "run"); errorCode(err) != "user_busy" {
+	if _, err = s.AdmitInterview(ctx, "bob", v.ID, ID(), "run", nil); errorCode(err) != "user_busy" {
 		t.Fatal("busy bypass", err)
 	}
 }
@@ -239,7 +239,7 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 	if err != nil {
 		t.Fatal("host without Odyssey grant", err)
 	}
-	if _, err = s.AdmitInterview(ctx, "bob", gated.ID, ID(), "run"); err != nil {
+	if _, err = s.AdmitInterview(ctx, "bob", gated.ID, ID(), "run", nil); err != nil {
 		t.Fatal("admission without Odyssey grant", err)
 	}
 	job, err := s.Claim(ctx)
@@ -264,7 +264,7 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 		if _, err = s.Pool.Exec(ctx, `UPDATE users SET admission_tokens=2 WHERE id='bob'`); err != nil {
 			t.Fatal(err)
 		}
-		sub, e := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit")
+		sub, e := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit", nil)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -334,7 +334,7 @@ func TestInterviewAndMatchGuestsShareSponsorConcurrency(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = s.AdmitInterview(ctx, p.UserID, v.ID, ID(), "run"); err != nil {
+		if _, err = s.AdmitInterview(ctx, p.UserID, v.ID, ID(), "run", nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -368,5 +368,42 @@ func TestInterviewMemberPhotoProjection(t *testing.T) {
 	room := createInterviewTest(t, s)
 	if len(room.Members) != 1 || room.Members[0].Image != photo {
 		t.Fatal("member photo missing", room.Members)
+	}
+}
+
+func TestInterviewCustomRunAdmission(t *testing.T) {
+	s := interviewTestStore(t)
+	ctx := context.Background()
+	v := createInterviewTest(t, s)
+	if _, err := s.JoinInterview(ctx, "bob", strings.TrimPrefix(v.InvitePath, "/interview-invite/"), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	cases := []problems.Case{{Args: []json.RawMessage{json.RawMessage(`41`)}}}
+	if _, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit", cases); errorCode(err) != "invalid_input" {
+		t.Fatal("submit accepted custom cases", err)
+	}
+	if _, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "run", []problems.Case{{Args: []json.RawMessage{json.RawMessage(`"wrong"`)}}}); errorCode(err) != "invalid_input" {
+		t.Fatal("invalid case accepted", err)
+	}
+	key := ID()
+	submission, err := s.AdmitInterview(ctx, "bob", v.ID, key, "run", cases)
+	if err != nil || !submission.CustomRun {
+		t.Fatal(submission, err)
+	}
+	retry, err := s.AdmitInterview(ctx, "bob", v.ID, key, "run", cases)
+	if err != nil || retry.ID != submission.ID {
+		t.Fatal(retry, err)
+	}
+	cases[0].Args[0] = json.RawMessage(`42`)
+	if _, err = s.AdmitInterview(ctx, "bob", v.ID, key, "run", cases); errorCode(err) != "idempotency_conflict" {
+		t.Fatal("changed retry accepted", err)
+	}
+	job, err := s.Claim(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec, err := s.LoadExecution(ctx, job)
+	if err != nil || string(spec.Cases[0].Args[0]) != "41" {
+		t.Fatal(spec.Cases, err)
 	}
 }

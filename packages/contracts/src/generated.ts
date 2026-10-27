@@ -953,6 +953,8 @@ export interface components {
                 dialect: "postgresql";
                 /** @enum {string} */
                 outputOrder: "ordered" | "unordered";
+                tables?: components["schemas"]["SqlTableSchema"][];
+                output?: components["schemas"]["SqlColumn"][];
             };
             odyssey?: components["schemas"]["Odyssey"];
             solutionLanguages?: components["schemas"]["Language"][];
@@ -1004,6 +1006,7 @@ export interface components {
             index: number;
             /** @enum {string} */
             status: "executed" | "accepted" | "wrong_answer" | "syntax_error" | "runtime_error" | "time_limit" | "memory_limit" | "output_limit" | "invalid_output";
+            sqlTypes?: ("integer" | "bigint" | "numeric" | "text" | "boolean" | "date" | "timestamp" | "timestamptz" | "real" | "double precision")[];
             actual?: components["schemas"]["WireValue"];
             expected?: components["schemas"]["WireValue"];
             diagnostics?: components["schemas"]["Diagnostic"][];
@@ -1016,6 +1019,7 @@ export interface components {
             status: "accepted" | "wrong_answer" | "time_limit";
         };
         Submission: {
+            customRun?: boolean;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -1284,13 +1288,23 @@ export interface components {
                 dialect: "postgresql";
                 /** @enum {string} */
                 outputOrder: "ordered" | "unordered";
+                tables?: components["schemas"]["SqlTableSchema"][];
+                output?: components["schemas"]["SqlColumn"][];
             };
             odyssey?: components["schemas"]["Odyssey"];
+        };
+        SqlColumn: {
+            name: string;
+            /** @enum {string} */
+            type: "integer" | "bigint" | "numeric" | "text" | "boolean" | "date" | "timestamp" | "timestamptz" | "real" | "double precision";
+        };
+        SqlTableSchema: {
+            name: string;
+            columns: components["schemas"]["SqlColumn"][];
         };
         QuestionContent: {
             problem: components["schemas"]["QuestionProblem"];
             hiddenCases: components["schemas"]["CustomCase"][];
-            comparator: string;
             attribution: string;
             implementations: components["schemas"]["AuthoringImplementation"][];
             solutions: components["schemas"]["EditorialSolution"][];
@@ -3101,6 +3115,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     kind: "run" | "submit";
+                    customCases?: components["schemas"]["CustomCase"][];
                 };
             };
         };

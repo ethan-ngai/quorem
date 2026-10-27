@@ -15,16 +15,19 @@ describe("question JSON import", () => {
   });
   it("imports SQL tables, numeric results, and method-free stages", () => {
     const content = blankQuestion();
-    content.problem.sql = { dialect: "postgresql", outputOrder: "unordered" };
+    content.problem.sql = {
+      dialect: "postgresql",
+      outputOrder: "unordered",
+      tables: [{ name: "items", columns: [{ name: "amount", type: "numeric" }] }],
+      output: [{ name: "amount", type: "numeric" }],
+    };
     const test = {
       args: [
         {
-          tables: [
-            { name: "items", columns: [{ name: "amount", type: "numeric" }], rows: [["1.250"]] },
-          ],
+          tables: [{ name: "items", rows: [["1.250"]] }],
         },
       ],
-      expected: { columns: ["amount"], rows: [[{ $numeric: "1.25" }]] },
+      expected: { rows: [[{ $numeric: "1.25" }]] },
     };
     content.problem.odyssey = {
       levels: [{ title: "Step 1", statementMarkdown: "Query", methods: [], examples: [test] }],
@@ -35,7 +38,7 @@ describe("question JSON import", () => {
         language: "postgresql",
         starterSource: "SELECT amount FROM items",
         runtimeRevision: "postgresql-17.6-v1",
-        harnessRevision: "quorem-postgresql-v1",
+        harnessRevision: "quorem-postgresql-v2",
         referenceSource: "SELECT amount FROM items",
       },
     ];

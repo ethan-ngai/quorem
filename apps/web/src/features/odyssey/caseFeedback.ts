@@ -4,7 +4,7 @@ import type { OdysseyProgress, Submission } from "@quorem/contracts";
 /** A newer completed execution overrides historical statuses; pending jobs preserve prior evidence. */
 export function passedCaseLevels(progress: OdysseyProgress, submission?: Submission): number[] {
   const statuses = new Map(progress.caseStatuses?.map((result) => [result.index, result.status]));
-  if (submission?.state === "completed") {
+  if (submission?.state === "completed" && !submission.customRun) {
     for (const result of submission.publicCases ?? []) statuses.set(result.index, result.status);
   }
   let offset = 0;

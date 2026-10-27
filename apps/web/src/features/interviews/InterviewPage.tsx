@@ -31,6 +31,14 @@ import { useIntelligence } from "../editor/useIntelligence";
 import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
 import { SolutionToolbar } from "../editor/components/SolutionToolbar";
 import { InterviewTests } from "./InterviewTests";
+import {
+  readCustomDrafts,
+  customDraftStorageKey,
+  parseProblemDrafts,
+  caseSnapshotValue,
+  type CustomCaseDraft,
+  type RunSnapshot,
+} from "../editor/customCases";
 import { InterviewParticipants } from "./InterviewParticipants";
 import { InterviewInvitations } from "./InterviewInvitations";
 import { passedCaseLevels } from "../odyssey/caseFeedback";
@@ -162,6 +170,29 @@ function InterviewPad({
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const [admitted, setAdmitted] = useState<{ id: string; previous?: string }>();
   const [admitting, setAdmitting] = useState(false);
+  const [customMode, setCustomMode] = useState(false);
+  const customScope = `interview:${id}:${initial.questionEpoch}`;
+  const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>(() =>
+    readCustomDrafts(
+      customScope,
+      initial.question.progress
+        ? {
+            ...initial.question.problem,
+            odyssey: { levels: initial.question.progress.levels },
+            examples: initial.question.progress.levels.flatMap((level) => level.examples),
+          }
+        : initial.question.problem,
+    ),
+  );
+  const [runSnapshot, setRunSnapshot] = useState<{ id: string; value: RunSnapshot }>();
+  function changeCustomDrafts(value: CustomCaseDraft[]) {
+    setCustomDrafts(value);
+    try {
+      localStorage.setItem(customDraftStorageKey(customScope), JSON.stringify(value));
+    } catch {
+      /* Storage is optional. */
+    }
+  }
   const changed = snapshot.document.epoch !== initial.document.epoch;
   useEffect(() => {
     if (
@@ -211,12 +242,36 @@ function InterviewPad({
         setError("Reconnect and synchronize your changes before running.");
         return;
       }
+      const customCases =
+        kind === "run" && customMode
+          ? parseProblemDrafts(customDrafts, snapshot.question.problem)
+          : undefined;
       const submission = await interviewRequest<Submission>(
         `/v1/interviews/${id}/submissions`,
         "POST",
-        { kind },
+        { kind, customCases },
         randomUUID(),
       );
+      setRunSnapshot(
+        kind === "run"
+          ? {
+              id: submission.id,
+              value: {
+                problemVersionId: initial.question.problem.id,
+                custom: !!customCases,
+                cases: (
+                  customCases ??
+                  snapshot.question.progress?.levels.flatMap((level) => level.examples) ??
+                  snapshot.question.problem.examples
+                ).map((value, index) => ({
+                  id: customCases ? customDrafts[index]!.id : String(index),
+                  value: caseSnapshotValue(value),
+                })),
+              },
+            }
+          : undefined,
+      );
+      if (kind === "submit") setCustomMode(false);
       setAdmitted({ id: submission.id, previous: sharedSubmission });
       queryClient.setQueryData(["interview-result", id, submission.id, resultAccess], submission);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
@@ -572,6 +627,13 @@ function InterviewPad({
           <InterviewTests
             question={question}
             interviewer={interviewer}
+            customMode={customMode}
+            onCustomModeChange={setCustomMode}
+            drafts={customDrafts}
+            onDraftsChange={changeCustomDrafts}
+            snapshot={
+              runSnapshot && runSnapshot.id === result.data?.id ? runSnapshot.value : undefined
+            }
             submission={result.data}
             busy={admitting}
             managing={busy}

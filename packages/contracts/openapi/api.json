@@ -2243,7 +2243,8 @@
                   "kind": {
                     "type": "string",
                     "enum": ["run", "submit"]
-                  }
+                  },
+                  "customCases": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "$ref": "#/components/schemas/CustomCase" } }
                 },
                 "required": ["kind"],
                 "additionalProperties": false
@@ -3270,7 +3271,17 @@
             "type": "object",
             "properties": {
               "dialect": { "type": "string", "enum": ["postgresql"] },
-              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] }
+              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] },
+              "tables": {
+                "type": "array",
+                "maxItems": 16,
+                "items": { "$ref": "#/components/schemas/SqlTableSchema" }
+              },
+              "output": {
+                "type": "array",
+                "maxItems": 32,
+                "items": { "$ref": "#/components/schemas/SqlColumn" }
+              }
             },
             "required": ["dialect", "outputOrder"],
             "additionalProperties": false
@@ -3280,7 +3291,7 @@
           },
           "solutionLanguages": {
             "type": "array",
-            "items": {"$ref": "#/components/schemas/Language"},
+            "items": { "$ref": "#/components/schemas/Language" },
             "maxItems": 5,
             "uniqueItems": true
           },
@@ -3454,6 +3465,25 @@
               "invalid_output"
             ]
           },
+          "sqlTypes": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "enum": [
+                "integer",
+                "bigint",
+                "numeric",
+                "text",
+                "boolean",
+                "date",
+                "timestamp",
+                "timestamptz",
+                "real",
+                "double precision"
+              ]
+            }
+          },
           "actual": {
             "$ref": "#/components/schemas/WireValue"
           },
@@ -3494,6 +3524,7 @@
       "Submission": {
         "type": "object",
         "properties": {
+          "customRun": { "type": "boolean" },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -3530,7 +3561,7 @@
             "items": {
               "$ref": "#/components/schemas/HiddenCaseResult"
             },
-            "maxItems": 20
+            "maxItems": 160
           },
           "publicCases": {
             "type": "array",
@@ -4332,7 +4363,17 @@
             "type": "object",
             "properties": {
               "dialect": { "type": "string", "enum": ["postgresql"] },
-              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] }
+              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] },
+              "tables": {
+                "type": "array",
+                "maxItems": 16,
+                "items": { "$ref": "#/components/schemas/SqlTableSchema" }
+              },
+              "output": {
+                "type": "array",
+                "maxItems": 32,
+                "items": { "$ref": "#/components/schemas/SqlColumn" }
+              }
             },
             "required": ["dialect", "outputOrder"],
             "additionalProperties": false
@@ -4359,6 +4400,42 @@
           "languages"
         ]
       },
+      "SqlColumn": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "integer",
+              "bigint",
+              "numeric",
+              "text",
+              "boolean",
+              "date",
+              "timestamp",
+              "timestamptz",
+              "real",
+              "double precision"
+            ]
+          }
+        },
+        "required": ["name", "type"]
+      },
+      "SqlTableSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "columns": {
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/components/schemas/SqlColumn" }
+          }
+        },
+        "required": ["name", "columns"]
+      },
       "QuestionContent": {
         "type": "object",
         "additionalProperties": false,
@@ -4368,13 +4445,10 @@
           },
           "hiddenCases": {
             "type": "array",
-            "maxItems": 20,
+            "maxItems": 100,
             "items": {
               "$ref": "#/components/schemas/CustomCase"
             }
-          },
-          "comparator": {
-            "type": "string"
           },
           "attribution": {
             "type": "string"
@@ -4403,14 +4477,7 @@
             }
           }
         },
-        "required": [
-          "problem",
-          "hiddenCases",
-          "comparator",
-          "attribution",
-          "implementations",
-          "solutions"
-        ]
+        "required": ["problem", "hiddenCases", "attribution", "implementations", "solutions"]
       },
       "QuestionDraft": {
         "type": "object",

@@ -137,29 +137,13 @@ export function AuthoringCases({
           onDraftsChange={change}
           requiredExpected
           minimumCases={0}
+          maximumCases={collection === "hidden" ? 100 : 20}
           selectedCustomId={selected[collection]}
           onSelectCustomCase={(value) =>
             setSelected((current) => ({ ...current, [collection]: value }))
           }
         />
       </div>
-      {collection === "hidden" && values.hidden.length < 20 && (
-        <button
-          type="button"
-          className="quiet-button"
-          onClick={() =>
-            change([
-              ...values.hidden,
-              ...Array.from({ length: 20 - values.hidden.length }, () => ({
-                ...createCustomDraft(p),
-                expectedEnabled: true,
-              })),
-            ])
-          }
-        >
-          Fill to 20 private tests
-        </button>
-      )}
       {collection === "public" &&
         values.public.map((example, index) => (
           <label className="admin-field" key={example.id}>

@@ -65,6 +65,22 @@
   display: grid;
   gap: 12px;
 }
+.case-verdict-group {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.case-error-message {
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-inline-code);
+  color: var(--color-error);
+  font: 12px/1.5 var(--font-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .field-purpose {
   display: flex;
   align-items: center;

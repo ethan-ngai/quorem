@@ -1,10 +1,12 @@
-import type { CustomCase, Signature } from "@quorem/contracts";
+import type { CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import {
   associatedResultIndex,
   parseCustomCases,
   parseCustomDrafts,
+  parseProblemDrafts,
   parseTypedField,
+  readCustomDrafts,
   validateTypedValue,
   type CustomCaseDraft,
   type RunSnapshot,
@@ -27,6 +29,35 @@ const draft: CustomCaseDraft = {
 };
 
 describe("typed custom cases", () => {
+  it("initializes SQL drafts from the example and runs their table data", () => {
+    const problem = {
+      signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+      examples: [{ args: [{ tables: [] }], expected: { columns: ["id"], rows: [] } }],
+      sql: { dialect: "postgresql", outputOrder: "unordered" },
+    } as unknown as ProblemVersion;
+    const drafts = readCustomDrafts("sql", problem);
+    expect(parseProblemDrafts(drafts, problem)).toEqual([{ args: [{ tables: [] }] }]);
+    expect(() => parseProblemDrafts([{ ...drafts[0]!, args: ["{"] }], problem)).toThrow("Case 1");
+  });
+  it("validates stateful custom calls against unlocked methods", () => {
+    const problem = {
+      signature,
+      examples: [],
+      odyssey: {
+        levels: [{ title: "Step", statementMarkdown: "", methods: [signature], examples: [] }],
+      },
+    } as unknown as ProblemVersion;
+    const sequence = { ...draft, args: ['[{"methodName":"solve","args":[[1,2],true]}]'] };
+    expect(parseProblemDrafts([sequence], problem)).toEqual([
+      { args: [], calls: [{ methodName: "solve", args: [[1, 2], true] }] },
+    ]);
+    expect(() => parseProblemDrafts([{ ...sequence, args: ["[null]"] }], problem)).toThrow(
+      "Each call",
+    );
+    expect(() =>
+      parseProblemDrafts([{ ...sequence, args: ['[{"methodName":"locked","args":[]}]'] }], problem),
+    ).toThrow("method and arguments");
+  });
   it("serializes declared argument order and optional expected output", () => {
     expect(parseCustomDrafts([draft], signature)).toEqual([{ args: [[1, 2], true] }]);
     expect(parseCustomDrafts([{ ...draft, expectedEnabled: true }], signature)).toEqual([
