@@ -83,6 +83,21 @@ it("does not restore ready from a response after disconnect", async () => {
   sync.stop();
 });
 
+it("recovers from a failed snapshot when the connected user retries", async () => {
+  const refresh = vi
+    .fn()
+    .mockResolvedValueOnce({ isError: true })
+    .mockResolvedValueOnce({ isError: false });
+  const status = vi.fn();
+  const sync = membershipSynchronizer(refresh, status);
+  sync.event("changed");
+  await vi.waitFor(() => expect(status).toHaveBeenLastCalledWith("offline"));
+  sync.event("changed");
+  await vi.waitFor(() => expect(status).toHaveBeenLastCalledWith("ready"));
+  expect(refresh).toHaveBeenCalledTimes(2);
+  sync.stop();
+});
+
 it("retries one shared socket without dropping subscribers or creating a second transport", () => {
   vi.clearAllMocks();
   const first = vi.fn();
@@ -104,4 +119,32 @@ it("retries one shared socket without dropping subscribers or creating a second 
   expect(transport.stop).toHaveBeenCalledTimes(2);
   retryMembershipEvents("bob");
   expect(transport.start).toHaveBeenCalledTimes(2);
+});
+
+it("retries failed snapshots with backoff and cancels recovery on disconnect", async () => {
+  vi.useFakeTimers();
+  try {
+    const refresh = vi.fn().mockResolvedValue({ isError: true });
+    const status = vi.fn();
+    const sync = membershipSynchronizer(refresh, status);
+    sync.event("changed");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    refresh.mockResolvedValue({ isError: false });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(status).toHaveBeenLastCalledWith("ready");
+    refresh.mockResolvedValue({ isError: true });
+    sync.event("changed");
+    await vi.advanceTimersByTimeAsync(0);
+    sync.event("offline");
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(refresh).toHaveBeenCalledTimes(4);
+    expect(status).toHaveBeenLastCalledWith("offline");
+    sync.stop();
+  } finally {
+    vi.useRealTimers();
+  }
 });
