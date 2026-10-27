@@ -38,7 +38,7 @@ func TestHTTPCreatePrivateStagedInterviewWithoutPublication(t *testing.T) {
 	if err = json.Unmarshal(w.Body.Bytes(), &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Question.Progress == nil || snapshot.Question.Progress.TotalLevels != 1 || snapshot.Document.Source != starter || len(snapshot.Question.PrivateCaseDetails) != 1 {
+	if snapshot.Question.Progress == nil || snapshot.Question.Progress.TotalLevels != 1 || snapshot.Document.Source == starter || !strings.Contains(snapshot.Document.Source, "def answer") || len(snapshot.Question.PrivateCaseDetails) != 1 {
 		t.Fatal("private staged HTTP response", snapshot)
 	}
 	var publications int

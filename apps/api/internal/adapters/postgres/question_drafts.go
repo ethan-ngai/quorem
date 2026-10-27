@@ -200,10 +200,22 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	if d.Revision != revision || d.PublishedVersionID != "" {
 		return d, failure("revision_conflict", 409, "Draft changed or already published; reload it")
 	}
-	if err = problems.ValidateQuestionPublication(d.Content); err != nil {
+	// Snapshot generated scaffolds with the immutable version; existing workspaces keep their drafts.
+	c := d.Content
+	methods := []problems.Signature{c.Problem.Signature}
+	if c.Problem.Odyssey != nil && len(c.Problem.Odyssey.Levels) > 0 {
+		methods = c.Problem.Odyssey.Levels[0].Methods
+	}
+	for i := range c.Implementations {
+		starter, e := problems.GenerateStarter(methods, c.Implementations[i].Language, c.Problem.Odyssey != nil)
+		if e != nil {
+			return d, failure("invalid_input", 400, e.Error())
+		}
+		c.Implementations[i].StarterSource = starter
+	}
+	if err = problems.ValidateQuestionPublication(c); err != nil {
 		return d, failure("invalid_input", 400, err.Error())
 	}
-	c := d.Content
 	var privateOwner *string
 	if err = tx.QueryRow(ctx, "SELECT owner_id FROM question_drafts WHERE id=$1", id).Scan(&privateOwner); err != nil {
 		return d, err
