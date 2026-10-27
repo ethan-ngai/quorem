@@ -125,6 +125,20 @@
             "outputOrder": {
               "type": "string",
               "enum": ["ordered", "unordered"]
+            },
+            "tables": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/SqlTableSchema"
+              }
+            },
+            "output": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/SqlColumn"
+              }
             }
           },
           "required": ["dialect", "outputOrder"],
@@ -500,6 +514,48 @@
           "type": "string"
         }
       }
+    },
+    "SqlTableSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/SqlColumn"
+          }
+        }
+      },
+      "required": ["name", "columns"]
+    },
+    "SqlColumn": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "integer",
+            "bigint",
+            "numeric",
+            "text",
+            "boolean",
+            "date",
+            "timestamp",
+            "timestamptz",
+            "real",
+            "double precision"
+          ]
+        }
+      },
+      "required": ["name", "type"]
     },
     "Odyssey": {
       "type": "object",

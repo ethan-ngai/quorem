@@ -1,6 +1,7 @@
 import "./machine-values.css";
+import { SqlTables } from "./SqlTables";
 import { bindArguments } from "../argumentBinding";
-import type { MethodCall, Signature } from "@quorem/contracts";
+import type { MethodCall, ProblemVersion, Signature } from "@quorem/contracts";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
 import { Tooltip } from "../../../ui/Tooltip";
@@ -23,6 +24,7 @@ export function CaseValue({
   parameter = false,
   tone,
   type,
+  sql,
 }: {
   name: string;
   value: unknown;
@@ -30,6 +32,7 @@ export function CaseValue({
   parameter?: boolean;
   tone?: string;
   type?: string;
+  sql?: ProblemVersion["sql"];
 }) {
   const language = useQuestionLanguage();
   return (
@@ -45,9 +48,13 @@ export function CaseValue({
             <Icon name={purpose} />
           </span>
         </Tooltip>
-        <code className={`machine-value ${tone ?? ""}`}>
-          {questionValue(value, language, type)}
-        </code>
+        {sql ? (
+          <SqlTables value={value} input={purpose === "input"} label={name} schema={sql} />
+        ) : (
+          <code className={`machine-value ${tone ?? ""}`}>
+            {questionValue(value, language, type)}
+          </code>
+        )}
       </div>
     </div>
   );
@@ -57,9 +64,11 @@ export function CaseOutput({
   result,
   showExpected = true,
   sequence,
+  sql,
 }: {
   result: PublicCaseResult;
   showExpected?: boolean;
+  sql?: ProblemVersion["sql"];
   sequence?: { calls: readonly MethodCall[]; methods: readonly Signature[] };
 }) {
   const tone = verdictTone(result.status);
@@ -121,7 +130,7 @@ export function CaseOutput({
       ) : (
         <div className="case-output-comparison">
           {result.actual !== undefined && (
-            <CaseValue name="Output" purpose="output" value={result.actual} tone={tone} />
+            <CaseValue name="Output" purpose="output" value={result.actual} tone={tone} sql={sql} />
           )}
           {showExpected && result.expected !== undefined && (
             <CaseValue
@@ -129,6 +138,7 @@ export function CaseOutput({
               purpose="target"
               value={result.expected}
               tone="verdict-success"
+              sql={sql}
             />
           )}
         </div>

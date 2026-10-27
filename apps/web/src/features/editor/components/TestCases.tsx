@@ -354,7 +354,7 @@ export function TestCases({
               ? [{ name: "Tables", value: example.args[0] }]
               : bindArguments(problem.signature, example.args)
             ).map(({ name, value }, index) => (
-              <CaseValue key={index} name={name} value={value} parameter />
+              <CaseValue key={index} name={name} value={value} parameter sql={problem.sql} />
             ))}
           </div>
           <CaseValue
@@ -362,6 +362,7 @@ export function TestCases({
             purpose="target"
             value={example.expected}
             tone="verdict-success"
+            sql={problem.sql}
           />
         </>
       ) : (
@@ -401,6 +402,7 @@ export function TestCases({
       {result && (
         <CaseOutput
           result={result}
+          sql={problem.sql}
           sequence={
             example?.calls?.length
               ? {

@@ -16,16 +16,22 @@ import (
 var sqlNumeric = regexp.MustCompile(`^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,3})?$`)
 
 type SQLConfig struct {
-	Dialect     string `json:"dialect"`
-	OutputOrder string `json:"outputOrder"`
+	Dialect     string           `json:"dialect"`
+	OutputOrder string           `json:"outputOrder"`
+	Tables      []SQLTableSchema `json:"tables,omitempty"`
+	Output      []SQLColumn      `json:"output,omitempty"`
 }
-type sqlColumn struct {
+type SQLColumn struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 }
+type SQLTableSchema struct {
+	Name    string      `json:"name"`
+	Columns []SQLColumn `json:"columns"`
+}
 type sqlTable struct {
 	Name    string              `json:"name"`
-	Columns []sqlColumn         `json:"columns"`
+	Columns []SQLColumn         `json:"columns"`
 	Rows    [][]json.RawMessage `json:"rows"`
 }
 type sqlSetup struct {
@@ -36,7 +42,66 @@ type sqlResult struct {
 	Rows    [][]json.RawMessage `json:"rows"`
 }
 
-func validateSQLCase(c Case, required bool) error {
+func validateSQLCase(config *SQLConfig, c Case, required bool) error {
+	// Published versions predate schemas and remain runnable; new publication requires one.
+	if len(config.Tables) == 0 && len(config.Output) == 0 {
+		return validateLegacySQLCase(c, required)
+	}
+	if len(c.Calls) != 0 || len(c.Args) != 1 {
+		return fmt.Errorf("SQL case requires one table setup")
+	}
+	var setup sqlSetup
+	if err := json.Unmarshal(c.Args[0], &setup); err != nil || len(setup.Tables) < 1 || len(setup.Tables) > 16 {
+		return fmt.Errorf("SQL setup requires 1 to 16 tables")
+	}
+	if len(config.Tables) == 0 || len(setup.Tables) != len(config.Tables) {
+		return fmt.Errorf("SQL case tables must match the schema")
+	}
+	seen := map[string]bool{}
+	for _, table := range setup.Tables {
+		var columns []SQLColumn
+		for _, schema := range config.Tables {
+			if schema.Name == table.Name {
+				columns = schema.Columns
+				break
+			}
+		}
+		if columns == nil || seen[table.Name] || table.Columns != nil || table.Rows == nil || len(table.Rows) > 200 {
+			return fmt.Errorf("SQL case tables must match the schema and contain rows only")
+		}
+		seen[table.Name] = true
+		for _, row := range table.Rows {
+			if len(row) != len(columns) {
+				return fmt.Errorf("SQL row width mismatch")
+			}
+			for i, raw := range row {
+				if !validSQLValue(columns[i].Type, raw) {
+					return fmt.Errorf("invalid SQL table value")
+				}
+			}
+		}
+	}
+	if len(c.Expected) == 0 && !required {
+		return nil
+	}
+	var result sqlResult
+	if err := json.Unmarshal(c.Expected, &result); err != nil || result.Columns != nil || result.Rows == nil || len(result.Rows) > 10000 {
+		return fmt.Errorf("SQL expected result must contain rows only")
+	}
+	for _, row := range result.Rows {
+		if len(row) != len(config.Output) {
+			return fmt.Errorf("SQL result row width mismatch")
+		}
+		for i, raw := range row {
+			if !validSQLResultValue(config.Output[i].Type, raw) {
+				return fmt.Errorf("invalid SQL result value")
+			}
+		}
+	}
+	return nil
+}
+
+func validateLegacySQLCase(c Case, required bool) error {
 	if len(c.Calls) != 0 || len(c.Args) != 1 {
 		return fmt.Errorf("SQL case requires one table setup")
 	}
@@ -128,70 +193,102 @@ func validateSQLPublication(c QuestionContent) error {
 	if p.SQL.Dialect != "postgresql" || (p.SQL.OutputOrder != "ordered" && p.SQL.OutputOrder != "unordered") {
 		return fmt.Errorf("invalid SQL dialect or output order")
 	}
+	if len(p.SQL.Tables) < 1 || len(p.SQL.Tables) > 16 || len(p.SQL.Output) < 1 || len(p.SQL.Output) > 32 {
+		return fmt.Errorf("SQL input and output schema required")
+	}
+	seen := map[string]bool{}
+	for _, table := range p.SQL.Tables {
+		if !symbolName.MatchString(table.Name) || len(table.Name) > 63 || seen[table.Name] || len(table.Columns) < 1 || len(table.Columns) > 32 {
+			return fmt.Errorf("invalid SQL table schema")
+		}
+		seen[table.Name] = true
+		if err := validateSQLColumns(table.Columns, false); err != nil {
+			return err
+		}
+	}
+	if err := validateSQLColumns(p.SQL.Output, true); err != nil {
+		return err
+	}
 	if p.Odyssey == nil {
 		return nil
 	}
 	if len(p.Odyssey.Levels) < 1 || len(p.Odyssey.Levels) > 8 || len(c.OdysseyHiddenCases) != len(p.Odyssey.Levels) {
 		return fmt.Errorf("SQL Odyssey requires 1 to 8 levels with private suites")
 	}
-	var columns []string
-	var columnTypes []string
 	for i, level := range p.Odyssey.Levels {
 		if len(level.Methods) != 0 || len(level.Title) == 0 || len(level.StatementMarkdown) == 0 || len(level.Examples) < 1 || len(level.Examples) > 20 || len(c.OdysseyHiddenCases[i]) < 1 || len(c.OdysseyHiddenCases[i]) > 20 {
 			return fmt.Errorf("invalid SQL Odyssey level %d", i+1)
 		}
-		cases := append([]Case{}, c.OdysseyHiddenCases[i]...)
-		for _, example := range level.Examples {
-			cases = append(cases, example.Case)
-		}
-		for _, test := range cases {
-			if err := validateSQLCase(test, true); err != nil {
+		for _, test := range c.OdysseyHiddenCases[i] {
+			if err := validateSQLCase(p.SQL, test, true); err != nil {
 				return err
 			}
-			var result sqlResult
-			_ = json.Unmarshal(test.Expected, &result)
-			if columns == nil {
-				columns = result.Columns
-				columnTypes = make([]string, len(columns))
-			} else if !equalSQLColumns(columns, result.Columns) {
-				return fmt.Errorf("SQL Odyssey stages must share result columns")
-			}
-			for _, row := range result.Rows {
-				for index, raw := range row {
-					var value any
-					if err := json.Unmarshal(raw, &value); err != nil {
-						return err
-					}
-					if value == nil {
-						continue
-					}
-					typ := fmt.Sprintf("%T", value)
-					if marker, ok := value.(map[string]any); ok {
-						if _, bigint := marker["$bigint"]; bigint {
-							typ = "float64"
-						}
-					}
-					if columnTypes[index] == "" {
-						columnTypes[index] = typ
-					} else if columnTypes[index] != typ {
-						return fmt.Errorf("SQL Odyssey stages must share result types")
-					}
-				}
+		}
+		for _, example := range level.Examples {
+			if err := validateSQLCase(p.SQL, example.Case, true); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
 }
-func equalSQLColumns(a, b []string) bool {
-	if len(a) != len(b) {
+func validateSQLColumns(columns []SQLColumn, output bool) error {
+	seen := map[string]bool{}
+	for _, col := range columns {
+		if (!output && (!symbolName.MatchString(col.Name) || len(col.Name) > 63 || seen[col.Name])) || (output && (col.Name == "" || len(col.Name) > 256)) {
+			return fmt.Errorf("invalid SQL column schema")
+		}
+		switch col.Type {
+		case "integer", "bigint", "numeric", "text", "boolean", "date", "timestamp", "timestamptz":
+		case "real", "double precision":
+			if !output {
+				return fmt.Errorf("unsupported SQL column type")
+			}
+		default:
+			return fmt.Errorf("unsupported SQL column type")
+		}
+		seen[col.Name] = true
+	}
+	return nil
+}
+func validSQLResultValue(kind string, raw json.RawMessage) bool {
+	if bytes.Equal(raw, []byte("null")) {
+		return true
+	}
+	var marker map[string]string
+	if json.Unmarshal(raw, &marker) == nil {
+		if kind == "numeric" && len(marker) == 1 {
+			value, ok := marker["$numeric"]
+			return ok && validSQLValue("numeric", json.RawMessage(strconv.Quote(value)))
+		}
+		if kind == "bigint" && len(marker) == 1 {
+			value, ok := marker["$bigint"]
+			return ok && validSQLValue("bigint", json.RawMessage(strconv.Quote(value)))
+		}
 		return false
 	}
-	for i := range a {
-		if a[i] != b[i] {
+	if kind == "numeric" {
+		return false
+	}
+	if kind == "real" || kind == "double precision" {
+		if len(raw) == 0 || raw[0] == '"' {
 			return false
 		}
+		var value json.Number
+		if json.Unmarshal(raw, &value) != nil {
+			return false
+		}
+		_, err := strconv.ParseFloat(value.String(), 64)
+		return err == nil
 	}
-	return true
+	if kind == "bigint" {
+		var n json.Number
+		if json.Unmarshal(raw, &n) != nil {
+			return false
+		}
+		return validSQLValue("integer", raw)
+	}
+	return validSQLValue(kind, raw)
 }
 
 func validSQLValue(kind string, raw json.RawMessage) bool {

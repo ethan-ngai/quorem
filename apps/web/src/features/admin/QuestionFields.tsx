@@ -118,7 +118,14 @@ export function QuestionFields({
                     ...content,
                     problem: {
                       ...problem,
-                      sql: isSQL ? { dialect: "postgresql", outputOrder: "unordered" } : undefined,
+                      sql: isSQL
+                        ? {
+                            dialect: "postgresql",
+                            outputOrder: "unordered",
+                            tables: [],
+                            output: [],
+                          }
+                        : undefined,
                       odyssey,
                       examples: [],
                     },
@@ -296,6 +303,32 @@ export function QuestionFields({
         >
           {problem.sql ? (
             <>
+              <JSONField
+                label="SQL input schema"
+                value={problem.sql.tables ?? []}
+                onValidityChange={onValidityChange}
+                onChange={(tables) =>
+                  setProblem({
+                    sql: {
+                      ...problem.sql!,
+                      tables: tables as NonNullable<NonNullable<ProblemVersion["sql"]>["tables"]>,
+                    },
+                  })
+                }
+              />
+              <JSONField
+                label="SQL output schema"
+                value={problem.sql.output ?? []}
+                onValidityChange={onValidityChange}
+                onChange={(output) =>
+                  setProblem({
+                    sql: {
+                      ...problem.sql!,
+                      output: output as NonNullable<NonNullable<ProblemVersion["sql"]>["output"]>,
+                    },
+                  })
+                }
+              />
               <Field label="Result row order">
                 <SelectField
                   label="Result row order"
@@ -362,8 +395,9 @@ export function QuestionFields({
                 </>
               )}
               <p>
-                Each case uses one table setup in args and a result with columns and rows. Numeric
-                results use {`{"$numeric":"1.25"}`} to retain precision.
+                Each case supplies table names and rows in args, and result rows in expected. Column
+                names and types come from the schema. Numeric results use {`{"$numeric":"1.25"}`} to
+                retain precision.
               </p>
             </>
           ) : problem.odyssey ? (

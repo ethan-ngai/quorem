@@ -18,11 +18,11 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
 	c := authoringContent(t, s)
 	var test problems.Case
-	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}`), &test); err != nil {
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[[1]]}]}],"expected":{"rows":[[1]]}}`), &test); err != nil {
 		t.Fatal(err)
 	}
 	c.Problem.Slug = "sql-test"
-	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}
+	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered", Tables: []problems.SQLTableSchema{{Name: "items", Columns: []problems.SQLColumn{{Name: "id", Type: "integer"}}}}, Output: []problems.SQLColumn{{Name: "id", Type: "integer"}}}
 	c.Problem.Odyssey = nil
 	c.Problem.Examples = []problems.ProblemExample{{Case: test}}
 	c.HiddenCases = make([]problems.Case, 4)
@@ -38,7 +38,7 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 		t.Fatal("publication accepted a SQL example without a table setup")
 	}
 	invalid = c
-	invalid.HiddenCases = []problems.Case{{Args: test.Args, Expected: json.RawMessage(`{"columns":["id"],"rows":[[1,2]]}`)}}
+	invalid.HiddenCases = []problems.Case{{Args: test.Args, Expected: json.RawMessage(`{"rows":[[1,2]]}`)}}
 	if err := problems.ValidateQuestionPublication(invalid); err == nil {
 		t.Fatal("publication accepted a malformed SQL result")
 	}
@@ -77,11 +77,11 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 	grantInternal(t, s, "alice")
 	c := authoringContent(t, s)
 	var test problems.Case
-	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}`), &test); err != nil {
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[[1]]}]}],"expected":{"rows":[[1]]}}`), &test); err != nil {
 		t.Fatal(err)
 	}
 	c.Problem.Slug = "private-sql"
-	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}
+	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered", Tables: []problems.SQLTableSchema{{Name: "items", Columns: []problems.SQLColumn{{Name: "id", Type: "integer"}}}}, Output: []problems.SQLColumn{{Name: "id", Type: "integer"}}}
 	c.Problem.Odyssey = nil
 	c.Problem.Examples = []problems.ProblemExample{{Case: test}}
 	c.HiddenCases = make([]problems.Case, 20)

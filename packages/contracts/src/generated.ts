@@ -953,6 +953,8 @@ export interface components {
                 dialect: "postgresql";
                 /** @enum {string} */
                 outputOrder: "ordered" | "unordered";
+                tables?: components["schemas"]["SqlTableSchema"][];
+                output?: components["schemas"]["SqlColumn"][];
             };
             odyssey?: components["schemas"]["Odyssey"];
             solutionLanguages?: components["schemas"]["Language"][];
@@ -1284,8 +1286,19 @@ export interface components {
                 dialect: "postgresql";
                 /** @enum {string} */
                 outputOrder: "ordered" | "unordered";
+                tables?: components["schemas"]["SqlTableSchema"][];
+                output?: components["schemas"]["SqlColumn"][];
             };
             odyssey?: components["schemas"]["Odyssey"];
+        };
+        SqlColumn: {
+            name: string;
+            /** @enum {string} */
+            type: "integer" | "bigint" | "numeric" | "text" | "boolean" | "date" | "timestamp" | "timestamptz" | "real" | "double precision";
+        };
+        SqlTableSchema: {
+            name: string;
+            columns: components["schemas"]["SqlColumn"][];
         };
         QuestionContent: {
             problem: components["schemas"]["QuestionProblem"];

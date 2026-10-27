@@ -91,6 +91,22 @@ export function validJSONShape(label: string, value: unknown): boolean {
       )
     );
   if (!Array.isArray(value)) return false;
+  if (label === "SQL input schema")
+    return value.every(
+      (table) =>
+        record(table) &&
+        typeof table.name === "string" &&
+        Array.isArray(table.columns) &&
+        table.columns.every(
+          (column: unknown) =>
+            record(column) && typeof column.name === "string" && typeof column.type === "string",
+        ),
+    );
+  if (label === "SQL output schema")
+    return value.every(
+      (column) =>
+        record(column) && typeof column.name === "string" && typeof column.type === "string",
+    );
   if (label === "SQL stages")
     return value.every(
       (item) =>

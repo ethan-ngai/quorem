@@ -46,6 +46,33 @@ func TestPostgresSandbox(t *testing.T) {
 			}
 		})
 	}
+	t.Run("schema-driven cases", func(t *testing.T) {
+		var schemaFixture worker.Fixture
+		var schemaCase worker.Case
+		if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered","tables":[{"name":"items","columns":[{"name":"id","type":"integer"}]}],"output":[{"name":"id","type":"integer"}]}}}`), &schemaFixture); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[[2],[1]]}]}],"expected":{"rows":[[1],[2]]}}`), &schemaCase); err != nil {
+			t.Fatal(err)
+		}
+		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+			return worker.Spec{Source: "SELECT id FROM items", Kind: "submit", Fixture: schemaFixture, Cases: []worker.Case{schemaCase}}, nil
+		}}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		result, err := d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "schema", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
+		if err != nil || result.Verdict != execution.Accepted {
+			t.Fatalf("%+v %v", result, err)
+		}
+		schemaCase.Expected = json.RawMessage(`{"rows":[]}`)
+		d.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
+			return worker.Spec{Source: "SELECT id::bigint AS id FROM items WHERE false", Kind: "submit", Fixture: schemaFixture, Cases: []worker.Case{schemaCase}}, nil
+		}
+		result, err = d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "wrong-type", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
+		if err != nil || result.Verdict != execution.WrongAnswer {
+			t.Fatalf("wrong output type: %+v %v", result, err)
+		}
+	})
 	t.Run("numeric precision", func(t *testing.T) {
 		numeric := c
 		numeric.Expected = json.RawMessage(`{"columns":["amount"],"rows":[[{"$numeric":"12345678901234567890.1234567890"}]]}`)

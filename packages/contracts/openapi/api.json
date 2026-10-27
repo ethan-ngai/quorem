@@ -3270,7 +3270,17 @@
             "type": "object",
             "properties": {
               "dialect": { "type": "string", "enum": ["postgresql"] },
-              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] }
+              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] },
+              "tables": {
+                "type": "array",
+                "maxItems": 16,
+                "items": { "$ref": "#/components/schemas/SqlTableSchema" }
+              },
+              "output": {
+                "type": "array",
+                "maxItems": 32,
+                "items": { "$ref": "#/components/schemas/SqlColumn" }
+              }
             },
             "required": ["dialect", "outputOrder"],
             "additionalProperties": false
@@ -4332,7 +4342,17 @@
             "type": "object",
             "properties": {
               "dialect": { "type": "string", "enum": ["postgresql"] },
-              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] }
+              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] },
+              "tables": {
+                "type": "array",
+                "maxItems": 16,
+                "items": { "$ref": "#/components/schemas/SqlTableSchema" }
+              },
+              "output": {
+                "type": "array",
+                "maxItems": 32,
+                "items": { "$ref": "#/components/schemas/SqlColumn" }
+              }
             },
             "required": ["dialect", "outputOrder"],
             "additionalProperties": false
@@ -4358,6 +4378,42 @@
           "limits",
           "languages"
         ]
+      },
+      "SqlColumn": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "integer",
+              "bigint",
+              "numeric",
+              "text",
+              "boolean",
+              "date",
+              "timestamp",
+              "timestamptz",
+              "real",
+              "double precision"
+            ]
+          }
+        },
+        "required": ["name", "type"]
+      },
+      "SqlTableSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "columns": {
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/components/schemas/SqlColumn" }
+          }
+        },
+        "required": ["name", "columns"]
       },
       "QuestionContent": {
         "type": "object",
