@@ -23,7 +23,7 @@ func notice() realtime.Notice {
 }
 
 func TestAppSyncPublish(t *testing.T) {
-	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1), strings.Replace(testChannel, "/matches/", "/memberships/", 1)} {
+	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1), strings.Replace(testChannel, "/matches/", "/memberships/", 1), strings.Replace(testChannel, "/matches/", "/match-invites/", 1)} {
 		t.Run(channel, func(t *testing.T) { testAppSyncPublish(t, channel) })
 	}
 }

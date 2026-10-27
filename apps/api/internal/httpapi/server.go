@@ -57,6 +57,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/matches/current", s.currentMatch)
 	mux.HandleFunc("GET /v1/memberships/events", s.currentMatchEvents)
 	mux.HandleFunc("GET /v1/match-invites/{token}", s.previewInvite)
+	mux.HandleFunc("GET /v1/match-invites/{token}/events", s.previewInviteEvents)
 	mux.HandleFunc("POST /v1/matches/join", s.joinMatch)
 	mux.HandleFunc("POST /v1/matches/{id}/rotate-invite", s.rotateInvite)
 	mux.HandleFunc("POST /v1/matches/{id}/guests/{guest}/remove", s.removeGuest)
