@@ -1,4 +1,4 @@
-# PostgreSQL problems
+# SQL questions
 
 SQL questions declare input tables and result columns once in `problem.sql`. Every example and hidden case supplies rows for each named table and result rows in that schema's column order:
 

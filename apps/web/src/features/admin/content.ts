@@ -8,14 +8,6 @@ export const revisions = {
   postgresql: ["postgresql-17.6-v1", "quorem-postgresql-v2"],
 } as const;
 export type Language = keyof typeof revisions;
-export const languageLabels = {
-  python: "Python",
-  java: "Java",
-  typescript: "TypeScript",
-  ocaml: "OCaml",
-  postgresql: "PostgreSQL",
-};
-
 /** @returns An incomplete draft; publication performs authoritative validation. */
 export function blankQuestion(): QuestionContent {
   return {
