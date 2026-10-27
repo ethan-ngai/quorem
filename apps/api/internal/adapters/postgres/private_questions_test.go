@@ -149,7 +149,7 @@ func TestInterviewCustomQuestionsPersistPrivateLanguageImplementations(t *testin
 		if impl.RuntimeRevision != runtime.Revision || impl.HarnessRevision != runtime.Harness || impl.StarterSource == "" {
 			t.Fatal("wrong private implementation", language, impl)
 		}
-		if language == "java" && impl.StarterSource != q.Custom.StarterSource {
+		if language == "java" && (impl.StarterSource == q.Custom.StarterSource || !strings.Contains(impl.StarterSource, "increment")) {
 			t.Fatal("selected source lost")
 		}
 		if _, err = s.CreateWorkspace(ctx, "alice", p.ID, language); err != nil {
@@ -159,7 +159,7 @@ func TestInterviewCustomQuestionsPersistPrivateLanguageImplementations(t *testin
 	if _, err = s.Problem(context.Background(), p.ID, true); errorCode(err) != "not_found" {
 		t.Fatal("custom interview global leak", err)
 	}
-	if v.Document.Source != q.Custom.StarterSource {
+	if v.Document.Source == q.Custom.StarterSource || !strings.Contains(v.Document.Source, "increment") {
 		t.Fatal("interview source changed", v.Document.Source)
 	}
 	if _, err = s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Denied custom", Question: q}); errorCode(err) != "quota_exceeded" {

@@ -404,17 +404,16 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 	f.Problem.Languages = []problems.LanguageImplementation{}
 	for _, lang := range []string{"python", "java", "typescript", "ocaml"} {
 		r, _ := execution.LanguageRuntime(lang)
-		starter := c.StarterSource
-		if lang != q.Language {
-			var err error
-			if f.Problem.Odyssey != nil {
-				starter, err = interviewStageStarter(f.Problem.Odyssey.Levels[0].Methods, lang)
-			} else {
-				starter, err = interviewStarter(f.Problem.Signature, lang)
-			}
-			if err != nil {
-				return f, failure("invalid_input", 400, err.Error())
-			}
+		methods := []problems.Signature{f.Problem.Signature}
+		if f.Problem.Odyssey != nil {
+			methods = f.Problem.Odyssey.Levels[0].Methods
+		}
+		starter, err := problems.GenerateStarter(methods, lang, f.Problem.Odyssey != nil)
+		if err != nil {
+			return f, failure("invalid_input", 400, err.Error())
+		}
+		if lang == q.Language {
+			f.Problem.StarterSource = starter
 		}
 		if len(starter) > interviews.MaxSourceBytes {
 			return f, failure("invalid_input", 400, "Generated starter exceeds source limit")

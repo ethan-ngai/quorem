@@ -891,6 +891,7 @@ export interface components {
             name: string;
             type: string;
             input?: components["schemas"]["InputPresetConfig"];
+            description?: string;
         };
         Signature: {
             /** @enum {string} */
@@ -903,6 +904,12 @@ export interface components {
              * @enum {string}
              */
             outputOrder?: "ordered" | "unordered";
+            description?: string;
+            returns?: string;
+            throws?: {
+                type: string;
+                description: string;
+            }[];
         };
         ExecutionLimits: {
             wallTimeMs: number;
