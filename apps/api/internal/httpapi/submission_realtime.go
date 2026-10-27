@@ -13,6 +13,10 @@ import (
 
 // Only owner-authorized snapshots cross the browser connection; the relay carries notices.
 func (s *Server) submissionEvents(w http.ResponseWriter, r *http.Request) {
+	s.serveSubmissionEvents(w, r, 15*time.Second)
+}
+
+func (s *Server) serveSubmissionEvents(w http.ResponseWriter, r *http.Request, heartbeatInterval time.Duration) {
 	origin := r.Header.Get("Origin")
 	if origin == "" || !s.allowedOrigin(origin) {
 		s.err(w, r, &application.Error{Code: "forbidden", Status: 403, Message: "Origin denied"})
@@ -87,8 +91,9 @@ func (s *Server) submissionEvents(w http.ResponseWriter, r *http.Request) {
 	if err = send(); err != nil {
 		return
 	}
-	heartbeat := time.NewTicker(15 * time.Second)
+	heartbeat := time.NewTicker(heartbeatInterval)
 	defer heartbeat.Stop()
+	heartbeats := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -109,6 +114,14 @@ func (s *Server) submissionEvents(w http.ResponseWriter, r *http.Request) {
 			cancel()
 			if err != nil {
 				return
+			}
+			heartbeats++
+			// Repair a silently lost provider notice while the job remains active.
+			if heartbeats%2 == 0 {
+				if err = send(); err != nil {
+					return
+				}
+				continue
 			}
 			attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
 			err = c.Write(attempt, websocket.MessageText, []byte(`{"type":"heartbeat"}`))

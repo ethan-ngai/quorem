@@ -30,7 +30,7 @@ export function isSocketRequest(request) {
       .get("connection")
       ?.split(",")
       .some((token) => token.trim().toLowerCase() === "upgrade") &&
-    /^\/v1\/(interviews|matches|submissions)\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/events$/.test(
+    /^\/v1\/(?:(?:interviews|matches|submissions)\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|match-invites\/[A-Za-z0-9_-]{43})\/events$/.test(
       new URL(request.url).pathname,
     ),
   );

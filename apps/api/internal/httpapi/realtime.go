@@ -55,7 +55,15 @@ func (s *Server) startOutboxDispatcher(ctx context.Context, topic string, publis
 		dispatch := func() {
 			attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
-			if err := publish(attempt, func(n realtime.Notice) error { return s.Events.Publish(attempt, topic+n.AggregateID, n) }); err != nil && ctx.Err() == nil {
+			if err := publish(attempt, func(n realtime.Notice) error {
+				if err := s.Events.Publish(attempt, topic+n.AggregateID, n); err != nil {
+					return err
+				}
+				if topic == "/matches/" {
+					return s.Events.Publish(attempt, "/match-invites/"+n.AggregateID, n)
+				}
+				return nil
+			}); err != nil && ctx.Err() == nil {
 				log.Print("Realtime event dispatch unavailable")
 			}
 		}

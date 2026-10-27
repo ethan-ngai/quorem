@@ -377,6 +377,17 @@ void test("only supported GET event upgrades consume the socket budget", () => {
     ),
     true,
   );
+  assert.equal(
+    isSocketRequest(
+      new Request(`https://app/v1/match-invites/${"A".repeat(43)}/events`, { headers }),
+    ),
+    true,
+  );
+  assert.equal(
+    isSocketRequest(new Request("https://app/v1/match-invites/invalid/events", { headers })),
+    false,
+  );
+
   for (const url of ["https://app/v1/submissions", "https://app/api/auth/sign-in/email", path]) {
     assert.equal(isSocketRequest(new Request(url, { method: "POST", headers, body: "{}" })), false);
   }

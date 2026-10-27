@@ -50,6 +50,44 @@ func TestSubmissionOutboxRetriesFailedPublish(t *testing.T) {
 	}
 }
 
+func TestSubmissionStreamRepairsSilentlyLostNotice(t *testing.T) {
+	store := streamStore(t)
+	ctx := context.Background()
+	p, err := store.Problem(ctx, "run-widths", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := store.CreateWorkspace(ctx, "alice", p.ID, "python")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := store.Admit(ctx, "alice", postgres.ID(), judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "source"}, postgres.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := &Server{Store: store, Local: true, Events: realtime.NewMemory()}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.SetPathValue("id", v.ID)
+		api.serveSubmissionEvents(w, r, 30*time.Millisecond)
+	}))
+	defer server.Close()
+	conn, _, err := dialSubmission(ctx, server.URL, v.ID, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	readSubmission(t, conn, "queued")
+	job, err := store.Claim(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Complete(ctx, job, execution.Completion{SubmissionID: job.SubmissionID, AttemptID: job.AttemptID, Verdict: execution.Accepted}); err != nil {
+		t.Fatal(err)
+	}
+	// No dispatcher publishes to the socket; its bounded safety snapshot must recover.
+	readSubmission(t, conn, "completed")
+}
+
 func TestSubmissionStreamCrossReplica(t *testing.T) {
 	store := streamStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
