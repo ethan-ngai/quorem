@@ -44,3 +44,19 @@ describe("evaluated stage feedback", () => {
     ).toEqual([]);
   });
 });
+
+it("ignores custom runs when calculating example progress", () => {
+  expect(
+    passedCaseLevels(progress, {
+      id: "custom",
+      workspaceId: "w",
+      kind: "run",
+      state: "completed",
+      sourceHash: "s",
+      admittedAt: "",
+      updatedAt: "",
+      customRun: true,
+      publicCases: [{ index: 0, status: "accepted" }],
+    }),
+  ).toEqual([]);
+});

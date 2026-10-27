@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   associatedResultIndex,
   createCustomDraft,
-  parseCustomDraft,
+  parseProblemDraft,
   caseSnapshotValue,
   type CustomCaseDraft,
   type RunSnapshot,
@@ -83,6 +83,7 @@ export function TestCases({
   const recoveredCases =
     !caseResults &&
     !busy &&
+    !submission?.customRun &&
     (!snapshot || submission?.kind === "submit" || !!problem.odyssey) &&
     !customMode &&
     (submission?.kind === "run" || submission?.kind === "submit") &&
@@ -107,7 +108,7 @@ export function TestCases({
   try {
     currentValue =
       customMode && draft
-        ? parseCustomDraft(draft, problem.signature, problem.constraints)
+        ? parseProblemDraft(draft, problem)
         : example
           ? caseSnapshotValue(example)
           : undefined;
@@ -147,7 +148,7 @@ export function TestCases({
     let value;
     try {
       value = customMode
-        ? parseCustomDraft(drafts[index]!, problem.signature, problem.constraints)
+        ? parseProblemDraft(drafts[index]!, problem)
         : caseSnapshotValue(problem.examples[index]!);
     } catch {
       return undefined;
@@ -318,55 +319,105 @@ export function TestCases({
               </button>
             </Tooltip>
           </div>
-          {problem.signature.parameters.map(({ name, type, input }, index) => (
-            <TypedCaseInput
-              key={`${draft.id}:${name}`}
-              id={`custom-${draft.id}-${index}`}
-              name={name}
-              type={type}
-              input={input}
-              value={draft.args[index] ?? ""}
-              onChange={(value) =>
-                updateDraft({
-                  args: draft.args.map((arg, argIndex) => (argIndex === index ? value : arg)),
-                })
-              }
-            />
-          ))}
-          {draft.expectedEnabled ? (
-            <div className="expected-field">
-              <TypedCaseInput
-                id={`custom-${draft.id}-expected`}
-                name="Expected output"
-                purpose="expected"
-                action={
-                  !requiredExpected && (
-                    <Tooltip content="Remove expected output">
-                      <button
-                        type="button"
-                        className="icon-button destructive-icon"
-                        aria-label="Remove expected output"
-                        onClick={() => updateDraft({ expectedEnabled: false })}
-                      >
-                        <Icon name="trash" />
-                      </button>
-                    </Tooltip>
-                  )
-                }
-                type={problem.signature.returnType}
-                value={draft.expected}
-                onChange={(expected) => updateDraft({ expected })}
+          {problem.sql || problem.odyssey ? (
+            <div className="typed-case-field">
+              <label htmlFor={`custom-${draft.id}-structured`}>
+                {problem.sql ? "Tables (JSON)" : "Calls (JSON)"}
+              </label>
+              <textarea
+                id={`custom-${draft.id}-structured`}
+                className="typed-input"
+                rows={8}
+                value={draft.args[0] ?? ""}
+                onChange={(event) => updateDraft({ args: [event.target.value] })}
               />
+              {problem.sql && currentValue && (
+                <CaseValue name="Tables" value={currentValue.args[0]} parameter sql={problem.sql} />
+              )}
+              {problem.odyssey && !problem.sql && currentValue?.calls && (
+                <SequenceCaseValues problem={problem} calls={currentValue.calls} />
+              )}
             </div>
           ) : (
-            <button
-              type="button"
-              className="quiet-button add-expected"
-              onClick={() => updateDraft({ expectedEnabled: true })}
-            >
-              <Icon name="target" /> Add expected output
-            </button>
+            problem.signature.parameters.map(({ name, type, input }, index) => (
+              <TypedCaseInput
+                key={`${draft.id}:${name}`}
+                id={`custom-${draft.id}-${index}`}
+                name={name}
+                type={type}
+                input={input}
+                value={draft.args[index] ?? ""}
+                onChange={(value) =>
+                  updateDraft({
+                    args: draft.args.map((arg, argIndex) => (argIndex === index ? value : arg)),
+                  })
+                }
+              />
+            ))
           )}
+          {(!problem.odyssey || problem.sql) &&
+            (draft.expectedEnabled ? (
+              <div className="expected-field">
+                {problem.sql ? (
+                  <div className="typed-case-field">
+                    <label htmlFor={`custom-${draft.id}-expected`}>Expected output (JSON)</label>
+                    <textarea
+                      id={`custom-${draft.id}-expected`}
+                      className="typed-input"
+                      rows={4}
+                      value={draft.expected}
+                      onChange={(event) => updateDraft({ expected: event.target.value })}
+                    />
+                    {currentValue?.expected !== undefined && (
+                      <CaseValue
+                        name="Expected output"
+                        purpose="target"
+                        value={currentValue.expected}
+                        sql={problem.sql}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      onClick={() => updateDraft({ expectedEnabled: false })}
+                    >
+                      Remove expected output
+                    </button>
+                  </div>
+                ) : (
+                  <TypedCaseInput
+                    id={`custom-${draft.id}-expected`}
+                    name="Expected output"
+                    purpose="expected"
+                    action={
+                      !requiredExpected && (
+                        <Tooltip content="Remove expected output">
+                          <button
+                            type="button"
+                            className="icon-button destructive-icon"
+                            aria-label="Remove expected output"
+                            onClick={() => updateDraft({ expectedEnabled: false })}
+                          >
+                            <Icon name="trash" />
+                          </button>
+                        </Tooltip>
+                      )
+                    }
+                    type={problem.signature.returnType}
+                    value={draft.expected}
+                    onChange={(expected) => updateDraft({ expected })}
+                  />
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="quiet-button add-expected"
+                onClick={() => updateDraft({ expectedEnabled: true })}
+              >
+                <Icon name="target" /> Add expected output
+              </button>
+            ))}
         </>
       ) : customMode ? (
         <p className="result-message">Add a case to get started.</p>

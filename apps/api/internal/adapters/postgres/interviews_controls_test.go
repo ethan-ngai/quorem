@@ -121,7 +121,7 @@ func TestInterviewPrivateCaseDetailsRevealHideAndResultRedaction(t *testing.T) {
 	if len(v.Question.PrivateCaseDetails) != 2 || len(v.Question.RevealedCases) != 0 {
 		t.Fatal("interviewer case catalog", v.Question)
 	}
-	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit")
+	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func TestInterviewLanguageSwitchRetainsOdysseyProgressAndExplicitFutureVisibilit
 	if err != nil || len(exposed.Question.RevealedCases) != 1 || exposed.Question.RevealedCases[0].ID != "level:2:case:0" || exposed.Question.Progress.Level != 1 || len(exposed.Question.Progress.Levels) != 1 {
 		t.Fatal("explicit reveal unlocked stage or exposed other cases", exposed, err)
 	}
-	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit")
+	sub, err := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

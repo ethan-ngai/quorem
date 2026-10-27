@@ -118,7 +118,7 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 	if _, err = s.JoinInterview(ctx, "bob", strings.TrimPrefix(room.InvitePath, "/interview-invite/"), "", ""); err != nil {
 		t.Fatal(err)
 	}
-	submission, err := s.AdmitInterview(ctx, "bob", room.ID, ID(), "run")
+	submission, err := s.AdmitInterview(ctx, "bob", room.ID, ID(), "run", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

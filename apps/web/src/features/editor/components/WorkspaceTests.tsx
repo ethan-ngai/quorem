@@ -44,9 +44,10 @@ export function WorkspaceTests({
     : problem;
   const odyssey = !!testProblem.odyssey;
   const tabs: ("samples" | "custom")[] = ["samples"];
-  if (onDraftsChange && !odyssey && !problem.sql) tabs.push("custom");
+  if (onDraftsChange) tabs.push("custom");
   const selected = tabs.includes("custom") && customMode;
   const selectedTab = selected ? "custom" : "samples";
+  const detachedCustomRun = selected && !!submission?.customRun && !snapshot;
   function selectTab(tab: "samples" | "custom") {
     onCustomModeChange?.(tab === "custom");
   }
@@ -88,15 +89,19 @@ export function WorkspaceTests({
       )}
       <div className="results-content case-results-content">
         <div aria-live="polite" className="case-result-summary">
+          {detachedCustomRun && (
+            <p className="result-message">Latest custom run; inputs may differ from your drafts.</p>
+          )}
           <ResultContent
             submission={submission}
             busy={busy}
             error={error}
-            showCases={false}
-            showVerdict={!odyssey}
+            showCases={detachedCustomRun}
+            sql={problem.sql}
+            showVerdict={!odyssey || selected}
             detailsVisible={detailsVisible}
             customMode={selected}
-            runWasCustom={snapshot?.custom}
+            runWasCustom={snapshot?.custom ?? submission?.customRun}
           />
         </div>
         {tabs.map((tab) => (

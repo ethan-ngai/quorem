@@ -426,7 +426,7 @@ export function WorkspacePage({
     workspace,
     sourceRef,
     editorRef,
-    customMode: problem?.odyssey ? false : customMode,
+    customMode,
     drafts: customDrafts,
     problem,
     enabled:

@@ -102,7 +102,7 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 		}
 		out.Question.Problem = p
 		out.Question.Progress = &interviews.Progress{Level: level, Completed: completed, Levels: p.Odyssey.Levels, TotalLevels: len(v.fixture.Problem.Odyssey.Levels)}
-		out.Question.Progress.CaseStatuses, err = latestCaseStatuses(ctx, tx, `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id WHERE e.session_id=$1 AND e.question_epoch=$2 AND j.language=$3 AND s.state='completed'`, out.ID, out.QuestionEpoch, v.language)
+		out.Question.Progress.CaseStatuses, err = latestCaseStatuses(ctx, tx, `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id WHERE e.session_id=$1 AND e.question_epoch=$2 AND j.language=$3 AND s.state='completed' AND NOT s.custom_run`, out.ID, out.QuestionEpoch, v.language)
 		if err != nil {
 			return out, err
 		}

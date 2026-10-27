@@ -1019,6 +1019,7 @@ export interface components {
             status: "accepted" | "wrong_answer" | "time_limit";
         };
         Submission: {
+            customRun?: boolean;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -3114,6 +3115,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     kind: "run" | "submit";
+                    customCases?: components["schemas"]["CustomCase"][];
                 };
             };
         };
