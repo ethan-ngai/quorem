@@ -31,6 +31,7 @@ export function SignatureFields({
   allowVoid?: boolean;
   onValidityChange?: (label: string, invalid: boolean) => void;
 }) {
+  const documented = value;
   return (
     <fieldset className="admin-fields">
       <legend>Method</legend>
@@ -49,6 +50,14 @@ export function SignatureFields({
           />
         </label>
       </div>
+      <label className="admin-field">
+        <span>Method description</span>
+        <textarea
+          rows={3}
+          value={documented.description ?? ""}
+          onChange={(event) => onChange({ ...value, description: event.target.value })}
+        />
+      </label>
       {value.parameters.map((parameter, index) => (
         <div className="admin-field-pair" key={index}>
           <label className="admin-field">
@@ -80,6 +89,20 @@ export function SignatureFields({
               })
             }
           />
+          <label className="admin-field">
+            <span>Parameter description</span>
+            <input
+              value={(parameter as { description?: string }).description ?? ""}
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  parameters: value.parameters.map((item, position) =>
+                    position === index ? { ...item, description: event.target.value } : item,
+                  ),
+                })
+              }
+            />
+          </label>
           <button
             type="button"
             className="quiet-button"
@@ -127,6 +150,76 @@ export function SignatureFields({
           })
         }
       />
+      {value.returnType !== "void" && (
+        <label className="admin-field">
+          <span>Return description</span>
+          <textarea
+            rows={2}
+            value={documented.returns ?? ""}
+            onChange={(event) => onChange({ ...value, returns: event.target.value })}
+          />
+        </label>
+      )}
+      <fieldset className="admin-fields">
+        <legend>Exceptions</legend>
+        {(documented.throws ?? []).map((exception, index) => (
+          <div className="admin-field-pair" key={index}>
+            <label className="admin-field">
+              <span>Exception type</span>
+              <input
+                value={exception.type}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    throws: documented.throws!.map((item, position) =>
+                      position === index ? { ...item, type: event.target.value } : item,
+                    ),
+                  })
+                }
+              />
+            </label>
+            <label className="admin-field">
+              <span>Exception description</span>
+              <input
+                value={exception.description}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    throws: documented.throws!.map((item, position) =>
+                      position === index ? { ...item, description: event.target.value } : item,
+                    ),
+                  })
+                }
+              />
+            </label>
+            <button
+              type="button"
+              className="quiet-button"
+              aria-label={`Remove exception ${index + 1}`}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  throws: documented.throws!.filter((_, position) => position !== index),
+                })
+              }
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="quiet-button"
+          onClick={() =>
+            onChange({
+              ...value,
+              throws: [...(documented.throws ?? []), { type: "", description: "" }],
+            })
+          }
+        >
+          Add exception
+        </button>
+      </fieldset>
       {(value.returnType.startsWith("list<") || value.returnType.startsWith("array<")) && (
         <Field label="Return order">
           <SelectField

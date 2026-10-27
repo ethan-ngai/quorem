@@ -79,3 +79,35 @@ describe("unlocked method stubs", () => {
     ).toBeUndefined();
   });
 });
+
+describe("method documentation", () => {
+  const documented = {
+    ...get,
+    description: 'Look up a record. */ """ *)',
+    parameters: [{ name: "id", type: "str", description: "Record identifier." }],
+    returns: "The record, if present.",
+    throws: [{ type: "LookupError", description: "Lookup failed." }],
+  };
+  it.each(["python", "java", "typescript", "ocaml"] as const)(
+    "adds safe native documentation to unlocked %s methods",
+    async (language) => {
+      const source = initialOdysseySource([save], language);
+      const next = apply(
+        source,
+        await unlockedMethodEdit(source, language, [level([save]), level([documented])]),
+      );
+      expect(next).toContain("Record identifier.");
+      expect(next).toContain("The record, if present.");
+      expect(next).toContain("LookupError");
+      if (language === "python") expect(next).toContain('\\"\\"\\"');
+      if (language === "java" || language === "typescript") expect(next).toContain("* /");
+      if (language === "ocaml") {
+        expect(next).toContain("* )");
+        expect(next).toContain("”””");
+      }
+      expect(
+        await unlockedMethodEdit(next, language, [level([save]), level([documented])]),
+      ).toBeUndefined();
+    },
+  );
+});
