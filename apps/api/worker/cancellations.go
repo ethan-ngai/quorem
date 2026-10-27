@@ -105,3 +105,22 @@ func (s *Service) dispatchCancellations(hub *cancellationHub, events <-chan stri
 		}
 	}
 }
+
+func (s *Service) closeCancellations() {
+	s.cancelMu.Lock()
+	defer s.cancelMu.Unlock()
+	hub := s.cancelHub
+	if hub == nil {
+		return
+	}
+	s.cancelHub = nil
+	if hub.idle != nil {
+		hub.idle.Stop()
+	}
+	hub.stop()
+	for _, listeners := range hub.watchers {
+		for wake := range listeners {
+			close(wake)
+		}
+	}
+}

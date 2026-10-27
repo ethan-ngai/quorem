@@ -61,6 +61,7 @@ func New(store Repository, options ...Option) *Service {
 	return s
 }
 func (s *Service) Close() {
+	s.closeCancellations()
 	if s.close != nil {
 		s.close()
 	}

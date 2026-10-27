@@ -98,6 +98,25 @@ func TestCancellationHubReusesListenerBetweenAdjacentJobs(t *testing.T) {
 	}
 }
 
+func TestClosingServiceStopsCancellationWatchers(t *testing.T) {
+	repo := &cancellationTestRepository{memoryRepository: &memoryRepository{leaseAlive: true}}
+	service := New(repo)
+	wake, release, err := service.subscribeCancellation(context.Background(), "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Close()
+	select {
+	case _, open := <-wake:
+		if open {
+			t.Fatal("service close did not stop watcher")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("service close hung")
+	}
+	release()
+}
+
 type unavailableCancelRepository struct{ *memoryRepository }
 
 func (*unavailableCancelRepository) ExecutionCancellations(context.Context) (<-chan string, func(), error) {
