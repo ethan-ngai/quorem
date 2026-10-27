@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { cancelSubmission, createSubmission, fetchSubmission, SubmissionReadError } from "./api";
 import { submissionStream } from "./submissionStream";
+import { forgetMissingSubmission } from "./submissionRecovery";
 import {
   parseCustomCases,
   parseCustomDrafts,
@@ -147,16 +148,17 @@ export function useSubmission({
       return;
     const cause = submissionQuery.error;
     setError(errorMessage(cause));
-    if (!(cause instanceof SubmissionReadError) || cause.status !== 404) return;
+    if (
+      !forgetMissingSubmission(
+        cause,
+        submissionStorageKey(identity, workspace.id),
+        activeSubmissionId,
+      )
+    )
+      return;
     setActive((current) =>
       current?.scope === scope && current.id === activeSubmissionId ? undefined : current,
     );
-    try {
-      const key = submissionStorageKey(identity, workspace.id);
-      if (localStorage.getItem(key) === activeSubmissionId) localStorage.removeItem(key);
-    } catch {
-      /* Recovery can proceed without browser storage. */
-    }
   }, [
     submissionQuery.isError,
     submissionQuery.error,
