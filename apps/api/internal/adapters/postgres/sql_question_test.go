@@ -32,6 +32,16 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	runtime, _ := execution.LanguageRuntime("postgresql")
 	c.Implementations = []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "postgresql", StarterSource: "SELECT id FROM items", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness}, ReferenceSource: "SELECT id FROM items"}}
 	c.Solutions = nil
+	invalid := c
+	invalid.Problem.Examples = []problems.ProblemExample{{Case: problems.Case{Args: nil, Expected: test.Expected}}}
+	if err := problems.ValidateQuestionPublication(invalid); err == nil {
+		t.Fatal("publication accepted a SQL example without a table setup")
+	}
+	invalid = c
+	invalid.HiddenCases = []problems.Case{{Args: test.Args, Expected: json.RawMessage(`{"columns":["id"],"rows":[[1,2]]}`)}}
+	if err := problems.ValidateQuestionPublication(invalid); err == nil {
+		t.Fatal("publication accepted a malformed SQL result")
+	}
 	d, err := s.CreateQuestionDraft(ctx, "alice", c)
 	if err != nil {
 		t.Fatal(err)

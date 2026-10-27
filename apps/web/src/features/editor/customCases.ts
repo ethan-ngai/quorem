@@ -133,6 +133,7 @@ export function customDraftStorageKey(scope: string) {
 }
 
 export function readCustomDrafts(scope: string, problem: ProblemVersion): CustomCaseDraft[] {
+  if (problem.sql || problem.odyssey) return [];
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(customDraftStorageKey(scope)) ?? "null");
     if (

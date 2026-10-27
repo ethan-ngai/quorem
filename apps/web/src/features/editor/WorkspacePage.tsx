@@ -236,9 +236,7 @@ export function WorkspacePage({
     setProblem(problemQuery.data);
     setWorkspace(loadedWorkspace);
     setCustomMode(false);
-    setCustomDrafts(
-      problemQuery.data.odyssey ? [] : readCustomDrafts(nextContext.key, problemQuery.data),
-    );
+    setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
     const initialSource =
       readBrowserDraft(identity, nextContext.storageId, problemQuery.data.id) ??
       (account.data

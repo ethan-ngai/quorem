@@ -1,10 +1,11 @@
-import type { CustomCase, Signature } from "@quorem/contracts";
+import type { CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import {
   associatedResultIndex,
   parseCustomCases,
   parseCustomDrafts,
   parseTypedField,
+  readCustomDrafts,
   validateTypedValue,
   type CustomCaseDraft,
   type RunSnapshot,
@@ -27,6 +28,14 @@ const draft: CustomCaseDraft = {
 };
 
 describe("typed custom cases", () => {
+  it("does not initialize method drafts for SQL table examples", () => {
+    const problem = {
+      signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+      examples: [{ args: [{ tables: [] }], expected: { columns: ["id"], rows: [] } }],
+      sql: { dialect: "postgresql", outputOrder: "unordered" },
+    } as unknown as ProblemVersion;
+    expect(readCustomDrafts("sql", problem)).toEqual([]);
+  });
   it("serializes declared argument order and optional expected output", () => {
     expect(parseCustomDrafts([draft], signature)).toEqual([{ args: [[1, 2], true] }]);
     expect(parseCustomDrafts([{ ...draft, expectedEnabled: true }], signature)).toEqual([
