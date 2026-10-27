@@ -387,7 +387,8 @@ export function WorkspacePage({
     queryKey: ["odyssey", workspace?.id],
     queryFn: () => interviewRequest<OdysseyProgress>(`/v1/workspaces/${workspace!.id}/odyssey`),
     enabled: !!workspace && !!problem?.odyssey && serverWorkspace,
-    refetchInterval: problem?.odyssey ? 2000 : false,
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
   });
   const previewOdyssey = useMemo(
     () => (!serverWorkspace ? publicOdysseyPreview(problem) : undefined),
@@ -447,6 +448,26 @@ export function WorkspacePage({
         loaded: !loading,
       }),
   });
+  const completedWorkspace = execution.submission?.workspaceId;
+  const completedSubmission = execution.submission?.id;
+  const submissionState = execution.submission?.state;
+  useEffect(() => {
+    if (
+      !problem?.odyssey ||
+      !workspace ||
+      completedWorkspace !== workspace.id ||
+      submissionState !== "completed"
+    )
+      return;
+    void queryClient.invalidateQueries({ queryKey: ["odyssey", workspace.id] });
+  }, [
+    completedSubmission,
+    completedWorkspace,
+    submissionState,
+    problem?.odyssey,
+    workspace,
+    queryClient,
+  ]);
   const changeCustomDrafts = useCallback((drafts: CustomCaseDraft[]) => {
     setCustomDrafts(drafts);
     const context = draftContextRef.current;
