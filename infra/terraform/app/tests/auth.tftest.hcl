@@ -58,8 +58,12 @@ run "auth_secrets_and_rollout" {
     error_message = "Auth secrets must not reach judges."
   }
   assert {
-    condition     = local.container_configuration.environment_variables[0].value == sha256(jsonencode(local.runtime)) && local.judge_configuration.environment_variables[0].value == sha256(jsonencode(local.judge_runtime))
-    error_message = "Each role must roll when its runtime configuration changes."
+    condition     = local.judge_configuration.environment_variables[0].value == sha256(jsonencode(local.judge_runtime))
+    error_message = "Judge containers must roll when their runtime configuration changes."
+  }
+  assert {
+    condition     = [for binding in cloudflare_worker_version.app.bindings : binding.text if binding.name == "APP_RUNTIME_REVISION"][0] == sha256(jsonencode(local.runtime)) && jsondecode(restapi_object.container.data).max_instances == 2 * var.app_pool_shards * var.app_instances_per_shard
+    error_message = "Each runtime revision needs distinct routing and capacity for draining connections."
   }
   assert {
     condition     = jsondecode(restapi_object.container.data).constraints.regions == ["ENAM"] && jsondecode(restapi_object.judge_container.update_data).constraints.regions == ["ENAM"]

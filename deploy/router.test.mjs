@@ -72,10 +72,89 @@ function context(entries = []) {
 }
 const env = {
   APP_RUNTIME_ENV: "{}",
+  APP_RUNTIME_REVISION: "fixture",
   JUDGE_RUNTIME_ENV: "{}",
   JUDGE_CONTROL_TOKEN: "test-control-token-at-least-32-chars",
   APP_ORIGIN: "https://quorem.test",
 };
+const revisionResponse = () =>
+  new Response(null, { status: 204, headers: { "x-quorem-revision": env.APP_RUNTIME_REVISION } });
+
+void test("runtime changes route new traffic to a separate pool without changing shard affinity", async () => {
+  const pools = [];
+  const configuration = {
+    ...env,
+    POOLS: {
+      getByName(name) {
+        pools.push(name);
+        return {
+          fetch: async (request) =>
+            new URL(request.url).pathname.endsWith("_revision")
+              ? new Response(null, {
+                  status: 204,
+                  headers: { "x-quorem-revision": name.split("-")[1] },
+                })
+              : new Response("ok"),
+        };
+      },
+    },
+  };
+  const request = () =>
+    new Request("https://quorem.test/v1/problems", { headers: { Cookie: `${ROUTE_COOKIE}=0` } });
+  const previous = await worker.fetch(request(), { ...configuration, APP_RUNTIME_REVISION: "old" });
+  const current = await worker.fetch(request(), { ...configuration, APP_RUNTIME_REVISION: "new" });
+  assert.deepEqual(pools, ["0-old", "0-new"]);
+  assert.match(current.headers.get("Set-Cookie"), new RegExp(`${ROUTE_COOKIE}=0;`));
+  await previous.body.cancel();
+  await current.body.cancel();
+});
+
+void test("old coordinators and app objects reject commands before dispatch", async () => {
+  let commands = 0;
+  const request = () =>
+    new Request("https://quorem.test/v1/action", { method: "POST", body: "once" });
+  const oldPool = {
+    getByName: () => ({
+      fetch: async (req) => {
+        assert.equal(req.headers.has("x-quorem-pool"), false);
+        if (!new URL(req.url).pathname.endsWith("_revision")) commands++;
+        return new Response("old");
+      },
+    }),
+  };
+  const rejected = await worker.fetch(request(), { ...env, APP_POOL_SHARDS: "1", POOLS: oldPool });
+  assert.equal(rejected.status, 503);
+  assert.equal(commands, 0);
+
+  const { ctx } = context();
+  const pool = new AppPool(ctx, {
+    ...env,
+    APPS: {
+      getByName: () => ({
+        fetch: async (req) => {
+          assert.equal(req.headers.has("x-quorem-pool"), false);
+          assert.equal(req.headers.has("x-quorem-lease"), false);
+          if (!new URL(req.url).pathname.endsWith("_revision")) commands++;
+          return new Response(null, { status: 204, headers: { "x-quorem-revision": "old" } });
+        },
+      }),
+    },
+  });
+  await ctx.loaded;
+  const failed = await pool.fetch(
+    new Request(request(), { headers: { "x-quorem-pool": "0-fixture" } }),
+  );
+  assert.equal(failed.status, 503);
+  assert.equal(failed.headers.get("x-quorem-capacity"), "full");
+  assert.equal(commands, 0);
+  assert.equal(pool.leases.size, 0);
+
+  const appContext = context();
+  const app = new Quorem(appContext.ctx, env);
+  const forwardedPoolProbe = await app.fetch(new Request("https://app/__pool_revision"));
+  assert.equal(forwardedPoolProbe.status, 403);
+  assert.equal(appContext.ctx.container.starts, 0);
+});
 
 void test("independent HTTP/socket pressure packs existing instances; stale leases free capacity", () => {
   const cap = { instances: 2, http: 2, sockets: 4 };
@@ -101,7 +180,8 @@ void test("pool reservations survive reload and streaming completion releases ex
     APPS: {
       getByName(name) {
         return {
-          fetch: async () => {
+          fetch: async (request) => {
+            if (new URL(request.url).pathname.endsWith("_revision")) return revisionResponse();
             const wait = deferred();
             pending.push({ name, wait });
             return wait.promise;
@@ -444,7 +524,8 @@ void test("parallel first requests coalesce; browser affinity overrides changed 
     POOLS: {
       getByName(pool) {
         return {
-          fetch: async () => {
+          fetch: async (request) => {
+            if (new URL(request.url).pathname.endsWith("_revision")) return revisionResponse();
             calls.push(pool);
             return new Response("ok");
           },
@@ -487,9 +568,10 @@ void test("only pre-dispatch capacity fallback moves affinity; admitted POST fai
     POOLS: {
       getByName(pool) {
         return {
-          fetch: async () => {
+          fetch: async (request) => {
+            if (new URL(request.url).pathname.endsWith("_revision")) return revisionResponse();
             calls.push(pool);
-            if (pool === "0" && rejectCapacity)
+            if (pool === "0-fixture" && rejectCapacity)
               return new Response("full", {
                 status: 503,
                 headers: { "X-Quorem-Capacity": "full" },
@@ -507,14 +589,14 @@ void test("only pre-dispatch capacity fallback moves affinity; admitted POST fai
       headers: { Cookie: `${ROUTE_COOKIE}=0` },
     });
   const fallback = await worker.fetch(request(), configuration);
-  assert.deepEqual(calls, ["0", "1"]);
+  assert.deepEqual(calls, ["0-fixture", "1-fixture"]);
   assert.match(fallback.headers.get("Set-Cookie"), new RegExp(`${ROUTE_COOKIE}=1;`));
   await fallback.body.cancel();
   calls.length = 0;
   rejectCapacity = false;
   const failed = await worker.fetch(request(), configuration);
   assert.equal(failed.status, 503);
-  assert.deepEqual(calls, ["0"]);
+  assert.deepEqual(calls, ["0-fixture"]);
   await failed.body.cancel();
 });
 
@@ -569,7 +651,8 @@ void test("warm available slots survive reload, expire and never bypass capacity
     APPS: {
       getByName(name) {
         return {
-          fetch: async () => {
+          fetch: async (request) => {
+            if (new URL(request.url).pathname.endsWith("_revision")) return revisionResponse();
             calls.push(name);
             return new Response("ok");
           },
@@ -613,7 +696,8 @@ void test("failed warm dispatch clears its hint without replay; live ready renew
     APPS: {
       getByName(name) {
         return {
-          fetch: async () => {
+          fetch: async (request) => {
+            if (new URL(request.url).pathname.endsWith("_revision")) return revisionResponse();
             calls.push(name);
             return new Response("unavailable", { status: 503 });
           },
@@ -723,6 +807,7 @@ void test("login configuration returns while background readiness remains pendin
       getByName() {
         return {
           async fetch(request) {
+            if (new URL(request.url).pathname.endsWith("_revision")) return revisionResponse();
             assert.equal(new URL(request.url).pathname, "/health");
             warmups++;
             await ready.promise;
@@ -741,6 +826,7 @@ void test("login configuration returns while background readiness remains pendin
       },
     },
   );
+  await turn();
   assert.equal(response.status, 200);
   assert.equal(warmups, 1);
   assert.equal(pending.length, 1);

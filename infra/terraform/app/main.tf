@@ -177,8 +177,6 @@ locals {
     vcpu       = var.app_vcpu
     memory_mib = var.app_memory_mib
     disk       = { size_mb = 4000 }
-    # Secrets stay in Worker bindings; a fingerprint rolls warm instances on configuration changes.
-    environment_variables = [{ name = "QUOREM_RUNTIME_REVISION", value = nonsensitive(sha256(jsonencode(local.runtime))) }]
   }
   judge_configuration = {
     image                 = var.judge_image
@@ -262,6 +260,7 @@ resource "cloudflare_worker_version" "app" {
     { type = "queue", name = "JUDGE_WAKE", queue_name = cloudflare_queue.judge.queue_name },
     { type = "secret_text", name = "JUDGE_CONTROL_TOKEN", text = random_password.judge_control.result },
     { type = "secret_text", name = "APP_RUNTIME_ENV", text = jsonencode(local.runtime) },
+    { type = "plain_text", name = "APP_RUNTIME_REVISION", text = nonsensitive(sha256(jsonencode(local.runtime))) },
     { type = "secret_text", name = "JUDGE_RUNTIME_ENV", text = jsonencode(local.judge_runtime) },
     { type = "plain_text", name = "AUTH_PUBLIC_CONFIG", text = jsonencode(var.auth_public_config) },
     { type = "plain_text", name = "APP_POOL_SHARDS", text = tostring(var.app_pool_shards) },
@@ -293,11 +292,12 @@ resource "restapi_object" "container" {
     constraints       = { regions = ["ENAM"] }
     observability     = { logs = { enabled = true } }
     instances         = 0
-    max_instances     = var.app_pool_shards * var.app_instances_per_shard
-    configuration     = local.container_configuration
-    durable_objects   = { script_name = var.worker_name, class_name = "Quorem" }
+    # Leave room for the prior runtime while its connections drain.
+    max_instances   = 2 * var.app_pool_shards * var.app_instances_per_shard
+    configuration   = local.container_configuration
+    durable_objects = { script_name = var.worker_name, class_name = "Quorem" }
   })
-  update_data = jsonencode({ constraints = { regions = ["ENAM"] }, max_instances = var.app_pool_shards * var.app_instances_per_shard, configuration = local.container_configuration, observability = { logs = { enabled = true } } })
+  update_data = jsonencode({ constraints = { regions = ["ENAM"] }, max_instances = 2 * var.app_pool_shards * var.app_instances_per_shard, configuration = local.container_configuration, observability = { logs = { enabled = true } } })
   depends_on  = [cloudflare_worker_version.app]
 }
 resource "restapi_object" "rollout" {

@@ -1,10 +1,16 @@
 /** Local ingress/storage/upgrade fixture; no container runtime or account credentials. */
 import { DurableObject } from "cloudflare:workers";
 import worker from "./worker.js";
+import { APP_REVISION_PATH } from "./policy.js";
 export { AppPool } from "./router.js";
 
 export class RoutingApp extends DurableObject {
   async fetch(request) {
+    if (new URL(request.url).pathname === APP_REVISION_PATH)
+      return new Response(null, {
+        status: 204,
+        headers: { "x-quorem-revision": this.env.APP_RUNTIME_REVISION },
+      });
     const headers = new Headers();
     headers.append("Set-Cookie", "session=fixture; HttpOnly; Secure; SameSite=Lax");
     headers.append("Set-Cookie", "csrf=fixture; Secure; SameSite=Lax");

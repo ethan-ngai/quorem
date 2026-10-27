@@ -24,6 +24,10 @@ on:
       - .github/workflows/deploy.yaml
   workflow_dispatch:
     inputs:
+      restart_objects:
+        description: Redeploy the active Worker version and immediately update Durable Objects
+        type: boolean
+        default: false
       reuse_run_id:
         description: Completed production run whose verified images can be reused for an infrastructure-only retry
         required: false
@@ -57,7 +61,7 @@ env:
   WRANGLER_SEND_METRICS: "false"
 jobs:
   build:
-    if: ${{ !inputs.reuse_run_id }}
+    if: ${{ !inputs.reuse_run_id && !inputs.restart_objects }}
     outputs:
       image_sha: ${{ github.sha }}
     runs-on: ubuntu-latest
@@ -175,7 +179,7 @@ jobs:
       group: production-apply-${{ github.ref }}
       cancel-in-progress: false
     needs: build
-    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '' && needs.build.result == 'skipped')) }}
+    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/main' && !inputs.restart_objects && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '' && needs.build.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -311,3 +315,67 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p 'verify_production_auth_test.py'
           python3 scripts/verify-production-auth.py
+
+  restart:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.restart_objects }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: production-apply-refs/heads/main
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
+      - name: Redeploy current version with immediate object updates
+        run: |
+          vp -C apps/realtime-cloudflare exec wrangler deployments list --name quorem-production --json > "$RUNNER_TEMP/deployments.json"
+          version=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d[-1]["versions"]; assert len(v)==1 and v[0]["percentage"]==100; print(v[0]["version_id"])' "$RUNNER_TEMP/deployments.json")
+          vp -C apps/realtime-cloudflare exec wrangler versions deploy "$version@100" --name quorem-production --durable-objects-code-update-mode immediate --message 'Restart production objects on current version' --yes
+      - name: Roll existing application configuration
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          base = 'https://api.cloudflare.com/client/v4/accounts/' + os.environ['CLOUDFLARE_ACCOUNT_ID'] + '/containers/applications'
+          headers = {'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN'], 'Content-Type': 'application/json'}
+          def request(path, data=None):
+              req = urllib.request.Request(base + path, headers=headers, data=None if data is None else json.dumps(data).encode())
+              return json.load(urllib.request.urlopen(req))['result']
+          apps = request('')
+          app = next(item for item in apps if item['name'] == 'quorem-production')
+          config = request('/' + app['id'])['configuration']
+          config = {key: config[key] for key in ('image', 'vcpu', 'memory_mib', 'disk', 'environment_variables') if key in config}
+          rollout = request('/' + app['id'] + '/rollouts', {'description': 'Restart with current configuration', 'strategy': 'rolling', 'kind': 'full_auto', 'step_percentage': 100, 'target_configuration': config})
+          print('Restart rollout:', rollout['id'])
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('RESTART_APPLICATION_ID=' + app['id'] + '\n')
+              output.write('RESTART_ROLLOUT_ID=' + rollout['id'] + '\n')
+          PY
+      - name: Wait for replacement containers
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request
+          url = ('https://api.cloudflare.com/client/v4/accounts/' + os.environ['CLOUDFLARE_ACCOUNT_ID']
+                 + '/containers/applications/' + os.environ['RESTART_APPLICATION_ID']
+                 + '/rollouts/' + os.environ['RESTART_ROLLOUT_ID'])
+          req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN']})
+          for attempt in range(120):
+              result = json.load(urllib.request.urlopen(req))['result']
+              status = result['status']
+              if status == 'completed':
+                  print('Container rollout completed')
+                  break
+              if status in ('reverted', 'replaced', 'failed'):
+                  raise SystemExit('Container rollout ended: ' + status)
+              time.sleep(5)
+          else:
+              raise SystemExit('Container rollout did not complete within 10 minutes')
+          PY
