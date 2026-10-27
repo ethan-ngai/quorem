@@ -14,7 +14,7 @@ import { joinMatch, joinAsGuest } from "./api";
 import { ModeIcon, useAccountIdentity } from "./MatchControls";
 import { InvitationLayout } from "../../ui/InvitationLayout";
 import { SessionDialog } from "../../ui/SessionDialog";
-import { createReconnectingSocket } from "../realtime/reconnectingSocket";
+import { inviteStream } from "./inviteStream";
 import "../../styles/workspace.css";
 
 /** Invitation possession grants preview access; only explicit acceptance can claim a seat. */
@@ -45,35 +45,8 @@ export function InvitePage({ token }: { token: string }) {
   const live = !!lobby && !preview.isError;
   useEffect(() => {
     if (!live) return;
-    let opened = false;
-    const connection = createReconnectingSocket({
-      url: () => {
-        const url = new URL(
-          `/v1/match-invites/${encodeURIComponent(token)}/events`,
-          window.location.origin,
-        );
-        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-        return url;
-      },
-      timeout: 2000,
-      onOpen() {
-        opened = true;
-      },
-      onDisconnect() {
-        if (opened) {
-          opened = false;
-          void queryClient.invalidateQueries({ queryKey: ["invite-preview", token] });
-        }
-      },
-      onMessage(event) {
-        try {
-          const notice: unknown = JSON.parse(String(event.data));
-          if (notice && typeof notice === "object" && "type" in notice && notice.type === "changed")
-            void queryClient.invalidateQueries({ queryKey: ["invite-preview", token] });
-        } catch {
-          /* An invalid frame does not change the preview. */
-        }
-      },
+    const connection = inviteStream(token, () => {
+      void queryClient.invalidateQueries({ queryKey: ["invite-preview", token] });
     });
     connection.start();
     return () => connection.stop();
