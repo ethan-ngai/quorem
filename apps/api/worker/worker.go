@@ -8,6 +8,7 @@ import (
 	"github.com/ethan-ngai/quorem/internal/delivery"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -46,6 +47,8 @@ type Service struct {
 	queue         delivery.Queue
 	close         func()
 	admissionWake chan struct{}
+	cancelMu      sync.Mutex
+	cancelHub     *cancellationHub
 }
 type Option func(*Service)
 
@@ -203,35 +206,57 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 	}()
 	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
 	defer cancel()
+	notifications, release, watchErr := s.subscribeCancellation(ctx, j.SubmissionID)
+	if release != nil {
+		defer release()
+	}
 	done := make(chan struct{})
 	watchDone := make(chan struct{})
-	go func() {
-		defer close(watchDone)
-		ticker := time.NewTicker(200 * time.Millisecond)
-		defer ticker.Stop()
-		heartbeat := time.Now()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				beat := time.Since(heartbeat) >= 15*time.Second
-				alive, err := s.store.Lease(ctx, j, beat)
-				if err != nil || !alive {
-					cancel()
-					return
+	var completion execution.Completion
+	var err error
+	if watchErr != nil {
+		err = watchErr
+		close(watchDone)
+	} else {
+		alive, leaseErr := s.store.Lease(ctx, j, false)
+		if leaseErr != nil || !alive {
+			err = errors.New("execution lease unavailable")
+			close(watchDone)
+		} else {
+			go func() {
+				defer close(watchDone)
+				ticker := time.NewTicker(15 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-done:
+						return
+					case <-ctx.Done():
+						return
+					case _, open := <-notifications:
+						if !open {
+							cancel()
+							return
+						}
+						alive, err := s.store.Lease(ctx, j, false)
+						if err != nil || !alive {
+							cancel()
+							return
+						}
+					case <-ticker.C:
+						alive, err := s.store.Lease(ctx, j, true)
+						if err != nil || !alive {
+							cancel()
+							return
+						}
+					}
 				}
-				if beat {
-					heartbeat = time.Now()
-				}
-			}
+			}()
+			executeStarted := time.Now()
+			completion, err = engine.Execute(ctx, j)
+			executeDuration = time.Since(executeStarted)
 		}
-	}()
-	executeStarted := time.Now()
-	completion, err := engine.Execute(ctx, j)
-	executeDuration = time.Since(executeStarted)
+	}
 	cases = len(completion.HiddenCases) + len(completion.PublicCaseResults)
 	samples = len(completion.SubmitSampleResults)
 	close(done)

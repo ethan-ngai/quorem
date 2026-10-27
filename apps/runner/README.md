@@ -30,6 +30,15 @@ expired abandoned attempts are reaped before a new lease. Cancellation releases
 its owner slot only after confirmed teardown or queued nonexecution. Unconfirmed
 teardown leaves the lease active for reconciliation.
 
+Active attempts share one direct PostgreSQL cancellation-listener session per
+runner service, in addition to its normal query pool and queue-wakeup listener.
+Committed cancellation notices wake only the matching submission; each attempt
+rechecks its fenced lease before execution and on a notice. Lease heartbeats
+continue every 15 seconds. Listener loss cancels active sandboxes, and the next
+attempt establishes a fresh session before execution. The session closes five
+seconds after its last active attempt. `QUOREM_DATABASE_LISTEN_URL` may
+override the session-capable database connection for LISTEN/NOTIFY.
+
 ```sh
 QUOREM_TEST_DOCKER=1 go test ./apps/runner/internal/engine
 ```
