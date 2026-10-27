@@ -90,3 +90,56 @@
 .sql-schema li span {
   color: var(--color-text-secondary);
 }
+
+.sql-editor-label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.sql-table-editable td {
+  padding: 2px;
+}
+.sql-cell-editor {
+  display: flex;
+  align-items: center;
+  min-width: 100px;
+}
+.sql-cell-editor input,
+.sql-cell-editor select {
+  width: 100%;
+  min-width: 70px;
+  border: 0;
+  padding: 4px 6px;
+  color: var(--color-text);
+  background: transparent;
+  font: inherit;
+}
+.sql-cell-editor .sql-null {
+  flex: 1;
+  padding: 4px 6px;
+}
+.sql-null-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: 10px var(--font-code);
+  cursor: pointer;
+  padding: 4px;
+}
+.sql-null-toggle:hover {
+  color: var(--color-text);
+}
+.sql-add-row {
+  justify-self: start;
+  font-size: 12px;
+}
+.sql-cell-editor input,
+.sql-cell-editor select {
+  width: 9ch;
+}
+.sql-null-toggle {
+  opacity: 0.35;
+}
+.sql-cell-editor:hover .sql-null-toggle,
+.sql-null-toggle:focus-visible {
+  opacity: 1;
+}
