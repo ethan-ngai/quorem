@@ -9,16 +9,24 @@ import (
 )
 
 type Parameter struct {
-	Name  string       `json:"name"`
-	Type  string       `json:"type"`
-	Input *InputConfig `json:"input,omitempty"`
+	Description string       `json:"description,omitempty"`
+	Name        string       `json:"name"`
+	Type        string       `json:"type"`
+	Input       *InputConfig `json:"input,omitempty"`
+}
+type MethodException struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
 }
 type Signature struct {
-	OutputOrder string      `json:"outputOrder,omitempty"`
-	ClassName   string      `json:"className"`
-	MethodName  string      `json:"methodName"`
-	Parameters  []Parameter `json:"parameters"`
-	ReturnType  string      `json:"returnType"`
+	Description string            `json:"description,omitempty"`
+	Returns     string            `json:"returns,omitempty"`
+	Throws      []MethodException `json:"throws,omitempty"`
+	OutputOrder string            `json:"outputOrder,omitempty"`
+	ClassName   string            `json:"className"`
+	MethodName  string            `json:"methodName"`
+	Parameters  []Parameter       `json:"parameters"`
+	ReturnType  string            `json:"returnType"`
 }
 type MethodCall struct {
 	MethodName string            `json:"methodName"`

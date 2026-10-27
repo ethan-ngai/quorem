@@ -3070,6 +3070,9 @@
           },
           "input": {
             "$ref": "#/components/schemas/InputPresetConfig"
+          },
+          "description": {
+            "type": "string"
           }
         },
         "required": ["name", "type"],
@@ -3098,6 +3101,20 @@
             "type": "string",
             "enum": ["ordered", "unordered"],
             "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
+          },
+          "description": { "type": "string" },
+          "returns": { "type": "string" },
+          "throws": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "description": { "type": "string" }
+              },
+              "required": ["type", "description"],
+              "additionalProperties": false
+            }
           }
         },
         "required": ["className", "methodName", "parameters", "returnType"],

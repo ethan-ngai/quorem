@@ -41,10 +41,6 @@ export function QuestionFields({
   const [section, setSection] = useState("question");
   const [language, setLanguage] = useState<Language>(content.problem.sql ? "postgresql" : "python");
   const id = useId();
-  const implementationIndex = content.implementations.findIndex(
-    (item) => item.language === language,
-  );
-  const implementation = content.implementations[implementationIndex];
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
@@ -200,7 +196,6 @@ export function QuestionFields({
           <QuestionBasics
             title={problem.title}
             statement={problem.statementMarkdown}
-            starter={implementation?.starterSource}
             staged={!!problem.odyssey}
             onTitleChange={(title) => {
               const slug = (value: string) =>
@@ -217,15 +212,7 @@ export function QuestionFields({
               });
             }}
             onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
-            onStarterChange={(starterSource) =>
-              setImplementation(implementationIndex, { starterSource })
-            }
           />
-          {!implementation && (
-            <p className="case-stale">
-              Enable {languageLabels[language]} in Solutions to add starter code.
-            </p>
-          )}
           {!problem.odyssey && !problem.sql && (
             <fieldset className="admin-fields" disabled={disabled || invalidCases}>
               <SignatureFields

@@ -32,27 +32,13 @@ export function AuthoringStages({
           ...content.problem,
           signature: parsed.odyssey.levels[0]!.methods[0]!,
           odyssey: parsed.odyssey,
-          starterSource:
-            !content.problem.starterSource ||
-            content.problem.starterSource ===
-              initialOdysseySource(content.problem.odyssey?.levels[0]?.methods ?? [], "python")
-              ? initialOdysseySource(parsed.odyssey.levels[0]!.methods, "python")
-              : content.problem.starterSource,
+          starterSource: initialOdysseySource(parsed.odyssey.levels[0]!.methods, "python"),
         },
         odysseyHiddenCases: parsed.odysseyHiddenCases,
-        implementations: content.implementations.map((item) =>
-          !item.starterSource ||
-          item.starterSource ===
-            initialOdysseySource(content.problem.odyssey?.levels[0]?.methods ?? [], item.language)
-            ? {
-                ...item,
-                starterSource: initialOdysseySource(
-                  parsed.odyssey.levels[0]!.methods,
-                  item.language,
-                ),
-              }
-            : item,
-        ),
+        implementations: content.implementations.map((item) => ({
+          ...item,
+          starterSource: initialOdysseySource(parsed.odyssey.levels[0]!.methods, item.language),
+        })),
       });
       onValidityChange("stages", false);
       setError(undefined);

@@ -33,16 +33,10 @@ func TestPrivateCustomStagesValidateWithoutPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.ReferenceSource != "" || len(f.OdysseyHiddenCases) != 2 || len(f.Problem.Languages) != 4 || f.Problem.StarterSource != q.Custom.StarterSource {
+	if f.ReferenceSource != "" || len(f.OdysseyHiddenCases) != 2 || len(f.Problem.Languages) != 4 || f.Problem.StarterSource == q.Custom.StarterSource {
 		t.Fatal("private staged fixture", f)
 	}
 	for _, impl := range f.Problem.Languages {
-		if impl.Language == "python" {
-			if impl.StarterSource != q.Custom.StarterSource {
-				t.Fatal("authored source changed")
-			}
-			continue
-		}
 		if !strings.Contains(impl.StarterSource, "put") || !strings.Contains(impl.StarterSource, "total") || strings.Contains(impl.StarterSource, "take") {
 			t.Fatal("first-stage methods", impl)
 		}
@@ -104,11 +98,15 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 	s := interviewTestStore(t)
 	ctx := context.Background()
 	q := customStagedInterviewQuestion()
+	starter, err := problems.GenerateStarter(q.Custom.Odyssey.Levels[0].Methods, q.Language, true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	v, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Custom stages", Question: q})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v.Question.Progress.Level != 1 || v.Question.Progress.TotalLevels != 2 || len(v.Question.PrivateCaseDetails) != 2 || v.Document.Source != q.Custom.StarterSource {
+	if v.Question.Progress.Level != 1 || v.Question.Progress.TotalLevels != 2 || len(v.Question.PrivateCaseDetails) != 2 || v.Document.Source != starter {
 		t.Fatal("staged creation", v)
 	}
 	candidate, err := s.JoinInterview(ctx, "bob", strings.TrimPrefix(v.InvitePath, "/interview-invite/"), "", "")
@@ -133,14 +131,14 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 			t.Fatal(job, e)
 		}
 		spec, e := s.LoadExecution(ctx, job)
-		if e != nil || len(spec.Cases) != total || spec.Source != q.Custom.StarterSource {
+		if e != nil || len(spec.Cases) != total || spec.Source != starter {
 			t.Fatal("immutable source/cumulative cases", spec, e)
 		}
 		finishInterviewJob(t, s, job, passed, total)
 	}
 	submit(1, 1)
 	progress, err := s.Interview(ctx, "bob", v.ID)
-	if err != nil || progress.Question.Progress.Level != 2 || progress.Document.Source != q.Custom.StarterSource {
+	if err != nil || progress.Question.Progress.Level != 2 || progress.Document.Source != starter {
 		t.Fatal("automatic stage/source preservation", progress, err)
 	}
 	submit(2, 1)
@@ -158,7 +156,7 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 		t.Fatal("staged alternate language starter/progress", switched, err)
 	}
 	restored, err := s.SwitchInterviewLanguage(ctx, "alice", v.ID, ID(), "python", switched.Document.Epoch)
-	if err != nil || restored.Document.Source != q.Custom.StarterSource {
+	if err != nil || restored.Document.Source != starter {
 		t.Fatal("authored draft lost", restored, err)
 	}
 	if _, err = s.UpdateInterviewQuestion(ctx, "alice", v.ID, ID(), q); err != nil {
