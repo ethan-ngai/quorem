@@ -36,7 +36,7 @@ func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.AccessMode == "guests_allowed" && !s.GuestCreation {
-		s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest hosting is temporarily paused"})
+		s.err(w, r, &application.Error{Code: "guest_hosting_paused", Status: 409, Message: "Guest hosting is temporarily paused"})
 		return
 	}
 	v, e := s.Store.CreateMatch(r.Context(), owner(r), key, body)
@@ -118,7 +118,7 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if body.AccessMode == "guests_allowed" && !s.GuestCreation {
-			s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest hosting is temporarily paused"})
+			s.err(w, r, &application.Error{Code: "guest_hosting_paused", Status: 409, Message: "Guest hosting is temporarily paused"})
 			return
 		}
 		v, e = s.Store.UpdateMatchSettings(r.Context(), owner(r), id, key, body)

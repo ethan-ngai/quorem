@@ -22,6 +22,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("recoverable match commands", () => {
+  it("releases a paused guest-hosting request so settings can change", async () => {
+    const original = {
+      difficulty: "easy" as const,
+      durationMinutes: 30 as const,
+      accessMode: "guests_allowed" as const,
+    };
+    await expect(
+      recoverableCommand(
+        "alice",
+        "create",
+        original,
+        async () => {
+          throw matchCreationError({ error: { code: "guest_hosting_paused" } }, 409);
+        },
+        true,
+      ),
+    ).rejects.toThrow("Turn off Allow guests");
+    expect(pendingCreate("alice")).toBeUndefined();
+  });
   it("lets a checked uncertain creation be discarded and replaced", async () => {
     const original = { difficulty: "easy" as const, durationMinutes: 30 as const };
     let firstKey = "";
