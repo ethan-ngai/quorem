@@ -25,6 +25,7 @@ export function CaseValue({
   tone,
   type,
   sql,
+  sqlTypes,
 }: {
   name: string;
   value: unknown;
@@ -33,6 +34,7 @@ export function CaseValue({
   tone?: string;
   type?: string;
   sql?: ProblemVersion["sql"];
+  sqlTypes?: readonly string[];
 }) {
   const language = useQuestionLanguage();
   return (
@@ -49,7 +51,14 @@ export function CaseValue({
           </span>
         </Tooltip>
         {sql ? (
-          <SqlTables value={value} input={purpose === "input"} label={name} schema={sql} />
+          <SqlTables
+            value={value}
+            input={purpose === "input"}
+            label={name}
+            schema={sql}
+            columnTypes={sqlTypes}
+            useSchemaTypes={purpose !== "output"}
+          />
         ) : (
           <code className={`machine-value ${tone ?? ""}`}>
             {questionValue(value, language, type)}
@@ -130,7 +139,14 @@ export function CaseOutput({
       ) : (
         <div className="case-output-comparison">
           {result.actual !== undefined && (
-            <CaseValue name="Output" purpose="output" value={result.actual} tone={tone} sql={sql} />
+            <CaseValue
+              name="Output"
+              purpose="output"
+              value={result.actual}
+              tone={tone}
+              sql={sql}
+              sqlTypes={result.sqlTypes}
+            />
           )}
           {showExpected && result.expected !== undefined && (
             <CaseValue

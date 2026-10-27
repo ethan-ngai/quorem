@@ -72,6 +72,13 @@ func TestPostgresSandbox(t *testing.T) {
 		if err != nil || result.Verdict != execution.WrongAnswer {
 			t.Fatalf("wrong output type: %+v %v", result, err)
 		}
+		d.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
+			return worker.Spec{Source: "SELECT id::bigint AS id FROM items WHERE false", Kind: "run", Fixture: schemaFixture, Cases: []worker.Case{schemaCase}}, nil
+		}
+		result, err = d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "visible-types", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
+		if err != nil || len(result.PublicCaseResults) != 1 || len(result.PublicCaseResults[0].SQLTypes) != 1 || result.PublicCaseResults[0].SQLTypes[0] != "bigint" {
+			t.Fatalf("missing actual output type: %+v %v", result, err)
+		}
 	})
 	t.Run("numeric precision", func(t *testing.T) {
 		numeric := c

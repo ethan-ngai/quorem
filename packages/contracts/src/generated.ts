@@ -1006,6 +1006,7 @@ export interface components {
             index: number;
             /** @enum {string} */
             status: "executed" | "accepted" | "wrong_answer" | "syntax_error" | "runtime_error" | "time_limit" | "memory_limit" | "output_limit" | "invalid_output";
+            sqlTypes?: ("integer" | "bigint" | "numeric" | "text" | "boolean" | "date" | "timestamp" | "timestamptz" | "real" | "double precision")[];
             actual?: components["schemas"]["WireValue"];
             expected?: components["schemas"]["WireValue"];
             diagnostics?: components["schemas"]["Diagnostic"][];

@@ -84,3 +84,32 @@ it("uses the shared schema for row-only input and expected output", () => {
   expect(output).toContain("total");
   expect(output).toContain("9223372036854775807");
 });
+
+it("shows declared and actual output types without conflating them", () => {
+  const schema = {
+    dialect: "postgresql" as const,
+    outputOrder: "unordered" as const,
+    output: [{ name: "total", type: "bigint" as const }],
+  };
+  const html = renderToStaticMarkup(
+    <CaseOutput
+      sql={schema}
+      result={{
+        index: 0,
+        status: "wrong_answer",
+        sqlTypes: ["text"],
+        actual: { columns: ["total"], rows: [["1"]] },
+        expected: { columns: ["total"], rows: [[1]] },
+      }}
+    />,
+  );
+  expect(html).toContain("<small>text</small>");
+  expect(html).toContain("<small>bigint</small>");
+  const unknown = renderToStaticMarkup(
+    <CaseOutput
+      sql={schema}
+      result={{ index: 0, status: "wrong_answer", actual: { columns: ["total"], rows: [] } }}
+    />,
+  );
+  expect(unknown).not.toContain("<small>bigint</small>");
+});
