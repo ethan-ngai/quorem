@@ -1,6 +1,9 @@
 packages:
   - apps/*
   - packages/*
+patchedDependencies:
+  # Bound ZIP record copies in the bundled typeshed filesystem; see intelligence-model.md.
+  monaco-pyright-lsp@0.1.7: patches/monaco-pyright-lsp@0.1.7.patch
 overrides:
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vitest: 5.0.3
