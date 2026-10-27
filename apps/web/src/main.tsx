@@ -9,9 +9,13 @@ import { NotFoundPage } from "./features/public/NotFoundPage";
 import { PageLayout } from "./features/navigation/PageLayout";
 import { createRoot, type Root } from "react-dom/client";
 import { LoginPage } from "./features/auth/LoginPage";
+import { sessionQueryOptions, type Session } from "./features/auth/session";
+import { primeProfile } from "./features/auth/profile";
+import type { DevelopmentIdentity } from "@quorem/contracts";
 import { InvitePage } from "./features/matches/InvitePage";
 import { practiceSearch } from "./features/navigation/matchCreationIntent";
 import { catalogSearch } from "./features/practice/catalogSearch";
+import { problemQueryOptions } from "./features/practice/problemQueries";
 import { loadWorkspacePage } from "./features/editor/preloadWorkspace";
 import { PracticeBrowser } from "./features/practice/PracticeBrowser";
 import "@fontsource-variable/geist";
@@ -23,31 +27,31 @@ import "./features/matches/competitive.css";
 
 initializeTheme();
 
-const QuestionEditor = lazy(() =>
-  import("./features/admin/QuestionEditor").then((module) => ({ default: module.QuestionEditor })),
-);
+const loadQuestionEditor = () =>
+  import("./features/admin/QuestionEditor").then((module) => ({ default: module.QuestionEditor }));
+const QuestionEditor = lazy(loadQuestionEditor);
 
 const WorkspacePage = lazy(loadWorkspacePage);
-const LegalPage = lazy(() =>
-  import("./features/public/LegalPage").then((module) => ({ default: module.LegalPage })),
-);
-const MatchPage = lazy(() =>
-  import("./features/matches/MatchPage").then((module) => ({ default: module.MatchPage })),
-);
+const loadLegalPage = () =>
+  import("./features/public/LegalPage").then((module) => ({ default: module.LegalPage }));
+const LegalPage = lazy(loadLegalPage);
+const loadMatchPage = () =>
+  import("./features/matches/MatchPage").then((module) => ({ default: module.MatchPage }));
+const MatchPage = lazy(loadMatchPage);
 
-const InterviewHub = lazy(() =>
-  import("./features/interviews/InterviewHub").then((module) => ({ default: module.InterviewHub })),
-);
-const InterviewPage = lazy(() =>
+const loadInterviewHub = () =>
+  import("./features/interviews/InterviewHub").then((module) => ({ default: module.InterviewHub }));
+const InterviewHub = lazy(loadInterviewHub);
+const loadInterviewPage = () =>
   import("./features/interviews/InterviewPage").then((module) => ({
     default: module.InterviewPage,
-  })),
-);
-const InterviewInvite = lazy(() =>
+  }));
+const InterviewPage = lazy(loadInterviewPage);
+const loadInterviewInvite = () =>
   import("./features/interviews/InterviewInvite").then((module) => ({
     default: module.InterviewInvite,
-  })),
-);
+  }));
+const InterviewInvite = lazy(loadInterviewInvite);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,11 +59,14 @@ const queryClient = new QueryClient({
     mutations: { retry: 0 },
   },
 });
+void queryClient.prefetchQuery(sessionQueryOptions());
+primeProfile();
 
 const rootRoute = createRootRoute({ component: PageLayout, notFoundComponent: NotFoundPage });
 const privacyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/privacy",
+  loader: () => loadLegalPage().then(() => undefined),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening privacy policy…" />}>
       <LegalPage key="privacy" document="privacy" />
@@ -69,6 +76,7 @@ const privacyRoute = createRoute({
 const termsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/terms",
+  loader: () => loadLegalPage().then(() => undefined),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening terms of service…" />}>
       <LegalPage key="terms" document="terms" />
@@ -93,6 +101,17 @@ const practiceRoute = createRoute({
 const problemRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/practice/$slug",
+  loader: ({ params }) => {
+    // Public detail reads can overlap chunk and session loading; private reads still require identity.
+    const session = queryClient.getQueryData<Session | null>(["auth-session"]);
+    const actor = session?.user.id as DevelopmentIdentity | undefined;
+    if (
+      !actor ||
+      !queryClient.getQueryData(problemQueryOptions(queryClient, actor, params.slug).queryKey)
+    )
+      void queryClient.prefetchQuery(problemQueryOptions(queryClient, "anonymous", params.slug));
+    return loadWorkspacePage().then(() => undefined);
+  },
   component: function ProblemRoute() {
     const { slug } = problemRoute.useParams();
     return (
@@ -105,6 +124,7 @@ const problemRoute = createRoute({
 const matchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/match/$id",
+  loader: () => loadMatchPage().then(() => undefined),
   component: function MatchRoute() {
     const { id } = matchRoute.useParams();
     return (
@@ -130,6 +150,7 @@ const loginRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/questions",
+  loader: () => loadQuestionEditor().then(() => undefined),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening question editor…" />}>
       <QuestionEditor />
@@ -139,6 +160,7 @@ const adminRoute = createRoute({
 const interviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/interviews",
+  loader: () => loadInterviewHub().then(() => undefined),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening interviews…" />}>
       <InterviewHub />
@@ -148,6 +170,7 @@ const interviewsRoute = createRoute({
 const interviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/interview/$id",
+  loader: () => loadInterviewPage().then(() => undefined),
   component: function InterviewRoute() {
     const { id } = interviewRoute.useParams();
     return (
@@ -160,6 +183,7 @@ const interviewRoute = createRoute({
 const interviewInviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/interview-invite/$token",
+  loader: () => loadInterviewInvite().then(() => undefined),
   component: function InterviewInviteRoute() {
     const { token } = interviewInviteRoute.useParams();
     return (

@@ -1,6 +1,7 @@
 import { AuthError, passkeyError, registrationError } from "./errors";
 import { resetToken, signInDestination } from "./session";
 import { signInReferral } from "./signInReferral";
+import { invalidateAvatarHints } from "./avatarCache";
 export const socialProviderLabels = { google: "Google", github: "GitHub" } as const;
 export type SocialProvider = keyof typeof socialProviderLabels;
 export const socialProviders = Object.keys(socialProviderLabels) as SocialProvider[];
@@ -65,6 +66,7 @@ export async function signInWithPasskey(search?: string) {
   const result = await passkeyRequest(async () => (await authClient()).signIn.passkey());
   if (result.error) throw passkeyError(result.error);
   resetToken();
+  invalidateAvatarHints();
   location.assign(signInDestination(search));
 }
 export async function addPasskey(name = "My passkey") {
@@ -98,6 +100,7 @@ export async function signInWithProvider(provider: SocialProvider, search?: stri
   const data = await response.json();
   if (!data.url || new URL(data.url).protocol !== "https:")
     throw new AuthError("Sign in unavailable");
+  invalidateAvatarHints();
   location.assign(data.url);
 }
 
