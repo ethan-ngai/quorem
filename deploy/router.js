@@ -5,11 +5,20 @@ import {
   HTTP_LEASE_MS,
   SOCKET_LEASE_MS,
   RENEW_MS,
+  APP_REVISION_PATH,
+  POOL_REVISION_PATH,
   chooseInstance,
   isSocketRequest,
   integer,
   limits,
 } from "./policy.js";
+
+function revisionResponse(env) {
+  return new Response(null, {
+    status: 204,
+    headers: { "x-quorem-revision": env.APP_RUNTIME_REVISION },
+  });
+}
 
 function trackedBody(response, finish, ctx) {
   if (!response.body) {
@@ -94,6 +103,7 @@ export class AppPool extends DurableObject {
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname === POOL_REVISION_PATH) return revisionResponse(this.env);
     if (url.pathname === "/__leases") {
       const { renew = [], release = [] } = await request.json();
       for (const id of release) await this.release(id);
@@ -147,9 +157,24 @@ export class AppPool extends DurableObject {
     forwarded.headers.set("x-quorem-slot", String(slot));
     try {
       const name = `app-${pool}-${slot}`;
-      let response = await this.env.APPS.getByName(name, {
+      const app = this.env.APPS.getByName(name, {
         locationHint: this.env.APP_LOCATION_HINT || "enam",
-      }).fetch(forwarded);
+      });
+      // Old app objects reject headerless probes before starting a stale container.
+      const check = await app.fetch(new Request("https://app" + APP_REVISION_PATH));
+      const current =
+        check.status === 204 &&
+        check.headers.get("x-quorem-revision") === this.env.APP_RUNTIME_REVISION;
+      await check.body?.cancel();
+      if (!current) {
+        await this.forgetWarm(slot);
+        await this.release(id);
+        return new Response("Application updating", {
+          status: 503,
+          headers: { "X-Quorem-Capacity": "full", "Retry-After": "1" },
+        });
+      }
+      let response = await app.fetch(forwarded);
       if (response.status === 503) await this.forgetWarm(slot);
       else await this.rememberWarm(slot);
       if (response.status === 101 && response.webSocket) return response;
@@ -223,6 +248,7 @@ export class Quorem extends DurableObject {
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname === APP_REVISION_PATH) return revisionResponse(this.env);
     const pool = request.headers.get("x-quorem-pool");
     const lease = request.headers.get("x-quorem-lease");
     const slot = Number(request.headers.get("x-quorem-slot"));
