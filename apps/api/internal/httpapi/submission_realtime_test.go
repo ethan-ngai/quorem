@@ -134,7 +134,9 @@ func TestSubmissionStreamCrossReplica(t *testing.T) {
 			t.Fatal(e)
 		}
 		api := &Server{Store: store, Local: true, Events: bus}
-		api.StartRealtime(ctx)
+		if err := api.StartRealtime(ctx); err != nil {
+			t.Fatal(err)
+		}
 		if i == 1 {
 			server := httptest.NewServer(api.Handler())
 			defer server.Close()
