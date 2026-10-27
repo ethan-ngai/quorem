@@ -125,7 +125,7 @@ func (*unavailableCancelRepository) ExecutionCancellations(context.Context) (<-c
 func TestExecutionNeverStartsWithoutCancellationListener(t *testing.T) {
 	repo := &unavailableCancelRepository{memoryRepository: &memoryRepository{job: execution.Job{JobID: "job", SubmissionID: "submission", AttemptID: "attempt"}, leaseAlive: true}}
 	engine := &fakeEngine{}
-	New(repo).poll(context.Background(), engine)
+	New(repo).claim(context.Background(), engine)
 	if engine.ran != 0 || repo.completion.EngineFailure == "" {
 		t.Fatalf("unwatched execution: %+v %+v", engine, repo.completion)
 	}
@@ -134,7 +134,7 @@ func TestExecutionNeverStartsWithoutCancellationListener(t *testing.T) {
 func TestExecutionChecksAttemptBeforeStarting(t *testing.T) {
 	repo := &memoryRepository{job: execution.Job{JobID: "job", SubmissionID: "submission", AttemptID: "stale"}, leaseAlive: false}
 	engine := &fakeEngine{}
-	New(repo).poll(context.Background(), engine)
+	New(repo).claim(context.Background(), engine)
 	if engine.ran != 0 {
 		t.Fatal("stale or cancelled attempt was executed")
 	}
