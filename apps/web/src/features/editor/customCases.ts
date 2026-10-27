@@ -3,6 +3,7 @@ import type { Constraint, CustomCase, ProblemVersion, Signature } from "@quorem/
 
 import { bindArguments } from "./argumentBinding";
 import { validateConstraints } from "./constraintValidation";
+import { MAX_CUSTOM_CASE_BYTES } from "./inputLimits";
 
 import { resolveInputPreset, type InputConfig } from "./inputPresets";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
@@ -95,8 +96,8 @@ export function parseCustomDrafts(
       throw new Error(`Case ${index + 1}: ${(error as Error).message}`);
     }
   });
-  if (new TextEncoder().encode(JSON.stringify(cases)).length > 65_536)
-    throw new Error("Custom cases exceed 64 KiB.");
+  if (new TextEncoder().encode(JSON.stringify(cases)).length > MAX_CUSTOM_CASE_BYTES)
+    throw new Error("Custom cases exceed 2 MiB.");
   return cases;
 }
 
@@ -105,6 +106,8 @@ export function parseCustomCases(
   signature: Signature,
   constraints: Constraint[] = [],
 ): CustomCase[] {
+  if (new TextEncoder().encode(source).length > MAX_CUSTOM_CASE_BYTES)
+    throw new Error("Custom cases exceed 2 MiB.");
   const parsed: unknown = JSON.parse(source);
   if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > 20)
     throw new Error("Enter between 1 and 20 cases as a JSON array.");

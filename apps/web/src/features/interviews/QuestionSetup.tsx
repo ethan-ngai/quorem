@@ -17,7 +17,6 @@ import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
 import { TestCases } from "../editor/components/TestCases";
 import { blankQuestion } from "../admin/content";
 import { SignatureFields } from "../admin/SignatureFields";
-import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
 import { StageAuthoring } from "../odyssey/StageAuthoring";
 import { firstStage, parseStages, type StageDraft } from "../odyssey/stageDrafts";
@@ -78,9 +77,6 @@ export function QuestionSetup({
   const [search, setSearch] = useState("");
   const [customTitle, setCustomTitle] = useState("");
   const [statement, setStatement] = useState("");
-  const [starter, setStarter] = useState(
-    "class Solution:\n    def solve(self, value: int) -> int:\n        pass\n",
-  );
   const [signature, setSignature] = useState<Signature>(initialSignature);
   const [publicCases, setPublicCases] = useState<CustomCaseDraft[]>(() => [
     newCase(initialSignature),
@@ -92,22 +88,8 @@ export function QuestionSetup({
   const stagedInitialized = useRef(false);
   const [invalidTypes, setInvalidTypes] = useState<Record<string, boolean>>({});
   const [invalidSingleTypes, setInvalidSingleTypes] = useState<Record<string, boolean>>({});
-  const firstMethods = stages[0]?.methods.map((method) => method.signature) ?? [];
-  const starterIsDefault =
-    starter === "class Solution:\n    def solve(self, value: int) -> int:\n        pass\n" ||
-    starter === initialOdysseySource(firstMethods, language);
-  function changeStages(next: StageDraft[]) {
-    if (starterIsDefault)
-      setStarter(
-        initialOdysseySource(next[0]?.methods.map((method) => method.signature) ?? [], language),
-      );
-    setStages(next);
-  }
   function chooseMode(next: string) {
-    if (next === "staged" && starterIsDefault)
-      setStarter(
-        initialOdysseySource(stagedInitialized.current ? firstMethods : [signature], language),
-      );
+    if (next !== "catalog" && language === "postgresql") setLanguage("python");
     if (next === "staged" && !stagedInitialized.current) {
       setStages([
         firstStage(signature, "", publicCases, privateCases.length ? privateCases : undefined),
@@ -162,9 +144,9 @@ export function QuestionSetup({
       if (mode === "staged") {
         if (Object.values(invalidTypes).some(Boolean))
           throw new Error("Fix the highlighted method types before creating the question.");
-        if (!customTitle.trim() || !starter.trim()) {
+        if (!customTitle.trim()) {
           setAuthorSection("question");
-          throw new Error("Add a question title and starter code.");
+          throw new Error("Add a question title.");
         }
         const staged = parseStages(stages);
         submitQuestion(
@@ -173,7 +155,7 @@ export function QuestionSetup({
             custom: {
               title: customTitle,
               statementMarkdown: statement,
-              starterSource: starter,
+              starterSource: "",
               signature: stages[0]!.methods[0]!.signature,
               publicCases: staged.odyssey.levels[0]!.examples,
               privateCases: [],
@@ -192,9 +174,9 @@ export function QuestionSetup({
         setError("Add at least one shared test.");
         return;
       }
-      if (!customTitle.trim() || !starter.trim()) {
+      if (!customTitle.trim()) {
         setAuthorSection("question");
-        setError("Add a question title and starter code.");
+        setError("Add a question title.");
         return;
       }
       submitQuestion(
@@ -203,7 +185,7 @@ export function QuestionSetup({
           custom: {
             title: customTitle,
             statementMarkdown: statement,
-            starterSource: starter,
+            starterSource: "",
             signature,
             publicCases: parseCustomDrafts(publicCases, signature),
             privateCases: privateCases.length ? parseCustomDrafts(privateCases, signature) : [],
@@ -253,16 +235,14 @@ export function QuestionSetup({
             <SelectField
               label="Interview language"
               value={language}
-              onChange={(value) => {
-                if (mode === "staged" && starterIsDefault)
-                  setStarter(initialOdysseySource(firstMethods, value as EditorLanguage));
-                setLanguage(value as EditorLanguage);
-              }}
-              options={Object.entries(languageLabels).map(([value, text]) => ({
-                value,
-                label: text,
-                leading: <LanguageLogo language={value as EditorLanguage} />,
-              }))}
+              onChange={(value) => setLanguage(value as EditorLanguage)}
+              options={Object.entries(languageLabels)
+                .filter(([value]) => mode === "catalog" || value !== "postgresql")
+                .map(([value, text]) => ({
+                  value,
+                  label: text,
+                  leading: <LanguageLogo language={value as EditorLanguage} />,
+                }))}
             />
           </label>
         </div>
@@ -319,12 +299,10 @@ export function QuestionSetup({
             <QuestionBasics
               title={customTitle}
               statement={statement}
-              starter={starter}
               staged={mode === "staged"}
               required
               onTitleChange={setCustomTitle}
               onStatementChange={setStatement}
-              onStarterChange={setStarter}
             />
           </fieldset>
           <fieldset
@@ -337,7 +315,7 @@ export function QuestionSetup({
           >
             <StageAuthoring
               value={stages}
-              onChange={changeStages}
+              onChange={setStages}
               onValidityChange={(id, invalid) =>
                 setInvalidTypes((current) =>
                   current[id] === invalid ? current : { ...current, [id]: invalid },

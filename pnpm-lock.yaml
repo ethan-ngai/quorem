@@ -401,9 +401,15 @@ importers:
       mdast-util-from-markdown:
         specifier: ^2.1.0
         version: 2.1.0(supports-color@10.2.2)
+      mdast-util-gfm:
+        specifier: ^3.1.0
+        version: 3.1.0(supports-color@10.2.2)
       mdast-util-math:
         specifier: ^3.0.0
         version: 3.0.0(supports-color@10.2.2)
+      micromark-extension-gfm:
+        specifier: ^3.0.0
+        version: 3.0.0
       micromark-extension-math:
         specifier: ^3.1.0
         version: 3.1.0

@@ -51,7 +51,7 @@ export function WorkspaceTests({
     !!submission.hiddenCases?.length;
   const tabs: ("samples" | "custom" | "hidden")[] = hiddenAvailable
     ? ["samples", "hidden"]
-    : onDraftsChange && !odyssey
+    : onDraftsChange && !odyssey && !problem.sql
       ? ["samples", "custom"]
       : ["samples"];
   const [collection, setCollection] = useState<"samples" | "hidden">("samples");

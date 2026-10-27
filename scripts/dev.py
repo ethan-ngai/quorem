@@ -80,7 +80,7 @@ try:
     for command in [
         ["docker", "compose", *(["--profile", "storage"] if local_storage else []), *(["--profile", "mailer"] if local_mail else []), "up", "-d", "--wait"],
         ["docker", "build", "-f", "apps/runner/Dockerfile", "-t", "quorem-python:local", "."],
-        *[["docker", "build", "-f", f"apps/runner/Dockerfile.{language}", "-t", f"quorem-{language}:local", "."] for language in ("java", "typescript", "ocaml")],
+        *[["docker", "build", "-f", f"apps/runner/Dockerfile.{language}", "-t", f"quorem-{language}:local", "."] for language in ("java", "typescript", "ocaml", "postgres")],
         *language_builds,
         ["go", "build", "-o", ".local/bin/api", "./apps/api/cmd/api"],
         ["go", "build", "-o", ".local/bin/runner", "./apps/runner/cmd/runner"],

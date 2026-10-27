@@ -111,6 +111,13 @@ func languageType(kind, language string) (string, error) {
 }
 
 func Starter(signature Signature, language string) (string, error) {
+	if language == "python" {
+		args := []string{"self"}
+		for _, p := range signature.Parameters {
+			args = append(args, p.Name)
+		}
+		return "class " + signature.ClassName + ":\n    def " + signature.MethodName + "(" + strings.Join(args, ", ") + "):\n" + methodDocumentation(signature, language, "        ") + "        raise NotImplementedError\n", nil
+	}
 	nodeNote := ""
 	for _, p := range append(signature.Parameters, Parameter{Type: signature.ReturnType}) {
 		if strings.Contains(p.Type, "Node") {
@@ -144,11 +151,11 @@ func Starter(signature Signature, language string) (string, error) {
 	}
 	switch language {
 	case "java":
-		return nodeNote + "class " + signature.ClassName + " {\n    public " + result + " " + signature.MethodName + "(" + strings.Join(params, ", ") + ") {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n", nil
+		return nodeNote + "class " + signature.ClassName + " {\n" + methodDocumentation(signature, language, "    ") + "    public " + result + " " + signature.MethodName + "(" + strings.Join(params, ", ") + ") {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n", nil
 	case "typescript":
-		return nodeNote + "class " + signature.ClassName + " {\n    " + signature.MethodName + "(" + strings.Join(params, ", ") + "): " + result + " {\n        throw new Error(\"Implement solution\");\n    }\n}\n", nil
+		return nodeNote + "class " + signature.ClassName + " {\n" + methodDocumentation(signature, language, "    ") + "    " + signature.MethodName + "(" + strings.Join(params, ", ") + "): " + result + " {\n        throw new Error(\"Implement solution\");\n    }\n}\n", nil
 	case "ocaml":
-		return nodeNote + "let " + signature.MethodName + " " + strings.Join(params, " ") + " : " + result + " =\n    failwith \"Implement solution\"\n", nil
+		return nodeNote + methodDocumentation(signature, language, "") + "let " + signature.MethodName + " " + strings.Join(params, " ") + " : " + result + " =\n    failwith \"Implement solution\"\n", nil
 	}
 	return "", fmt.Errorf("unsupported language %s", language)
 }

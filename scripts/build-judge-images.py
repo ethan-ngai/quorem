@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
 
-languages = ("python", "java", "typescript", "ocaml")
+languages = ("python", "java", "typescript", "ocaml", "postgres")
 Path("deploy/images").mkdir(parents=True, exist_ok=True)
 Path(".local/deploy").mkdir(parents=True, exist_ok=True)
 

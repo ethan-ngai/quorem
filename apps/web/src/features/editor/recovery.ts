@@ -210,7 +210,7 @@ export async function importBrowserDrafts(contents: string, identity: Developmen
       item.source.length > 65536 ||
       (item.kind !== "solo" && item.kind !== "match") ||
       (item.language !== undefined &&
-        !["python", "java", "typescript", "ocaml"].includes(item.language))
+        !["python", "java", "typescript", "ocaml", "postgresql"].includes(item.language))
     )
       throw new Error("Invalid draft export entry.");
     const scope = browserDraftScope({

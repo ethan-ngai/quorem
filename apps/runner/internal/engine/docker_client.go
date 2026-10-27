@@ -81,7 +81,11 @@ func (d *dockerEngine) request(ctx context.Context, method, path string, input a
 	return d.http.Do(req)
 }
 
-func (d *dockerEngine) create(ctx context.Context, name, image string, limits execution.Limits) error {
+func (d *dockerEngine) create(ctx context.Context, name, image string, limits execution.Limits, sqlSandbox bool) error {
+	tmpfsSize := "16777216"
+	if sqlSandbox {
+		tmpfsSize = "134217728"
+	}
 	config := map[string]any{
 		"Image": image, "User": "65534:65534", "OpenStdin": true, "StdinOnce": true,
 		"AttachStdin": true, "AttachStdout": true, "AttachStderr": true,
@@ -89,7 +93,7 @@ func (d *dockerEngine) create(ctx context.Context, name, image string, limits ex
 			"NetworkMode": "none", "ReadonlyRootfs": true, "CapDrop": []string{"ALL"},
 			"SecurityOpt": []string{"no-new-privileges"}, "Memory": limits.MemoryBytes,
 			"MemorySwap": limits.MemoryBytes, "PidsLimit": limits.MaxProcesses, "NanoCpus": int64(1_000_000_000),
-			"Tmpfs": map[string]string{"/tmp": "rw,noexec,nosuid,size=16777216"},
+			"Tmpfs": map[string]string{"/tmp": "rw,noexec,nosuid,size=" + tmpfsSize},
 		},
 	}
 	response, err := d.request(ctx, "POST", "/containers/create?name="+url.QueryEscape(name), config)
@@ -117,8 +121,8 @@ func (d *dockerEngine) remove(ctx context.Context, name string) error {
 	return nil
 }
 
-func (d *dockerEngine) run(ctx context.Context, name, image string, limits execution.Limits, input []byte, stdout, stderr io.Writer) (int, error) {
-	if err := d.create(ctx, name, image, limits); err != nil {
+func (d *dockerEngine) run(ctx context.Context, name, image string, limits execution.Limits, input []byte, stdout, stderr io.Writer, sqlSandbox ...bool) (int, error) {
+	if err := d.create(ctx, name, image, limits, len(sqlSandbox) > 0 && sqlSandbox[0]); err != nil {
 		return 0, err
 	}
 	conn, err := d.dial(ctx)

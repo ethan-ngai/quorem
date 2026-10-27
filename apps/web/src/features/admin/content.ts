@@ -5,6 +5,7 @@ export const revisions = {
   java: ["java-21.0.9-v1", "quorem-java-v1"],
   typescript: ["typescript-5.9.3-node-22.21.1-v1", "quorem-typescript-v1"],
   ocaml: ["ocaml-4.13.1-v1", "quorem-ocaml-v1"],
+  postgresql: ["postgresql-17.6-v1", "quorem-postgresql-v1"],
 } as const;
 export type Language = keyof typeof revisions;
 export const languageLabels = {
@@ -12,6 +13,7 @@ export const languageLabels = {
   java: "Java",
   typescript: "TypeScript",
   ocaml: "OCaml",
+  postgresql: "PostgreSQL",
 };
 
 /** @returns An incomplete draft; publication performs authoritative validation. */

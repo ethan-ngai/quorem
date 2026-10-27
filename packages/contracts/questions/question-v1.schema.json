@@ -74,6 +74,18 @@
         "difficulty": {
           "$ref": "#/$defs/Difficulty"
         },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "leetcodeId": {
+          "type": "integer",
+          "minimum": 1,
+          "nullable": true
+        },
         "tags": {
           "type": "array",
           "items": {
@@ -112,6 +124,21 @@
           "items": {
             "$ref": "#/$defs/LanguageImplementation"
           }
+        },
+        "sql": {
+          "type": "object",
+          "properties": {
+            "dialect": {
+              "type": "string",
+              "enum": ["postgresql"]
+            },
+            "outputOrder": {
+              "type": "string",
+              "enum": ["ordered", "unordered"]
+            }
+          },
+          "required": ["dialect", "outputOrder"],
+          "additionalProperties": false
         },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
@@ -189,6 +216,12 @@
         {
           "type": "array",
           "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
             "$ref": "#/$defs/WireValue"
           }
         }
@@ -353,6 +386,28 @@
           "type": "string",
           "enum": ["ordered", "unordered"],
           "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
+        },
+        "description": {
+          "type": "string"
+        },
+        "returns": {
+          "type": "string"
+        },
+        "throws": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "description"],
+            "additionalProperties": false
+          }
         }
       },
       "required": ["className", "methodName", "parameters", "returnType"],
@@ -369,6 +424,9 @@
         },
         "input": {
           "$ref": "#/$defs/InputPresetConfig"
+        },
+        "description": {
+          "type": "string"
         }
       },
       "required": ["name", "type"],
@@ -440,7 +498,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "starterSource": {
           "type": "string"
@@ -482,7 +540,7 @@
           "items": {
             "$ref": "#/$defs/Signature"
           },
-          "minItems": 1,
+          "minItems": 0,
           "maxItems": 16
         },
         "examples": {
@@ -525,7 +583,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "starterSource": {
           "type": "string"
@@ -563,7 +621,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "source": {
           "type": "string"

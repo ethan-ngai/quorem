@@ -3,7 +3,9 @@
  * Do not make direct changes to the file.
  */
 
-export type WireValue = null | number | boolean | string | WireValue[];
+export type WireValue = null | number | boolean | string | WireValue[] | {
+    [key: string]: WireValue;
+};
 export interface paths {
     "/v1/problems/{slug}": {
         parameters: {
@@ -858,7 +860,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /** @enum {string} */
-        Language: "python" | "java" | "typescript" | "ocaml";
+        Language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
         /** @enum {string} */
         Difficulty: "easy" | "medium" | "hard";
         /** @enum {string} */
@@ -889,6 +891,7 @@ export interface components {
             name: string;
             type: string;
             input?: components["schemas"]["InputPresetConfig"];
+            description?: string;
         };
         Signature: {
             /** @enum {string} */
@@ -901,6 +904,12 @@ export interface components {
              * @enum {string}
              */
             outputOrder?: "ordered" | "unordered";
+            description?: string;
+            returns?: string;
+            throws?: {
+                type: string;
+                description: string;
+            }[];
         };
         ExecutionLimits: {
             wallTimeMs: number;
@@ -928,6 +937,8 @@ export interface components {
             version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
+            companies?: string[];
+            leetcodeId?: number | null;
             tags: string[];
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
@@ -937,7 +948,14 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages?: components["schemas"]["LanguageImplementation"][];
+            sql?: {
+                /** @enum {string} */
+                dialect: "postgresql";
+                /** @enum {string} */
+                outputOrder: "ordered" | "unordered";
+            };
             odyssey?: components["schemas"]["Odyssey"];
+            solutionLanguages?: components["schemas"]["Language"][];
             /** @description Languages with published complexity; contains no costs or solution source. */
             complexityLanguages?: components["schemas"]["Language"][];
         };
@@ -1215,14 +1233,14 @@ export interface components {
         };
         LanguageImplementation: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             starterSource: string;
             runtimeRevision: string;
             harnessRevision: string;
         };
         EditorialSolution: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             source: string;
             explanationMarkdown: string;
             timeComplexity: string;
@@ -1231,14 +1249,14 @@ export interface components {
         };
         EditorialComplexity: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             timeComplexity: string;
             spaceComplexity: string;
             complexityNotes: string;
         };
         AuthoringImplementation: {
             /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml";
+            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             starterSource: string;
             runtimeRevision: string;
             harnessRevision: string;
@@ -1250,6 +1268,8 @@ export interface components {
             version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
+            companies?: string[];
+            leetcodeId?: number | null;
             tags: string[];
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
@@ -1259,6 +1279,12 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages: components["schemas"]["LanguageImplementation"][];
+            sql?: {
+                /** @enum {string} */
+                dialect: "postgresql";
+                /** @enum {string} */
+                outputOrder: "ordered" | "unordered";
+            };
             odyssey?: components["schemas"]["Odyssey"];
         };
         QuestionContent: {
@@ -2096,6 +2122,7 @@ export interface operations {
                 difficulty?: string;
                 /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 topic?: string;
+                company?: string;
                 sort?: "title" | "difficulty";
                 order?: "asc" | "desc";
                 page?: number;
@@ -2120,6 +2147,7 @@ export interface operations {
                         total: number;
                         page: number;
                         limit: number;
+                        companies: string[];
                         topics: string[];
                     };
                 };

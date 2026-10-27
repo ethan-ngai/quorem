@@ -52,6 +52,20 @@ describe("typed stage authoring", () => {
     ]);
     expect(parsed.odysseyHiddenCases[1]![0]!.calls![0]!.expected).toBeNull();
   });
+  it("preserves method and parameter documentation through editing and serialization", () => {
+    const first = initial();
+    const documented = {
+      ...deposit,
+      description: "Add funds.",
+      parameters: [{ name: "amount", type: "int", description: "Amount to add." }],
+      returns: "The updated balance.",
+      throws: [{ type: "ValueError", description: "Invalid amount." }],
+    };
+    const edited = updateMethod([first], first.methods[0]!.id, documented);
+    expect(JSON.parse(JSON.stringify(parseStages(edited))).odyssey.levels[0].methods[0]).toEqual(
+      documented,
+    );
+  });
   it("rejects a later-stage call in an earlier stage", () => {
     const first = initial();
     const future = methodDraft({ ...deposit, methodName: "withdraw" });

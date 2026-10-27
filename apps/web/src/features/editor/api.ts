@@ -22,7 +22,7 @@ export async function fetchProblem(identity: DevelopmentIdentity, slug: string) 
 export async function createWorkspace(
   identity: DevelopmentIdentity,
   problemVersionId: string,
-  language: "python" | "java" | "typescript" | "ocaml" = "python",
+  language: "python" | "java" | "typescript" | "ocaml" | "postgresql" = "python",
 ) {
   const { data, error } = await api(identity).POST("/v1/workspaces", {
     body: { problemVersionId, language },
@@ -86,7 +86,7 @@ export async function fetchProblemVersion(identity: DevelopmentIdentity, id: str
 export async function switchMatchLanguage(
   identity: DevelopmentIdentity,
   matchId: string,
-  language: "python" | "java" | "typescript" | "ocaml",
+  language: "python" | "java" | "typescript" | "ocaml" | "postgresql",
 ) {
   const { data, error } = await api(identity).POST("/v1/matches/{id}/workspace-language", {
     params: { path: { id: matchId }, header: { "Idempotency-Key": randomUUID() } },

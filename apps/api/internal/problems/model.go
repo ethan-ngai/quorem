@@ -9,16 +9,24 @@ import (
 )
 
 type Parameter struct {
-	Name  string       `json:"name"`
-	Type  string       `json:"type"`
-	Input *InputConfig `json:"input,omitempty"`
+	Description string       `json:"description,omitempty"`
+	Name        string       `json:"name"`
+	Type        string       `json:"type"`
+	Input       *InputConfig `json:"input,omitempty"`
+}
+type MethodException struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
 }
 type Signature struct {
-	OutputOrder string      `json:"outputOrder,omitempty"`
-	ClassName   string      `json:"className"`
-	MethodName  string      `json:"methodName"`
-	Parameters  []Parameter `json:"parameters"`
-	ReturnType  string      `json:"returnType"`
+	Description string            `json:"description,omitempty"`
+	Returns     string            `json:"returns,omitempty"`
+	Throws      []MethodException `json:"throws,omitempty"`
+	OutputOrder string            `json:"outputOrder,omitempty"`
+	ClassName   string            `json:"className"`
+	MethodName  string            `json:"methodName"`
+	Parameters  []Parameter       `json:"parameters"`
+	ReturnType  string            `json:"returnType"`
 }
 type MethodCall struct {
 	MethodName string            `json:"methodName"`
@@ -77,7 +85,9 @@ type OdysseyProgress struct {
 	Levels       []OdysseyLevel               `json:"levels"`
 }
 type Problem struct {
+	SQL                 *SQLConfig               `json:"sql,omitempty"`
 	ComplexityLanguages []string                 `json:"complexityLanguages,omitempty"`
+	SolutionLanguages   []string                 `json:"solutionLanguages,omitempty"`
 	Odyssey             *Odyssey                 `json:"odyssey,omitempty"`
 	Languages           []LanguageImplementation `json:"languages"`
 	ID                  string                   `json:"id"`
@@ -86,6 +96,8 @@ type Problem struct {
 	Title               string                   `json:"title"`
 	Difficulty          string                   `json:"difficulty"`
 	Tags                []string                 `json:"tags"`
+	Companies           []string                 `json:"companies"`
+	LeetcodeID          *int                     `json:"leetcodeId,omitempty"`
 	StatementMarkdown   string                   `json:"statementMarkdown"`
 	Examples            []ProblemExample         `json:"examples"`
 	Constraints         []Constraint             `json:"constraints"`

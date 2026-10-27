@@ -10,6 +10,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type QuestionDraft = problems.QuestionDraft
@@ -199,10 +200,22 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	if d.Revision != revision || d.PublishedVersionID != "" {
 		return d, failure("revision_conflict", 409, "Draft changed or already published; reload it")
 	}
-	if err = problems.ValidateQuestionPublication(d.Content); err != nil {
+	// Snapshot generated scaffolds with the immutable version; existing workspaces keep their drafts.
+	c := d.Content
+	methods := []problems.Signature{c.Problem.Signature}
+	if c.Problem.Odyssey != nil && len(c.Problem.Odyssey.Levels) > 0 {
+		methods = c.Problem.Odyssey.Levels[0].Methods
+	}
+	for i := range c.Implementations {
+		starter, e := problems.GenerateStarter(methods, c.Implementations[i].Language, c.Problem.Odyssey != nil)
+		if e != nil {
+			return d, failure("invalid_input", 400, e.Error())
+		}
+		c.Implementations[i].StarterSource = starter
+	}
+	if err = problems.ValidateQuestionPublication(c); err != nil {
 		return d, failure("invalid_input", 400, err.Error())
 	}
-	c := d.Content
 	var privateOwner *string
 	if err = tx.QueryRow(ctx, "SELECT owner_id FROM question_drafts WHERE id=$1", id).Scan(&privateOwner); err != nil {
 		return d, err
@@ -262,16 +275,16 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	p.ID = ID()
 	p.Version = strconv.Itoa(version)
 	p.Languages = []problems.LanguageImplementation{}
-	var python problems.AuthoringImplementation
+	var primary problems.AuthoringImplementation
 	for _, v := range c.Implementations {
 		p.Languages = append(p.Languages, v.LanguageImplementation)
-		if v.Language == "python" {
-			python = v
+		if v.Language == "python" && p.SQL == nil || v.Language == "postgresql" && p.SQL != nil {
+			primary = v
 		}
 	}
-	p.StarterSource = python.StarterSource
-	p.RuntimeRevision = python.RuntimeRevision
-	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: python.HarnessRevision, Comparator: c.Comparator, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: python.ReferenceSource}
+	p.StarterSource = primary.StarterSource
+	p.RuntimeRevision = primary.RuntimeRevision
+	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Comparator: c.Comparator, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
 	public, err := json.Marshal(p)
 	if err != nil {
 		return d, err
@@ -283,8 +296,34 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	if _, err = tx.Exec(ctx, "INSERT INTO problem_versions(id,slug,version,public,fixture) VALUES($1,$2,$3,$4,$5)", p.ID, p.Slug, version, public, private); err != nil {
 		return d, err
 	}
+	// Catalog metadata belongs to the stable problem, not its immutable version.
+	if privateOwner != nil && p.LeetcodeID != nil {
+		return d, failure("invalid_input", 400, "LeetCode IDs are reserved for global questions")
+	}
+	if privateOwner == nil {
+		if _, err = tx.Exec(ctx, "UPDATE problems SET leetcode_id=$1 WHERE slug=$2", p.LeetcodeID, p.Slug); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return d, failure("invalid_input", 400, "LeetCode ID is already in use")
+			}
+			return d, err
+		}
+	}
+	if p.Companies != nil {
+		if _, err = tx.Exec(ctx, "DELETE FROM problem_companies WHERE problem_id=(SELECT id FROM problems WHERE slug=$1)", p.Slug); err != nil {
+			return d, err
+		}
+		for _, company := range p.Companies {
+			if _, err = tx.Exec(ctx, `INSERT INTO companies(name) VALUES($1) ON CONFLICT (lower(name)) DO NOTHING`, company); err != nil {
+				return d, err
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO problem_companies(problem_id,company_id) SELECT p.id,c.id FROM problems p JOIN companies c ON lower(c.name)=lower($2) WHERE p.slug=$1`, p.Slug, company); err != nil {
+				return d, err
+			}
+		}
+	}
 	for _, v := range c.Implementations {
-		if v.Language == "python" {
+		if v.Language == primary.Language {
 			continue
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,$2,$3,$4,$5,$6)`, p.ID, v.Language, v.StarterSource, v.RuntimeRevision, v.HarnessRevision, v.ReferenceSource); err != nil {

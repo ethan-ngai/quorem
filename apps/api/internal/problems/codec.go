@@ -7,14 +7,19 @@ import (
 	"io"
 	"math"
 	"strings"
+
+	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
 func ValidateCase(sig Signature, c Case, expectedRequired bool) error {
+	return validateCaseLimit(sig, c, expectedRequired, execution.DefaultLimits().MaxCollectionElements)
+}
+func validateCaseLimit(sig Signature, c Case, expectedRequired bool, limit int) error {
 	if c.Args == nil || len(c.Args) != len(sig.Parameters) {
 		return fmt.Errorf("wrong argument count")
 	}
 	for i, p := range sig.Parameters {
-		if _, err := Normalize(p.Type, c.Args[i]); err != nil {
+		if _, err := normalizeInput(p.Type, c.Args[i], limit); err != nil {
 			return fmt.Errorf("argument %s: %w", p.Name, err)
 		}
 	}
@@ -32,8 +37,8 @@ func ValidateCustomCases(sig Signature, cases []Case) error {
 		return fmt.Errorf("custom cases must contain 1 to 20 cases")
 	}
 	encoded, err := json.Marshal(cases)
-	if err != nil || len(encoded) > 65536 {
-		return fmt.Errorf("custom cases exceed 64 KiB")
+	if err != nil || len(encoded) > execution.MaxCustomCasesBytes {
+		return fmt.Errorf("custom cases exceed 2 MiB")
 	}
 	for i, c := range cases {
 		if err := ValidateCase(sig, c, false); err != nil {
@@ -60,6 +65,9 @@ func validType(typ string, depth int) bool {
 }
 
 func Normalize(typ string, data json.RawMessage) (json.RawMessage, error) {
+	return normalizeInput(typ, data, execution.DefaultLimits().MaxCollectionElements)
+}
+func normalizeInput(typ string, data json.RawMessage, limit int) (json.RawMessage, error) {
 	typ = strings.ReplaceAll(typ, "array<", "list<")
 	if !validType(typ, 0) {
 		return nil, fmt.Errorf("unknown or excessively nested type")
@@ -75,27 +83,27 @@ func Normalize(typ string, data json.RawMessage) (json.RawMessage, error) {
 		return nil, fmt.Errorf("malformed value")
 	}
 	n := 0
-	norm, err := normalize(typ, v, 0, &n)
+	norm, err := normalize(typ, v, 0, &n, limit)
 	if err != nil {
 		return nil, err
 	}
 	return json.Marshal(norm)
 }
-func normalize(typ string, v any, depth int, count *int) (any, error) {
+func normalize(typ string, v any, depth int, count *int, limit int) (any, error) {
 	if depth > 100 {
 		return nil, fmt.Errorf("nesting exceeds 100")
 	}
 	if depth > 0 {
 		*count++
 	}
-	if *count > 10000 {
-		return nil, fmt.Errorf("collection exceeds 10000 elements")
+	if *count > limit {
+		return nil, fmt.Errorf("collection exceeds %d elements", limit)
 	}
 	if strings.HasPrefix(typ, "optional<") && strings.HasSuffix(typ, ">") {
 		if v == nil {
 			return nil, nil
 		}
-		return normalize(typ[9:len(typ)-1], v, depth+1, count)
+		return normalize(typ[9:len(typ)-1], v, depth+1, count, limit)
 	}
 	if typ == "ListNode" || typ == "TreeNode" {
 		if v == nil {
@@ -108,7 +116,7 @@ func normalize(typ string, v any, depth int, count *int) (any, error) {
 		if len(a) == 0 {
 			return nil, nil
 		}
-		if len(a) > 10000 {
+		if len(a) > limit {
 			return nil, fmt.Errorf("too many nodes")
 		}
 		if typ == "TreeNode" {
@@ -134,7 +142,7 @@ func normalize(typ string, v any, depth int, count *int) (any, error) {
 				}
 				slots += 2
 			}
-			if _, err := normalize("int", x, depth+1, count); err != nil {
+			if _, err := normalize("int", x, depth+1, count, limit); err != nil {
 				return nil, err
 			}
 		}
@@ -151,7 +159,7 @@ func normalize(typ string, v any, depth int, count *int) (any, error) {
 			return nil, fmt.Errorf("expected list")
 		}
 		for i, x := range a {
-			value, err := normalize(typ[5:len(typ)-1], x, depth+1, count)
+			value, err := normalize(typ[5:len(typ)-1], x, depth+1, count, limit)
 			if err != nil {
 				return nil, err
 			}

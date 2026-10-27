@@ -1,9 +1,11 @@
-/** @file StatementMarkdown.tsx @description Restricted inline Markdown and bounded mathematics. @module editor */
+/** @file StatementMarkdown.tsx @description Safe Markdown and bounded mathematics. @module editor */
 import type { ReactNode } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { gfmFromMarkdown } from "mdast-util-gfm";
 import { mathFromMarkdown } from "mdast-util-math";
+import { gfm } from "micromark-extension-gfm";
 import { math } from "micromark-extension-math";
 import type { Nodes } from "mdast";
 
@@ -26,11 +28,19 @@ function InlineMath({ value, source }: { value: string; source: string }) {
   }
 }
 
-/** Only inline code, emphasis and mathematics have rendering semantics. */
-export function inlineStatement(source: string): ReactNode[] {
+function safeLink(value: string): string | undefined {
+  try {
+    const url = new URL(value, "https://leetcode.com");
+    return url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function renderMarkdown(source: string, inline: boolean): ReactNode[] {
   const tree = fromMarkdown(source, {
-    extensions: [math()],
-    mdastExtensions: [mathFromMarkdown()],
+    extensions: [math(), gfm()],
+    mdastExtensions: [mathFromMarkdown(), gfmFromMarkdown()],
   });
   const render = (node: Nodes, key: number): ReactNode => {
     const literal = source.slice(node.position?.start.offset, node.position?.end.offset);
@@ -46,33 +56,73 @@ export function inlineStatement(source: string): ReactNode[] {
       case "inlineMath":
         return <InlineMath key={key} value={node.value} source={literal} />;
       case "paragraph":
-        return node.children.map(render);
+        return inline ? node.children.map(render) : <p key={key}>{node.children.map(render)}</p>;
+      case "break":
+        return <br key={key} />;
+      case "list":
+        return node.ordered ? (
+          <ol key={key}>{node.children.map(render)}</ol>
+        ) : (
+          <ul key={key}>{node.children.map(render)}</ul>
+        );
+      case "listItem":
+        return <li key={key}>{node.children.map(render)}</li>;
+      case "table":
+        return (
+          <table key={key}>
+            <thead>
+              <tr>
+                {node.children[0]?.children.map((cell, i) => (
+                  <th key={i}>{cell.children.map(render)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>{node.children.slice(1).map(render)}</tbody>
+          </table>
+        );
+      case "tableRow":
+        return <tr key={key}>{node.children.map(render)}</tr>;
+      case "tableCell":
+        return <td key={key}>{node.children.map(render)}</td>;
+      case "link": {
+        const href = safeLink(node.url);
+        return href ? (
+          <a key={key} href={href} target="_blank" rel="noopener noreferrer">
+            {node.children.map(render)}
+          </a>
+        ) : (
+          literal
+        );
+      }
+      case "image": {
+        const src = safeLink(node.url);
+        // Problem diagrams use LeetCode's public asset hosts only.
+        return src &&
+          ["assets.leetcode.com", "s3-lc-upload.s3.amazonaws.com"].includes(
+            new URL(src).hostname,
+          ) ? (
+          <img
+            key={key}
+            src={src}
+            alt={node.alt ?? ""}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          literal
+        );
+      }
       default:
         return literal;
     }
   };
-  let end = 0;
-  const rendered: ReactNode[] = [];
-  tree.children.forEach((node, index) => {
-    const start = node.position?.start.offset ?? end;
-    rendered.push(source.slice(end, start), render(node, index));
-    end = node.position?.end.offset ?? start;
-  });
-  rendered.push(source.slice(end));
-  return rendered;
+  return tree.children.map(render);
 }
 
-/** Paragraph boundaries remain explicit; block Markdown stays literal. */
+export function inlineStatement(source: string): ReactNode[] {
+  return renderMarkdown(source, true);
+}
+
 export function StatementMarkdown({ source }: { source: string }) {
-  return (
-    <>
-      {source
-        .trim()
-        .split(/\n\s*\n/)
-        .filter(Boolean)
-        .map((paragraph, index) => (
-          <p key={index}>{inlineStatement(paragraph)}</p>
-        ))}
-    </>
-  );
+  return <>{renderMarkdown(source.trim(), false)}</>;
 }
