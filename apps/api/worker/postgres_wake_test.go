@@ -114,7 +114,7 @@ func TestPostgresContinuousRunnerWakesWithoutRecoveryTick(t *testing.T) {
 	done := make(chan struct{})
 	go func() { defer close(done); _ = service.Run(ctx, engine) }()
 	defer func() { cancel(); <-done }()
-	// Allow the initial empty claim; the next recovery tick is five seconds away.
+	// Allow the initial empty claim before committing a new job.
 	time.Sleep(100 * time.Millisecond)
 	started := time.Now()
 	wakeAdmission(t, store, "alice")
@@ -125,5 +125,54 @@ func TestPostgresContinuousRunnerWakesWithoutRecoveryTick(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("continuous runner missed committed wake")
+	}
+}
+
+type deadlineReapEngine struct {
+	reaped  chan string
+	started chan execution.Job
+}
+
+func (e *deadlineReapEngine) TeardownAttempt(_ context.Context, attempt string) error {
+	e.reaped <- attempt
+	return nil
+}
+func (e *deadlineReapEngine) Execute(_ context.Context, j execution.Job) (execution.Completion, error) {
+	e.started <- j
+	return execution.Completion{SubmissionID: j.SubmissionID, AttemptID: j.AttemptID, Verdict: execution.Accepted}, nil
+}
+
+func TestContinuousRunnerReapsAtAbandonedLeaseDeadline(t *testing.T) {
+	store := executionWakeStore(t)
+	wakeAdmission(t, store, "alice")
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	abandoned, err := store.Claim(ctx)
+	if err != nil || abandoned.AttemptID == "" {
+		t.Fatal(abandoned, err)
+	}
+	if _, err = store.Pool.Exec(ctx, `UPDATE execution_jobs SET lease_until=clock_timestamp()+interval '300 milliseconds' WHERE id=$1`, abandoned.JobID); err != nil {
+		t.Fatal(err)
+	}
+	engine := &deadlineReapEngine{reaped: make(chan string, 1), started: make(chan execution.Job, 1)}
+	service := New(store)
+	done := make(chan struct{})
+	go func() { defer close(done); _ = service.Run(ctx, engine) }()
+	defer func() { cancel(); <-done; service.Close() }()
+	select {
+	case attempt := <-engine.reaped:
+		if attempt != abandoned.AttemptID {
+			t.Fatalf("wrong sandbox reaped %q", attempt)
+		}
+	case <-ctx.Done():
+		t.Fatal("lease deadline did not trigger teardown")
+	}
+	select {
+	case job := <-engine.started:
+		if job.AttemptID == abandoned.AttemptID {
+			t.Fatal("reused stale attempt")
+		}
+	case <-ctx.Done():
+		t.Fatal("reaped job was not reclaimed")
 	}
 }

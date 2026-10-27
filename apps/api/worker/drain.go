@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethan-ngai/quorem/internal/execution"
@@ -43,6 +44,10 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 	if !ok {
 		return DrainState{}, false, errors.New("execution state unavailable")
 	}
+	deadlines, ok := s.store.(executionDeadline)
+	if !ok {
+		return DrainState{}, false, errors.New("execution deadlines unavailable")
+	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	var notifications <-chan struct{}
@@ -54,6 +59,22 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 		}
 		var err error
 		notifications, stop, err = listener.ExecutionNotifications(ctx)
+		if err != nil {
+			if stop != nil {
+				stop()
+				stop = nil
+			}
+			notifications = nil
+			return err
+		}
+		if notifications == nil || stop == nil {
+			if stop != nil {
+				stop()
+				stop = nil
+			}
+			notifications = nil
+			return errors.New("invalid execution notification listener")
+		}
 		return err
 	}
 	if err := connect(); err != nil {
@@ -68,6 +89,7 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 	changed := make(chan struct{}, 1)
 	failures := make(chan error, 1)
 	var group sync.WaitGroup
+	var busy atomic.Int32
 	defer func() { cancel(); group.Wait() }()
 	for i := 0; i < slots; i++ {
 		group.Add(1)
@@ -79,29 +101,37 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 					return
 				case <-work:
 				}
-				if err := s.store.ReconcileBackground(ctx); err != nil {
+				busy.Add(1)
+				err := func() error {
+					if err := s.store.ReconcileBackground(ctx); err != nil {
+						return err
+					}
+					for ctx.Err() == nil {
+						more, err := s.claimOnce(ctx, engine)
+						if err != nil {
+							return err
+						}
+						select {
+						case changed <- struct{}{}:
+						default:
+						}
+						if !more {
+							break
+						}
+					}
+					return nil
+				}()
+				busy.Add(-1)
+				select {
+				case changed <- struct{}{}:
+				default:
+				}
+				if err != nil {
 					select {
 					case failures <- err:
 					default:
 					}
 					return
-				}
-				for ctx.Err() == nil {
-					more, err := s.pollOnce(ctx, engine)
-					if err != nil {
-						select {
-						case failures <- err:
-						default:
-						}
-						return
-					}
-					select {
-					case changed <- struct{}{}:
-					default:
-					}
-					if !more {
-						break
-					}
 				}
 			}
 		}()
@@ -127,8 +157,8 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 		graceTimer.Reset(grace)
 	}
 	defer graceTimer.Stop()
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	timer := newQueueTimer()
+	defer timer.stop()
 	wake()
 	var state DrainState
 	for {
@@ -176,6 +206,20 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 			}
 			return state, true, nil
 		}
+		query, finish = context.WithTimeout(ctx, 5*time.Second)
+		delay, present, err := deadlines.NextExecutionDeadline(query)
+		finish()
+		if err != nil {
+			if parent.Err() != nil {
+				return state, false, nil
+			}
+			return state, false, err
+		}
+		// Busy workers already drain committed work; their completion rechecks the queue.
+		if present && delay <= 0 && busy.Load() == int32(slots) {
+			present = false
+		}
+		timer.set(delay, present)
 		select {
 		case <-ctx.Done():
 			return state, false, nil
@@ -185,12 +229,7 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 		case <-s.admissionWake:
 			extendGrace()
 		case <-graceTimer.C:
-		case <-ticker.C:
-			if notifications == nil {
-				if err := connect(); err != nil {
-					return state, false, err
-				}
-			}
+		case <-timer.C:
 			wake()
 		case _, open := <-notifications:
 			if !open {
@@ -199,7 +238,13 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 					stop = nil
 				}
 				notifications = nil
+				if err := connect(); err != nil {
+					return state, false, err
+				}
+				// Re-subscribe before the recovery snapshot and claim.
+				wake()
 			} else {
+				timer.resetBackoff()
 				wake()
 			}
 		}

@@ -53,6 +53,11 @@ func (r *drainRepository) ExecutionQueueState(context.Context) (int, int, error)
 	r.states++
 	return len(r.jobs), r.running, r.err
 }
+func (r *drainRepository) NextExecutionDeadline(context.Context) (time.Duration, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return 0, len(r.jobs) > 0, r.err
+}
 func (r *drainRepository) ExecutionNotifications(context.Context) (<-chan struct{}, func(), error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -194,4 +199,138 @@ func TestDrainPicksUpAdmissionDiscoveredDuringFinalConfirmation(t *testing.T) {
 	if err != nil || !complete || repo.confirms != 2 || repo.completed != 1 {
 		t.Fatalf("missed committing admission complete=%t confirmations=%d completed=%d err=%v", complete, repo.confirms, repo.completed, err)
 	}
+}
+
+func TestHealthyIdleRunnerAndDrainDoNotRescan(t *testing.T) {
+	for _, mode := range []string{"continuous", "http"} {
+		t.Run(mode, func(t *testing.T) {
+			repo := &drainRepository{}
+			service := New(repo)
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				if mode == "http" {
+					_, _, _ = service.drain(ctx, &drainEngine{}, 1, 2*time.Second)
+				} else {
+					_ = service.Run(ctx, &drainEngine{})
+				}
+			}()
+			defer func() { cancel(); <-done; service.Close() }()
+			time.Sleep(80 * time.Millisecond)
+			repo.mu.Lock()
+			beforeClaims, beforeStates := repo.claims, repo.states
+			repo.mu.Unlock()
+			if beforeClaims == 0 {
+				t.Fatal("initial scan did not run")
+			}
+			time.Sleep(350 * time.Millisecond)
+			repo.mu.Lock()
+			afterClaims, afterStates := repo.claims, repo.states
+			repo.mu.Unlock()
+			if beforeClaims != afterClaims || beforeStates != afterStates {
+				t.Fatalf("idle rescanned: claims %d->%d, states %d->%d", beforeClaims, afterClaims, beforeStates, afterStates)
+			}
+		})
+	}
+}
+
+type reconnectDeadlineRepository struct {
+	*drainRepository
+	muListeners sync.Mutex
+	feeds       []chan struct{}
+}
+
+func (r *reconnectDeadlineRepository) ExecutionNotifications(ctx context.Context) (<-chan struct{}, func(), error) {
+	feed := make(chan struct{})
+	r.muListeners.Lock()
+	r.feeds = append(r.feeds, feed)
+	r.muListeners.Unlock()
+	return feed, func() {}, nil
+}
+func TestContinuousRunnerReconnectRescansAfterMissedNotice(t *testing.T) {
+	repo := &reconnectDeadlineRepository{drainRepository: &drainRepository{}}
+	service := New(repo)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	done := make(chan struct{})
+	go func() { defer close(done); _ = service.Run(ctx, &drainEngine{}) }()
+	defer func() { cancel(); <-done; service.Close() }()
+	deadline := time.Now().Add(time.Second)
+	var first chan struct{}
+	for time.Now().Before(deadline) {
+		repo.muListeners.Lock()
+		if len(repo.feeds) > 0 {
+			first = repo.feeds[0]
+		}
+		repo.muListeners.Unlock()
+		repo.mu.Lock()
+		claims := repo.claims
+		repo.mu.Unlock()
+		if first != nil && claims > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if first == nil {
+		t.Fatal("initial subscription unavailable")
+	}
+	repo.mu.Lock()
+	repo.jobs = append(repo.jobs, execution.Job{JobID: "missed", SubmissionID: "missed", AttemptID: "fenced"})
+	repo.mu.Unlock()
+	close(first)
+	// The missed commit happened across the listener gap; reconnect must resnapshot.
+	deadline = time.Now().Add(2500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		repo.mu.Lock()
+		completed := repo.completed
+		repo.mu.Unlock()
+		if completed == 1 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("reconnect did not recover the missed job")
+}
+
+type heldDrainEngine struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (e *heldDrainEngine) Execute(ctx context.Context, job execution.Job) (execution.Completion, error) {
+	select {
+	case e.started <- struct{}{}:
+	default:
+	}
+	select {
+	case <-e.release:
+	case <-ctx.Done():
+	}
+	return execution.Completion{SubmissionID: job.SubmissionID, AttemptID: job.AttemptID}, nil
+}
+func TestDrainDoesNotRescanDueWorkWhileAllSlotsBusy(t *testing.T) {
+	repo := &drainRepository{jobs: []execution.Job{{JobID: "one", SubmissionID: "one", AttemptID: "one"}, {JobID: "two", SubmissionID: "two", AttemptID: "two"}}}
+	service := New(repo)
+	engine := &heldDrainEngine{started: make(chan struct{}, 2), release: make(chan struct{})}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	done := make(chan struct{})
+	go func() { defer close(done); _, _, _ = service.drain(ctx, engine, 1, 2*time.Second) }()
+	defer func() { cancel(); <-done; service.Close() }()
+	select {
+	case <-engine.started:
+	case <-ctx.Done():
+		t.Fatal("job did not start")
+	}
+	time.Sleep(100 * time.Millisecond)
+	repo.mu.Lock()
+	states, claims := repo.states, repo.claims
+	repo.mu.Unlock()
+	time.Sleep(600 * time.Millisecond)
+	repo.mu.Lock()
+	afterStates, afterClaims := repo.states, repo.claims
+	repo.mu.Unlock()
+	if states != afterStates || claims != afterClaims {
+		t.Fatalf("busy slots rescanned: states %d->%d claims %d->%d", states, afterStates, claims, afterClaims)
+	}
+	close(engine.release)
 }

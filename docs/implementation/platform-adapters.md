@@ -24,7 +24,7 @@ Adapters are implemented for delivery, realtime, storage and email. Compute depl
 
 ## Independent configuration
 
-All omitted selections preserve `make dev`: memory fanout, PostgreSQL job notifications with recovery polling, Garage avatars, Mailpit email. Cloud credentials are not loaded for unselected adapters. Auth details and examples: `apps/auth/README.md`, `apps/auth/.env.example`.
+All omitted selections preserve `make dev`: memory fanout, PostgreSQL job notifications and scheduled deadline recovery, Garage avatars, Mailpit email. Cloud credentials are not loaded for unselected adapters. Auth details and examples: `apps/auth/README.md`, `apps/auth/.env.example`.
 
 ```sh
 # Notification transport; set consistently on API and runner.
@@ -57,8 +57,8 @@ Cloudflare relay source is `apps/realtime-cloudflare`; Wrangler config declares 
 ## Delivery semantics
 
 - Admission commits submission, job, quotas and idempotency in PostgreSQL before publishing a wakeup. The internal execution job ID is never serialized in public submission responses.
-- Queue messages are optional wakeups, not authoritative jobs. The worker ignores their requested job identity and uses PostgreSQL claim/attempt fencing. Duplicate or lost notifications cannot select a job or duplicate its completion; database polling repairs wakeup loss. Publish/ack failures do not roll back committed application state.
-- Local polling stays at 200ms; configured cloud queues retain a 5-second recovery poll. This makes best-effort post-commit notifications safe without pretending a broker send participates in a database transaction. A future queue-owned execution model would require a durable dispatch outbox, not just removal of polling.
+- Queue messages are optional wakeups, not authoritative jobs. The worker ignores their requested job identity and uses PostgreSQL claim/attempt fencing. Duplicate or lost notifications cannot select a job or duplicate its completion; listener reconnects reload the authoritative queue and deadline timers recover expired attempts. Publish/ack failures do not roll back committed application state.
+- Continuous runners and HTTP drains subscribe before reading the queue and schedule one-shot retry or lease-expiry deadlines. Listener failures reconnect and resnapshot; the optional legacy Cloudflare REST queue adapter still uses bounded short polling. A future queue-owned execution model requires a durable dispatch outbox.
 - Match events already use a transactional outbox: publish before marking sent. Failure retries; partial AppSync failures are rejected. Consumers coalesce notices and read authorized authoritative snapshots. Event IDs/aggregate versions repair duplicates, gaps and ordering.
 - Remote event subscriptions close on transport/protocol failure; the browser reconnects and retains REST recovery. AppSync's advertised keepalive timeout is honored. Relay credentials stay server-side, TLS is required except loopback fixtures, redirects are rejected, and request/read sizes and operation lifetimes are bounded.
 
@@ -106,7 +106,7 @@ Production images set `QUOREM_SKIP_MIGRATIONS=true`; deployment applies migratio
 
 Required judge wakes use `QUOREM_DELIVERY_PROVIDER=cloudflare-dispatch`, `QUOREM_EXECUTION_WAKE_URL` and the scoped `QUOREM_JUDGE_CONTROL_TOKEN`, with `QUOREM_REQUIRE_EXECUTION_WAKE=true`. The API durably publishes a wake before its bounded admission transaction. A failed wake admits no job; an unused wake safely drains an empty queue. Queue consumers wake independent judge containers and acknowledge only an authenticated drain response reporting no queued/running jobs. PostgreSQL owns claim leases, fencing and results; native Queues own delivery and waking compute from zero. The dispatch credential cannot administer Cloudflare resources.
 
-An HTTP-mode judge starts no idle polling/listener; `runner --http` drains with bounded concurrency when invoked. Admission grace and overlapping-wake extension cover notifications that arrive before the job commits. Continuous local runners instead use transactional PostgreSQL notifications with recovery polling. Idle app/judge containers may stop, and idle database compute may suspend; active sockets or jobs require compute. Stored data persists. Cold starts add latency, so scale-to-zero cannot promise a warm-instance response time.
+An HTTP-mode judge starts no idle polling/listener; `runner --http` drains with bounded concurrency when invoked. Admission grace and overlapping-wake extension cover notifications that arrive before the job commits. Continuous local runners use transactional PostgreSQL notifications and one-shot job deadlines. Idle app/judge containers may stop, and idle database compute may suspend; active sockets or jobs require compute. Stored data persists. Cold starts add latency, so scale-to-zero cannot promise a warm-instance response time.
 
 Provider deployment, nested sandbox isolation under the hosted runtime, account quotas and representative production load remain validation gates. Local multi-replica socket tests exercise application correctness; they do not establish hosted throughput or zero-cost storage.
 
