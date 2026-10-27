@@ -321,7 +321,8 @@ func TestDrainDoesNotRescanDueWorkWhileAllSlotsBusy(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("job did not start")
 	}
-	time.Sleep(100 * time.Millisecond)
+	// Let a timer armed before the worker claimed its slot expire once.
+	time.Sleep(500 * time.Millisecond)
 	repo.mu.Lock()
 	states, claims := repo.states, repo.claims
 	repo.mu.Unlock()
