@@ -1,0 +1,5 @@
+ARG BASE_IMAGE=quorem-python:local
+FROM ${BASE_IMAGE}
+USER 0:0
+COPY deploy/cgroup.py deploy/seccomp.py apps/runner/direct/launcher.py /opt/quorem/
+ENTRYPOINT ["/bin/sleep", "infinity"]

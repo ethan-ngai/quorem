@@ -336,7 +336,7 @@ export class Quorem extends DurableObject {
 
 /** Every arrival waits for a drain at or after its own generation, including arrivals during a drain. */
 export class Judge extends DurableObject {
-  constructor(ctx, env) {
+  constructor(ctx, env, instance) {
     super(ctx, env);
     this.idleMs = integer(env.JUDGE_IDLE_MS, 120_000, 15_000, 600_000);
     this.lifecycle = new ContainerLifecycle(
@@ -345,6 +345,7 @@ export class Judge extends DurableObject {
       8090,
       120_000,
       this.idleMs,
+      instance,
     );
     this.generation = 0;
     this.completed = 0;
@@ -381,7 +382,7 @@ export class Judge extends DurableObject {
   }
 
   async alarm() {
-    if (this.draining) {
+    if (this.draining || this.prewarming) {
       await this.ctx.storage.setAlarm(Date.now() + this.idleMs);
       return;
     }
@@ -390,6 +391,30 @@ export class Judge extends DurableObject {
 
   async fetch(request) {
     if (request.method !== "POST") return new Response(null, { status: 405 });
+    const path = new URL(request.url).pathname;
+    if (path === "/reserve") {
+      if (this.reservedUntil > Date.now()) return new Response(null, { status: 409 });
+      this.reservedUntil = Date.now() + 480_000;
+      this.reservation = crypto.randomUUID();
+      return Response.json({ reservation: this.reservation });
+    }
+    if (path === "/release") {
+      if ((await request.text()) === this.reservation) this.reservedUntil = 0;
+      return new Response(null, { status: 204 });
+    }
+    if (path === "/prewarm") {
+      try {
+        this.prewarming ??= this.lifecycle.ensureReady().finally(() => {
+          this.prewarming = undefined;
+        });
+        await this.prewarming;
+        await this.ctx.storage.setAlarm(Date.now() + this.idleMs);
+        return new Response(null, { status: 204 });
+      } catch {
+        return new Response(null, { status: 503 });
+      }
+    }
+    if (path !== "/wake") return new Response(null, { status: 404 });
     const generation = ++this.generation;
     while (this.completed < generation) {
       this.draining ??= this.runDrain()
@@ -401,5 +426,15 @@ export class Judge extends DurableObject {
       if (result.status !== 200) return Response.json(result, { status: result.status });
     }
     return Response.json({ queued: 0, running: 0 });
+  }
+}
+
+export class FastJudge extends Judge {
+  constructor(ctx, env) {
+    super(ctx, env, {
+      vcpu: integer(env.JUDGE_VCPU, 2, 1, 4),
+      memoryMib: integer(env.JUDGE_MEMORY_MIB, 6144, 3072, 12288),
+      diskMb: 20000,
+    });
   }
 }

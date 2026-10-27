@@ -4,7 +4,6 @@ from pathlib import Path
 import subprocess
 
 languages = ("python", "java", "typescript", "ocaml", "postgres")
-Path("deploy/images").mkdir(parents=True, exist_ok=True)
 Path(".local/deploy").mkdir(parents=True, exist_ok=True)
 
 
@@ -12,11 +11,12 @@ def build(language):
     path = Path(f".local/deploy/build-{language}.log")
     dockerfile = "apps/runner/Dockerfile" + ("" if language == "python" else f".{language}")
     tag = f"quorem-{language}:production"
+    case_language = "postgresql" if language == "postgres" else language
     with path.open("w") as log:
         for command in (
             ["docker", "build", "-f", dockerfile, "-t", tag, "."],
             ["docker", "tag", tag, f"quorem-{language}:local"],
-            ["docker", "save", tag, "-o", f"deploy/images/{language}.tar"],
+            ["docker", "build", "-f", "deploy/Dockerfile.case", "--build-arg", f"BASE_IMAGE={tag}", "-t", f"quorem-case-{case_language}:local", "."],
         ):
             result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
             if result.returncode:

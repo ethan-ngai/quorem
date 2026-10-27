@@ -81,9 +81,9 @@ class ReuseImagesTests(unittest.TestCase):
         for path in ['apps/api/entry.go', 'apps/auth/src/server.ts',
                      'apps/runner/cmd/runner/main.go', 'internal/execution/runtime.go',
                      'fixtures/problems/question.json', 'packages/contracts/package.json',
-                     'deploy/Dockerfile', 'deploy/Dockerfile.judge', 'deploy/start.py',
-                     'deploy/judge-start.py', 'deploy/nginx.conf',
-                     'deploy/runtime-deps/deps.tar', 'deploy/images/python.tar',
+                     'deploy/Dockerfile', 'deploy/Dockerfile.direct-judge', 'deploy/Dockerfile.case', 'deploy/start.py',
+                     'deploy/direct-judge-start.py', 'deploy/cgroup.py', 'deploy/seccomp.py', 'deploy/nginx.conf',
+                     'deploy/runtime-deps/deps.tar',
                      'scripts/package-auth.py', 'scripts/build-judge-images.py',
                      'go.mod', '.node-version', 'pnpm-lock.yaml']:
             with self.subTest(path=path):

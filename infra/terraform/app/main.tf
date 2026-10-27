@@ -13,6 +13,7 @@ variable "zone_id" { type = string }
 variable "domain" { type = string }
 variable "image" { type = string }
 variable "judge_image" { type = string }
+variable "case_image_revision" { type = string }
 variable "app_pool_shards" {
   type    = number
   default = 4
@@ -81,8 +82,8 @@ variable "judge_memory_mib" {
   type    = number
   default = 6144
   validation {
-    condition     = var.judge_memory_mib >= 3072 * var.judge_vcpu && var.judge_memory_mib <= 16384 && floor(var.judge_memory_mib) == var.judge_memory_mib
-    error_message = "Memory must be an integer from 3 GiB per vCPU to 16 GiB."
+    condition     = var.judge_memory_mib >= 3072 * var.judge_vcpu && var.judge_memory_mib <= 12288 && floor(var.judge_memory_mib) == var.judge_memory_mib
+    error_message = "Judge memory must be an integer from 3 GiB per vCPU to 12 GiB."
   }
 }
 variable "judge_idle_ms" {
@@ -215,6 +216,7 @@ locals {
     QUOREM_JUDGE_CONTROL_TOKEN = random_password.judge_control.result
     RUNNER_ADDR                = "0.0.0.0:8090"
     RUNNER_CONCURRENCY         = "2"
+    QUOREM_CASE_SANDBOX_ORIGIN = local.origin
   }
 }
 resource "cloudflare_queue" "judge" {
@@ -234,29 +236,13 @@ resource "cloudflare_worker" "app" {
   subdomain     = { enabled = false, previews_enabled = false }
   observability = { enabled = true }
 }
-resource "cloudflare_worker_version" "app" {
-  account_id         = var.account_id
-  worker_id          = cloudflare_worker.app.id
-  compatibility_date = "2026-10-25"
-  main_module        = "worker.js"
-  modules = [for name in ["worker.js", "router.js", "policy.js", "container.js"] : {
-    name           = name
-    content_type   = "application/javascript+module"
-    content_base64 = filebase64("${path.module}/../../../deploy/${name}")
-  }]
-  containers = [{ class_name = "Quorem" }, { class_name = "Judge" }]
-  # Provider 5.28.1 cannot serialize exports; deploy the migration before attaching compute.
-  migrations = {
-    old_tag            = data.external.worker_migration.result.tag
-    new_tag            = "v2"
-    new_sqlite_classes = data.external.worker_migration.result.tag == "" ? ["Quorem", "AppPool", "Judge"] : (data.external.worker_migration.result.tag == "v1" ? ["AppPool", "Judge"] : [])
-  }
-  deploy = true
-  lifecycle { create_before_destroy = true }
-  bindings = [
+locals {
+  worker_bindings = [
     { type = "durable_object_namespace", name = "APPS", class_name = "Quorem" },
     { type = "durable_object_namespace", name = "POOLS", class_name = "AppPool" },
     { type = "durable_object_namespace", name = "JUDGES", class_name = "Judge" },
+    { type = "durable_object_namespace", name = "FAST_JUDGES", class_name = "FastJudge" },
+    { type = "durable_object_namespace", name = "CASES", class_name = "CaseSandbox" },
     { type = "queue", name = "JUDGE_WAKE", queue_name = cloudflare_queue.judge.queue_name },
     { type = "secret_text", name = "JUDGE_CONTROL_TOKEN", text = random_password.judge_control.result },
     { type = "secret_text", name = "APP_RUNTIME_ENV", text = jsonencode(local.runtime) },
@@ -272,6 +258,27 @@ resource "cloudflare_worker_version" "app" {
     { type = "plain_text", name = "APP_LOCATION_HINT", text = "enam" },
     { type = "plain_text", name = "APP_ORIGIN", text = local.origin },
   ]
+}
+resource "cloudflare_worker_version" "app" {
+  account_id         = var.account_id
+  worker_id          = cloudflare_worker.app.id
+  compatibility_date = "2026-10-25"
+  main_module        = "worker.js"
+  modules = [for name in ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js"] : {
+    name           = name
+    content_type   = "application/javascript+module"
+    content_base64 = filebase64("${path.module}/../../../deploy/${name}")
+  }]
+  containers = [{ class_name = "Quorem" }, { class_name = "Judge" }, { class_name = "FastJudge" }, { class_name = "CaseSandbox" }]
+  # Provider 5.28.1 cannot serialize exports; deploy the migration before attaching compute.
+  migrations = {
+    old_tag            = data.external.worker_migration.result.tag
+    new_tag            = "v4"
+    new_sqlite_classes = data.external.worker_migration.result.tag == "" ? ["Quorem", "AppPool", "Judge", "FastJudge", "CaseSandbox"] : (data.external.worker_migration.result.tag == "v1" ? ["AppPool", "Judge", "FastJudge", "CaseSandbox"] : (data.external.worker_migration.result.tag == "v2" ? ["FastJudge", "CaseSandbox"] : (data.external.worker_migration.result.tag == "v3" ? ["CaseSandbox"] : [])))
+  }
+  deploy = true
+  lifecycle { create_before_destroy = true }
+  bindings = local.worker_bindings
 }
 data "external" "worker_migration" {
   program = ["python3", "${path.module}/../../../scripts/worker-migration-tag.py"]
@@ -331,12 +338,16 @@ resource "restapi_object" "judge_container" {
   })
   update_data = jsonencode({ constraints = { regions = ["ENAM"] }, max_instances = var.judge_max_instances, configuration = local.judge_configuration, observability = { logs = { enabled = true } } })
   depends_on  = [cloudflare_worker_version.app]
+  lifecycle { ignore_changes = [data, update_data] }
 }
 resource "restapi_object" "judge_rollout" {
   path                      = "/accounts/${var.account_id}/containers/applications/${restapi_object.judge_container.id}/rollouts"
   ignore_all_server_changes = true
   force_new                 = [sha256(jsonencode(local.judge_configuration))]
-  lifecycle { create_before_destroy = true }
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes        = [data, force_new]
+  }
   destroy_method = "GET"
   data = jsonencode({
     description          = "Terraform judge deployment"
@@ -345,6 +356,80 @@ resource "restapi_object" "judge_rollout" {
     target_configuration = local.judge_configuration
     step_percentage      = 100
   })
+}
+resource "restapi_object" "fast_judge_container" {
+  path                      = "/accounts/${var.account_id}/containers/applications"
+  update_method             = "PATCH"
+  ignore_all_server_changes = true
+  data = jsonencode({
+    name              = "${var.worker_name}-judge-fast"
+    scheduling_policy = "durable_object"
+    observability     = { logs = { enabled = true } }
+    durable_objects   = { script_name = var.worker_name, class_name = "FastJudge" }
+  })
+  update_data = jsonencode({ observability = { logs = { enabled = true } } })
+  depends_on  = [cloudflare_worker_version.app]
+}
+
+resource "restapi_object" "case_container" {
+  path                      = "/accounts/${var.account_id}/containers/applications"
+  update_method             = "PATCH"
+  ignore_all_server_changes = true
+  data = jsonencode({
+    name              = "${var.worker_name}-case"
+    scheduling_policy = "durable_object"
+    observability     = { logs = { enabled = true } }
+    durable_objects   = { script_name = var.worker_name, class_name = "CaseSandbox" }
+  })
+  update_data = jsonencode({ observability = { logs = { enabled = true } } })
+  depends_on  = [cloudflare_worker_version.app]
+}
+
+locals {
+  fast_worker_config = {
+    worker = var.worker_name
+    deploy = true
+    modules = [for name in ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js"] : {
+      name = name
+      path = "${path.module}/../../../deploy/${name}"
+    }]
+    metadata = {
+      main_module        = "worker.js"
+      compatibility_date = "2026-10-25"
+      containers = [
+        { class_name = "Quorem" },
+        { class_name = "Judge" },
+        { name = "${var.worker_name}-judge-fast", class_name = "FastJudge", images = { judge = var.judge_image } },
+        { name = "${var.worker_name}-case", class_name = "CaseSandbox", images = { for language in ["python", "java", "typescript", "ocaml", "postgresql"] : language => "registry.cloudflare.com/${var.account_id}/quorem-case-${language}:${var.case_image_revision}" } }
+      ]
+      bindings = concat(
+        [for binding in local.worker_bindings : binding.name == "JUDGES" ? merge(binding, { class_name = "FastJudge" }) : binding],
+        [
+          { type = "plain_text", name = "JUDGE_VCPU", text = tostring(var.judge_vcpu) },
+          { type = "plain_text", name = "JUDGE_MEMORY_MIB", text = tostring(var.judge_memory_mib) },
+          { type = "plain_text", name = "JUDGE_FAST_REVISION", text = nonsensitive(sha256(jsonencode([var.judge_image, local.judge_runtime, var.judge_vcpu, var.judge_memory_mib]))) }
+        ]
+      )
+    }
+  }
+}
+
+# The provider omits named-image metadata; Terraform owns the upload and deploy step.
+resource "terraform_data" "fast_worker_version" {
+  triggers_replace = [
+    cloudflare_worker_version.app.id,
+    nonsensitive(sha256(jsonencode(local.fast_worker_config))),
+    filesha256("${path.module}/../../../scripts/upload-worker-version.py")
+  ]
+  provisioner "local-exec" {
+    command = "python3 ${path.module}/../../../scripts/upload-worker-version.py"
+    environment = {
+      CLOUDFLARE_ACCOUNT_ID = var.account_id
+      CLOUDFLARE_API_TOKEN  = var.cloudflare_api_token
+      QUOREM_WORKER_UPLOAD  = jsonencode(local.fast_worker_config)
+    }
+  }
+  depends_on = [restapi_object.fast_judge_container, restapi_object.case_container, restapi_object.rollout, restapi_object.judge_rollout]
 }
 resource "cloudflare_queue_consumer" "judge" {
   account_id        = var.account_id
@@ -359,12 +444,12 @@ resource "cloudflare_queue_consumer" "judge" {
     max_wait_time_ms = 0
     retry_delay      = 2
   }
-  depends_on = [cloudflare_worker_version.app, restapi_object.judge_container]
+  depends_on = [terraform_data.fast_worker_version]
 }
 output "runtime_rollouts" {
   value = {
     app   = { application_id = restapi_object.container.id, rollout_id = restapi_object.rollout.id, image = var.image }
-    judge = { application_id = restapi_object.judge_container.id, rollout_id = restapi_object.judge_rollout.id, image = var.judge_image }
+    judge = { application_id = restapi_object.fast_judge_container.id, case_application_id = restapi_object.case_container.id, worker = var.worker_name, image = var.judge_image, case_revision = var.case_image_revision }
   }
 }
 

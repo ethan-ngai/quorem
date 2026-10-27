@@ -18,6 +18,7 @@ variables {
   domain               = "example.com"
   image                = "registry.example.com/app:fixture"
   judge_image          = "registry.example.com/judge:fixture"
+  case_image_revision  = "fixture"
   cloudflare_api_token = "fixture"
   database_url         = "postgres://fixture"
   better_auth_secret   = "fixture-auth-secret"
@@ -72,6 +73,10 @@ run "auth_secrets_and_rollout" {
   assert {
     condition     = jsondecode([for binding in cloudflare_worker_version.app.bindings : binding.text if binding.name == "AUTH_PUBLIC_CONFIG"][0]).providers == ["google"]
     error_message = "The edge must receive public auth capabilities."
+  }
+  assert {
+    condition     = jsondecode(restapi_object.fast_judge_container.data).scheduling_policy == "durable_object" && [for binding in local.fast_worker_config.metadata.bindings : binding.class_name if binding.name == "JUDGES"][0] == "FastJudge" && local.fast_worker_config.metadata.containers[2].images.judge == var.judge_image
+    error_message = "Fast judges require a named image, a dedicated application and a matching Worker binding."
   }
 
 }
