@@ -25,17 +25,28 @@ func env(name, fallback string) string {
 }
 func main() {
 	verify := flag.Bool("verify-sandbox", false, "Verify runtime isolation and exit before connecting to the database")
+	verifyPython := flag.Bool("verify-python-sandbox", false, "Verify general sandbox isolation before accepting jobs")
 	httpMode := flag.Bool("http", false, "Serve bounded authenticated execution drains without idle polling")
 	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if *verify {
-		if err := (&engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local")}).VerifySandbox(ctx); err != nil {
+	var remote *engine.RemoteSandbox
+	if origin := os.Getenv("QUOREM_CASE_SANDBOX_ORIGIN"); origin != "" {
+		var err error
+		remote, err = engine.NewRemoteSandbox(origin, os.Getenv("QUOREM_JUDGE_CONTROL_TOKEN"))
+		if err != nil {
+			log.Fatal("Invalid case sandbox configuration")
+		}
+	}
+	if *verify || *verifyPython {
+		if err := (&engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local"), Remote: remote}).VerifySandbox(ctx); err != nil {
 			log.Fatal(err)
 		}
-		postgres := &engine.Docker{Images: map[string]string{"postgresql": env("RUNNER_POSTGRES_IMAGE", "quorem-postgres:local")}}
-		if err := postgres.VerifyPostgresSandbox(ctx); err != nil {
-			log.Fatal(err)
+		if *verify {
+			postgres := &engine.Docker{Images: map[string]string{"postgresql": env("RUNNER_POSTGRES_IMAGE", "quorem-postgres:local")}, Remote: remote}
+			if err := postgres.VerifyPostgresSandbox(ctx); err != nil {
+				log.Fatal(err)
+			}
 		}
 		log.Print("Sandbox isolation and teardown verified")
 		return
@@ -55,15 +66,21 @@ func main() {
 			log.Fatal("Invalid delivery configuration")
 		}
 	}
+	dbStart := time.Now()
 	service, err := worker.Open(ctx, env("DATABASE_URL", "postgres://quorem:quorem@127.0.0.1:54329/quorem?sslmode=disable"), worker.WithQueue(queue))
+	log.Printf("judge initialization phase=database duration_ms=%d success=%t", time.Since(dbStart).Milliseconds(), err == nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer service.Close()
-	docker := &engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local"), Resolve: service.Load, Images: map[string]string{"java": env("RUNNER_JAVA_IMAGE", "quorem-java:local"), "typescript": env("RUNNER_TYPESCRIPT_IMAGE", "quorem-typescript:local"), "ocaml": env("RUNNER_OCAML_IMAGE", "quorem-ocaml:local"), "postgresql": env("RUNNER_POSTGRES_IMAGE", "quorem-postgres:local")}}
-	if archives := os.Getenv("RUNNER_IMAGE_ARCHIVES"); archives != "" {
-		docker.EnsureImage = newImageLoader(archives).ensure
+	docker := &engine.Docker{Image: env("RUNNER_IMAGE", "quorem-python:local"), Resolve: service.Load, Remote: remote, Images: map[string]string{"java": env("RUNNER_JAVA_IMAGE", "quorem-java:local"), "typescript": env("RUNNER_TYPESCRIPT_IMAGE", "quorem-typescript:local"), "ocaml": env("RUNNER_OCAML_IMAGE", "quorem-ocaml:local"), "postgresql": env("RUNNER_POSTGRES_IMAGE", "quorem-postgres:local")}}
+	if remote != nil {
+		gate := &sqlGate{verify: func(ctx context.Context) error {
+			return (&engine.Docker{Remote: remote}).VerifyPostgresSandbox(ctx)
+		}}
+		docker.Prepare = gate.ensure
 	}
+
 	if *httpMode {
 		server := &http.Server{Addr: env("RUNNER_ADDR", "127.0.0.1:8090"), Handler: drainHandler(service, docker, count, token), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 240 * time.Second, IdleTimeout: 30 * time.Second, BaseContext: func(net.Listener) context.Context { return ctx }}
 		shutdownDone := make(chan struct{})

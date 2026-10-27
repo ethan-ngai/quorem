@@ -11,9 +11,9 @@ BUILD_IF = "    if: ${{ !inputs.reuse_run_id }}\n"
 IMAGE_INPUTS = [
     'apps/api', ':(exclude)apps/api/cmd/profile-reads',
     'apps/auth', 'apps/runner', 'internal', 'fixtures', 'packages/contracts',
-    'deploy/Dockerfile', 'deploy/Dockerfile.judge',
-    'deploy/start.py', 'deploy/judge-start.py', 'deploy/nginx.conf',
-    'deploy/runtime-deps', 'deploy/images',
+    'deploy/Dockerfile', 'deploy/Dockerfile.direct-judge', 'deploy/Dockerfile.case',
+    'deploy/start.py', 'deploy/direct-judge-start.py', 'deploy/cgroup.py', 'deploy/seccomp.py', 'deploy/nginx.conf',
+    'deploy/runtime-deps',
     'go.mod', 'go.sum', '.node-version', 'package.json',
     'pnpm-lock.yaml', 'pnpm-workspace.yaml',
     'scripts/package-auth.py', 'scripts/build-judge-images.py',
@@ -21,7 +21,7 @@ IMAGE_INPUTS = [
 
 REQUIRED_STEPS = {
     'Validate application and judge', 'Build application and judge images',
-    'Verify split runtime roles', 'Verify nested Docker isolation',
+    'Verify split runtime roles', 'Verify direct sandbox isolation',
     'Push application and judge images',
 }
 

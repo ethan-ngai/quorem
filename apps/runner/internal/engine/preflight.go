@@ -79,7 +79,7 @@ func (d *Docker) VerifySandbox(ctx context.Context) error {
 	fixture.Problem.Signature.Parameters = []worker.Parameter{}
 	test := worker.Case{Args: []json.RawMessage{}, Expected: json.RawMessage("1")}
 	limits := execution.DefaultLimits()
-	for _, probe := range []struct {
+	probes := []struct {
 		name, source string
 		verdict      execution.Verdict
 	}{
@@ -87,14 +87,21 @@ func (d *Docker) VerifySandbox(ctx context.Context) error {
 		{"memory", fmt.Sprintf("class Solution:\n def probe(self): return len(bytearray(%d))", limits.MemoryBytes*4), execution.MemoryLimit},
 		{"deadline", "class Solution:\n def probe(self):\n  while True: pass", execution.TimeLimit},
 		{"output", fmt.Sprintf("class Solution:\n def probe(self): print('x'*%d); return 1", limits.OutputBytes+1024), execution.OutputLimit},
-	} {
+	}
+	if d.Remote != nil {
+		probes = append(probes, struct {
+			name, source string
+			verdict      execution.Verdict
+		}{"seccomp", "import ctypes\nclass Solution:\n def probe(self):\n  libc=ctypes.CDLL(None,use_errno=True)\n  assert libc.ptrace(0,0,0,0)==-1 and ctypes.get_errno()==1\n  return 1", execution.Accepted})
+	}
+	for _, probe := range probes {
 		engine := *d
 		engine.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
 			return worker.Spec{Source: probe.source, Kind: "run", Fixture: fixture, Cases: []worker.Case{test}}, nil
 		}
 		attempt := "preflight-" + rand.Text()
 		job := execution.Job{AttemptID: attempt, SubmissionID: attempt, Language: "python", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
-		bounded, cancel := context.WithTimeout(ctx, 20*time.Second)
+		bounded, cancel := context.WithTimeout(ctx, 120*time.Second)
 		result, err := engine.Execute(bounded, job)
 		cancel()
 		if err != nil {
@@ -103,9 +110,15 @@ func (d *Docker) VerifySandbox(ctx context.Context) error {
 		if result.Verdict != probe.verdict {
 			return fmt.Errorf("sandbox %s: expected %s, got %s (%+v)", probe.name, probe.verdict, result.Verdict, result.PublicCaseResults)
 		}
-		remaining, err := exec.CommandContext(ctx, "docker", "ps", "-a", "--filter", "name=^/quorem-"+attempt+"-", "--format", "{{.Names}}").Output()
-		if err != nil || strings.TrimSpace(string(remaining)) != "" {
-			return fmt.Errorf("sandbox %s teardown unconfirmed", probe.name)
+		if d.Remote != nil {
+			if err := d.TeardownAttempt(ctx, attempt); err != nil {
+				return fmt.Errorf("sandbox %s teardown unconfirmed", probe.name)
+			}
+		} else {
+			remaining, err := exec.CommandContext(ctx, "docker", "ps", "-a", "--filter", "name=^/quorem-"+attempt+"-", "--format", "{{.Names}}").Output()
+			if err != nil || strings.TrimSpace(string(remaining)) != "" {
+				return fmt.Errorf("sandbox %s teardown unconfirmed", probe.name)
+			}
 		}
 	}
 	return nil

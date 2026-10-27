@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AppPool, Judge, Quorem } from "./router.js";
+import { AppPool, FastJudge, Judge, Quorem } from "./router.js";
 import { ContainerLifecycle } from "./container.js";
 import {
   APP_IDLE_MS,
@@ -503,7 +503,8 @@ void test("one hundred valid wakes share one authoritative drain and acknowledge
       JUDGES: {
         getByName() {
           return {
-            fetch: async () => {
+            fetch: async (url) => {
+              if (String(url).endsWith("/reserve")) return new Response(null, { status: 409 });
               calls++;
               return Response.json({ queued: 0, running: 0 });
             },
@@ -515,6 +516,73 @@ void test("one hundred valid wakes share one authoritative drain and acknowledge
   assert.equal(calls, 1);
   assert.equal(acknowledged, 100);
   assert.equal(retried, 0);
+});
+
+void test("prewarmed judge reserves one queue drain and fences stale releases", async () => {
+  const { ctx } = context();
+  ctx.container.getTcpPort = () => ({ fetch: async () => new Response("ready") });
+  const judge = new Judge(ctx, env);
+  const post = (path, body) =>
+    judge.fetch(new Request(`https://judge/${path}`, { method: "POST", body }));
+  assert.equal((await post("prewarm")).status, 204);
+  assert.ok(ctx.alarmAt > Date.now());
+  const token = (await (await post("reserve")).json()).reservation;
+  assert.equal((await post("reserve")).status, 409);
+  await post("release", "stale");
+  assert.equal((await post("reserve")).status, 409);
+  await post("release", token);
+  assert.equal((await post("reserve")).status, 200);
+});
+
+void test("fast judge starts the named image with bounded resources", async () => {
+  const { ctx } = context();
+  ctx.container.running = false;
+  ctx.container.images = { judge: "registry/image@sha256:abc" };
+  ctx.container.start = (options) => {
+    ctx.container.running = true;
+    ctx.options = options;
+  };
+  ctx.container.getTcpPort = () => ({ fetch: async () => new Response("ready") });
+  const judge = new FastJudge(ctx, env);
+  await judge.lifecycle.ensureReady();
+  assert.equal(ctx.options.image, "registry/image@sha256:abc");
+  assert.deepEqual(ctx.options.instance, { vcpu: 2, memoryMib: 6144, diskMb: 20000 });
+  assert.equal(ctx.options.enableInternet, true);
+});
+
+void test("successful private workspace reads prewarm in the background", async () => {
+  const pending = [];
+  let warmups = 0;
+  const configuration = {
+    ...env,
+    POOLS: {
+      getByName: () => ({
+        fetch: async (request) =>
+          new URL(request.url).pathname.endsWith("_revision")
+            ? revisionResponse()
+            : new Response("ok"),
+      }),
+    },
+    JUDGES: {
+      getByName: (name) => ({
+        fetch: async (url) => {
+          assert.equal(name, "judge-0");
+          assert.equal(url, "https://judge/prewarm");
+          warmups++;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    },
+  };
+  const ctx = { waitUntil: (promise) => pending.push(promise) };
+  const response = await worker.fetch(
+    new Request(`${env.APP_ORIGIN}/v1/workspaces/00000000-0000-4000-8000-000000000001`),
+    configuration,
+    ctx,
+  );
+  assert.equal(response.status, 200);
+  await Promise.all(pending);
+  assert.equal(warmups, 1);
 });
 
 void test("parallel first requests coalesce; browser affinity overrides changed client hints", async () => {
@@ -832,4 +900,40 @@ void test("login configuration returns while background readiness remains pendin
   assert.equal(pending.length, 1);
   ready.resolve();
   await Promise.all(pending);
+});
+
+void test("case execution is private and strips its control token before dispatch", async () => {
+  let calls = 0;
+  const configuration = {
+    ...env,
+    CASES: {
+      getByName(name) {
+        assert.equal(name, "attempt-123");
+        return {
+          async fetch(request) {
+            calls++;
+            assert.equal(request.headers.has("Authorization"), false);
+            assert.equal(await request.text(), "case input");
+            return new Response("ok");
+          },
+        };
+      },
+    },
+  };
+  const url = `${env.APP_ORIGIN}/internal/case/attempt-123`;
+  assert.equal(
+    (await worker.fetch(new Request(url, { method: "POST", body: "case input" }), configuration))
+      .status,
+    404,
+  );
+  const response = await worker.fetch(
+    new Request(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.JUDGE_CONTROL_TOKEN}` },
+      body: "case input",
+    }),
+    configuration,
+  );
+  assert.equal(response.status, 200);
+  assert.equal(calls, 1);
 });

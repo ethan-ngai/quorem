@@ -108,7 +108,7 @@ Required judge wakes use `QUOREM_DELIVERY_PROVIDER=cloudflare-dispatch`, `QUOREM
 
 An HTTP-mode judge starts no idle polling/listener; `runner --http` drains with bounded concurrency when invoked. Admission grace and overlapping-wake extension cover notifications that arrive before the job commits. Continuous local runners use transactional PostgreSQL notifications and one-shot job deadlines. Idle app/judge containers may stop, and idle database compute may suspend; active sockets or jobs require compute. Stored data persists. Cold starts add latency, so scale-to-zero cannot promise a warm-instance response time.
 
-Provider deployment, nested sandbox isolation under the hosted runtime, account quotas and representative production load remain validation gates. Local multi-replica socket tests exercise application correctness; they do not establish hosted throughput or zero-cost storage.
+Provider deployment, direct case isolation under the hosted runtime, account quotas and representative production load remain validation gates. Local multi-replica socket tests exercise application correctness; they do not establish hosted throughput or zero-cost storage.
 
 
 Current-match discovery uses an authenticated owner-scoped WebSocket. Committed reservation and match changes enqueue private invalidation notices; each reconnect reloads the authoritative current match. Event payloads carry no membership or source data. PostgreSQL and provider outage recovery remain authoritative through the outbox.

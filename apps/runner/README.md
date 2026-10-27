@@ -15,6 +15,11 @@ input graph. Hidden diagnostics never persist in results or logs. Submit
 executes all 20 cases and returns complete partial counts. Custom Run cases
 without an expected value report `executed`.
 
+Hosted judges use `QUOREM_CASE_SANDBOX_ORIGIN` and the private control token to
+run each case in a fresh Cloudflare container. A confirmed destruction frame or
+attempt-fenced teardown is required before releasing work. The direct launcher
+must pass the same isolation preflight before the hosted runner claims jobs.
+
 The pinned Python 3.12.12 image runs without network, host mounts, application
 credentials, root privileges, or writable root filesystem. Per-case limits:
 2 seconds, 256 MiB, 16 tasks, 64 KiB streams/result. Total job budget: 60 seconds.
@@ -66,4 +71,4 @@ Node values use the same JSON linked-list and breadth-first-tree codec as Python
 Java/TypeScript/OCaml have syntax highlighting; Python alone has remote IntelliSense.
 Docker fixtures prove local compiler/codec behavior; cloud sandbox release validation remains separate.
 
-PostgreSQL 17 SQL cases use a separate ephemeral cluster per sandbox; build `apps/runner/Dockerfile.postgres` as `quorem-postgres:local`. `RUNNER_POSTGRES_IMAGE` overrides it. SQL setup, comparison, authoring, and Odyssey limits are documented in `docs/implementation/sql-problems.md`. Hosted startup runs a PostgreSQL role and deadline preflight before accepting jobs.
+PostgreSQL 17 SQL cases use a separate ephemeral cluster per sandbox; build `apps/runner/Dockerfile.postgres` as `quorem-postgres:local`. `RUNNER_POSTGRES_IMAGE` overrides it. SQL setup, comparison, authoring, and Odyssey limits are documented in `docs/implementation/sql-problems.md`. Hosted judges run the PostgreSQL role and deadline preflight before their first SQL job.

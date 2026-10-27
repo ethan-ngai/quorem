@@ -3,6 +3,7 @@ package engine
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
@@ -15,14 +16,16 @@ import (
 
 type Docker struct {
 	client           *dockerEngine
+	Remote           *RemoteSandbox
 	Image            string
 	Images           map[string]string
-	EnsureImage      func(context.Context, string) error
+	Prepare          func(context.Context, string) error
 	compilationLimit time.Duration
 	Resolve          func(context.Context, execution.Job) (worker.Spec, error)
 }
 
 const compilationBudget = 60 * time.Second
+const teardownBudget = 30 * time.Second
 
 type frame struct {
 	compilationTime time.Duration
@@ -101,8 +104,8 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	if !supported || (j.Language != "" && runtime.Language != j.Language) {
 		return result, errors.New("unsupported execution revision")
 	}
-	if d.EnsureImage != nil {
-		if err := d.EnsureImage(ctx, runtime.Language); err != nil {
+	if d.Prepare != nil {
+		if err := d.Prepare(ctx, runtime.Language); err != nil {
 			return result, err
 		}
 	}
@@ -263,10 +266,6 @@ func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spe
 }
 
 func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, request []byte, outputLimit int, compilationRemaining ...time.Duration) (result frame, resultErr error) {
-	client, err := d.engine()
-	if err != nil {
-		return frame{}, err
-	}
 	ctx, cancelCause := context.WithCancelCause(parent)
 	cancel := func() { cancelCause(context.Canceled) }
 	defer cancel()
@@ -276,7 +275,11 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 	if len(compilationRemaining) > 0 && compilationRemaining[0] < startupDuration {
 		startupDuration = compilationRemaining[0]
 	}
-	startup := time.AfterFunc(10*time.Second, func() { cancelCause(startupFailure) })
+	initialStartup := 10 * time.Second
+	if d.Remote != nil {
+		initialStartup = 60 * time.Second
+	}
+	startup := time.AfterFunc(initialStartup, func() { cancelCause(startupFailure) })
 	defer startup.Stop()
 	var deadline *time.Timer
 	name := "quorem-" + j.AttemptID + "-" + strconv.Itoa(index)
@@ -313,16 +316,46 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 			}
 		}
 	}()
-	exitCode, err := client.run(ctx, name, image, j.Limits, request, out, stderr, runtime.Language == "postgresql")
+	var exitCode int
+	var err error
+	caseToken := ""
+	if d.Remote != nil {
+		caseToken = rand.Text()
+		exitCode, err = d.Remote.run(ctx, j.AttemptID, caseToken, runtime.Language, j.Limits, request, out, stderr, func() {
+			if deadline != nil {
+				deadline.Stop()
+			}
+			deadline = time.AfterFunc(teardownBudget, func() { cancelCause(worker.ErrTeardown) })
+		})
+	} else {
+		client, clientErr := d.engine()
+		if clientErr != nil {
+			return frame{}, clientErr
+		}
+		exitCode, err = client.run(ctx, name, image, j.Limits, request, out, stderr, runtime.Language == "postgresql")
+	}
 	startup.Stop()
 	if deadline != nil {
 		deadline.Stop()
 	}
 	// A canceled stream does not stop its container; confirm removal before releasing the slot.
-	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), teardownBudget)
 	defer cleanupCancel()
-	if cleanupErr := client.remove(cleanupCtx, name); cleanupErr != nil {
-		return frame{}, worker.ErrTeardown
+	var cleanupErr error
+	if d.Remote != nil {
+		// A terminal frame confirms destruction; errors must fence late case starts.
+		if err != nil || ctx.Err() != nil {
+			cleanupErr = d.Remote.remove(cleanupCtx, j.AttemptID, caseToken)
+		}
+	} else {
+		client, clientErr := d.engine()
+		if clientErr != nil {
+			return frame{}, worker.ErrTeardown
+		}
+		cleanupErr = client.remove(cleanupCtx, name)
+	}
+	if cleanupErr != nil {
+		return frame{}, cleanupErr
 	}
 	if errors.Is(err, worker.ErrTeardown) {
 		return frame{}, worker.ErrTeardown
@@ -381,6 +414,9 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 }
 
 func (d *Docker) TeardownAttempt(ctx context.Context, attempt string) error {
+	if d.Remote != nil {
+		return d.Remote.remove(ctx, attempt, "")
+	}
 	client, err := d.engine()
 	if err != nil {
 		return worker.ErrTeardown

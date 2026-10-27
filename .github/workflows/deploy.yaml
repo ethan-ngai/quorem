@@ -33,6 +33,10 @@ on:
         required: false
         type: string
         default: ""
+      validate_hosted:
+        description: Validate an isolated temporary case sandbox from dev
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -66,6 +70,8 @@ jobs:
       image_sha: ${{ github.sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      HOSTED_ONLY: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.validate_hosted }}
     services:
       postgres:
         image: postgres:17.6-alpine
@@ -110,14 +116,18 @@ jobs:
           cache: true
       - run: vp install --frozen-lockfile
       - run: vp check --no-fmt
+        if: env.HOSTED_ONLY != 'true'
       - run: vp run contracts:check
+        if: env.HOSTED_ONLY != 'true'
       - name: Validate sandbox admission policy
+        if: env.HOSTED_ONLY != 'true'
         run: go test ./apps/runner/internal/engine -run TestSandboxNoSwapEvidence -count=1
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - name: Validate Terraform configuration
+        if: env.HOSTED_ONLY != 'true'
         run: |
           terraform fmt -check infra/terraform/app/main.tf infra/terraform/database/main.tf
           terraform -chdir=infra/terraform/app init -backend=false -input=false
@@ -125,11 +135,17 @@ jobs:
           terraform -chdir=infra/terraform/app test
           terraform -chdir=infra/terraform/database init -backend=false -input=false
           terraform -chdir=infra/terraform/database validate
+          terraform -chdir=infra/terraform/case-validation init -backend=false -input=false
+          terraform -chdir=infra/terraform/case-validation validate
+          terraform -chdir=infra/terraform/case-validation test
       - name: Validate elastic routing policy
+        if: env.HOSTED_ONLY != 'true'
         run: |
           node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
           python3 -m unittest discover -s scripts -p 'reconcile_judge_test.py'
+          python3 -m unittest discover -s scripts -p 'upload_worker_version_test.py'
       - name: Validate workerd routing and WebSocket lifecycle
+        if: env.HOSTED_ONLY != 'true'
         run: |
           mkdir -p .local
           vp -C apps/realtime-cloudflare exec wrangler dev --config ../../deploy/wrangler.test.jsonc --port 8791 --ip 127.0.0.1 --show-interactive-dev-session=false > .local/workerd.log 2>&1 &
@@ -140,13 +156,32 @@ jobs:
             sleep 1
           done
           if ! node deploy/workerd-check.mjs; then cat .local/workerd.log; exit 1; fi
-      - name: Package auth dependencies
+      - name: Validate fast judge routing
+        if: env.HOSTED_ONLY != 'true'
         run: |
-          mkdir -p deploy/images .local/deploy
+          mkdir -p .local
+          vp -C apps/realtime-cloudflare exec wrangler dev --config ../../deploy/wrangler.fast-test.jsonc --port 8796 --ip 127.0.0.1 --show-interactive-dev-session=false > .local/fast-workerd.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://localhost:8796/health > /dev/null; then break; fi
+            sleep 1
+          done
+          if ! QUOREM_WORKER_TEST_ORIGIN=http://localhost:8796 node deploy/workerd-check.mjs; then cat .local/fast-workerd.log; exit 1; fi
+          if ! node deploy/workerd-case-check.mjs; then cat .local/fast-workerd.log; exit 1; fi
+      - name: Package auth dependencies
+        if: env.HOSTED_ONLY != 'true'
+        run: |
+          mkdir -p .local/deploy
           python3 scripts/package-auth.py
       - name: Build isolated language images
         run: python3 scripts/build-judge-images.py
+      - name: Verify direct sandbox isolation
+        run: |
+          python3 scripts/test-direct-sandbox.py
+          QUOREM_TEST_DIRECT_DOCKER=1 go test ./apps/runner/internal/engine -run TestRemoteSandboxPreflightWithDocker -count=1
       - name: Validate application and judge
+        if: env.HOSTED_ONLY != 'true'
         env:
           QUOREM_TEST_DOCKER: "1"
         run: |
@@ -154,17 +189,16 @@ jobs:
           vp -C apps/web test
           go test -p 1 ./...
       - name: Build application and judge images
+        if: env.HOSTED_ONLY != 'true'
         run: |
           docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-app:$GITHUB_SHA" .
-          docker build --platform linux/amd64 -f deploy/Dockerfile.judge -t "quorem-judge:$GITHUB_SHA" .
+          docker build --platform linux/amd64 -f deploy/Dockerfile.direct-judge -t "quorem-judge:$GITHUB_SHA" .
       - name: Verify split runtime roles
+        if: env.HOSTED_ONLY != 'true'
         run: |
           docker run --rm "quorem-app:$GITHUB_SHA" --verify-only
           docker run --rm --entrypoint sh "quorem-app:$GITHUB_SHA" -c 'test ! -e /app/bin/runner && ! command -v docker && ! command -v dockerd'
-          docker run --rm --entrypoint sh "quorem-judge:$GITHUB_SHA" -c 'test ! -e /app/bin/api && test ! -e /app/apps/auth && test -z "$BETTER_AUTH_SECRET$AUTH_INTERNAL_SECRET$QUOREM_INVITE_KEY$AUTH_DATABASE_URL"'
-      - name: Verify nested Docker isolation
-        # Judge startup runs the real per-case isolation/limits/teardown preflight before any claims.
-        run: docker run --privileged --cgroupns=private --mount type=volume,destination=/var/lib/docker --mount type=volume,destination=/var/lib/containerd --rm "quorem-judge:$GITHUB_SHA" --verify-only
+          docker run --rm --entrypoint sh "quorem-judge:$GITHUB_SHA" -c 'test ! -e /app/bin/api && test ! -e /app/apps/auth && ! command -v docker && ! command -v dockerd && test -z "$BETTER_AUTH_SECRET$AUTH_INTERNAL_SECRET$QUOREM_INVITE_KEY$AUTH_DATABASE_URL"'
       - name: Push application and judge images
         if: github.ref == 'refs/heads/main'
         run: |
@@ -173,6 +207,103 @@ jobs:
             docker tag "quorem-$role:$GITHUB_SHA" "$image"
             vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
           done
+          for language in python java typescript ocaml postgresql; do
+            image="registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-case-$language:$GITHUB_SHA"
+            docker tag "quorem-case-$language:local" "$image"
+            vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
+          done
+      - name: Push temporary validation images
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.validate_hosted
+        run: |
+          cleanup_failed_push() {
+            for language in python java typescript ocaml postgresql; do
+              vp -C apps/realtime-cloudflare exec wrangler containers images delete "quorem-validation-$GITHUB_RUN_ID-$language:$GITHUB_SHA" -y >/dev/null 2>&1 || true
+            done
+          }
+          trap cleanup_failed_push ERR
+          for language in python java typescript ocaml postgresql; do
+            image="registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-validation-$GITHUB_RUN_ID-$language:$GITHUB_SHA"
+            docker tag "quorem-case-$language:local" "$image"
+            vp -C apps/realtime-cloudflare exec wrangler containers push "$image"
+          done
+          trap - ERR
+
+  validate-hosted-case:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.validate_hosted
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TF_VAR_name: quorem-validation-${{ github.run_id }}
+      TF_VAR_image_revision: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - name: Create temporary control token
+        run: |
+          token=$(openssl rand -hex 32)
+          echo "::add-mask::$token"
+          echo "TF_VAR_validation_token=$token" >> "$GITHUB_ENV"
+          echo "QUOREM_TEST_DIRECT_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: Provision isolated validation resources
+        run: |
+          terraform -chdir=infra/terraform/case-validation init -input=false
+          terraform -chdir=infra/terraform/case-validation apply -input=false -auto-approve
+          echo "QUOREM_TEST_DIRECT_ORIGIN=$(terraform -chdir=infra/terraform/case-validation output -raw origin)" >> "$GITHUB_ENV"
+      - name: Validate hosted case isolation and language behavior
+        run: |
+          mkdir -p .local
+          vp -C apps/realtime-cloudflare exec wrangler tail "$TF_VAR_name" --format json 2>/dev/null | python3 -u -c '
+          import json, re, sys
+          allowed = re.compile(r"^case-lifecycle (?:stop-begin|destroy-complete|stop-complete|delete-begin|delete-complete|exec-ready (?:python|java|typescript|ocaml|postgresql)|streams-complete (?:python|java|typescript|ocaml|postgresql)|stream-failed (?:python|java|typescript|ocaml|postgresql))$")
+          for line in sys.stdin:
+              try:
+                  event = json.loads(line)
+                  for log in event.get("logs", []):
+                      for message in log.get("message", []):
+                          if isinstance(message, str) and allowed.fullmatch(message): print(message, flush=True)
+              except (ValueError, AttributeError, TypeError):
+                  pass
+          ' > .local/case-lifecycle.log &
+          tail_pid=$!
+          trap 'kill "$tail_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --max-time 5 --silent --fail -X DELETE -H "Authorization: Bearer $QUOREM_TEST_DIRECT_TOKEN" "$QUOREM_TEST_DIRECT_ORIGIN/internal/case/readiness-probe" >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          if ! go test -v ./apps/runner/internal/engine -run '^TestRemoteSandboxHosted$' -count=1; then
+            cat .local/case-lifecycle.log
+            exit 1
+          fi
+      - name: Destroy temporary validation resources
+        if: always()
+        run: |
+          if [ -d infra/terraform/case-validation/.terraform ]; then
+            terraform -chdir=infra/terraform/case-validation destroy -input=false -auto-approve
+          fi
+      - name: Delete temporary validation images
+        if: always()
+        run: |
+          failed=false
+          for language in python java typescript ocaml postgresql; do
+            vp -C apps/realtime-cloudflare exec wrangler containers images delete "quorem-validation-$GITHUB_RUN_ID-$language:$GITHUB_SHA" -y || failed=true
+          done
+          test "$failed" = false
 
   deploy:
     concurrency:
@@ -256,6 +387,7 @@ jobs:
         run: |
           echo "TF_VAR_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-app:$IMAGE_REVISION" >> "$GITHUB_ENV"
           echo "TF_VAR_judge_image=registry.cloudflare.com/$CLOUDFLARE_ACCOUNT_ID/quorem-judge:$IMAGE_REVISION" >> "$GITHUB_ENV"
+          echo "TF_VAR_case_image_revision=$IMAGE_REVISION" >> "$GITHUB_ENV"
       - name: Initialize Terraform state
         if: github.ref == 'refs/heads/main'
         run: python3 scripts/terraform-state.py

@@ -1,0 +1,3 @@
+FROM python:3.12.12-slim-bookworm
+COPY internal/execution/public/quorem_types.py apps/runner/python/harness.py deploy/cgroup.py deploy/seccomp.py apps/runner/direct/launcher.py /opt/quorem/
+ENTRYPOINT ["/bin/sleep", "infinity"]
