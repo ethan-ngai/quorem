@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { matchCreationError, RejectedMatchCommand } from "./errors";
 import {
+  discardPendingCreate,
   pendingCreate,
   readInvite,
   readPendingCommand,
@@ -21,6 +22,55 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("recoverable match commands", () => {
+  it("lets a checked uncertain creation be discarded and replaced", async () => {
+    const original = { difficulty: "easy" as const, durationMinutes: 30 as const };
+    let firstKey = "";
+    await expect(
+      recoverableCommand(
+        "alice",
+        "create",
+        original,
+        async (_, key) => {
+          firstKey = key;
+          throw new Error("offline");
+        },
+        true,
+      ),
+    ).rejects.toThrow("offline");
+    expect(discardPendingCreate("alice")).toBe(true);
+    expect(pendingCreate("alice")).toBeUndefined();
+    await recoverableCommand(
+      "alice",
+      "create",
+      { ...original, difficulty: "hard" },
+      async (payload, key) => {
+        expect(key).not.toBe(firstKey);
+        expect(payload.difficulty).toBe("hard");
+      },
+      true,
+    );
+  });
+  it("keeps the retry when storage cannot remove it", async () => {
+    const original = { difficulty: "easy" as const, durationMinutes: 30 as const };
+    await expect(
+      recoverableCommand(
+        "alice",
+        "create",
+        original,
+        async () => {
+          throw new Error("offline");
+        },
+        true,
+      ),
+    ).rejects.toThrow("offline");
+    const remove = vi.spyOn(localStorage, "removeItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(discardPendingCreate("alice")).toBe(false);
+    expect(pendingCreate("alice")?.payload).toEqual(original);
+    remove.mockRestore();
+    discardPendingCreate("alice");
+  });
   it("unlocks rejected creation and allows a new key and changed settings", async () => {
     const original = { difficulty: "easy" as const, durationMinutes: 30 as const };
     let rejectedKey = "";
