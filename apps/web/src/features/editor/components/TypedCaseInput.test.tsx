@@ -148,12 +148,11 @@ describe("typed case controls", () => {
     expect(markup).toContain(">90</code>");
     expect(markup.match(/>18<\/code>/g)).toHaveLength(1);
   });
-  it("keeps hidden-case detail private except for timeouts", () => {
+  it("keeps hidden-case data private while showing status", () => {
     for (const status of ["accepted", "wrong_answer", "time_limit"] as const) {
       const markup = renderToStaticMarkup(
         <TestCases
           problem={problem}
-          hiddenMode
           customMode={false}
           drafts={[]}
           onDraftsChange={() => {}}
@@ -163,17 +162,22 @@ describe("typed case controls", () => {
             kind: "submit",
             state: "completed",
             sourceHash: "source",
-            admittedAt: "2026-10-11T00:00:00Z",
-            updatedAt: "2026-10-11T00:00:01Z",
+            admittedAt: "",
+            updatedAt: "",
             hiddenCases: [{ index: 0, status }],
           }}
         />,
       );
-      expect(markup).toContain("locked-case");
+      expect(markup).toContain('class="case-group-label case-group-label--locked"');
+      expect(markup).toContain(
+        status === "accepted"
+          ? "Hidden case 1: passed"
+          : status === "time_limit"
+            ? "Hidden case 1: time limit exceeded"
+            : "Hidden case 1: failed",
+      );
       expect(markup).not.toContain("machine-value");
       expect(markup).not.toContain("case-run-output");
-      if (status === "time_limit") expect(markup).toContain("Time limit exceeded");
-      else expect(markup).not.toContain("Time limit exceeded");
     }
   });
   it("uses add/remove actions for optional expected output, preserving its input", () => {
