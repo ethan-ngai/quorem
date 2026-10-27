@@ -19,7 +19,7 @@ func TestDockerJavaColdCompilerRespectsPIDLimitOnLargeHost(t *testing.T) {
   if (!java.nio.file.Files.readString(java.nio.file.Path.of("/sys/fs/cgroup/pids.max")).trim().equals("16")) throw new Exception("incorrect PID cap");
   return Runtime.getRuntime().availableProcessors();
  } }`
-	request, err := json.Marshal(map[string]any{"source": source, "signature": fixture.Problem.Signature, "args": []any{}})
+	request, err := json.Marshal(map[string]any{"operation": "compile-execute", "source": source, "signature": fixture.Problem.Signature, "args": []any{}})
 	if err != nil {
 		t.Fatal(err)
 	}

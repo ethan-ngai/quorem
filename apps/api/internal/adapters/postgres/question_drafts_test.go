@@ -189,8 +189,8 @@ func TestQuestionPublicationRejectsUnsafeMetadata(t *testing.T) {
 		"bad expected":             func(c *problems.QuestionContent) { c.HiddenCases[0].Expected = json.RawMessage(`"wrong-type"`) },
 		"excess limits":            func(c *problems.QuestionContent) { c.Problem.Limits.WallTimeMS = 999999 },
 		"duplicate tag":            func(c *problems.QuestionContent) { c.Problem.Tags = append(c.Problem.Tags, c.Problem.Tags[0]) },
-		"editorial without variables": func(c *problems.QuestionContent) {
-			c.Solutions = []problems.EditorialSolution{{Language: "python", Source: "source", ExplanationMarkdown: "explain", TimeComplexity: "O(n)", SpaceComplexity: "O(n)"}}
+		"editorial without source": func(c *problems.QuestionContent) {
+			c.Solutions = []problems.EditorialSolution{{Language: "python", ExplanationMarkdown: "explain"}}
 		},
 	}
 	for name, mutate := range cases {
