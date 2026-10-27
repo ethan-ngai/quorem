@@ -60,6 +60,21 @@ it("recovers token failures and cancels all retries on stop", async () => {
   expect(Socket.instances).toHaveLength(1);
 });
 
+it("connects public streams without requesting account credentials", async () => {
+  const connection = createReconnectingSocket({
+    url: () => "ws://localhost/public-events",
+    timeout: 2000,
+    authenticate: false,
+    onOpen: vi.fn(),
+    onMessage: vi.fn(),
+    onDisconnect: vi.fn(),
+  });
+  connection.start();
+  expect(token).not.toHaveBeenCalled();
+  expect(Socket.instances[0]?.protocols).toEqual(["quorem"]);
+  connection.stop();
+});
+
 it("closes stalled handshakes, fences old frames, and clears the deadline on open", async () => {
   const { connection, onOpen, onMessage, onDisconnect } = setup();
   connection.start();

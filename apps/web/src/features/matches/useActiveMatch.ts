@@ -1,13 +1,18 @@
 /** @file useActiveMatch.ts @description Finds current server membership before exposing creation or return actions. @module matches */
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, requireData } from "../../api/client";
-import { membershipSynchronizer, subscribeMembershipEvents } from "../realtime/membershipEvents";
+import {
+  membershipSynchronizer,
+  retryMembershipEvents,
+  subscribeMembershipEvents,
+} from "../realtime/membershipEvents";
 import { activeMatchReturnLabel } from "./matchState";
 
 export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
   const [connection, setConnection] = useState<"connecting" | "ready" | "offline">("connecting");
+  const retry = useRef<() => void>(() => {});
   const query = useQuery({
     queryKey: ["current-match", identity],
     // The subscription's first invalidation fences the initial snapshot.
@@ -23,8 +28,17 @@ export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     const sync = membershipSynchronizer(() => refresh({ cancelRefetch: false }), setConnection);
-    const stop = subscribeMembershipEvents(identity, (event) => sync.event(event));
+    let connected = false;
+    retry.current = () => {
+      if (connected) sync.event("changed");
+      else retryMembershipEvents(identity);
+    };
+    const stop = subscribeMembershipEvents(identity, (event) => {
+      connected = event === "changed";
+      sync.event(event);
+    });
     return () => {
+      retry.current = () => {};
       sync.stop();
       stop();
     };
@@ -36,5 +50,6 @@ export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
     checking: enabled && connection === "connecting",
     failed: enabled && (connection === "offline" || query.isError),
     refresh,
+    retry: () => retry.current(),
   };
 }

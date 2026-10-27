@@ -18,6 +18,12 @@ export function membershipSynchronizer(
   let stopped = false;
   let fetching = false;
   let pending = false;
+  let retryDelay = 1000;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  function clearRetry() {
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
+    retryTimer = undefined;
+  }
   async function synchronize() {
     pending = true;
     if (fetching) return;
@@ -29,8 +35,16 @@ export function membershipSynchronizer(
       if (stopped || generation !== attempt) break;
       if (result.isError) {
         setConnection("offline");
+        if (!pending) {
+          retryTimer = setTimeout(() => {
+            retryTimer = undefined;
+            void synchronize();
+          }, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30000);
+        }
         break;
       }
+      retryDelay = 1000;
       if (!pending) setConnection("ready");
     }
     fetching = false;
@@ -38,15 +52,20 @@ export function membershipSynchronizer(
   }
   return {
     event(event: MembershipEvent) {
-      if (event === "changed") void synchronize();
-      else {
+      if (event === "changed") {
+        clearRetry();
+        void synchronize();
+      } else {
         generation++;
+        clearRetry();
+        retryDelay = 1000;
         pending = false;
         setConnection(event);
       }
     },
     stop() {
       stopped = true;
+      clearRetry();
       generation++;
     },
   };

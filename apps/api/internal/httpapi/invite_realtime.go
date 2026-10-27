@@ -11,6 +11,10 @@ import (
 
 // Preview notices carry no private room state; the token authorizes each snapshot fetch.
 func (s *Server) previewInviteEvents(w http.ResponseWriter, r *http.Request) {
+	s.servePreviewInviteEvents(w, r, 15*time.Second)
+}
+
+func (s *Server) servePreviewInviteEvents(w http.ResponseWriter, r *http.Request, heartbeatInterval time.Duration) {
 	origin := r.Header.Get("Origin")
 	if origin == "" || !s.allowedOrigin(origin) {
 		s.err(w, r, &application.Error{Code: "forbidden", Status: 403, Message: "Origin denied"})
@@ -42,7 +46,7 @@ func (s *Server) previewInviteEvents(w http.ResponseWriter, r *http.Request) {
 	if err = send(); err != nil {
 		return
 	}
-	heartbeat := time.NewTicker(15 * time.Second)
+	heartbeat := time.NewTicker(heartbeatInterval)
 	defer heartbeat.Stop()
 	for {
 		select {
@@ -59,6 +63,12 @@ func (s *Server) previewInviteEvents(w http.ResponseWriter, r *http.Request) {
 		case <-heartbeat.C:
 			attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
 			err := conn.Ping(attempt)
+			cancel()
+			if err != nil {
+				return
+			}
+			attempt, cancel = context.WithTimeout(ctx, 5*time.Second)
+			err = conn.Write(attempt, websocket.MessageText, []byte(`{"type":"heartbeat"}`))
 			cancel()
 			if err != nil {
 				return
