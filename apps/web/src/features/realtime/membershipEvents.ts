@@ -6,7 +6,7 @@ export type MembershipEvent = "connecting" | "changed" | "offline";
 type Listener = (event: MembershipEvent) => void;
 const subscriptions = new Map<
   string,
-  { listeners: Set<Listener>; stop(): void; state: MembershipEvent }
+  { listeners: Set<Listener>; stop(): void; restart(): void; state: MembershipEvent }
 >();
 
 /** Re-fetch after every change, including one received during a previous read. */
@@ -57,7 +57,12 @@ export function subscribeMembershipEvents(identity: DevelopmentIdentity, listene
   let entry = subscriptions.get(identity);
   if (!entry) {
     const listeners = new Set<Listener>();
-    const current = { listeners, state: "connecting" as MembershipEvent, stop: () => {} };
+    const current = {
+      listeners,
+      state: "connecting" as MembershipEvent,
+      stop: () => {},
+      restart: () => {},
+    };
     const emit = (event: MembershipEvent) => {
       current.state = event;
       for (const subscriber of listeners) subscriber(event);
@@ -99,6 +104,10 @@ export function subscribeMembershipEvents(identity: DevelopmentIdentity, listene
       onDisconnect: () => emit("offline"),
     });
     current.stop = () => socket.stop();
+    current.restart = () => {
+      socket.stop();
+      socket.start();
+    };
     subscriptions.set(identity, current);
     entry = current;
     listeners.add(listener);
@@ -115,4 +124,9 @@ export function subscribeMembershipEvents(identity: DevelopmentIdentity, listene
       subscriptions.delete(identity);
     }
   };
+}
+
+/** Restart the existing shared transport without changing its subscribers. */
+export function retryMembershipEvents(identity: DevelopmentIdentity) {
+  subscriptions.get(identity)?.restart();
 }
