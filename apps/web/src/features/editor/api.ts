@@ -55,14 +55,6 @@ export async function createSubmission(
   return requireData(data as SubmissionAdmission | undefined, error);
 }
 
-/** Reads the safe owner-facing state of one judge job. */
-export async function fetchSubmission(identity: DevelopmentIdentity, id: string) {
-  const { data, error } = await api(identity).GET("/v1/submissions/{id}", {
-    params: { path: { id } },
-  });
-  return requireData(data as Submission | undefined, error);
-}
-
 /** Requests cancellation where the workspace contract allows it. */
 export async function cancelSubmission(identity: DevelopmentIdentity, id: string) {
   const { data, error } = await api(identity).POST("/v1/submissions/{id}/cancel", {

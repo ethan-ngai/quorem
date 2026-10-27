@@ -15,7 +15,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 )
 
-var channelPattern = regexp.MustCompile(`^/(matches|interviews)/[0-9a-fA-F-]{36}$`)
+var channelPattern = regexp.MustCompile(`^/(matches|interviews|submissions)/[0-9a-fA-F-]{36}$`)
 var unavailable = errors.New("event transport unavailable")
 
 func endpoint(raw string, websocketURL bool) (*url.URL, error) {
@@ -34,7 +34,7 @@ func endpoint(raw string, websocketURL bool) (*url.URL, error) {
 }
 
 func validNotice(channel string, n realtime.Notice) bool {
-	return channelPattern.MatchString(channel) && n.AggregateID != "" && (channel == "/matches/"+n.AggregateID || channel == "/interviews/"+n.AggregateID) && n.ID != "" && len(n.ID) <= 128 && len(n.Type) <= 128 && len(n.Version) <= 32 && !n.OccurredAt.IsZero()
+	return channelPattern.MatchString(channel) && n.AggregateID != "" && (channel == "/matches/"+n.AggregateID || channel == "/interviews/"+n.AggregateID || channel == "/submissions/"+n.AggregateID) && n.ID != "" && len(n.ID) <= 128 && len(n.Type) <= 128 && len(n.Version) <= 32 && !n.OccurredAt.IsZero()
 }
 
 func responseJSON(res *http.Response, target any) error {

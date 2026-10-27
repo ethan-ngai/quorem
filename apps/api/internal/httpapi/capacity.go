@@ -40,7 +40,7 @@ func realtimeUpgrade(r *http.Request) bool {
 		return false
 	}
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) != 5 || parts[1] != "v1" || (parts[2] != "interviews" && parts[2] != "matches") || !uuid.MatchString(parts[3]) || parts[4] != "events" {
+	if len(parts) != 5 || parts[1] != "v1" || (parts[2] != "interviews" && parts[2] != "matches" && parts[2] != "submissions") || !uuid.MatchString(parts[3]) || parts[4] != "events" {
 		return false
 	}
 	for _, header := range r.Header.Values("Connection") {
