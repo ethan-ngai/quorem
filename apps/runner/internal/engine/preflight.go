@@ -70,7 +70,7 @@ class Solution:
   return 1
 `
 
-// VerifySandbox runs the real admission engine before a cloud host may claim jobs.
+// VerifySandbox runs behavioral isolation probes against the configured case service.
 func (d *Docker) VerifySandbox(ctx context.Context) error {
 	fixture := worker.Fixture{}
 	fixture.Problem.Signature.ClassName = "Solution"

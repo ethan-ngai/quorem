@@ -11,7 +11,7 @@ import (
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
-// VerifyPostgresSandbox fails closed before a hosted judge accepts SQL jobs.
+// VerifyPostgresSandbox runs PostgreSQL isolation probes against the configured case service.
 func (d *Docker) VerifyPostgresSandbox(ctx context.Context) error {
 	var fixture worker.Fixture
 	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered"}}}`), &fixture); err != nil {

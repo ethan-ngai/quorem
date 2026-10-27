@@ -53,10 +53,11 @@ async function caseRequest(request, env, attempt) {
     typeof env.JUDGE_CONTROL_TOKEN !== "string" ||
     env.JUDGE_CONTROL_TOKEN.length < 32 ||
     request.headers.get("Authorization") !== `Bearer ${env.JUDGE_CONTROL_TOKEN}` ||
-    !["POST", "DELETE"].includes(request.method)
+    (!(request.method === "GET" && attempt === "ready") && !["POST", "DELETE"].includes(request.method))
   )
     return new Response(null, { status: 404 });
   if (!env.CASES) return new Response(null, { status: 503 });
+  if (request.method === "GET") return new Response(null, { status: 204 });
   const headers = new Headers(request.headers);
   headers.delete("Authorization");
   const forwarded = new Request(request, { headers });

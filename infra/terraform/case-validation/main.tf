@@ -22,6 +22,14 @@ variable "name" {
     error_message = "Validation resources require a unique run-scoped name."
   }
 }
+variable "image_prefix" {
+  type    = string
+  default = ""
+  validation {
+    condition     = var.image_prefix == "" || var.image_prefix == "quorem-case"
+    error_message = "Image prefix must select production case images or run-scoped validation images."
+  }
+}
 variable "image_revision" {
   type = string
   validation {
@@ -48,7 +56,7 @@ locals {
     { type = "secret_text", name = "JUDGE_CONTROL_TOKEN", text = var.validation_token },
     { type = "plain_text", name = "APP_ORIGIN", text = local.origin },
   ]
-  images = { for language in ["python", "java", "typescript", "ocaml", "postgresql"] : language => "registry.cloudflare.com/${var.account_id}/${var.name}-${language}:${var.image_revision}" }
+  images = { for language in ["python", "java", "typescript", "ocaml", "postgresql"] : language => "registry.cloudflare.com/${var.account_id}/${var.image_prefix == "" ? var.name : var.image_prefix}-${language}:${var.image_revision}" }
 }
 resource "cloudflare_worker" "test" {
   account_id = var.account_id

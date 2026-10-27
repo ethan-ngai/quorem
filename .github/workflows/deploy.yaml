@@ -230,7 +230,7 @@ jobs:
 
   validate-hosted-case:
     needs: build
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.validate_hosted
+    if: ${{ always() && !cancelled() && !inputs.restart_objects && ((github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped'))) || (github.ref == 'refs/heads/dev' && inputs.validate_hosted && needs.build.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -252,6 +252,18 @@ jobs:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
+      - name: Resolve production image revision
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: |
+          echo "TF_VAR_image_prefix=quorem-case" >> "$GITHUB_ENV"
+          if [ -n "$REUSE_RUN_ID" ]; then
+            python3 scripts/reuse-validated-images.py
+            revision=$(sed -n 's/^IMAGE_REVISION=//p' "$GITHUB_ENV" | tail -1)
+            echo "TF_VAR_image_revision=$revision" >> "$GITHUB_ENV"
+          fi
       - name: Create temporary control token
         run: |
           token=$(openssl rand -hex 32)
@@ -297,7 +309,7 @@ jobs:
             terraform -chdir=infra/terraform/case-validation destroy -input=false -auto-approve
           fi
       - name: Delete temporary validation images
-        if: always()
+        if: ${{ always() && github.ref == 'refs/heads/dev' }}
         run: |
           failed=false
           for language in python java typescript ocaml postgresql; do
@@ -309,8 +321,8 @@ jobs:
     concurrency:
       group: production-apply-${{ github.ref }}
       cancel-in-progress: false
-    needs: build
-    if: ${{ always() && !cancelled() && github.ref == 'refs/heads/main' && !inputs.restart_objects && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '' && needs.build.result == 'skipped')) }}
+    needs: [build, validate-hosted-case]
+    if: ${{ always() && !cancelled() && needs.validate-hosted-case.result == 'success' && github.ref == 'refs/heads/main' && !inputs.restart_objects && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '' && needs.build.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

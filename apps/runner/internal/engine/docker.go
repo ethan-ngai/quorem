@@ -19,7 +19,6 @@ type Docker struct {
 	Remote           *RemoteSandbox
 	Image            string
 	Images           map[string]string
-	Prepare          func(context.Context, string) error
 	compilationLimit time.Duration
 	Resolve          func(context.Context, execution.Job) (worker.Spec, error)
 }
@@ -103,11 +102,6 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	runtime, supported := execution.RuntimeForRevision(j.RuntimeRevision, j.HarnessRevision)
 	if !supported || (j.Language != "" && runtime.Language != j.Language) {
 		return result, errors.New("unsupported execution revision")
-	}
-	if d.Prepare != nil {
-		if err := d.Prepare(ctx, runtime.Language); err != nil {
-			return result, err
-		}
 	}
 	spec, err := d.Resolve(ctx, j)
 	if err != nil {

@@ -167,3 +167,20 @@ func (s *RemoteSandbox) remove(ctx context.Context, attempt, caseToken string) e
 	}
 	return nil
 }
+
+// CheckConnection authenticates against the case service without starting a case.
+func (s *RemoteSandbox) CheckConnection(ctx context.Context) error {
+	req, err := s.request(ctx, "ready", http.MethodGet, nil)
+	if err != nil {
+		return err
+	}
+	res, err := s.client.Do(req)
+	if err != nil {
+		return errors.New("case service request failed")
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("case service request failed (%d)", res.StatusCode)
+	}
+	return nil
+}

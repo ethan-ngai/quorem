@@ -144,3 +144,26 @@ func TestRemoteCleanupDoesNotConsumeContestantTime(t *testing.T) {
 		t.Fatalf("cleanup consumed contestant time: %+v %v", f, err)
 	}
 }
+
+func TestRemoteSandboxCheckConnection(t *testing.T) {
+	token := "test-control-token-at-least-32-characters"
+	status := http.StatusNoContent
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/internal/case/ready" || r.Header.Get("Authorization") != "Bearer "+token {
+			t.Error("invalid readiness request")
+		}
+		w.WriteHeader(status)
+	}))
+	defer server.Close()
+	sandbox, err := NewRemoteSandbox(server.URL, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.CheckConnection(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	status = http.StatusUnauthorized
+	if err := sandbox.CheckConnection(context.Background()); err == nil {
+		t.Fatal("accepted failed readiness")
+	}
+}

@@ -937,3 +937,12 @@ void test("case execution is private and strips its control token before dispatc
   assert.equal(response.status, 200);
   assert.equal(calls, 1);
 });
+
+void test("case readiness requires authentication and does not start a case", async () => {
+  const url = `${env.APP_ORIGIN}/internal/case/ready`;
+  const configuration = { ...env, CASES: { getByName() { throw new Error("case started"); } } };
+  assert.equal((await worker.fetch(new Request(url), configuration)).status, 404);
+  const request = () => new Request(url, { headers: { Authorization: `Bearer ${env.JUDGE_CONTROL_TOKEN}` } });
+  assert.equal((await worker.fetch(request(), configuration)).status, 204);
+  assert.equal((await worker.fetch(request(), { ...configuration, CASES: undefined })).status, 503);
+});
