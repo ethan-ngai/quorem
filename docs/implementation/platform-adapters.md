@@ -112,3 +112,5 @@ Provider deployment, nested sandbox isolation under the hosted runtime, account 
 
 
 Current-match discovery uses an authenticated owner-scoped WebSocket. Committed reservation and match changes enqueue private invalidation notices; each reconnect reloads the authoritative current match. Event payloads carry no membership or source data. PostgreSQL and provider outage recovery remain authoritative through the outbox.
+
+Realtime outbox dispatch requires PostgreSQL notification support at API startup. Each stream subscribes before draining, retries failed listeners or publications with bounded backoff, and waits for locked pending rows within a deadline. Waiting serializes each outbox across replicas, preventing a crashed publisher from stranding a skipped row without another notification.

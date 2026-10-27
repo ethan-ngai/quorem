@@ -16,7 +16,7 @@ func (s *Store) dispatchMatchEventBatch(ctx context.Context, publish func(realti
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := tx.Query(ctx, `SELECT id,match_id,version::text,event_type,occurred_at FROM match_outbox WHERE published_at IS NULL ORDER BY sequence FOR UPDATE SKIP LOCKED LIMIT 64`)
+	rows, err := tx.Query(ctx, `SELECT id,match_id,version::text,event_type,occurred_at FROM match_outbox WHERE published_at IS NULL ORDER BY sequence FOR UPDATE LIMIT 64`)
 	if err != nil {
 		return 0, err
 	}

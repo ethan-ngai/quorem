@@ -139,7 +139,9 @@ func main() {
 			}
 		}
 	}()
-	api.StartRealtime(ctx)
+	if err = api.StartRealtime(ctx); err != nil {
+		log.Fatal(err)
+	}
 	api.StartMembershipRealtime(ctx)
 	go matches.RunDeadlineScheduler(ctx, store)
 	server := &http.Server{Addr: addr, Handler: httpapi.WithCapacity(api.Handler(), capacity("QUOREM_API_MAX_REQUESTS", 32), capacity("QUOREM_REALTIME_CONNECTION_LIMIT", 512)), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}

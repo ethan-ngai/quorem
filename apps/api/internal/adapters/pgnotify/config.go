@@ -3,10 +3,20 @@ package pgnotify
 
 import (
 	"context"
+	"errors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"strings"
 	"time"
 )
+
+const listenerIdleTimeout = 30 * time.Second
+const listenerPingTimeout = 5 * time.Second
+
+type notificationConnection interface {
+	WaitForNotification(context.Context) (*pgconn.Notification, error)
+	Ping(context.Context) error
+}
 
 func Config(primary *pgx.ConnConfig, override string) (*pgx.ConnConfig, error) {
 	if override != "" {
@@ -64,15 +74,34 @@ func Signals(ctx context.Context, config *pgx.ConnConfig, channel string) (<-cha
 			defer cancel()
 			_ = conn.Close(cleanup)
 		}()
-		for {
-			if _, err := conn.WaitForNotification(listen); err != nil {
-				return
-			}
+		watch(listen, conn, wake, listenerIdleTimeout, listenerPingTimeout)
+	}()
+	return wake, stop, nil
+}
+
+// Detect half-open sessions without querying application state or losing buffered notices.
+func watch(ctx context.Context, conn notificationConnection, wake chan<- struct{}, idle, pingTimeout time.Duration) {
+	for {
+		wait, cancel := context.WithTimeout(ctx, idle)
+		notice, err := conn.WaitForNotification(wait)
+		cancel()
+		if notice != nil {
 			select {
 			case wake <- struct{}{}:
 			default:
 			}
 		}
-	}()
-	return wake, stop, nil
+		if err == nil {
+			continue
+		}
+		if ctx.Err() != nil || !errors.Is(err, context.DeadlineExceeded) {
+			return
+		}
+		ping, cancel := context.WithTimeout(ctx, pingTimeout)
+		err = conn.Ping(ping)
+		cancel()
+		if err != nil {
+			return
+		}
+	}
 }

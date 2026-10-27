@@ -110,7 +110,9 @@ func TestInterviewWebSocketCrossInstanceRecovery(t *testing.T) {
 			servers := []*httptest.Server{}
 			for range 2 {
 				api := &Server{Store: store, Local: true, Events: bus}
-				api.StartRealtime(ctx)
+				if err := api.StartRealtime(ctx); err != nil {
+					t.Fatal(err)
+				}
 				server := httptest.NewServer(api.Handler())
 				servers = append(servers, server)
 				defer server.Close()
