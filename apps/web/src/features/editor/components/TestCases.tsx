@@ -16,6 +16,7 @@ import { TypedCaseInput } from "./TypedCaseInput";
 import "./customCases.css";
 import { CaseOutput, CaseValue } from "./CaseOutput";
 import { SequenceCaseValues } from "./SequenceCaseValues";
+import { SqlCaseEditor } from "./SqlCaseEditor";
 
 export function TestCases({
   problem,
@@ -319,11 +320,17 @@ export function TestCases({
               </button>
             </Tooltip>
           </div>
-          {problem.sql || problem.odyssey ? (
+          {problem.sql ? (
+            <SqlCaseEditor
+              problem={problem}
+              input={draft.args[0] ?? ""}
+              expected={draft.expectedEnabled ? draft.expected : undefined}
+              onInputChange={(value) => updateDraft({ args: [value] })}
+              onExpectedChange={(expected) => updateDraft({ expected })}
+            />
+          ) : problem.odyssey ? (
             <div className="typed-case-field">
-              <label htmlFor={`custom-${draft.id}-structured`}>
-                {problem.sql ? "Tables (JSON)" : "Calls (JSON)"}
-              </label>
+              <label htmlFor={`custom-${draft.id}-structured`}>Calls (JSON)</label>
               <textarea
                 id={`custom-${draft.id}-structured`}
                 className="typed-input"
@@ -331,10 +338,7 @@ export function TestCases({
                 value={draft.args[0] ?? ""}
                 onChange={(event) => updateDraft({ args: [event.target.value] })}
               />
-              {problem.sql && currentValue && (
-                <CaseValue name="Tables" value={currentValue.args[0]} parameter sql={problem.sql} />
-              )}
-              {problem.odyssey && !problem.sql && currentValue?.calls && (
+              {problem.odyssey && currentValue?.calls && (
                 <SequenceCaseValues problem={problem} calls={currentValue.calls} />
               )}
             </div>
@@ -359,31 +363,13 @@ export function TestCases({
             (draft.expectedEnabled ? (
               <div className="expected-field">
                 {problem.sql ? (
-                  <div className="typed-case-field">
-                    <label htmlFor={`custom-${draft.id}-expected`}>Expected output (JSON)</label>
-                    <textarea
-                      id={`custom-${draft.id}-expected`}
-                      className="typed-input"
-                      rows={4}
-                      value={draft.expected}
-                      onChange={(event) => updateDraft({ expected: event.target.value })}
-                    />
-                    {currentValue?.expected !== undefined && (
-                      <CaseValue
-                        name="Expected output"
-                        purpose="target"
-                        value={currentValue.expected}
-                        sql={problem.sql}
-                      />
-                    )}
-                    <button
-                      type="button"
-                      className="quiet-button"
-                      onClick={() => updateDraft({ expectedEnabled: false })}
-                    >
-                      Remove expected output
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    onClick={() => updateDraft({ expectedEnabled: false })}
+                  >
+                    Remove expected output
+                  </button>
                 ) : (
                   <TypedCaseInput
                     id={`custom-${draft.id}-expected`}

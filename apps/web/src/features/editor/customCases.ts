@@ -4,6 +4,7 @@ import type { Constraint, CustomCase, ProblemVersion, Signature } from "@quorem/
 import { bindArguments } from "./argumentBinding";
 import { validateConstraints } from "./constraintValidation";
 import { MAX_CUSTOM_CASE_BYTES } from "./inputLimits";
+import { normalizeSqlDraft } from "./sqlDraft";
 
 import { resolveInputPreset, type InputConfig } from "./inputPresets";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
@@ -52,7 +53,11 @@ export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
       id: randomUUID(),
       args: [
         JSON.stringify(
-          problem.sql ? (example?.args[0] ?? { tables: [] }) : (example?.calls ?? []),
+          problem.sql
+            ? (example?.args[0] ?? {
+                tables: (problem.sql.tables ?? []).map((table) => ({ name: table.name, rows: [] })),
+              })
+            : (example?.calls ?? []),
           null,
           2,
         ),
@@ -78,9 +83,15 @@ export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
 export function parseProblemDraft(draft: CustomCaseDraft, problem: ProblemVersion): CustomCase {
   if (!problem.sql && !problem.odyssey)
     return parseCustomDraft(draft, problem.signature, problem.constraints);
+  if (problem.sql)
+    return normalizeSqlDraft(
+      problem,
+      draft.args[0] ?? "",
+      draft.expectedEnabled ? draft.expected : undefined,
+    ) as CustomCase;
   try {
     const input: unknown = JSON.parse(draft.args[0] ?? "");
-    if (problem.odyssey && !problem.sql) {
+    if (problem.odyssey) {
       if (!Array.isArray(input) || !input.length || input.length > 100)
         throw new Error("Add between 1 and 100 calls.");
       const methods = problem.odyssey.levels.flatMap((level) => level.methods);
@@ -98,12 +109,7 @@ export function parseProblemDraft(draft: CustomCaseDraft, problem: ProblemVersio
       }
       return { args: [], calls: input } as CustomCase;
     }
-    if (!input || typeof input !== "object" || Array.isArray(input))
-      throw new Error("Enter table data as an object.");
-    return {
-      args: [input],
-      ...(draft.expectedEnabled ? { expected: JSON.parse(draft.expected) } : {}),
-    } as CustomCase;
+    throw new Error("Unsupported case type.");
   } catch (error) {
     throw new Error(`Check the case JSON: ${(error as Error).message}`);
   }

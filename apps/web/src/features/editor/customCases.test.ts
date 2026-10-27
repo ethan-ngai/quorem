@@ -32,11 +32,20 @@ describe("typed custom cases", () => {
   it("initializes SQL drafts from the example and runs their table data", () => {
     const problem = {
       signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
-      examples: [{ args: [{ tables: [] }], expected: { columns: ["id"], rows: [] } }],
-      sql: { dialect: "postgresql", outputOrder: "unordered" },
+      examples: [
+        { args: [{ tables: [{ name: "items", rows: [[1]] }] }], expected: { rows: [[1]] } },
+      ],
+      sql: {
+        dialect: "postgresql",
+        outputOrder: "unordered",
+        tables: [{ name: "items", columns: [{ name: "id", type: "integer" }] }],
+        output: [{ name: "id", type: "integer" }],
+      },
     } as unknown as ProblemVersion;
     const drafts = readCustomDrafts("sql", problem);
-    expect(parseProblemDrafts(drafts, problem)).toEqual([{ args: [{ tables: [] }] }]);
+    expect(parseProblemDrafts(drafts, problem)).toEqual([
+      { args: [{ tables: [{ name: "items", rows: [[1]] }] }] },
+    ]);
     expect(() => parseProblemDrafts([{ ...drafts[0]!, args: ["{"] }], problem)).toThrow("Case 1");
   });
   it("validates stateful custom calls against unlocked methods", () => {

@@ -623,6 +623,9 @@
     "Submission": {
       "type": "object",
       "properties": {
+        "customRun": {
+          "type": "boolean"
+        },
         "id": {
           "type": "string",
           "format": "uuid"
