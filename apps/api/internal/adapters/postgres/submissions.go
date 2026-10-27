@@ -134,7 +134,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	id := ID()
 	encoded, _ := json.Marshal(cases)
-	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()),$11)", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime, odysseyLevel); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()),$11,$12)", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime, odysseyLevel, c.CustomCases != nil); err != nil {
 		return judging.Submission{}, err
 	}
 	jobID := ID()
@@ -179,7 +179,7 @@ type querier interface {
 func (s *Store) submission(ctx context.Context, q querier, owner, id string) (judging.Submission, error) {
 	var v judging.Submission
 	var data []byte
-	err := q.QueryRow(ctx, "SELECT id,workspace_id,kind,state,source_hash,admitted_at,updated_at,result FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data)
+	err := q.QueryRow(ctx, "SELECT id,workspace_id,kind,state,source_hash,admitted_at,updated_at,result,custom_run FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data, &v.CustomRun)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return v, failure("not_found", 404, "Submission not found")
 	}

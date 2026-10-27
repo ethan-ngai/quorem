@@ -1,6 +1,6 @@
 import "./results.css";
 /** @file ResultContent.tsx @description Safe submission summaries and selected public Run output. @module editor */
-import type { Diagnostic, PublicCaseResult, Submission } from "@quorem/contracts";
+import type { Diagnostic, ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useState } from "react";
 import { Icon } from "../../../ui/Icon";
 import { CaseOutput, verdictTone } from "./CaseOutput";
@@ -25,7 +25,13 @@ function Diagnostics({ items }: { items?: Diagnostic[] }) {
 }
 
 /** Shows outputs from the admitted Run snapshot; editable inputs are deliberately excluded. */
-function RunCaseResults({ cases }: { cases: PublicCaseResult[] }) {
+function RunCaseResults({
+  cases,
+  sql,
+}: {
+  cases: PublicCaseResult[];
+  sql?: ProblemVersion["sql"];
+}) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const activeIndex = Math.min(selectedIndex, Math.max(0, cases.length - 1));
   const selected = cases[activeIndex];
@@ -52,7 +58,7 @@ function RunCaseResults({ cases }: { cases: PublicCaseResult[] }) {
       </div>
       {selected && (
         <div className="case-details">
-          <CaseOutput result={selected} />
+          <CaseOutput result={selected} sql={sql} />
         </div>
       )}
     </div>
@@ -69,6 +75,7 @@ export function ResultContent({
   customMode,
   runWasCustom = false,
   showVerdict = true,
+  sql,
 }: {
   submission?: Submission;
   busy: boolean;
@@ -78,6 +85,7 @@ export function ResultContent({
   customMode?: boolean;
   runWasCustom?: boolean;
   showVerdict?: boolean;
+  sql?: ProblemVersion["sql"];
 }) {
   // Results belong to their admitted collection, regardless of the currently selected tab.
   if (
@@ -152,7 +160,7 @@ export function ResultContent({
         </div>
       )}
       {showCases && submission.publicCases?.length ? (
-        <RunCaseResults key={submission.id} cases={submission.publicCases} />
+        <RunCaseResults key={submission.id} cases={submission.publicCases} sql={sql} />
       ) : null}
     </div>
   );

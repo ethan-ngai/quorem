@@ -47,6 +47,20 @@ function defaultValue(type: string): WireValue {
 
 export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
   const example = problem.examples[0];
+  if (problem.sql || problem.odyssey) {
+    return {
+      id: randomUUID(),
+      args: [
+        JSON.stringify(
+          problem.sql ? (example?.args[0] ?? { tables: [] }) : (example?.calls ?? []),
+          null,
+          2,
+        ),
+      ],
+      expectedEnabled: false,
+      expected: JSON.stringify(example?.expected ?? { rows: [] }, null, 2),
+    };
+  }
   const inputs = example ? bindArguments(problem.signature, example.args) : undefined;
   return {
     id: randomUUID(),
@@ -59,6 +73,60 @@ export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
       example?.expected ?? defaultValue(problem.signature.returnType),
     ),
   };
+}
+
+export function parseProblemDraft(draft: CustomCaseDraft, problem: ProblemVersion): CustomCase {
+  if (!problem.sql && !problem.odyssey)
+    return parseCustomDraft(draft, problem.signature, problem.constraints);
+  try {
+    const input: unknown = JSON.parse(draft.args[0] ?? "");
+    if (problem.odyssey && !problem.sql) {
+      if (!Array.isArray(input) || !input.length || input.length > 100)
+        throw new Error("Add between 1 and 100 calls.");
+      const methods = problem.odyssey.levels.flatMap((level) => level.methods);
+      for (const call of input) {
+        if (!call || typeof call !== "object" || Array.isArray(call))
+          throw new Error("Each call must be an object.");
+        const method = methods.find((item) => item.methodName === call.methodName);
+        if (!method || !Array.isArray(call.args) || call.args.length !== method.parameters.length)
+          throw new Error("Check each call's method and arguments.");
+        method.parameters.forEach((parameter, index) =>
+          validateTypedValue(parameter.type, call.args[index]),
+        );
+        if (call.expected !== undefined && method.returnType !== "void")
+          validateTypedValue(method.returnType, call.expected);
+      }
+      return { args: [], calls: input } as CustomCase;
+    }
+    if (!input || typeof input !== "object" || Array.isArray(input))
+      throw new Error("Enter table data as an object.");
+    return {
+      args: [input],
+      ...(draft.expectedEnabled ? { expected: JSON.parse(draft.expected) } : {}),
+    } as CustomCase;
+  } catch (error) {
+    throw new Error(`Check the case JSON: ${(error as Error).message}`);
+  }
+}
+
+export function parseProblemDrafts(
+  drafts: CustomCaseDraft[],
+  problem: ProblemVersion,
+): CustomCase[] {
+  if (!problem.sql && !problem.odyssey)
+    return parseCustomDrafts(drafts, problem.signature, problem.constraints);
+  if (drafts.length < 1 || drafts.length > 20)
+    throw new Error("Add between 1 and 20 custom cases.");
+  const cases = drafts.map((draft, index) => {
+    try {
+      return parseProblemDraft(draft, problem);
+    } catch (error) {
+      throw new Error(`Case ${index + 1}: ${(error as Error).message}`);
+    }
+  });
+  if (new TextEncoder().encode(JSON.stringify(cases)).length > MAX_CUSTOM_CASE_BYTES)
+    throw new Error("Custom cases exceed 2 MiB.");
+  return cases;
 }
 
 export function parseCustomDraft(
@@ -133,7 +201,6 @@ export function customDraftStorageKey(scope: string) {
 }
 
 export function readCustomDrafts(scope: string, problem: ProblemVersion): CustomCaseDraft[] {
-  if (problem.sql || problem.odyssey) return [];
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(customDraftStorageKey(scope)) ?? "null");
     if (
@@ -146,7 +213,8 @@ export function readCustomDrafts(scope: string, problem: ProblemVersion): Custom
         return (
           typeof value.id === "string" &&
           Array.isArray(value.args) &&
-          value.args.length === problem.signature.parameters.length &&
+          value.args.length ===
+            (problem.sql || problem.odyssey ? 1 : problem.signature.parameters.length) &&
           value.args.every((arg: unknown) => typeof arg === "string") &&
           typeof value.expectedEnabled === "boolean" &&
           typeof value.expected === "string"

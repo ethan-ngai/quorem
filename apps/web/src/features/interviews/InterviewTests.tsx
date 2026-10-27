@@ -7,6 +7,7 @@ import { Tooltip } from "../../ui/Tooltip";
 import { VisibilityIcon } from "../../ui/Icon";
 import { Icon } from "../../ui/Icon";
 import { ResultContent } from "../editor/components/ResultContent";
+import type { CustomCaseDraft, RunSnapshot } from "../editor/customCases";
 
 export function InterviewTests({
   question,
@@ -16,6 +17,11 @@ export function InterviewTests({
   managing,
   closed,
   onReveal,
+  customMode,
+  onCustomModeChange,
+  drafts,
+  onDraftsChange,
+  snapshot,
 }: {
   question: InterviewSnapshot["question"];
   interviewer: boolean;
@@ -24,6 +30,11 @@ export function InterviewTests({
   managing: boolean;
   closed: boolean;
   onReveal: (id: string, revealed: boolean) => void;
+  customMode: boolean;
+  onCustomModeChange: (value: boolean) => void;
+  drafts: CustomCaseDraft[];
+  onDraftsChange: (value: CustomCaseDraft[]) => void;
+  snapshot?: RunSnapshot;
 }) {
   const id = useId();
   const [collection, setCollection] = useState("shared");
@@ -47,7 +58,10 @@ export function InterviewTests({
                 aria-controls={`${id}-panel`}
                 aria-selected={privateSelected === (name === "private")}
                 tabIndex={privateSelected === (name === "private") ? 0 : -1}
-                onClick={() => setCollection(name)}
+                onClick={() => {
+                  setCollection(name);
+                  if (name === "private") onCustomModeChange(false);
+                }}
                 onKeyDown={(event) => {
                   if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
                   event.preventDefault();
@@ -60,6 +74,7 @@ export function InterviewTests({
                           ? "private"
                           : "shared";
                   setCollection(target);
+                  if (target === "private") onCustomModeChange(false);
                   document.getElementById(`${id}-${target}`)?.focus();
                 }}
               >
@@ -144,7 +159,11 @@ export function InterviewTests({
         ) : (
           <WorkspaceTests
             detailsVisible={interviewer}
-            hideToolbar={!!tests?.length}
+            customMode={customMode}
+            onCustomModeChange={onCustomModeChange}
+            drafts={drafts}
+            onDraftsChange={onDraftsChange}
+            snapshot={snapshot}
             progress={question.progress}
             problem={question.problem}
             submission={submission ? { ...submission, hiddenCases: undefined } : undefined}

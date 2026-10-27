@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 )
 
 func TestRequiredWakePrecedesAdmissionAndPreventsOrphanCommit(t *testing.T) {
@@ -54,7 +55,7 @@ type wakeInterviewRepository struct {
 	deadline time.Duration
 }
 
-func (r *wakeInterviewRepository) AdmitInterview(ctx context.Context, _, _, _, kind string) (judging.Submission, error) {
+func (r *wakeInterviewRepository) AdmitInterview(ctx context.Context, _, _, _, kind string, _ []problems.Case) (judging.Submission, error) {
 	r.calls++
 	at, ok := ctx.Deadline()
 	if !ok {

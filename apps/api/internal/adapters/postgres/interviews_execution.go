@@ -10,7 +10,7 @@ import (
 )
 
 // Interview admission snapshots persisted source under its document lock; private fixtures remain owner-scoped.
-func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) (judging.Submission, error) {
+func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, customCases []problems.Case) (judging.Submission, error) {
 	var out judging.Submission
 	if kind != "run" && kind != "submit" {
 		return out, failure("invalid_input", 400, "Choose run or submit")
@@ -29,7 +29,10 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 		return out, err
 	}
 
-	hash := interviewFingerprint(id+":submission", kind)
+	hash := interviewFingerprint(id+":submission", struct {
+		Kind  string
+		Cases []problems.Case
+	}{kind, customCases})
 	prior, data, err := priorInterviewOperation(ctx, tx, user, key, hash)
 	if err != nil {
 		return out, err
@@ -64,6 +67,15 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 		if _, err = tx.Exec(ctx, `INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, progressScope, v.fixture.Problem.ID); err != nil {
 			return out, err
 		}
+	}
+	if customCases != nil {
+		if kind != "run" {
+			return out, failure("invalid_input", 400, "Submit cannot choose cases")
+		}
+		if err = problems.ValidateProblemCustomCases(v.fixture.Problem, customCases); err != nil {
+			return out, failure("invalid_input", 400, err.Error())
+		}
+		cases = customCases
 	}
 	if len(cases) == 0 {
 		return out, failure("invalid_input", 400, "No tests configured")
@@ -102,7 +114,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 	}
 	submissionID, jobID := ID(), ID()
 	encoded, _ := json.Marshal(cases)
-	if _, err = tx.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,$4,$5,$6,'queued',$7)`, submissionID, user, workspaceID, kind, v.snapshot.Document.Source, Hash([]byte(v.snapshot.Document.Source)), encoded); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,custom_run) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,$8)`, submissionID, user, workspaceID, kind, v.snapshot.Document.Source, Hash([]byte(v.snapshot.Document.Source)), encoded, customCases != nil); err != nil {
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,$3,$4,$5)`, jobID, submissionID, v.language, v.fixture.Problem.RuntimeRevision, v.fixture.HarnessRevision); err != nil {

@@ -485,7 +485,7 @@ it.each(["coding", "sql"] as const)(
     expect(html).toContain('aria-label="Hidden case 2: failed"');
     expect(html).toContain("public-result");
     expect(html).toContain('aria-label="Select test case"');
-    expect(html.includes('id="tests-custom-tab"')).toBe(kind === "coding");
+    expect(html).toContain('id="tests-custom-tab"');
   },
 );
 
@@ -507,4 +507,31 @@ it("does not offer stale hidden cases while a new submission starts", () => {
     />,
   );
   expect(html).not.toContain('class="case-group-label case-group-label--locked"');
+});
+
+it("shows a shared custom run separately from local drafts", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      busy={false}
+      customMode
+      onCustomModeChange={() => {}}
+      drafts={[createCustomDraft(problem)]}
+      onDraftsChange={() => {}}
+      submission={{
+        id: "shared",
+        workspaceId: "w",
+        kind: "run",
+        customRun: true,
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        publicCases: [{ index: 0, status: "executed", actual: 42 }],
+      }}
+    />,
+  );
+  expect(html).toContain("inputs may differ from your drafts");
+  expect(html).toContain('aria-label="Select run result"');
+  expect(html).toContain("42");
 });
