@@ -46,6 +46,25 @@ func (r *memoryRepository) Claim(context.Context) (execution.Job, error) {
 func (r *memoryRepository) Lease(context.Context, execution.Job, bool) (bool, error) {
 	return r.leaseAlive, nil
 }
+func (r *memoryRepository) ExecutionCancellations(ctx context.Context) (<-chan string, func(), error) {
+	return testCancellationNotifications(ctx)
+}
+func (r *memoryRepository) ExecutionNotifications(parent context.Context) (<-chan struct{}, func(), error) {
+	ctx, cancel := context.WithCancel(parent)
+	events := make(chan struct{})
+	go func() { <-ctx.Done(); close(events) }()
+	return events, cancel, nil
+}
+func (r *memoryRepository) NextExecutionDeadline(context.Context) (time.Duration, bool, error) {
+	return 0, false, nil
+}
+
+func testCancellationNotifications(parent context.Context) (<-chan string, func(), error) {
+	ctx, cancel := context.WithCancel(parent)
+	events := make(chan string)
+	go func() { <-ctx.Done(); close(events) }()
+	return events, cancel, nil
+}
 func (r *memoryRepository) Complete(_ context.Context, j execution.Job, c execution.Completion) error {
 	r.completed++
 	r.completion = c
@@ -73,7 +92,7 @@ func (e *fakeEngine) TeardownAttempt(context.Context, string) error { return e.e
 func TestExpiredSandboxMustBeReapedBeforeClaim(t *testing.T) {
 	repo := &memoryRepository{expired: []string{"old-attempt"}}
 	engine := &fakeEngine{err: errors.New("teardown failed")}
-	New(repo).poll(context.Background(), engine)
+	New(repo).claim(context.Background(), engine)
 	if repo.claims != 0 || engine.ran != 0 {
 		t.Fatal("claimed while sandbox teardown unconfirmed")
 	}
@@ -88,7 +107,7 @@ func TestExecutionCompletionAndTeardownFence(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			repo := &memoryRepository{job: execution.Job{JobID: "authoritative", AttemptID: "fenced"}, leaseAlive: true}
 			engine := &fakeEngine{err: test.err}
-			New(repo).poll(context.Background(), engine)
+			New(repo).claim(context.Background(), engine)
 			if repo.completed != test.completed || engine.ran != 1 {
 				t.Fatalf("completion count %d, executions %d", repo.completed, engine.ran)
 			}
@@ -146,7 +165,7 @@ func TestCoalescedNotificationsDrainDurableJobs(t *testing.T) {
 	if err := New(repo, WithQueue(queue)).Run(ctx, engine); err != nil {
 		t.Fatal(err)
 	}
-	// The recovery poll is five seconds away; all jobs must finish from the coalesced wake.
+	// All jobs must finish from the coalesced wake.
 	if engine.ran != 3 || repo.completed != 3 || queue.acked.Load() != delivery.MaxBatch {
 		t.Fatalf("jobs=%d completed=%d acked=%d", engine.ran, repo.completed, queue.acked.Load())
 	}

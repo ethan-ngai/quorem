@@ -88,7 +88,9 @@ func streamServer(t *testing.T, store *postgres.Store) (*Server, *httptest.Serve
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	api := &Server{Store: store, Local: true}
-	api.StartRealtime(ctx)
+	if err := api.StartRealtime(ctx); err != nil {
+		t.Fatal(err)
+	}
 	server := httptest.NewServer(api.Handler())
 	stop := func() { cancel(); server.Close() }
 	t.Cleanup(stop)

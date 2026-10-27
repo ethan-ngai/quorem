@@ -8,6 +8,7 @@ import (
 	"github.com/ethan-ngai/quorem/internal/delivery"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -46,6 +47,8 @@ type Service struct {
 	queue         delivery.Queue
 	close         func()
 	admissionWake chan struct{}
+	cancelMu      sync.Mutex
+	cancelHub     *cancellationHub
 }
 type Option func(*Service)
 
@@ -58,6 +61,7 @@ func New(store Repository, options ...Option) *Service {
 	return s
 }
 func (s *Service) Close() {
+	s.closeCancellations()
 	if s.close != nil {
 		s.close()
 	}
@@ -68,48 +72,43 @@ func (s *Service) Load(ctx context.Context, j execution.Job) (Spec, error) {
 func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	interval := 5 * time.Second
+
 	wake := make(chan struct{}, 1)
 	consumerDone := make(chan struct{})
 	if s.queue != nil {
-		interval = 5 * time.Second
 		go func() { defer close(consumerDone); s.consume(ctx, wake) }()
 		defer func() { cancel(); <-consumerDone }()
 	}
+	listener, ok := s.store.(executionNotifications)
+	if !ok {
+		return errors.New("execution notifications unavailable")
+	}
+	deadlines, ok := s.store.(executionDeadline)
+	if !ok {
+		return errors.New("execution deadlines unavailable")
+	}
 	var databaseWake <-chan struct{}
 	var stopDatabase func()
-	connect := func() {
-		if repo, ok := s.store.(executionNotifications); ok {
-			var err error
-			databaseWake, stopDatabase, err = repo.ExecutionNotifications(ctx)
-			if err != nil {
-				databaseWake = nil
-				log.Print("Execution notifications unavailable; recovery polling active")
-			}
-		}
-	}
-	connect()
 	defer func() {
 		if stopDatabase != nil {
 			stopDatabase()
 		}
 	}()
-	// Subscribe before the initial claim so commits cannot fall into a startup gap.
-	select {
-	case wake <- struct{}{}:
-	default:
+	timer := newQueueTimer()
+	defer timer.stop()
+	retryDelay := time.Second
+	retry := func() {
+		timer.set(retryDelay, true)
+		retryDelay = min(2*retryDelay, 30*time.Second)
 	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	// Connect before the initial snapshot; reconnect also forces an authoritative scan.
+	wake <- struct{}{}
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.C:
-			if databaseWake == nil {
-				connect()
-			}
 		case <-wake:
+		case <-timer.C:
 		case _, open := <-databaseWake:
 			if !open {
 				if stopDatabase != nil {
@@ -117,16 +116,57 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 					stopDatabase = nil
 				}
 				databaseWake = nil
+				retry()
+				continue
+			}
+			timer.resetBackoff()
+		}
+		if databaseWake == nil {
+			var err error
+			databaseWake, stopDatabase, err = listener.ExecutionNotifications(ctx)
+			if err == nil && (databaseWake == nil || stopDatabase == nil) {
+				err = errors.New("invalid execution notification listener")
+			}
+			if err != nil {
+				if stopDatabase != nil {
+					stopDatabase()
+					stopDatabase = nil
+				}
+				databaseWake = nil
+				log.Print("Execution notifications unavailable; reconnecting")
+				retry()
 				continue
 			}
 		}
 		if err := s.store.ReconcileBackground(ctx); err != nil {
 			log.Print("Match reconciliation unavailable")
+			retry()
 			continue
 		}
-		// A coalesced wake may represent a full batch; drain durable claims in this slot.
-		for ctx.Err() == nil && s.poll(ctx, engine) {
+		failed := false
+		for ctx.Err() == nil {
+			more, err := s.claimOnce(ctx, engine)
+			if err != nil {
+				log.Print("Execution recovery unavailable")
+				failed = true
+				break
+			}
+			if !more {
+				break
+			}
 		}
+		if failed {
+			retry()
+			continue
+		}
+		delay, present, err := deadlines.NextExecutionDeadline(ctx)
+		if err != nil {
+			log.Print("Execution deadline unavailable")
+			retry()
+			continue
+		}
+		retryDelay = time.Second
+		timer.set(delay, present)
 	}
 }
 func (s *Service) consume(ctx context.Context, wake chan<- struct{}) {
@@ -157,14 +197,14 @@ func (s *Service) consume(ctx context.Context, wake chan<- struct{}) {
 		}
 	}
 }
-func (s *Service) poll(ctx context.Context, engine execution.ExecutionEngine) bool {
-	more, err := s.pollOnce(ctx, engine)
+func (s *Service) claim(ctx context.Context, engine execution.ExecutionEngine) bool {
+	more, err := s.claimOnce(ctx, engine)
 	if err != nil {
-		log.Print("Execution polling unavailable")
+		log.Print("Execution claim unavailable")
 	}
 	return more && err == nil
 }
-func (s *Service) pollOnce(ctx context.Context, engine execution.ExecutionEngine) (bool, error) {
+func (s *Service) claimOnce(ctx context.Context, engine execution.ExecutionEngine) (bool, error) {
 	attempts, e := s.store.ExpiredAttempts(ctx)
 	if e != nil {
 		return false, e
@@ -203,35 +243,57 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 	}()
 	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
 	defer cancel()
+	notifications, release, watchErr := s.subscribeCancellation(ctx, j.SubmissionID)
+	if release != nil {
+		defer release()
+	}
 	done := make(chan struct{})
 	watchDone := make(chan struct{})
-	go func() {
-		defer close(watchDone)
-		ticker := time.NewTicker(200 * time.Millisecond)
-		defer ticker.Stop()
-		heartbeat := time.Now()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				beat := time.Since(heartbeat) >= 15*time.Second
-				alive, err := s.store.Lease(ctx, j, beat)
-				if err != nil || !alive {
-					cancel()
-					return
+	var completion execution.Completion
+	var err error
+	if watchErr != nil {
+		err = watchErr
+		close(watchDone)
+	} else {
+		alive, leaseErr := s.store.Lease(ctx, j, false)
+		if leaseErr != nil || !alive {
+			err = errors.New("execution lease unavailable")
+			close(watchDone)
+		} else {
+			go func() {
+				defer close(watchDone)
+				ticker := time.NewTicker(15 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-done:
+						return
+					case <-ctx.Done():
+						return
+					case _, open := <-notifications:
+						if !open {
+							cancel()
+							return
+						}
+						alive, err := s.store.Lease(ctx, j, false)
+						if err != nil || !alive {
+							cancel()
+							return
+						}
+					case <-ticker.C:
+						alive, err := s.store.Lease(ctx, j, true)
+						if err != nil || !alive {
+							cancel()
+							return
+						}
+					}
 				}
-				if beat {
-					heartbeat = time.Now()
-				}
-			}
+			}()
+			executeStarted := time.Now()
+			completion, err = engine.Execute(ctx, j)
+			executeDuration = time.Since(executeStarted)
 		}
-	}()
-	executeStarted := time.Now()
-	completion, err := engine.Execute(ctx, j)
-	executeDuration = time.Since(executeStarted)
+	}
 	cases = len(completion.HiddenCases) + len(completion.PublicCaseResults)
 	samples = len(completion.SubmitSampleResults)
 	close(done)

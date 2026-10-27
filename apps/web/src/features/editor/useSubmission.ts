@@ -3,10 +3,12 @@ import { sha256 } from "../../sha256";
 import { randomUUID } from "../../randomUUID";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
-import type { DevelopmentIdentity, ProblemVersion, Workspace } from "@quorem/contracts";
+import type { DevelopmentIdentity, ProblemVersion, Submission, Workspace } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { cancelSubmission, createSubmission, fetchSubmission } from "./api";
+import { cancelSubmission, createSubmission, fetchSubmission, SubmissionReadError } from "./api";
+import { submissionStream } from "./submissionStream";
+import { forgetMissingSubmission } from "./submissionRecovery";
 import {
   parseCustomCases,
   parseCustomDrafts,
@@ -122,16 +124,64 @@ export function useSubmission({
     }
   }, [identity, scope, workspace, problem]);
 
-  const submissionQuery = useQuery({
+  const submissionQuery = useQuery<Submission>({
     queryKey: ["submission", identity, activeSubmissionId],
-    queryFn: () => fetchSubmission(identity, activeSubmissionId!),
+    queryFn: ({ signal }) => fetchSubmission(identity, activeSubmissionId!, signal),
     enabled: !!activeSubmissionId,
-    refetchInterval: (query) => {
-      const state = query.state.data?.state;
-      return state === "queued" || state === "running" ? 800 : false;
-    },
+    staleTime: Infinity,
+    retry: (count, cause) =>
+      !(cause instanceof SubmissionReadError && [401, 403, 404].includes(cause.status)) &&
+      count < 1,
+    refetchOnWindowFocus: (query) => query.state.status === "error",
+    refetchOnReconnect: (query) => query.state.status === "error",
   });
   const submission = submissionQuery.data;
+  const streaming =
+    !!activeSubmissionId &&
+    !submissionQuery.isFetching &&
+    !(
+      submissionQuery.error instanceof SubmissionReadError && submissionQuery.error.status === 404
+    ) &&
+    (!submission || submission.state === "queued" || submission.state === "running");
+  useEffect(() => {
+    if (!submissionQuery.isError || !activeSubmissionId || !workspace || scopeRef.current !== scope)
+      return;
+    const cause = submissionQuery.error;
+    setError(errorMessage(cause));
+    if (
+      !forgetMissingSubmission(
+        cause,
+        submissionStorageKey(identity, workspace.id),
+        activeSubmissionId,
+      )
+    )
+      return;
+    setActive((current) =>
+      current?.scope === scope && current.id === activeSubmissionId ? undefined : current,
+    );
+  }, [
+    submissionQuery.isError,
+    submissionQuery.error,
+    activeSubmissionId,
+    workspace,
+    scope,
+    identity,
+  ]);
+  useEffect(() => {
+    if (!streaming || !activeSubmissionId || !workspace) return;
+    const stream = submissionStream(
+      identity,
+      activeSubmissionId,
+      workspace.id,
+      (snapshot) => {
+        setError(undefined);
+        queryClient.setQueryData(["submission", identity, activeSubmissionId], snapshot);
+      },
+      () => setError("Judge connection interrupted. Reconnecting…"),
+    );
+    stream.start();
+    return () => stream.stop();
+  }, [streaming, activeSubmissionId, workspace?.id, identity, queryClient]);
   const busy =
     admissionLock.current ||
     admissionPending ||
@@ -227,7 +277,6 @@ export function useSubmission({
         } catch {
           /* The live result still has an authoritative submission ID. */
         }
-        await queryClient.invalidateQueries({ queryKey: ["submission", identity, admission.id] });
         return scopeRef.current === scope;
       } catch (cause) {
         if (scopeRef.current === scope) setError(errorMessage(cause));
@@ -259,11 +308,10 @@ export function useSubmission({
       return;
     try {
       await cancelSubmission(identity, submission.id);
-      await queryClient.invalidateQueries({ queryKey: ["submission", identity, submission.id] });
     } catch (cause) {
       setError(errorMessage(cause));
     }
-  }, [identity, queryClient, submission, busy, workspace]);
+  }, [identity, submission, busy, workspace]);
 
   const run = useCallback(() => dispatch("run"), [dispatch]);
   const submit = useCallback(() => dispatch("submit"), [dispatch]);

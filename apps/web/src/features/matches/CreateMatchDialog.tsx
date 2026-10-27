@@ -75,7 +75,7 @@ export function CreateMatchDialog({
       ) : activeMatch.failed ? (
         <div>
           <p role="alert">Could not check your active match.</p>
-          <button className="button button-secondary" onClick={() => void activeMatch.refresh()}>
+          <button className="button button-secondary" onClick={activeMatch.retry}>
             Try again
           </button>
         </div>

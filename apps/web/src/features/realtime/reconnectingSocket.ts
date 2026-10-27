@@ -5,6 +5,7 @@ import { createReconnectScheduler } from "./reconnectScheduler";
 type SocketOptions = {
   url: () => string | URL;
   timeout: number;
+  authenticate?: boolean;
   idleTimeout?: number;
   onConnecting?: () => void;
   onOpen: () => void;
@@ -37,7 +38,7 @@ export function createReconnectingSocket(options: SocketOptions) {
     options.onConnecting?.();
     const valid = () => !stopped && started === generation;
     try {
-      const bearer = await token();
+      const bearer = options.authenticate === false ? undefined : await token();
       const expires = bearer ? tokenExpiresAt() : undefined;
       if (!valid()) return;
       const current = new WebSocket(
