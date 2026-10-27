@@ -26,37 +26,40 @@ func TestSQLResultsPreserveDuplicatesAndOrdering(t *testing.T) {
 		t.Fatal("order lost")
 	}
 }
-func TestSQLCaseRejectsInvalidSetup(t *testing.T) {
-	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "ordered"}}
-	c := Case{Args: []json.RawMessage{json.RawMessage(`{"tables":[{"name":"users","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}`)}, Expected: json.RawMessage(`{"columns":["id"],"rows":[[1]]}`)}
+func TestSQLCaseFollowsSchema(t *testing.T) {
+	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered", Tables: []SQLTableSchema{{Name: "users", Columns: []SQLColumn{{Name: "id", Type: "integer"}}}}, Output: []SQLColumn{{Name: "id", Type: "integer"}}}}
+	var c Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"users","rows":[[1]]}]}],"expected":{"rows":[[1]]}}`), &c); err != nil {
+		t.Fatal(err)
+	}
 	if err := ValidateProblemCase(p, c, true); err != nil {
 		t.Fatal(err)
 	}
-	c.Args[0] = json.RawMessage(`{"tables":[{"name":"users","columns":[{"name":"id","type":"integer); DROP TABLE users"}],"rows":[[1]]}]}`)
-	if err := ValidateProblemCase(p, c, true); err == nil {
-		t.Fatal("accepted invalid type")
+	for _, test := range []struct{ setup, expected string }{
+		{`{"tables":[{"name":"other","rows":[[1]]}]}`, `{"rows":[[1]]}`},
+		{`{"tables":[{"name":"users","rows":[["wrong"]]}]}`, `{"rows":[[1]]}`},
+		{`{"tables":[{"name":"users","rows":[[1]]}]}`, `{"rows":[["wrong"]]}`},
+		{`{"tables":[{"name":"users","columns":[],"rows":[[1]]}]}`, `{"columns":["id"],"rows":[[1]]}`},
+	} {
+		c.Args[0] = json.RawMessage(test.setup)
+		c.Expected = json.RawMessage(test.expected)
+		if err := ValidateProblemCase(p, c, true); err == nil {
+			t.Fatal("accepted invalid SQL case", test)
+		}
 	}
 }
 
-func TestSQLOdysseyRequiresCompatibleStages(t *testing.T) {
+func TestSQLOdysseyRequiresSchema(t *testing.T) {
 	var c QuestionContent
-	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered"},"odyssey":{"levels":[{"title":"First","statementMarkdown":"First","methods":[],"examples":[{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}]},{"title":"Second","statementMarkdown":"Second","methods":[],"examples":[{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[2]]}]}],"expected":{"columns":["id"],"rows":[[2]]}}]}]}},"odysseyHiddenCases":[[{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}],[{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[2]]}]}],"expected":{"columns":["id"],"rows":[[2]]}}]]}`), &c); err != nil {
+	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered","tables":[{"name":"items","columns":[{"name":"id","type":"integer"}]}],"output":[{"name":"id","type":"integer"}]},"odyssey":{"levels":[{"title":"First","statementMarkdown":"First","methods":[],"examples":[{"args":[{"tables":[{"name":"items","rows":[[1]]}]}],"expected":{"rows":[[1]]}}]}]}},"odysseyHiddenCases":[[{"args":[{"tables":[{"name":"items","rows":[[1]]}]}],"expected":{"rows":[[1]]}}]]}`), &c); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateSQLPublication(c); err != nil {
 		t.Fatal(err)
 	}
-	_, cases, err := CompileOdyssey(Fixture{Problem: c.Problem, OdysseyHiddenCases: c.OdysseyHiddenCases}, 2, "submit")
-	if err != nil || len(cases) != 2 {
-		t.Fatal(cases, err)
-	}
-	c.OdysseyHiddenCases[1][0].Expected = json.RawMessage(`{"columns":["different"],"rows":[[2]]}`)
+	c.OdysseyHiddenCases[0][0].Expected = json.RawMessage(`{"rows":[["wrong"]]}`)
 	if err := validateSQLPublication(c); err == nil {
-		t.Fatal("accepted incompatible stage columns")
-	}
-	c.OdysseyHiddenCases[1][0].Expected = json.RawMessage(`{"columns":["id"],"rows":[["two"]]}`)
-	if err := validateSQLPublication(c); err == nil {
-		t.Fatal("accepted incompatible stage value types")
+		t.Fatal("accepted incompatible result")
 	}
 }
 
@@ -77,5 +80,31 @@ func TestSQLNumericCanonicalization(t *testing.T) {
 	}
 	if a == normalize(`{"columns":["x"],"rows":[["12345678901234567890.12"]]}`) {
 		t.Fatal("numeric conflated with text")
+	}
+}
+
+func TestLegacySQLCasesRemainRunnableButRequireSchemaForPublication(t *testing.T) {
+	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}}
+	var c Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateProblemCase(p, c, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateSQLPublication(QuestionContent{Problem: p}); err == nil {
+		t.Fatal("accepted publication without a schema")
+	}
+}
+
+func TestSQLFloatingResultsNormalizeByPseudotype(t *testing.T) {
+	p := Problem{SQL: &SQLConfig{OutputOrder: "ordered", Output: []SQLColumn{{Name: "value", Type: "real"}}}}
+	expected, err := NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"rows":[[0.1],[10000000000]]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"columns":["value"],"rows":[[0.10000000149011612],[10000000000.0]]}`))
+	if err != nil || string(expected) != string(actual) {
+		t.Fatalf("%s != %s: %v", expected, actual, err)
 	}
 }

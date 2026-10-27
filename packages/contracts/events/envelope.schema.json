@@ -364,6 +364,20 @@
             "outputOrder": {
               "type": "string",
               "enum": ["ordered", "unordered"]
+            },
+            "tables": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/SqlTableSchema"
+              }
+            },
+            "output": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/SqlColumn"
+              }
             }
           },
           "required": ["dialect", "outputOrder"],
@@ -626,7 +640,7 @@
           "items": {
             "$ref": "#/$defs/HiddenCaseResult"
           },
-          "maxItems": 20
+          "maxItems": 160
         },
         "publicCases": {
           "type": "array",
@@ -1444,6 +1458,20 @@
             "outputOrder": {
               "type": "string",
               "enum": ["ordered", "unordered"]
+            },
+            "tables": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/SqlTableSchema"
+              }
+            },
+            "output": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "$ref": "#/$defs/SqlColumn"
+              }
             }
           },
           "required": ["dialect", "outputOrder"],
@@ -1471,6 +1499,48 @@
         "languages"
       ]
     },
+    "SqlColumn": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "integer",
+            "bigint",
+            "numeric",
+            "text",
+            "boolean",
+            "date",
+            "timestamp",
+            "timestamptz",
+            "real",
+            "double precision"
+          ]
+        }
+      },
+      "required": ["name", "type"]
+    },
+    "SqlTableSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/SqlColumn"
+          }
+        }
+      },
+      "required": ["name", "columns"]
+    },
     "QuestionContent": {
       "type": "object",
       "additionalProperties": false,
@@ -1480,13 +1550,10 @@
         },
         "hiddenCases": {
           "type": "array",
-          "maxItems": 20,
+          "maxItems": 100,
           "items": {
             "$ref": "#/$defs/CustomCase"
           }
-        },
-        "comparator": {
-          "type": "string"
         },
         "attribution": {
           "type": "string"
@@ -1515,14 +1582,7 @@
           }
         }
       },
-      "required": [
-        "problem",
-        "hiddenCases",
-        "comparator",
-        "attribution",
-        "implementations",
-        "solutions"
-      ]
+      "required": ["problem", "hiddenCases", "attribution", "implementations", "solutions"]
     },
     "QuestionDraft": {
       "type": "object",

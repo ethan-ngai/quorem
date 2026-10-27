@@ -93,7 +93,6 @@
     }
   },
   "harnessRevision": "quorem-harness-v2",
-  "comparator": "ordered",
   "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {

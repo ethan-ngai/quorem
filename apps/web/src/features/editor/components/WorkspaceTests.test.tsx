@@ -435,3 +435,21 @@ it("uses the shared locked-case UI for explicitly selected Odyssey hidden tests"
   expect(html).not.toContain("public-output");
   expect(html).not.toContain("Expected output");
 });
+
+it("renders SQL table examples without binding method arguments", () => {
+  const sqlProblem: ProblemVersion = {
+    ...problem,
+    signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+    sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const },
+    examples: [
+      {
+        args: [{ tables: [{ name: "items", columns: [], rows: [] }] }],
+        expected: { columns: ["id"], rows: [] },
+      },
+    ],
+  };
+  const html = renderToStaticMarkup(<WorkspaceTests problem={sqlProblem} busy={false} />);
+  expect(html).toContain("Tables");
+  expect(html).toContain("items");
+  expect(html).not.toContain("Custom cases");
+});

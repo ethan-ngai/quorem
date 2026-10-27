@@ -83,7 +83,7 @@ def same_fixture(actual, expected):
     a, b = actual['problem'], expected['problem']
     problem_fields = ('leetcodeId', 'slug', 'companies', 'title', 'difficulty', 'tags',
                       'statementMarkdown', 'examples', 'constraints', 'signature')
-    content_fields = ('hiddenCases', 'comparator', 'attribution', 'implementations')
+    content_fields = ('hiddenCases', 'attribution', 'implementations')
     return (all(a.get(field) == b.get(field) for field in problem_fields)
             and all(actual.get(field) == expected.get(field) for field in content_fields))
 

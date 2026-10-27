@@ -5,6 +5,7 @@ import { StrictMode, Suspense, lazy } from "react";
 import { initializeTheme } from "./features/editor/useTheme";
 import { LoadingScreen } from "./ui/LoadingScreen";
 import { Notifications } from "./ui/Notifications";
+import { RouteError } from "./ui/RouteError";
 import { NotFoundPage } from "./features/public/NotFoundPage";
 import { PageLayout } from "./features/navigation/PageLayout";
 import { createRoot, type Root } from "react-dom/client";
@@ -207,7 +208,11 @@ const routeTree = rootRoute.addChildren([
   matchRoute,
   inviteRoute,
 ]);
-const router = createRouter({ routeTree, defaultPreload: "intent" });
+const router = createRouter({
+  routeTree,
+  defaultPreload: "intent",
+  defaultErrorComponent: RouteError,
+});
 
 declare module "@tanstack/react-router" {
   interface Register {

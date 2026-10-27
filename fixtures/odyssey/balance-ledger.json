@@ -197,7 +197,6 @@
       }
     ]
   ],
-  "comparator": "ordered",
   "attribution": "Original Quorem fixture",
   "implementations": [
     {

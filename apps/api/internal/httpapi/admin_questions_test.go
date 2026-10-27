@@ -59,7 +59,7 @@ func TestAdminQuestionHTTPDraftLifecycle(t *testing.T) {
 		mux.ServeHTTP(w, r)
 		return w
 	}
-	w := send("POST", "/v1/admin/question-drafts", `{"content":{"problem":{},"hiddenCases":[],"comparator":"","attribution":"","implementations":[],"solutions":[]}}`)
+	w := send("POST", "/v1/admin/question-drafts", `{"content":{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"solutions":[]}}`)
 	if w.Code != 201 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -67,7 +67,7 @@ func TestAdminQuestionHTTPDraftLifecycle(t *testing.T) {
 	if err = json.Unmarshal(w.Body.Bytes(), &d); err != nil {
 		t.Fatal(err)
 	}
-	w = send("PUT", "/v1/admin/question-drafts/"+d.ID, `{"revision":"1","content":{"problem":{},"hiddenCases":[],"comparator":"ordered","attribution":"mine","implementations":[],"solutions":[]}}`)
+	w = send("PUT", "/v1/admin/question-drafts/"+d.ID, `{"revision":"1","content":{"problem":{},"hiddenCases":[],"attribution":"mine","implementations":[],"solutions":[]}}`)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}

@@ -17,6 +17,7 @@ type Spec = judging.Spec
 type Case = problems.Case
 type Parameter = problems.Parameter
 type Fixture = problems.Fixture
+type SQLConfig = problems.SQLConfig
 
 func NormalizeCaseOutput(f Fixture, c Case, value []byte) ([]byte, error) {
 	return problems.NormalizeCaseOutput(f.Problem, c, value)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -108,6 +109,36 @@ func CompileOdyssey(f Fixture, level int, kind string) (Problem, []Case, error) 
 
 func NormalizeCaseOutput(p Problem, c Case, data json.RawMessage) (json.RawMessage, error) {
 	if p.SQL != nil {
+		var value sqlResult
+		if len(p.SQL.Output) > 0 && json.Unmarshal(data, &value) == nil {
+			if value.Columns == nil {
+				for _, column := range p.SQL.Output {
+					value.Columns = append(value.Columns, column.Name)
+				}
+			}
+			for _, row := range value.Rows {
+				for i, raw := range row {
+					if i >= len(p.SQL.Output) {
+						break
+					}
+					kind := p.SQL.Output[i].Type
+					if kind != "real" && kind != "double precision" {
+						continue
+					}
+					bits := 64
+					if kind == "real" {
+						bits = 32
+					}
+					if len(raw) == 0 || raw[0] == '"' {
+						continue
+					}
+					if number, err := strconv.ParseFloat(string(raw), bits); err == nil {
+						row[i] = json.RawMessage(strconv.FormatFloat(number, 'e', -1, 64))
+					}
+				}
+			}
+			data, _ = json.Marshal(value)
+		}
 		return normalizeSQLResult(data, p.SQL.OutputOrder == "unordered")
 	}
 	if len(c.Calls) == 0 {
