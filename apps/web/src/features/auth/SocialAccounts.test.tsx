@@ -20,11 +20,25 @@ it("lists connections, offers configured providers, and protects the last sign-i
   expect(html).toContain("Connect GitHub");
   expect(html).not.toContain("Apple");
   expect(html).toMatch(/disabled=""[^>]*aria-label="Disconnect Google"/);
+  expect(html).toContain(
+    "Disconnect Google unavailable. Add a password or another sign-in method before disconnecting.",
+  );
+  expect(html).not.toContain(
+    "Add a password or another connection before disconnecting your only sign-in method.",
+  );
   client.setQueryData(
     ["account-connections", "fixture"],
     [
       { id: "social", providerId: "google" },
       { id: "password", providerId: "credential" },
+    ],
+  );
+  expect(render()).not.toMatch(/disabled=""[^>]*aria-label="Disconnect Google"/);
+  client.setQueryData(
+    ["account-connections", "fixture"],
+    [
+      { id: "social", providerId: "google" },
+      { id: "github", providerId: "github" },
     ],
   );
   expect(render()).not.toMatch(/disabled=""[^>]*aria-label="Disconnect Google"/);
