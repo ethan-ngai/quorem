@@ -124,12 +124,11 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		var f frame
 		if fatal != nil {
 			f = frame{Status: fatal.Status, Line: fatal.Line, Stderr: fatal.Stderr}
-		} else if runtime.Language != "python" && len(artifact) == 0 && budget-compilationTime <= time.Millisecond {
+		} else if runtime.Language != "python" && runtime.Language != "postgresql" && len(artifact) == 0 && budget-compilationTime <= time.Millisecond {
 			f = frame{Status: "time_limit"}
 		} else {
-			compiling := runtime.Language != "python" && len(artifact) == 0
-			if runtime.Language == "python" || len(cases) == 1 {
-				// A single case already compiles once; avoid serializing an unused artifact.
+			compiling := runtime.Language != "python" && runtime.Language != "postgresql" && len(artifact) == 0
+			if runtime.Language == "python" || runtime.Language == "postgresql" {
 				f, err = d.runCase(ctx, j, i, spec, c, budget-compilationTime)
 			} else if compiling {
 				f, err = d.runRequest(ctx, j, i, compiledFirstCaseRequest(spec, c), compiledArtifactLimit, budget-compilationTime)
@@ -254,11 +253,11 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 		image = d.Image
 	}
 	markers := 1
-	if runtime.Language != "python" {
+	if runtime.Language != "python" && runtime.Language != "postgresql" {
 		markers = 2
 	}
 	out := &sandboxOutput{expected: markers, onInitial: func() {
-		if runtime.Language != "python" {
+		if runtime.Language != "python" && runtime.Language != "postgresql" {
 			startup.Reset(startupDuration)
 		}
 	}, bounded: &bounded{limit: outputLimit*6 + 1024, cancel: cancel}, start: func() {
@@ -267,7 +266,7 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 	}}
 	stderr := &bounded{limit: j.Limits.OutputBytes, cancel: cancel}
 	defer func() {
-		if runtime.Language != "python" && out.initialReady {
+		if runtime.Language != "python" && runtime.Language != "postgresql" && out.initialReady {
 			if out.ready {
 				result.compilationTime = out.finalAt.Sub(out.firstAt)
 			} else {
@@ -275,7 +274,7 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 			}
 		}
 	}()
-	exitCode, err := client.run(ctx, name, image, j.Limits, request, out, stderr)
+	exitCode, err := client.run(ctx, name, image, j.Limits, request, out, stderr, runtime.Language == "postgresql")
 	startup.Stop()
 	if deadline != nil {
 		deadline.Stop()

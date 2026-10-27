@@ -1,5 +1,6 @@
 import type { OdysseyLevel, Signature } from "@quorem/contracts";
 import type { EditorLanguage } from "../editor/editorLanguages";
+import { methodDocumentation } from "./methodDocumentation";
 
 import { questionTypeName as typeName } from "../editor/questionTypes";
 
@@ -14,9 +15,9 @@ export function methodStub(method: Signature, language: EditorLanguage, indent =
   });
   const result = typeName(method.returnType, language);
   if (language === "python")
-    return `${indent}def ${method.methodName}(${["self", ...parameters].join(", ")}) -> ${result}:\n${indent}${indent}raise NotImplementedError\n`;
+    return `${indent}def ${method.methodName}(${["self", ...parameters].join(", ")}) -> ${result}:\n${methodDocumentation(method, language, indent + indent)}${indent}${indent}raise NotImplementedError\n`;
   if (language === "ocaml")
-    return `let ${method.methodName} ${parameters.join(" ") || "()"} : ${result} =\n    failwith "Implement solution"\n`;
+    return `${methodDocumentation(method, language, "")}let ${method.methodName} ${parameters.join(" ") || "()"} : ${result} =\n    failwith "Implement solution"\n`;
   const head =
     language === "java"
       ? `public ${result} ${method.methodName}(${parameters.join(", ")})`
@@ -25,7 +26,7 @@ export function methodStub(method: Signature, language: EditorLanguage, indent =
     language === "java"
       ? 'new UnsupportedOperationException("Implement solution")'
       : 'new Error("Implement solution")';
-  return `${indent}${head} {\n${indent}${indent}throw ${error};\n${indent}}\n`;
+  return `${methodDocumentation(method, language, indent)}${indent}${head} {\n${indent}${indent}throw ${error};\n${indent}}\n`;
 }
 
 export function initialOdysseySource(
@@ -46,6 +47,7 @@ export async function unlockedMethodEdit(
   language: EditorLanguage,
   levels: readonly OdysseyLevel[],
 ) {
+  if (language === "postgresql") return undefined;
   const methods = levels.flatMap((level) => level.methods);
   if (!source.trim())
     return { from: 0, to: source.length, insert: initialOdysseySource(methods, language) };

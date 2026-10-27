@@ -48,12 +48,12 @@ func ValidateOdyssey(c QuestionContent) error {
 			methods[sig.MethodName] = sig
 		}
 		for _, ex := range level.Examples {
-			if err := validateCalls(methods, ex.Case, true); err != nil {
+			if err := validateCalls(methods, ex.Case, true, inputLimit(c.Problem)); err != nil {
 				return fmt.Errorf("level %d example: %w", i+1, err)
 			}
 		}
 		for _, test := range c.OdysseyHiddenCases[i] {
-			if err := validateCalls(methods, test, true); err != nil {
+			if err := validateCalls(methods, test, true, inputLimit(c.Problem)); err != nil {
 				return fmt.Errorf("level %d case: %w", i+1, err)
 			}
 		}
@@ -61,7 +61,7 @@ func ValidateOdyssey(c QuestionContent) error {
 	return nil
 }
 
-func validateCalls(methods map[string]Signature, c Case, required bool) error {
+func validateCalls(methods map[string]Signature, c Case, required bool, limit int) error {
 	if len(c.Calls) < 1 || len(c.Calls) > 100 || len(c.Args) > 0 || len(c.Expected) > 0 {
 		return fmt.Errorf("sequence requires 1 to 100 calls and empty top-level args")
 	}
@@ -75,7 +75,7 @@ func validateCalls(methods map[string]Signature, c Case, required bool) error {
 			expect = json.RawMessage("null")
 			sig.ReturnType = "optional<int>"
 		}
-		if err := ValidateCase(sig, Case{Args: call.Args, Expected: expect}, required); err != nil {
+		if err := validateCaseLimit(sig, Case{Args: call.Args, Expected: expect}, required, limit); err != nil {
 			return err
 		}
 	}
@@ -83,7 +83,7 @@ func validateCalls(methods map[string]Signature, c Case, required bool) error {
 }
 
 func ValidateOdysseyCase(p Problem, c Case, required bool) error {
-	return validateCalls(OdysseyMethods(p), c, required)
+	return validateCalls(OdysseyMethods(p), c, required, inputLimit(p))
 }
 
 // Compile only unlocked methods and cumulative suites into an admitted snapshot.
@@ -107,6 +107,9 @@ func CompileOdyssey(f Fixture, level int, kind string) (Problem, []Case, error) 
 }
 
 func NormalizeCaseOutput(p Problem, c Case, data json.RawMessage) (json.RawMessage, error) {
+	if p.SQL != nil {
+		return normalizeSQLResult(data, p.SQL.OutputOrder == "unordered")
+	}
 	if len(c.Calls) == 0 {
 		return normalizeMethodOutput(p.Signature, data)
 	}

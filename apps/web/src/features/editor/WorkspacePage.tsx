@@ -102,7 +102,7 @@ export function WorkspacePage({
   }, [providedMatchWorkspaceId, matchSelection]);
   const [selectedLanguage, setSelectedLanguage] = useState<EditorLanguage>(() => {
     const saved = readPreference<string>(`quorem.language.v1.${slug}`, "python");
-    return ["python", "java", "typescript", "ocaml"].includes(saved)
+    return ["python", "java", "typescript", "ocaml", "postgresql"].includes(saved)
       ? (saved as EditorLanguage)
       : "python";
   });
@@ -172,12 +172,17 @@ export function WorkspacePage({
     ...problemOptions,
     enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),
   });
+  const activeLanguage = problemQuery.data?.languages?.some(
+    (item) => item.language === selectedLanguage,
+  )
+    ? selectedLanguage
+    : (problemQuery.data?.languages?.[0]?.language ?? selectedLanguage);
   const workspaceQuery = useQuery({
-    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id, selectedLanguage],
+    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id, activeLanguage],
     queryFn: () =>
       match
         ? fetchWorkspace(identity, matchWorkspaceId!)
-        : createWorkspace(identity, problemQuery.data!.id, selectedLanguage),
+        : createWorkspace(identity, problemQuery.data!.id, activeLanguage),
     enabled:
       !!account.data &&
       (account.data.kind !== "guest" || !!match) &&
@@ -189,14 +194,14 @@ export function WorkspacePage({
   const loadedWorkspace = useMemo(() => {
     if (account.data && (account.data.kind !== "guest" || match)) return workspaceQuery.data;
     if (!account.isPending && !match && problemQuery.data)
-      return guestWorkspace(problemQuery.data, selectedLanguage);
+      return guestWorkspace(problemQuery.data, activeLanguage);
     return undefined;
   }, [
     account.data,
     account.isPending,
     match,
     problemQuery.data,
-    selectedLanguage,
+    activeLanguage,
     workspaceQuery.data,
   ]);
 
@@ -377,7 +382,7 @@ export function WorkspacePage({
     !problem ||
     !workspace;
   const matchRules = useMatchRules(identity, match);
-  const documentLanguage = (workspace?.language ?? selectedLanguage) as EditorLanguage;
+  const documentLanguage = (workspace?.language ?? activeLanguage) as EditorLanguage;
   const odyssey = useQuery({
     queryKey: ["odyssey", workspace?.id],
     queryFn: () => interviewRequest<OdysseyProgress>(`/v1/workspaces/${workspace!.id}/odyssey`),
@@ -755,6 +760,9 @@ export function WorkspacePage({
               >
                 <EditorialPanel
                   available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
+                  solutionAvailable={
+                    !match && (problem.solutionLanguages?.includes(documentLanguage) ?? false)
+                  }
                   key={`${identity}:${problem.id}`}
                   identity={identity}
                   versionId={problem.id}

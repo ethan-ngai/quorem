@@ -10,6 +10,7 @@ type Runtime struct {
 
 var runtimes = []Runtime{
 	{"python", RuntimeRevision, HarnessRevision, "quorem-python:local"},
+	{"postgresql", "postgresql-17.6-v1", "quorem-postgresql-v1", "quorem-postgres:local"},
 	{"java", "java-21.0.9-v1", "quorem-java-v1", "quorem-java:local"},
 	{"typescript", "typescript-5.9.3-node-22.21.1-v1", "quorem-typescript-v1", "quorem-typescript:local"},
 	{"ocaml", "ocaml-4.13.1-v1", "quorem-ocaml-v1", "quorem-ocaml:local"},

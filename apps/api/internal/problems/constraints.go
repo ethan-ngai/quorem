@@ -8,6 +8,8 @@ import (
 	"math"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
 type ConstraintTarget struct {
@@ -182,7 +184,7 @@ func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
 	var value any
 	for i, p := range sig.Parameters {
 		if p.Name == t.Parameter {
-			normalized, _ := Normalize(p.Type, c.Args[i])
+			normalized, _ := normalizeInput(p.Type, c.Args[i], execution.MaxInputElements)
 			_ = json.Unmarshal(normalized, &value)
 			break
 		}
@@ -224,13 +226,16 @@ func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
 	return result
 }
 func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
+	if p.SQL != nil {
+		return validateSQLCase(c, expectedRequired)
+	}
 	if p.Odyssey != nil {
 		return ValidateOdysseyCase(p, c, expectedRequired)
 	}
 	if len(c.Calls) > 0 {
 		return fmt.Errorf("method sequences require Odyssey")
 	}
-	if err := ValidateCase(p.Signature, c, expectedRequired); err != nil {
+	if err := validateCaseLimit(p.Signature, c, expectedRequired, inputLimit(p)); err != nil {
 		return err
 	}
 	if err := ValidateConstraints(p.Signature, p.Constraints); err != nil {
@@ -264,23 +269,12 @@ func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
 	return nil
 }
 func ValidateProblemCustomCases(p Problem, cases []Case) error {
-	if p.Odyssey != nil {
-		if len(cases) < 1 || len(cases) > 20 {
-			return fmt.Errorf("custom cases must contain 1 to 20 cases")
-		}
-		data, err := json.Marshal(cases)
-		if err != nil || len(data) > 65536 {
-			return fmt.Errorf("custom cases exceed 64 KiB")
-		}
-		for _, c := range cases {
-			if err := ValidateOdysseyCase(p, c, false); err != nil {
-				return err
-			}
-		}
-		return nil
+	if len(cases) < 1 || len(cases) > 20 {
+		return fmt.Errorf("custom cases must contain 1 to 20 cases")
 	}
-	if err := ValidateCustomCases(p.Signature, cases); err != nil {
-		return err
+	data, err := json.Marshal(cases)
+	if err != nil || len(data) > execution.MaxCustomCasesBytes {
+		return fmt.Errorf("custom cases exceed 2 MiB")
 	}
 	for i, c := range cases {
 		if err := ValidateProblemCase(p, c, false); err != nil {
@@ -288,4 +282,12 @@ func ValidateProblemCustomCases(p Problem, cases []Case) error {
 		}
 	}
 	return nil
+}
+
+func inputLimit(p Problem) int {
+	limit := p.Limits.MaxCollectionElements
+	if limit <= 0 || limit > execution.MaxInputElements {
+		return execution.DefaultLimits().MaxCollectionElements
+	}
+	return limit
 }

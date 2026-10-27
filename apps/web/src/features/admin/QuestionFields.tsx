@@ -3,7 +3,12 @@ import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
-import { AuthoringCodeField, AuthoringNumberField, TopicField } from "./AuthoringInputs";
+import {
+  AuthoringCodeField,
+  AuthoringNumberField,
+  LeetcodeIDField,
+  TopicField,
+} from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
@@ -34,12 +39,8 @@ export function QuestionFields({
 }) {
   const problem = content.problem;
   const [section, setSection] = useState("question");
-  const [language, setLanguage] = useState<Language>("python");
+  const [language, setLanguage] = useState<Language>(content.problem.sql ? "postgresql" : "python");
   const id = useId();
-  const implementationIndex = content.implementations.findIndex(
-    (item) => item.language === language,
-  );
-  const implementation = content.implementations[implementationIndex];
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
@@ -79,43 +80,81 @@ export function QuestionFields({
           <Field label="Question type">
             <SelectField
               label="Question type"
-              value={problem.odyssey ? "staged" : "single"}
+              value={
+                problem.sql
+                  ? problem.odyssey
+                    ? "sql-staged"
+                    : "sql-single"
+                  : problem.odyssey
+                    ? "staged"
+                    : "single"
+              }
               disabled={disabled || invalidCases}
               options={[
                 { value: "single", label: "Single question" },
                 { value: "staged", label: "Multi-stage question" },
+                { value: "sql-single", label: "PostgreSQL question" },
+                { value: "sql-staged", label: "PostgreSQL multi-stage question" },
               ]}
               onChange={(value) => {
-                const odyssey =
-                  value === "staged"
-                    ? {
-                        levels: [
-                          {
-                            title: "Step 1",
-                            statementMarkdown: problem.statementMarkdown,
-                            methods: [problem.signature],
-                            examples: [],
-                          },
-                        ],
-                      }
-                    : undefined;
-                const methods = odyssey?.levels[0]?.methods;
-                onChange({
-                  ...content,
-                  problem: {
-                    ...problem,
-                    odyssey,
-                    starterSource:
-                      methods && !problem.starterSource
-                        ? initialOdysseySource(methods, "python")
-                        : problem.starterSource,
-                  },
-                  implementations: content.implementations.map((item) =>
-                    methods && !item.starterSource
-                      ? { ...item, starterSource: initialOdysseySource(methods, item.language) }
-                      : item,
-                  ),
-                });
+                const isSQL = value.startsWith("sql-");
+                const staged = value === "staged" || value === "sql-staged";
+                const odyssey = staged
+                  ? {
+                      levels: [
+                        {
+                          title: "Step 1",
+                          statementMarkdown: problem.statementMarkdown,
+                          methods: isSQL ? [] : [problem.signature],
+                          examples: [],
+                        },
+                      ],
+                    }
+                  : undefined;
+                if (isSQL !== !!problem.sql) {
+                  const nextLanguage = isSQL ? "postgresql" : "python";
+                  setLanguage(nextLanguage);
+                  onChange({
+                    ...content,
+                    problem: {
+                      ...problem,
+                      sql: isSQL ? { dialect: "postgresql", outputOrder: "unordered" } : undefined,
+                      odyssey,
+                      examples: [],
+                    },
+                    hiddenCases: [],
+                    odysseyHiddenCases: staged ? [[]] : [],
+                    implementations: [
+                      {
+                        language: nextLanguage,
+                        starterSource: "",
+                        runtimeRevision: revisions[nextLanguage][0],
+                        harnessRevision: revisions[nextLanguage][1],
+                        referenceSource: "",
+                      },
+                    ],
+                    solutions: [],
+                  });
+                } else {
+                  const methods = odyssey?.levels[0]?.methods;
+                  onChange({
+                    ...content,
+                    problem: {
+                      ...problem,
+                      odyssey,
+                      starterSource:
+                        !isSQL && methods && !problem.starterSource
+                          ? initialOdysseySource(methods, "python")
+                          : problem.starterSource,
+                    },
+                    implementations: content.implementations.map((item) =>
+                      !isSQL && methods && !item.starterSource
+                        ? { ...item, starterSource: initialOdysseySource(methods, item.language) }
+                        : item,
+                    ),
+                    odysseyHiddenCases: staged ? [[]] : [],
+                  });
+                }
               }}
             />
           </Field>
@@ -125,11 +164,15 @@ export function QuestionFields({
               value={language}
               disabled={disabled}
               onChange={(value) => setLanguage(value as Language)}
-              options={Object.entries(languageLabels).map(([value, label]) => ({
-                value,
-                label,
-                leading: <LanguageLogo language={value as Language} />,
-              }))}
+              options={Object.entries(languageLabels)
+                .filter(([value]) =>
+                  problem.sql ? value === "postgresql" : value !== "postgresql",
+                )
+                .map(([value, label]) => ({
+                  value,
+                  label,
+                  leading: <LanguageLogo language={value as Language} />,
+                }))}
             />
           </Field>
         </div>
@@ -153,7 +196,6 @@ export function QuestionFields({
           <QuestionBasics
             title={problem.title}
             statement={problem.statementMarkdown}
-            starter={implementation?.starterSource}
             staged={!!problem.odyssey}
             onTitleChange={(title) => {
               const slug = (value: string) =>
@@ -170,16 +212,8 @@ export function QuestionFields({
               });
             }}
             onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
-            onStarterChange={(starterSource) =>
-              setImplementation(implementationIndex, { starterSource })
-            }
           />
-          {!implementation && (
-            <p className="case-stale">
-              Enable {languageLabels[language]} in Solutions to add starter code.
-            </p>
-          )}
-          {!problem.odyssey && (
+          {!problem.odyssey && !problem.sql && (
             <fieldset className="admin-fields" disabled={disabled || invalidCases}>
               <SignatureFields
                 value={problem.signature}
@@ -217,6 +251,16 @@ export function QuestionFields({
               </Field>
             </div>
             <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
+            <TopicField
+              label="Companies, separated by commas"
+              tags={problem.companies ?? []}
+              onChange={(companies) => setProblem({ companies })}
+            />
+            <LeetcodeIDField
+              value={problem.leetcodeId ?? null}
+              onChange={(leetcodeId) => setProblem({ leetcodeId })}
+              onValidityChange={(invalid) => onValidityChange("leetcodeId", invalid)}
+            />
             <Field label="Attribution">
               <input
                 value={content.attribution}
@@ -250,7 +294,79 @@ export function QuestionFields({
           aria-labelledby={`${id}-tests`}
           hidden={section !== "tests"}
         >
-          {problem.odyssey ? (
+          {problem.sql ? (
+            <>
+              <Field label="Result row order">
+                <SelectField
+                  label="Result row order"
+                  value={problem.sql.outputOrder}
+                  options={[
+                    { value: "unordered", label: "Any order" },
+                    { value: "ordered", label: "Exact order" },
+                  ]}
+                  onChange={(outputOrder) =>
+                    setProblem({
+                      sql: { ...problem.sql!, outputOrder: outputOrder as "ordered" | "unordered" },
+                    })
+                  }
+                />
+              </Field>
+              {problem.odyssey ? (
+                <>
+                  <JSONField
+                    label="SQL stages"
+                    value={problem.odyssey.levels}
+                    onValidityChange={onValidityChange}
+                    onChange={(levels) =>
+                      setProblem({
+                        odyssey: {
+                          levels: levels as NonNullable<ProblemVersion["odyssey"]>["levels"],
+                        },
+                      })
+                    }
+                  />
+                  <JSONField
+                    label="SQL stage hidden cases"
+                    value={content.odysseyHiddenCases ?? []}
+                    onValidityChange={onValidityChange}
+                    onChange={(odysseyHiddenCases) =>
+                      onChange({
+                        ...content,
+                        odysseyHiddenCases:
+                          odysseyHiddenCases as QuestionContent["odysseyHiddenCases"],
+                      })
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <JSONField
+                    label="SQL examples"
+                    value={problem.examples}
+                    onValidityChange={onValidityChange}
+                    onChange={(examples) =>
+                      setProblem({ examples: examples as ProblemVersion["examples"] })
+                    }
+                  />
+                  <JSONField
+                    label="SQL hidden cases"
+                    value={content.hiddenCases}
+                    onValidityChange={onValidityChange}
+                    onChange={(hiddenCases) =>
+                      onChange({
+                        ...content,
+                        hiddenCases: hiddenCases as QuestionContent["hiddenCases"],
+                      })
+                    }
+                  />
+                </>
+              )}
+              <p>
+                Each case uses one table setup in args and a result with columns and rows. Numeric
+                results use {`{"$numeric":"1.25"}`} to retain precision.
+              </p>
+            </>
+          ) : problem.odyssey ? (
             <AuthoringStages
               content={content}
               onChange={onChange}
@@ -284,7 +400,7 @@ export function QuestionFields({
                   <input
                     type="checkbox"
                     checked={!!implementation}
-                    disabled={language === "python"}
+                    disabled={language === "python" || language === "postgresql"}
                     onChange={(event) =>
                       onChange({
                         ...content,
@@ -404,14 +520,18 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
       {content.solutions.map((solution) => (
         <section key={solution.language}>
           <h2>{languageLabels[solution.language as Language]} solution</h2>
-          <StatementMarkdown source={solution.explanationMarkdown} />
+          {solution.explanationMarkdown && (
+            <StatementMarkdown source={solution.explanationMarkdown} />
+          )}
           <pre className="editorial-source">
             <code>{solution.source}</code>
           </pre>
-          <p>
-            Time: {solution.timeComplexity} · Auxiliary space: {solution.spaceComplexity}
-          </p>
-          <StatementMarkdown source={solution.complexityNotes} />
+          {solution.timeComplexity && solution.spaceComplexity && (
+            <p>
+              Time: {solution.timeComplexity} · Auxiliary space: {solution.spaceComplexity}
+            </p>
+          )}
+          {solution.complexityNotes && <StatementMarkdown source={solution.complexityNotes} />}
         </section>
       ))}
     </div>

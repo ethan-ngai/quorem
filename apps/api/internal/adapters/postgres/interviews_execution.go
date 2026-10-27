@@ -83,9 +83,14 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string) 
 	if err = executionQueueAdmission(ctx, tx); err != nil {
 		return out, err
 	}
-	// Baseline workspace satisfies existing job FKs; the private immutable fixture lives only in interview_execution.
+	// Baseline workspace satisfies job FKs; interview execution always uses its private snapshot.
+	// SQL can reuse a Python baseline without exposing a private question as a solo workspace.
+	baselineLanguage := v.language
+	if baselineLanguage == "postgresql" {
+		baselineLanguage = "python"
+	}
 	var baseline string
-	if err = tx.QueryRow(ctx, `SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id JOIN problem_languages l ON l.version_id=v.id AND l.language=$1 WHERE v.id=p.current_version_id AND p.owner_id IS NULL ORDER BY v.id LIMIT 1`, v.language).Scan(&baseline); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id JOIN problem_languages l ON l.version_id=v.id AND l.language=$1 WHERE v.id=p.current_version_id AND p.owner_id IS NULL ORDER BY v.id LIMIT 1`, baselineLanguage).Scan(&baseline); err != nil {
 		return out, err
 	}
 	workspaceID := ID()

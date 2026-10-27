@@ -1,4 +1,5 @@
 import type { QuestionContent, Signature } from "@quorem/contracts";
+import { initialOdysseySource } from "../odyssey/methodStubs";
 import { createCustomDraft, parseCustomDraft } from "../editor/customCases";
 export function adaptSignature(content: QuestionContent, signature: Signature): QuestionContent {
   const previous = content.problem.signature;
@@ -22,7 +23,16 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
   }
   return {
     ...content,
-    problem: { ...content.problem, signature, examples: content.problem.examples.map(adapt) },
+    problem: {
+      ...content.problem,
+      signature,
+      starterSource: initialOdysseySource([signature], "python"),
+      examples: content.problem.examples.map(adapt),
+    },
+    implementations: content.implementations.map((item) => ({
+      ...item,
+      starterSource: initialOdysseySource([signature], item.language),
+    })),
     hiddenCases: content.hiddenCases.map(adapt),
   };
 }

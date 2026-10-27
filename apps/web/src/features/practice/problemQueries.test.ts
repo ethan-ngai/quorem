@@ -3,7 +3,7 @@ import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import fixture from "../../../../../fixtures/problems/run-widths.json";
 import { publicApi } from "../../api/client";
-import { catalogQueryOptions, catalogTopics, problemQueryOptions } from "./problemQueries";
+import { catalogQueryOptions, catalogFacets, problemQueryOptions } from "./problemQueries";
 
 const auth = vi.hoisted(() => ({ actor: "account-a", calls: 0 }));
 vi.mock("../auth/session", () => ({
@@ -38,6 +38,7 @@ const client = () => {
 const page = (items: ProblemVersion[]) => ({
   items,
   topics: ["arrays", "strings"],
+  companies: [],
   total: items.length,
   page: 1,
   limit: 20,
@@ -89,7 +90,7 @@ it("loads one public catalog before identity and reuses it for a resolved anonym
   expect(new URL(requests[0]!.url).searchParams.get("library")).toBe("global");
   expect(requests[0]!.credentials).toBe("omit");
   expect(requests[0]!.headers.get("Authorization")).toBeNull();
-  expect(catalogTopics(cache, "anonymous", { q: "different filter" })).toEqual([
+  expect(catalogFacets(cache, "anonymous", { q: "different filter" }).topics).toEqual([
     "arrays",
     "strings",
   ]);
@@ -234,6 +235,7 @@ it("resolves a signed-out private library empty without contacting an implicitly
   expect(observer.getCurrentResult().data).toEqual({
     items: [],
     topics: [],
+    companies: [],
     total: 0,
     page: 1,
     limit: 20,

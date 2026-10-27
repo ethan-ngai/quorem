@@ -2,23 +2,12 @@ package postgres
 
 import (
 	"context"
-	"strings"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 )
 
-func interviewStarter(signature problems.Signature, language string) (string, error) {
-	if language != "python" {
-		return problems.Starter(signature, language)
-	}
-	args := []string{"self"}
-	for _, p := range signature.Parameters {
-		args = append(args, p.Name)
-	}
-	return "class " + signature.ClassName + ":\n    def " + signature.MethodName + "(" + strings.Join(args, ", ") + "):\n        raise NotImplementedError\n", nil
-}
 func (s *Store) SwitchInterviewLanguage(ctx context.Context, user, id, key, language, epoch string) (interviews.Snapshot, error) {
 	var empty interviews.Snapshot
 	tx, err := s.Pool.Begin(ctx)

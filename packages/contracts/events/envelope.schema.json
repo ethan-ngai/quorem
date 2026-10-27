@@ -4,7 +4,7 @@
   "$defs": {
     "Language": {
       "type": "string",
-      "enum": ["python", "java", "typescript", "ocaml"]
+      "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
     },
     "Difficulty": {
       "type": "string",
@@ -56,6 +56,12 @@
         {
           "type": "array",
           "items": {
+            "$ref": "#/$defs/WireValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
             "$ref": "#/$defs/WireValue"
           }
         }
@@ -134,6 +140,9 @@
         },
         "input": {
           "$ref": "#/$defs/InputPresetConfig"
+        },
+        "description": {
+          "type": "string"
         }
       },
       "required": ["name", "type"],
@@ -162,6 +171,28 @@
           "type": "string",
           "enum": ["ordered", "unordered"],
           "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
+        },
+        "description": {
+          "type": "string"
+        },
+        "returns": {
+          "type": "string"
+        },
+        "throws": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "description"],
+            "additionalProperties": false
+          }
         }
       },
       "required": ["className", "methodName", "parameters", "returnType"],
@@ -272,6 +303,18 @@
         "difficulty": {
           "$ref": "#/$defs/Difficulty"
         },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "leetcodeId": {
+          "type": "integer",
+          "minimum": 1,
+          "nullable": true
+        },
         "tags": {
           "type": "array",
           "items": {
@@ -311,8 +354,31 @@
             "$ref": "#/$defs/LanguageImplementation"
           }
         },
+        "sql": {
+          "type": "object",
+          "properties": {
+            "dialect": {
+              "type": "string",
+              "enum": ["postgresql"]
+            },
+            "outputOrder": {
+              "type": "string",
+              "enum": ["ordered", "unordered"]
+            }
+          },
+          "required": ["dialect", "outputOrder"],
+          "additionalProperties": false
+        },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
+        },
+        "solutionLanguages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Language"
+          },
+          "maxItems": 5,
+          "uniqueItems": true
         },
         "complexityLanguages": {
           "type": "array",
@@ -1203,7 +1269,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "starterSource": {
           "type": "string"
@@ -1230,7 +1296,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "source": {
           "type": "string"
@@ -1256,7 +1322,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "timeComplexity": {
           "type": "string"
@@ -1275,7 +1341,7 @@
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml"]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "starterSource": {
           "type": "string"
@@ -1317,6 +1383,18 @@
         "difficulty": {
           "$ref": "#/$defs/Difficulty"
         },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64
+        },
+        "leetcodeId": {
+          "type": "integer",
+          "minimum": 1,
+          "nullable": true
+        },
         "tags": {
           "type": "array",
           "items": {
@@ -1355,6 +1433,21 @@
           "items": {
             "$ref": "#/$defs/LanguageImplementation"
           }
+        },
+        "sql": {
+          "type": "object",
+          "properties": {
+            "dialect": {
+              "type": "string",
+              "enum": ["postgresql"]
+            },
+            "outputOrder": {
+              "type": "string",
+              "enum": ["ordered", "unordered"]
+            }
+          },
+          "required": ["dialect", "outputOrder"],
+          "additionalProperties": false
         },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
@@ -1682,7 +1775,7 @@
           "items": {
             "$ref": "#/$defs/Signature"
           },
-          "minItems": 1,
+          "minItems": 0,
           "maxItems": 16
         },
         "examples": {
@@ -1896,7 +1989,11 @@
     "InterviewMember": {
       "type": "object",
       "properties": {
-        "color": { "type": "integer", "minimum": 1, "maximum": 24 },
+        "color": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
         "image": {
           "type": "string"
         },

@@ -7,5 +7,11 @@ import type { EditorLanguage } from "../features/editor/editorLanguages";
 const logos = { python, java, typescript, ocaml };
 
 export function LanguageLogo({ language }: { language: EditorLanguage }) {
+  if (language === "postgresql")
+    return (
+      <span className="language-logo" aria-hidden="true">
+        SQL
+      </span>
+    );
   return <img className="language-logo" src={logos[language]} alt="" aria-hidden="true" />;
 }

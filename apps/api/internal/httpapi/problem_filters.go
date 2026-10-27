@@ -10,11 +10,11 @@ import (
 )
 
 func parseProblemFilter(q url.Values) (problems.ProblemFilter, error) {
-	f := problems.ProblemFilter{Type: q.Get("type"), Library: q.Get("library"), Query: strings.TrimSpace(q.Get("q")), Difficulty: q.Get("difficulty"), Topic: q.Get("topic"), Sort: q.Get("sort"), Order: q.Get("order"), Page: 1, Limit: 20}
+	f := problems.ProblemFilter{Type: q.Get("type"), Library: q.Get("library"), Query: strings.TrimSpace(q.Get("q")), Difficulty: q.Get("difficulty"), Topic: q.Get("topic"), Company: q.Get("company"), Sort: q.Get("sort"), Order: q.Get("order"), Page: 1, Limit: 20}
 	invalid := func() (problems.ProblemFilter, error) {
 		return f, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid question filters"}
 	}
-	for _, key := range []string{"q", "difficulty", "topic", "sort", "order", "page", "limit", "library", "type"} {
+	for _, key := range []string{"q", "difficulty", "topic", "company", "sort", "order", "page", "limit", "library", "type"} {
 		if len(q[key]) > 1 {
 			return invalid()
 		}
@@ -31,7 +31,7 @@ func parseProblemFilter(q url.Values) (problems.ProblemFilter, error) {
 	for _, category := range []struct {
 		value      string
 		difficulty bool
-	}{{f.Difficulty, true}, {f.Topic, false}} {
+	}{{f.Difficulty, true}, {f.Topic, false}, {f.Company, false}} {
 		if category.value == "" {
 			continue
 		}

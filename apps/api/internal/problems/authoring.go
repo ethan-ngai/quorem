@@ -50,6 +50,9 @@ func NormalizeQuestionDraft(c QuestionContent) QuestionContent {
 	if p.Tags == nil {
 		p.Tags = []string{}
 	}
+	if p.Companies == nil {
+		p.Companies = []string{}
+	}
 	if p.Languages == nil {
 		p.Languages = []LanguageImplementation{}
 	}
@@ -94,11 +97,22 @@ func ValidateQuestionDraft(c QuestionContent) error {
 		return fmt.Errorf("invalid UTF-8")
 	}
 	p := c.Problem
-	if len(p.Languages) > 4 || len(p.Tags) > 32 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > 20 || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
+	if len(p.Languages) > 4 || len(p.Tags) > 32 || len(p.Companies) > 64 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > 20 || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
 		return fmt.Errorf("question collection limit exceeded")
 	}
 	if len(p.ID) > 64 || len(p.Version) > 32 || len(p.StarterSource) > 65536 || len(p.RuntimeRevision) > 128 || len(p.Slug) > 80 || len(p.Title) > 160 || len(p.StatementMarkdown) > 65536 || len(c.Attribution) > 2048 {
 		return fmt.Errorf("question text limit exceeded")
+	}
+	if p.LeetcodeID != nil && (*p.LeetcodeID < 1 || *p.LeetcodeID > 2147483647) {
+		return fmt.Errorf("invalid LeetCode ID")
+	}
+	seenCompanies := map[string]bool{}
+	for _, company := range p.Companies {
+		key := strings.ToLower(company)
+		if company != strings.TrimSpace(company) || company == "" || len(company) > 80 || strings.Contains(company, ",") || seenCompanies[key] {
+			return fmt.Errorf("invalid or duplicate company")
+		}
+		seenCompanies[key] = true
 	}
 	for _, example := range p.Examples {
 		if len(example.Explanation) > 8192 {
@@ -134,7 +148,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		return err
 	}
 	p := c.Problem
-	if p.Odyssey != nil {
+	if p.Odyssey != nil && p.SQL == nil {
 		if err := ValidateOdyssey(c); err != nil {
 			return err
 		}
@@ -161,28 +175,35 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		}
 		seenTags[tag] = true
 	}
-	sig := p.Signature
-	if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 {
-		return fmt.Errorf("Solution class and valid method name required")
-	}
-	seenParameters := map[string]bool{}
-	for _, param := range sig.Parameters {
-		if !symbolName.MatchString(param.Name) || len(param.Name) > 80 || seenParameters[param.Name] {
-			return fmt.Errorf("invalid or duplicate parameter")
+	if p.SQL == nil {
+		sig := p.Signature
+		if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 {
+			return fmt.Errorf("Solution class and valid method name required")
 		}
-		seenParameters[param.Name] = true
-		if err := ValidateInputConfig(param.Type, param.Input); err != nil {
+		seenParameters := map[string]bool{}
+		for _, param := range sig.Parameters {
+			if !symbolName.MatchString(param.Name) || len(param.Name) > 80 || seenParameters[param.Name] {
+				return fmt.Errorf("invalid or duplicate parameter")
+			}
+			seenParameters[param.Name] = true
+			if err := ValidateInputConfig(param.Type, param.Input); err != nil {
+				return err
+			}
+		}
+		if err := ValidateInputConfig(sig.ReturnType, nil); err != nil && !(p.Odyssey != nil && sig.ReturnType == "void") {
 			return err
 		}
-	}
-	if err := ValidateInputConfig(sig.ReturnType, nil); err != nil && !(p.Odyssey != nil && sig.ReturnType == "void") {
-		return err
-	}
-	if err := ValidateConstraints(sig, p.Constraints); err != nil {
+		if err := ValidateConstraints(sig, p.Constraints); err != nil {
+			return err
+		}
+	} else if err := validateSQLPublication(c); err != nil {
 		return err
 	}
 	limits, max := p.Limits, execution.DefaultLimits()
-	if limits.WallTimeMS < 1 || limits.WallTimeMS > max.WallTimeMS || limits.MemoryBytes < 1 || limits.MemoryBytes > max.MemoryBytes || limits.OutputBytes < 1 || limits.OutputBytes > max.OutputBytes || limits.MaxProcesses < 1 || limits.MaxProcesses > max.MaxProcesses || limits.MaxCollectionElements < 1 || limits.MaxCollectionElements > max.MaxCollectionElements || limits.MaxNestingDepth < 1 || limits.MaxNestingDepth > max.MaxNestingDepth {
+	if p.SQL != nil && (limits.MemoryBytes < max.MemoryBytes || limits.MaxProcesses < max.MaxProcesses) {
+		return fmt.Errorf("PostgreSQL requires the default memory and process limits")
+	}
+	if limits.WallTimeMS < 1 || limits.WallTimeMS > max.WallTimeMS || limits.MemoryBytes < 1 || limits.MemoryBytes > max.MemoryBytes || limits.OutputBytes < 1 || limits.OutputBytes > max.OutputBytes || limits.MaxProcesses < 1 || limits.MaxProcesses > max.MaxProcesses || limits.MaxCollectionElements < 1 || limits.MaxCollectionElements > execution.MaxInputElements || limits.MaxNestingDepth < 1 || limits.MaxNestingDepth > max.MaxNestingDepth {
 		return fmt.Errorf("execution limits exceed supported bounds")
 	}
 	for _, example := range p.Examples {
@@ -203,13 +224,16 @@ func ValidateQuestionPublication(c QuestionContent) error {
 		}
 		languages[v.Language] = true
 	}
-	if !languages["python"] {
-		return fmt.Errorf("Python implementation required for compatibility")
+	if p.SQL == nil && (!languages["python"] || languages["postgresql"]) {
+		return fmt.Errorf("Python implementation required for coding problems")
+	}
+	if p.SQL != nil && (len(languages) != 1 || !languages["postgresql"]) {
+		return fmt.Errorf("SQL problems require the PostgreSQL implementation")
 	}
 	editorials := map[string]bool{}
 	for _, v := range c.Solutions {
-		if !languages[v.Language] || editorials[v.Language] || strings.TrimSpace(v.Source) == "" || strings.TrimSpace(v.ExplanationMarkdown) == "" || strings.TrimSpace(v.TimeComplexity) == "" || strings.TrimSpace(v.SpaceComplexity) == "" || strings.TrimSpace(v.ComplexityNotes) == "" {
-			return fmt.Errorf("editorial code, explanation, complexity and variable definitions required")
+		if !languages[v.Language] || editorials[v.Language] || strings.TrimSpace(v.Source) == "" {
+			return fmt.Errorf("editorial language and code required")
 		}
 		editorials[v.Language] = true
 	}

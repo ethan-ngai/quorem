@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
+	"strings"
 	"testing"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
@@ -60,6 +61,11 @@ func TestQuestionDraftPublishingPreservesPriorVersions(t *testing.T) {
 		t.Fatal("non-admin authoring", err)
 	}
 	c.Problem.Title = "Run Widths revised"
+	c.Problem.Signature.Description = "Explain the method"
+	c.Problem.Signature.Parameters[0].Description = "Input values"
+	for i := range c.Implementations {
+		c.Implementations[i].StarterSource = "obsolete authored starter"
+	}
 	changed, err := s.UpdateQuestionDraft(ctx, "alice", d.ID, "1", c)
 	if err != nil || changed.Revision != "2" {
 		t.Fatal(changed, err)
@@ -77,6 +83,14 @@ func TestQuestionDraftPublishingPreservesPriorVersions(t *testing.T) {
 	latest, err := s.Problem(ctx, old.Slug, false)
 	if err != nil || latest.ID != published.PublishedVersionID || latest.Title != c.Problem.Title {
 		t.Fatal(latest, err)
+	}
+	if latest.Signature.Description != "Explain the method" || latest.Signature.Parameters[0].Description != "Input values" {
+		t.Fatal("method documentation lost", latest.Signature)
+	}
+	for _, implementation := range latest.Languages {
+		if !strings.Contains(implementation.StarterSource, "Explain the method") || strings.Contains(implementation.StarterSource, "obsolete authored starter") {
+			t.Fatal("starter not generated from documentation", implementation.Language, implementation.StarterSource)
+		}
 	}
 	prior, err := s.Problem(ctx, old.ID, true)
 	if err != nil || prior.Title != old.Title {
@@ -175,8 +189,8 @@ func TestQuestionPublicationRejectsUnsafeMetadata(t *testing.T) {
 		"bad expected":             func(c *problems.QuestionContent) { c.HiddenCases[0].Expected = json.RawMessage(`"wrong-type"`) },
 		"excess limits":            func(c *problems.QuestionContent) { c.Problem.Limits.WallTimeMS = 999999 },
 		"duplicate tag":            func(c *problems.QuestionContent) { c.Problem.Tags = append(c.Problem.Tags, c.Problem.Tags[0]) },
-		"editorial without variables": func(c *problems.QuestionContent) {
-			c.Solutions = []problems.EditorialSolution{{Language: "python", Source: "source", ExplanationMarkdown: "explain", TimeComplexity: "O(n)", SpaceComplexity: "O(n)"}}
+		"editorial without source": func(c *problems.QuestionContent) {
+			c.Solutions = []problems.EditorialSolution{{Language: "python", ExplanationMarkdown: "explain"}}
 		},
 	}
 	for name, mutate := range cases {

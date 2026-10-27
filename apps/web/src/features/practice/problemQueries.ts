@@ -33,8 +33,8 @@ function freshState<T>(client: QueryClient, key: readonly unknown[]) {
   return state?.data && Date.now() - state.dataUpdatedAt < staleTime ? state : undefined;
 }
 
-const topicsKey = (scope: string, library: CatalogSearch["library"]) =>
-  ["public-problem-topics", scope, library] as const;
+const facetsKey = (scope: string, library: CatalogSearch["library"]) =>
+  ["public-problem-facets", scope, library] as const;
 
 function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, started: number) {
   const updatedAt = Date.now();
@@ -76,7 +76,14 @@ export function catalogQueryOptions(
       if (context.scope === pendingScope) throw new Error("Account still loading");
       // A local development server may assign an owner even without browser credentials.
       if (context.scope === signedOutPrivateScope)
-        return { items: [], topics: [], total: 0, page: filters.page, limit: filters.limit };
+        return {
+          items: [],
+          topics: [],
+          companies: [],
+          total: 0,
+          page: filters.page,
+          limit: filters.limit,
+        };
       const started = Date.now();
       const transport =
         context.scope === publicScope ? publicApi() : api(actor as DevelopmentIdentity);
@@ -86,14 +93,17 @@ export function catalogQueryOptions(
       });
       const page = requireData(data, error);
       seedQuestions(client, context.scope, page, started);
-      client.setQueryData(topicsKey(context.scope, context.library), page.topics);
+      client.setQueryData(facetsKey(context.scope, context.library), {
+        topics: page.topics,
+        companies: page.companies,
+      });
       return page;
     },
   });
 }
 
 // Server topics are unfiltered; retain them across same-scope filter changes.
-export function catalogTopics(
+export function catalogFacets(
   client: QueryClient,
   actor: ProblemActor,
   search: CatalogSearch,
@@ -101,7 +111,10 @@ export function catalogTopics(
 ) {
   const context = catalogContext(actor, search.library);
   return (
-    page?.topics ?? client.getQueryData<string[]>(topicsKey(context.scope, context.library)) ?? []
+    page ??
+    client.getQueryData<Pick<CatalogPage, "topics" | "companies">>(
+      facetsKey(context.scope, context.library),
+    ) ?? { topics: [], companies: [] }
   );
 }
 

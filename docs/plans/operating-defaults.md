@@ -7,7 +7,7 @@ Engineering baseline chosen under delegated judgment. Values are initial enforce
 | Limit | Initial value |
 | --- | --- |
 | Source | 64 KiB UTF-8 |
-| Custom input | 64 KiB; up to 20 cases |
+| Custom input | 2 MiB aggregate; up to 20 cases. Each problem snapshots an input collection limit, up to 100,000 elements. |
 | Hidden suite | 20 equally weighted cases per seed problem/version |
 | Per-case Python process | 2 seconds wall time, 256 MiB memory, 16 process/task limit |
 | Sandbox startup | 10 seconds to trusted harness readiness; failure is infrastructure, not contestant timeout |

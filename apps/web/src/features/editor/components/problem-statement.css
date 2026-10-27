@@ -76,10 +76,28 @@
   min-height: 22px;
   margin-top: 8px;
 }
-.example-explanation p {
+.example-explanation-content {
   display: flex;
   align-items: baseline;
   gap: 8px;
+}
+.problem-copy img,
+.example-explanation img {
+  max-width: 100%;
+  height: auto;
+}
+.problem-copy table,
+.example-explanation table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.problem-copy td,
+.example-explanation td,
+.problem-copy th,
+.example-explanation th {
+  border: 1px solid var(--color-border);
+  padding: 4px 8px;
 }
 .explanation-icon {
   display: inline-flex;

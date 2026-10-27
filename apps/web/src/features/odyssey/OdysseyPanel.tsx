@@ -33,7 +33,8 @@ export function OdysseyPanel({
     title: problem?.title ?? title ?? level.title,
     difficulty: problem?.difficulty ?? "easy",
     tags: problem?.tags ?? [],
-    signature: level.methods[0]!,
+    signature: level.methods[0] ?? problem!.signature,
+    sql: problem?.sql,
     constraints: [],
     examples: level.examples,
     odyssey: { levels: progress.levels },
@@ -56,23 +57,25 @@ export function OdysseyPanel({
         </>
       }
       beforeExamples={
-        <section className="problem-section problem-copy">
-          <h2>Methods to implement</h2>
-          {level.methods.map((method) => (
-            <p key={method.methodName}>
-              <code>
-                {method.className}.{method.methodName}(
-                {method.parameters
-                  .map(
-                    (parameter) =>
-                      `${parameter.name}: ${questionTypeName(parameter.type, language)}`,
-                  )
-                  .join(", ")}
-                ) → {questionTypeName(method.returnType, language)}
-              </code>
-            </p>
-          ))}
-        </section>
+        !problem?.sql && (
+          <section className="problem-section problem-copy">
+            <h2>Methods to implement</h2>
+            {level.methods.map((method) => (
+              <p key={method.methodName}>
+                <code>
+                  {method.className}.{method.methodName}(
+                  {method.parameters
+                    .map(
+                      (parameter) =>
+                        `${parameter.name}: ${questionTypeName(parameter.type, language)}`,
+                    )
+                    .join(", ")}
+                  ) → {questionTypeName(method.returnType, language)}
+                </code>
+              </p>
+            ))}
+          </section>
+        )
       }
     >
       {children}
