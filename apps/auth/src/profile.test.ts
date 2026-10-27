@@ -69,6 +69,12 @@ function fixture(image: string | null = null) {
   };
 }
 describe("profile photos", () => {
+  it("identifies the cookie owner for matching speculative profile reads", async () => {
+    const response = await fixture().handler(
+      new Request(origin + "/api/auth/profile", { headers: { Cookie: "session=alice" } }),
+    );
+    expect(await response!.json()).toMatchObject({ id: "alice", name: "Alice" });
+  });
   it("validates and saves account colors with origin and session checks", async () => {
     let color = 4;
     const handler = createProfileHandler({

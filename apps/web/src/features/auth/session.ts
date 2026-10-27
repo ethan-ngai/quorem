@@ -1,6 +1,9 @@
 import { AuthError } from "./errors";
 import { useQuery } from "@tanstack/react-query";
+import { invalidateAvatarHints } from "./avatarCache";
 export type Session = {
+  authSubject?: string;
+  avatar?: { name?: string; image?: string; color?: number };
   kind?: "account" | "guest";
   matchId?: string;
   strongUntil?: number;
@@ -17,6 +20,36 @@ export type Session = {
   mode: "managed" | "development";
 };
 let access: { token: string; until: number } | undefined;
+/** Display hints only; the API verifies the bearer and all permissions. */
+export function tokenDisplay(value = access?.token) {
+  try {
+    if (!value) return undefined;
+    const payload = value.split(".")[1]!;
+    const bytes = Uint8Array.from(atob(payload.replace(/-/g, "+").replace(/_/g, "/")), (c) =>
+      c.charCodeAt(0),
+    );
+    const data = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
+    if (typeof data.sub !== "string" || !data.sub) return undefined;
+    return {
+      subject: data.sub,
+      name: typeof data.name === "string" ? data.name : undefined,
+      image:
+        typeof data.image === "string" &&
+        /^\/api\/auth\/profile-photos\/[a-f0-9-]{36}$/.test(data.image)
+          ? data.image
+          : undefined,
+      color:
+        typeof data.color === "number" &&
+        Number.isInteger(data.color) &&
+        data.color >= 1 &&
+        data.color <= 24
+          ? data.color
+          : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
 /** Expiry is scheduling metadata only; the server verifies every bearer. */
 export function tokenExpiresAt(): number | undefined {
   return access?.until;
@@ -36,6 +69,7 @@ function expiry(value: string): number {
 let anonymousUntil = 0;
 let pending: Promise<string | undefined> | undefined;
 let generation = 0;
+const responseBearers = new WeakMap<Response, string>();
 export function resetToken() {
   generation++;
   anonymousUntil = 0;
@@ -85,13 +119,18 @@ export const authenticatedFetch: typeof fetch = async (input, init) => {
   }
   // Retry a rejected bearer once with the current account session. Preserve body/retry keys.
   const response = await fetch(request.clone());
-  if (response.status !== 401 || !bearer) return response;
+  if (response.status !== 401 || !bearer) {
+    if (bearer) responseBearers.set(response, bearer);
+    return response;
+  }
   resetToken();
   const refreshed = await token();
   if (!refreshed) return response;
   await response.body?.cancel();
   request.headers.set("Authorization", `Bearer ${refreshed}`);
-  return fetch(request);
+  const retried = await fetch(request);
+  responseBearers.set(retried, refreshed);
+  return retried;
 };
 export async function fetchSession(): Promise<Session | null> {
   const response = await authenticatedFetch(
@@ -99,15 +138,25 @@ export async function fetchSession(): Promise<Session | null> {
   );
   if (response.status === 401) return null;
   if (!response.ok) throw new AuthError("Account unavailable");
-  return response.json() as Promise<Session>;
+  const session = (await response.json()) as Session;
+  const used = responseBearers.get(response);
+  const display = used && used === access?.token ? tokenDisplay(used) : undefined;
+  if (session.kind !== "guest" && display) {
+    session.authSubject = display.subject;
+    session.avatar = { name: display.name, image: display.image, color: display.color };
+  }
+  return session;
 }
-export function useSession() {
-  return useQuery({
+export function sessionQueryOptions() {
+  return {
     queryKey: ["auth-session"],
     queryFn: fetchSession,
     retry: false,
     staleTime: 30_000,
-  });
+  } as const;
+}
+export function useSession() {
+  return useQuery(sessionQueryOptions());
 }
 export function signInDestination(search: string = location.search ?? ""): string {
   const requested = new URLSearchParams(search).get("returnTo") ?? "";
@@ -144,6 +193,7 @@ export async function signInWithPassword(username: string, password: string) {
     throw new AuthError("Incorrect username, email or password.");
   }
   resetToken();
+  invalidateAvatarHints();
   location.assign(signInDestination());
 }
 export async function signIn(hostedEndpoint: boolean) {
@@ -164,6 +214,7 @@ export async function signIn(hostedEndpoint: boolean) {
   const data = (await response.json()) as { url?: string };
   if (!data.url || new URL(data.url).protocol !== "https:")
     throw new AuthError("Sign in unavailable");
+  invalidateAvatarHints();
   location.assign(data.url);
 }
 export async function signOut() {
@@ -175,6 +226,7 @@ export async function signOut() {
   });
   if (!response.ok) throw new AuthError("Sign out unavailable");
   resetToken();
+  invalidateAvatarHints();
   location.assign("/practice");
 }
 

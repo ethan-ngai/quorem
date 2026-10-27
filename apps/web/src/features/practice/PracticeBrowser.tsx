@@ -59,6 +59,11 @@ export function PracticeBrowser() {
     return () => window.clearTimeout(timer);
   }, [query, editing, search]);
   const catalog = useQuery(catalogQueryOptions(queryClient, actor, search));
+  useEffect(() => {
+    if (!catalog.data) return;
+    const timer = window.setTimeout(warmWorkspacePage, 200);
+    return () => window.clearTimeout(timer);
+  }, [!!catalog.data]);
   const privateIdentityError =
     search.library === "private" && actor === undefined && session.isError;
   const { topics, companies } = catalogFacets(queryClient, actor, search, catalog.data);

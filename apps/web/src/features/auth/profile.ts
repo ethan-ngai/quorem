@@ -1,7 +1,9 @@
 /** @file profile.ts @description Cookie-authenticated account profile and photo transport. @module auth */
 import { AuthError } from "./errors";
 import { useQuery } from "@tanstack/react-query";
+import { tokenDisplay, useSession } from "./session";
 export type AccountProfile = {
+  id?: string;
   name: string;
   email: string;
   username?: string | null;
@@ -34,11 +36,33 @@ export async function updateProfileColor(color: number): Promise<AccountProfile>
 export async function fetchProfile(): Promise<AccountProfile> {
   return readProfile(await fetch("/api/auth/profile", { credentials: "same-origin" }));
 }
+let primed: Promise<AccountProfile> | undefined;
+/** Start the cookie-authenticated profile read alongside token/session loading. */
+export function primeProfile() {
+  if (!primed) {
+    primed = fetchProfile();
+    void primed.catch(() => {});
+  }
+}
+export async function profileForCurrentAccount(subject?: string) {
+  const initial = primed;
+  primed = undefined;
+  let profile = initial ? await initial : await fetchProfile();
+  if (subject && profile.id !== subject) profile = await fetchProfile();
+  if (subject && (profile.id !== subject || tokenDisplay()?.subject !== subject))
+    throw new AuthError("Account changed. Reload to retry.");
+  return profile;
+}
 export function useProfile(userId?: string) {
+  const session = useSession();
   return useQuery({
     queryKey: ["account-profile", userId],
-    enabled: Boolean(userId),
-    queryFn: fetchProfile,
+    enabled:
+      Boolean(userId) &&
+      Boolean(session.data) &&
+      session.data?.user.id === userId &&
+      (session.data?.mode !== "managed" || Boolean(session.data?.authSubject)),
+    queryFn: () => profileForCurrentAccount(session.data?.authSubject),
     staleTime: 30_000,
     retry: false,
   });

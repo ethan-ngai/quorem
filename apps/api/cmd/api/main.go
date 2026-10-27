@@ -103,7 +103,7 @@ func main() {
 		if issuer == "" || secret == "" || authURL == "" {
 			log.Fatal("Managed identity requires AUTH_ORIGIN, AUTH_SERVICE_URL, AUTH_INTERNAL_SECRET")
 		}
-		api.Identity = &identity.JWTVerifier{Issuer: issuer, Audience: "quorem-api", JWKSURL: authURL + "/api/auth/jwks", Resolve: sessionResolver(authURL, secret, store.ResolveIdentity)}
+		api.Identity = &identity.JWTVerifier{Issuer: issuer, Audience: "quorem-api", JWKSURL: authURL + "/api/auth/jwks", Resolve: sessionResolver(authURL, secret, store.LookupIdentity, store.ResolveIdentity)}
 	}
 	queue, err := delivery.PublisherFromEnv(ctx, os.Getenv)
 	if err != nil {

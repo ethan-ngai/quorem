@@ -24,7 +24,8 @@ const json = (status: number, value: unknown) =>
     status,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
-const publicProfile = ({ name, email, username, image, profile_color }: Profile) => ({
+const publicProfile = ({ id, name, email, username, image, profile_color }: Profile) => ({
+  id,
   color: profile_color,
   name,
   email,

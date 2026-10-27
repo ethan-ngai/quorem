@@ -384,6 +384,25 @@
   background: var(--color-field);
   text-decoration: none;
 }
+.nav-account-pending {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+.nav-account-hint {
+  display: grid;
+  place-items: center;
+}
+.nav-account-hint .account-avatar {
+  width: 28px;
+  height: 28px;
+}
+@media (max-width: 620px) {
+  .nav-account-pending {
+    width: 44px;
+    height: 44px;
+  }
+}
 .account-passkeys {
   padding-top: var(--space-6);
 }

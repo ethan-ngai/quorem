@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { GlobalNav } from "./GlobalNav";
+import { AccountMenu } from "./AccountMenu";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
 
 async function renderNavigation(
@@ -49,6 +50,16 @@ async function renderNavigation(
 }
 
 describe("global navigation", () => {
+  it("does not show sign in while the account is unresolved", () => {
+    const client = new QueryClient();
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={client}>
+        <AccountMenu pending failed={false} onOpenSettings={() => {}} />
+      </QueryClientProvider>,
+    );
+    expect(html).toContain('aria-label="Checking account"');
+    expect(html).not.toContain("Sign in");
+  });
   it.each(["waiting", "ready", "active", "finalizing"] as const)(
     "waits for the membership stream before showing %s membership",
     async (state) => {
