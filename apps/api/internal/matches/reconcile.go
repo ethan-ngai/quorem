@@ -10,10 +10,11 @@ type Progress struct {
 	BestPassed int
 }
 type SubmissionProgress struct {
-	Owner   string
-	State   string
-	Verdict execution.Verdict
-	Score   *execution.Score
+	Owner        string
+	State        string
+	Verdict      execution.Verdict
+	Score        *execution.Score
+	Intermediate bool
 }
 type Reconciliation struct {
 	Progress     map[string]Progress
@@ -40,12 +41,12 @@ func Reconcile(now, deadline time.Time, finalizing *time.Time, owners []string, 
 		progress.State = submission.State
 		if submission.State == "completed" && submission.Score != nil {
 			progress.BestPassed = max(progress.BestPassed, submission.Score.Passed)
-			if submission.Verdict == "accepted" && submission.Score.Passed == submission.Score.Total && candidate == "" {
+			if !submission.Intermediate && submission.Verdict == "accepted" && submission.Score.Passed == submission.Score.Total && candidate == "" {
 				candidate = submission.Owner
 			}
 		} else {
 			uncertain[submission.Owner] = true
-			if candidate == "" {
+			if candidate == "" && !submission.Intermediate {
 				earlierUncertain[submission.Owner] = true
 				blocked = true
 			}
