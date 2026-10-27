@@ -3,6 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        let preference = "system";
+        try {
+          preference = JSON.parse(localStorage.getItem("quorem.theme.v1") || '"system"');
+        } catch {}
+        document.documentElement.dataset.theme =
+          preference === "dark" ||
+          (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches)
+            ? "dark"
+            : "light";
+      })();
+    </script>
+    <style>
+      html {
+        background: oklch(1 0 0);
+      }
+      html[data-theme="dark"] {
+        background: oklch(0.18 0.004 255);
+        color-scheme: dark;
+      }
+    </style>
     <meta name="theme-color" content="#f5f6f8" />
     <link rel="icon" data-favicon="ico" href="/favicon.ico?v=2" sizes="16x16 32x32 48x48 96x96" />
     <link

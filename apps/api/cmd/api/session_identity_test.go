@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 )
@@ -21,7 +22,9 @@ func TestSessionResolverDistinguishesRevocationFromOutage(t *testing.T) {
 				w.WriteHeader(status)
 			}))
 			defer upstream.Close()
-			resolver := sessionResolver(upstream.URL, "internal-fixture", func(context.Context, identity.Claims) (identity.Principal, error) {
+			resolver := sessionResolver(upstream.URL, "internal-fixture", func(context.Context, identity.Claims) (identity.Principal, bool, error) {
+				return identity.Principal{}, false, nil
+			}, func(context.Context, identity.Claims) (identity.Principal, error) {
 				calls++
 				return identity.Principal{UserID: "owner"}, nil
 			})
@@ -44,10 +47,37 @@ func TestSessionResolverDistinguishesRevocationFromOutage(t *testing.T) {
 	}
 }
 
+func TestSessionResolverOverlapsReadAndVerification(t *testing.T) {
+	started := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-started:
+			w.WriteHeader(http.StatusNoContent)
+		case <-time.After(time.Second):
+			t.Error("identity read did not overlap verification")
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	}))
+	defer upstream.Close()
+	resolver := sessionResolver(upstream.URL, "secret", func(context.Context, identity.Claims) (identity.Principal, bool, error) {
+		close(started)
+		return identity.Principal{UserID: "owner"}, true, nil
+	}, func(context.Context, identity.Claims) (identity.Principal, error) {
+		t.Error("unchanged identity unexpectedly projected")
+		return identity.Principal{}, nil
+	})
+	p, err := resolver(context.Background(), identity.Claims{SessionID: "session"})
+	if err != nil || p.UserID != "owner" {
+		t.Fatalf("resolution failed: %v %v", p, err)
+	}
+}
+
 func TestSessionResolverNetworkFailureDeniesWithoutInvalidatingSession(t *testing.T) {
 	upstream := httptest.NewServer(http.NotFoundHandler())
 	upstream.Close()
-	resolver := sessionResolver(upstream.URL, "internal-fixture", func(context.Context, identity.Claims) (identity.Principal, error) {
+	resolver := sessionResolver(upstream.URL, "internal-fixture", func(context.Context, identity.Claims) (identity.Principal, bool, error) {
+		return identity.Principal{}, false, nil
+	}, func(context.Context, identity.Claims) (identity.Principal, error) {
 		t.Fatal("resolved identity without session verification")
 		return identity.Principal{}, nil
 	})

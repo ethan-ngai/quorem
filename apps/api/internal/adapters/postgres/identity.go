@@ -7,16 +7,28 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// LookupIdentity reads an unchanged projection without creating or updating accounts.
+func (s *Store) LookupIdentity(ctx context.Context, c identity.Claims) (identity.Principal, bool, error) {
+	p, image, _, revision, e := boundIdentity(ctx, s.Pool, c)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return p, false, nil
+	}
+	if e != nil {
+		return p, false, e
+	}
+	return p, image == c.Image && revision >= c.ColorRevision, nil
+}
+
 // ResolveIdentity binds immutable provider subjects; email never links accounts.
 func (s *Store) ResolveIdentity(ctx context.Context, c identity.Claims) (identity.Principal, error) {
-	p, image, _, revision, e := boundIdentity(ctx, s.Pool, c)
 	if c.Color < 0 || c.Color > 24 {
 		c.Color = 0
 	}
-	if e == nil && image == c.Image && revision >= c.ColorRevision {
+	p, current, e := s.LookupIdentity(ctx, c)
+	if e == nil && current {
 		return p, nil
 	}
-	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
+	if e != nil {
 		return p, e
 	}
 	// Only creation and profile projection need serialization, never unchanged reads.
@@ -41,7 +53,7 @@ func (s *Store) ResolveIdentity(ctx context.Context, c identity.Claims) (identit
 			return p, e
 		}
 	}
-	p, image, _, revision, e = boundIdentity(ctx, tx, c)
+	p, image, _, revision, e := boundIdentity(ctx, tx, c)
 	if e != nil {
 		return p, e
 	}

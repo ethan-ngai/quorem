@@ -4,6 +4,39 @@ afterEach(() => {
   vi.resetModules();
 });
 describe("account identity transport", () => {
+  it("uses avatar claims only from the bearer accepted by the session endpoint", async () => {
+    vi.stubGlobal("window", { location: { origin: "http://127.0.0.1:5174" } });
+    const payload = btoa(
+      JSON.stringify({
+        sub: "subject-a",
+        name: "Alice",
+        color: 3,
+        image: "/api/auth/profile-photos/12345678-1234-1234-1234-123456789abc",
+        exp: Math.floor(Date.now() / 1000) + 300,
+      }),
+    ).replace(/=/g, "");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (request: string | Request) =>
+        typeof request === "string"
+          ? Response.json({ token: `header.${payload}.signature` })
+          : Response.json({
+              mode: "managed",
+              kind: "account",
+              user: { id: "product-id", displayName: "Alice", role: "user", emailVerified: true },
+            }),
+      ),
+    );
+    const { fetchSession } = await import("./session");
+    expect(await fetchSession()).toMatchObject({
+      authSubject: "subject-a",
+      avatar: {
+        name: "Alice",
+        color: 3,
+        image: "/api/auth/profile-photos/12345678-1234-1234-1234-123456789abc",
+      },
+    });
+  });
   it("anonymous requests never fall back to a fixture account", async () => {
     vi.stubGlobal("window", { location: { origin: "http://127.0.0.1:5174" } });
     vi.stubGlobal(

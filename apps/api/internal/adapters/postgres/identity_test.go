@@ -93,3 +93,28 @@ func TestBoundIdentityReadDoesNotWaitForProjectionLock(t *testing.T) {
 		t.Fatalf("unchanged identity read blocked behind projection: %v, %v", got, err)
 	}
 }
+
+func TestLookupIdentityNeverCreatesOrProjects(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	c := identity.Claims{Issuer: "mock-" + ID(), Subject: "subject", SessionID: "session", EmailVerified: true, Name: "User"}
+	if _, current, err := s.LookupIdentity(ctx, c); err != nil || current {
+		t.Fatalf("missing binding was current: %v %v", current, err)
+	}
+	var count int
+	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM identity_bindings WHERE issuer=$1 AND subject=$2", c.Issuer, c.Subject).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("lookup created a binding: %d %v", count, err)
+	}
+	p, err := s.ResolveIdentity(ctx, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Image = "/api/auth/profile-photos/new"
+	if _, current, err := s.LookupIdentity(ctx, c); err != nil || current {
+		t.Fatalf("changed projection was current: %v %v", current, err)
+	}
+	var image string
+	if err := s.Pool.QueryRow(ctx, "SELECT profile_image FROM users WHERE id=$1", p.UserID).Scan(&image); err != nil || image != "" {
+		t.Fatalf("lookup changed projection: %q %v", image, err)
+	}
+}
