@@ -84,9 +84,6 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	cases := f.HiddenCases
 	if f.Problem.Odyssey != nil {
-		if matchID != "" {
-			return judging.Submission{}, failure("invalid_input", 400, "Odyssey is unavailable in competitive matches")
-		}
 		if _, err = tx.Exec(ctx, "INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING", odysseyScope, f.Problem.ID); err != nil {
 			return judging.Submission{}, err
 		}

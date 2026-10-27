@@ -141,7 +141,7 @@ func (s *Server) mutateMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.PathValue("action") == "leave" && v.StartedAt == nil && identity.Subject(r.Context()).Guest {
-		http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+		clearGuestCookie(w)
 	}
 	respond(w, 200, s.withPresence(v))
 }

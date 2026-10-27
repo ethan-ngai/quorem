@@ -2,8 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"log"
 	"net/http"
 	"net/url"
@@ -304,7 +302,7 @@ func (s *Server) joinInterview(w http.ResponseWriter, r *http.Request) {
 		if cookie, e := r.Cookie(interviewGuestCookie); e == nil {
 			credential = cookie.Value
 		}
-		rotate := !validInterviewCredential(credential)
+		rotate := !identity.ValidGuestToken(credential)
 		if !rotate {
 			var e error
 			rotate, e = repo.RotateInterviewGuestCredential(r.Context(), credential, r.PathValue("token"))
@@ -317,12 +315,12 @@ func (s *Server) joinInterview(w http.ResponseWriter, r *http.Request) {
 			c.Name = identity.Subject(r.Context()).DisplayName
 		}
 		if rotate {
-			raw := make([]byte, 32)
-			if _, e := rand.Read(raw); e != nil {
+			var e error
+			credential, e = identity.NewGuestToken()
+			if e != nil {
 				s.err(w, r, e)
 				return
 			}
-			credential = base64.RawURLEncoding.EncodeToString(raw)
 		}
 	}
 	v, e := repo.JoinInterview(r.Context(), user, r.PathValue("token"), credential, c.Name)
@@ -333,13 +331,9 @@ func (s *Server) joinInterview(w http.ResponseWriter, r *http.Request) {
 	if guest {
 		origin, _ := url.Parse(r.Header.Get("Origin"))
 		secure := origin.Scheme == "https"
-		http.SetCookie(w, &http.Cookie{Name: interviewGuestCookie, Value: credential, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: secure, MaxAge: 86400})
+		setGuestCookie(w, interviewGuestCookie, credential, secure)
 	}
 	respond(w, 200, v)
-}
-func validInterviewCredential(v string) bool {
-	raw, e := base64.RawURLEncoding.DecodeString(v)
-	return e == nil && len(raw) == 32
 }
 func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 	repo, ok := s.interviewRequest(w, r)

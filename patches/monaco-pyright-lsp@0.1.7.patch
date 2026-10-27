@@ -1,0 +1,27 @@
+diff --git a/dist/worker.js b/dist/worker.js
+--- a/dist/worker.js
++++ b/dist/worker.js
+@@ -210119,7 +210119,9 @@
+         }
+         const cdEnd = ptr + this.eocd.size;
+         while (ptr < cdEnd) {
+-            const cd = new _zip_js__WEBPACK_IMPORTED_MODULE_5__.FileEntry(this.data, this.data.slice(ptr));
++            const header = new DataView(this.data, ptr);
++            const length = 46 + header.getUint16(28, true) + header.getUint16(30, true) + header.getUint16(32, true);
++            const cd = new _zip_js__WEBPACK_IMPORTED_MODULE_5__.FileEntry(this.data, this.data.slice(ptr, ptr + length));
+             /* 	Paths must be absolute,
+             yet zip file paths are always relative to the zip root.
+             So we prepend '/' and call it a day. */
+@@ -211025,8 +211027,10 @@
+          */
+         get data() {
+             // Get the local header before we can figure out where the actual compressed data starts.
+-            const { compressionMethod, size, name } = new LocalFileHeader(this.zipData.slice(this.headerRelativeOffset));
+-            const data = this.zipData.slice(this.headerRelativeOffset + size);
++            const header = new DataView(this.zipData, this.headerRelativeOffset);
++            const headerLength = 30 + header.getUint16(26, true) + header.getUint16(28, true);
++            const { compressionMethod, size, name } = new LocalFileHeader(this.zipData.slice(this.headerRelativeOffset, this.headerRelativeOffset + headerLength));
++            const data = this.zipData.slice(this.headerRelativeOffset + size, this.headerRelativeOffset + size + this.compressedSize);
+             // Check the compression
+             const decompress = _compression_js__WEBPACK_IMPORTED_MODULE_4__.decompressionMethods[compressionMethod];
+             if (typeof decompress != 'function') {
