@@ -72,6 +72,26 @@ describe("match sync guards and ordering", () => {
     });
   });
 
+  it("updates advisory presence from newer same-version heartbeats without accepting stale ones", () => {
+    const initial = snapshot("3");
+    const offline = {
+      ...initial,
+      serverNow: "2026-10-10T12:00:05Z",
+      participants: [{ ...initial.participants[0]!, presence: "offline" as const }],
+    };
+    const newer = { ...event("3"), type: "match.updated" as const, payload: offline };
+    const stale = { ...event("3"), type: "match.updated" as const, payload: initial };
+    const result = mergeMatchEvents(initial, [newer, stale]);
+    expect(result.gap).toBe(false);
+    expect(result.snapshot).toEqual(offline);
+  });
+
+  it("recovers an omitted terminal notice from a later heartbeat", () => {
+    const result = mergeMatchEvents(snapshot("3"), [event("5", "completed")]);
+    expect(result.gap).toBe(true);
+    expect(result.snapshot.state).toBe("active");
+  });
+
   it("rejects malformed optional fields, duplicate seats, and invalid seat counts", () => {
     const valid = snapshot("4");
     expect(isMatchSnapshot({ ...valid, startedAt: "yesterday" }, matchId)).toBe(false);

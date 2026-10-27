@@ -50,16 +50,12 @@ async function renderNavigation(
 
 describe("global navigation", () => {
   it.each(["waiting", "ready", "active", "finalizing"] as const)(
-    "replaces creation for %s membership",
+    "waits for the membership stream before showing %s membership",
     async (state) => {
       const html = await renderNavigation("/practice", undefined, state);
       expect(html).not.toContain('aria-label="Create match"');
-      expect(html).toContain('href="/match/current"');
-      expect(html).toContain(
-        state === "waiting" || state === "ready"
-          ? "Return to active lobby"
-          : "Return to active match",
-      );
+      expect(html).not.toContain('href="/match/current"');
+      expect(html).toContain('aria-label="Checking active match"');
     },
   );
   it("offers creation and named navigation/sign-in controls in practice", async () => {

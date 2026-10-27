@@ -109,40 +109,68 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 	return nil
 }
 func (s *Store) ReconcileMatches(ctx context.Context) error {
+	_, err := s.reconcileMatches(ctx, false)
+	return err
+}
+
+// Due work is locked by the same aggregate transaction as commands and verdicts.
+func (s *Store) ReconcileDueMatches(ctx context.Context) (int, error) {
+	return s.reconcileMatches(ctx, true)
+}
+
+const matchDue = `CASE WHEN started_at IS NULL THEN expires_at WHEN finalizing_at IS NOT NULL THEN finalizing_at + interval '2 minutes' ELSE deadline END`
+const matchPending = `EXISTS (SELECT 1 FROM match_reconciliation_pending pending WHERE pending.match_id=matches.id)`
+
+func (s *Store) reconcileMatches(ctx context.Context, dueOnly bool) (int, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := tx.Query(ctx, "SELECT id FROM matches WHERE state NOT IN ('completed','cancelled') ORDER BY reconciled_at,id FOR UPDATE SKIP LOCKED LIMIT 64")
-	if err != nil {
-		return err
+	query := "SELECT id, (SELECT generation FROM match_reconciliation_pending pending WHERE pending.match_id=matches.id) FROM matches WHERE "
+	if dueOnly {
+		query += "((state NOT IN ('completed','cancelled') AND " + matchDue + " <= clock_timestamp()) OR " + matchPending + ") ORDER BY " + matchDue + ",id"
+	} else {
+		query += "state NOT IN ('completed','cancelled') ORDER BY reconciled_at,id"
 	}
-	ids := []string{}
+	rows, err := tx.Query(ctx, query+" FOR UPDATE SKIP LOCKED LIMIT 64")
+	if err != nil {
+		return 0, err
+	}
+	type pendingMatch struct {
+		id         string
+		generation *int64
+	}
+	ids := []pendingMatch{}
 	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
+		var item pendingMatch
+		if err = rows.Scan(&item.id, &item.generation); err != nil {
 			rows.Close()
-			return err
+			return 0, err
 		}
-		ids = append(ids, id)
+		ids = append(ids, item)
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return err
+		return 0, err
 	}
-	for _, id := range ids {
-		m, e := lockMatch(ctx, tx, id)
+	for _, item := range ids {
+		m, e := lockMatch(ctx, tx, item.id)
 		if e != nil {
-			return e
+			return 0, e
 		}
 		if e = s.reconcileMatch(ctx, tx, &m); e != nil {
-			return e
+			return 0, e
 		}
-		if _, e = tx.Exec(ctx, "UPDATE matches SET reconciled_at=clock_timestamp() WHERE id=$1", id); e != nil {
-			return e
+		if _, e = tx.Exec(ctx, "UPDATE matches SET reconciled_at=clock_timestamp() WHERE id=$1", item.id); e != nil {
+			return 0, e
+		}
+		if dueOnly && item.generation != nil {
+			if _, e = tx.Exec(ctx, "DELETE FROM match_reconciliation_pending WHERE match_id=$1 AND generation=$2", item.id, *item.generation); e != nil {
+				return 0, e
+			}
 		}
 	}
-	return tx.Commit(ctx)
+	return len(ids), tx.Commit(ctx)
 }

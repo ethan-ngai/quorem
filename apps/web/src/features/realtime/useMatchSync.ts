@@ -13,7 +13,7 @@ import {
   type MatchEventBuffer,
 } from "./matchSync";
 
-export type MatchSyncStatus = "connecting" | "live" | "polling";
+export type MatchSyncStatus = "connecting" | "live" | "reconnecting";
 type MatchSyncState = MatchEventBuffer & {
   disposed: boolean;
   fetching: boolean;
@@ -88,7 +88,6 @@ export function useMatchSync(
       }
     },
     enabled: enabled && Boolean(matchId) && readyOwner === ownerKey,
-    refetchInterval: enabled ? (status === "live" ? 5_000 : 2_000) : false,
     structuralSharing: (previous, incoming) =>
       keepNewestSnapshot(previous as MatchSnapshot | undefined, incoming as MatchSnapshot),
   });
@@ -129,6 +128,7 @@ export function useMatchSync(
     const connection = createReconnectingSocket({
       url: () => eventSocketUrl(matchId, identity),
       timeout: 2_000,
+      idleTimeout: 45_000,
       onConnecting: () => setStatus("connecting"),
       onOpen() {
         setTransportError(null);
@@ -175,7 +175,7 @@ export function useMatchSync(
         );
       },
       onDisconnect() {
-        setStatus("polling");
+        setStatus("reconnecting");
         setReadyOwner(ownerKey);
       },
     });

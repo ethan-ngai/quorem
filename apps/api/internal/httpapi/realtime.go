@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -15,7 +16,17 @@ import (
 )
 
 // StartRealtime attaches the local adapter; authority remains in PostgreSQL.
-func (s *Server) StartRealtime(ctx context.Context) {
+func (s *Server) StartRealtime(ctx context.Context) error {
+	if _, ok := s.Store.(interface {
+		MatchEventNotifications(context.Context) (<-chan struct{}, func(), error)
+		DispatchInterviewEvents(context.Context, func(realtime.Notice) error) error
+		InterviewEventNotifications(context.Context) (<-chan struct{}, func(), error)
+		DispatchSubmissionEvents(context.Context, func(realtime.Notice) error) error
+		SubmissionEventNotifications(context.Context) (<-chan struct{}, func(), error)
+		membershipEventsRepository
+	}); !ok {
+		return errors.New("realtime outbox notifications are required")
+	}
 	local := realtime.NewMemory()
 	if s.Events == nil {
 		s.Events = local
@@ -32,61 +43,117 @@ func (s *Server) StartRealtime(ctx context.Context) {
 		notifications = repo.MatchEventNotifications
 	}
 	s.startOutboxDispatcher(ctx, "/matches/", s.Store.DispatchMatchEvents, notifications)
+	if repo, ok := s.Store.(interface {
+		DispatchSubmissionEvents(context.Context, func(realtime.Notice) error) error
+		SubmissionEventNotifications(context.Context) (<-chan struct{}, func(), error)
+	}); ok {
+		s.startOutboxDispatcher(ctx, "/submissions/", repo.DispatchSubmissionEvents, repo.SubmissionEventNotifications)
+	}
+	return nil
 }
 
-// Commit signals remove dispatch latency; a bounded recovery tick repairs missed signals.
+// Commit signals trigger dispatch; failures retry with bounded backoff.
 func (s *Server) startOutboxDispatcher(ctx context.Context, topic string, publish func(context.Context, func(realtime.Notice) error) error, notifications func(context.Context) (<-chan struct{}, func(), error)) {
-	go func() {
-		tick := time.NewTicker(time.Second)
-		defer tick.Stop()
-		var wake <-chan struct{}
-		var stop func()
-		defer func() {
-			if stop != nil {
-				stop()
-			}
-		}()
-		dispatch := func() {
-			attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			if err := publish(attempt, func(n realtime.Notice) error { return s.Events.Publish(attempt, topic+n.AggregateID, n) }); err != nil && ctx.Err() == nil {
-				log.Print("Realtime event dispatch unavailable")
-			}
+	go s.runOutboxDispatcher(ctx, topic, publish, notifications, time.Second, 30*time.Second)
+}
+
+func (s *Server) runOutboxDispatcher(ctx context.Context, topic string, publish func(context.Context, func(realtime.Notice) error) error, notifications func(context.Context) (<-chan struct{}, func(), error), retryMin, retryMax time.Duration) {
+	if notifications == nil {
+		log.Print("Database notifications unavailable; realtime dispatch disabled")
+		return
+	}
+	var wake <-chan struct{}
+	var stop func()
+	var retry *time.Timer
+	var retryC <-chan time.Time
+	delay := retryMin
+	defer func() {
+		if stop != nil {
+			stop()
 		}
-		connect := func() {
-			if notifications == nil {
-				return
-			}
-			var err error
-			wake, stop, err = notifications(ctx)
-			if err != nil {
-				wake = nil
-				log.Print("Database notifications unavailable; using bounded outbox recovery")
-			}
-		}
-		connect()
-		dispatch()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case _, open := <-wake:
-				if !open {
-					if stop != nil {
-						stop()
-					}
-					wake = nil
-				} else {
-					dispatch()
-				}
-			case <-tick.C:
-				if wake == nil {
-					connect()
-				}
-				dispatch()
-			}
+		if retry != nil {
+			retry.Stop()
 		}
 	}()
+	schedule := func() {
+		if retry != nil {
+			return
+		}
+		retry = time.NewTimer(delay)
+		retryC = retry.C
+		delay = min(delay*2, retryMax)
+	}
+	dispatch := func() error {
+		attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		return publish(attempt, func(n realtime.Notice) error {
+			if err := s.Events.Publish(attempt, topic+n.AggregateID, n); err != nil {
+				return err
+			}
+			if topic == "/matches/" {
+				return s.Events.Publish(attempt, "/match-invites/"+n.AggregateID, n)
+			}
+			return nil
+		})
+	}
+	connect := func() error {
+		var err error
+		wake, stop, err = notifications(ctx)
+		if err != nil || wake == nil {
+			if stop != nil {
+				stop()
+				stop = nil
+			}
+			wake = nil
+			if err != nil {
+				return err
+			}
+			return errors.New("notification listener unavailable")
+		}
+		return nil
+	}
+	attempt := func() {
+		if wake == nil {
+			if err := connect(); err != nil {
+				if ctx.Err() == nil {
+					log.Print("Database notifications unavailable")
+				}
+				schedule()
+				return
+			}
+		}
+		if err := dispatch(); err != nil {
+			if ctx.Err() == nil {
+				log.Print("Realtime event dispatch unavailable")
+			}
+			schedule()
+			return
+		}
+		delay = retryMin
+	}
+	attempt()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case _, open := <-wake:
+			if !open {
+				if stop != nil {
+					stop()
+				}
+				wake = nil
+				schedule()
+			} else {
+				if retry == nil {
+					attempt()
+				}
+			}
+		case <-retryC:
+			retry = nil
+			retryC = nil
+			attempt()
+		}
+	}
 }
 
 func (s *Server) registerRealtime(mux *http.ServeMux) {
@@ -101,6 +168,7 @@ func (s *Server) registerRealtime(mux *http.ServeMux) {
 		s.Presence = realtime.NewMemory()
 	}
 	mux.HandleFunc("GET /v1/matches/{id}/events", s.matchEvents)
+	mux.HandleFunc("GET /v1/submissions/{id}/events", s.submissionEvents)
 }
 
 func (s *Server) withPresence(snapshot matches.Snapshot) matches.Snapshot {

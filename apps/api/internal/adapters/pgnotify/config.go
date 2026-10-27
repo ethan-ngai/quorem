@@ -3,10 +3,20 @@ package pgnotify
 
 import (
 	"context"
+	"errors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"strings"
 	"time"
 )
+
+const listenerIdleTimeout = 30 * time.Second
+const listenerPingTimeout = 5 * time.Second
+
+type notificationConnection interface {
+	WaitForNotification(context.Context) (*pgconn.Notification, error)
+	Ping(context.Context) error
+}
 
 func Config(primary *pgx.ConnConfig, override string) (*pgx.ConnConfig, error) {
 	if override != "" {
@@ -64,15 +74,40 @@ func Signals(ctx context.Context, config *pgx.ConnConfig, channel string) (<-cha
 			defer cancel()
 			_ = conn.Close(cleanup)
 		}()
-		for {
-			if _, err := conn.WaitForNotification(listen); err != nil {
-				return
-			}
+		Watch(listen, conn, func(*pgconn.Notification) {
 			select {
 			case wake <- struct{}{}:
 			default:
 			}
-		}
+		})
 	}()
 	return wake, stop, nil
+}
+
+// Watch preserves notification order and probes idle sessions. A failed probe ends the stream.
+func Watch(ctx context.Context, conn notificationConnection, receive func(*pgconn.Notification)) error {
+	return watch(ctx, conn, receive, listenerIdleTimeout, listenerPingTimeout)
+}
+
+func watch(ctx context.Context, conn notificationConnection, receive func(*pgconn.Notification), idle, pingTimeout time.Duration) error {
+	for {
+		wait, cancel := context.WithTimeout(ctx, idle)
+		notice, err := conn.WaitForNotification(wait)
+		cancel()
+		if notice != nil {
+			receive(notice)
+		}
+		if err == nil {
+			continue
+		}
+		if ctx.Err() != nil || !errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		ping, cancel := context.WithTimeout(ctx, pingTimeout)
+		err = conn.Ping(ping)
+		cancel()
+		if err != nil {
+			return err
+		}
+	}
 }

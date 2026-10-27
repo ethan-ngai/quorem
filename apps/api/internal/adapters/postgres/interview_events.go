@@ -14,6 +14,8 @@ func (s *Store) DispatchInterviewEvents(ctx context.Context, publish func(realti
 }
 
 // One coalesced notification drains recovery backlogs within the caller's deadline.
+// Outbox queries wait for earlier locked rows; timeout retries prevent a dead publisher
+// from leaving a skipped row without another wake. This serializes each event stream.
 func drainEventBatches(ctx context.Context, batch func(context.Context) (int, error)) error {
 	for {
 		count, err := batch(ctx)
@@ -86,4 +88,4 @@ func interviewListenerConfig(primary *pgx.ConnConfig, override string) (*pgx.Con
 }
 
 // Qualify the numeric column; the serialized sequence alias otherwise sorts as text.
-const interviewPendingEventsQuery = `SELECT id,session_id,sequence::text,event_type,occurred_at FROM interview_outbox WHERE published_at IS NULL ORDER BY interview_outbox.sequence FOR UPDATE SKIP LOCKED LIMIT 64`
+const interviewPendingEventsQuery = `SELECT id,session_id,sequence::text,event_type,occurred_at FROM interview_outbox WHERE published_at IS NULL ORDER BY interview_outbox.sequence FOR UPDATE LIMIT 64`
