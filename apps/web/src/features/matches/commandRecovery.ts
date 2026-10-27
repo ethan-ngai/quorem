@@ -50,6 +50,18 @@ export function pendingCreate(identity: DevelopmentIdentity) {
   return undefined;
 }
 
+/** Discard an uncertain create retry after checking for an active match. */
+export function discardPendingCreate(identity: DevelopmentIdentity) {
+  const key = storageKey(identity, "create");
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    return false;
+  }
+  volatilePending.delete(key);
+  return true;
+}
+
 /** @returns A command result, reusing the exact key and payload after an uncertain response. */
 export async function recoverableCommand<TPayload, TResult>(
   identity: DevelopmentIdentity,
