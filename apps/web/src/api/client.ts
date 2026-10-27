@@ -35,6 +35,7 @@ export function requireData<T>(data: T | undefined, error: unknown): T {
   const serverMessage =
     detail && typeof detail === "object" && "message" in detail ? detail.message : undefined;
   const safeMessages: Record<string, string> = {
+    guest_hosting_paused: "Guest hosting is paused. Turn off Allow guests to continue.",
     step_up_required: "Sign in with a verified passkey again before publishing.",
     entitlement_required: "This feature is not enabled for this account.",
     quota_exceeded: "Execution allowance reached. Please try again later.",

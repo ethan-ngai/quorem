@@ -5,6 +5,7 @@ const creationErrors: Record<string, string> = {
   user_busy:
     "You already have an active match. Return to it or leave its lobby before creating another.",
   invalid_input: "Choose valid match settings and try again.",
+  guest_hosting_paused: "Guest hosting is paused. Turn off Allow guests to create a match.",
   not_found: "That problem is no longer available. Choose another problem.",
   unauthenticated: "Sign in again to create a match.",
   forbidden: "Your account cannot create this match.",
