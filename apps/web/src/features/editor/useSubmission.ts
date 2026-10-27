@@ -6,7 +6,7 @@ import { userFacingErrorMessage } from "../../ui/errors";
 import type { DevelopmentIdentity, ProblemVersion, Submission, Workspace } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { cancelSubmission, createSubmission } from "./api";
+import { cancelSubmission, createSubmission, fetchSubmission, SubmissionReadError } from "./api";
 import { submissionStream } from "./submissionStream";
 import {
   parseCustomCases,
@@ -125,12 +125,46 @@ export function useSubmission({
 
   const submissionQuery = useQuery<Submission>({
     queryKey: ["submission", identity, activeSubmissionId],
-    enabled: false,
+    queryFn: ({ signal }) => fetchSubmission(identity, activeSubmissionId!, signal),
+    enabled: !!activeSubmissionId,
+    staleTime: Infinity,
+    retry: (count, cause) =>
+      !(cause instanceof SubmissionReadError && [401, 403, 404].includes(cause.status)) &&
+      count < 1,
+    refetchOnWindowFocus: (query) => query.state.status === "error",
+    refetchOnReconnect: (query) => query.state.status === "error",
   });
   const submission = submissionQuery.data;
   const streaming =
     !!activeSubmissionId &&
+    !submissionQuery.isFetching &&
+    !(
+      submissionQuery.error instanceof SubmissionReadError && submissionQuery.error.status === 404
+    ) &&
     (!submission || submission.state === "queued" || submission.state === "running");
+  useEffect(() => {
+    if (!submissionQuery.isError || !activeSubmissionId || !workspace || scopeRef.current !== scope)
+      return;
+    const cause = submissionQuery.error;
+    setError(errorMessage(cause));
+    if (!(cause instanceof SubmissionReadError) || cause.status !== 404) return;
+    setActive((current) =>
+      current?.scope === scope && current.id === activeSubmissionId ? undefined : current,
+    );
+    try {
+      const key = submissionStorageKey(identity, workspace.id);
+      if (localStorage.getItem(key) === activeSubmissionId) localStorage.removeItem(key);
+    } catch {
+      /* Recovery can proceed without browser storage. */
+    }
+  }, [
+    submissionQuery.isError,
+    submissionQuery.error,
+    activeSubmissionId,
+    workspace,
+    scope,
+    identity,
+  ]);
   useEffect(() => {
     if (!streaming || !activeSubmissionId || !workspace) return;
     const stream = submissionStream(
