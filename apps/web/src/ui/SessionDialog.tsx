@@ -16,6 +16,7 @@ export function SessionDialog({
   actions,
   pending = false,
   className = "",
+  overlayClassName = "",
   onExited,
   returnFocus,
   initialFocus,
@@ -30,6 +31,7 @@ export function SessionDialog({
   actions?: ReactNode;
   pending?: boolean;
   className?: string;
+  overlayClassName?: string;
   onExited?: () => void;
   returnFocus?: () => void;
   initialFocus?: RefObject<HTMLElement | null>;
@@ -44,7 +46,7 @@ export function SessionDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="session-backdrop" />
+        <Dialog.Overlay className={`session-backdrop ${overlayClassName}`} />
         <Dialog.Content
           className={`competitive-dialog ${className}`}
           onOpenAutoFocus={(event) => {

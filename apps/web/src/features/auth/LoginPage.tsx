@@ -28,6 +28,7 @@ import { Brand } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useCooldown } from "../../ui/useCooldown";
 import { UsernameRules } from "./UsernameRules";
+import { SocialProviderIcon } from "./SocialProviderIcon";
 import { PasswordReset } from "./PasswordReset";
 import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
@@ -322,27 +323,7 @@ function LoginForm() {
                           onClick={() => void authenticate(() => signInWithProvider(provider))}
                           aria-describedby={!enabled ? "auth-provider-note" : undefined}
                         >
-                          {provider === "github" ? (
-                            <svg
-                              width="18"
-                              height="18"
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.34-3.8-1.34-.52-1.31-1.26-1.66-1.26-1.66-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.5-.29-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.29-.5-1.43.11-2.98 0 0 .95-.3 3.1 1.16a10.8 10.8 0 0 1 5.64 0c2.15-1.45 3.1-1.16 3.1-1.16.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.64 5.27-5.15 5.55.41.36.77 1.05.77 2.12v3.08c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z" />
-                            </svg>
-                          ) : (
-                            <svg
-                              width="18"
-                              height="18"
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              aria-hidden="true"
-                            >
-                              <path d="M21.8 12.2c0-.7-.06-1.4-.19-2.1H12v4h5.5a4.7 4.7 0 0 1-2 3.1 6 6 0 1 1-.2-10.1l3-3A10.2 10.2 0 1 0 12 22.2c5.7 0 9.8-4 9.8-10Z" />
-                            </svg>
-                          )}
+                          <SocialProviderIcon provider={provider} size={18} />
                           {socialProviderLabels[provider]}
                         </button>
                       );
