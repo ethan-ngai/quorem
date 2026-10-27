@@ -94,3 +94,16 @@ func TestSubmissionUpgradeUsesSocketBudget(t *testing.T) {
 		t.Fatal("submission socket uses HTTP capacity")
 	}
 }
+
+func TestCurrentMatchEventUpgradeUsesSocketBudget(t *testing.T) {
+	r := httptest.NewRequest("GET", "/v1/memberships/events", nil)
+	r.Header.Set("Upgrade", "websocket")
+	r.Header.Set("Connection", "keep-alive, Upgrade")
+	if !realtimeUpgrade(r) {
+		t.Fatal("membership socket consumed HTTP capacity")
+	}
+	r.Method = "POST"
+	if realtimeUpgrade(r) {
+		t.Fatal("non-GET admitted as socket")
+	}
+}
