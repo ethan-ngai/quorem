@@ -42,7 +42,15 @@ func TestWatchDetectsIdleFailureAndKeepsHealthyNotifications(t *testing.T) {
 		}
 		wake := make(chan struct{}, 1)
 		done := make(chan struct{})
-		go func() { defer close(done); watch(ctx, conn, wake, 10*time.Millisecond, 20*time.Millisecond) }()
+		go func() {
+			defer close(done)
+			watch(ctx, conn, func(*pgconn.Notification) {
+				select {
+				case wake <- struct{}{}:
+				default:
+				}
+			}, 10*time.Millisecond, 20*time.Millisecond)
+		}()
 		select {
 		case <-conn.pings:
 		case <-time.After(time.Second):
@@ -91,7 +99,15 @@ func TestWatchKeepsPostgresSessionAfterIdleTimeout(t *testing.T) {
 	}
 	defer publisher.Close(context.Background())
 	wake, done := make(chan struct{}, 1), make(chan struct{})
-	go func() { defer close(done); watch(ctx, listener, wake, 15*time.Millisecond, time.Second) }()
+	go func() {
+		defer close(done)
+		watch(ctx, listener, func(*pgconn.Notification) {
+			select {
+			case wake <- struct{}{}:
+			default:
+			}
+		}, 15*time.Millisecond, time.Second)
+	}()
 	defer func() { cancel(); <-done; listener.Close(context.Background()) }()
 	time.Sleep(60 * time.Millisecond)
 	if _, err := publisher.Exec(ctx, "NOTIFY quorem_listener_test"); err != nil {
@@ -101,5 +117,36 @@ func TestWatchKeepsPostgresSessionAfterIdleTimeout(t *testing.T) {
 	case <-wake:
 	case <-time.After(time.Second):
 		t.Fatal("notice missing after idle heartbeat")
+	}
+}
+
+type bufferedPingConnection struct {
+	calls  int
+	cancel context.CancelFunc
+}
+
+func (c *bufferedPingConnection) WaitForNotification(ctx context.Context) (*pgconn.Notification, error) {
+	c.calls++
+	switch c.calls {
+	case 1:
+		<-ctx.Done()
+		return &pgconn.Notification{Payload: "before-ping"}, ctx.Err()
+	case 2:
+		return &pgconn.Notification{Payload: "during-ping"}, nil
+	default:
+		c.cancel()
+		return nil, context.Canceled
+	}
+}
+func (*bufferedPingConnection) Ping(context.Context) error { return nil }
+
+func TestWatchPreservesNoticesAcrossProbe(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	conn := &bufferedPingConnection{cancel: cancel}
+	var payloads []string
+	err := watch(ctx, conn, func(n *pgconn.Notification) { payloads = append(payloads, n.Payload) }, time.Millisecond, time.Second)
+	if !errors.Is(err, context.Canceled) || len(payloads) != 2 || payloads[0] != "before-ping" || payloads[1] != "during-ping" {
+		t.Fatalf("notification order or cancellation lost: %v, %v", payloads, err)
 	}
 }

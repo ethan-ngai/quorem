@@ -7,6 +7,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/pgnotify"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"sync"
 	"time"
@@ -93,16 +94,14 @@ func (p *Postgres) read(conn *pgx.Conn) {
 	defer p.pool.Close()
 	defer func() { p.mu.Lock(); p.ready = false; p.hub.Close(); p.mu.Unlock() }()
 	for p.ctx.Err() == nil {
-		notification, err := conn.WaitForNotification(p.ctx)
-		if err == nil {
+		err := pgnotify.Watch(p.ctx, conn, func(notification *pgconn.Notification) {
 			var envelope postgresEnvelope
 			if len(notification.Payload) <= 7000 && json.Unmarshal([]byte(notification.Payload), &envelope) == nil && validNotice(envelope.Channel, envelope.Notice) {
 				p.mu.Lock()
 				_ = p.hub.Publish(p.ctx, envelope.Channel, envelope.Notice)
 				p.mu.Unlock()
 			}
-			continue
-		}
+		})
 		closeCtx, stop := context.WithTimeout(context.Background(), time.Second)
 		_ = conn.Close(closeCtx)
 		stop()
