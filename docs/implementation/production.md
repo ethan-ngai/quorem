@@ -6,6 +6,8 @@ Ledger: [#179](https://github.com/ethan-ngai/quorem/issues/179).
 
 Terraform owns the state bucket, Neon project, Worker/version/deployment, Containers application and rollout, and custom domain. The Containers application/rollout use `Mastercard/restapi` because Cloudflare's native provider lacks those resources. Immutable rollout history remains on Cloudflare when Terraform replaces its rollout state entry. Wrangler only pushes the built image; it does not provision the application.
 
+App pools and instances include a fingerprint of the runtime bindings in their names. New requests check the coordinator and selected instance revision before dispatch; a stale version is rejected before a command can execute. Prior revisions can serve existing connections while they drain. The application limit reserves space for two full generations; further overlapping revisions may return capacity errors until older connections close. Image rollouts and Cloudflare object resets can still disconnect sockets. The revision checks add two internal requests per ingress request; hosted latency and capacity must be measured.
+
 ## Configuration
 
 Repository secrets:

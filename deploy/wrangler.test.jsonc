@@ -5,6 +5,7 @@
   "vars": {
     "APP_ORIGIN": "http://localhost:8791",
     "APP_RUNTIME_ENV": "{}",
+    "APP_RUNTIME_REVISION": "fixture",
     "JUDGE_RUNTIME_ENV": "{}",
     "JUDGE_CONTROL_TOKEN": "local-contract-fixture-token-at-least-32-chars",
     "APP_POOL_SHARDS": "2",
