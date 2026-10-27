@@ -1,5 +1,6 @@
 import "./machine-values.css";
 import "./problem-statement.css";
+import { formatLabel } from "../../../ui/formatLabel";
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
 import { AuthoringTabs } from "../../../ui/AuthoringTabs";
 import { SqlSchema, SqlTables } from "./SqlTables";
@@ -94,9 +95,7 @@ export function ProblemStatement({
           aria-hidden={!topicsVisible}
         >
           {problem.tags.map((tag) => (
-            <span key={tag}>
-              {tag.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}
-            </span>
+            <span key={tag}>{formatLabel(tag)}</span>
           ))}
         </div>
       )}
