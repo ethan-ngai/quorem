@@ -36,39 +36,45 @@ export function useIntelligence(
     if (language === "typescript" || !hostedIntelligenceEnabled || !allowHosted) {
       const controller = new AbortController();
       let dispose: (() => void) | undefined;
+      let retryTimer: ReturnType<typeof setTimeout> | undefined;
+      let failures = 0;
       setExtensions([]);
       setStatus("connecting");
-      const initialize =
-        language === "typescript"
-          ? import("./browserTypeScriptIntelligence").then(
-              (module) => module.browserTypeScriptIntelligence,
-            )
-          : import("./browserPythonIntelligence").then(
-              (module) => module.browserPythonIntelligence,
-            );
-      void initialize
-        .then((start) =>
-          start(controller.signal, () => {
-            if (!controller.signal.aborted) {
-              setExtensions([]);
-              setStatus("unavailable");
+      function connect() {
+        let failed = false;
+        const recover = () => {
+          if (failed || controller.signal.aborted) return;
+          failed = true;
+          setExtensions([]);
+          setStatus("unavailable");
+          if (failures++ < 3) retryTimer = setTimeout(connect, 1000 * 2 ** failures);
+        };
+        setStatus("connecting");
+        const initialize =
+          language === "typescript"
+            ? import("./browserTypeScriptIntelligence").then(
+                (module) => module.browserTypeScriptIntelligence,
+              )
+            : import("./browserPythonIntelligence").then(
+                (module) => module.browserPythonIntelligence,
+              );
+        void initialize
+          .then((start) => start(controller.signal, recover))
+          .then((session) => {
+            if (controller.signal.aborted || failed) {
+              session.dispose();
+              return;
             }
-          }),
-        )
-        .then((session) => {
-          if (controller.signal.aborted) {
-            session.dispose();
-            return;
-          }
-          dispose = session.dispose;
-          setExtensions(session.extensions);
-          setStatus("ready");
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setStatus("unavailable");
-        });
+            dispose = session.dispose;
+            setExtensions(session.extensions);
+            setStatus("ready");
+          })
+          .catch(recover);
+      }
+      connect();
       return () => {
         controller.abort();
+        clearTimeout(retryTimer);
         dispose?.();
       };
     }

@@ -42,6 +42,21 @@ func TestReconcileAdmissionOrderAndUncertainty(t *testing.T) {
 	}
 }
 
+func TestReconcileOdysseyStages(t *testing.T) {
+	now := time.Now()
+	stage := SubmissionProgress{Owner: "alice", State: "completed", Verdict: "accepted", Score: &execution.Score{Passed: 3, Total: 3}, Intermediate: true}
+	result := Reconcile(now, now.Add(time.Minute), nil, []string{"alice", "bob"}, []SubmissionProgress{stage})
+	if result.Outcome != nil || result.Progress["alice"].BestPassed != 3 {
+		t.Fatalf("intermediate stage: %+v", result)
+	}
+	stage.State = "running"
+	final := SubmissionProgress{Owner: "bob", State: "completed", Verdict: "accepted", Score: &execution.Score{Passed: 6, Total: 6}}
+	result = Reconcile(now, now.Add(time.Minute), nil, []string{"alice", "bob"}, []SubmissionProgress{stage, final})
+	if result.Outcome == nil || result.Outcome.WinnerUserID != "bob" {
+		t.Fatalf("final stage: %+v", result)
+	}
+}
+
 func TestReconcileDeadlineAndBestScore(t *testing.T) {
 	deadline := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	partial := func(owner string, passed int) SubmissionProgress {

@@ -1,8 +1,6 @@
 package httpapi
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"net"
@@ -29,21 +27,25 @@ func (s *Server) bootstrapGuest(w http.ResponseWriter, r *http.Request) {
 	if !s.guestOrigin(w, r) {
 		return
 	}
-	if c, err := r.Cookie(guestCookie); err == nil && len(c.Value) == 43 {
+	if c, err := r.Cookie(guestCookie); err == nil && identity.ValidGuestToken(c.Value) {
 		w.WriteHeader(204)
 		return
 	}
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
+	credential, err := identity.NewGuestToken()
+	if err != nil {
 		s.err(w, r, err)
 		return
 	}
 	origin, _ := url.Parse(r.Header.Get("Origin"))
 	ip := net.ParseIP(origin.Hostname())
 	loopback := origin.Hostname() == "localhost" || (ip != nil && ip.IsLoopback())
-	http.SetCookie(w, &http.Cookie{Name: guestCookie, Value: base64.RawURLEncoding.EncodeToString(raw), Path: "/", HttpOnly: true, Secure: !loopback || origin.Scheme == "https", SameSite: http.SameSiteStrictMode, MaxAge: 86400})
+	setGuestCookie(w, guestCookie, credential, !loopback || origin.Scheme == "https")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(204)
+}
+
+func setGuestCookie(w http.ResponseWriter, name, value string, secure bool) {
+	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", HttpOnly: true, Secure: secure, SameSite: http.SameSiteStrictMode, MaxAge: 86400})
 }
 func (s *Server) joinGuest(w http.ResponseWriter, r *http.Request) {
 	if !s.GuestAdmission {
