@@ -25,7 +25,8 @@
 }
 .sql-table {
   border-collapse: collapse;
-  width: max-content;
+  width: 100%;
+  min-width: max-content;
   font: 12px/1.5 var(--font-code);
   text-align: left;
 }

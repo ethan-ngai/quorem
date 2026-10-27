@@ -2,7 +2,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import { blankQuestion } from "./content";
-import { PublicPreview, validJSONShape } from "./QuestionFields";
+import { PublicPreview, QuestionFields, validJSONShape } from "./QuestionFields";
 
 it("rejects malformed typed structures before preview", () => {
   expect(validJSONShape("Typed signature", null)).toBe(false);
@@ -54,4 +54,21 @@ it("validates SQL stages and renders public table inputs without private cases",
   const markup = renderToStaticMarkup(<PublicPreview content={content} />);
   expect(markup).toContain("public_items");
   expect(markup).not.toContain("PRIVATE_");
+});
+
+it("names SQL questions by type and PostgreSQL as the dialect", () => {
+  const content = blankQuestion();
+  content.problem.sql = { dialect: "postgresql", outputOrder: "unordered" };
+  const html = renderToStaticMarkup(
+    <QuestionFields
+      content={content}
+      disabled={false}
+      onChange={() => {}}
+      onValidityChange={() => {}}
+    />,
+  );
+  expect(html).toContain("SQL question");
+  expect(html).toContain('aria-label="SQL dialect"');
+  expect(html).toContain("postgresql.svg");
+  expect(html).not.toContain("PostgreSQL question");
 });

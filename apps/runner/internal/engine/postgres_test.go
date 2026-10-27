@@ -72,6 +72,13 @@ func TestPostgresSandbox(t *testing.T) {
 		if err != nil || result.Verdict != execution.WrongAnswer {
 			t.Fatalf("wrong output type: %+v %v", result, err)
 		}
+		d.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
+			return worker.Spec{Source: "SELECT id::bigint AS id FROM items WHERE false", Kind: "run", Fixture: schemaFixture, Cases: []worker.Case{schemaCase}}, nil
+		}
+		result, err = d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "visible-types", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
+		if err != nil || len(result.PublicCaseResults) != 1 || len(result.PublicCaseResults[0].SQLTypes) != 1 || result.PublicCaseResults[0].SQLTypes[0] != "bigint" {
+			t.Fatalf("missing actual output type: %+v %v", result, err)
+		}
 	})
 	t.Run("numeric precision", func(t *testing.T) {
 		numeric := c
@@ -101,4 +108,28 @@ func TestPostgresSandbox(t *testing.T) {
 		}
 	})
 
+}
+
+func TestPostgresLeftJoinTextResult(t *testing.T) {
+	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
+		t.Skip("requires PostgreSQL sandbox")
+	}
+	var fixture worker.Fixture
+	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered"}}}`), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	var c worker.Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"customers","columns":[{"name":"id","type":"integer"},{"name":"name","type":"text"}],"rows":[[1,"Ada"],[2,"Lin"],[3,"Sam"]]},{"name":"orders","columns":[{"name":"id","type":"integer"},{"name":"customer_id","type":"integer"}],"rows":[[10,1],[11,1],[12,3]]}]}],"expected":{"columns":["id","name"],"rows":[[2,"Lin"]]}}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	runtime, _ := execution.RuntimeForRevision("postgresql-17.6-v1", "quorem-postgresql-v1")
+	d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		return worker.Spec{Source: "-- Write your query here.\nSELECT c.id, name FROM customers c LEFT JOIN orders o\nON c.id = o.customer_id WHERE customer_id IS NULL;", Kind: "run", Fixture: fixture, Cases: []worker.Case{c}}, nil
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "join-text", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
+	if err != nil || result.Verdict != execution.Accepted {
+		t.Fatalf("%+v %v", result, err)
+	}
 }

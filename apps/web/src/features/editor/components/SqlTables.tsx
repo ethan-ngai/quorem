@@ -12,7 +12,7 @@ function parseTable(value: unknown, input: boolean): Table | undefined {
   if (!record(value) || !Array.isArray(value.columns) || !Array.isArray(value.rows)) return;
   const columns = value.columns.map((column: unknown) => {
     if (!input && typeof column === "string") return { name: column };
-    if (input && record(column) && typeof column.name === "string")
+    if (record(column) && typeof column.name === "string")
       return { name: column.name, type: typeof column.type === "string" ? column.type : undefined };
     return undefined;
   });
@@ -81,25 +81,41 @@ export function SqlTables({
   input,
   label,
   schema,
+  columnTypes,
+  useSchemaTypes = true,
 }: {
   value: unknown;
   input?: boolean;
   label: string;
   schema?: ProblemVersion["sql"];
+  columnTypes?: readonly string[];
+  useSchemaTypes?: boolean;
 }) {
   const values =
     input && record(value) && Array.isArray(value.tables) ? value.tables : input ? [] : [value];
   const tables = values.map((item: unknown) => {
     if (!record(item)) return undefined;
-    const columns = input
+    const schemaColumns = input
       ? schema?.tables?.find((table) => table.name === item.name)?.columns
       : schema?.output;
-    return parseTable(
-      columns && !Array.isArray(item.columns)
-        ? { ...item, columns: input ? columns : columns.map((column) => column.name) }
-        : item,
-      !!input,
-    );
+    if (input)
+      return parseTable(
+        !Array.isArray(item.columns) && schemaColumns ? { ...item, columns: schemaColumns } : item,
+        true,
+      );
+    const names = Array.isArray(item.columns)
+      ? item.columns
+      : schemaColumns?.map((column) => column.name);
+    if (!names || !names.every((name) => typeof name === "string")) return undefined;
+    const columns = names.map((name, index) => ({
+      name,
+      type:
+        columnTypes?.[index] ??
+        (useSchemaTypes && schemaColumns?.[index]?.name === name
+          ? schemaColumns[index]?.type
+          : undefined),
+    }));
+    return parseTable({ ...item, columns }, false);
   });
   if (!tables.length || tables.some((table) => !table))
     return <code className="machine-value">{JSON.stringify(value)}</code>;

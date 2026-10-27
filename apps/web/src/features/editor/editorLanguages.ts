@@ -17,6 +17,9 @@ export const languageLabels: Record<EditorLanguage, string> = {
   ocaml: "OCaml",
   postgresql: "PostgreSQL",
 };
+export function solutionLanguageLabel(language: EditorLanguage): string {
+  return language === "postgresql" ? "SQL" : languageLabels[language];
+}
 export const pythonExtensions: Extension = [
   highlightedPython,
   pythonSupport,

@@ -194,6 +194,9 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		}
 		if spec.Kind == "run" || spec.PrivateDetails || sample {
 			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
+			if len(actual) > 0 && spec.Fixture.Problem.SQL != nil {
+				public.SQLTypes = f.SQLTypes
+			}
 			if typeMismatch {
 				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Output column types do not match the SQL schema."})
 			}

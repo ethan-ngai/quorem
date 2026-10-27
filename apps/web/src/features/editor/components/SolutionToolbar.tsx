@@ -21,7 +21,7 @@ export function SolutionToolbar({
     <div className="code-toolbar">
       <SelectField
         className="select-field--compact"
-        label="Solution language"
+        label={language === "postgresql" ? "SQL dialect" : "Solution language"}
         value={language}
         disabled={disabled || !onChange}
         onChange={(value) => onChange?.(value as EditorLanguage)}

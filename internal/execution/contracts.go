@@ -66,6 +66,7 @@ type Diagnostic struct {
 }
 
 type PublicCaseResult struct {
+	SQLTypes    []string        `json:"sqlTypes,omitempty"`
 	Stdout      string          `json:"stdout,omitempty"`
 	Stderr      string          `json:"stderr,omitempty"`
 	Index       int             `json:"index"`

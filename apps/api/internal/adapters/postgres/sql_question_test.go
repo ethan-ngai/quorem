@@ -62,9 +62,21 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Admit(ctx, "alice", "sql-test", judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "SELECT id FROM items"}, "hash")
+	sub, err := s.Admit(ctx, "alice", "sql-test", judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "SELECT id FROM items"}, "hash")
 	if err != nil {
 		t.Fatal(err)
+	}
+	job, err := s.Claim(ctx)
+	if err != nil || job.SubmissionID != sub.ID {
+		t.Fatal(job, err)
+	}
+	completion := execution.Completion{SubmissionID: sub.ID, AttemptID: job.AttemptID, Verdict: execution.Accepted, PublicCaseResults: []execution.PublicCaseResult{{Index: 0, Status: "accepted", SQLTypes: []string{"integer"}}}}
+	if err = s.Complete(ctx, job, completion); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Submission(ctx, "alice", sub.ID)
+	if err != nil || len(got.PublicCases) != 1 || len(got.PublicCases[0].SQLTypes) != 1 || got.PublicCases[0].SQLTypes[0] != "integer" {
+		t.Fatal(got, err)
 	}
 }
 

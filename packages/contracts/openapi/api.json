@@ -3464,6 +3464,25 @@
               "invalid_output"
             ]
           },
+          "sqlTypes": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "enum": [
+                "integer",
+                "bigint",
+                "numeric",
+                "text",
+                "boolean",
+                "date",
+                "timestamp",
+                "timestamptz",
+                "real",
+                "double precision"
+              ]
+            }
+          },
           "actual": {
             "$ref": "#/components/schemas/WireValue"
           },
