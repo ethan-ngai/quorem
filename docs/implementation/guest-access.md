@@ -28,7 +28,7 @@ Use `revoke` with the same scope/source/ref and a new operation ID. Optional `--
 
 ## Rollout and rollback
 
-`GUEST_CREATION_ENABLED`, `GUEST_ADMISSION_ENABLED`, `GUEST_EXECUTION_ENABLED` default false in production, true locally. Explicit `false` overrides local defaults. Stop new admissions first, then drain jobs; execution pause blocks new runs without hiding existing results. Flags are read on API startup; change deployment configuration and restart. Provision/deploy via Terraform/GitHub Actions only.
+The Cloudflare production configuration enables `GUEST_CREATION_ENABLED`, `GUEST_ADMISSION_ENABLED`, and `GUEST_EXECUTION_ENABLED` for the bounded match pilot; host eligibility still requires an active `matches.host_guests` or `internal` grant. The API defaults these flags off outside local development when not configured. Terraform variables `guest_creation_enabled`, `guest_admission_enabled`, and `guest_execution_enabled` independently pause the operations. Stop new admissions first, then drain jobs; execution pause blocks new runs without hiding existing results. Flags are read on API startup; provision/deploy via Terraform/GitHub Actions only.
 
 PostgreSQL request limits use connection-peer addresses, deliberately ignoring untrusted proxy headers. A reverse proxy may share one bucket across clients. Tune only after measuring; do not use restrictive per-campus-IP limits as primary accounting.
 

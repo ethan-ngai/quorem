@@ -76,6 +76,26 @@ func TestGuestEntitlementsAndOperatorAudit(t *testing.T) {
 		t.Fatal("audit was mutable")
 	}
 }
+
+func TestGuestHostingRequiresMatchCapability(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	settings := matches.Settings{Difficulty: "easy", DurationMinutes: 30, AccessMode: "guests_allowed"}
+	if _, err := s.CreateMatch(ctx, "bob", ID(), settings); errorCode(err) != "entitlement_required" {
+		t.Fatalf("host without capability: %v", err)
+	}
+	grant := access.Grant{OperationID: ID(), UserID: "alice", Actor: "test", Reason: "Pilot", Scope: "matches.host_guests", Source: "internal", Reference: "guest-match-test"}
+	if err := s.ApplyGrant(ctx, grant, false); err != nil {
+		t.Fatal(err)
+	}
+	room, err := s.CreateMatch(ctx, "alice", ID(), settings)
+	if err != nil {
+		t.Fatalf("host with match capability: %v", err)
+	}
+	if _, err = s.JoinGuest(ctx, inviteToken(t, room), guestCredential(), "Guest"); err != nil {
+		t.Fatalf("guest admission: %v", err)
+	}
+}
 func TestGuestConcurrentJoinsResumeAndRevocation(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
