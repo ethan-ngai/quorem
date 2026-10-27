@@ -1,14 +1,24 @@
 /** @file membershipEvents.test.ts @description Shared membership socket lifecycle and invalidation delivery. @module realtime */
 import { expect, it, vi } from "vitest";
 
-const transport = vi.hoisted(() => ({ options: undefined as any, stop: vi.fn(), start: vi.fn() }));
+const transport = vi.hoisted(() => ({
+  options: undefined as any,
+  create: vi.fn(),
+  stop: vi.fn(),
+  start: vi.fn(),
+}));
 vi.mock("./reconnectingSocket", () => ({
   createReconnectingSocket: (options: unknown) => {
+    transport.create();
     transport.options = options;
     return { start: transport.start, stop: transport.stop, current: undefined };
   },
 }));
-import { membershipSynchronizer, subscribeMembershipEvents } from "./membershipEvents";
+import {
+  membershipSynchronizer,
+  retryMembershipEvents,
+  subscribeMembershipEvents,
+} from "./membershipEvents";
 
 it("shares one socket per identity and notifies late subscribers to reload", () => {
   const first = vi.fn();
@@ -71,4 +81,27 @@ it("does not restore ready from a response after disconnect", async () => {
   expect(status).toHaveBeenLastCalledWith("offline");
   expect(status).not.toHaveBeenCalledWith("ready");
   sync.stop();
+});
+
+it("retries one shared socket without dropping subscribers or creating a second transport", () => {
+  vi.clearAllMocks();
+  const first = vi.fn();
+  const second = vi.fn();
+  const stopFirst = subscribeMembershipEvents("bob", first);
+  const stopSecond = subscribeMembershipEvents("bob", second);
+  transport.options.onDisconnect();
+  retryMembershipEvents("bob");
+  expect(transport.stop).toHaveBeenCalledTimes(1);
+  expect(transport.start).toHaveBeenCalledTimes(2);
+  expect(transport.create).toHaveBeenCalledTimes(1);
+  transport.options.onConnecting();
+  transport.options.onMessage({ data: JSON.stringify({ type: "membership.updated" }) });
+  expect(first).toHaveBeenLastCalledWith("changed");
+  expect(second).toHaveBeenLastCalledWith("changed");
+  stopFirst();
+  expect(transport.stop).toHaveBeenCalledTimes(1);
+  stopSecond();
+  expect(transport.stop).toHaveBeenCalledTimes(2);
+  retryMembershipEvents("bob");
+  expect(transport.start).toHaveBeenCalledTimes(2);
 });

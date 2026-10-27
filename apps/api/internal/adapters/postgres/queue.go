@@ -228,10 +228,6 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET finished=true,lease_until=NULL WHERE id=$1", j.JobID); err != nil {
 		return err
 	}
-	payload, _ := json.Marshal(map[string]string{"submissionId": j.SubmissionID, "state": state})
-	if _, err = tx.Exec(ctx, "INSERT INTO outbox_events(id,aggregate_id,type,payload) VALUES($1,$2,'submission.updated',$3)", ID(), j.SubmissionID, payload); err != nil {
-		return err
-	}
 	if matchID != "" {
 		if err = s.reconcileMatch(ctx, tx, &match); err != nil {
 			return err

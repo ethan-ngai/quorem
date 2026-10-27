@@ -32,6 +32,12 @@ func (s *Server) StartRealtime(ctx context.Context) {
 		notifications = repo.MatchEventNotifications
 	}
 	s.startOutboxDispatcher(ctx, "/matches/", s.Store.DispatchMatchEvents, notifications)
+	if repo, ok := s.Store.(interface {
+		DispatchSubmissionEvents(context.Context, func(realtime.Notice) error) error
+		SubmissionEventNotifications(context.Context) (<-chan struct{}, func(), error)
+	}); ok {
+		s.startOutboxDispatcher(ctx, "/submissions/", repo.DispatchSubmissionEvents, repo.SubmissionEventNotifications)
+	}
 }
 
 // Commit signals remove dispatch latency; a bounded recovery tick repairs missed signals.
@@ -109,6 +115,7 @@ func (s *Server) registerRealtime(mux *http.ServeMux) {
 		s.Presence = realtime.NewMemory()
 	}
 	mux.HandleFunc("GET /v1/matches/{id}/events", s.matchEvents)
+	mux.HandleFunc("GET /v1/submissions/{id}/events", s.submissionEvents)
 }
 
 func (s *Server) withPresence(snapshot matches.Snapshot) matches.Snapshot {
