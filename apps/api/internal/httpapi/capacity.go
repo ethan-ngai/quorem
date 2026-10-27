@@ -46,7 +46,7 @@ func realtimeUpgrade(r *http.Request) bool {
 	if len(parts) == 5 && parts[1] == "v1" && parts[4] == "events" {
 		decoded, decodeErr := base64.RawURLEncoding.DecodeString(parts[3])
 		invite := parts[2] == "match-invites" && decodeErr == nil && len(decoded) == 32
-		other = invite || ((parts[2] == "interviews" || parts[2] == "matches") && uuid.MatchString(parts[3]))
+		other = invite || ((parts[2] == "interviews" || parts[2] == "matches" || parts[2] == "submissions") && uuid.MatchString(parts[3]))
 	}
 	if !membership && !other {
 		return false

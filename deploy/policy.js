@@ -31,7 +31,7 @@ export function isSocketRequest(request) {
       ?.split(",")
       .some((token) => token.trim().toLowerCase() === "upgrade") &&
     (/^\/v1\/memberships\/events$/.test(new URL(request.url).pathname) ||
-      /^\/v1\/(?:(?:interviews|matches)\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|match-invites\/[A-Za-z0-9_-]{43})\/events$/.test(
+      /^\/v1\/(?:(?:interviews|matches|submissions)\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|match-invites\/[A-Za-z0-9_-]{43})\/events$/.test(
         new URL(request.url).pathname,
       )),
   );

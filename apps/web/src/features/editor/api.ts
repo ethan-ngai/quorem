@@ -1,4 +1,5 @@
 import { api, requireData } from "../../api/client";
+import { UserFacingError } from "../../ui/errors";
 /** @file api.ts @description Typed browser requests for public problems and solo workspaces. @module editor */
 import { randomUUID } from "../../randomUUID";
 import type {
@@ -55,12 +56,28 @@ export async function createSubmission(
   return requireData(data as SubmissionAdmission | undefined, error);
 }
 
-/** Reads the safe owner-facing state of one judge job. */
-export async function fetchSubmission(identity: DevelopmentIdentity, id: string) {
-  const { data, error } = await api(identity).GET("/v1/submissions/{id}", {
+export class SubmissionReadError extends UserFacingError {
+  constructor(public readonly status: number) {
+    super(
+      status === 404
+        ? "Saved judge result is no longer available."
+        : "Could not load the judge result. Try again.",
+    );
+  }
+}
+
+/** One authorized recovery read; the socket owns subsequent updates. */
+export async function fetchSubmission(
+  identity: DevelopmentIdentity,
+  id: string,
+  signal?: AbortSignal,
+) {
+  const { data, response } = await api(identity).GET("/v1/submissions/{id}", {
     params: { path: { id } },
+    signal,
   });
-  return requireData(data as Submission | undefined, error);
+  if (data === undefined) throw new SubmissionReadError(response.status);
+  return data as Submission;
 }
 
 /** Requests cancellation where the workspace contract allows it. */
