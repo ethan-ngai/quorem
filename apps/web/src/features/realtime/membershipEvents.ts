@@ -2,12 +2,55 @@
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import { createReconnectingSocket } from "./reconnectingSocket";
 
-type MembershipEvent = "connecting" | "changed" | "offline";
+export type MembershipEvent = "connecting" | "changed" | "offline";
 type Listener = (event: MembershipEvent) => void;
 const subscriptions = new Map<
   string,
   { listeners: Set<Listener>; stop(): void; state: MembershipEvent }
 >();
+
+/** Re-fetch after every change, including one received during a previous read. */
+export function membershipSynchronizer(
+  refresh: () => Promise<{ isError: boolean }>,
+  setConnection: (state: "connecting" | "ready" | "offline") => void,
+) {
+  let generation = 0;
+  let stopped = false;
+  let fetching = false;
+  let pending = false;
+  async function synchronize() {
+    pending = true;
+    if (fetching) return;
+    fetching = true;
+    while (pending && !stopped) {
+      pending = false;
+      const attempt = generation;
+      const result = await refresh().catch(() => ({ isError: true }));
+      if (stopped || generation !== attempt) break;
+      if (result.isError) {
+        setConnection("offline");
+        break;
+      }
+      if (!pending) setConnection("ready");
+    }
+    fetching = false;
+    if (pending && !stopped) void synchronize();
+  }
+  return {
+    event(event: MembershipEvent) {
+      if (event === "changed") void synchronize();
+      else {
+        generation++;
+        pending = false;
+        setConnection(event);
+      }
+    },
+    stop() {
+      stopped = true;
+      generation++;
+    },
+  };
+}
 
 /** Reuse one socket per account; each subscriber reloads its authorized snapshot. */
 export function subscribeMembershipEvents(identity: DevelopmentIdentity, listener: Listener) {
