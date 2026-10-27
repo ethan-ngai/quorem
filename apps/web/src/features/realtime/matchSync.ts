@@ -184,9 +184,13 @@ export function mergeMatchEvents(
     if (
       currentVersion === undefined ||
       incomingVersion === undefined ||
-      incomingVersion <= currentVersion
+      incomingVersion < currentVersion
     )
       continue;
+    if (incomingVersion === currentVersion) {
+      current = keepNewestSnapshot(current, event.payload);
+      continue;
+    }
     if (incomingVersion !== currentVersion + 1n) {
       gap = true;
       continue;
