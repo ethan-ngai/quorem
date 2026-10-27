@@ -1,3 +1,4 @@
+import { formatLabel } from "../../ui/formatLabel";
 import { QuestionTypeFilter } from "./QuestionTypeFilter";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout, CatalogTable } from "./CatalogLayout";
@@ -26,9 +27,6 @@ import { addFilter, filterValues } from "./catalogSearch";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
-
-const label = (value: string) =>
-  value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export function PracticeBrowser() {
   const { identity, account: session } = useAccountIdentity();
@@ -161,7 +159,10 @@ export function PracticeBrowser() {
             label="Difficulty"
             selected={filterValues(search.difficulty)}
             onChange={(values) => update({ difficulty: values.join(",") || undefined })}
-            options={["easy", "medium", "hard"].map((value) => ({ value, label: label(value) }))}
+            options={["easy", "medium", "hard"].map((value) => ({
+              value,
+              label: formatLabel(value),
+            }))}
           />
           <CatalogFilter
             label="Topics"
@@ -169,7 +170,7 @@ export function PracticeBrowser() {
             onChange={(values) => update({ topic: values.join(",") || undefined })}
             options={[...new Set([...topics, ...filterValues(search.topic)])].map((value) => ({
               value,
-              label: label(value),
+              label: formatLabel(value),
             }))}
           />
           <CatalogFilter
@@ -267,9 +268,9 @@ export function PracticeBrowser() {
                           <button
                             key={tag}
                             onClick={() => update({ topic: addFilter(search.topic, tag) })}
-                            aria-label={`Filter by ${label(tag)}`}
+                            aria-label={`Filter by ${formatLabel(tag)}`}
                           >
-                            {label(tag)}
+                            {formatLabel(tag)}
                           </button>
                         ))}
                       </div>
@@ -281,9 +282,9 @@ export function PracticeBrowser() {
                         onClick={() =>
                           update({ difficulty: addFilter(search.difficulty, problem.difficulty) })
                         }
-                        aria-label={`Filter by ${label(problem.difficulty)}`}
+                        aria-label={`Filter by ${formatLabel(problem.difficulty)}`}
                       >
-                        {label(problem.difficulty)}
+                        {formatLabel(problem.difficulty)}
                       </button>
                     </td>
                   </tr>

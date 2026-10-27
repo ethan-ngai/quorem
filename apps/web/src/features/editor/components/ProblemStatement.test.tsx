@@ -121,3 +121,19 @@ it("shows the shared SQL schema and row-only example tables", () => {
   expect(html).toContain('aria-label="Output"');
   expect(html).not.toContain('"tables"');
 });
+
+it("preserves uppercase topic labels", () => {
+  const problem = {
+    id: "topics",
+    title: "Topics",
+    difficulty: "easy",
+    tags: ["SQL", "hash-table"],
+    statementMarkdown: "Solve it.",
+    constraints: [],
+    examples: [],
+    signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+  } as unknown as ProblemVersion;
+  const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(html).toContain(">SQL</span>");
+  expect(html).toContain(">Hash Table</span>");
+});
