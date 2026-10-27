@@ -45,15 +45,13 @@ export function WorkspaceTests({
     : problem;
   const odyssey = !!testProblem.odyssey;
   const hiddenAvailable =
-    odyssey &&
+    !busy &&
     submission?.kind === "submit" &&
     submission.state === "completed" &&
     !!submission.hiddenCases?.length;
-  const tabs: ("samples" | "custom" | "hidden")[] = hiddenAvailable
-    ? ["samples", "hidden"]
-    : onDraftsChange && !odyssey && !problem.sql
-      ? ["samples", "custom"]
-      : ["samples"];
+  const tabs: ("samples" | "custom" | "hidden")[] = ["samples"];
+  if (onDraftsChange && !odyssey && !problem.sql) tabs.push("custom");
+  if (hiddenAvailable) tabs.push("hidden");
   const [collection, setCollection] = useState<"samples" | "hidden">("samples");
   const selected = tabs.includes("custom") && customMode;
   const selectedTab = selected
@@ -65,8 +63,7 @@ export function WorkspaceTests({
     setCollection(tab === "hidden" ? "hidden" : "samples");
     onCustomModeChange?.(tab === "custom");
   }
-  const hiddenOnly =
-    !testProblem.odyssey && !!submission?.hiddenCases?.length && !submission.publicCases?.length;
+
   return (
     <>
       {!hideToolbar && (
@@ -95,24 +92,14 @@ export function WorkspaceTests({
                   document.getElementById(`tests-${next}-tab`)?.focus();
                 }}
               >
-                <Icon
-                  name={
-                    tab === "custom"
-                      ? "custom"
-                      : tab === "hidden" || hiddenOnly
-                        ? "lock"
-                        : "samples"
-                  }
-                />
+                <Icon name={tab === "custom" ? "custom" : tab === "hidden" ? "lock" : "samples"} />
                 {tab === "hidden"
                   ? "Hidden tests"
                   : odyssey
                     ? "Examples"
                     : tab === "custom"
                       ? "Custom cases"
-                      : hiddenOnly
-                        ? "Hidden cases"
-                        : "Examples"}
+                      : "Examples"}
               </button>
             ))}
           </div>

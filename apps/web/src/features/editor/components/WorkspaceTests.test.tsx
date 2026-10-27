@@ -453,3 +453,59 @@ it("renders SQL table examples without binding method arguments", () => {
   expect(html).toContain("items");
   expect(html).not.toContain("Custom cases");
 });
+
+it.each(["coding", "sql"] as const)(
+  "offers hidden cases after a %s submission with public samples",
+  (kind) => {
+    const tested =
+      kind === "sql"
+        ? { ...problem, sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const } }
+        : problem;
+    const html = renderToStaticMarkup(
+      <WorkspaceTests
+        problem={tested}
+        busy={false}
+        onDraftsChange={() => {}}
+        submission={{
+          id: "submit",
+          workspaceId: "workspace",
+          kind: "submit",
+          state: "completed",
+          sourceHash: "s",
+          admittedAt: "",
+          updatedAt: "",
+          hiddenCases: [
+            { index: 0, status: "accepted" },
+            { index: 1, status: "wrong_answer" },
+          ],
+          publicCases: [{ index: 0, status: "accepted", actual: "public-result" }],
+        }}
+      />,
+    );
+    expect(html).toContain('id="tests-hidden-tab"');
+    expect(html).toContain("Hidden tests");
+    expect(html).toContain("public-result");
+    expect(html).not.toContain('aria-label="Select hidden case"');
+    expect(html.includes('id="tests-custom-tab"')).toBe(kind === "coding");
+  },
+);
+
+it("does not offer stale hidden cases while a new submission starts", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      busy
+      submission={{
+        id: "old",
+        workspaceId: "workspace",
+        kind: "submit",
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        hiddenCases: [{ index: 0, status: "accepted" }],
+      }}
+    />,
+  );
+  expect(html).not.toContain('id="tests-hidden-tab"');
+});

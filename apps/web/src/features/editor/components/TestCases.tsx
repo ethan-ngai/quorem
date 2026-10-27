@@ -59,9 +59,8 @@ export function TestCases({
   caseStatuses?: readonly PublicCaseResult[];
 }) {
   const hiddenCases =
-    (hiddenMode || (!problem.odyssey && !caseGroups?.length)) &&
+    hiddenMode &&
     !caseResults &&
-    (hiddenMode || !submission?.publicCases?.length) &&
     !busy &&
     !customMode &&
     submission?.kind === "submit" &&

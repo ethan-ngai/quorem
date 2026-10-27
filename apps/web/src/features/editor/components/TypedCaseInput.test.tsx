@@ -153,6 +153,7 @@ describe("typed case controls", () => {
       const markup = renderToStaticMarkup(
         <TestCases
           problem={problem}
+          hiddenMode
           customMode={false}
           drafts={[]}
           onDraftsChange={() => {}}
