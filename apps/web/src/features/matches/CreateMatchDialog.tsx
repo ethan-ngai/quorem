@@ -5,7 +5,7 @@ import { SessionDialog } from "../../ui/SessionDialog";
 import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useState } from "react";
 import { useSession } from "../auth/session";
-import { pendingCreate } from "./commandRecovery";
+import { discardPendingCreate, pendingCreate } from "./commandRecovery";
 import { createMatch } from "./api";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
 import { Icon } from "../../ui/Icon";
@@ -24,6 +24,8 @@ export function CreateMatchDialog({
     () => pendingCreate(identity)?.payload ?? defaultMatchSettings,
   );
   const [pending, setPending] = useState(false);
+  const [checkingRecovery, setCheckingRecovery] = useState(false);
+  const [recovering, setRecovering] = useState(() => !!pendingCreate(identity));
   const [error, setError] = useState<string>();
   useErrorNotification(error);
   const activeMatch = useActiveMatch(identity);
@@ -55,7 +57,7 @@ export function CreateMatchDialog({
             session.data?.capabilities?.hostGuests && (
               <GuestAccessToggle
                 allowed={settings.accessMode === "guests_allowed"}
-                disabled={pending || !!pendingCreate(identity)}
+                disabled={pending || recovering}
                 onToggle={() =>
                   setSettings({
                     ...settings,
@@ -95,6 +97,7 @@ export function CreateMatchDialog({
               window.location.assign(`/match/${invite.id}`);
             } catch (cause) {
               setError(userFacingErrorMessage(cause, "Could not create match."));
+              setRecovering(!!pendingCreate(identity));
               void activeMatch.refresh();
               setPending(false);
             }
@@ -104,13 +107,50 @@ export function CreateMatchDialog({
             value={settings}
             identity={identity}
             onChange={setSettings}
-            disabled={pending || !!pendingCreate(identity)}
+            disabled={pending || recovering}
           />
 
+          {recovering && (
+            <p role="status">
+              The previous request may have created a match. Retry it or check before changing
+              settings.
+            </p>
+          )}
+
           <footer className="competitive-dialog-actions">
-            <span />
+            {recovering ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={pending}
+                onClick={async () => {
+                  setPending(true);
+                  setCheckingRecovery(true);
+                  const result = await activeMatch.refresh();
+                  if (result.isError) setError("Could not check your active match. Try again.");
+                  else if (!result.data) {
+                    if (discardPendingCreate(identity)) {
+                      setRecovering(false);
+                      setError(undefined);
+                    } else setError("Could not update saved match settings. Try again.");
+                  }
+                  setCheckingRecovery(false);
+                  setPending(false);
+                }}
+              >
+                Change settings
+              </button>
+            ) : (
+              <span />
+            )}
             <button className="button button-primary" disabled={pending}>
-              {pending ? "Creating…" : "Create match"}
+              {pending
+                ? checkingRecovery
+                  ? "Checking…"
+                  : "Creating…"
+                : recovering
+                  ? "Retry creation"
+                  : "Create match"}
               <Icon name="arrow" />
             </button>
           </footer>
