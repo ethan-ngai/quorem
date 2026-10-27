@@ -2,8 +2,8 @@ import { LogoSpinner } from "../../ui/LoadingScreen";
 /** @file InvitePage.tsx @description Read-only invitation preview with explicit account-aware acceptance. @module matches */
 import * as Dialog from "@radix-ui/react-dialog";
 import { createApiClient } from "@quorem/contracts";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useErrorNotification } from "../../ui/Notifications";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { requireData } from "../../api/client";
@@ -14,11 +14,13 @@ import { joinMatch, joinAsGuest } from "./api";
 import { ModeIcon, useAccountIdentity } from "./MatchControls";
 import { InvitationLayout } from "../../ui/InvitationLayout";
 import { SessionDialog } from "../../ui/SessionDialog";
+import { inviteStream } from "./inviteStream";
 import "../../styles/workspace.css";
 
 /** Invitation possession grants preview access; only explicit acceptance can claim a seat. */
 export function InvitePage({ token }: { token: string }) {
   const { identity, account } = useAccountIdentity();
+  const queryClient = useQueryClient();
   const { preference, setPreference } = useTheme();
   const [guestName, setGuestName] = useState("");
   const [pending, setPending] = useState(false);
@@ -36,9 +38,19 @@ export function InvitePage({ token }: { token: string }) {
       return requireData(data, error);
     },
     retry: false,
-    refetchInterval: 5000,
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
   });
   const lobby = preview.data;
+  const live = !!lobby && !preview.isError;
+  useEffect(() => {
+    if (!live) return;
+    const connection = inviteStream(token, () => {
+      void queryClient.invalidateQueries({ queryKey: ["invite-preview", token] });
+    });
+    connection.start();
+    return () => connection.stop();
+  }, [live, queryClient, token]);
   const accountUser = account.data?.kind !== "guest" && !!account.data;
   const resumeGuest = account.data?.kind === "guest" && account.data.matchId === lobby?.id;
   const guestAllowed = lobby?.accessMode === "guests_allowed";

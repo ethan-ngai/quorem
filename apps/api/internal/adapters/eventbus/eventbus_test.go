@@ -23,7 +23,7 @@ func notice() realtime.Notice {
 }
 
 func TestAppSyncPublish(t *testing.T) {
-	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1)} {
+	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1), strings.Replace(testChannel, "/matches/", "/match-invites/", 1), strings.Replace(testChannel, "/matches/", "/memberships/", 1), strings.Replace(testChannel, "/matches/", "/submissions/", 1)} {
 		t.Run(channel, func(t *testing.T) { testAppSyncPublish(t, channel) })
 	}
 }
@@ -73,7 +73,7 @@ func TestAppSyncIAM(t *testing.T) {
 	}
 }
 func TestAppSyncSubscription(t *testing.T) {
-	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1)} {
+	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1), strings.Replace(testChannel, "/matches/", "/match-invites/", 1), strings.Replace(testChannel, "/matches/", "/memberships/", 1), strings.Replace(testChannel, "/matches/", "/submissions/", 1)} {
 		t.Run(channel, func(t *testing.T) { testAppSyncSubscription(t, channel) })
 	}
 }
@@ -182,7 +182,7 @@ func TestProviderConfiguration(t *testing.T) {
 
 // Opt-in workerd test exercises the actual Durable Object implementation, not a protocol mock.
 func TestCloudflareEmulator(t *testing.T) {
-	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1)} {
+	for _, channel := range []string{testChannel, strings.Replace(testChannel, "/matches/", "/interviews/", 1), strings.Replace(testChannel, "/matches/", "/match-invites/", 1), strings.Replace(testChannel, "/matches/", "/memberships/", 1), strings.Replace(testChannel, "/matches/", "/submissions/", 1)} {
 		t.Run(channel, func(t *testing.T) { testCloudflareEmulator(t, channel) })
 	}
 }

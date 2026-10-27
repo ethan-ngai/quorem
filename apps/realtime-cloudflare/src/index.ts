@@ -3,7 +3,8 @@ interface Env {
   MATCH_RELAYS: DurableObjectNamespace;
   RELAY_TOKEN: string;
 }
-const channelPattern = /^\/(matches|interviews)\/[0-9a-fA-F-]{36}$/;
+const channelPattern =
+  /^\/(matches|match-invites|interviews|memberships|submissions)\/[0-9a-fA-F-]{36}$/;
 
 async function authorized(request: Request, secret: string): Promise<boolean> {
   if (!secret || secret.length < 32) return false;
@@ -101,7 +102,10 @@ function validNotice(notice: unknown, channel: string): boolean {
         (n[key] as string).length <= 128,
     ) &&
     (channel === `/matches/${n.AggregateID as string}` ||
-      channel === `/interviews/${n.AggregateID as string}`) &&
+      channel === `/match-invites/${n.AggregateID as string}` ||
+      channel === `/interviews/${n.AggregateID as string}` ||
+      channel === `/memberships/${n.AggregateID as string}` ||
+      channel === `/submissions/${n.AggregateID as string}`) &&
     Number.isFinite(Date.parse(n.OccurredAt as string))
   );
 }

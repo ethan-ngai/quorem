@@ -273,7 +273,9 @@ func TestDistributedInterviewLoad(t *testing.T) {
 		}
 		api := &Server{Store: store, Identity: loadVerifier{prefix}, Origins: []string{loadOrigin}, Events: bus, Presence: postgres.NewPresence(serverCtx, store.Pool)}
 		apis[i] = api
-		api.StartRealtime(serverCtx)
+		if err := api.StartRealtime(serverCtx); err != nil {
+			t.Fatal(err)
+		}
 		servers[i] = httptest.NewServer(WithCapacity(api.Handler(), 32, socketLimit))
 	}
 	clients := make([]*loadSocket, count)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	"os"
+	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/adapters/pgnotify"
 )
@@ -15,6 +16,16 @@ func (s *Store) ExecutionNotifications(ctx context.Context) (<-chan struct{}, fu
 		return nil, nil, err
 	}
 	return pgnotify.Signals(ctx, config, "quorem_execution_jobs")
+}
+
+// NextExecutionDeadline uses the database clock for retry and abandoned-lease eligibility.
+func (s *Store) NextExecutionDeadline(ctx context.Context) (time.Duration, bool, error) {
+	var milliseconds int64
+	err := s.Pool.QueryRow(ctx, `SELECT CASE WHEN count(*)=0 THEN -1 ELSE GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,COALESCE(j.lease_until,'-infinity'::timestamptz))) - clock_timestamp()))*1000)) END::bigint FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE NOT j.finished AND s.state IN ('queued','running')`).Scan(&milliseconds)
+	if err != nil || milliseconds < 0 {
+		return 0, false, err
+	}
+	return time.Duration(milliseconds) * time.Millisecond, true, nil
 }
 
 func (s *Store) ExecutionQueueState(ctx context.Context) (queued, running int, err error) {

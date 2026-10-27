@@ -85,3 +85,25 @@ func TestUpgradeHeaderCannotBypassHTTPBudget(t *testing.T) {
 	close(release)
 	<-done
 }
+
+func TestSubmissionUpgradeUsesSocketBudget(t *testing.T) {
+	r := httptest.NewRequest("GET", "/v1/submissions/e994c7a7-642b-4f38-a1ed-000000000194/events", nil)
+	r.Header.Set("Upgrade", "websocket")
+	r.Header.Set("Connection", "upgrade")
+	if !realtimeUpgrade(r) {
+		t.Fatal("submission socket uses HTTP capacity")
+	}
+}
+
+func TestCurrentMatchEventUpgradeUsesSocketBudget(t *testing.T) {
+	r := httptest.NewRequest("GET", "/v1/memberships/events", nil)
+	r.Header.Set("Upgrade", "websocket")
+	r.Header.Set("Connection", "keep-alive, Upgrade")
+	if !realtimeUpgrade(r) {
+		t.Fatal("membership socket consumed HTTP capacity")
+	}
+	r.Method = "POST"
+	if realtimeUpgrade(r) {
+		t.Fatal("non-GET admitted as socket")
+	}
+}

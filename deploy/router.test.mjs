@@ -369,6 +369,33 @@ void test("only supported GET event upgrades consume the socket budget", () => {
   const headers = { Upgrade: "websocket", Connection: "keep-alive, Upgrade" };
   const path = "https://app/v1/interviews/00000000-0000-4000-8000-000000000001/events";
   assert.equal(isSocketRequest(new Request(path, { headers })), true);
+  assert.equal(
+    isSocketRequest(new Request("https://app/v1/memberships/events", { headers })),
+    true,
+  );
+  assert.equal(
+    isSocketRequest(new Request("https://app/v1/interviews/current/events", { headers })),
+    false,
+  );
+  assert.equal(
+    isSocketRequest(
+      new Request("https://app/v1/submissions/00000000-0000-4000-8000-000000000001/events", {
+        headers,
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    isSocketRequest(
+      new Request(`https://app/v1/match-invites/${"A".repeat(43)}/events`, { headers }),
+    ),
+    true,
+  );
+  assert.equal(
+    isSocketRequest(new Request("https://app/v1/match-invites/invalid/events", { headers })),
+    false,
+  );
+
   for (const url of ["https://app/v1/submissions", "https://app/api/auth/sign-in/email", path]) {
     assert.equal(isSocketRequest(new Request(url, { method: "POST", headers, body: "{}" })), false);
   }
