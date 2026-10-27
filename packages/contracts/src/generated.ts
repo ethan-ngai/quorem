@@ -1290,7 +1290,6 @@ export interface components {
         QuestionContent: {
             problem: components["schemas"]["QuestionProblem"];
             hiddenCases: components["schemas"]["CustomCase"][];
-            comparator: string;
             attribution: string;
             implementations: components["schemas"]["AuthoringImplementation"][];
             solutions: components["schemas"]["EditorialSolution"][];

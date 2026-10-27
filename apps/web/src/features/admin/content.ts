@@ -43,7 +43,6 @@ export function blankQuestion(): QuestionContent {
       },
     },
     hiddenCases: [],
-    comparator: "ordered",
     attribution: "Original Quorem question.",
     implementations: [
       {

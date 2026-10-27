@@ -12,13 +12,10 @@
         },
         "hiddenCases": {
           "type": "array",
-          "maxItems": 20,
+          "maxItems": 100,
           "items": {
             "$ref": "#/$defs/CustomCase"
           }
-        },
-        "comparator": {
-          "type": "string"
         },
         "attribution": {
           "type": "string"
@@ -47,14 +44,7 @@
           }
         }
       },
-      "required": [
-        "problem",
-        "hiddenCases",
-        "comparator",
-        "attribution",
-        "implementations",
-        "solutions"
-      ]
+      "required": ["problem", "hiddenCases", "attribution", "implementations", "solutions"]
     },
     "QuestionProblem": {
       "type": "object",

@@ -25,7 +25,7 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}
 	c.Problem.Odyssey = nil
 	c.Problem.Examples = []problems.ProblemExample{{Case: test}}
-	c.HiddenCases = make([]problems.Case, 20)
+	c.HiddenCases = make([]problems.Case, 4)
 	for i := range c.HiddenCases {
 		c.HiddenCases[i] = test
 	}
@@ -45,7 +45,7 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 		t.Fatalf("%+v %v", p, err)
 	}
 	fork, err := s.QuestionContent(ctx, p.ID)
-	if err != nil || fork.Problem.SQL == nil || len(fork.HiddenCases) != 20 {
+	if err != nil || fork.Problem.SQL == nil || len(fork.HiddenCases) != 4 {
 		t.Fatal(fork, err)
 	}
 	w, err := s.CreateWorkspace(ctx, "alice", p.ID, "postgresql")

@@ -3280,7 +3280,7 @@
           },
           "solutionLanguages": {
             "type": "array",
-            "items": {"$ref": "#/components/schemas/Language"},
+            "items": { "$ref": "#/components/schemas/Language" },
             "maxItems": 5,
             "uniqueItems": true
           },
@@ -3530,7 +3530,7 @@
             "items": {
               "$ref": "#/components/schemas/HiddenCaseResult"
             },
-            "maxItems": 20
+            "maxItems": 160
           },
           "publicCases": {
             "type": "array",
@@ -4368,13 +4368,10 @@
           },
           "hiddenCases": {
             "type": "array",
-            "maxItems": 20,
+            "maxItems": 100,
             "items": {
               "$ref": "#/components/schemas/CustomCase"
             }
-          },
-          "comparator": {
-            "type": "string"
           },
           "attribution": {
             "type": "string"
@@ -4403,14 +4400,7 @@
             }
           }
         },
-        "required": [
-          "problem",
-          "hiddenCases",
-          "comparator",
-          "attribution",
-          "implementations",
-          "solutions"
-        ]
+        "required": ["problem", "hiddenCases", "attribution", "implementations", "solutions"]
       },
       "QuestionDraft": {
         "type": "object",

@@ -11,6 +11,7 @@ import (
 )
 
 const AuthoringBodyLimit = 2 * 1024 * 1024
+const MaxHiddenCases = 100
 
 type AuthoringImplementation struct {
 	LanguageImplementation
@@ -20,7 +21,6 @@ type QuestionContent struct {
 	OdysseyHiddenCases [][]Case                  `json:"odysseyHiddenCases,omitempty"`
 	Problem            Problem                   `json:"problem"`
 	HiddenCases        []Case                    `json:"hiddenCases"`
-	Comparator         string                    `json:"comparator"`
 	Attribution        string                    `json:"attribution"`
 	Implementations    []AuthoringImplementation `json:"implementations"`
 	Solutions          []EditorialSolution       `json:"solutions"`
@@ -97,7 +97,7 @@ func ValidateQuestionDraft(c QuestionContent) error {
 		return fmt.Errorf("invalid UTF-8")
 	}
 	p := c.Problem
-	if len(p.Languages) > 4 || len(p.Tags) > 32 || len(p.Companies) > 64 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > 20 || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
+	if len(p.Languages) > 4 || len(p.Tags) > 32 || len(p.Companies) > 64 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > MaxHiddenCases || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
 		return fmt.Errorf("question collection limit exceeded")
 	}
 	if len(p.ID) > 64 || len(p.Version) > 32 || len(p.StarterSource) > 65536 || len(p.RuntimeRevision) > 128 || len(p.Slug) > 80 || len(p.Title) > 160 || len(p.StatementMarkdown) > 65536 || len(c.Attribution) > 2048 {
@@ -159,14 +159,11 @@ func ValidateQuestionPublication(c QuestionContent) error {
 	if p.Difficulty != "easy" && p.Difficulty != "medium" && p.Difficulty != "hard" {
 		return fmt.Errorf("invalid difficulty")
 	}
-	if c.Comparator != "ordered" {
-		return fmt.Errorf("only ordered comparison is supported")
-	}
 	if strings.TrimSpace(c.Attribution) == "" {
 		return fmt.Errorf("attribution required")
 	}
-	if p.Odyssey == nil && (len(p.Examples) == 0 || len(c.HiddenCases) != 20) {
-		return fmt.Errorf("public examples and exactly 20 hidden cases required")
+	if p.Odyssey == nil && (len(p.Examples) == 0 || len(c.HiddenCases) == 0) {
+		return fmt.Errorf("public examples and at least one hidden case required")
 	}
 	seenTags := map[string]bool{}
 	for _, tag := range p.Tags {

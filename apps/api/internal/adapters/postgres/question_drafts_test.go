@@ -182,8 +182,7 @@ func TestQuestionPublicationRejectsUnsafeMetadata(t *testing.T) {
 	cases := map[string]func(*problems.QuestionContent){
 		"unknown runtime":          func(c *problems.QuestionContent) { c.Implementations[0].RuntimeRevision = "unknown" },
 		"duplicate implementation": func(c *problems.QuestionContent) { c.Implementations = append(c.Implementations, c.Implementations[0]) },
-		"unsupported comparator":   func(c *problems.QuestionContent) { c.Comparator = "unchecked" },
-		"hidden count":             func(c *problems.QuestionContent) { c.HiddenCases = c.HiddenCases[:19] },
+		"hidden count":             func(c *problems.QuestionContent) { c.HiddenCases = nil },
 		"bad codec":                func(c *problems.QuestionContent) { c.Problem.Signature.Parameters[0].Type = "unknown" },
 		"wrong arity":              func(c *problems.QuestionContent) { c.HiddenCases[0].Args = nil },
 		"bad expected":             func(c *problems.QuestionContent) { c.HiddenCases[0].Expected = json.RawMessage(`"wrong-type"`) },
@@ -203,5 +202,53 @@ func TestQuestionPublicationRejectsUnsafeMetadata(t *testing.T) {
 				t.Fatal("invalid metadata accepted")
 			}
 		})
+	}
+}
+
+func TestQuestionPublicationHiddenCaseCounts(t *testing.T) {
+	s := adminStore(t)
+	c := authoringContent(t, s)
+	test := c.HiddenCases[0]
+	for _, count := range []int{1, 4, 21, 100, 101} {
+		c.HiddenCases = make([]problems.Case, count)
+		for i := range c.HiddenCases {
+			c.HiddenCases[i] = test
+		}
+		err := problems.ValidateQuestionPublication(c)
+		if (err == nil) != (count <= problems.MaxHiddenCases) {
+			t.Fatalf("count %d: %v", count, err)
+		}
+	}
+}
+
+func TestMatchSnapshotUsesPublishedSuiteSize(t *testing.T) {
+	s := adminStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	c := authoringContent(t, s)
+	c.Problem.Slug = "variable-suite-match"
+	c.HiddenCases = c.HiddenCases[:4]
+	draft, err := s.CreateQuestionDraft(ctx, "alice", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE question_drafts SET content=jsonb_set(content,'{comparator}','"ordered"') WHERE id=$1`, draft.ID); err != nil {
+		t.Fatal(err)
+	}
+	draft, err = s.PublishQuestionDraft(ctx, "alice", draft.ID, draft.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := createPair(t, s)
+	if _, err = s.Pool.Exec(ctx, `UPDATE matches SET problem_version_id=$2 WHERE id=$1`, id, draft.PublishedVersionID); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := s.Match(ctx, "alice", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range snapshot.Participants {
+		if p.BestScore == nil || p.BestScore.Total != 4 {
+			t.Fatalf("incorrect score: %+v", p.BestScore)
+		}
 	}
 }

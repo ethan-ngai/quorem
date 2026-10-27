@@ -110,7 +110,6 @@ type Fixture struct {
 	OdysseyHiddenCases [][]Case `json:"odysseyHiddenCases,omitempty"`
 	Problem            Problem  `json:"problem"`
 	HarnessRevision    string   `json:"harnessRevision"`
-	Comparator         string   `json:"comparator"`
 	Attribution        string   `json:"attribution"`
 	HiddenCases        []Case   `json:"hiddenCases"`
 	ReferenceSource    string   `json:"referenceSource"`
@@ -131,8 +130,8 @@ func LoadFixtures(dir string) ([]Fixture, error) {
 		if e = json.Unmarshal(data, &f); e != nil {
 			return nil, e
 		}
-		if len(f.HiddenCases) != 20 {
-			return nil, fmt.Errorf("%s needs 20 cases", path)
+		if len(f.HiddenCases) == 0 || len(f.HiddenCases) > MaxHiddenCases {
+			return nil, fmt.Errorf("%s needs 1 to 100 cases", path)
 		}
 		if e = ValidateConstraints(f.Problem.Signature, f.Problem.Constraints); e != nil {
 			return nil, fmt.Errorf("%s: %w", path, e)

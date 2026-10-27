@@ -28,6 +28,7 @@ export function TestCases({
   selectedSampleIndex,
   busy = false,
   minimumCases = 1,
+  maximumCases = 20,
   requiredExpected = false,
   caseActions,
   caseResults,
@@ -47,6 +48,7 @@ export function TestCases({
   selectedSampleIndex?: number;
   busy?: boolean;
   minimumCases?: number;
+  maximumCases?: number;
   requiredExpected?: boolean;
   caseActions?: (index: number) => ReactNode;
   caseGroups?: readonly (string | undefined)[];
@@ -240,7 +242,7 @@ export function TestCases({
             <button
               type="button"
               className="case-selector add-case"
-              disabled={drafts.length >= 20}
+              disabled={drafts.length >= maximumCases}
               onClick={() => {
                 const added = { ...createCustomDraft(problem), expectedEnabled: requiredExpected };
                 onDraftsChange([...drafts, added]);
