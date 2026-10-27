@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { UserRound, ShieldCheck, Link, X } from "lucide-react";
+import { UserRound, ShieldCheck, UsersRound, X } from "lucide-react";
 import { useRef } from "react";
 import type { Session } from "../auth/session";
 import type { ThemePreference } from "../editor/editorSettings";
@@ -102,7 +102,7 @@ export function SettingsDialog({
                     aria-current={section === "social" ? "page" : undefined}
                     onClick={() => onSectionChange("social")}
                   >
-                    <Link />
+                    <UsersRound />
                     <span>Social accounts</span>
                   </button>
                 </div>
