@@ -52,7 +52,9 @@ it("shows the SQL error and line next to the result", () => {
       }}
     />,
   );
-  expect(markup).toContain('aria-label="Diagnostics"');
+  expect(markup).not.toContain('aria-label="Diagnostics"');
+  expect(markup).toContain('class="case-error-message"');
+  expect(markup).toContain('class="case-verdict verdict-error"');
   expect(markup).toContain("Line 2:");
   expect(markup).toContain("column &quot;missing&quot; does not exist");
 });

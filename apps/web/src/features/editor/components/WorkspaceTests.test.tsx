@@ -260,7 +260,7 @@ describe("compiler failures", () => {
         }}
       />,
     );
-    expect(html).toContain('aria-label="Diagnostics"');
+    expect(html).toContain('class="case-error-message"');
     expect(html).toContain("Line 4:");
   });
 });
