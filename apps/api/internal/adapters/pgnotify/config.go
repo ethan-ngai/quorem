@@ -74,34 +74,40 @@ func Signals(ctx context.Context, config *pgx.ConnConfig, channel string) (<-cha
 			defer cancel()
 			_ = conn.Close(cleanup)
 		}()
-		watch(listen, conn, wake, listenerIdleTimeout, listenerPingTimeout)
+		Watch(listen, conn, func(*pgconn.Notification) {
+			select {
+			case wake <- struct{}{}:
+			default:
+			}
+		})
 	}()
 	return wake, stop, nil
 }
 
-// Detect half-open sessions without querying application state or losing buffered notices.
-func watch(ctx context.Context, conn notificationConnection, wake chan<- struct{}, idle, pingTimeout time.Duration) {
+// Watch preserves notification order and probes idle sessions. A failed probe ends the stream.
+func Watch(ctx context.Context, conn notificationConnection, receive func(*pgconn.Notification)) error {
+	return watch(ctx, conn, receive, listenerIdleTimeout, listenerPingTimeout)
+}
+
+func watch(ctx context.Context, conn notificationConnection, receive func(*pgconn.Notification), idle, pingTimeout time.Duration) error {
 	for {
 		wait, cancel := context.WithTimeout(ctx, idle)
 		notice, err := conn.WaitForNotification(wait)
 		cancel()
 		if notice != nil {
-			select {
-			case wake <- struct{}{}:
-			default:
-			}
+			receive(notice)
 		}
 		if err == nil {
 			continue
 		}
 		if ctx.Err() != nil || !errors.Is(err, context.DeadlineExceeded) {
-			return
+			return err
 		}
 		ping, cancel := context.WithTimeout(ctx, pingTimeout)
 		err = conn.Ping(ping)
 		cancel()
 		if err != nil {
-			return
+			return err
 		}
 	}
 }
