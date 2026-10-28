@@ -6,22 +6,22 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 )
 
-func executionCases(f *problems.Fixture, level int, kind string, custom []problems.Case, publicFallback bool) ([]problems.Case, error) {
-	cases := f.HiddenCases
-	if f.Problem.Odyssey != nil {
+func executionCases(f problems.Fixture, level int, kind string, custom []problems.Case, publicFallback bool) ([]problems.Case, error) {
+	problem, cases := f.Problem, f.HiddenCases
+	if problem.Odyssey != nil {
 		var err error
-		f.Problem, cases, err = problems.CompileOdyssey(*f, level, kind)
+		problem, cases, err = problems.CompileOdyssey(f, level, kind)
 		if err != nil {
 			return nil, err
 		}
 	} else if kind == "run" || publicFallback && len(cases) == 0 {
-		cases = f.Problem.SampleCases()
+		cases = problem.SampleCases()
 	}
 	if custom != nil {
 		if kind != "run" {
 			return nil, failure("invalid_input", 400, "Submit cannot choose cases")
 		}
-		if err := problems.ValidateProblemCustomCases(f.Problem, custom); err != nil {
+		if err := problems.ValidateProblemCustomCases(problem, custom); err != nil {
 			return nil, failure("invalid_input", 400, err.Error())
 		}
 		return custom, nil
@@ -29,7 +29,7 @@ func executionCases(f *problems.Fixture, level int, kind string, custom []proble
 	if publicFallback && len(cases) == 0 {
 		return nil, failure("invalid_input", 400, "No tests configured")
 	}
-	validator := problems.NewCaseValidator(f.Problem)
+	validator := problems.NewCaseValidator(problem)
 	for _, test := range cases {
 		if err := validator.Validate(test, false); err != nil {
 			return nil, failure("invalid_input", 400, err.Error())

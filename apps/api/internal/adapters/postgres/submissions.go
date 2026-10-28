@@ -100,7 +100,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		}
 		odysseyLevel = &level
 	}
-	cases, err := executionCases(&f, level, c.Kind, c.CustomCases, false)
+	cases, err := executionCases(f, level, c.Kind, c.CustomCases, false)
 	if err != nil {
 		return judging.Submission{}, err
 	}

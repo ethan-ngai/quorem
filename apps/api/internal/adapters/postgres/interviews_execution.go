@@ -64,7 +64,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key string, comman
 	if command.Level != level {
 		return out, failure("stage_changed", 409, "Stage changed; refresh before running")
 	}
-	cases, err := executionCases(&v.fixture, level, kind, customCases, true)
+	cases, err := executionCases(v.fixture, level, kind, customCases, true)
 	if err != nil {
 		return out, err
 	}
