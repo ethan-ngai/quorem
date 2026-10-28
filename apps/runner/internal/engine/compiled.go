@@ -22,12 +22,12 @@ type compiledArtifact struct {
 }
 
 func compilationRequest(spec worker.Spec) []byte {
-	request, _ := json.Marshal(map[string]any{"operation": "compile", "source": spec.Source, "signature": spec.Fixture.Problem.Signature, "methods": worker.MethodSignatures(spec.Fixture)})
+	request, _ := json.Marshal(map[string]any{"operation": "compile", "source": spec.Source, "signature": spec.Problem.Signature, "methods": worker.MethodSignatures(spec.Problem)})
 	return request
 }
 
 func compiledFirstCaseRequest(spec worker.Spec, c worker.Case) []byte {
-	request, _ := json.Marshal(map[string]any{"operation": "compile-execute", "source": spec.Source, "signature": spec.Fixture.Problem.Signature, "methods": worker.MethodSignatures(spec.Fixture), "args": c.Args, "calls": compiledCalls(c)})
+	request, _ := json.Marshal(map[string]any{"operation": "compile-execute", "source": spec.Source, "signature": spec.Problem.Signature, "methods": worker.MethodSignatures(spec.Problem), "args": c.Args, "calls": compiledCalls(c)})
 	return request
 }
 

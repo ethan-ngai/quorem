@@ -19,11 +19,11 @@ type Parameter = problems.Parameter
 type Fixture = problems.Fixture
 type SQLConfig = problems.SQLConfig
 
-func NormalizeCaseOutput(f Fixture, c Case, value []byte) ([]byte, error) {
-	return problems.NormalizeCaseOutput(f.Problem, c, value)
+func NormalizeCaseOutput(p problems.Problem, c Case, value []byte) ([]byte, error) {
+	return problems.NormalizeCaseOutput(p, c, value)
 }
-func CaseExpected(f Fixture, c Case) []byte { return problems.CaseExpected(f.Problem, c) }
-func MethodSignatures(f Fixture) any        { return problems.OdysseyMethods(f.Problem) }
+func CaseExpected(p problems.Problem, c Case) []byte { return problems.CaseExpected(p, c) }
+func MethodSignatures(p problems.Problem) any        { return problems.OdysseyMethods(p) }
 
 func Normalize(typ string, value []byte) ([]byte, error) { return problems.Normalize(typ, value) }
 func LoadFixtures(dir string) ([]Fixture, error)         { return problems.LoadFixtures(dir) }

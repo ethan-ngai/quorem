@@ -159,12 +159,12 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		var actual, expected json.RawMessage
 		typeMismatch := false
 		if status == "executed" {
-			actual, err = worker.NormalizeCaseOutput(spec.Fixture, c, f.Actual)
+			actual, err = worker.NormalizeCaseOutput(spec.Problem, c, f.Actual)
 			if err != nil {
 				status = "invalid_output"
-			} else if len(worker.CaseExpected(spec.Fixture, c)) > 0 {
-				typeMismatch = !sqlOutputTypesMatch(spec.Fixture.Problem.SQL, f.SQLTypes)
-				expected, err = worker.NormalizeCaseOutput(spec.Fixture, c, worker.CaseExpected(spec.Fixture, c))
+			} else if len(worker.CaseExpected(spec.Problem, c)) > 0 {
+				typeMismatch = !sqlOutputTypesMatch(spec.Problem.SQL, f.SQLTypes)
+				expected, err = worker.NormalizeCaseOutput(spec.Problem, c, worker.CaseExpected(spec.Problem, c))
 				if err != nil {
 					return result, errors.New("invalid trusted expectation")
 				}
@@ -177,7 +177,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 					status = "wrong_answer"
 				}
 			} else {
-				typeMismatch = !sqlOutputTypesMatch(spec.Fixture.Problem.SQL, f.SQLTypes)
+				typeMismatch = !sqlOutputTypesMatch(spec.Problem.SQL, f.SQLTypes)
 				if typeMismatch {
 					status = "wrong_answer"
 				} else if !sample {
@@ -197,7 +197,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		}
 		if spec.Kind == "run" || spec.PrivateDetails || sample {
 			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
-			if len(actual) > 0 && spec.Fixture.Problem.SQL != nil {
+			if len(actual) > 0 && spec.Problem.SQL != nil {
 				public.SQLTypes = f.SQLTypes
 			}
 			if typeMismatch {
@@ -252,7 +252,7 @@ func sandboxRequest(spec worker.Spec, c worker.Case) []byte {
 	for _, call := range c.Calls {
 		calls = append(calls, map[string]any{"methodName": call.MethodName, "args": call.Args})
 	}
-	request, _ := json.Marshal(map[string]any{"source": spec.Source, "signature": spec.Fixture.Problem.Signature, "args": c.Args, "calls": calls, "methods": worker.MethodSignatures(spec.Fixture), "sql": spec.Fixture.Problem.SQL})
+	request, _ := json.Marshal(map[string]any{"source": spec.Source, "signature": spec.Problem.Signature, "args": c.Args, "calls": calls, "methods": worker.MethodSignatures(spec.Problem), "sql": spec.Problem.SQL})
 	return request
 }
 func (d *Docker) runCase(parent context.Context, j execution.Job, index int, spec worker.Spec, c worker.Case, compilationRemaining ...time.Duration) (result frame, resultErr error) {

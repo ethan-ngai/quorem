@@ -36,7 +36,7 @@ type Spec struct {
 	PrivateDetails bool
 	Source         string
 	Kind           string
-	Fixture        problems.Fixture
+	Problem        problems.Problem
 	Cases          []problems.Case
 }
 

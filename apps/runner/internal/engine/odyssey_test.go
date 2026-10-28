@@ -44,7 +44,7 @@ func TestDockerOdysseyStatefulSequences(t *testing.T) {
 				image = "quorem-" + impl.Language + ":odyssey-test"
 			}
 			d := &Docker{Images: map[string]string{impl.Language: image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-				return worker.Spec{Source: impl.ReferenceSource, Kind: "submit", Fixture: fixture, Cases: cases}, nil
+				return worker.Spec{Source: impl.ReferenceSource, Kind: "submit", Problem: fixture.Problem, Cases: cases}, nil
 			}}
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()

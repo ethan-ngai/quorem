@@ -125,6 +125,10 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	if err != nil || job.SubmissionID != sub.ID {
 		t.Fatal(job, err)
 	}
+	spec, err := s.LoadExecution(ctx, job)
+	if err != nil || spec.Problem.SQL == nil || spec.Problem.SQL.Dialect != "postgresql" || len(spec.Cases) != 1 {
+		t.Fatal("SQL execution projection", spec, err)
+	}
 	completion := execution.Completion{SubmissionID: sub.ID, AttemptID: job.AttemptID, Verdict: execution.Accepted, PublicCaseResults: []execution.PublicCaseResult{{Index: 0, Status: "accepted", SQLTypes: []string{"integer"}}}}
 	if err = s.Complete(ctx, job, completion); err != nil {
 		t.Fatal(err)

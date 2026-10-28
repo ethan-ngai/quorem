@@ -69,26 +69,26 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 }
 func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spec, error) {
 	var spec judging.Spec
-	var fixture, cases []byte
+	var problem, cases []byte
 	var level *int
-	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,COALESCE(ie.fixture,`+fixtureProjectionSQL("w.problem_version_id")+`),s.cases,ie.submission_id IS NOT NULL,s.odyssey_level FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&spec.Source, &spec.Kind, &fixture, &cases, &spec.PrivateDetails, &level)
+	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,CASE WHEN ie.submission_id IS NULL THEN jsonb_build_object('signature',v.signature,'odyssey',v.odyssey,'sql',v.sql_config,'examples',`+problemExamplesSQL+`) ELSE jsonb_build_object('signature',ie.fixture->'problem'->'signature','odyssey',ie.fixture->'problem'->'odyssey','sql',ie.fixture->'problem'->'sql','examples',ie.fixture->'problem'->'examples') END,s.cases,ie.submission_id IS NOT NULL,s.odyssey_level FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&spec.Source, &spec.Kind, &problem, &cases, &spec.PrivateDetails, &level)
 	if err != nil {
 		return spec, err
 	}
-	if err = json.Unmarshal(fixture, &spec.Fixture); err != nil {
+	if err = json.Unmarshal(problem, &spec.Problem); err != nil {
 		return spec, err
 	}
 	err = json.Unmarshal(cases, &spec.Cases)
-	if err == nil && spec.Fixture.Problem.Odyssey != nil {
+	if err == nil && spec.Problem.Odyssey != nil {
 		if level != nil {
-			if *level < 1 || *level > len(spec.Fixture.Problem.Odyssey.Levels) {
+			if *level < 1 || *level > len(spec.Problem.Odyssey.Levels) {
 				return spec, errors.New("invalid admitted Odyssey level")
 			}
-			spec.Fixture.Problem.Odyssey = &problems.Odyssey{Levels: spec.Fixture.Problem.Odyssey.Levels[:*level]}
+			spec.Problem.Odyssey = &problems.Odyssey{Levels: spec.Problem.Odyssey.Levels[:*level]}
 		}
 	}
 	if err == nil && spec.Kind == "submit" {
-		spec.SubmitSamples = spec.Fixture.Problem.SampleCases()
+		spec.SubmitSamples = spec.Problem.SampleCases()
 	}
 	return spec, err
 }

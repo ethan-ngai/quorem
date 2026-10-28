@@ -111,7 +111,7 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 		if level == 2 {
 			total = 4
 		}
-		if len(spec.Cases) != total || spec.Source != cmd.Source || len(spec.Fixture.Problem.Odyssey.Levels) != level {
+		if len(spec.Cases) != total || spec.Source != cmd.Source || len(spec.Problem.Odyssey.Levels) != level {
 			t.Fatal("snapshot/cumulative suite", spec)
 		}
 		statuses := []execution.HiddenCaseResult{}
