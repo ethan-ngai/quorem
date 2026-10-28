@@ -8,6 +8,8 @@ Submissions belong to exactly one workspace or interview. Each interview submiss
 
 Workspace identity is immutable. Its language must be available for its problem version; submission and participant references must match its owner and match context.
 
+The current interview document lives on the session. Language drafts store inactive documents; switching consumes the selected draft and saves the outgoing document atomically.
+
 ## Integration tests
 
 `QUOREM_TEST_DATABASE_URL` and `AUTH_TEST_DATABASE_URL` must name separate disposable databases, never running development databases. Product tests truncate fixture state; HTTP suites isolate their own schemas. Auth suites run serially against a disposable auth schema. Test a fresh baseline and repeated startup before adding schema changes.

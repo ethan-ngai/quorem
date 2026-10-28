@@ -46,7 +46,7 @@ func (s *Store) SwitchInterviewLanguage(ctx context.Context, user, id, key, lang
 			return empty, err
 		}
 		var source string
-		err = tx.QueryRow(ctx, `SELECT source FROM interview_language_drafts WHERE session_id=$1 AND question_epoch=$2 AND language=$3`, id, v.snapshot.QuestionEpoch, language).Scan(&source)
+		err = tx.QueryRow(ctx, `DELETE FROM interview_language_drafts WHERE session_id=$1 AND question_epoch=$2 AND language=$3 RETURNING source`, id, v.snapshot.QuestionEpoch, language).Scan(&source)
 		if err == pgx.ErrNoRows {
 			source = implementation.StarterSource
 		} else if err != nil {
