@@ -102,6 +102,12 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	public := fields["problem"]
+	fields["harnessRevision"] = json.RawMessage(`"harness"`)
+	fields["referenceSource"] = json.RawMessage(`"reference"`)
+	fixture, err = json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
 	id := ID()
 	if _, err = pool.Exec(ctx, `WITH docs AS (SELECT jsonb_set($2::jsonb || jsonb_build_object('id',$1::uuid::text,'version','1') || '{"sql":{"dialect":"postgresql"},"odyssey":{"levels":[{"title":"First"}]}}'::jsonb,'{examples,0,calls}','[{"methodName":"public","args":[]}]') AS public,
  jsonb_set($3::jsonb,'{hiddenCases,0,calls}','[{"methodName":"private","args":[]}]') AS fixture)
