@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,6 +143,25 @@ func TestRemoteCleanupDoesNotConsumeContestantTime(t *testing.T) {
 	f, err := (&Docker{Remote: remote}).runCase(context.Background(), execution.Job{AttemptID: "attempt", Limits: limits}, 0, worker.Spec{}, worker.Case{})
 	if err != nil || f.Status != "executed" {
 		t.Fatalf("cleanup consumed contestant time: %+v %v", f, err)
+	}
+}
+
+func TestRemoteFailureBeforeReadinessPreservesTransportError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	remote, err := NewRemoteSandbox(server.URL, "12345678901234567890123456789012")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = (&Docker{Remote: remote}).runCase(context.Background(), execution.Job{AttemptID: "attempt", Limits: execution.DefaultLimits()}, 0, worker.Spec{}, worker.Case{})
+	if err == nil || !strings.Contains(err.Error(), "case request failed (503)") {
+		t.Fatalf("lost transport failure: %v", err)
 	}
 }
 

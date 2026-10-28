@@ -385,11 +385,11 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 	if errors.Is(context.Cause(ctx), caseTimeout) {
 		return frame{Status: "time_limit"}, nil
 	}
-	if !out.ready {
-		return frame{}, errors.New("sandbox failed before harness readiness: " + stderr.buffer.String())
-	}
 	if err != nil {
 		return frame{}, err
+	}
+	if !out.ready {
+		return frame{}, errors.New("sandbox failed before harness readiness: " + stderr.buffer.String())
 	}
 	if exitCode != 0 {
 		if exitCode == 137 {
