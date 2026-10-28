@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -76,5 +77,37 @@ func TestDockerSubmitSamplesRemainSeparateFromHiddenScoring(t *testing.T) {
 		if r.Index != i || r.Status != "accepted" || len(r.Actual) == 0 {
 			t.Fatal("sample output", r)
 		}
+	}
+}
+
+func TestDockerInterviewPublicFallback(t *testing.T) {
+	fixtures := dockerTests(t)
+	fixture := fixtures[0]
+	samples := fixture.Problem.SampleCases()
+	for _, tc := range []struct {
+		name, source string
+		verdict      execution.Verdict
+	}{
+		{"accepted", fixture.ReferenceSource, execution.Accepted},
+		{"wrong answer", "class Solution:\n def levelSpreads(self, root): return [123]\n", execution.WrongAnswer},
+		{"syntax error", "class Solution:\n def levelSpreads(self, root)\n  return []\n", execution.SyntaxError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+				return worker.Spec{Source: tc.source, Kind: "submit", Problem: fixture.Problem, Cases: samples, SubmitSamples: samples, PrivateDetails: true, SubmitCasesAreSamples: true}, nil
+			}}
+			job := execution.Job{SubmissionID: "fallback", AttemptID: rand.Text(), RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			result, err := d.Execute(ctx, job)
+			if err != nil || result.Verdict != tc.verdict || result.Score == nil || result.Score.Total != len(samples) || len(result.HiddenCases) != len(samples) || !reflect.DeepEqual(result.PrivateCaseResults, result.SubmitSampleResults) {
+				t.Fatal(result, err)
+			}
+			for i, got := range result.SubmitSampleResults {
+				if got.Index != i || got.Status == "" {
+					t.Fatal(got)
+				}
+			}
+		})
 	}
 }

@@ -117,7 +117,10 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	var fatal *frame
 	var artifact json.RawMessage
 	cases := append([]worker.Case{}, spec.Cases...)
-	if spec.Kind == "submit" {
+	if spec.SubmitCasesAreSamples && (spec.Kind != "submit" || !spec.PrivateDetails || len(spec.Cases) != len(spec.SubmitSamples)) {
+		return result, errors.New("invalid public sample fallback")
+	}
+	if spec.Kind == "submit" && !spec.SubmitCasesAreSamples {
 		cases = append(cases, spec.SubmitSamples...)
 	}
 	for i, c := range cases {
@@ -222,6 +225,9 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 				result.PublicCaseResults = append(result.PublicCaseResults, public)
 			} else {
 				result.PrivateCaseResults = append(result.PrivateCaseResults, public)
+				if spec.SubmitCasesAreSamples {
+					result.SubmitSampleResults = append(result.SubmitSampleResults, public)
+				}
 			}
 		}
 	}
