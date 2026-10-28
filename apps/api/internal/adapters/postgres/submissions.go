@@ -45,7 +45,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
  'hiddenCases',CASE WHEN $3='submit' THEN `+problemHiddenCasesSQL+` ELSE '[]'::jsonb END,
  'odysseyHiddenCases',CASE WHEN $3='submit' THEN `+odysseySuitesSQL+` ELSE NULL END),
  COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,w.id::text
- FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id::text=$1 AND w.owner_id=$2`, c.WorkspaceID, owner, c.Kind).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope)
+ FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id=$1 AND w.owner_id=$2`, uuidLookup(c.WorkspaceID), owner, c.Kind).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Workspace not found")
 	}
@@ -198,7 +198,7 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 		var response []byte
 		e := tx.QueryRow(ctx, "SELECT submission_id,response FROM cancellation_idempotency WHERE owner_id=$1 AND key=$2 AND expires_at>clock_timestamp()", owner, key).Scan(&prior, &response)
 		if e == nil {
-			if prior != id {
+			if uuidLookup(prior) != uuidLookup(id) {
 				return judging.Submission{}, failure("idempotency_conflict", 409, "Key was used for a different cancellation")
 			}
 			var v judging.Submission
@@ -210,7 +210,7 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 		}
 	}
 	var state, matchID, kind string
-	err = tx.QueryRow(ctx, "SELECT state,COALESCE(match_id::text,''),kind FROM submissions WHERE id::text=$1 AND owner_id=$2 FOR UPDATE", id, owner).Scan(&state, &matchID, &kind)
+	err = tx.QueryRow(ctx, "SELECT state,COALESCE(match_id::text,''),kind FROM submissions WHERE id=$1 AND owner_id=$2 FOR UPDATE", uuidLookup(id), owner).Scan(&state, &matchID, &kind)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Submission not found")
 	}
@@ -221,12 +221,12 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 		return judging.Submission{}, failure("invalid_transition", 409, "Match submissions cannot be cancelled")
 	}
 	if state == "queued" {
-		if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE submission_id::text=$1", id); err != nil {
+		if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE submission_id=$1", uuidLookup(id)); err != nil {
 			return judging.Submission{}, err
 		}
-		_, err = tx.Exec(ctx, "UPDATE submissions SET state='cancelled',cancel_requested=true,updated_at=clock_timestamp() WHERE id::text=$1", id)
+		_, err = tx.Exec(ctx, "UPDATE submissions SET state='cancelled',cancel_requested=true,updated_at=clock_timestamp() WHERE id=$1", uuidLookup(id))
 	} else if state == "running" {
-		_, err = tx.Exec(ctx, "UPDATE submissions SET cancel_requested=true,updated_at=clock_timestamp() WHERE id::text=$1", id)
+		_, err = tx.Exec(ctx, "UPDATE submissions SET cancel_requested=true,updated_at=clock_timestamp() WHERE id=$1", uuidLookup(id))
 	} else if state != "cancelled" {
 		return judging.Submission{}, failure("invalid_transition", 409, "Execution already finished")
 	}

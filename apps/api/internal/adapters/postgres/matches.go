@@ -28,7 +28,7 @@ type matchRecord struct {
 
 func lockMatch(ctx context.Context, tx pgx.Tx, id string) (matchRecord, error) {
 	var m matchRecord
-	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulties[1],duration_minutes,difficulties,question_filters,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.QuestionFilters, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
+	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulties[1],duration_minutes,difficulties,question_filters,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id=$1 FOR UPDATE`, uuidLookup(id)).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.QuestionFilters, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = failure("not_found", 404, "Match not found")
 	}
@@ -44,7 +44,7 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	if m.started != nil {
 		err := tx.QueryRow(ctx, `SELECT CASE WHEN v.odyssey IS NOT NULL THEN
 			(SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id)
-			ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END FROM problem_versions v WHERE v.id::text=$1`, m.problem).Scan(&total)
+			ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END FROM problem_versions v WHERE v.id=$1`, uuidLookup(m.problem)).Scan(&total)
 		if err != nil {
 			return v, err
 		}
