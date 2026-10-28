@@ -2,10 +2,13 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestSeedQuestionReusesEquivalentPublishedContent(t *testing.T) {
@@ -83,5 +86,47 @@ func TestConcurrentEquivalentQuestionSeedsShareVersion(t *testing.T) {
 	first, second := <-results, <-results
 	if first.err != nil || second.err != nil || first.id == "" || first.id != second.id {
 		t.Fatalf("concurrent seed results: %+v %+v", first, second)
+	}
+}
+
+func TestQuestionSeedsUseOneConnectionPerOperation(t *testing.T) {
+	s := adminStore(t)
+	base := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	content := authoringContent(t, s)
+	for _, connections := range []int32{1, 2} {
+		t.Run(fmt.Sprintf("pool-%d", connections), func(t *testing.T) {
+			config := s.Pool.Config()
+			config.MaxConns = connections
+			pool, err := pgxpool.NewWithConfig(base, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer pool.Close()
+			limited := &Store{Pool: pool}
+			ctx, cancel := context.WithTimeout(base, 15*time.Second)
+			defer cancel()
+			const count = 4
+			results := make(chan error, count)
+			for i := 0; i < count; i++ {
+				candidate := content
+				candidate.Problem.Slug = fmt.Sprintf("pool-%d-seed-%d", connections, i)
+				go func() {
+					first, err := limited.SeedQuestion(ctx, "alice", "global", candidate)
+					if err == nil {
+						var replay string
+						replay, err = limited.SeedQuestion(ctx, "alice", "global", candidate)
+						if err == nil && (first == "" || replay != first) {
+							err = fmt.Errorf("seed replay mismatch")
+						}
+					}
+					results <- err
+				}()
+			}
+			for i := 0; i < count; i++ {
+				if err := <-results; err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
 	}
 }

@@ -33,8 +33,18 @@ func scanQuestionDraft(row pgx.Row) (QuestionDraft, error) {
 	}
 	return d, err
 }
+
+type questionDB interface {
+	querier
+	capabilityTxStarter
+}
+
 func (s *Store) CreateQuestionDraft(ctx context.Context, actor string, content problems.QuestionContent) (QuestionDraft, error) {
-	if err := s.requireQuestionAuthor(ctx, actor); err != nil {
+	return createQuestionDraft(ctx, s.Pool, actor, content)
+}
+
+func createQuestionDraft(ctx context.Context, db questionDB, actor string, content problems.QuestionContent) (QuestionDraft, error) {
+	if err := requireQuestionAuthorOn(ctx, db, actor); err != nil {
 		return QuestionDraft{}, err
 	}
 	content = problems.NormalizeQuestionDraft(content)
@@ -45,10 +55,13 @@ func (s *Store) CreateQuestionDraft(ctx context.Context, actor string, content p
 	if err != nil {
 		return QuestionDraft{}, err
 	}
-	return scanQuestionDraft(s.Pool.QueryRow(ctx, "INSERT INTO question_drafts(content,created_by,updated_by,owner_id) SELECT $1,$2,$2,CASE WHEN role='admin' THEN NULL ELSE id END FROM users WHERE id=$2 RETURNING "+draftColumns, data, actor))
+	return scanQuestionDraft(db.QueryRow(ctx, "INSERT INTO question_drafts(content,created_by,updated_by,owner_id) SELECT $1,$2,$2,CASE WHEN role='admin' THEN NULL ELSE id END FROM users WHERE id=$2 RETURNING "+draftColumns, data, actor))
 }
 func (s *Store) QuestionDraft(ctx context.Context, id string) (QuestionDraft, error) {
-	return scanQuestionDraft(s.Pool.QueryRow(ctx, "SELECT "+draftColumns+" FROM question_drafts WHERE id::text=$1 AND (owner_id=$2 OR (owner_id IS NULL AND $3))", id, identity.Subject(ctx).UserID, identity.Subject(ctx).Admin))
+	return questionDraft(ctx, s.Pool, id)
+}
+func questionDraft(ctx context.Context, db querier, id string) (QuestionDraft, error) {
+	return scanQuestionDraft(db.QueryRow(ctx, "SELECT "+draftColumns+" FROM question_drafts WHERE id::text=$1 AND (owner_id=$2 OR (owner_id IS NULL AND $3))", id, identity.Subject(ctx).UserID, identity.Subject(ctx).Admin))
 }
 func (s *Store) QuestionDrafts(ctx context.Context, cursor string) (QuestionDraftPage, error) {
 	query := `SELECT id::text,revision::text,COALESCE(content->'problem'->>'title',''),COALESCE(content->'problem'->>'slug',''),COALESCE(published_version_id::text,''),updated_at FROM question_drafts WHERE (owner_id=$2 OR (owner_id IS NULL AND $3)) AND ($1='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=$1 AND (owner_id=$2 OR (owner_id IS NULL AND $3)))) ORDER BY updated_at DESC,id DESC LIMIT 51`
@@ -215,16 +228,19 @@ func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision st
 }
 
 func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision, visibility string) (QuestionDraft, error) {
+	return publishQuestionDraftTo(ctx, s.Pool, actor, id, revision, visibility)
+}
+func publishQuestionDraftTo(ctx context.Context, db questionDB, actor, id, revision, visibility string) (QuestionDraft, error) {
 	if visibility != "" && visibility != "private" && visibility != "global" {
 		return QuestionDraft{}, failure("invalid_input", 400, "Choose private or global publication")
 	}
-	if err := s.requireQuestionAuthor(ctx, actor); err != nil {
+	if err := requireQuestionAuthorOn(ctx, db, actor); err != nil {
 		return QuestionDraft{}, err
 	}
 	if !validDraftRevision(revision) {
 		return QuestionDraft{}, failure("invalid_input", 400, "Invalid draft revision")
 	}
-	tx, err := s.Pool.Begin(ctx)
+	tx, err := db.Begin(ctx)
 	if err != nil {
 		return QuestionDraft{}, err
 	}
@@ -386,7 +402,10 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 }
 
 func (s *Store) requireQuestionAuthor(ctx context.Context, actor string) error {
-	c, err := s.Capabilities(ctx, actor)
+	return requireQuestionAuthorOn(ctx, s.Pool, actor)
+}
+func requireQuestionAuthorOn(ctx context.Context, db questionDB, actor string) error {
+	c, err := capabilitiesOn(ctx, db, actor)
 	if err != nil {
 		return err
 	}
