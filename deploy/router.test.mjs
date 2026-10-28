@@ -342,9 +342,9 @@ void test("wake authentication and durable queue send precede success", async ()
   assert.equal((await worker.fetch(unsafe, configuration)).status, 400);
 });
 
-void test("queue only acknowledges a successful authoritative empty drain", async () => {
+void test("queue acknowledges an empty drain or a durable continuation", async () => {
   for (const [status, body, ack] of [
-    [202, { queued: 1, running: 0 }, false],
+    [202, { queued: 1, running: 0 }, true],
     [200, { queued: 0, running: 1 }, false],
     [503, {}, false],
     [200, { queued: 0, running: 0 }, true],
@@ -363,6 +363,7 @@ void test("queue only acknowledges a successful authoritative empty drain", asyn
     };
     const configuration = {
       ...env,
+      JUDGE_WAKE: { send: async () => {} },
       JUDGES: {
         getByName(name) {
           assert.match(name, /^judge-[0-7]$/);
@@ -374,6 +375,134 @@ void test("queue only acknowledges a successful authoritative empty drain", asyn
     assert.equal(acknowledged, ack);
     assert.equal(retried, !ack);
   }
+});
+
+void test("incomplete drains hand off only after one durable delayed wake", async () => {
+  const stored = deferred();
+  let acknowledged = 0,
+    retried = 0,
+    sent = 0;
+  const messages = Array.from({ length: 100 }, (_, i) => ({
+    id: `message-${i}`,
+    body: { jobId: `job-id-${String(i).padStart(8, "0")}` },
+    ack() {
+      acknowledged++;
+    },
+    retry() {
+      retried++;
+    },
+  }));
+  const configuration = {
+    ...env,
+    JUDGE_WAKE: {
+      async send(body, options) {
+        sent++;
+        assert.deepEqual(body, { jobId: "job-id-00000000" });
+        assert.deepEqual(options, { delaySeconds: 2 });
+        await stored.promise;
+      },
+    },
+    JUDGES: {
+      getByName() {
+        return { fetch: async () => Response.json({ queued: 1, running: 0 }, { status: 202 }) };
+      },
+    },
+  };
+  const processing = worker.queue({ messages }, configuration);
+  await turn();
+  assert.equal(sent, 1);
+  assert.equal(acknowledged, 0);
+  assert.equal(retried, 0);
+  stored.resolve();
+  await processing;
+  assert.equal(acknowledged, 100);
+  assert.equal(retried, 0);
+});
+
+void test("continuation failure preserves original wake for retry", async () => {
+  let acknowledged = 0,
+    retried = 0;
+  const message = {
+    id: "m",
+    body: { jobId: "job-id-12345" },
+    ack() {
+      acknowledged++;
+    },
+    retry() {
+      retried++;
+    },
+  };
+  await worker.queue(
+    { messages: [message] },
+    {
+      ...env,
+      JUDGE_WAKE: {
+        async send() {
+          throw new Error("queue unavailable");
+        },
+      },
+      JUDGES: {
+        getByName() {
+          return { fetch: async () => Response.json({}, { status: 202 }) };
+        },
+      },
+    },
+  );
+  assert.equal(acknowledged, 0);
+  assert.equal(retried, 1);
+});
+
+void test("normal continuation can progress beyond the delivery retry limit", async () => {
+  let pending = { jobId: "job-id-12345" },
+    sends = 0,
+    acknowledged = 0,
+    retried = 0;
+  const configuration = {
+    ...env,
+    JUDGE_WAKE: {
+      async send(body) {
+        pending = body;
+        sends++;
+      },
+    },
+    JUDGES: {
+      getByName() {
+        return {
+          fetch: async () =>
+            Response.json(sends < 25 ? { queued: 1, running: 0 } : { queued: 0, running: 0 }, {
+              status: sends < 25 ? 202 : 200,
+            }),
+        };
+      },
+    },
+  };
+  for (let i = 0; i < 26; i++) {
+    const body = pending;
+    pending = null;
+    await worker.queue(
+      {
+        messages: [
+          {
+            id: `m-${i}`,
+            attempts: 1,
+            body,
+            ack() {
+              acknowledged++;
+            },
+            retry() {
+              retried++;
+            },
+          },
+        ],
+      },
+      configuration,
+    );
+    if (i < 25) assert.deepEqual(pending, body);
+  }
+  assert.equal(sends, 25);
+  assert.equal(acknowledged, 26);
+  assert.equal(retried, 0);
+  assert.equal(pending, null);
 });
 
 void test("idle application reaches zero; an active connection prevents destruction", async () => {
@@ -940,9 +1069,17 @@ void test("case execution is private and strips its control token before dispatc
 
 void test("case readiness requires authentication and does not start a case", async () => {
   const url = `${env.APP_ORIGIN}/internal/case/ready`;
-  const configuration = { ...env, CASES: { getByName() { throw new Error("case started"); } } };
+  const configuration = {
+    ...env,
+    CASES: {
+      getByName() {
+        throw new Error("case started");
+      },
+    },
+  };
   assert.equal((await worker.fetch(new Request(url), configuration)).status, 404);
-  const request = () => new Request(url, { headers: { Authorization: `Bearer ${env.JUDGE_CONTROL_TOKEN}` } });
+  const request = () =>
+    new Request(url, { headers: { Authorization: `Bearer ${env.JUDGE_CONTROL_TOKEN}` } });
   assert.equal((await worker.fetch(request(), configuration)).status, 204);
   assert.equal((await worker.fetch(request(), { ...configuration, CASES: undefined })).status, 503);
 });
