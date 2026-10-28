@@ -95,6 +95,13 @@ class ImportTest(unittest.TestCase):
         self.assertNotEqual(self.run_import('--apply').returncode, 0)
         self.assertEqual(Handler.creates, 0)
 
+    def test_existing_draft_with_different_solutions_is_not_published(self):
+        self.assertEqual(self.run_import('--apply').returncode, 0)
+        Handler.draft['content']['solutions'] = [{'language': 'python', 'source': 'different'}]
+        result = self.run_import('--apply', '--publish', 'global')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(Handler.publishes, 0)
+
     def test_non_loopback_target_rejected(self):
         result = subprocess.run([sys.executable, str(SCRIPT), str(self.directory), '--target', 'https://quorem.app', '--dev-user', 'alice', '--apply'], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
