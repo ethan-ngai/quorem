@@ -25,7 +25,7 @@ func (s *Store) NextExecutionDeadline(ctx context.Context) (time.Duration, bool,
 
 func (s *Store) NextRunnableExecutionDeadline(ctx context.Context, resumable bool) (time.Duration, bool, error) {
 	var milliseconds int64
-	err := s.Pool.QueryRow(ctx, `SELECT CASE WHEN count(*)=0 THEN -1 ELSE GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,COALESCE(j.lease_until,'-infinity'::timestamptz))) - clock_timestamp()))*1000)) END::bigint FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE NOT j.finished AND s.state IN ('queued','running') AND ($1 OR NOT EXISTS(SELECT 1 FROM execution_checkpoints c WHERE c.job_id=j.id))`, resumable).Scan(&milliseconds)
+	err := s.Pool.QueryRow(ctx, `SELECT CASE WHEN count(*)=0 THEN -1 ELSE GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,COALESCE(j.lease_until,'-infinity'::timestamptz))) - clock_timestamp()))*1000)) END::bigint FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE `+runnableExecutionPredicate, resumable, losslessCasesEnabled()).Scan(&milliseconds)
 	if err != nil || milliseconds < 0 {
 		return 0, false, err
 	}

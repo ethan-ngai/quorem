@@ -211,3 +211,66 @@ func TestPostgresDrainCutoffDoesNotClaimBehindQueueLock(t *testing.T) {
 		t.Fatalf("retry: %+v %v %v attempts=%d", state, complete, err, engine.attempts.Load())
 	}
 }
+
+type countedDeadlineStore struct {
+	*postgres.Store
+	claims    atomic.Int32
+	snapshots chan struct{}
+}
+
+func (s *countedDeadlineStore) Claim(ctx context.Context) (execution.Job, error) {
+	s.claims.Add(1)
+	return s.Store.Claim(ctx)
+}
+func (s *countedDeadlineStore) NextRunnableExecutionDeadline(ctx context.Context, resumable bool) (time.Duration, bool, error) {
+	d, present, err := s.Store.NextRunnableExecutionDeadline(ctx, resumable)
+	select {
+	case s.snapshots <- struct{}{}:
+	default:
+	}
+	return d, present, err
+}
+
+func TestContinuousRunnerIgnoresUnsupportedLosslessDeadline(t *testing.T) {
+	t.Setenv("QUOREM_LOSSLESS_CASES", "false")
+	t.Setenv("QUOREM_LOSSLESS_RESULT_WRITES", "false")
+	store := executionWakeStore(t)
+	wakeAdmission(t, store, "alice")
+	if _, err := store.Pool.Exec(context.Background(), `UPDATE submissions SET lossless_cases=convert_to('[]','UTF8') WHERE owner_id='alice'`); err != nil {
+		t.Fatal(err)
+	}
+	counted := &countedDeadlineStore{Store: store, snapshots: make(chan struct{}, 2)}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = New(counted).Run(ctx, &retryWakeEngine{}) }()
+	select {
+	case <-counted.snapshots:
+	case <-time.After(2 * time.Second):
+		cancel()
+		<-done
+		t.Fatal("runner never read deadline")
+	}
+	before := counted.claims.Load()
+	time.Sleep(750 * time.Millisecond)
+	after := counted.claims.Load()
+	cancel()
+	<-done
+	if before != 1 || after != before {
+		t.Fatalf("unsupported job caused polling: claims %d -> %d", before, after)
+	}
+	t.Setenv("QUOREM_LOSSLESS_CASES", "true")
+	t.Setenv("QUOREM_LOSSLESS_RESULT_WRITES", "true")
+	engine := &retryWakeEngine{started: make(chan struct{}, 1)}
+	ctx, cancel = context.WithCancel(context.Background())
+	done = make(chan struct{})
+	go func() { defer close(done); _ = New(counted).Run(ctx, engine) }()
+	select {
+	case <-engine.started:
+	case <-time.After(2 * time.Second):
+		cancel()
+		<-done
+		t.Fatal("capable runner missed job")
+	}
+	cancel()
+	<-done
+}
