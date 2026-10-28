@@ -89,8 +89,15 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key string, comman
 	if _, err = tx.Exec(ctx, `INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,$3,$4,$5)`, jobID, submissionID, v.language, v.fixture.Problem.RuntimeRevision, v.fixture.HarnessRevision); err != nil {
 		return out, err
 	}
-	fixture, _ := json.Marshal(v.fixture)
-	if _, err = tx.Exec(ctx, `INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture,level,progress_scope,question_epoch) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, submissionID, id, v.snapshot.Document.Version, v.snapshot.Document.Epoch, fixture, level, progressScope, v.snapshot.QuestionEpoch); err != nil {
+	fixture, err := json.Marshal(v.fixture)
+	if err != nil {
+		return out, err
+	}
+	fixtureID, err := saveInterviewFixture(ctx, tx, id, fixture)
+	if err != nil {
+		return out, err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture_id,level,progress_scope,question_epoch) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, submissionID, id, v.snapshot.Document.Version, v.snapshot.Document.Epoch, fixtureID, level, progressScope, v.snapshot.QuestionEpoch); err != nil {
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE users SET admission_tokens=`+executionTokenBalance+`-1,tokens_updated_at=clock_timestamp() WHERE id=$1`, user); err != nil {

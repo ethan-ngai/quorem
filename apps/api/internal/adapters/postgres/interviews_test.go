@@ -169,7 +169,7 @@ func TestInterviewAdmissionSnapshotsSourceAndSharedResults(t *testing.T) {
 	}
 	var source string
 	var fixture, cases []byte
-	if err = s.Pool.QueryRow(ctx, `SELECT s.source,e.fixture,s.cases FROM submissions s JOIN interview_execution e ON e.submission_id=s.id WHERE s.id=$1`, sub.ID).Scan(&source, &fixture, &cases); err != nil {
+	if err = s.Pool.QueryRow(ctx, `SELECT s.source,q.fixture,s.cases FROM submissions s JOIN interview_execution e ON e.submission_id=s.id JOIN interview_question_snapshots q ON q.session_id=e.session_id AND q.id=e.fixture_id WHERE s.id=$1`, sub.ID).Scan(&source, &fixture, &cases); err != nil {
 		t.Fatal(err)
 	}
 	if source != v.Document.Source || !strings.Contains(string(fixture), "987654") || !strings.Contains(string(cases), "987654") {
