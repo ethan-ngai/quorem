@@ -130,3 +130,46 @@ func normalizeMethodOutput(sig Signature, data json.RawMessage) (json.RawMessage
 	sort.Slice(items, func(i, j int) bool { return bytes.Compare(items[i], items[j]) < 0 })
 	return json.Marshal(items)
 }
+
+// Compare applies the same output normalization and SQL type checks to every game mode.
+func (codec *CaseCodec) Compare(c Case, status string, output json.RawMessage, sqlTypes []string) (string, json.RawMessage, json.RawMessage, bool, error) {
+	if status != "executed" {
+		return status, nil, nil, false, nil
+	}
+	actual, err := codec.Normalize(c, output)
+	if err != nil {
+		return "invalid_output", nil, nil, false, nil
+	}
+	mismatch := !codec.sqlOutputTypesMatch(sqlTypes)
+	expectedRaw := codec.Expected(c)
+	if len(expectedRaw) == 0 {
+		if mismatch {
+			return "wrong_answer", actual, nil, true, nil
+		}
+		return "executed", actual, nil, false, nil
+	}
+	expected, err := codec.Normalize(c, expectedRaw)
+	if err != nil {
+		return "", nil, nil, false, fmt.Errorf("invalid trusted expectation: %w", err)
+	}
+	if bytes.Equal(actual, expected) && !mismatch {
+		return "accepted", actual, expected, false, nil
+	}
+	return "wrong_answer", actual, expected, mismatch, nil
+}
+
+func (codec *CaseCodec) sqlOutputTypesMatch(actual []string) bool {
+	schema := codec.problem.SQL
+	if schema == nil || len(schema.Output) == 0 {
+		return true
+	}
+	if len(actual) != len(schema.Output) {
+		return false
+	}
+	for i, column := range schema.Output {
+		if actual[i] != column.Type {
+			return false
+		}
+	}
+	return true
+}

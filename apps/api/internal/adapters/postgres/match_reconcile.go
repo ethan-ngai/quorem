@@ -49,7 +49,7 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		return err
 	}
 	submissions := []matches.SubmissionProgress{}
-	rows, err = tx.Query(ctx, `SELECT s.owner_id,s.state,s.match_sequence,COALESCE(s.result->>'verdict',''),s.result->'score',COALESCE(s.odyssey_level < jsonb_array_length(p.odyssey->'levels'),false) FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id WHERE s.match_id=$1 AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`, m.id)
+	rows, err = tx.Query(ctx, `SELECT s.owner_id,s.state,s.match_sequence,COALESCE(s.result->>'verdict',''),s.result->'score',COALESCE(s.odyssey_level < jsonb_array_length(p.odyssey->'levels'),false),CASE WHEN c.definite_failures>0 AND c.definite_failures<=c.next_ordinal AND c.definite_failures<=jsonb_array_length(s.cases) THEN jsonb_array_length(s.cases)-c.definite_failures END FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id LEFT JOIN execution_checkpoints c ON c.job_id=j.id WHERE s.match_id=$1 AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`, m.id)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,8 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		var sequence int64
 		var scoreData []byte
 		var intermediate bool
-		if err = rows.Scan(&owner, &state, &sequence, &verdict, &scoreData, &intermediate); err != nil {
+		var maxPossible *int
+		if err = rows.Scan(&owner, &state, &sequence, &verdict, &scoreData, &intermediate, &maxPossible); err != nil {
 			rows.Close()
 			return err
 		}
@@ -72,7 +73,7 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 				return err
 			}
 		}
-		submissions = append(submissions, matches.SubmissionProgress{Owner: owner, State: state, Verdict: execution.Verdict(verdict), Score: score, Intermediate: intermediate})
+		submissions = append(submissions, matches.SubmissionProgress{Owner: owner, State: state, Verdict: execution.Verdict(verdict), Score: score, Intermediate: intermediate, MaxPossible: maxPossible, CannotPass: maxPossible != nil})
 	}
 	err = rows.Err()
 	rows.Close()
