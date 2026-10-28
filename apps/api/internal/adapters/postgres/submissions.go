@@ -158,12 +158,13 @@ type querier interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-func (s *Store) submission(ctx context.Context, q querier, owner, id string) (judging.Submission, error) {
+func (s *Store) rawSubmission(ctx context.Context, q querier, owner, id string) (judging.Submission, bool, error) {
 	var v judging.Submission
 	var data []byte
-	err := q.QueryRow(ctx, "SELECT id,COALESCE(workspace_id::text,''),kind,state,source_hash,admitted_at,updated_at,result,custom_run FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data, &v.CustomRun)
+	var interview bool
+	err := q.QueryRow(ctx, "SELECT id,COALESCE(workspace_id::text,''),kind,state,source_hash,admitted_at,updated_at,result,custom_run,interview_id IS NOT NULL FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data, &v.CustomRun, &interview)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return v, failure("not_found", 404, "Submission not found")
+		return v, false, failure("not_found", 404, "Submission not found")
 	}
 	if err == nil && len(data) > 0 {
 		var result judging.Submission
@@ -176,8 +177,19 @@ func (s *Store) submission(ctx context.Context, q querier, owner, id string) (ju
 			v.InfrastructureError = result.InfrastructureError
 		}
 	}
+	return v, interview, err
+}
+
+// Generic owner endpoints never expose interview-private case verdicts.
+func (s *Store) submission(ctx context.Context, q querier, owner, id string) (judging.Submission, error) {
+	v, interview, err := s.rawSubmission(ctx, q, owner, id)
+	if interview && v.Kind == "submit" {
+		v.HiddenCases = nil
+		v.Diagnostics = nil
+	}
 	return v, err
 }
+
 func (s *Store) Submission(ctx context.Context, owner, id string) (judging.Submission, error) {
 	return s.submission(ctx, s.Pool, owner, id)
 }
