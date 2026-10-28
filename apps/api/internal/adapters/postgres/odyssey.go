@@ -10,8 +10,9 @@ import (
 
 func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.OdysseyProgress, error) {
 	var result problems.OdysseyProgress
-	var data []byte
-	err := s.Pool.QueryRow(ctx, `SELECT v.odyssey,COALESCE(o.level,1),COALESCE(o.completed,false) FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2`, id, owner).Scan(&data, &result.Level, &result.Completed)
+	var data, statuses []byte
+	history := `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM submissions s WHERE s.workspace_id=w.id AND s.state='completed' AND NOT s.custom_run AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`
+	err := s.Pool.QueryRow(ctx, `SELECT v.odyssey,COALESCE(o.level,1),COALESCE(o.completed,false),(`+caseStatusesSQL(history)+`) FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2`, id, owner).Scan(&data, &result.Level, &result.Completed, &statuses)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, failure("not_found", 404, "Workspace not found")
 	}
@@ -30,7 +31,7 @@ func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.Odyssey
 	}
 	result.Levels = odyssey.Levels[:result.Level]
 	result.TotalLevels = len(odyssey.Levels)
-	result.CaseStatuses, err = latestCaseStatuses(ctx, s.Pool, `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM submissions s JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2 AND s.state='completed' AND NOT s.custom_run AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`, id, owner)
+	result.CaseStatuses, err = decodeCaseStatuses(statuses)
 	return result, err
 }
 
@@ -39,7 +40,7 @@ func (s *Store) advanceOdyssey(ctx context.Context, tx pgx.Tx, submissionID stri
 	var problemID string
 	var level *int
 	var total *int
-	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.odyssey_scope,w.id)::text,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),CASE WHEN q.fixture IS NOT NULL THEN COALESCE(NULLIF(jsonb_array_length(q.fixture->'odysseyHiddenCases'),0),jsonb_array_length(q.fixture->'problem'->'odyssey'->'levels')) ELSE jsonb_array_length(v.odyssey->'levels') END FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &total)
+	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.id)::text,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),CASE WHEN q.fixture IS NOT NULL THEN COALESCE(NULLIF(jsonb_array_length(q.fixture->'odysseyHiddenCases'),0),jsonb_array_length(q.fixture->'problem'->'odyssey'->'levels')) ELSE jsonb_array_length(v.odyssey->'levels') END FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &total)
 	if err != nil || scope == nil || level == nil || total == nil {
 		return err
 	}
@@ -68,7 +69,7 @@ func (s *Store) ResetOdyssey(ctx context.Context, owner, id string) error {
 		return err
 	}
 	var scope, problemID string
-	err = tx.QueryRow(ctx, `SELECT COALESCE(odyssey_scope,id)::text,problem_version_id::text FROM workspaces WHERE id::text=$1 AND owner_id=$2 AND kind='solo'`, id, owner).Scan(&scope, &problemID)
+	err = tx.QueryRow(ctx, `SELECT id::text,problem_version_id::text FROM workspaces WHERE id::text=$1 AND owner_id=$2 AND kind='solo'`, id, owner).Scan(&scope, &problemID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return failure("not_found", 404, "Practice workspace not found")
 	}
@@ -76,7 +77,7 @@ func (s *Store) ResetOdyssey(ctx context.Context, owner, id string) error {
 		return err
 	}
 	var active bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM submissions s JOIN workspaces w ON w.id=s.workspace_id WHERE COALESCE(w.odyssey_scope,w.id)::text=$1 AND w.problem_version_id::text=$2 AND s.state IN ('queued','running'))`, scope, problemID).Scan(&active); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM submissions WHERE workspace_id::text=$1 AND state IN ('queued','running'))`, scope).Scan(&active); err != nil {
 		return err
 	}
 	if active {
