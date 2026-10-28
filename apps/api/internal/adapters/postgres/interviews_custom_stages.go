@@ -16,7 +16,7 @@ func validateCustomInterviewStages(f *problems.Fixture, c *interviews.CustomQues
 	}
 	f.Problem.Odyssey = c.Odyssey
 	f.OdysseyHiddenCases = c.OdysseyHiddenCases
-	content := problems.QuestionContent{Problem: f.Problem, OdysseyHiddenCases: f.OdysseyHiddenCases, Attribution: f.Attribution}
+	content := problems.QuestionContent{Problem: f.Problem.QuestionDefinition, OdysseyHiddenCases: f.OdysseyHiddenCases, Attribution: f.Attribution}
 	if err := problems.ValidateQuestionDefinition(content, false); err != nil {
 		return err
 	}

@@ -4315,7 +4315,6 @@
           "id": {
             "type": "string"
           },
-          "isPrivate": { "type": "boolean" },
           "slug": {
             "type": "string"
           },
@@ -4328,8 +4327,18 @@
           "difficulty": {
             "$ref": "#/components/schemas/Difficulty"
           },
-          "companies": { "type": "array", "items": { "type": "string" }, "maxItems": 64 },
-          "leetcodeId": { "type": "integer", "minimum": 1, "nullable": true },
+          "companies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64
+          },
+          "leetcodeId": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true
+          },
           "tags": {
             "type": "array",
             "items": {
@@ -4354,37 +4363,14 @@
           "signature": {
             "$ref": "#/components/schemas/Signature"
           },
-          "starterSource": {
-            "type": "string"
-          },
-          "runtimeRevision": {
-            "type": "string"
-          },
           "limits": {
             "$ref": "#/components/schemas/ExecutionLimits"
           },
-          "languages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LanguageImplementation"
-            }
+          "sql": {
+            "$ref": "#/components/schemas/SqlConfig"
           },
-          "sql": { "$ref": "#/components/schemas/SqlConfig" },
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
-          },
-          "solutionLanguages": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/Language" },
-            "maxItems": 5,
-            "uniqueItems": true
-          },
-          "complexityLanguages": {
-            "type": "array",
-            "description": "Languages with published complexity; contains no costs or solution source.",
-            "items": { "$ref": "#/components/schemas/Language" },
-            "maxItems": 4,
-            "uniqueItems": true
           }
         },
         "additionalProperties": false,
@@ -4399,10 +4385,7 @@
           "examples",
           "constraints",
           "signature",
-          "starterSource",
-          "runtimeRevision",
-          "limits",
-          "languages"
+          "limits"
         ]
       },
       "SqlConfig": {

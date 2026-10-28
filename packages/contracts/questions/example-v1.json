@@ -55,8 +55,6 @@
       ],
       "returnType": "list<int>"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def runWidths(self, values: list[int]) -> list[int]:\n        pass\n",
-    "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
       "memoryBytes": 268435456,
@@ -64,8 +62,7 @@
       "maxProcesses": 16,
       "maxCollectionElements": 10000,
       "maxNestingDepth": 100
-    },
-    "languages": []
+    }
   },
   "hiddenCases": [
     {

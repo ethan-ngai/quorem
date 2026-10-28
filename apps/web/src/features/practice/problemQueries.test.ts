@@ -18,6 +18,8 @@ vi.mock("../auth/session", () => ({
 
 const publicProblem = {
   ...fixture.problem,
+  starterSource: fixture.implementations[0]!.starterSource,
+  runtimeRevision: fixture.implementations[0]!.runtimeRevision,
   id: "public-version",
   slug: "public-question",
 } as ProblemVersion;

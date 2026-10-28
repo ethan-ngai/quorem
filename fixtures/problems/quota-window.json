@@ -1,6 +1,5 @@
 {
   "problem": {
-    "languages": [],
     "id": "d83802b1-ad72-5082-a220-4ff8e2aa572a",
     "slug": "quota-window",
     "version": "2",
@@ -56,8 +55,6 @@
       ],
       "returnType": "str"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def quotaWindow(self, text: str, quota: str) -\u003e str:\n        pass\n",
-    "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
       "memoryBytes": 268435456,

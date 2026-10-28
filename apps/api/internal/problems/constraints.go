@@ -244,12 +244,12 @@ func (v *CaseValidator) Validate(c Case, expectedRequired bool) error {
 		return validateSQLCase(p.SQL, c, expectedRequired)
 	}
 	if p.Odyssey != nil {
-		return validateCalls(v.methods, c, expectedRequired, inputLimit(p))
+		return validateCalls(v.methods, c, expectedRequired, inputLimit(p.QuestionDefinition))
 	}
 	if len(c.Calls) > 0 {
 		return fmt.Errorf("method sequences require Odyssey")
 	}
-	if err := validateCaseLimit(p.Signature, c, expectedRequired, inputLimit(p)); err != nil {
+	if err := validateCaseLimit(p.Signature, c, expectedRequired, inputLimit(p.QuestionDefinition)); err != nil {
 		return err
 	}
 	if !v.constraintsChecked {
@@ -317,7 +317,7 @@ func ValidateProblemCustomCases(p Problem, cases []Case) error {
 	return nil
 }
 
-func inputLimit(p Problem) int {
+func inputLimit(p QuestionDefinition) int {
 	limit := p.Limits.MaxCollectionElements
 	if limit <= 0 || limit > execution.MaxInputElements {
 		return execution.DefaultLimits().MaxCollectionElements

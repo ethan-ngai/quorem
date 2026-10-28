@@ -116,7 +116,7 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 	if err != nil {
 		return problems.QuestionContent{}, err
 	}
-	c := problems.QuestionContent{Problem: p, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
+	c := problems.QuestionContent{Problem: p.QuestionDefinition, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
 	var odyssey, suites []byte
 	if err = s.Pool.QueryRow(ctx, "SELECT v.odyssey,"+odysseySuitesSQL+" FROM problem_versions v WHERE v.id::text=$1", versionID).Scan(&odyssey, &suites); err != nil {
 		return c, err
@@ -340,7 +340,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	if _, err = tx.Exec(ctx, "UPDATE problem_versions SET sealed=true WHERE id=$1", p.ID); err != nil {
 		return d, err
 	}
-	c.Problem = p
+	c.Problem = p.QuestionDefinition
 	content, err := json.Marshal(c)
 	if err != nil {
 		return d, err

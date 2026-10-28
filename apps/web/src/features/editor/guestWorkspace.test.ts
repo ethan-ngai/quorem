@@ -8,7 +8,11 @@ import { vi, afterEach } from "vitest";
 afterEach(() => vi.unstubAllGlobals());
 describe("guest editing", () => {
   it("creates isolated browser documents in every supported language without a server workspace", () => {
-    const problem = fixture.problem as ProblemVersion;
+    const problem = {
+      ...fixture.problem,
+      starterSource: fixture.implementations[0]!.starterSource,
+      runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+    } as ProblemVersion;
     const scopes = new Set<string>();
     for (const language of ["python", "java", "typescript", "ocaml"] as const) {
       const workspace = guestWorkspace(problem, language);
@@ -28,7 +32,11 @@ describe("guest editing", () => {
       setItem: (key: string, value: string) => store.set(key, value),
       getItem: (key: string) => store.get(key) ?? null,
     });
-    const problem = fixture.problem as ProblemVersion;
+    const problem = {
+      ...fixture.problem,
+      starterSource: fixture.implementations[0]!.starterSource,
+      runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+    } as ProblemVersion;
     const scope = browserDraftScope(guestWorkspace(problem, "java"));
     writeBrowserDraft("anonymous" as DevelopmentIdentity, scope, problem.id, "guest code");
     expect(readBrowserDraft("anonymous" as DevelopmentIdentity, scope, problem.id)).toBe(

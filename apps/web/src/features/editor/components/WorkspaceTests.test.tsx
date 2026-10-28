@@ -7,7 +7,11 @@ import { caseSnapshotValue, createCustomDraft } from "../customCases";
 import { TestCases } from "./TestCases";
 import { WorkspaceTests } from "./WorkspaceTests";
 
-const problem = fixture.problem as ProblemVersion;
+const problem = {
+  ...fixture.problem,
+  starterSource: fixture.implementations[0]!.starterSource,
+  runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+} as ProblemVersion;
 const methods: Signature[] = [
   {
     className: "Solution",

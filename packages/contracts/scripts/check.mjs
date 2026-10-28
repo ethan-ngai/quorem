@@ -31,21 +31,50 @@ for (const [fixture, schema] of Object.entries({
 }
 const publicFields = schemas.ProblemVersion.properties;
 const authorFields = schemas.QuestionProblem.properties;
-assert.deepEqual(Object.keys(authorFields).sort(), Object.keys(publicFields).sort());
+for (const derived of [
+  "starterSource",
+  "runtimeRevision",
+  "languages",
+  "isPrivate",
+  "solutionLanguages",
+  "complexityLanguages",
+])
+  assert(!(derived in authorFields), `Derived field in question definition: ${derived}`);
 for (const name of Object.keys(authorFields)) {
   if (name !== "id" && name !== "version")
     assert.deepEqual(authorFields[name], publicFields[name], `Question field drift: ${name}`);
 }
 const validateQuestion = ajv.compile({ $ref: `${document.$id}#/$defs/QuestionContent` });
 const exampleQuestion = JSON.parse(readFileSync("questions/example-v1.json", "utf8"));
-exampleQuestion.problem.isPrivate = true;
-exampleQuestion.problem.solutionLanguages = ["python"];
-exampleQuestion.problem.complexityLanguages = ["python"];
 assert(validateQuestion(exampleQuestion), JSON.stringify(validateQuestion.errors));
+for (const field of [
+  "starterSource",
+  "runtimeRevision",
+  "languages",
+  "isPrivate",
+  "solutionLanguages",
+  "complexityLanguages",
+]) {
+  assert(
+    !validateQuestion({
+      ...exampleQuestion,
+      problem: { ...exampleQuestion.problem, [field]: null },
+    }),
+    field,
+  );
+}
 const validateProblem = ajv.compile({ $ref: `${document.$id}#/$defs/ProblemVersion` });
 for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
-  assert(validateProblem(fixture.problem), `${name}: ${JSON.stringify(validateProblem.errors)}`);
+  const primary = fixture.implementations.find((item) => item.language === "python");
+  assert(
+    validateProblem({
+      ...fixture.problem,
+      starterSource: primary.starterSource,
+      runtimeRevision: primary.runtimeRevision,
+    }),
+    `${name}: ${JSON.stringify(validateProblem.errors)}`,
+  );
   assert(validateQuestion(fixture), `${name}: ${JSON.stringify(validateQuestion.errors)}`);
 }
 const validateInterviewCustom = ajv.compile({
@@ -58,7 +87,8 @@ const stagedPad = {
   title: "Private stages",
   statementMarkdown: "Implement each stage.",
   signature: authoredStages.problem.signature,
-  starterSource: authoredStages.problem.starterSource,
+  starterSource: authoredStages.implementations.find((item) => item.language === "python")
+    .starterSource,
   publicCases: authoredStages.problem.odyssey.levels[0].examples.map(({ args, calls }) => ({
     args,
     calls,

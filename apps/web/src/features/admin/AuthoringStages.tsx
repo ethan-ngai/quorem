@@ -32,7 +32,6 @@ export function AuthoringStages({
           ...content.problem,
           signature: parsed.odyssey.levels[0]!.methods[0]!,
           odyssey: parsed.odyssey,
-          starterSource: initialOdysseySource(parsed.odyssey.levels[0]!.methods, "python"),
         },
         odysseyHiddenCases: parsed.odysseyHiddenCases,
         implementations: content.implementations.map((item) => ({

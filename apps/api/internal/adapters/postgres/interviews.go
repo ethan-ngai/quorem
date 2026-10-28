@@ -376,7 +376,7 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		return f, failure("invalid_input", 400, "Custom SQL interviews require a published SQL question")
 	}
 	c := q.Custom
-	f = problems.Fixture{Problem: problems.Problem{ID: ID(), Slug: "interview-private", Version: "1", Title: strings.TrimSpace(c.Title), Difficulty: "easy", Tags: []string{}, StatementMarkdown: c.StatementMarkdown, Signature: c.Signature, StarterSource: c.StarterSource, RuntimeRevision: runtime.Revision, Limits: execution.DefaultLimits(), Constraints: []problems.Constraint{}, Examples: []problems.ProblemExample{}}, HiddenCases: c.PrivateCases, HarnessRevision: runtime.Harness, Attribution: "Private interview"}
+	f = problems.Fixture{Problem: problems.Problem{QuestionDefinition: problems.QuestionDefinition{ID: ID(), Slug: "interview-private", Version: "1", Title: strings.TrimSpace(c.Title), Difficulty: "easy", Tags: []string{}, StatementMarkdown: c.StatementMarkdown, Signature: c.Signature, Limits: execution.DefaultLimits(), Constraints: []problems.Constraint{}, Examples: []problems.ProblemExample{}}, StarterSource: c.StarterSource, RuntimeRevision: runtime.Revision}, HiddenCases: c.PrivateCases, HarnessRevision: runtime.Harness, Attribution: "Private interview"}
 	if f.Problem.Signature.ClassName == "" {
 		f.Problem.Signature.ClassName = "Solution"
 	}
@@ -391,7 +391,7 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		if len(c.PublicCases) == 0 || len(c.PublicCases) > 20 || len(c.PrivateCases) > 100 {
 			return f, failure("invalid_input", 400, "Provide 1-20 public tests and at most 100 private tests")
 		}
-		content := problems.QuestionContent{Problem: f.Problem, HiddenCases: c.PrivateCases, Attribution: f.Attribution}
+		content := problems.QuestionContent{Problem: f.Problem.QuestionDefinition, HiddenCases: c.PrivateCases, Attribution: f.Attribution}
 		if err := problems.ValidateQuestionDefinition(content, false); err != nil {
 			return f, failure("invalid_input", 400, err.Error())
 		}

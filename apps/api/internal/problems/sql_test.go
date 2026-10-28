@@ -6,7 +6,7 @@ import (
 )
 
 func TestSQLResultsPreserveDuplicatesAndOrdering(t *testing.T) {
-	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}}
+	p := Problem{QuestionDefinition: QuestionDefinition{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}}}
 	a, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"columns":["x"],"rows":[[2],[1],[1],[null]]}`))
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestSQLResultsPreserveDuplicatesAndOrdering(t *testing.T) {
 	}
 }
 func TestSQLCaseFollowsSchema(t *testing.T) {
-	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered", Tables: []SQLTableSchema{{Name: "users", Columns: []SQLColumn{{Name: "id", Type: "integer"}}}}, Output: []SQLColumn{{Name: "id", Type: "integer"}}}}
+	p := Problem{QuestionDefinition: QuestionDefinition{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered", Tables: []SQLTableSchema{{Name: "users", Columns: []SQLColumn{{Name: "id", Type: "integer"}}}}, Output: []SQLColumn{{Name: "id", Type: "integer"}}}}}
 	var c Case
 	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"users","rows":[[1]]}]}],"expected":{"rows":[[1]]}}`), &c); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestSQLOdysseyRequiresSchema(t *testing.T) {
 }
 
 func TestSQLNumericCanonicalization(t *testing.T) {
-	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "ordered"}}
+	p := Problem{QuestionDefinition: QuestionDefinition{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "ordered"}}}
 	normalize := func(text string) string {
 		t.Helper()
 		result, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(text))
@@ -84,7 +84,7 @@ func TestSQLNumericCanonicalization(t *testing.T) {
 }
 
 func TestLegacySQLCasesRemainRunnableButRequireSchemaForPublication(t *testing.T) {
-	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}}
+	p := Problem{QuestionDefinition: QuestionDefinition{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}}}
 	var c Case
 	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"integer"}],"rows":[[1]]}]}],"expected":{"columns":["id"],"rows":[[1]]}}`), &c); err != nil {
 		t.Fatal(err)
@@ -92,13 +92,13 @@ func TestLegacySQLCasesRemainRunnableButRequireSchemaForPublication(t *testing.T
 	if err := ValidateProblemCase(p, c, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := validateSQLPublication(QuestionContent{Problem: p}); err == nil {
+	if err := validateSQLPublication(QuestionContent{Problem: p.QuestionDefinition}); err == nil {
 		t.Fatal("accepted publication without a schema")
 	}
 }
 
 func TestSQLFloatingResultsNormalizeByPseudotype(t *testing.T) {
-	p := Problem{SQL: &SQLConfig{OutputOrder: "ordered", Output: []SQLColumn{{Name: "value", Type: "real"}}}}
+	p := Problem{QuestionDefinition: QuestionDefinition{SQL: &SQLConfig{OutputOrder: "ordered", Output: []SQLColumn{{Name: "value", Type: "real"}}}}}
 	expected, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"rows":[[0.1],[10000000000]]}`))
 	if err != nil {
 		t.Fatal(err)

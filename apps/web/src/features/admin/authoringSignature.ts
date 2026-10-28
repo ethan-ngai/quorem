@@ -26,7 +26,6 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
     problem: {
       ...content.problem,
       signature,
-      starterSource: initialOdysseySource([signature], "python"),
       examples: content.problem.examples.map(adapt),
     },
     implementations: content.implementations.map((item) => ({

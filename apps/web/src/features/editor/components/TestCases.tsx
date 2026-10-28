@@ -1,6 +1,6 @@
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
 import { Tooltip } from "../../../ui/Tooltip";
-import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
+import type { QuestionProblem, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   associatedResultIndex,
@@ -38,7 +38,7 @@ export function TestCases({
   selectedCustomId,
   onSelectCustomCase,
 }: {
-  problem: ProblemVersion;
+  problem: QuestionProblem;
   customMode: boolean;
   drafts: CustomCaseDraft[];
   onDraftsChange: (drafts: CustomCaseDraft[]) => void;

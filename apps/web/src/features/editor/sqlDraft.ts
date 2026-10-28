@@ -1,4 +1,4 @@
-import type { ProblemVersion } from "@quorem/contracts";
+import type { QuestionProblem } from "@quorem/contracts";
 
 type Column = { name: string; type: string };
 type Table = { name: string; columns?: Column[]; rows: unknown[][] };
@@ -9,14 +9,14 @@ function object(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-export function sqlTables(problem: ProblemVersion, setup: Setup) {
+export function sqlTables(problem: QuestionProblem, setup: Setup) {
   return (problem.sql?.tables?.length ? problem.sql.tables : setup.tables).map((table) => ({
     name: table.name,
     columns: table.columns ?? [],
   }));
 }
 
-export function sqlOutputColumns(problem: ProblemVersion, setup: Setup, result: Result): Column[] {
+export function sqlOutputColumns(problem: QuestionProblem, setup: Setup, result: Result): Column[] {
   if (problem.sql?.output?.length) return problem.sql.output;
   const columns = sqlTables(problem, setup).flatMap((table) => table.columns);
   return (result.columns ?? []).map((name, index) => ({
@@ -113,7 +113,7 @@ function rows(values: unknown[][], columns: Column[], output: boolean, name: str
   });
 }
 
-export function normalizeSqlDraft(problem: ProblemVersion, source: string, expected?: string) {
+export function normalizeSqlDraft(problem: QuestionProblem, source: string, expected?: string) {
   const setup = parseSqlSetup(source);
   const schema = sqlTables(problem, setup);
   if (!schema.length || setup.tables.length !== schema.length)

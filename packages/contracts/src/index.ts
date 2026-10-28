@@ -16,6 +16,7 @@ export type InterviewUpdates = components["schemas"]["InterviewUpdates"];
 export type InterviewPreview = components["schemas"]["InterviewPreview"];
 export type InterviewRole = components["schemas"]["InterviewRole"];
 export type QuestionHints = components["schemas"]["QuestionHints"];
+export type QuestionProblem = components["schemas"]["QuestionProblem"];
 export type QuestionContent = components["schemas"]["QuestionContent"];
 export type QuestionDraft = components["schemas"]["QuestionDraft"];
 export type QuestionDraftSummary = components["schemas"]["QuestionDraftSummary"];

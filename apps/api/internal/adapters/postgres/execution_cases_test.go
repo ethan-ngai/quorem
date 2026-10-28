@@ -11,7 +11,7 @@ func TestExecutionCases(t *testing.T) {
 	sample := problems.Case{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}
 	hidden := problems.Case{Args: []json.RawMessage{json.RawMessage(`3`)}, Expected: json.RawMessage(`4`)}
 	custom := problems.Case{Args: []json.RawMessage{json.RawMessage(`5`)}}
-	fixture := problems.Fixture{Problem: problems.Problem{Signature: problems.Signature{Parameters: []problems.Parameter{{Name: "x", Type: "int"}}, ReturnType: "int"}, Examples: []problems.ProblemExample{{Case: sample}}}, HiddenCases: []problems.Case{hidden}}
+	fixture := problems.Fixture{Problem: problems.Problem{QuestionDefinition: problems.QuestionDefinition{Signature: problems.Signature{Parameters: []problems.Parameter{{Name: "x", Type: "int"}}, ReturnType: "int"}, Examples: []problems.ProblemExample{{Case: sample}}}}, HiddenCases: []problems.Case{hidden}}
 	for _, tc := range []struct {
 		name, kind         string
 		custom             []problems.Case

@@ -69,7 +69,7 @@ func TestCodecBoundsAndCanonicalTrees(t *testing.T) {
 func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
 	sig := Signature{Parameters: []Parameter{{Name: "enabled", Type: "bool"}, {Name: "weights", Type: "list<list<float>>"}, {Name: "head", Type: "optional<ListNode>"}}, ReturnType: "TreeNode"}
 	valid := Case{Args: []json.RawMessage{json.RawMessage("true"), json.RawMessage("[[1.25],[]]"), json.RawMessage("null")}, Expected: json.RawMessage("[1,null,2]")}
-	if err := ValidateProblemCustomCases(Problem{Signature: sig}, []Case{valid}); err != nil {
+	if err := ValidateProblemCustomCases(Problem{QuestionDefinition: QuestionDefinition{Signature: sig}}, []Case{valid}); err != nil {
 		t.Fatal(err)
 	}
 	for name, c := range map[string]Case{
@@ -81,19 +81,19 @@ func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
 		"orphan output":   {Args: valid.Args, Expected: json.RawMessage("[1,null,null,2]")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if err := ValidateProblemCustomCases(Problem{Signature: sig}, []Case{c}); err == nil {
+			if err := ValidateProblemCustomCases(Problem{QuestionDefinition: QuestionDefinition{Signature: sig}}, []Case{c}); err == nil {
 				t.Fatal("malformed custom case accepted")
 			}
 		})
 	}
-	if err := ValidateProblemCustomCases(Problem{Signature: sig}, []Case{}); err == nil {
+	if err := ValidateProblemCustomCases(Problem{QuestionDefinition: QuestionDefinition{Signature: sig}}, []Case{}); err == nil {
 		t.Fatal("empty custom suite accepted")
 	}
-	if err := ValidateProblemCustomCases(Problem{Signature: sig}, make([]Case, 21)); err == nil {
+	if err := ValidateProblemCustomCases(Problem{QuestionDefinition: QuestionDefinition{Signature: sig}}, make([]Case, 21)); err == nil {
 		t.Fatal("21 cases accepted")
 	}
 	largeString, _ := json.Marshal(string(make([]byte, 2<<20)))
-	if err := ValidateProblemCustomCases(Problem{Signature: Signature{Parameters: []Parameter{{Name: "text", Type: "str"}}, ReturnType: "str"}}, []Case{{Args: []json.RawMessage{largeString}}}); err == nil {
+	if err := ValidateProblemCustomCases(Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{Parameters: []Parameter{{Name: "text", Type: "str"}}, ReturnType: "str"}}}, []Case{{Args: []json.RawMessage{largeString}}}); err == nil {
 		t.Fatal("oversized custom suite accepted")
 	}
 	for _, typ := range []string{"optional<Graph>", "list<Graph>"} {
@@ -111,7 +111,7 @@ func TestLargeInputIsBoundedPerProblem(t *testing.T) {
 	sig := Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"}
 	data, _ := json.Marshal(make([]int, 100000))
 	c := Case{Args: []json.RawMessage{data}, Expected: json.RawMessage(`0`)}
-	p := Problem{Signature: sig}
+	p := Problem{QuestionDefinition: QuestionDefinition{Signature: sig}}
 	p.Limits.MaxCollectionElements = 100000
 	maximum := float64(100000)
 	p.Constraints = []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "length"}, Max: &maximum}}

@@ -1,4 +1,4 @@
-import type { ProblemVersion } from "@quorem/contracts";
+import type { QuestionProblem } from "@quorem/contracts";
 import { Icon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
 import {
@@ -147,7 +147,7 @@ export function SqlCaseEditor({
   onInputChange,
   onExpectedChange,
 }: {
-  problem: ProblemVersion;
+  problem: QuestionProblem;
   input: string;
   expected?: string;
   onInputChange: (value: string) => void;

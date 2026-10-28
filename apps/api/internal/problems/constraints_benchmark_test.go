@@ -15,14 +15,11 @@ func BenchmarkCaseConstraints(b *testing.B) {
 		b.Fatal(err)
 	}
 	min := float64(0)
-	p := Problem{
-		Signature: Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"},
-		Constraints: []Constraint{
-			{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Min: &min},
-			{Kind: "property", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Property: "unique"},
-			{Kind: "comparison", Left: &ConstraintTarget{Parameter: "values", Projection: "length"}, Right: &ConstraintTarget{Parameter: "values", Projection: "sum"}, Operator: "le"},
-		},
-	}
+	p := Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"}, Constraints: []Constraint{
+		{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Min: &min},
+		{Kind: "property", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Property: "unique"},
+		{Kind: "comparison", Left: &ConstraintTarget{Parameter: "values", Projection: "length"}, Right: &ConstraintTarget{Parameter: "values", Projection: "sum"}, Operator: "le"},
+	}}}
 	c := Case{Args: []json.RawMessage{data}}
 	b.ReportAllocs()
 	b.ResetTimer()
