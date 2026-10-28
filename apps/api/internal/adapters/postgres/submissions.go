@@ -42,7 +42,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	var odysseyLevel *int
 	var matchSequence *int64
 	var admissionTime any
-	err = tx.QueryRow(ctx, "SELECT p.fixture,COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,COALESCE(w.odyssey_scope,w.id)::text FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope)
+	err = tx.QueryRow(ctx, "SELECT "+fixtureProjectionSQL("w.problem_version_id")+",COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,COALESCE(w.odyssey_scope,w.id)::text FROM workspaces w JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id::text=$1 AND w.owner_id=$2", c.WorkspaceID, owner).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Workspace not found")
 	}

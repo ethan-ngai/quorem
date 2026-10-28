@@ -335,7 +335,7 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 			return f, err
 		}
 		var data []byte
-		err := s.Pool.QueryRow(ctx, `SELECT v.fixture FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND p.current_version_id=v.id`, q.ProblemVersionID).Scan(&data)
+		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+` FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id::text=$1 AND p.current_version_id=selected.id`, q.ProblemVersionID).Scan(&data)
 		if err == pgx.ErrNoRows {
 			return f, failure("not_found", 404, "Question unavailable")
 		}

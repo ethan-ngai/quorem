@@ -42,9 +42,9 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	}
 	total := 0
 	if m.started != nil {
-		err := tx.QueryRow(ctx, `SELECT CASE WHEN fixture->'problem'->'odyssey' IS NOT NULL THEN
-			COALESCE((SELECT sum(jsonb_array_length(stage)) FROM jsonb_array_elements(fixture->'odysseyHiddenCases') stage), 0)
-			ELSE jsonb_array_length(fixture->'hiddenCases') END FROM problem_versions WHERE id::text=$1`, m.problem).Scan(&total)
+		err := tx.QueryRow(ctx, `SELECT CASE WHEN v.odyssey IS NOT NULL THEN
+			(SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id)
+			ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END FROM problem_versions v WHERE v.id::text=$1`, m.problem).Scan(&total)
 		if err != nil {
 			return v, err
 		}

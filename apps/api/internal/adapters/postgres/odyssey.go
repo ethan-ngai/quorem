@@ -11,7 +11,7 @@ import (
 func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.OdysseyProgress, error) {
 	var result problems.OdysseyProgress
 	var data []byte
-	err := s.Pool.QueryRow(ctx, `SELECT p.fixture,COALESCE(o.level,1),COALESCE(o.completed,false) FROM workspaces w JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2`, id, owner).Scan(&data, &result.Level, &result.Completed)
+	err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("w.problem_version_id")+`,COALESCE(o.level,1),COALESCE(o.completed,false) FROM workspaces w LEFT JOIN odyssey_progress o ON o.scope_id=COALESCE(w.odyssey_scope,w.id) AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2`, id, owner).Scan(&data, &result.Level, &result.Completed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, failure("not_found", 404, "Workspace not found")
 	}
@@ -36,7 +36,7 @@ func (s *Store) advanceOdyssey(ctx context.Context, tx pgx.Tx, submissionID stri
 	var scope, problemID string
 	var level *int
 	var fixture []byte
-	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.odyssey_scope,w.id)::text,COALESCE(ie.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),COALESCE(ie.fixture,p.fixture) FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &fixture)
+	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.odyssey_scope,w.id)::text,COALESCE(ie.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),COALESCE(ie.fixture,`+fixtureProjectionSQL("w.problem_version_id")+`) FROM submissions s JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &fixture)
 	if err != nil || level == nil {
 		return err
 	}

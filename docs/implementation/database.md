@@ -4,6 +4,8 @@ Product and auth each start at one baseline: `apps/api/migrations/007_schema.sql
 
 Startup applies unapplied SQL files in filename order, inside a transaction and service-specific advisory lock. Each service records filenames in its own `schema_migrations` table. Product databases with a contiguous prefix of the archived history execute remaining steps and replace the ledger with the current baseline in the same transaction. The archive manifest records and verifies the historical files and baseline identity. This includes removal of the retired Odyssey entitlement. Unknown or incomplete histories fail without changes. Add future changes as new numbered migrations; do not change an applied baseline.
 
+Published problem fields, languages, examples, hidden cases and Odyssey cases are read from versioned relational records. SQL and Odyssey definitions remain structured JSON. Public projections omit hidden cases and restrict Odyssey to its first level; trusted execution and interview paths assemble full fixtures. The original JSON snapshots remain during rollout because older app instances still read and write them. Migration 024 rejects conflicting snapshots or projections instead of silently choosing one. Its backfill and indexes run under the migration transaction; assess lock time on hosted data before rollout.
+
 ## Existing local databases
 
 Recognized product migration histories upgrade automatically. For older local databases whose schema already matches the baseline but whose history is unavailable, adopt the baseline ledger explicitly:

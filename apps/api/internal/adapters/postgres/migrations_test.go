@@ -234,9 +234,10 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := ID()
-	if _, err = pool.Exec(ctx, `INSERT INTO problem_versions(id,slug,version,public,fixture)
- VALUES($1,'run-widths',1,jsonb_set($2::jsonb || '{"sql":{"dialect":"postgresql"},"odyssey":{"levels":[{"title":"First"}]}}'::jsonb,'{examples,0,calls}','[{"methodName":"public","args":[]}]'),
- jsonb_set(jsonb_set($3::jsonb,'{problem}',($3::jsonb->'problem') || '{"sql":{"dialect":"postgresql"},"odyssey":{"levels":[{"title":"First"}]}}'::jsonb),'{hiddenCases,0,calls}','[{"methodName":"private","args":[]}]'))`, id, public, fixture); err != nil {
+	if _, err = pool.Exec(ctx, `WITH docs AS (SELECT jsonb_set($2::jsonb || jsonb_build_object('id',$1::uuid::text,'version','1') || '{"sql":{"dialect":"postgresql"},"odyssey":{"levels":[{"title":"First"}]}}'::jsonb,'{examples,0,calls}','[{"methodName":"public","args":[]}]') AS public,
+ jsonb_set($3::jsonb,'{hiddenCases,0,calls}','[{"methodName":"private","args":[]}]') AS fixture)
+ INSERT INTO problem_versions(id,slug,version,public,fixture)
+ SELECT $1,'run-widths',1,public,jsonb_set(fixture,'{problem}',public) || '{"odysseyHiddenCases":[[{"args":[],"calls":[{"methodName":"hidden","args":[]}]}]]}'::jsonb FROM docs`, id, public, fixture); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE problem_versions SET sealed=true WHERE id=$1`, id); err != nil {
@@ -270,5 +271,35 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 	}
 	if _, err = pool.Exec(ctx, `UPDATE problem_versions SET odyssey=NULL WHERE id=$1`, id); err == nil {
 		t.Fatal("sealed version became mutable")
+	}
+	migration, err = os.ReadFile("../../../migrations/024_odyssey_cases.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `ALTER TABLE problem_versions DISABLE TRIGGER immutable_problem_version`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE problem_versions SET fixture=jsonb_set(fixture,'{problem,title}','"different"') WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, string(migration)); err == nil {
+		t.Fatal("inconsistent snapshots accepted")
+	}
+	if err = tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var method string
+	if err = pool.QueryRow(ctx, `SELECT case_data->'calls'->0->>'methodName' FROM problem_odyssey_cases WHERE version_id=$1 AND level=0 AND ordinal=0`, id).Scan(&method); err != nil || method != "hidden" {
+		t.Fatalf("Odyssey case backfill: %q %v", method, err)
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM problem_odyssey_cases WHERE version_id=$1`, id); err == nil {
+		t.Fatal("sealed Odyssey case became mutable")
 	}
 }

@@ -116,16 +116,20 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 		return problems.QuestionContent{}, err
 	}
 	c := problems.QuestionContent{Problem: p, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
-	var original []byte
-	if err = s.Pool.QueryRow(ctx, "SELECT fixture FROM problem_versions WHERE id::text=$1", versionID).Scan(&original); err != nil {
+	var odyssey, suites []byte
+	if err = s.Pool.QueryRow(ctx, "SELECT v.odyssey,"+odysseySuitesSQL+" FROM problem_versions v WHERE v.id::text=$1", versionID).Scan(&odyssey, &suites); err != nil {
 		return c, err
 	}
-	var fixture problems.Fixture
-	if err = json.Unmarshal(original, &fixture); err != nil {
-		return c, err
+	if odyssey != nil {
+		if err = json.Unmarshal(odyssey, &c.Problem.Odyssey); err != nil {
+			return c, err
+		}
 	}
-	c.Problem.Odyssey = fixture.Problem.Odyssey
-	c.OdysseyHiddenCases = fixture.OdysseyHiddenCases
+	if suites != nil {
+		if err = json.Unmarshal(suites, &c.OdysseyHiddenCases); err != nil {
+			return c, err
+		}
+	}
 
 	if err = s.Pool.QueryRow(ctx, "SELECT attribution FROM problem_versions WHERE id::text=$1", versionID).Scan(&c.Attribution); err != nil {
 		return c, err
