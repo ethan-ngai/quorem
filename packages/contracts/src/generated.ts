@@ -933,6 +933,7 @@ export interface components {
         ProblemVersion: {
             /** Format: uuid */
             id: string;
+            isPrivate?: boolean;
             slug: string;
             version: string;
             title: string;
@@ -1090,6 +1091,7 @@ export interface components {
             expiresAt: string;
             mode: components["schemas"]["MatchMode"];
             difficulties: components["schemas"]["Difficulty"][];
+            questionFilters?: components["schemas"]["MatchQuestionFilters"];
             /** Format: uuid */
             selectedProblemVersionId?: string;
             rules: components["schemas"]["MatchRules"];
@@ -1098,12 +1100,21 @@ export interface components {
             accessMode?: "accounts_only" | "guests_allowed";
             admissionLocked?: boolean;
         };
+        MatchQuestionFilters: {
+            /** @enum {string} */
+            type?: "classic" | "odyssey";
+            /** @enum {string} */
+            sql?: "true";
+            topic?: string;
+            company?: string;
+        };
         CreateMatchRequest: {
             difficulty?: components["schemas"]["Difficulty"];
             /** @enum {integer} */
             durationMinutes: 15 | 30 | 45 | 60;
             mode?: components["schemas"]["MatchMode"];
             difficulties?: components["schemas"]["Difficulty"][];
+            questionFilters?: components["schemas"]["MatchQuestionFilters"];
             /** Format: uuid */
             selectedProblemVersionId?: string;
             rules?: {
@@ -2143,6 +2154,7 @@ export interface operations {
                 limit?: number;
                 library?: "global" | "private";
                 type?: "classic" | "odyssey";
+                sql?: "true" | "false";
             };
             header?: never;
             path?: never;

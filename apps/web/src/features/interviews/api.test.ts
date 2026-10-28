@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { userFacingErrorMessage } from "../../ui/errors";
 import { InterviewError } from "./api";
 
 describe("interview errors", () => {
@@ -16,4 +17,11 @@ describe("interview errors", () => {
       new InterviewError("entitlement_required", 403, "Interview access is disabled").message,
     ).toBe("The host's interview access is no longer enabled.");
   });
+});
+
+it("uses the action's fallback for an unknown failure", () => {
+  const error = new InterviewError("internal", 500, "database details");
+  expect(userFacingErrorMessage(error, "Could not join the interview. Try again.")).toBe(
+    "Could not join the interview. Try again.",
+  );
 });

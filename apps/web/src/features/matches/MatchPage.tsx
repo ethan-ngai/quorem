@@ -35,7 +35,7 @@ import { MatchSettings, ModeIcon, defaultMatchSettings, useAccountIdentity } fro
 import { ConcessionDialog } from "./ConcessionDialog";
 import { ShareActions } from "../../ui/ShareActions";
 import { ReadinessIcon } from "./ReadinessIcon";
-import { ReadyActionIcon } from "./ReadyActionIcon";
+import { ReadyActionButton } from "./ReadyActionButton";
 import { ModeText } from "./ModeText";
 import { useShareLink } from "../../ui/useShareLink";
 import { readInvite } from "./commandRecovery";
@@ -179,6 +179,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
       .catch(() => setActionError("Could not end the guest session. Reload to retry."));
   }, [finished, queryClient]);
   const [pending, setPending] = useState(false);
+  const [readyPending, setReadyPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
   useErrorNotification(
@@ -196,23 +197,30 @@ export function MatchPage({ matchId }: { matchId: string }) {
     admissionLocked: match.admissionLocked,
     difficulties: match.difficulties ?? [match.difficulty],
     selectedProblemVersionId: match.selectedProblemVersionId,
+    questionFilters: match.questionFilters,
     durationMinutes: match.durationMinutes,
     rules: match.rules,
   });
   useEffect(() => {
     if (snapshot) setSettings(snapshotSettings(snapshot));
   }, [snapshot?.version]);
-  const command = async (action: () => Promise<unknown>) => {
+  const command = async (
+    action: () => Promise<unknown>,
+    readiness = false,
+    fallback = "Could not update the match. Try again.",
+  ) => {
     if (pending) return;
     setPending(true);
+    if (readiness) setReadyPending(true);
     setActionError(undefined);
     try {
       await action();
       await refetch();
     } catch (cause) {
-      setActionError(userFacingErrorMessage(cause, "Match request failed."));
+      setActionError(userFacingErrorMessage(cause, fallback));
     } finally {
       setPending(false);
+      if (readiness) setReadyPending(false);
     }
   };
   if (!account.isPending && !account.data && !finished)
@@ -533,20 +541,18 @@ export function MatchPage({ matchId }: { matchId: string }) {
                 </span>
               </span>
               <div className="lobby-ready-actions">
-                <button
-                  className={`button readiness-action ${own?.ready ? "button-secondary" : "button-primary"}`}
-                  data-ready={!!own?.ready}
-                  aria-label={own?.ready ? "Cancel" : "Ready"}
-                  aria-busy={pending}
+                <ReadyActionButton
+                  ready={!!own?.ready}
+                  pending={readyPending}
                   disabled={pending || !own}
-                  onClick={() => void command(() => setReady(identity, matchId, !own?.ready))}
-                >
-                  <ReadyActionIcon ready={!!own?.ready} />
-                  <span className="readiness-labels" aria-hidden="true">
-                    <span className="readiness-option readiness-option-ready">Ready</span>
-                    <span className="readiness-option readiness-option-cancel">Cancel</span>
-                  </span>
-                </button>
+                  onClick={() =>
+                    void command(
+                      () => setReady(identity, matchId, !own?.ready),
+                      true,
+                      "Could not update your readiness. Try again.",
+                    )
+                  }
+                />
                 {host && (
                   <span
                     className="lobby-start-slot"
@@ -563,7 +569,13 @@ export function MatchPage({ matchId }: { matchId: string }) {
                           snapshot.participants.length < 2 ||
                           !snapshot.participants.every((player) => player.ready)
                         }
-                        onClick={() => void command(() => startMatch(identity, matchId))}
+                        onClick={() =>
+                          void command(
+                            () => startMatch(identity, matchId),
+                            false,
+                            "Could not start the match. Try again.",
+                          )
+                        }
                       >
                         <Icon name="play" />
                         Start

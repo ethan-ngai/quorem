@@ -46,6 +46,8 @@ it("hides the library selector for anonymous and ordinary accounts", async () =>
     const html = await renderPractice(session);
     expect(html).toContain("Practice");
     expect(html).toContain('aria-label="Question type"');
+    expect(html).toContain('aria-label="SQL questions"');
+    expect(html).toContain('aria-pressed="false"');
     expect(html).toContain('aria-label="Odyssey"');
     expect(html).toContain('aria-label="Classic"');
     expect(html).not.toContain('aria-label="Question library"');

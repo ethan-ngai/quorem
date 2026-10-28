@@ -112,7 +112,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
     setDiscardTarget(undefined);
     setInvalidFields(new Set());
   }
-  async function perform(action: () => Promise<QuestionDraft>, message: string) {
+  async function perform(action: () => Promise<QuestionDraft>, message: string, failure: string) {
     setBusy(true);
     setError("");
     setNotice("");
@@ -122,7 +122,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
     } catch (cause) {
-      setError(userFacingErrorMessage(cause, "Request failed"));
+      setError(userFacingErrorMessage(cause, failure));
     } finally {
       setBusy(false);
     }
@@ -162,11 +162,15 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
               const file = event.currentTarget.files?.[0];
               event.currentTarget.value = "";
               if (!file) return;
-              void perform(async () => {
-                if (file.size > questionImportLimit)
-                  throw new UserFacingError("Choose a JSON file smaller than 2 MiB.");
-                return createDraft({ content: parseQuestionImport(await file.text()) });
-              }, "Question imported. Review the draft before publishing.");
+              void perform(
+                async () => {
+                  if (file.size > questionImportLimit)
+                    throw new UserFacingError("Choose a JSON file smaller than 2 MiB.");
+                  return createDraft({ content: parseQuestionImport(await file.text()) });
+                },
+                "Question imported. Review the draft before publishing.",
+                "Could not import the question. Try again.",
+              );
             }}
           />
           <button
@@ -180,7 +184,11 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
             className="button button-secondary"
             disabled={busy || dirty || invalidFields.size > 0}
             onClick={() =>
-              void perform(() => createDraft({ content: blankQuestion() }), "Draft created.")
+              void perform(
+                () => createDraft({ content: blankQuestion() }),
+                "Draft created.",
+                "Could not create the draft. Try again.",
+              )
             }
           >
             New question
@@ -189,16 +197,17 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
       </header>
       <div className="admin-layout">
         <aside className="admin-rail" aria-label="Question drafts">
-          <label>
-            Edit published question
+          <div className="admin-picker">
+            <span>Edit published question</span>
             <ProblemPicker
               items={problems.data ?? []}
+              library={admin ? undefined : "private"}
               value={cloneId}
               onChange={(id) => setCloneId(id ?? "")}
               disabled={busy}
               label="Edit published question"
             />
-          </label>
+          </div>
           <button
             className="button button-secondary"
             disabled={!cloneId || busy || dirty || invalidFields.size > 0}
@@ -206,6 +215,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
               void perform(
                 () => createDraft({ problemVersionId: cloneId }),
                 "New version draft created.",
+                "Could not create a version draft. Try again.",
               )
             }
           >
@@ -230,7 +240,11 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                 onClick={() =>
                   dirty || invalidFields.size > 0
                     ? setDiscardTarget(item.id)
-                    : void perform(() => getDraft(item.id), "")
+                    : void perform(
+                        () => getDraft(item.id),
+                        "",
+                        "Could not open the draft. Try again.",
+                      )
                 }
               >
                 <span>{item.title || "Untitled question"}</span>
@@ -278,7 +292,14 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
               </button>
               <button
                 className="button button-primary"
-                onClick={() => discardTarget && void perform(() => getDraft(discardTarget), "")}
+                onClick={() =>
+                  discardTarget &&
+                  void perform(
+                    () => getDraft(discardTarget),
+                    "",
+                    "Could not open the draft. Try again.",
+                  )
+                }
               >
                 Discard and open
               </button>
@@ -311,6 +332,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                       void perform(
                         () => createDraft({ problemVersionId: draft.publishedVersionId! }),
                         "New version draft created.",
+                        "Could not create a version draft. Try again.",
                       )
                     }
                   >
@@ -321,7 +343,13 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                     <button
                       className="button button-secondary"
                       disabled={busy || !dirty || invalidFields.size > 0}
-                      onClick={() => void perform(() => saveDraft(draft, content), "Draft saved.")}
+                      onClick={() =>
+                        void perform(
+                          () => saveDraft(draft, content),
+                          "Draft saved.",
+                          "Could not save the draft. Your edits are still here.",
+                        )
+                      }
                     >
                       Save draft
                     </button>
@@ -355,6 +383,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                           admin && visibility === "global"
                             ? "Global question published."
                             : "Question added to your private library.",
+                          "Could not publish the question. Try again.",
                         )
                       }
                     >

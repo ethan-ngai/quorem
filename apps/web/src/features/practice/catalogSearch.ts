@@ -1,4 +1,5 @@
 export type CatalogSearch = {
+  sql?: "true";
   type?: "classic" | "odyssey";
   library?: "private" | "global";
   q?: string;
@@ -13,6 +14,7 @@ export type CatalogSearch = {
 /** Normalize bookmark state to the API's bounded query contract. */
 export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   const result: CatalogSearch = {};
+  if (search.sql === "true") result.sql = "true";
   if (search.type === "classic" || search.type === "odyssey") result.type = search.type;
   if (search.library === "private" || search.library === "global") result.library = search.library;
   if (typeof search.q === "string" && search.q.trim())

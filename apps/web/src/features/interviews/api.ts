@@ -28,6 +28,7 @@ export class InterviewError extends UserFacingError {
           ? messages[code]
           : "Interview request failed. Your code is still here."),
     );
+    this.useFallback = !specificErrorMessage(code, detail) && !Object.hasOwn(messages, code);
   }
 }
 

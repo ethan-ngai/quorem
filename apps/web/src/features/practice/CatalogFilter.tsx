@@ -49,7 +49,7 @@ export function CatalogFilter({
               <button
                 key={option.value}
                 type="button"
-                className={`practice-filter-choice${label === "Difficulty" ? ` practice-filter-choice--${option.value}` : ""}`}
+                className="practice-filter-choice"
                 aria-pressed={selected.includes(option.value)}
                 disabled={selected.length >= 16 && !selected.includes(option.value)}
                 onClick={() =>

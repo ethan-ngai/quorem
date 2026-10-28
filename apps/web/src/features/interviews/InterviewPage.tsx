@@ -1,3 +1,4 @@
+import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { LockKeyhole } from "lucide-react";
@@ -226,7 +227,7 @@ function InterviewPad({
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
       return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Interview update failed.");
+      setError(userFacingErrorMessage(cause, "Could not update the interview. Try again."));
       return false;
     } finally {
       setBusy(false);
@@ -242,10 +243,17 @@ function InterviewPad({
         setError("Reconnect and synchronize your changes before running.");
         return;
       }
-      const customCases =
-        kind === "run" && customMode
-          ? parseProblemDrafts(customDrafts, snapshot.question.problem)
-          : undefined;
+      let customCases;
+      try {
+        customCases =
+          kind === "run" && customMode
+            ? parseProblemDrafts(customDrafts, snapshot.question.problem)
+            : undefined;
+      } catch (cause) {
+        throw new UserFacingError(
+          cause instanceof Error ? cause.message : "Check the custom cases.",
+        );
+      }
       const submission = await interviewRequest<Submission>(
         `/v1/interviews/${id}/submissions`,
         "POST",
@@ -276,7 +284,7 @@ function InterviewPad({
       queryClient.setQueryData(["interview-result", id, submission.id, resultAccess], submission);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not run code.");
+      setError(userFacingErrorMessage(cause, "Could not run code. Try again."));
     } finally {
       setAdmitting(false);
     }
@@ -289,7 +297,7 @@ function InterviewPad({
       setSetup(false);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not replace question.");
+      setError(userFacingErrorMessage(cause, "Could not replace the question. Try again."));
     } finally {
       setBusy(false);
     }
@@ -300,7 +308,8 @@ function InterviewPad({
     setBusy(true);
     setError(undefined);
     try {
-      if (!(await controller.flush())) throw new Error("Reconnect before changing language.");
+      if (!(await controller.flush()))
+        throw new UserFacingError("Reconnect before changing language.");
       const next = await interviewRequest<InterviewSnapshot>(
         `/v1/interviews/${id}/language`,
         "POST",
@@ -311,7 +320,7 @@ function InterviewPad({
       queryClient.setQueryData(["interview", id], next);
       onOpenQuestion(next);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not change language.");
+      setError(userFacingErrorMessage(cause, "Could not change the language. Try again."));
     } finally {
       setLanguageSwitching(false);
       setBusy(false);
@@ -346,7 +355,7 @@ function InterviewPad({
       await interviewRequest(`/v1/interviews/${id}`, "DELETE");
       window.location.assign("/interviews");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not delete interview.");
+      setError(userFacingErrorMessage(cause, "Could not delete the interview. Try again."));
     } finally {
       setBusy(false);
     }

@@ -1,4 +1,5 @@
 /** @file errors.ts @description Safe creation failures and definitive rejection classification. @module matches */
+import { specificErrorMessage } from "../../api/safeError";
 import { UserFacingError } from "../../ui/errors";
 
 const creationErrors: Record<string, string> = {
@@ -19,9 +20,11 @@ export class RejectedMatchCommand extends UserFacingError {}
 export function matchCreationError(error: unknown, status: number): Error {
   const detail = error && typeof error === "object" && "error" in error ? error.error : undefined;
   const code = detail && typeof detail === "object" && "code" in detail ? detail.code : undefined;
+  const serverMessage =
+    detail && typeof detail === "object" && "message" in detail ? detail.message : undefined;
   const message =
     typeof code === "string" && Object.hasOwn(creationErrors, code)
-      ? creationErrors[code]
+      ? (specificErrorMessage(code, serverMessage) ?? creationErrors[code])
       : undefined;
   return status >= 400 && status < 500 && message
     ? new RejectedMatchCommand(message)

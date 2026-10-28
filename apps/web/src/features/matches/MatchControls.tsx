@@ -1,8 +1,9 @@
+import { DifficultySegments } from "../../ui/DifficultySegments";
 import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
-import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
+import type { CreateMatchRequest, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { useEffect, useState } from "react";
 import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
 import { api, requireData } from "../../api/client";
@@ -75,8 +76,11 @@ export function MatchSettings({
       active = false;
     };
   }, [identity, catalog]);
+  const [pickedProblem, setPickedProblem] = useState<ProblemVersion>();
   const pools = value.difficulties ?? [value.difficulty ?? "easy"];
-  const selectedProblem = problems.find((problem) => problem.id === value.selectedProblemVersionId);
+  const selectedProblem =
+    problems.find((problem) => problem.id === value.selectedProblemVersionId) ??
+    (pickedProblem?.id === value.selectedProblemVersionId ? pickedProblem : undefined);
   const changeDifficulties = (difficulties: typeof pools) => {
     onChange({
       ...value,
@@ -127,31 +131,12 @@ export function MatchSettings({
           <Gauge />
           Difficulty
         </span>
-        <div
-          className="match-difficulty difficulty-segments"
-          role="group"
-          aria-label="Difficulty filter"
-        >
-          {(["easy", "medium", "hard"] as const).map((difficulty) => (
-            <button
-              type="button"
-              key={difficulty}
-              aria-pressed={pools.includes(difficulty)}
-              disabled={disabled || (pools.length === 1 && pools.includes(difficulty))}
-              onClick={() =>
-                changeDifficulties(
-                  pools.includes(difficulty)
-                    ? pools.filter((pool) => pool !== difficulty)
-                    : [...pools, difficulty],
-                )
-              }
-            >
-              <span className={`difficulty-${difficulty}`}>
-                {difficulty[0].toUpperCase() + difficulty.slice(1)}
-              </span>
-            </button>
-          ))}
-        </div>
+        <DifficultySegments
+          selected={pools}
+          onChange={changeDifficulties}
+          required
+          disabled={disabled}
+        />
       </div>
       <div className="match-option">
         <span>
@@ -162,12 +147,17 @@ export function MatchSettings({
           items={problems.filter((problem) =>
             pools.includes(problem.difficulty as (typeof pools)[number]),
           )}
+          identity={identity}
+          difficulties={pools}
+          filters={value.questionFilters}
+          onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
           value={value.selectedProblemVersionId}
           disabled={disabled}
           allowRandom
-          onChange={(selectedProblemVersionId) =>
-            onChange({ ...value, difficulties: pools, selectedProblemVersionId })
-          }
+          onChange={(selectedProblemVersionId, problem) => {
+            setPickedProblem(problem);
+            onChange({ ...value, difficulties: pools, selectedProblemVersionId });
+          }}
         />
       </div>
       {catalogError && (

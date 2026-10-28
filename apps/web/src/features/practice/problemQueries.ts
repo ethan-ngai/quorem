@@ -55,6 +55,7 @@ export function catalogQueryOptions(
   const context = catalogContext(actor, search.library);
   const filters = {
     ...search,
+    sql: search.sql ?? ("false" as const),
     library: context.library,
     page: search.page ?? 1,
     limit: catalogPageSize,

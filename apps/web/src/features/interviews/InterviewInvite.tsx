@@ -1,3 +1,4 @@
+import { userFacingErrorMessage } from "../../ui/errors";
 /** @file InterviewInvite.tsx @description Account and guest admission through scoped interview invitations. @module interviews */
 import { randomUUID } from "../../randomUUID";
 import { useState } from "react";
@@ -40,7 +41,7 @@ export function InterviewInvite({ token }: { token: string }) {
       );
       window.location.assign(`/interview/${session.id}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not join interview.");
+      setError(userFacingErrorMessage(cause, "Could not join the interview. Try again."));
     } finally {
       setBusy(false);
     }
