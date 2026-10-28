@@ -24,6 +24,13 @@ type DrainState struct {
 
 const AdmissionGrace = 15 * time.Second
 
+type claimDeadlineKey struct{}
+
+// WithDrainClaimDeadline limits new claims while leaving running attempts time to finish.
+func WithDrainClaimDeadline(ctx context.Context, deadline time.Time) context.Context {
+	return context.WithValue(ctx, claimDeadlineKey{}, deadline)
+}
+
 // RefreshAdmissionGrace covers another durable wake arriving before its admission commits.
 func (s *Service) RefreshAdmissionGrace() {
 	select {
@@ -50,6 +57,12 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 	}
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
+	claimCtx := ctx
+	var stopClaims context.CancelFunc
+	if cutoff, ok := parent.Value(claimDeadlineKey{}).(time.Time); ok {
+		claimCtx, stopClaims = context.WithDeadline(ctx, cutoff)
+		defer stopClaims()
+	}
 	var notifications <-chan struct{}
 	var stop func()
 	connect := func() error {
@@ -103,11 +116,14 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 				}
 				busy.Add(1)
 				err := func() error {
-					if err := s.store.ReconcileBackground(ctx); err != nil {
+					if err := s.store.ReconcileBackground(claimCtx); err != nil {
+						if claimCtx.Err() != nil && ctx.Err() == nil {
+							return nil
+						}
 						return err
 					}
-					for ctx.Err() == nil {
-						more, err := s.claimOnce(ctx, engine)
+					for claimCtx.Err() == nil {
+						more, err := s.claimOnceWithContext(claimCtx, ctx, engine)
 						if err != nil {
 							return err
 						}
@@ -137,6 +153,9 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 		}()
 	}
 	wake := func() {
+		if claimCtx.Err() != nil {
+			return
+		}
 		for i := 0; i < slots; i++ {
 			select {
 			case work <- struct{}{}:
@@ -161,6 +180,10 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 	defer timer.stop()
 	wake()
 	var state DrainState
+	var cutoff <-chan struct{}
+	if stopClaims != nil {
+		cutoff = claimCtx.Done()
+	}
 	for {
 		select {
 		case <-s.admissionWake:
@@ -206,6 +229,26 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 			}
 			return state, true, nil
 		}
+		if claimCtx.Err() != nil && ctx.Err() == nil {
+			if busy.Load() == 0 && (state.Queued != 0 || state.Running != 0) {
+				return state, false, nil
+			}
+			select {
+			case <-ctx.Done():
+				return state, false, nil
+			case err := <-failures:
+				return state, false, err
+			case <-changed:
+			case <-s.admissionWake:
+				extendGrace()
+			case <-graceTimer.C:
+			case _, open := <-notifications:
+				if !open {
+					notifications = nil
+				}
+			}
+			continue
+		}
 		query, finish = context.WithTimeout(ctx, 5*time.Second)
 		delay, present, err := deadlines.NextExecutionDeadline(query)
 		finish()
@@ -223,6 +266,8 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 		select {
 		case <-ctx.Done():
 			return state, false, nil
+		case <-cutoff:
+			cutoff = nil
 		case err := <-failures:
 			return state, false, err
 		case <-changed:

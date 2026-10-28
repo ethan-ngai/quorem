@@ -24,7 +24,6 @@ type Docker struct {
 }
 
 const compilationBudget = 60 * time.Second
-const teardownBudget = 30 * time.Second
 
 type frame struct {
 	compilationTime time.Duration
@@ -320,7 +319,7 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 			if deadline != nil {
 				deadline.Stop()
 			}
-			deadline = time.AfterFunc(teardownBudget, func() { cancelCause(worker.ErrTeardown) })
+			deadline = time.AfterFunc(execution.TeardownTimeout, func() { cancelCause(worker.ErrTeardown) })
 		})
 	} else {
 		client, clientErr := d.engine()
@@ -334,7 +333,7 @@ func (d *Docker) runRequest(parent context.Context, j execution.Job, index int, 
 		deadline.Stop()
 	}
 	// A canceled stream does not stop its container; confirm removal before releasing the slot.
-	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), teardownBudget)
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), execution.TeardownTimeout)
 	defer cleanupCancel()
 	var cleanupErr error
 	if d.Remote != nil {
