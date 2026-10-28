@@ -203,11 +203,17 @@ func TestLosslessOdysseyUnlockedExamples(t *testing.T) {
 	}
 	c.Problem.Odyssey.Levels[0].Examples[0].Explanation = "first\x00example"
 	c.Problem.Odyssey.Levels[1].Examples[0].Explanation = "second\x00example"
+	c.OdysseyHiddenCases[0][0].Calls[0].Args[0] = json.RawMessage(`"hidden\u0000value"`)
 	f, err := c.Fixture()
 	if err != nil {
 		t.Fatal(err)
 	}
+	before, _ := json.Marshal(f)
 	insertTestProblem(t, s, f)
+	after, _ := json.Marshal(f)
+	if !bytes.Equal(before, after) {
+		t.Fatal("insertion mutated stage cases")
+	}
 	var firstStageBytes []byte
 	if err = s.Pool.QueryRow(ctx, `SELECT lossless_public FROM problem_versions WHERE id=$1`, f.Problem.ID).Scan(&firstStageBytes); err != nil {
 		t.Fatal(err)
