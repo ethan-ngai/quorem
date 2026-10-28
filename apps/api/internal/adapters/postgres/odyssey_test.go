@@ -92,6 +92,17 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 		if err != nil || j.SubmissionID != sub.ID {
 			t.Fatal(j, err)
 		}
+		if level == 1 {
+			if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET odyssey_level=99 WHERE id=$1", sub.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.LoadExecution(ctx, j); err == nil {
+				t.Fatal("invalid level accepted")
+			}
+			if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET odyssey_level=$2 WHERE id=$1", sub.ID, level); err != nil {
+				t.Fatal(err)
+			}
+		}
 		spec, err := s.LoadExecution(ctx, j)
 		if err != nil {
 			t.Fatal(err)
