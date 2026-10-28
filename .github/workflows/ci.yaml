@@ -4,6 +4,9 @@ on:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -83,11 +86,7 @@ jobs:
           curl -fsS http://127.0.0.1:8081/health
           vp run --filter @quorem/language test
           vp -C apps/web test src/features/editor/languageIntegration.test.ts
-      - run: docker build -f apps/runner/Dockerfile -t quorem-python:local .
-      - run: docker build -f apps/runner/Dockerfile.java -t quorem-java:local .
-      - run: docker build -f apps/runner/Dockerfile.typescript -t quorem-typescript:local .
-      - run: docker build -f apps/runner/Dockerfile.ocaml -t quorem-ocaml:local .
-      - run: docker build -f apps/runner/Dockerfile.postgres -t quorem-postgres:local .
+      - run: python3 scripts/build-judge-images.py --base-only
       - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgresSandbox$'
       # Integration packages share one disposable database and reset its fixtures.
       - run: go test -p 1 ./...
