@@ -38,6 +38,18 @@ func (codec *CaseCodec) Normalize(c Case, data json.RawMessage) (json.RawMessage
 						break
 					}
 					kind := p.SQL.Output[i].Type
+					if (kind == "timestamp" || kind == "timestamptz") && len(raw) > 0 && raw[0] == '"' {
+						var text string
+						if err := json.Unmarshal(raw, &text); err != nil {
+							return nil, err
+						}
+						canonical, err := normalizeSQLTimestamp(kind, text)
+						if err != nil {
+							return nil, err
+						}
+						row[i], _ = json.Marshal(canonical)
+						continue
+					}
 					if kind != "real" && kind != "double precision" {
 						continue
 					}

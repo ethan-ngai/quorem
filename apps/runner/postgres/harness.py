@@ -31,7 +31,7 @@ def main():
         definitions = {table["name"]: table["columns"] for table in schema["tables"]}
         setup = {"tables": [{"name": table["name"], "columns": definitions[table["name"]], "rows": table["rows"]} for table in setup["tables"]]}
     subprocess.run([f"{BIN}/initdb", "-D", "/tmp/pgdata", "--no-locale", "--encoding=UTF8", "--auth=trust"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    server = subprocess.Popen([f"{BIN}/postgres", "-D", "/tmp/pgdata", "-k", "/tmp", "-c", "listen_addresses=", "-c", "fsync=off", "-c", "shared_buffers=12MB", "-c", "max_connections=5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    server = subprocess.Popen([f"{BIN}/postgres", "-D", "/tmp/pgdata", "-k", "/tmp", "-c", "listen_addresses=", "-c", "timezone=UTC", "-c", "fsync=off", "-c", "shared_buffers=12MB", "-c", "max_connections=5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         for _ in range(100):
             try:
