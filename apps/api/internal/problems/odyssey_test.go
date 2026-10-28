@@ -171,3 +171,27 @@ func TestCaseCodecReusesQuestionAcrossCases(t *testing.T) {
 		t.Fatal("unknown method accepted")
 	}
 }
+
+func TestOdysseyPrimaryConstraintsApplyToPublishedAndCustomCalls(t *testing.T) {
+	content := odysseyContent(t)
+	min, max := 1.0, 10.0
+	content.Problem.Constraints = []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "amount", Projection: "value"}, Min: &min, Max: &max}}
+	if err := ValidateQuestionPublication(content); err != nil {
+		t.Fatalf("valid constraints: %v", err)
+	}
+	problem := Problem{QuestionDefinition: content.Problem}
+	custom := content.OdysseyHiddenCases[1][0]
+	custom.Calls = append([]MethodCall(nil), custom.Calls...)
+	custom.Calls[1].Args = []json.RawMessage{json.RawMessage(`20`)}
+	if err := ValidateProblemCustomCases(problem, []Case{custom}); err != nil {
+		t.Fatalf("constraint applied to another method: %v", err)
+	}
+	custom.Calls[0].Args = []json.RawMessage{json.RawMessage(`20`)}
+	if err := ValidateProblemCustomCases(problem, []Case{custom}); err == nil {
+		t.Fatal("custom primary call bypassed constraint")
+	}
+	content.OdysseyHiddenCases[1][0] = custom
+	if err := ValidateQuestionPublication(content); err == nil {
+		t.Fatal("published primary call bypassed constraint")
+	}
+}

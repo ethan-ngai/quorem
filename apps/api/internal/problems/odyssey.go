@@ -41,6 +41,7 @@ func ValidateOdyssey(c QuestionContent) error {
 		return fmt.Errorf("primary signature must match the first stage method")
 	}
 	methods := map[string]Signature{}
+	validator := NewCaseValidator(Problem{QuestionDefinition: c.Problem})
 	for i, level := range levels {
 		if strings.TrimSpace(level.Title) == "" || len(level.Title) > 160 || strings.TrimSpace(level.StatementMarkdown) == "" || len(level.StatementMarkdown) > 65536 || len(level.Methods) < 1 || len(level.Methods) > 16 || len(level.Examples) < 1 || len(level.Examples) > 20 || len(c.OdysseyHiddenCases[i]) < 1 || len(c.OdysseyHiddenCases[i]) > 20 {
 			return fmt.Errorf("invalid Odyssey level %d", i+1)
@@ -55,12 +56,12 @@ func ValidateOdyssey(c QuestionContent) error {
 			methods[sig.MethodName] = sig
 		}
 		for _, ex := range level.Examples {
-			if err := validateCalls(methods, ex.Case, true, inputLimit(c.Problem)); err != nil {
+			if err := validator.validateSequence(methods, ex.Case, true); err != nil {
 				return fmt.Errorf("level %d example: %w", i+1, err)
 			}
 		}
 		for _, test := range c.OdysseyHiddenCases[i] {
-			if err := validateCalls(methods, test, true, inputLimit(c.Problem)); err != nil {
+			if err := validator.validateSequence(methods, test, true); err != nil {
 				return fmt.Errorf("level %d case: %w", i+1, err)
 			}
 		}
