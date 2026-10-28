@@ -58,6 +58,16 @@ class QualityTest(unittest.TestCase):
         self.assertIsNone(parse_extra('1 <= x <= 10^100000', ['x']))
         self.assertIsNone(parse_extra('n == nums.length', ['nums']))
 
+    def test_explicit_unique_and_ordered_rules(self):
+        names = ['nums', 'days']
+        unique = parse_extra('All the elements of `nums` are **unique**.', names)
+        ordered = parse_extra('`days` is in strictly increasing order.', names)
+        self.assertTrue(value_satisfies(unique, {'nums': [1, 2]}))
+        self.assertFalse(value_satisfies(unique, {'nums': [1, 1]}))
+        self.assertTrue(value_satisfies(ordered, {'days': [1, 2]}))
+        self.assertFalse(value_satisfies(ordered, {'days': [1, 1]}))
+        self.assertIsNone(parse_extra('The largest element in nums is unique.', names))
+
     def test_explicit_length_alias_is_bound_from_input(self):
         content = {'problem': {'signature': {'parameters': [{'name': 'nums'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums.length'}, {'kind': 'prose', 'text': '1 <= n <= 3'}]}, 'hiddenCases': [{'args': [[1, 2]], 'expected': 1}, {'args': [[1, 2, 3, 4]], 'expected': 2}], 'implementations': [{'referenceSource': 'pass'}]}
         report = assess(content)

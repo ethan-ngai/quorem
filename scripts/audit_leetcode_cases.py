@@ -84,6 +84,15 @@ def parse_bound(rule, names):
 
 def parse_extra(rule, names):
     text = rule.replace('`', '').replace('\u200b', '').strip()
+    plain = text.replace('**', '')
+    unique = re.fullmatch(r'(?:All (?:the )?(?:values|integers|elements|numbers|characters|strings) (?:in|of) |The (?:elements|characters) (?:in|of) )([A-Za-z_]\w*) are (?:unique|distinct)\.?', plain, re.I)
+    if not unique:
+        unique = re.fullmatch(r'([A-Za-z_]\w*) contains (?:pairwise )?distinct (?:integers|values)\.?', plain, re.I)
+    if unique and unique.group(1) in names:
+        return ('unique', unique.group(1))
+    ordered = re.fullmatch(r'([A-Za-z_]\w*) is (?:in )?(?:a )?(?:(strictly) increasing(?: order)?|sorted(?: in (?:a )?(ascending|non-decreasing)(?: order)?)?)\.?', plain, re.I)
+    if ordered and ordered.group(1) in names:
+        return ('ordered', ordered.group(1), bool(ordered.group(2)))
     alphabet = re.fullmatch(r'([A-Za-z_]\w*)\s+(?:consists of|consists only of|consists|contains)\s+(?:only |of only |of )?(?:English lowercase|lowercase English) letters(?: only)?\.?', text, re.I)
     if alphabet and alphabet.group(1) in names:
         return ('alphabet', alphabet.group(1))
@@ -123,6 +132,18 @@ def parse_extra(rule, names):
 
 
 def extra_satisfies(rule, arguments):
+    if rule[0] == 'unique':
+        value = arguments.get(rule[1])
+        if not isinstance(value, (list, str)): return False
+        encoded = [json.dumps(item, sort_keys=True) for item in value]
+        return len(encoded) == len(set(encoded))
+    if rule[0] == 'ordered':
+        value = arguments.get(rule[1])
+        if not isinstance(value, (list, str)): return False
+        try:
+            return all(a < b if rule[2] else a <= b for a, b in zip(value, value[1:]))
+        except TypeError:
+            return False
     if rule[0] == 'alphabet':
         value = arguments[rule[1]]
         return isinstance(value, str) and all('a' <= c <= 'z' for c in value)
