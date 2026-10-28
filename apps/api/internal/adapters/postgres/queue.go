@@ -172,10 +172,7 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 			if err = tx.QueryRow(ctx, "SELECT jsonb_array_length(cases) FROM submissions WHERE id=$1", j.SubmissionID).Scan(&admittedCount); err != nil {
 				return err
 			}
-			if c.Score == nil || c.Score.Total != admittedCount || c.Score.Passed < 0 || c.Score.Passed > admittedCount {
-				return errors.New("incomplete hidden score")
-			}
-			if err = validateHiddenCases(c); err != nil {
+			if err = validateSubmitCompletion(c, admittedCount); err != nil {
 				return err
 			}
 			result.Score = c.Score
@@ -244,6 +241,21 @@ func (s *Store) ExpiredAttempts(ctx context.Context) ([]string, error) {
 		attempts = append(attempts, attempt)
 	}
 	return attempts, rows.Err()
+}
+
+func validateSubmitCompletion(c execution.Completion, admittedCount int) error {
+	if c.Score == nil || admittedCount < 1 || c.Score.Total != admittedCount || c.Score.Passed < 0 || c.Score.Passed > admittedCount {
+		return errors.New("incomplete hidden score")
+	}
+	switch c.Verdict {
+	case execution.Accepted, execution.WrongAnswer, execution.SyntaxError, execution.RuntimeError, execution.TimeLimit, execution.MemoryLimit, execution.OutputLimit, execution.InvalidOutput:
+	default:
+		return errors.New("invalid submission verdict")
+	}
+	if (c.Verdict == execution.Accepted) != (c.Score.Passed == c.Score.Total) {
+		return errors.New("verdict does not match hidden score")
+	}
+	return validateHiddenCases(c)
 }
 
 func validateHiddenCases(c execution.Completion) error {
