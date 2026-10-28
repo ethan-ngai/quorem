@@ -29,6 +29,8 @@ on:
       - scripts/verify-production-auth.py
       - scripts/verify_production_auth_test.py
       - scripts/verify-rollout.py
+      - scripts/validate-seed-gates.py
+      - scripts/validate_seed_gates_test.py
       - scripts/worker-migration-tag.py
       - scripts/worker-subdomain.py
       - go.mod
@@ -428,10 +430,16 @@ jobs:
         run: python3 scripts/terraform-state.py
       - name: Provision Neon
         run: python3 scripts/provision-database.py
+      - name: Validate seed rollout gates
+        run: |
+          python3 -m unittest discover -s scripts -p 'validate_seed_gates_test.py'
+          python3 scripts/validate-seed-gates.py
       - name: Migrate and bootstrap operator
         if: github.ref == 'refs/heads/main'
         env:
           APP_ENV: production
+          QUOREM_LOSSLESS_CASES: ${{ env.TF_VAR_api_lossless_cases }}
+          QUOREM_LOSSLESS_RESULT_WRITES: ${{ env.TF_VAR_api_lossless_results }}
           AUTH_MODE: password
           AUTH_PASSWORD_PRODUCTION: "true"
           AUTH_LOGIN_ONLY: "true"

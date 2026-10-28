@@ -49,9 +49,11 @@ func insertProblemVersion(ctx context.Context, tx pgx.Tx, f problems.Fixture) (b
 		if err != nil {
 			return false, err
 		}
-		if err = json.Unmarshal(safe, &f); err != nil {
+		var sanitized problems.Fixture
+		if err = json.Unmarshal(safe, &sanitized); err != nil {
 			return false, err
 		}
+		f = sanitized
 	}
 	public, err := json.Marshal(f.Problem)
 	if err != nil {

@@ -1,7 +1,9 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -128,5 +130,48 @@ func TestQuestionSeedsUseOneConnectionPerOperation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSeedQuestionPreservesNULAndReplays(t *testing.T) {
+	t.Setenv("QUOREM_LOSSLESS_RESULT_WRITES", "true")
+	t.Setenv("QUOREM_LOSSLESS_CASES", "true")
+	s := adminStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	p, err := s.Problem(ctx, "mirror-letters", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := s.QuestionContent(ctx, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content.Problem.Slug = "seed-lossless"
+	content.Problem.Examples[0].Args[0] = json.RawMessage(`"a\u0000b"`)
+	content.HiddenCases[0].Args[0] = json.RawMessage(`"x\u0000y"`)
+	before, _ := json.Marshal(content)
+	first, err := s.SeedQuestion(ctx, "alice", "private", content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, _ := json.Marshal(content)
+	if !bytes.Equal(before, after) {
+		t.Fatal("seed mutated caller content")
+	}
+	var published []byte
+	if err = s.Pool.QueryRow(ctx, `SELECT lossless_content FROM question_drafts WHERE published_version_id=$1`, first).Scan(&published); err != nil {
+		t.Fatal(err)
+	}
+	var saved problems.QuestionContent
+	if err = json.Unmarshal(published, &saved); err != nil || !bytes.Contains(saved.Problem.Examples[0].Args[0], []byte(`\u0000`)) || !bytes.Contains(saved.HiddenCases[0].Args[0], []byte(`\u0000`)) {
+		t.Fatalf("published draft lost cases: %v", err)
+	}
+	replay, err := s.SeedQuestion(ctx, "alice", "private", content)
+	if err != nil || replay != first {
+		t.Fatalf("replay: %s %s %v", first, replay, err)
+	}
+	fork, err := s.QuestionContent(ctx, first)
+	if err != nil || !bytes.Contains(fork.Problem.Examples[0].Args[0], []byte(`\u0000`)) || !bytes.Contains(fork.HiddenCases[0].Args[0], []byte(`\u0000`)) {
+		t.Fatalf("seed cases lost: %+v %v", fork, err)
 	}
 }
