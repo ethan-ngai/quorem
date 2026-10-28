@@ -24,6 +24,14 @@ func TestOdysseyPublicationAndCumulativeSuites(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := Fixture{Problem: c.Problem, OdysseyHiddenCases: c.OdysseyHiddenCases}
+	runProblem, samples, err := CompileOdyssey(f, 1, "run")
+	if err != nil || len(samples) != len(c.Problem.Odyssey.Levels[0].Examples) || len(runProblem.Odyssey.Levels) != 1 {
+		t.Fatal("run includes incorrect levels", samples, err)
+	}
+	_, samples, err = CompileOdyssey(f, 2, "run")
+	if err != nil || len(samples) != len(c.Problem.Odyssey.Levels[0].Examples)+len(c.Problem.Odyssey.Levels[1].Examples) {
+		t.Fatal("run omits cumulative examples", samples, err)
+	}
 	p, tests, err := CompileOdyssey(f, 1, "submit")
 	if err != nil || len(tests) != 2 || len(p.Odyssey.Levels) != 1 {
 		t.Fatal(p, tests, err)

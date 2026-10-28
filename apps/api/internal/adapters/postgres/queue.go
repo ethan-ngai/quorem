@@ -88,7 +88,7 @@ func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spe
 		}
 	}
 	if err == nil && spec.Kind == "submit" {
-		spec.SubmitSamples = submissionSamples(spec.Fixture.Problem)
+		spec.SubmitSamples = spec.Fixture.Problem.SampleCases()
 	}
 	return spec, err
 }

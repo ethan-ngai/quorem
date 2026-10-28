@@ -94,15 +94,12 @@ func CompileOdyssey(f Fixture, level int, kind string) (Problem, []Case, error) 
 		return p, nil, fmt.Errorf("invalid Odyssey level")
 	}
 	p.Odyssey = &Odyssey{Levels: append([]OdysseyLevel{}, p.Odyssey.Levels[:level]...)}
-	cases := []Case{}
+	if kind == "run" {
+		return p, p.SampleCases(), nil
+	}
+	var cases []Case
 	for i := 0; i < level; i++ {
-		if kind == "run" {
-			for _, ex := range p.Odyssey.Levels[i].Examples {
-				cases = append(cases, ex.Case)
-			}
-		} else {
-			cases = append(cases, f.OdysseyHiddenCases[i]...)
-		}
+		cases = append(cases, f.OdysseyHiddenCases[i]...)
 	}
 	return p, cases, nil
 }

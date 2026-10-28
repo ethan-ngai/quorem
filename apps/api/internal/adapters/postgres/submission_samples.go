@@ -10,19 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func submissionSamples(p problems.Problem) []problems.Case {
-	if p.Odyssey == nil {
-		return p.SampleCases()
-	}
-	cases := []problems.Case{}
-	for _, level := range p.Odyssey.Levels {
-		for _, example := range level.Examples {
-			cases = append(cases, example.Case)
-		}
-	}
-	return cases
-}
-
 // Sample output uses its own completion field; hidden result details never enter public storage.
 func validateSubmitSamples(ctx context.Context, tx pgx.Tx, j execution.Job, results []execution.PublicCaseResult) error {
 	var raw []byte
@@ -40,7 +27,7 @@ func validateSubmitSamples(ctx context.Context, tx pgx.Tx, j execution.Job, resu
 		}
 		p.Odyssey = &problems.Odyssey{Levels: p.Odyssey.Levels[:*level]}
 	}
-	samples := submissionSamples(p)
+	samples := p.SampleCases()
 	if len(results) != len(samples) {
 		return errors.New("incomplete submit samples")
 	}
