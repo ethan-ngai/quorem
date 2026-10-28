@@ -341,4 +341,27 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 	if _, err = pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases)
+ VALUES('00000000-0000-4000-8000-000000000111','match-host','00000000-0000-4000-8000-000000000101','run','','hash','completed','[]')`); err != nil {
+		t.Fatal(err)
+	}
+	migration, err = os.ReadFile("../../../migrations/038_interview_submission_integrity.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err == nil {
+		t.Fatal("orphan interview submission accepted")
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM submissions WHERE id='00000000-0000-4000-8000-000000000111'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM interview_execution WHERE submission_id='00000000-0000-4000-8000-000000000105'`); err == nil {
+		t.Fatal("interview execution detached from its submission")
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM submissions WHERE id='00000000-0000-4000-8000-000000000105'`); err != nil {
+		t.Fatal("submission deletion did not cascade", err)
+	}
 }
