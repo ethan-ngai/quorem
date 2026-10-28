@@ -133,7 +133,7 @@ func (s *Store) InterviewSubmission(ctx context.Context, user, id, submissionID 
 	if err != nil {
 		return out, err
 	}
-	out, err = s.submission(ctx, tx, submitter, submissionID)
+	out, _, err = s.rawSubmission(ctx, tx, submitter, submissionID)
 	if err == nil {
 		err = s.projectInterviewResults(ctx, tx, v, submissionID, &out)
 	}
