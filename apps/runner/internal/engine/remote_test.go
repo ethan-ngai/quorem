@@ -204,6 +204,44 @@ func TestRemoteFailureBeforeReadinessPreservesTransportError(t *testing.T) {
 	}
 }
 
+func TestInterruptedCaseRequiresConfirmedCleanup(t *testing.T) {
+	for _, cleanupStatus := range []int{http.StatusNoContent, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(cleanupStatus), func(t *testing.T) {
+			var caseToken string
+			var deletes int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					deletes++
+					if r.Header.Get("X-Case-Token") != caseToken {
+						t.Error("cleanup did not fence the interrupted case")
+					}
+					w.WriteHeader(cleanupStatus)
+					return
+				}
+				caseToken = r.Header.Get("X-Case-Token")
+				w.Header().Set("Content-Length", "100")
+				_, _ = w.Write(testCaseFrame(1, []byte{0}))
+			}))
+			defer server.Close()
+			remote, err := NewRemoteSandbox(server.URL, "12345678901234567890123456789012")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = (&Docker{Remote: remote}).runCase(context.Background(), execution.Job{AttemptID: "attempt", Limits: execution.DefaultLimits()}, 0, worker.Spec{}, worker.Case{})
+			if deletes != 1 || caseToken == "" {
+				t.Fatalf("cleanup calls=%d token present=%t", deletes, caseToken != "")
+			}
+			if cleanupStatus == http.StatusNoContent {
+				if err == nil || err.Error() != "case response truncated before exit" {
+					t.Fatalf("lost interrupted response: %v", err)
+				}
+			} else if !errors.Is(err, worker.ErrTeardown) {
+				t.Fatalf("accepted unconfirmed cleanup: %v", err)
+			}
+		})
+	}
+}
+
 func TestRemoteSandboxCheckConnection(t *testing.T) {
 	token := "test-control-token-at-least-32-characters"
 	status := http.StatusNoContent
