@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MatchSettings, ModeIcon } from "../../../web/src/features/matches/MatchControls";
 const catalog = [{ id: "two-sum-preview", title: "Two Sum", difficulty: "easy" }];
 const settings = {
@@ -36,15 +37,17 @@ export default function LobbyPreview() {
             </div>
           ))}
         </div>
-        <MatchSettings
-          value={settings}
-          identity="alice"
-          catalog={catalog}
-          participantCount={3}
-          showHostRules
-          disabled
-          onChange={() => {}}
-        />
+        <QueryClientProvider client={new QueryClient()}>
+          <MatchSettings
+            value={settings}
+            identity="alice"
+            catalog={catalog}
+            participantCount={3}
+            showHostRules
+            disabled
+            onChange={() => {}}
+          />
+        </QueryClientProvider>
         <div className="lobby-render-footer">
           <span>3 players ready</span>
           <span className="demo-primary-action">Start match</span>
