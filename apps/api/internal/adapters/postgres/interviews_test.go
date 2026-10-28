@@ -65,8 +65,12 @@ func TestInterviewRolesPrivacyDurabilityAndGuestRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	member, err = s.Interview(ctx, "bob", v.ID)
-	if err != nil || len(member.Question.PrivateCases) != 1 {
+	if err != nil || len(member.Question.PrivateCaseDetails) != 1 {
 		t.Fatal("interviewer visibility", err)
+	}
+	data, _ = json.Marshal(member)
+	if strings.Contains(string(data), `"privateCases"`) {
+		t.Fatal("duplicate private case list", string(data))
 	}
 	credential := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
 	guest, err := s.JoinInterview(ctx, "", token, credential, "Candidate")
