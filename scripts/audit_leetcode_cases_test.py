@@ -75,6 +75,16 @@ class QualityTest(unittest.TestCase):
         self.assertEqual(report['unsupported'], [])
         self.assertEqual(report['rejected'][0]['reason'], 'violates parsed constraint')
 
+    def test_element_bounds_and_chained_length_aliases(self):
+        content = {'problem': {'signature': {'parameters': [{'name': 'nums1'}, {'name': 'nums2'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums1.length == nums2.length'}, {'kind': 'prose', 'text': '1 <= nums1[i] <= n'}]}, 'hiddenCases': [{'args': [[1, 2], [3, 4]], 'expected': 1}, {'args': [[1, 3], [3, 4]], 'expected': 2}, {'args': [[1, 2], [3]], 'expected': 3}], 'implementations': [{'referenceSource': 'pass'}]}
+        report = assess(content)
+        self.assertEqual(len(report['cases']), 1)
+        self.assertEqual(len(report['rejected']), 2)
+        self.assertEqual(report['unsupported'], [])
+        self.assertIsNone(parse_extra('nums1[i] < nums1[j]', ['nums1']))
+        self.assertIsNone(parse_extra('manager[headID] == -1', ['manager', 'headID']))
+        self.assertIsNone(parse_extra('nums1[i] == 1', ['nums1', 'i']))
+
     def test_fractional_values_respect_integer_bounds(self):
         rule = parse_bound('1 <= hour <= 10^9', ['hour'])
         self.assertTrue(value_satisfies(rule, {'hour': 2.7}))

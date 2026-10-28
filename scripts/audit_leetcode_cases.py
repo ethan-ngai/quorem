@@ -85,6 +85,14 @@ def parse_bound(rule, names):
 def parse_extra(rule, names):
     text = rule.replace('`', '').replace('\u200b', '').strip()
     plain = text.replace('**', '')
+    element = re.findall(r'\b([A-Za-z_]\w*)\[([A-Za-z]+)\](?!\s*[.\[])', text)
+    if (len(element) == 1 and element[0][0] in names and element[0][1] in ('i', 'j')
+            and element[0][1] not in names and '_quorem_element' not in names):
+        parameter, index = element[0]
+        expression = text.replace(f'{parameter}[{index}]', '_quorem_element')
+        comparison = parse_extra(expression, names + ['_quorem_element'])
+        if comparison and comparison[0] == 'comparison':
+            return ('element-comparison', parameter, comparison[1])
     unique = re.fullmatch(r'(?:All (?:the )?(?:values|integers|elements|numbers|characters|strings) (?:in|of) |The (?:elements|characters) (?:in|of) )([A-Za-z_]\w*) are (?:unique|distinct)\.?', plain, re.I)
     if not unique:
         unique = re.fullmatch(r'([A-Za-z_]\w*) contains (?:pairwise )?distinct (?:integers|values)\.?', plain, re.I)
@@ -132,6 +140,12 @@ def parse_extra(rule, names):
 
 
 def extra_satisfies(rule, arguments):
+    if rule[0] == 'element-comparison':
+        values = arguments.get(rule[1])
+        return isinstance(values, list) and all(
+            numeric(value) and extra_satisfies(('comparison', rule[2]), {**arguments, '_quorem_element': value})
+            for value in values
+        )
     if rule[0] == 'unique':
         value = arguments.get(rule[1])
         if not isinstance(value, (list, str)): return False
@@ -219,7 +233,7 @@ def assess(content):
     texts = constraints(p)
     aliases = {}
     for text in texts:
-        match = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length', text.replace('`', '').strip())
+        match = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length(?:\s*==\s*[A-Za-z_]\w*\.length)*', text.replace('`', '').strip())
         if match and match.group(1) not in names and match.group(2) in names:
             aliases.setdefault(match.group(1), match.group(2))
     identifiers = names + list(aliases)
