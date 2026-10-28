@@ -125,7 +125,8 @@ func TestInterviewPrivateCaseDetailsRevealHideAndResultRedaction(t *testing.T) {
 	if len(v.Question.PrivateCaseDetails) != 2 || len(v.Question.RevealedCases) != 0 {
 		t.Fatal("interviewer case catalog", v.Question)
 	}
-	sub, err := admitInterviewForTest(s, ctx, "bob", v.ID, ID(), "submit", nil)
+	key := ID()
+	sub, err := admitInterviewForTest(s, ctx, "bob", v.ID, key, "submit", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,15 +152,19 @@ func TestInterviewPrivateCaseDetailsRevealHideAndResultRedaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, _ := json.Marshal(ownerResult)
-	if strings.Contains(string(data), "private stdout") || len(ownerResult.PrivateCaseResults) != 0 {
+	if strings.Contains(string(data), "private stdout") || len(ownerResult.PrivateCaseResults) != 0 || len(ownerResult.HiddenCases) != 0 {
 		t.Fatal("generic submission private leak", string(data))
 	}
+	replay, err := admitInterviewForTest(s, ctx, "bob", v.ID, key, "submit", nil)
+	if err != nil || replay.State != "completed" || len(replay.HiddenCases) != 0 || len(replay.PrivateCaseResults) != 0 {
+		t.Fatal("admission replay exposed private results", replay, err)
+	}
 	staff, err := s.InterviewSubmission(ctx, "alice", v.ID, sub.ID)
-	if err != nil || len(staff.PrivateCaseResults) != 2 || staff.PrivateCaseResults[0].Stdout != "private stdout zero" || staff.PrivateCaseResults[1].CaseID != "hidden:1" {
+	if err != nil || len(staff.PrivateCaseResults) != 2 || len(staff.HiddenCases) != 2 || staff.PrivateCaseResults[0].Stdout != "private stdout zero" || staff.PrivateCaseResults[1].CaseID != "hidden:1" {
 		t.Fatal("interviewer result details", staff, err)
 	}
 	candidate, err := s.InterviewSubmission(ctx, "bob", v.ID, sub.ID)
-	if err != nil || len(candidate.PrivateCaseResults) != 0 || len(candidate.PublicCases) != 1 || candidate.PublicCases[0].Stdout != "sample stdout" {
+	if err != nil || len(candidate.PrivateCaseResults) != 0 || len(candidate.HiddenCases) != 0 || len(candidate.PublicCases) != 1 || candidate.PublicCases[0].Stdout != "sample stdout" {
 		t.Fatal("unrevealed result leak", candidate, err)
 	}
 	if _, err = s.SetInterviewCaseVisibility(ctx, "bob", v.ID, ID(), "hidden:0", true); errorCode(err) != "forbidden" {
@@ -190,9 +195,17 @@ func TestInterviewPrivateCaseDetailsRevealHideAndResultRedaction(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, `UPDATE interview_execution SET private_results=NULL WHERE submission_id=$1`, sub.ID); err != nil {
 		t.Fatal(err)
 	}
+	ownerResult, err = s.Submission(ctx, "bob", sub.ID)
+	if err != nil || len(ownerResult.HiddenCases) != 0 {
+		t.Fatal("generic legacy results exposed private verdicts", ownerResult, err)
+	}
 	legacy, err := s.InterviewSubmission(ctx, "alice", v.ID, sub.ID)
 	if err != nil || len(legacy.PrivateCaseResults) != 2 || legacy.PrivateCaseResults[0].Status != "wrong_answer" || legacy.PrivateCaseResults[0].Stdout != "" {
 		t.Fatal("legacy result status fallback", legacy, err)
+	}
+	legacyCandidate, err := s.InterviewSubmission(ctx, "bob", v.ID, sub.ID)
+	if err != nil || len(legacyCandidate.HiddenCases) != 0 || len(legacyCandidate.PrivateCaseResults) != 1 || legacyCandidate.PrivateCaseResults[0].Status != "wrong_answer" {
+		t.Fatal("legacy revealed result", legacyCandidate, err)
 	}
 	if _, err = s.UpdateInterviewQuestion(ctx, "alice", v.ID, ID(), q); err != nil {
 		t.Fatal(err)
