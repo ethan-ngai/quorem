@@ -128,12 +128,14 @@ func TestPostgresContinuousRunnerWakesWithoutRecoveryTick(t *testing.T) {
 	}
 }
 
+func (e *deadlineReapEngine) SandboxScope(context.Context) (string, error) { return "test-scope", nil }
+
 type deadlineReapEngine struct {
 	reaped  chan string
 	started chan execution.Job
 }
 
-func (e *deadlineReapEngine) TeardownAttempt(_ context.Context, attempt string) error {
+func (e *deadlineReapEngine) TeardownAttempt(_ context.Context, attempt, _ string) error {
 	e.reaped <- attempt
 	return nil
 }
@@ -147,7 +149,7 @@ func TestContinuousRunnerReapsAtAbandonedLeaseDeadline(t *testing.T) {
 	wakeAdmission(t, store, "alice")
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-	abandoned, err := store.Claim(ctx)
+	abandoned, err := store.ClaimAfterTeardown(ctx, false, "", "test-scope")
 	if err != nil || abandoned.AttemptID == "" {
 		t.Fatal(abandoned, err)
 	}
@@ -218,12 +220,12 @@ type countedDeadlineStore struct {
 	snapshots chan struct{}
 }
 
-func (s *countedDeadlineStore) Claim(ctx context.Context) (execution.Job, error) {
+func (s *countedDeadlineStore) ClaimAfterTeardown(ctx context.Context, resumable bool, attempt, scope string) (execution.Job, error) {
 	s.claims.Add(1)
-	return s.Store.Claim(ctx)
+	return s.Store.ClaimAfterTeardown(ctx, resumable, attempt, scope)
 }
-func (s *countedDeadlineStore) NextRunnableExecutionDeadline(ctx context.Context, resumable bool) (time.Duration, bool, error) {
-	d, present, err := s.Store.NextRunnableExecutionDeadline(ctx, resumable)
+func (s *countedDeadlineStore) NextRunnableExecutionDeadline(ctx context.Context, resumable bool, scope string) (time.Duration, bool, error) {
+	d, present, err := s.Store.NextRunnableExecutionDeadline(ctx, resumable, scope)
 	select {
 	case s.snapshots <- struct{}{}:
 	default:
@@ -273,4 +275,50 @@ func TestContinuousRunnerIgnoresUnsupportedLosslessDeadline(t *testing.T) {
 	}
 	cancel()
 	<-done
+}
+
+type expiryAfterScanStore struct {
+	*postgres.Store
+	jobID   string
+	expired bool
+}
+
+func (s *expiryAfterScanStore) NextExpiredAttempt(ctx context.Context, resumable bool, scope string) (string, error) {
+	attempt, err := s.Store.NextExpiredAttempt(ctx, resumable, scope)
+	if err == nil && !s.expired {
+		s.expired = true
+		_, err = s.Pool.Exec(ctx, `UPDATE execution_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1`, s.jobID)
+	}
+	return attempt, err
+}
+func TestLeaseExpiryBetweenScanAndClaimRequiresNextTeardown(t *testing.T) {
+	store := executionWakeStore(t)
+	wakeAdmission(t, store, "alice")
+	ctx := context.Background()
+	old, err := store.ClaimAfterTeardown(ctx, false, "", "test-scope")
+	if err != nil || old.JobID == "" {
+		t.Fatal(old, err)
+	}
+	repo := &expiryAfterScanStore{Store: store, jobID: old.JobID}
+	engine := &deadlineReapEngine{reaped: make(chan string, 1), started: make(chan execution.Job, 1)}
+	service := New(repo)
+	more, err := service.claimOnce(ctx, engine)
+	if err != nil || more {
+		t.Fatalf("reclaimed without scan: %t %v", more, err)
+	}
+	select {
+	case <-engine.started:
+		t.Fatal("executed without teardown")
+	default:
+	}
+	more, err = service.claimOnce(ctx, engine)
+	if err != nil || !more {
+		t.Fatalf("confirmed reclaim: %t %v", more, err)
+	}
+	if got := <-engine.reaped; got != old.AttemptID {
+		t.Fatal("wrong attempt reaped", got)
+	}
+	if got := <-engine.started; got.AttemptID == old.AttemptID {
+		t.Fatal("stale attempt reused")
+	}
 }

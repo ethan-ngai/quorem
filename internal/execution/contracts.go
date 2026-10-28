@@ -29,6 +29,7 @@ func DefaultLimits() Limits {
 }
 
 type Job struct {
+	SandboxScope     string `json:"-"`
 	Language         string `json:"language"`
 	JobID            string `json:"jobId"`
 	SubmissionID     string `json:"submissionId"`
