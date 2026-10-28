@@ -1,10 +1,6 @@
 package engine
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
-
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
@@ -24,35 +20,16 @@ func newCaseAccumulator(spec worker.Spec, language string, result execution.Comp
 
 func (a *caseAccumulator) add(i int, c worker.Case, f frame) error {
 	sample := i >= len(a.spec.Cases)
-	var err error
-	status := f.Status
-	var actual, expected json.RawMessage
-	typeMismatch := false
-	if status == "executed" {
-		actual, err = a.codec.Normalize(c, f.Actual)
-		if err != nil {
-			status = "invalid_output"
-		} else if rawExpected := a.codec.Expected(c); len(rawExpected) > 0 {
-			typeMismatch = !sqlOutputTypesMatch(a.spec.Problem.SQL, f.SQLTypes)
-			expected, err = a.codec.Normalize(c, rawExpected)
-			if err != nil {
-				return errors.New("invalid trusted expectation")
-			}
-			if bytes.Equal(actual, expected) && !typeMismatch {
-				status = "accepted"
-				if !sample {
-					a.passed++
-				}
-			} else {
-				status = "wrong_answer"
-			}
-		} else {
-			typeMismatch = !sqlOutputTypesMatch(a.spec.Problem.SQL, f.SQLTypes)
-			if typeMismatch {
-				status = "wrong_answer"
-			} else if !sample {
-				a.allCompared = false
-			}
+	status, actual, expected, typeMismatch, err := a.codec.Compare(c, f.Status, f.Actual, f.SQLTypes)
+	if err != nil {
+		return err
+	}
+	if !sample {
+		if f.Status == "executed" && status == "accepted" {
+			a.passed++
+		}
+		if status == "executed" {
+			a.allCompared = false
 		}
 	}
 	if !sample && status != "accepted" && status != "executed" && a.result.Verdict == "" {
@@ -109,19 +86,4 @@ func (a *caseAccumulator) finish() execution.Completion {
 		a.result.Verdict = execution.Accepted
 	}
 	return a.result
-}
-
-func sqlOutputTypesMatch(schema *worker.SQLConfig, actual []string) bool {
-	if schema == nil || len(schema.Output) == 0 {
-		return true
-	}
-	if len(actual) != len(schema.Output) {
-		return false
-	}
-	for i, column := range schema.Output {
-		if actual[i] != column.Type {
-			return false
-		}
-	}
-	return true
 }

@@ -111,3 +111,43 @@ func TestReconcilePreservesEarlyFinalizationGracePeriod(t *testing.T) {
 		t.Fatalf("progress: %+v", after.Progress)
 	}
 }
+
+func TestCheckpointCertaintyPreservesOrderingAndDeadline(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	bound := func(n int) *int { return &n }
+	accepted := func(owner string) SubmissionProgress {
+		return SubmissionProgress{Owner: owner, State: "completed", Verdict: "accepted", Score: &execution.Score{Passed: 5, Total: 5}}
+	}
+	failed := func(owner string, max int) SubmissionProgress {
+		return SubmissionProgress{Owner: owner, State: "running", CannotPass: true, MaxPossible: bound(max)}
+	}
+	for _, tc := range []struct {
+		name     string
+		deadline time.Time
+		subs     []SubmissionProgress
+		want     string
+		kind     string
+	}{
+		{"earlier failure cannot win", now.Add(time.Minute), []SubmissionProgress{failed("alice", 4), accepted("bob")}, "bob", "win"},
+		{"earlier unknown still blocks", now.Add(time.Minute), []SubmissionProgress{{Owner: "alice", State: "running"}, accepted("bob")}, "", ""},
+		{"missing failure bound remains uncertain", now.Add(time.Minute), []SubmissionProgress{{Owner: "alice", State: "running", CannotPass: true}, accepted("bob")}, "", ""},
+		{"failed opponent cannot tie", now, []SubmissionProgress{{Owner: "alice", State: "completed", Verdict: "wrong_answer", Score: &execution.Score{Passed: 4, Total: 5}}, failed("bob", 3)}, "alice", "win"},
+		{"failed opponent can tie", now, []SubmissionProgress{{Owner: "alice", State: "completed", Verdict: "wrong_answer", Score: &execution.Score{Passed: 4, Total: 5}}, failed("bob", 4)}, "", ""},
+		{"earlier intermediate never blocks correct", now.Add(time.Minute), []SubmissionProgress{{Owner: "alice", State: "running", Intermediate: true}, accepted("bob")}, "bob", "win"},
+		{"first correct remains possible in a tie", now, []SubmissionProgress{{Owner: "alice", State: "completed", Score: &execution.Score{Passed: 3, Total: 4}}, {Owner: "bob", State: "completed", Score: &execution.Score{Passed: 3, Total: 4}}, {Owner: "bob", State: "running", MaxPossible: bound(3)}}, "", ""},
+		{"proven tie stays tie", now, []SubmissionProgress{{Owner: "alice", State: "completed", Score: &execution.Score{Passed: 3, Total: 4}}, {Owner: "bob", State: "completed", Score: &execution.Score{Passed: 3, Total: 4}}, failed("bob", 3)}, "", "draw"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := Reconcile(now, tc.deadline, nil, []string{"alice", "bob"}, tc.subs)
+			if tc.kind == "" {
+				if r.Outcome != nil {
+					t.Fatal(r.Outcome)
+				}
+				return
+			}
+			if r.Outcome == nil || r.Outcome.Kind != tc.kind || r.Outcome.WinnerUserID != tc.want {
+				t.Fatal(r.Outcome)
+			}
+		})
+	}
+}
