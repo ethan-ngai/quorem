@@ -60,10 +60,9 @@ locals {
   images = { for language in ["python", "java", "typescript", "ocaml", "postgresql"] : language => "registry.cloudflare.com/${var.account_id}/${var.image_prefix == "" ? var.name : var.image_prefix}-${language}:${var.image_revision}" }
 }
 resource "cloudflare_worker" "test" {
-  account_id    = var.account_id
-  name          = var.name
-  subdomain     = { enabled = true, previews_enabled = false }
-  observability = { enabled = true }
+  account_id = var.account_id
+  name       = var.name
+  subdomain  = { enabled = true, previews_enabled = false }
 }
 resource "cloudflare_worker_version" "test" {
   account_id         = var.account_id

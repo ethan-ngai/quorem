@@ -13,7 +13,6 @@ on:
       - infra/**
       - deploy/**
       - scripts/build-judge-images.py
-      - scripts/case-logs.py
       - scripts/cloudflare_api.py
       - scripts/configure-production-auth.ts
       - scripts/package-auth.py
@@ -323,10 +322,8 @@ jobs:
               echo "No lifecycle events received; tail stderr follows."
               cat .local/case-tail.err
             fi
-            python3 scripts/case-logs.py || true
             exit 1
           fi
-          if [ "$GITHUB_REF" = refs/heads/dev ]; then python3 scripts/case-logs.py || true; fi
       - name: Destroy temporary validation resources
         if: always()
         run: |

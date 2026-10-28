@@ -72,7 +72,11 @@ export class CaseSandbox extends DurableObject {
 
   async fetch(request) {
     if (request.method === "GET" && this.env.CASE_DIAGNOSTICS === "true")
-      return Response.json({ phase: this.phase ?? "idle", failure: this.failure ?? "none" });
+      return Response.json({
+        phase: this.phase ?? "idle",
+        failure: this.failure ?? "none",
+        source: this.failureSource ?? "none",
+      });
     if (request.method === "DELETE") {
       console.log("case-lifecycle delete-begin");
       const token = request.headers.get("x-case-token");
@@ -108,6 +112,7 @@ export class CaseSandbox extends DurableObject {
     const active = { token };
     this.phase = "admitted";
     this.failure = undefined;
+    this.failureSource = undefined;
     this.active = active;
     const generation = this.generation ?? 0;
     try {
@@ -176,23 +181,35 @@ export class CaseSandbox extends DurableObject {
       };
       this.ctx.waitUntil(
         (async () => {
+          let source;
+          let step = "streams";
+          const observe = (promise, name) =>
+            promise.catch((error) => {
+              source ??= name;
+              throw error;
+            });
           try {
             const [, , , exitCode] = await Promise.all([
-              sendInput,
-              pump(process.stdout, 1),
-              pump(process.stderr, 2),
-              process.exitCode,
+              observe(sendInput, "input"),
+              observe(pump(process.stdout, 1), "stdout"),
+              observe(pump(process.stderr, 2), "stderr"),
+              observe(process.exitCode, "exit"),
             ]);
             this.phase = "streams-complete";
             console.log(`case-lifecycle streams-complete ${language}`);
             const exit = new Uint8Array(4);
             new DataView(exit.buffer).setInt32(0, exitCode);
+            step = "exit-frame";
             await writer.write(frame(3, exit));
+            step = "destroy";
             await this.stop();
+            step = "terminal-frame";
             await writer.write(frame(4, new Uint8Array()));
+            step = "close";
             await writer.close();
           } catch (error) {
             this.failure = this.phase;
+            this.failureSource = source ?? step;
             console.log(`case-lifecycle stream-failed ${language}`);
             try {
               await this.stop();
@@ -210,6 +227,7 @@ export class CaseSandbox extends DurableObject {
       });
     } catch {
       this.failure = this.phase;
+      this.failureSource = "setup";
       try {
         await this.stop();
       } catch {
