@@ -87,7 +87,7 @@ jobs:
           vp run --filter @quorem/language test
           vp -C apps/web test src/features/editor/languageIntegration.test.ts
       - run: python3 scripts/build-judge-images.py --base-only
-      - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgresSandbox$'
+      - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'
       # Integration packages share one disposable database and reset its fixtures.
       - run: go test -p 1 ./...
       - name: Cloudflare Durable Object contract
