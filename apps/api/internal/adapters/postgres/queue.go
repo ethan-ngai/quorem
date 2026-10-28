@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const runnableExecutionPredicate = `NOT j.finished AND s.state IN ('queued','running') AND ($1 OR NOT EXISTS(SELECT 1 FROM execution_checkpoints c WHERE c.job_id=j.id)) AND ($2 OR (s.lossless_cases IS NULL AND p.lossless_fixture IS NULL AND q.lossless_fixture IS NULL))`
+
 func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 	return s.claim(ctx, false)
 }
@@ -21,7 +23,8 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 		return execution.Job{}, err
 	}
 	defer tx.Rollback(ctx)
-	if losslessCasesEnabled() {
+	lossless := losslessCasesEnabled()
+	if lossless {
 		if _, err = tx.Exec(ctx, "SELECT set_config('quorem.lossless_case_claim','v1',true)"); err != nil {
 			return execution.Job{}, err
 		}
@@ -41,8 +44,8 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 	var attempts int
 	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(q.fixture->'problem'->>'id',p.id::text),COALESCE(q.fixture->'problem'->'limits',p.limits),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
  FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id
- WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running') AND ($1 OR NOT EXISTS(SELECT 1 FROM execution_checkpoints c WHERE c.job_id=j.id)) AND ($2 OR (s.lossless_cases IS NULL AND p.lossless_fixture IS NULL AND q.lossless_fixture IS NULL))
- ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`, resumable, losslessCasesEnabled()).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
+ WHERE `+runnableExecutionPredicate+` AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp())
+ ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`, resumable, lossless).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, nil
 	}
