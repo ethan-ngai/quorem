@@ -37,7 +37,11 @@ func (s *Store) UpdateInterviewQuestion(ctx context.Context, user, id, key strin
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE interviews SET question=$2,language=$3,source=$4,document_version=0,document_epoch=$5,question_epoch=$6 WHERE id=$1`, id, data, q.Language, f.Problem.StarterSource, ID(), ID())
+		data, lossless, err := caseStorageJSON(data, false)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE interviews SET question=$2,language=$3,source=$4,document_version=0,document_epoch=$5,question_epoch=$6,lossless_question=$7 WHERE id=$1`, id, data, q.Language, f.Problem.StarterSource, ID(), ID(), lossless)
 		return err
 	})
 }
@@ -103,6 +107,9 @@ func (s *Store) mutateInterview(ctx context.Context, user, id, key, action strin
 			return empty, failure("invalid_transition", 409, "Interview is closed")
 		}
 	} else if _, err = lockInterview(ctx, tx, user, id, true, true); err != nil {
+		return empty, err
+	}
+	if err = enableLosslessCaseWrites(ctx, tx); err != nil {
 		return empty, err
 	}
 	if err = fn(tx, v); err != nil {

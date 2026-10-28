@@ -31,7 +31,7 @@ const fullProblemJSONSQL = `jsonb_build_object(
 
 // Public reads include only the first Odyssey level and no private records.
 const publicProblemSQL = `SELECT jsonb_set(` + fullProblemJSONSQL + `,'{odyssey}',
- CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE 'null'::jsonb END)
+ CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE 'null'::jsonb END),v.lossless_public
  FROM problem_versions v JOIN problems p ON p.id=v.problem_id
  JOIN problem_languages py ON py.version_id=v.id AND py.language=CASE WHEN v.sql_config IS NOT NULL THEN 'postgresql' ELSE 'python' END `
 
@@ -60,14 +60,17 @@ func (s *Store) problem(ctx context.Context, value string, byID, matchAccess boo
 	if byID {
 		query = publicProblemSQL + " WHERE v.id::text=$1"
 	}
-	var data []byte
-	err := s.Pool.QueryRow(ctx, query+" AND (p.owner_id IS NULL OR p.owner_id=$2 OR ($3 AND EXISTS (SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=$2 AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing'))))", value, identity.Subject(ctx).UserID, matchAccess).Scan(&data)
+	var data, lossless []byte
+	err := s.Pool.QueryRow(ctx, query+" AND (p.owner_id IS NULL OR p.owner_id=$2 OR ($3 AND EXISTS (SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=$2 AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing'))))", value, identity.Subject(ctx).UserID, matchAccess).Scan(&data, &lossless)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return problems.Problem{}, failure("not_found", 404, "Problem not found")
 	}
 	var p problems.Problem
 	if err == nil {
 		err = json.Unmarshal(data, &p)
+		if err == nil {
+			err = restoreProblemCases(&p, lossless)
+		}
 	}
 	return p, err
 }
@@ -79,12 +82,15 @@ func (s *Store) Problems(ctx context.Context) ([]problems.Problem, error) {
 	defer rows.Close()
 	result := []problems.Problem{}
 	for rows.Next() {
-		var data []byte
-		if err = rows.Scan(&data); err != nil {
+		var data, lossless []byte
+		if err = rows.Scan(&data, &lossless); err != nil {
 			return nil, err
 		}
 		var p problems.Problem
 		if err = json.Unmarshal(data, &p); err != nil {
+			return nil, err
+		}
+		if err = restoreProblemCases(&p, lossless); err != nil {
 			return nil, err
 		}
 		result = append(result, p)

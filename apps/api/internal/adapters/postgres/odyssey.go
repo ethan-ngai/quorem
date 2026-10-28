@@ -10,9 +10,9 @@ import (
 
 func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.OdysseyProgress, error) {
 	var result problems.OdysseyProgress
-	var data, statuses []byte
+	var data, statuses, lossless []byte
 	history := `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM submissions s WHERE s.workspace_id=w.id AND s.state='completed' AND NOT s.custom_run AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`
-	err := s.Pool.QueryRow(ctx, `SELECT v.odyssey,COALESCE(o.level,1),COALESCE(o.completed,false),(`+caseStatusesSQL(history)+`) FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id=$1 AND w.owner_id=$2`, uuidLookup(id), owner).Scan(&data, &result.Level, &result.Completed, &statuses)
+	err := s.Pool.QueryRow(ctx, `SELECT v.odyssey,v.lossless_stages,COALESCE(o.level,1),COALESCE(o.completed,false),(`+caseStatusesSQL(history)+`) FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id=$1 AND w.owner_id=$2`, uuidLookup(id), owner).Scan(&data, &lossless, &result.Level, &result.Completed, &statuses)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, failure("not_found", 404, "Workspace not found")
 	}
@@ -30,6 +30,14 @@ func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.Odyssey
 		return result, failure("invalid_input", 400, "Workspace is not Odyssey")
 	}
 	result.Levels = odyssey.Levels[:result.Level]
+	if len(lossless) > 0 {
+		var restored problems.Problem
+		restored.Odyssey = &problems.Odyssey{Levels: result.Levels}
+		if err = restoreProblemCases(&restored, lossless); err != nil {
+			return result, err
+		}
+		result.Levels = restored.Odyssey.Levels
+	}
 	result.TotalLevels = len(odyssey.Levels)
 	result.CaseStatuses, err = decodeCaseStatuses(statuses)
 	return result, err

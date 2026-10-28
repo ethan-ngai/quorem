@@ -87,7 +87,7 @@ func seedQuestionFingerprint(content problems.QuestionContent, actor string) (st
 
 func findSeedQuestion(ctx context.Context, conn *pgxpool.Conn, actor, prefix, slug, fingerprint string) (string, error) {
 	privateSlug := "private-" + Hash([]byte(actor))[:16] + "-" + slug
-	rows, err := conn.Query(ctx, `SELECT a.scope,d.content FROM access_audit a JOIN question_drafts d ON d.id::text=a.scope WHERE a.actor=$1 AND a.action='questions.seed' AND left(a.operation_id,length($2))=$2 AND d.content->'problem'->>'slug' IN ($3,$4) AND (d.published_version_id IS NULL OR EXISTS(SELECT 1 FROM problems p WHERE p.current_version_id=d.published_version_id)) ORDER BY (d.published_version_id IS NULL),a.occurred_at,a.operation_id`, actor, prefix, slug, privateSlug)
+	rows, err := conn.Query(ctx, `SELECT a.scope,COALESCE(d.lossless_content,convert_to(d.content::text,'UTF8')) FROM access_audit a JOIN question_drafts d ON d.id::text=a.scope WHERE a.actor=$1 AND a.action='questions.seed' AND left(a.operation_id,length($2))=$2 AND d.content->'problem'->>'slug' IN ($3,$4) AND (d.published_version_id IS NULL OR EXISTS(SELECT 1 FROM problems p WHERE p.current_version_id=d.published_version_id)) ORDER BY (d.published_version_id IS NULL),a.occurred_at,a.operation_id`, actor, prefix, slug, privateSlug)
 	if err != nil {
 		return "", err
 	}

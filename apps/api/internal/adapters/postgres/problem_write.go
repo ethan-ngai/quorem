@@ -11,6 +11,48 @@ import (
 
 // Insert a version and all primary content atomically; seed replay is a no-op.
 func insertProblemVersion(ctx context.Context, tx pgx.Tx, f problems.Fixture) (bool, error) {
+	raw, err := json.Marshal(f)
+	if err != nil {
+		return false, err
+	}
+	var publicCases, stageCases []byte
+	safe, lossless, err := caseStorageJSON(raw, false)
+	if err != nil {
+		return false, err
+	}
+	if lossless != nil {
+		projection := problems.Fixture{}
+		projection.Problem.Examples = f.Problem.Examples
+		if f.Problem.Odyssey != nil && len(f.Problem.Odyssey.Levels) > 0 {
+			projection.Problem.Odyssey = &problems.Odyssey{Levels: []problems.OdysseyLevel{{Examples: f.Problem.Odyssey.Levels[0].Examples}}}
+		}
+		if f.Problem.Odyssey != nil {
+			allStages := problems.Fixture{}
+			allStages.Problem.Odyssey = &problems.Odyssey{Levels: make([]problems.OdysseyLevel, len(f.Problem.Odyssey.Levels))}
+			for i, level := range f.Problem.Odyssey.Levels {
+				allStages.Problem.Odyssey.Levels[i].Examples = level.Examples
+			}
+			stageRaw, e := json.Marshal(allStages)
+			if e != nil {
+				return false, e
+			}
+			_, stageCases, e = caseStorageJSON(stageRaw, false)
+			if e != nil {
+				return false, e
+			}
+		}
+		publicRaw, err := json.Marshal(projection)
+		if err != nil {
+			return false, err
+		}
+		_, publicCases, err = caseStorageJSON(publicRaw, false)
+		if err != nil {
+			return false, err
+		}
+		if err = json.Unmarshal(safe, &f); err != nil {
+			return false, err
+		}
+	}
 	public, err := json.Marshal(f.Problem)
 	if err != nil {
 		return false, err
@@ -28,9 +70,9 @@ func insertProblemVersion(ctx context.Context, tx pgx.Tx, f problems.Fixture) (b
 		return false, err
 	}
 	var id string
-	err = tx.QueryRow(ctx, `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey)
- SELECT $1,$2,$3::text::integer,doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',doc->'signature',COALESCE(doc->'constraints','[]'),doc->'limits',$5,doc->'sql',doc->'odyssey'
- FROM (SELECT $4::jsonb AS doc) input ON CONFLICT(id) DO NOTHING RETURNING id`, f.Problem.ID, problemID, f.Problem.Version, public, f.Attribution).Scan(&id)
+	err = tx.QueryRow(ctx, `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages)
+ SELECT $1,$2,$3::text::integer,doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',doc->'signature',COALESCE(doc->'constraints','[]'),doc->'limits',$5,doc->'sql',doc->'odyssey',$6,$7,$8
+ FROM (SELECT $4::jsonb AS doc) input ON CONFLICT(id) DO NOTHING RETURNING id`, f.Problem.ID, problemID, f.Problem.Version, public, f.Attribution, lossless, publicCases, stageCases).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}

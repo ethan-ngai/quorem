@@ -37,7 +37,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, err
 	}
-	var fixtureData []byte
+	var fixtureData, rawFixture []byte
 	var language, runtimeRevision, harnessRevision string
 	var matchID string
 	var odysseyScope string
@@ -48,8 +48,8 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
  'problem',jsonb_build_object('id',v.id,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'odyssey',v.odyssey,'examples',`+problemExamplesSQL+`),
  'hiddenCases',CASE WHEN $3='submit' THEN `+problemHiddenCasesSQL+` ELSE '[]'::jsonb END,
  'odysseyHiddenCases',CASE WHEN $3='submit' THEN `+odysseySuitesSQL+` ELSE NULL END),
- COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,w.id::text
- FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id=$1 AND w.owner_id=$2`, uuidLookup(c.WorkspaceID), owner, c.Kind).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope)
+ COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,w.id::text,v.lossless_fixture
+ FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id=$1 AND w.owner_id=$2`, uuidLookup(c.WorkspaceID), owner, c.Kind).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope, &rawFixture)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Workspace not found")
 	}
@@ -89,6 +89,18 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	if err = json.Unmarshal(fixtureData, &f); err != nil {
 		return judging.Submission{}, err
 	}
+	if len(rawFixture) > 0 {
+		var original problems.Fixture
+		if err = json.Unmarshal(rawFixture, &original); err != nil {
+			return judging.Submission{}, err
+		}
+		if err = restoreProblemCases(&f.Problem, rawFixture); err != nil {
+			return judging.Submission{}, err
+		}
+		if c.Kind == "submit" {
+			f.HiddenCases, f.OdysseyHiddenCases = original.HiddenCases, original.OdysseyHiddenCases
+		}
+	}
 	level := 0
 	if f.Problem.Odyssey != nil {
 		if _, err = tx.Exec(ctx, "INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING", odysseyScope, f.Problem.ID); err != nil {
@@ -120,7 +132,11 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	}
 	id := ID()
 	encoded, _ := json.Marshal(cases)
-	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()),$11,$12)", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime, odysseyLevel, c.CustomCases != nil); err != nil {
+	encoded, lossless, err := caseStorageJSON(encoded, true)
+	if err != nil {
+		return judging.Submission{}, err
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,NULLIF($8,'')::uuid,$9,COALESCE($10::timestamptz,clock_timestamp()),$11,$12,$13)", id, owner, c.WorkspaceID, c.Kind, c.Source, Hash([]byte(c.Source)), encoded, matchID, matchSequence, admissionTime, odysseyLevel, c.CustomCases != nil, lossless); err != nil {
 		return judging.Submission{}, err
 	}
 	jobID := ID()
@@ -270,6 +286,6 @@ func (s *Store) Cleanup(ctx context.Context) error {
  DELETE FROM execution_idempotency WHERE expires_at < statement_timestamp();
  DELETE FROM cancellation_idempotency WHERE expires_at < statement_timestamp();
  DELETE FROM match_idempotency WHERE expires_at < statement_timestamp();
- UPDATE submissions SET source='',result=NULL WHERE admitted_at < statement_timestamp()-interval '30 days' AND state NOT IN ('queued','running') AND (source<>'' OR result IS NOT NULL)`)
+ UPDATE submissions SET source='',result=NULL,cases=CASE WHEN lossless_cases IS NULL THEN cases ELSE '[]'::jsonb END,lossless_cases=NULL WHERE admitted_at < statement_timestamp()-interval '30 days' AND state NOT IN ('queued','running') AND (source<>'' OR result IS NOT NULL OR lossless_cases IS NOT NULL)`)
 	return err
 }
