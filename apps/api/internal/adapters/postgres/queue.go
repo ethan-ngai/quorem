@@ -21,6 +21,11 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 		return execution.Job{}, err
 	}
 	defer tx.Rollback(ctx)
+	if losslessCasesEnabled() {
+		if _, err = tx.Exec(ctx, "SELECT set_config('quorem.lossless_case_claim','v1',true)"); err != nil {
+			return execution.Job{}, err
+		}
+	}
 	if resumable {
 		if _, err = tx.Exec(ctx, "SELECT set_config('quorem.checkpoint_claim','v1',true)"); err != nil {
 			return execution.Job{}, err
@@ -36,8 +41,8 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 	var attempts int
 	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(q.fixture->'problem'->>'id',p.id::text),COALESCE(q.fixture->'problem'->'limits',p.limits),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
  FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id
- WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running') AND ($1 OR NOT EXISTS(SELECT 1 FROM execution_checkpoints c WHERE c.job_id=j.id))
- ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`, resumable).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
+ WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running') AND ($1 OR NOT EXISTS(SELECT 1 FROM execution_checkpoints c WHERE c.job_id=j.id)) AND ($2 OR (s.lossless_cases IS NULL AND p.lossless_fixture IS NULL AND q.lossless_fixture IS NULL))
+ ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`, resumable, losslessCasesEnabled()).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, nil
 	}
@@ -79,16 +84,19 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 }
 func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spec, error) {
 	var spec judging.Spec
-	var problem, cases []byte
+	var problem, cases, rawCases, rawFixture []byte
 	var level *int
-	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,CASE WHEN ie.submission_id IS NULL THEN jsonb_build_object('signature',v.signature,'odyssey',v.odyssey,'sql',v.sql_config,'examples',`+problemExamplesSQL+`) ELSE jsonb_build_object('signature',q.fixture->'problem'->'signature','odyssey',q.fixture->'problem'->'odyssey','sql',q.fixture->'problem'->'sql','examples',q.fixture->'problem'->'examples') END,s.cases,ie.submission_id IS NOT NULL,(ie.submission_id IS NOT NULL AND s.kind='submit' AND COALESCE(jsonb_typeof(q.fixture->'problem'->'odyssey'),'null')='null' AND CASE COALESCE(jsonb_typeof(q.fixture->'hiddenCases'),'null') WHEN 'array' THEN jsonb_array_length(q.fixture->'hiddenCases') WHEN 'null' THEN 0 ELSE -1 END=0),`+admittedOdysseyLevelSQL+` FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished AND s.id=$3`, uuidLookup(j.JobID), uuidLookup(j.AttemptID), uuidLookup(j.SubmissionID)).Scan(&spec.Source, &spec.Kind, &problem, &cases, &spec.PrivateDetails, &spec.SubmitCasesAreSamples, &level)
+	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,CASE WHEN ie.submission_id IS NULL THEN jsonb_build_object('signature',v.signature,'odyssey',v.odyssey,'sql',v.sql_config,'examples',`+problemExamplesSQL+`) ELSE jsonb_build_object('signature',q.fixture->'problem'->'signature','odyssey',q.fixture->'problem'->'odyssey','sql',q.fixture->'problem'->'sql','examples',q.fixture->'problem'->'examples') END,s.cases,ie.submission_id IS NOT NULL,(ie.submission_id IS NOT NULL AND s.kind='submit' AND COALESCE(jsonb_typeof(q.fixture->'problem'->'odyssey'),'null')='null' AND CASE COALESCE(jsonb_typeof(q.fixture->'hiddenCases'),'null') WHEN 'array' THEN jsonb_array_length(q.fixture->'hiddenCases') WHEN 'null' THEN 0 ELSE -1 END=0),`+admittedOdysseyLevelSQL+`,s.lossless_cases,COALESCE(q.lossless_fixture,v.lossless_fixture) FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished AND s.id=$3`, uuidLookup(j.JobID), uuidLookup(j.AttemptID), uuidLookup(j.SubmissionID)).Scan(&spec.Source, &spec.Kind, &problem, &cases, &spec.PrivateDetails, &spec.SubmitCasesAreSamples, &level, &rawCases, &rawFixture)
 	if err != nil {
 		return spec, err
 	}
 	if err = json.Unmarshal(problem, &spec.Problem); err != nil {
 		return spec, err
 	}
-	err = json.Unmarshal(cases, &spec.Cases)
+	if err = restoreProblemCases(&spec.Problem, rawFixture); err != nil {
+		return spec, err
+	}
+	err = json.Unmarshal(authoritativeJSON(cases, rawCases), &spec.Cases)
 	if err == nil {
 		err = limitAdmittedOdyssey(&spec.Problem, level)
 	}

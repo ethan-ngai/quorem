@@ -26,14 +26,14 @@ func lockInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, acti
 
 func loadInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, active, lock bool) (interviewRecord, error) {
 	var v interviewRecord
-	var data []byte
+	var data, lossless []byte
 	var disabled bool
 	var complexityLanguages []string
 	lockClause := ""
 	if lock {
 		lockClause = " FOR NO KEY UPDATE OF i"
 	}
-	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled,i.monitoring,i.admission_locked,ARRAY(SELECT ps.language FROM problem_solutions ps WHERE ps.version_id=NULLIF(i.question->'problem'->>'id','')::uuid AND COALESCE(i.question->'problem'->'odyssey','null'::jsonb)='null'::jsonb AND btrim(ps.time_complexity)<>'' AND btrim(ps.space_complexity)<>'' ORDER BY ps.language) FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id=$1 AND i.deleted_at IS NULL`+lockClause, uuidLookup(id), user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled, &v.snapshot.Monitoring, &v.snapshot.AdmissionLocked, &complexityLanguages)
+	err := tx.QueryRow(ctx, `SELECT i.id,i.title,i.state,i.host_id,i.language,i.source,i.document_version,i.document_epoch,i.version,i.question,i.lossless_question,i.invite_token,i.question_epoch,i.interviewer_invite_token,m.role,h.disabled,i.monitoring,i.admission_locked,ARRAY(SELECT ps.language FROM problem_solutions ps WHERE ps.version_id=NULLIF(i.question->'problem'->>'id','')::uuid AND COALESCE(i.question->'problem'->'odyssey','null'::jsonb)='null'::jsonb AND btrim(ps.time_complexity)<>'' AND btrim(ps.space_complexity)<>'' ORDER BY ps.language) FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL JOIN users h ON h.id=i.host_id JOIN users u ON u.id=m.user_id AND NOT u.disabled WHERE i.id=$1 AND i.deleted_at IS NULL`+lockClause, uuidLookup(id), user).Scan(&v.snapshot.ID, &v.snapshot.Title, &v.snapshot.State, &v.snapshot.HostID, &v.language, &v.snapshot.Document.Source, &v.snapshot.Document.Version, &v.snapshot.Document.Epoch, &v.snapshot.Version, &data, &lossless, &v.token, &v.snapshot.QuestionEpoch, &v.interviewerToken, &v.snapshot.Role, &disabled, &v.snapshot.Monitoring, &v.snapshot.AdmissionLocked, &complexityLanguages)
 	if err == pgx.ErrNoRows {
 		return v, failure("not_found", 404, "Interview unavailable")
 	}
@@ -56,7 +56,7 @@ func loadInterview(ctx context.Context, tx pgx.Tx, user, id string, manage, acti
 		return v, err
 	}
 	v.snapshot.Hints = presentation.Hints
-	if err = json.Unmarshal(data, &v.fixture); err != nil {
+	if err = json.Unmarshal(authoritativeJSON(data, lossless), &v.fixture); err != nil {
 		return v, err
 	}
 	v.fixture.Problem.ComplexityLanguages = complexityLanguages
@@ -299,12 +299,16 @@ func (s *Store) CreateInterview(ctx context.Context, user, key string, c intervi
 	}
 	interviewerToken := base64.RawURLEncoding.EncodeToString(raw)
 	data, _ := encodeInterviewQuestion(f, c.Question.Hints)
+	data, lossless, err := caseStorageJSON(data, false)
+	if err != nil {
+		return empty, err
+	}
 	monitoring := interviews.Monitoring{}
 	if c.Monitoring != nil {
 		monitoring = *c.Monitoring
 	}
 	policy, _ := json.Marshal(monitoring)
-	if _, err = tx.Exec(ctx, `INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token,monitoring) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, id, user, c.Title, data, c.Question.Language, f.Problem.StarterSource, ID(), Hash([]byte(token)), token, questionEpoch, Hash([]byte(interviewerToken)), interviewerToken, policy); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token,monitoring,lossless_question) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, id, user, c.Title, data, c.Question.Language, f.Problem.StarterSource, ID(), Hash([]byte(token)), token, questionEpoch, Hash([]byte(interviewerToken)), interviewerToken, policy, lossless); err != nil {
 		return empty, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO interview_members(session_id,user_id,role) VALUES($1,$2,'interviewer')`, id, user); err != nil {
@@ -328,8 +332,8 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		return f, failure("invalid_input", 400, "Choose an existing question or custom question")
 	}
 	if q.Custom == nil {
-		var data []byte
-		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+` FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id=$1 AND p.current_version_id=selected.id AND (p.owner_id IS NULL OR p.owner_id=$2)`, uuidLookup(q.ProblemVersionID), actor).Scan(&data)
+		var data, lossless []byte
+		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+`,selected.lossless_fixture FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id=$1 AND p.current_version_id=selected.id AND (p.owner_id IS NULL OR p.owner_id=$2)`, uuidLookup(q.ProblemVersionID), actor).Scan(&data, &lossless)
 		if err == pgx.ErrNoRows {
 			return f, failure("not_found", 404, "Question unavailable")
 		}
@@ -338,6 +342,16 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		}
 		if err = json.Unmarshal(data, &f); err != nil {
 			return f, err
+		}
+		if len(lossless) > 0 {
+			var original problems.Fixture
+			if err = json.Unmarshal(lossless, &original); err != nil {
+				return f, err
+			}
+			if err = restoreProblemCases(&f.Problem, lossless); err != nil {
+				return f, err
+			}
+			f.HiddenCases, f.OdysseyHiddenCases = original.HiddenCases, original.OdysseyHiddenCases
 		}
 		found := false
 		for _, lang := range f.Problem.Languages {

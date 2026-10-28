@@ -59,3 +59,40 @@ func TestInterviewFixtureDeduplicatesAndRemainsImmutable(t *testing.T) {
 		t.Fatalf("snapshot lifetime crossed sessions: %d %v", remaining, err)
 	}
 }
+
+func TestInterviewLosslessFixtureFingerprint(t *testing.T) {
+	t.Setenv("QUOREM_LOSSLESS_RESULT_WRITES", "true")
+	t.Setenv("QUOREM_LOSSLESS_CASES", "true")
+	s := interviewTestStore(t)
+	ctx := context.Background()
+	room := createInterviewTest(t, s)
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	firstRaw := []byte(`{"problem":{"examples":[{"args":["a\u0000b"]}]}}`)
+	secondRaw := []byte(`{"problem":{"examples":[{"args":["ab"]}]}}`)
+	first, err := saveInterviewFixture(ctx, tx, room.ID, firstRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := saveInterviewFixture(ctx, tx, room.ID, firstRaw)
+	if err != nil || !bytes.Equal(first, again) {
+		t.Fatalf("snapshot not reused: %v", err)
+	}
+	second, err := saveInterviewFixture(ctx, tx, room.ID, secondRaw)
+	if err != nil || bytes.Equal(first, second) {
+		t.Fatalf("lossless collision: %v", err)
+	}
+	var restored []byte
+	if err = tx.QueryRow(ctx, `SELECT lossless_fixture FROM interview_question_snapshots WHERE session_id=$1 AND id=$2`, room.ID, first).Scan(&restored); err != nil || !bytes.Equal(restored, firstRaw) {
+		t.Fatalf("lossless fixture: %s %v", restored, err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE interview_question_snapshots SET lossless_fixture='x' WHERE session_id=$1 AND id=$2`, room.ID, first); err == nil {
+		t.Fatal("lossless fixture mutated")
+	}
+}

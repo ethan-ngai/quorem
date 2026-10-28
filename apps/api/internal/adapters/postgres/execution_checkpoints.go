@@ -157,7 +157,7 @@ func checkpointMatchFailure(ctx context.Context, tx pgx.Tx, j execution.Job, c e
 	var matchID string
 	var rawCase, rawProblem []byte
 	var level *int
-	err := tx.QueryRow(ctx, `SELECT s.match_id::text,s.cases->($3::int),jsonb_build_object('signature',v.signature,'constraints',v.constraints,'odyssey',v.odyssey,'sql',v.sql_config),s.odyssey_level FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions v ON v.id=w.problem_version_id WHERE j.id=$1 AND s.id=$2 AND s.match_id IS NOT NULL AND s.kind='submit' AND $3::int<jsonb_array_length(s.cases)`, uuidLookup(j.JobID), uuidLookup(j.SubmissionID), c.Ordinal).Scan(&matchID, &rawCase, &rawProblem, &level)
+	err := tx.QueryRow(ctx, `SELECT s.match_id::text,s.cases->($3::int),jsonb_build_object('signature',v.signature,'constraints',v.constraints,'odyssey',v.odyssey,'sql',v.sql_config),s.odyssey_level FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions v ON v.id=w.problem_version_id WHERE j.id=$1 AND s.id=$2 AND s.match_id IS NOT NULL AND s.kind='submit' AND s.lossless_cases IS NULL AND $3::int<jsonb_array_length(s.cases)`, uuidLookup(j.JobID), uuidLookup(j.SubmissionID), c.Ordinal).Scan(&matchID, &rawCase, &rawProblem, &level)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
 	}

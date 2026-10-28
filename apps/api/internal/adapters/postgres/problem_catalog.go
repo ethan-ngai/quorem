@@ -48,13 +48,17 @@ func (s *Store) ProblemCatalog(ctx context.Context, f ProblemFilter) (ProblemPag
 		return result, err
 	}
 	for rows.Next() {
-		var data []byte
+		var data, lossless []byte
 		var item problems.Problem
-		if err = rows.Scan(&data); err != nil {
+		if err = rows.Scan(&data, &lossless); err != nil {
 			rows.Close()
 			return result, err
 		}
 		if err = json.Unmarshal(data, &item); err != nil {
+			rows.Close()
+			return result, err
+		}
+		if err = restoreProblemCases(&item, lossless); err != nil {
 			rows.Close()
 			return result, err
 		}

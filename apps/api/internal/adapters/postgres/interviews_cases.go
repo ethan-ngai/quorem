@@ -83,7 +83,7 @@ func (s *Store) projectInterviewResults(ctx context.Context, tx pgx.Tx, v interv
 	var fixture, raw []byte
 	var epoch string
 	var level int
-	if err := tx.QueryRow(ctx, `SELECT q.fixture,COALESCE(e.private_results_payload,convert_to(e.private_results::text,'UTF8')),e.question_epoch,e.level FROM interview_execution e JOIN interview_question_snapshots q ON q.session_id=e.session_id AND q.id=e.fixture_id WHERE e.submission_id=$1 AND e.session_id=$2`, submissionID, v.snapshot.ID).Scan(&fixture, &raw, &epoch, &level); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(q.lossless_fixture,convert_to(q.fixture::text,'UTF8')),COALESCE(e.private_results_payload,convert_to(e.private_results::text,'UTF8')),e.question_epoch,e.level FROM interview_execution e JOIN interview_question_snapshots q ON q.session_id=e.session_id AND q.id=e.fixture_id WHERE e.submission_id=$1 AND e.session_id=$2`, submissionID, v.snapshot.ID).Scan(&fixture, &raw, &epoch, &level); err != nil {
 		return err
 	}
 	if v.snapshot.Role != "interviewer" && epoch != v.snapshot.QuestionEpoch {
