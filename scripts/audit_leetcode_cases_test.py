@@ -67,6 +67,15 @@ class QualityTest(unittest.TestCase):
         self.assertFalse(value_satisfies(rule, {'words': [1]}))
         self.assertIsNone(parse_extra('words[i].length <= 3', ['words', 'i']))
 
+    def test_square_shape_with_derived_size(self):
+        content = {'problem': {'signature': {'parameters': [{'name': 'grid'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == grid.length == grid[i].length'}]}, 'hiddenCases': [{'args': [[[1, 2], [3, 4]]], 'expected': 0}, {'args': [[[1, 2]]], 'expected': 0}], 'implementations': [{'referenceSource': 'pass'}]}
+        result = assess(content)
+        self.assertEqual(len(result['cases']), 1)
+        self.assertEqual(len(result['rejected']), 1)
+        self.assertEqual(result['unsupported'], [])
+        self.assertIsNone(parse_extra('n == grid.length == other[i].length', ['n', 'grid', 'other']))
+        self.assertIsNone(parse_extra('n == k <= nums[i]', ['n', 'k', 'nums']))
+
     def test_lowercase_english_only_and_unsupported_expressions(self):
         rule = parse_extra('`s` consists of only lowercase English letters.', ['s'])
         self.assertTrue(value_satisfies(rule, {'s': 'abc'}))

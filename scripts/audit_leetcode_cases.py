@@ -85,11 +85,18 @@ def parse_bound(rule, names):
 def parse_extra(rule, names):
     text = rule.replace('`', '').replace('\u200b', '').strip()
     plain = text.replace('**', '')
+    def every_comparison_uses(tree, name):
+        operands = [tree.left] + tree.comparators
+        return all(any(isinstance(node, ast.Name) and node.id == name for part in (left, right) for node in ast.walk(part))
+                   for left, right in zip(operands, operands[1:]))
+    square = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length\s*==\s*\2\[i\]\.length', text)
+    if square and square.group(1) in names and square.group(2) in names and 'i' not in names:
+        return ('square-shape', square.group(1), square.group(2))
     lengths = re.findall(r'\b([A-Za-z_]\w*)\[i\]\.length', text)
     if len(lengths) == 1 and lengths[0] in names and 'i' not in names and '_quorem_length' not in names:
         expression = text.replace(f'{lengths[0]}[i].length', '_quorem_length')
         comparison = parse_extra(expression, names + ['_quorem_length'])
-        if comparison and comparison[0] == 'comparison':
+        if comparison and comparison[0] == 'comparison' and every_comparison_uses(comparison[1], '_quorem_length'):
             return ('element-length-comparison', lengths[0], comparison[1])
     element = re.findall(r'\b([A-Za-z_]\w*)\[([A-Za-z]+)\](?!\s*[.\[])', text)
     if (len(element) == 1 and element[0][0] in names and element[0][1] in ('i', 'j')
@@ -97,7 +104,7 @@ def parse_extra(rule, names):
         parameter, index = element[0]
         expression = text.replace(f'{parameter}[{index}]', '_quorem_element')
         comparison = parse_extra(expression, names + ['_quorem_element'])
-        if comparison and comparison[0] == 'comparison':
+        if comparison and comparison[0] == 'comparison' and every_comparison_uses(comparison[1], '_quorem_element'):
             return ('element-comparison', parameter, comparison[1])
     unique = re.fullmatch(r'(?:All (?:the )?(?:values|integers|elements|numbers|characters|strings) (?:in|of) |The (?:elements|characters) (?:in|of) )([A-Za-z_]\w*) are (?:unique|distinct)\.?', plain, re.I)
     if not unique:
@@ -153,6 +160,10 @@ def parse_extra(rule, names):
 
 
 def extra_satisfies(rule, arguments):
+    if rule[0] == 'square-shape':
+        size, rows = arguments.get(rule[1]), arguments.get(rule[2])
+        return (type(size) is int and isinstance(rows, list) and len(rows) == size and
+                all(isinstance(row, (list, str)) and len(row) == size for row in rows))
     if rule[0] == 'element-length-comparison':
         values = arguments.get(rule[1])
         return isinstance(values, list) and all(
@@ -261,7 +272,7 @@ def assess(content):
     texts = constraints(p)
     aliases = {}
     for text in texts:
-        match = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length(?:\s*==\s*[A-Za-z_]\w*\.length)*', text.replace('`', '').strip())
+        match = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length(?:\s*==\s*[A-Za-z_]\w*\.length)*(?:\s*==\s*\2\[i\]\.length)?', text.replace('`', '').strip())
         if match and match.group(1) not in names and match.group(2) in names:
             aliases.setdefault(match.group(1), match.group(2))
     identifiers = names + list(aliases)
