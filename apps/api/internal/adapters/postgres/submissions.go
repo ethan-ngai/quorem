@@ -166,7 +166,7 @@ func (s *Store) rawSubmission(ctx context.Context, q querier, owner, id string) 
 	var v judging.Submission
 	var data []byte
 	var interview bool
-	err := q.QueryRow(ctx, "SELECT id,COALESCE(workspace_id::text,''),kind,state,source_hash,admitted_at,updated_at,result,custom_run,interview_id IS NOT NULL FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data, &v.CustomRun, &interview)
+	err := q.QueryRow(ctx, "SELECT id,COALESCE(workspace_id::text,''),kind,state,source_hash,admitted_at,updated_at,COALESCE(result_payload,convert_to(result::text,'UTF8')),custom_run,interview_id IS NOT NULL FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data, &v.CustomRun, &interview)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return v, false, failure("not_found", 404, "Submission not found")
 	}
@@ -263,6 +263,7 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 }
 func (s *Store) Cleanup(ctx context.Context) error {
 	_, err := s.Pool.Exec(ctx, `DELETE FROM execution_checkpoints c USING execution_jobs j,submissions s,users u WHERE c.job_id=j.id AND j.submission_id=s.id AND u.id=s.owner_id AND s.state NOT IN ('queued','running') AND s.admitted_at<statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END;
+ UPDATE interview_execution e SET private_results=NULL,private_results_payload=NULL FROM submissions s JOIN users u ON u.id=s.owner_id WHERE e.submission_id=s.id AND s.state NOT IN ('queued','running') AND s.admitted_at<statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END AND (e.private_results IS NOT NULL OR e.private_results_payload IS NOT NULL);
  DELETE FROM guest_request_buckets WHERE window_start<statement_timestamp()-interval '2 hours';
  UPDATE submissions s SET source='',result=NULL,cases='[]'::jsonb WHERE admitted_at<statement_timestamp()-interval '7 days' AND state NOT IN ('queued','running') AND (source<>'' OR result IS NOT NULL OR cases<>'[]'::jsonb) AND EXISTS(SELECT 1 FROM users u WHERE u.id=s.owner_id AND u.kind='guest');
  UPDATE users u SET display_name='Expired guest' WHERE kind='guest' AND display_name<>'Expired guest' AND EXISTS(SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<statement_timestamp()-interval '7 days');
