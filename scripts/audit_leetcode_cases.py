@@ -84,9 +84,40 @@ def parse_bound(rule, names):
 
 def parse_extra(rule, names):
     text = rule.replace('`', '').replace('\u200b', '').strip()
-    alphabet = re.fullmatch(r'([A-Za-z_]\w*)\s+(?:consists of|consists only of|consists|contains)\s+(?:only |of only |of )?(?:English lowercase|lowercase English) letters(?: only)?\.?', text, re.I)
+    plain = text.replace('**', '')
+    def every_comparison_uses(tree, name):
+        operands = [tree.left] + tree.comparators
+        return all(any(isinstance(node, ast.Name) and node.id == name for part in (left, right) for node in ast.walk(part))
+                   for left, right in zip(operands, operands[1:]))
+    square = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length\s*==\s*\2\[i\]\.length', text)
+    if square and square.group(1) in names and square.group(2) in names and 'i' not in names:
+        return ('square-shape', square.group(1), square.group(2))
+    lengths = re.findall(r'\b([A-Za-z_]\w*)\[i\]\.length', text)
+    if len(lengths) == 1 and lengths[0] in names and 'i' not in names and '_quorem_length' not in names:
+        expression = text.replace(f'{lengths[0]}[i].length', '_quorem_length')
+        comparison = parse_extra(expression, names + ['_quorem_length'])
+        if comparison and comparison[0] == 'comparison' and every_comparison_uses(comparison[1], '_quorem_length'):
+            return ('element-length-comparison', lengths[0], comparison[1])
+    element = re.findall(r'\b([A-Za-z_]\w*)\[([A-Za-z]+)\](?!\s*[.\[])', text)
+    if (len(element) == 1 and element[0][0] in names and element[0][1] in ('i', 'j')
+            and element[0][1] not in names and '_quorem_element' not in names):
+        parameter, index = element[0]
+        expression = text.replace(f'{parameter}[{index}]', '_quorem_element')
+        comparison = parse_extra(expression, names + ['_quorem_element'])
+        if comparison and comparison[0] == 'comparison' and every_comparison_uses(comparison[1], '_quorem_element'):
+            return ('element-comparison', parameter, comparison[1])
+    unique = re.fullmatch(r'(?:All (?:the )?(?:values|integers|elements|numbers|characters|strings) (?:in|of) |The (?:elements|characters) (?:in|of) )([A-Za-z_]\w*) are (?:unique|distinct)\.?', plain, re.I)
+    if not unique:
+        unique = re.fullmatch(r'([A-Za-z_]\w*) contains (?:pairwise )?distinct (?:integers|values)\.?', plain, re.I)
+    if unique and unique.group(1) in names:
+        return ('unique', unique.group(1))
+    ordered = re.fullmatch(r'([A-Za-z_]\w*) is (?:in )?(?:a )?(?:(strictly) increasing(?: order)?|sorted(?: in (?:a )?(ascending|non-decreasing)(?: order)?)?)\.?', plain, re.I)
+    if ordered and ordered.group(1) in names:
+        return ('ordered', ordered.group(1), bool(ordered.group(2)))
+    alphabet = re.fullmatch(r'([A-Za-z_]\w*)(\[i\])?\s+(?:consists of|consists only of|consists|contains)\s+(?:only |of only |of )?(?:English (lowercase|uppercase)|(lowercase|uppercase) English) letters(?: only)?\.?', text, re.I)
     if alphabet and alphabet.group(1) in names:
-        return ('alphabet', alphabet.group(1))
+        if alphabet.group(2) and 'i' in names: return None
+        return ('alphabet', alphabet.group(1), bool(alphabet.group(2)), (alphabet.group(3) or alphabet.group(4)).lower())
     row = re.fullmatch(r'([A-Za-z_]\w*)\[i\]\.length\s*==\s*(\d+)', text)
     if row and row.group(1) in names:
         return ('row-length', row.group(1), int(row.group(2)))
@@ -104,7 +135,13 @@ def parse_extra(rule, names):
     def allowed(node):
         if isinstance(node, ast.Constant): return type(node.value) is int and abs(node.value) <= 10 ** 15
         if isinstance(node, ast.Name): return node.id in names
-        if isinstance(node, ast.Attribute): return node.attr == 'length' and isinstance(node.value, ast.Name) and node.value.id in names
+        if isinstance(node, ast.Attribute):
+            value = node.value
+            if node.attr != 'length': return False
+            if isinstance(value, ast.Name): return value.id in names
+            return (isinstance(value, ast.Subscript) and isinstance(value.value, ast.Name) and
+                    value.value.id in names and isinstance(value.slice, ast.Constant) and
+                    type(value.slice.value) is int and value.slice.value == 0)
         if isinstance(node, ast.UnaryOp): return isinstance(node.op, ast.USub) and allowed(node.operand)
         if isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Pow):
@@ -123,9 +160,41 @@ def parse_extra(rule, names):
 
 
 def extra_satisfies(rule, arguments):
+    if rule[0] == 'square-shape':
+        size, rows = arguments.get(rule[1]), arguments.get(rule[2])
+        return (type(size) is int and isinstance(rows, list) and len(rows) == size and
+                all(isinstance(row, (list, str)) and len(row) == size for row in rows))
+    if rule[0] == 'element-length-comparison':
+        values = arguments.get(rule[1])
+        return isinstance(values, list) and all(
+            isinstance(value, (list, str)) and
+            extra_satisfies(('comparison', rule[2]), {**arguments, '_quorem_length': len(value)})
+            for value in values
+        )
+    if rule[0] == 'element-comparison':
+        values = arguments.get(rule[1])
+        return isinstance(values, list) and all(
+            numeric(value) and extra_satisfies(('comparison', rule[2]), {**arguments, '_quorem_element': value})
+            for value in values
+        )
+    if rule[0] == 'unique':
+        value = arguments.get(rule[1])
+        if not isinstance(value, (list, str)): return False
+        encoded = [json.dumps(item, sort_keys=True) for item in value]
+        return len(encoded) == len(set(encoded))
+    if rule[0] == 'ordered':
+        value = arguments.get(rule[1])
+        if not isinstance(value, (list, str)): return False
+        try:
+            return all(a < b if rule[2] else a <= b for a, b in zip(value, value[1:]))
+        except TypeError:
+            return False
     if rule[0] == 'alphabet':
-        value = arguments[rule[1]]
-        return isinstance(value, str) and all('a' <= c <= 'z' for c in value)
+        value = arguments.get(rule[1])
+        values = value if rule[2] and isinstance(value, list) else [value] if not rule[2] else None
+        if values is None: return False
+        lo, hi = ('a', 'z') if rule[3] == 'lowercase' else ('A', 'Z')
+        return all(isinstance(item, str) and all(lo <= c <= hi for c in item) for item in values)
     if rule[0] == 'row-length':
         value = arguments[rule[1]]
         return isinstance(value, list) and all(isinstance(row, (list, str)) and len(row) == rule[2] for row in value)
@@ -137,7 +206,12 @@ def extra_satisfies(rule, arguments):
             if not numeric(value): raise ValueError('non-numeric value')
             return value
         if isinstance(node, ast.Attribute):
-            value = arguments[node.value.id]
+            if isinstance(node.value, ast.Subscript):
+                rows = arguments[node.value.value.id]
+                if not isinstance(rows, list) or not rows: raise ValueError('missing first row')
+                value = rows[0]
+            else:
+                value = arguments[node.value.id]
             if not isinstance(value, (str, list)): raise ValueError('invalid length')
             return len(value)
         if isinstance(node, ast.Tuple): return [calc(x) for x in node.elts]
@@ -198,7 +272,7 @@ def assess(content):
     texts = constraints(p)
     aliases = {}
     for text in texts:
-        match = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length', text.replace('`', '').strip())
+        match = re.fullmatch(r'([A-Za-z_]\w*)\s*==\s*([A-Za-z_]\w*)\.length(?:\s*==\s*[A-Za-z_]\w*\.length)*(?:\s*==\s*\2\[i\]\.length)?', text.replace('`', '').strip())
         if match and match.group(1) not in names and match.group(2) in names:
             aliases.setdefault(match.group(1), match.group(2))
     identifiers = names + list(aliases)

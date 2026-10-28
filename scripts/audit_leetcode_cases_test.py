@@ -49,14 +49,59 @@ class QualityTest(unittest.TestCase):
         self.assertFalse(value_satisfies(parse_extra('edges[i].length == 2', names), dict(values, edges=[[1]])))
         self.assertFalse(value_satisfies(parse_extra('1 <= k, n <= 10', names), dict(values, k=11)))
 
+    def test_first_row_length(self):
+        rule = parse_extra('1 <= matrix[0].length <= 3', ['matrix'])
+        self.assertIsNotNone(rule)
+        self.assertTrue(value_satisfies(rule, {'matrix': [[1, 2], []]}))
+        self.assertFalse(value_satisfies(rule, {'matrix': [[]]}))
+        self.assertFalse(value_satisfies(rule, {'matrix': []}))
+        self.assertFalse(value_satisfies(rule, {'matrix': [1]}))
+        self.assertIsNone(parse_extra('matrix[-1].length <= 3', ['matrix']))
+
+    def test_each_row_length_bound(self):
+        rule = parse_extra('1 <= words[i].length <= 3', ['words'])
+        self.assertIsNotNone(rule)
+        self.assertTrue(value_satisfies(rule, {'words': ['a', 'abc']}))
+        self.assertFalse(value_satisfies(rule, {'words': ['a', '']}))
+        self.assertFalse(value_satisfies(rule, {'words': ['abcd']}))
+        self.assertFalse(value_satisfies(rule, {'words': [1]}))
+        self.assertIsNone(parse_extra('words[i].length <= 3', ['words', 'i']))
+
+    def test_square_shape_with_derived_size(self):
+        content = {'problem': {'signature': {'parameters': [{'name': 'grid'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == grid.length == grid[i].length'}]}, 'hiddenCases': [{'args': [[[1, 2], [3, 4]]], 'expected': 0}, {'args': [[[1, 2]]], 'expected': 0}], 'implementations': [{'referenceSource': 'pass'}]}
+        result = assess(content)
+        self.assertEqual(len(result['cases']), 1)
+        self.assertEqual(len(result['rejected']), 1)
+        self.assertEqual(result['unsupported'], [])
+        self.assertIsNone(parse_extra('n == grid.length == other[i].length', ['n', 'grid', 'other']))
+        self.assertIsNone(parse_extra('n == k <= nums[i]', ['n', 'k', 'nums']))
+
     def test_lowercase_english_only_and_unsupported_expressions(self):
         rule = parse_extra('`s` consists of only lowercase English letters.', ['s'])
         self.assertTrue(value_satisfies(rule, {'s': 'abc'}))
         self.assertFalse(value_satisfies(rule, {'s': 'é'}))
         self.assertFalse(value_satisfies(rule, {'s': 'Ab'}))
+        upper = parse_extra('`tiles` consists of uppercase English letters.', ['tiles'])
+        words = parse_extra('`words[i]` consists only of lowercase English letters.', ['words'])
+        self.assertTrue(value_satisfies(upper, {'tiles': 'AZ'}))
+        self.assertFalse(value_satisfies(upper, {'tiles': 'Az'}))
+        self.assertTrue(value_satisfies(words, {'words': ['abc', 'xyz']}))
+        self.assertFalse(value_satisfies(words, {'words': ['abc', 'X']}))
+        self.assertFalse(value_satisfies(words, {'words': 'abc'}))
+        self.assertIsNone(parse_extra('words[i] consists of lowercase English letters.', ['words', 'i']))
         self.assertIsNone(parse_extra('1 <= x <= __import__("os").system("true")', ['x']))
         self.assertIsNone(parse_extra('1 <= x <= 10^100000', ['x']))
         self.assertIsNone(parse_extra('n == nums.length', ['nums']))
+
+    def test_explicit_unique_and_ordered_rules(self):
+        names = ['nums', 'days']
+        unique = parse_extra('All the elements of `nums` are **unique**.', names)
+        ordered = parse_extra('`days` is in strictly increasing order.', names)
+        self.assertTrue(value_satisfies(unique, {'nums': [1, 2]}))
+        self.assertFalse(value_satisfies(unique, {'nums': [1, 1]}))
+        self.assertTrue(value_satisfies(ordered, {'days': [1, 2]}))
+        self.assertFalse(value_satisfies(ordered, {'days': [1, 1]}))
+        self.assertIsNone(parse_extra('The largest element in nums is unique.', names))
 
     def test_explicit_length_alias_is_bound_from_input(self):
         content = {'problem': {'signature': {'parameters': [{'name': 'nums'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums.length'}, {'kind': 'prose', 'text': '1 <= n <= 3'}]}, 'hiddenCases': [{'args': [[1, 2]], 'expected': 1}, {'args': [[1, 2, 3, 4]], 'expected': 2}], 'implementations': [{'referenceSource': 'pass'}]}
@@ -64,6 +109,16 @@ class QualityTest(unittest.TestCase):
         self.assertEqual(len(report['cases']), 1)
         self.assertEqual(report['unsupported'], [])
         self.assertEqual(report['rejected'][0]['reason'], 'violates parsed constraint')
+
+    def test_element_bounds_and_chained_length_aliases(self):
+        content = {'problem': {'signature': {'parameters': [{'name': 'nums1'}, {'name': 'nums2'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums1.length == nums2.length'}, {'kind': 'prose', 'text': '1 <= nums1[i] <= n'}]}, 'hiddenCases': [{'args': [[1, 2], [3, 4]], 'expected': 1}, {'args': [[1, 3], [3, 4]], 'expected': 2}, {'args': [[1, 2], [3]], 'expected': 3}], 'implementations': [{'referenceSource': 'pass'}]}
+        report = assess(content)
+        self.assertEqual(len(report['cases']), 1)
+        self.assertEqual(len(report['rejected']), 2)
+        self.assertEqual(report['unsupported'], [])
+        self.assertIsNone(parse_extra('nums1[i] < nums1[j]', ['nums1']))
+        self.assertIsNone(parse_extra('manager[headID] == -1', ['manager', 'headID']))
+        self.assertIsNone(parse_extra('nums1[i] == 1', ['nums1', 'i']))
 
     def test_fractional_values_respect_integer_bounds(self):
         rule = parse_bound('1 <= hour <= 10^9', ['hour'])

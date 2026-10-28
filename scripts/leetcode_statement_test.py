@@ -32,6 +32,40 @@ class StatementTest(unittest.TestCase):
             format_question(original, html)
         self.assertEqual(original['problem']['statementMarkdown'], 'old')
 
+    def test_ordinal_suffixes_are_readable_and_exponents_remain(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>The <code>i<sup>th</sup></code> and 1<sup>st </sup>value are below 10<sup>5</sup>.</p><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2\nExplanation: The 2<sup>nd</sup> value.</pre><p><strong>Constraints:</strong></p><p>None.</p>'
+        result = format_question(content, html)['problem']
+        self.assertIn('`ith` and 1st value are below 10^5', result['statementMarkdown'])
+        self.assertEqual(result['examples'][0]['explanation'], 'The 2nd value.')
+
+    def test_superscript_expression_keeps_its_grouping(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>There are <code>2<sup>n - 1</sup></code> values.</p><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2</pre><p><strong>Constraints:</strong></p><ul><li><code>1 &lt;= k &lt;= 2<sup>n - 1</sup></code></li></ul>'
+        result = format_question(content, html)['problem']
+        self.assertIn('`2^(n - 1)`', result['statementMarkdown'])
+        self.assertEqual(result['constraints'][0]['text'], '`1 <= k <= 2^(n - 1)`')
+
+    def test_list_whitespace_and_nesting(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>Choices:</p><ul>\n\t<li>First</li>\n\t<li>Second\n\t<ol>\n<li>Inner A</li>\n<li>Inner B</li></ol></li>\n<li>Third</li></ul><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2</pre><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
+        result = format_question(content, html)['problem']
+        self.assertIn('- First\n- Second\n  1. Inner A\n  2. Inner B\n- Third', result['statementMarkdown'])
+
+    def test_list_paragraph_does_not_become_a_code_block(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>Intro.</p><ul><li>First<p>\n\tContinuation.</p></li></ul><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2</pre><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
+        result = format_question(content, html)['problem']
+        self.assertIn('  Continuation.', result['statementMarkdown'])
+        self.assertNotIn('\t', result['statementMarkdown'])
+
+    def test_currency_does_not_start_math(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>Pay $2 or <code>$3</code>.</p><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2\nExplanation: Pay $2, then $7.</pre><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
+        result = format_question(content, html)['problem']
+        self.assertIn(r'Pay \$2 or `$3`', result['statementMarkdown'])
+        self.assertEqual(result['examples'][0]['explanation'], r'Pay \$2, then \$7.')
+
     def test_multiline_explanation_and_table_are_retained(self):
         content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
         html = '<p><code>x</code> is a value.</p><p><strong>Example 1:</strong></p><div><p><strong>Input:</strong> x = 1</p><p><strong>Output:</strong> 2</p><p><strong>Explanation:</strong> See below.</p></div><table><tr><th>x</th><th>y</th></tr><tr><td>1</td><td>2</td></tr></table><p><strong>Constraints:</strong></p><p>None.</p>'
