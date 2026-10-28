@@ -80,7 +80,7 @@ func TestInterviewRequiredWakeValidatesCommandAndBoundsAdmission(t *testing.T) {
 				}
 				return nil
 			}}
-			request := httptest.NewRequest("POST", "/v1/interviews/room/submissions", bytes.NewBufferString(`{"kind":"`+kind+`","questionEpoch":"00000000-0000-4000-8000-000000000001","documentEpoch":"00000000-0000-4000-8000-000000000002","sourceHash":"`+strings.Repeat("a", 64)+`"}`))
+			request := httptest.NewRequest("POST", "/v1/interviews/room/submissions", bytes.NewBufferString(`{"kind":"`+kind+`","level":1,"questionEpoch":"00000000-0000-4000-8000-000000000001","documentEpoch":"00000000-0000-4000-8000-000000000002","sourceHash":"`+strings.Repeat("a", 64)+`"}`))
 			request.Header.Set("Idempotency-Key", "retry-command")
 			request.Header.Set("X-Quorem-Owner", "alice")
 			response := httptest.NewRecorder()

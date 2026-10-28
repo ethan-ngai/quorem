@@ -349,7 +349,7 @@ func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 	if !s.decode(w, r, &c, execution.MaxCustomCasesBytes+512*1024) {
 		return
 	}
-	if (c.Kind != "run" && c.Kind != "submit") || !validExecutionCases(c.Kind, c.CustomCases) || !uuid.MatchString(c.QuestionEpoch) || !uuid.MatchString(c.DocumentEpoch) || !sourceHash.MatchString(c.SourceHash) {
+	if (c.Kind != "run" && c.Kind != "submit") || !validExecutionCases(c.Kind, c.CustomCases) || c.Level < 1 || !uuid.MatchString(c.QuestionEpoch) || !uuid.MatchString(c.DocumentEpoch) || !sourceHash.MatchString(c.SourceHash) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid execution command"})
 		return
 	}

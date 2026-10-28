@@ -15,7 +15,7 @@ func TestInterviewAdmissionFencesSourceAndQuestionButReplaysPriorJob(t *testing.
 	if _, err := s.JoinInterview(ctx, "bob", strings.TrimPrefix(room.InvitePath, "/interview-invite/"), "", ""); err != nil {
 		t.Fatal(err)
 	}
-	command := interviews.ExecutionCommand{Kind: "run", QuestionEpoch: room.QuestionEpoch, DocumentEpoch: room.Document.Epoch, SourceHash: Hash([]byte(room.Document.Source))}
+	command := interviews.ExecutionCommand{Level: 1, Kind: "run", QuestionEpoch: room.QuestionEpoch, DocumentEpoch: room.Document.Epoch, SourceHash: Hash([]byte(room.Document.Source))}
 	changed := room.Document.Source + "\n# concurrent edit\n"
 	if _, err := s.Pool.Exec(ctx, `UPDATE interviews SET source=$2,document_version=document_version+1 WHERE id=$1`, room.ID, changed); err != nil {
 		t.Fatal(err)

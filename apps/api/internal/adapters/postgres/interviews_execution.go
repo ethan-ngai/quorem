@@ -53,14 +53,16 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key string, comman
 	level := 1
 	var progressScope any
 	if v.fixture.Problem.Odyssey != nil {
-		level, _, err = interviewProgress(ctx, tx, v)
-		if err != nil {
-			return out, err
-		}
 		progressScope = v.snapshot.QuestionEpoch
 		if _, err = tx.Exec(ctx, `INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, progressScope, v.fixture.Problem.ID); err != nil {
 			return out, err
 		}
+		if err = tx.QueryRow(ctx, `SELECT level FROM odyssey_progress WHERE scope_id=$1 AND problem_version_id=$2 FOR UPDATE`, progressScope, v.fixture.Problem.ID).Scan(&level); err != nil {
+			return out, err
+		}
+	}
+	if command.Level != level {
+		return out, failure("stage_changed", 409, "Stage changed; refresh before running")
 	}
 	cases, err := executionCases(&v.fixture, level, kind, customCases, true)
 	if err != nil {

@@ -12,6 +12,7 @@ const messages: Record<string, string> = {
   invalid_transition: "This interview changed. Refresh and try again.",
   rate_limited: "Too many requests. Try again shortly.",
   stale_version: "The shared document changed. Synchronizing…",
+  stage_changed: "The stage changed. Try again after it refreshes.",
   invalid_input: "Check the question and test values, then try again.",
 };
 

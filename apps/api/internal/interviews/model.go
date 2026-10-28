@@ -20,6 +20,7 @@ type CustomQuestion struct {
 }
 type ExecutionCommand struct {
 	Kind          string          `json:"kind"`
+	Level         int             `json:"level"`
 	CustomCases   []problems.Case `json:"customCases,omitempty"`
 	QuestionEpoch string          `json:"questionEpoch"`
 	DocumentEpoch string          `json:"documentEpoch"`

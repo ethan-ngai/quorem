@@ -27,7 +27,7 @@ import { languageFileNames, type EditorLanguage } from "../editor/editorLanguage
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { useErrorNotification } from "../../ui/Notifications";
-import { interviewRequest } from "./api";
+import { InterviewError, interviewRequest } from "./api";
 import { createCollaboration, type CollaborationStatus } from "./collaboration";
 import { QuestionSetup } from "./QuestionSetup";
 import type { DevelopmentIdentity } from "@quorem/contracts";
@@ -266,6 +266,7 @@ function InterviewPad({
       const command = {
         kind,
         customCases,
+        level: snapshot.question.progress?.level ?? 1,
         questionEpoch: initial.questionEpoch,
         documentEpoch: initial.document.epoch,
         sourceHash,
@@ -304,6 +305,8 @@ function InterviewPad({
       queryClient.setQueryData(["interview-result", id, submission.id, resultAccess], submission);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
+      if (cause instanceof InterviewError && cause.code === "stage_changed")
+        await queryClient.invalidateQueries({ queryKey: ["interview", id] });
       setError(userFacingErrorMessage(cause, "Could not run code. Try again."));
     } finally {
       setAdmitting(false);

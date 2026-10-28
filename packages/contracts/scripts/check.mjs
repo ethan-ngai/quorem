@@ -97,6 +97,7 @@ const validateInterviewExecution = ajv.compile(
 );
 const interviewExecution = {
   kind: "run",
+  level: 1,
   questionEpoch: "00000000-0000-4000-8000-000000000001",
   documentEpoch: "00000000-0000-4000-8000-000000000002",
   sourceHash: "a".repeat(64),
@@ -105,7 +106,7 @@ assert(
   validateInterviewExecution(interviewExecution),
   JSON.stringify(validateInterviewExecution.errors),
 );
-for (const field of ["questionEpoch", "documentEpoch", "sourceHash"]) {
+for (const field of ["level", "questionEpoch", "documentEpoch", "sourceHash"]) {
   assert(!validateInterviewExecution({ ...interviewExecution, [field]: undefined }), field);
 }
 assert(!validateInterviewExecution({ ...interviewExecution, sourceHash: "invalid" }));

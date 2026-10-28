@@ -33,7 +33,7 @@ func TestExecutionCaseBounds(t *testing.T) {
 func TestInterviewAdmissionAcceptsBoundedLargeCustomCases(t *testing.T) {
 	repo := &wakeInterviewRepository{interviewRepositoryFake: &interviewRepositoryFake{}}
 	api := &Server{Store: repo}
-	body, err := json.Marshal(map[string]any{"kind": "run", "questionEpoch": "00000000-0000-4000-8000-000000000001", "documentEpoch": "00000000-0000-4000-8000-000000000002", "sourceHash": strings.Repeat("a", 64), "customCases": []any{map[string]any{"args": []string{strings.Repeat("a", 4096)}}}})
+	body, err := json.Marshal(map[string]any{"kind": "run", "level": 1, "questionEpoch": "00000000-0000-4000-8000-000000000001", "documentEpoch": "00000000-0000-4000-8000-000000000002", "sourceHash": strings.Repeat("a", 64), "customCases": []any{map[string]any{"args": []string{strings.Repeat("a", 4096)}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

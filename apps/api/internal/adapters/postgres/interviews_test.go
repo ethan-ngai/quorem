@@ -272,6 +272,17 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 	if err != nil || first.Question.Progress.Level != 1 || len(first.Question.Progress.Levels) != 1 {
 		t.Fatal("initial progress", first, err)
 	}
+	staleCommand := interviews.ExecutionCommand{Kind: "run", Level: 1, QuestionEpoch: v.QuestionEpoch, DocumentEpoch: v.Document.Epoch, SourceHash: Hash([]byte(v.Document.Source))}
+	retryKey := ID()
+	prior, err := s.AdmitInterview(ctx, "bob", v.ID, retryKey, staleCommand)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err = s.Claim(ctx)
+	if err != nil || job.SubmissionID != prior.ID {
+		t.Fatal("claim run", job, err)
+	}
+	finishInterviewJob(t, s, job, 2, 2)
 	submit := func(passed, total int, finish bool) execution.Job {
 		t.Helper()
 		if _, err = s.Pool.Exec(ctx, `UPDATE users SET admission_tokens=2 WHERE id='bob'`); err != nil {
@@ -298,6 +309,13 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 	next, err := s.Interview(ctx, "alice", v.ID)
 	if err != nil || next.Question.Progress.Level != 2 || len(next.Question.Progress.Levels) != 2 || next.Document.Source != v.Document.Source {
 		t.Fatal("shared unlock/source retained", next, err)
+	}
+	if _, err = s.AdmitInterview(ctx, "bob", v.ID, ID(), staleCommand); errorCode(err) != "stage_changed" {
+		t.Fatalf("stale stage: %v", err)
+	}
+	replayed, err := s.AdmitInterview(ctx, "bob", v.ID, retryKey, staleCommand)
+	if err != nil || replayed.ID != prior.ID {
+		t.Fatalf("stage retry: %+v %v", replayed, err)
 	}
 	submit(2, 4, true)
 	next, err = s.Interview(ctx, "bob", v.ID)
