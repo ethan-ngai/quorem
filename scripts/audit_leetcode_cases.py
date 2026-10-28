@@ -101,9 +101,10 @@ def parse_extra(rule, names):
     ordered = re.fullmatch(r'([A-Za-z_]\w*) is (?:in )?(?:a )?(?:(strictly) increasing(?: order)?|sorted(?: in (?:a )?(ascending|non-decreasing)(?: order)?)?)\.?', plain, re.I)
     if ordered and ordered.group(1) in names:
         return ('ordered', ordered.group(1), bool(ordered.group(2)))
-    alphabet = re.fullmatch(r'([A-Za-z_]\w*)\s+(?:consists of|consists only of|consists|contains)\s+(?:only |of only |of )?(?:English lowercase|lowercase English) letters(?: only)?\.?', text, re.I)
+    alphabet = re.fullmatch(r'([A-Za-z_]\w*)(\[i\])?\s+(?:consists of|consists only of|consists|contains)\s+(?:only |of only |of )?(?:English (lowercase|uppercase)|(lowercase|uppercase) English) letters(?: only)?\.?', text, re.I)
     if alphabet and alphabet.group(1) in names:
-        return ('alphabet', alphabet.group(1))
+        if alphabet.group(2) and 'i' in names: return None
+        return ('alphabet', alphabet.group(1), bool(alphabet.group(2)), (alphabet.group(3) or alphabet.group(4)).lower())
     row = re.fullmatch(r'([A-Za-z_]\w*)\[i\]\.length\s*==\s*(\d+)', text)
     if row and row.group(1) in names:
         return ('row-length', row.group(1), int(row.group(2)))
@@ -159,8 +160,11 @@ def extra_satisfies(rule, arguments):
         except TypeError:
             return False
     if rule[0] == 'alphabet':
-        value = arguments[rule[1]]
-        return isinstance(value, str) and all('a' <= c <= 'z' for c in value)
+        value = arguments.get(rule[1])
+        values = value if rule[2] and isinstance(value, list) else [value] if not rule[2] else None
+        if values is None: return False
+        lo, hi = ('a', 'z') if rule[3] == 'lowercase' else ('A', 'Z')
+        return all(isinstance(item, str) and all(lo <= c <= hi for c in item) for item in values)
     if rule[0] == 'row-length':
         value = arguments[rule[1]]
         return isinstance(value, list) and all(isinstance(row, (list, str)) and len(row) == rule[2] for row in value)
