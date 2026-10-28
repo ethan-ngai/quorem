@@ -278,7 +278,11 @@ func validSQLResultValue(kind string, raw json.RawMessage) bool {
 		if json.Unmarshal(raw, &value) != nil {
 			return false
 		}
-		_, err := strconv.ParseFloat(value.String(), 64)
+		bits := 64
+		if kind == "real" {
+			bits = 32
+		}
+		_, err := strconv.ParseFloat(value.String(), bits)
 		return err == nil
 	}
 	if kind == "bigint" {

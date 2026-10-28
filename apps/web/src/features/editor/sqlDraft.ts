@@ -84,9 +84,14 @@ function cell(value: unknown, type: string, output: boolean): unknown {
     return output ? { $numeric: source } : source;
   }
   if (type === "real" || type === "double precision") {
-    if (!source.trim() || !Number.isFinite(Number(source)))
-      throw new Error("Enter a valid number.");
-    return Number(source);
+    const number = Number(source);
+    if (
+      !source.trim() ||
+      !Number.isFinite(number) ||
+      (type === "real" && !Number.isFinite(Math.fround(number)))
+    )
+      throw new Error("Enter a valid number in range.");
+    return number;
   }
   if (type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(source)) throw new Error("Use YYYY-MM-DD.");
   if (

@@ -139,3 +139,19 @@ func TestSQLTimestampsNormalizeByColumnType(t *testing.T) {
 		t.Fatal("invalid timestamp accepted")
 	}
 }
+
+func TestSQLRealExpectedValuesFitColumnPrecision(t *testing.T) {
+	for _, test := range []struct {
+		kind, value string
+		valid       bool
+	}{
+		{"real", "3.4028235e38", true},
+		{"real", "3.5e38", false},
+		{"double precision", "3.5e38", true},
+		{"double precision", "1e309", false},
+	} {
+		if got := validSQLResultValue(test.kind, json.RawMessage(test.value)); got != test.valid {
+			t.Errorf("%s %s: got %v", test.kind, test.value, got)
+		}
+	}
+}

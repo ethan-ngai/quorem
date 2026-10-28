@@ -73,3 +73,17 @@ describe("SQL custom table drafts", () => {
     ).toThrow("wrong number of cells");
   });
 });
+
+it("rejects real output beyond PostgreSQL's float32 range", () => {
+  const realProblem = {
+    ...problem,
+    sql: { ...problem.sql!, output: [{ name: "value", type: "real" as const }] },
+  };
+  const setup = JSON.stringify({ tables: [{ name: "items", rows: [] }] });
+  expect(() => normalizeSqlDraft(realProblem, setup, JSON.stringify({ rows: [[3.5e38]] }))).toThrow(
+    "in range",
+  );
+  expect(() =>
+    normalizeSqlDraft(realProblem, setup, JSON.stringify({ rows: [[3.4e38]] })),
+  ).not.toThrow();
+});

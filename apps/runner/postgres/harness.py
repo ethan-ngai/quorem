@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import json
+import math
 import os
 import subprocess
 import sys
@@ -73,8 +74,11 @@ def main():
                 else:
                     columns = [column.name for column in cursor.description]
                     rows = cursor.fetchmany(10001)
-                    rows = [[{"$bigint": str(value)} if isinstance(value, int) and not isinstance(value, bool) and (value > 2147483647 or value < -2147483648) else value for value in row] for row in rows]
-                    result = {"status": "executed", "actual": {"columns": columns, "rows": rows}, "sqlTypes": [OUTPUT_TYPE_NAMES[column.type_code] for column in cursor.description]}
+                    if any(isinstance(value, float) and not math.isfinite(value) for row in rows for value in row):
+                        result = {"status": "invalid_output", "stderr": "The query returned a non-finite number."}
+                    else:
+                        rows = [[{"$bigint": str(value)} if isinstance(value, int) and not isinstance(value, bool) and (value > 2147483647 or value < -2147483648) else value for value in row] for row in rows]
+                        result = {"status": "executed", "actual": {"columns": columns, "rows": rows}, "sqlTypes": [OUTPUT_TYPE_NAMES[column.type_code] for column in cursor.description]}
             except psycopg2.Error as error:
                 message = (error.diag.message_primary or "The query could not be executed.")[:1024]
                 result = {"status": "syntax_error" if error.pgcode == "42601" else "runtime_error", "stderr": message}
