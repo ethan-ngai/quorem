@@ -8,7 +8,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
@@ -337,11 +336,8 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		return f, failure("invalid_input", 400, "Choose an existing question or custom question")
 	}
 	if q.Custom == nil {
-		if _, err := s.Problem(identity.With(ctx, identity.Principal{UserID: actor}), q.ProblemVersionID, true); err != nil {
-			return f, err
-		}
 		var data []byte
-		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+` FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id::text=$1 AND p.current_version_id=selected.id`, q.ProblemVersionID).Scan(&data)
+		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+` FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id::text=$1 AND p.current_version_id=selected.id AND (p.owner_id IS NULL OR p.owner_id=$2)`, q.ProblemVersionID, actor).Scan(&data)
 		if err == pgx.ErrNoRows {
 			return f, failure("not_found", 404, "Question unavailable")
 		}
@@ -351,15 +347,8 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		if err = json.Unmarshal(data, &f); err != nil {
 			return f, err
 		}
-		p, err := s.Problem(identity.With(ctx, identity.Principal{UserID: actor}), q.ProblemVersionID, true)
-		if err != nil {
-			return f, err
-		}
-		fullOdyssey := f.Problem.Odyssey
-		f.Problem = p
-		f.Problem.Odyssey = fullOdyssey
 		found := false
-		for _, lang := range p.Languages {
+		for _, lang := range f.Problem.Languages {
 			if lang.Language == q.Language {
 				found = true
 				f.Problem.StarterSource = lang.StarterSource
