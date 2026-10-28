@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -276,7 +277,7 @@ func TestCancellationIdempotencyAndExpiredCrashBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := store.CancelWithKey(ctx, "alice", v.ID, "cancel")
+	first, err := store.CancelWithKey(ctx, "alice", strings.ToUpper(v.ID), "cancel")
 	if err != nil || first.State != "cancelled" {
 		t.Fatal(first, err)
 	}
