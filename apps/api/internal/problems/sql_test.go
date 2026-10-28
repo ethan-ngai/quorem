@@ -2,7 +2,11 @@ package problems
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
 func TestSQLResultsPreserveDuplicatesAndOrdering(t *testing.T) {
@@ -153,5 +157,80 @@ func TestSQLRealExpectedValuesFitColumnPrecision(t *testing.T) {
 		if got := validSQLResultValue(test.kind, json.RawMessage(test.value)); got != test.valid {
 			t.Errorf("%s %s: got %v", test.kind, test.value, got)
 		}
+	}
+}
+
+func sqlQuestionForValidation(t *testing.T, staged bool) QuestionContent {
+	t.Helper()
+	var c QuestionContent
+	if err := json.Unmarshal([]byte(`{"problem":{"slug":"sql-example","title":"SQL example","difficulty":"easy","statementMarkdown":"Query items","sql":{"dialect":"postgresql","outputOrder":"unordered","tables":[{"name":"items","columns":[{"name":"id","type":"integer"}]}],"output":[{"name":"id","type":"integer"}]}},"attribution":"Example"}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	c.Problem.Limits = execution.DefaultLimits()
+	var test Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[[1]]}]}],"expected":{"rows":[[1]]}}`), &test); err != nil {
+		t.Fatal(err)
+	}
+	if staged {
+		c.Problem.Odyssey = &Odyssey{Levels: []OdysseyLevel{{Title: "First", StatementMarkdown: "Query items", Examples: []ProblemExample{{Case: test}}}}}
+		c.OdysseyHiddenCases = [][]Case{{test}}
+	} else {
+		c.Problem.Examples = []ProblemExample{{Case: test}}
+		c.HiddenCases = []Case{test}
+	}
+	runtime, _ := execution.LanguageRuntime("postgresql")
+	c.Implementations = []AuthoringImplementation{{LanguageImplementation: LanguageImplementation{Language: "postgresql", StarterSource: "SELECT id FROM items", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness}, ReferenceSource: "SELECT id FROM items"}}
+	return c
+}
+
+func TestSQLQuestionConstraints(t *testing.T) {
+	for _, staged := range []bool{false, true} {
+		for _, tc := range []struct {
+			name       string
+			constraint Constraint
+			valid      bool
+		}{
+			{"prose", Constraint{Kind: "prose", Text: "Only active items are included."}, true},
+			{"empty prose", Constraint{Kind: "prose", Text: " \t"}, false},
+			{"prose with target", Constraint{Kind: "prose", Text: "Informational", Target: &ConstraintTarget{Parameter: "items", Projection: "length"}}, false},
+			{"structured", Constraint{Kind: "range", Target: &ConstraintTarget{Parameter: "items", Projection: "length"}}, false},
+			{"unknown", Constraint{Kind: "unknown"}, false},
+		} {
+			t.Run(fmt.Sprintf("staged=%t/%s", staged, tc.name), func(t *testing.T) {
+				c := sqlQuestionForValidation(t, staged)
+				c.Problem.Constraints = []Constraint{tc.constraint}
+				for _, validate := range []func(QuestionContent) error{func(c QuestionContent) error { return ValidateQuestionDefinition(c, true) }, ValidateQuestionPublication} {
+					if err := validate(c); (err == nil) != tc.valid {
+						t.Fatalf("valid=%t: %v", tc.valid, err)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestOdysseyLevelMetadataConsistentAcrossQuestionTypes(t *testing.T) {
+	for _, tc := range []struct {
+		name, title, statement string
+		valid                  bool
+	}{
+		{"valid", "First", "A stage", true},
+		{"blank title", " \t", "A stage", false},
+		{"long title", strings.Repeat("x", 161), "A stage", false},
+		{"blank statement", "First", " \n", false},
+		{"long statement", "First", strings.Repeat("x", 65537), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sql := sqlQuestionForValidation(t, true)
+			sql.Problem.Odyssey.Levels[0].Title, sql.Problem.Odyssey.Levels[0].StatementMarkdown = tc.title, tc.statement
+			if err := ValidateQuestionPublication(sql); (err == nil) != tc.valid {
+				t.Fatalf("SQL valid=%t: %v", tc.valid, err)
+			}
+			coding := odysseyContent(t)
+			coding.Problem.Odyssey.Levels[0].Title, coding.Problem.Odyssey.Levels[0].StatementMarkdown = tc.title, tc.statement
+			if err := ValidateQuestionPublication(coding); (err == nil) != tc.valid {
+				t.Fatalf("coding valid=%t: %v", tc.valid, err)
+			}
+		})
 	}
 }

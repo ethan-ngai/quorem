@@ -22,6 +22,7 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[[1]]}]}],"expected":{"rows":[[1]]}}`), &test); err != nil {
 		t.Fatal(err)
 	}
+	c.Problem.Constraints = []problems.Constraint{{Kind: "prose", Text: "Each item has an ID."}}
 	c.Problem.Slug = "sql-test"
 	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered", Tables: []problems.SQLTableSchema{{Name: "items", Columns: []problems.SQLColumn{{Name: "id", Type: "integer"}}}}, Output: []problems.SQLColumn{{Name: "id", Type: "integer"}}}
 	c.Problem.Odyssey = nil
@@ -152,6 +153,7 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Problem.Slug = "private-sql"
+	c.Problem.Constraints = []problems.Constraint{{Kind: "prose", Text: "Each item has an ID."}}
 	c.Problem.SQL = &problems.SQLConfig{Dialect: "postgresql", OutputOrder: "unordered", Tables: []problems.SQLTableSchema{{Name: "items", Columns: []problems.SQLColumn{{Name: "id", Type: "integer"}}}}, Output: []problems.SQLColumn{{Name: "id", Type: "integer"}}}
 	c.Problem.Odyssey = nil
 	c.Problem.Examples = []problems.ProblemExample{{Case: test}}
