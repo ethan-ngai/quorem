@@ -44,7 +44,7 @@ type InterviewRepository interface {
 	InterviewDocument(context.Context, string, string) (interviews.Document, error)
 	InterviewUpdates(context.Context, string, string, string, int64) (interviews.Updates, error)
 	PushInterviewUpdates(context.Context, string, string, string, interviews.Push) (interviews.Updates, error)
-	AdmitInterview(context.Context, string, string, string, string, []problems.Case) (judging.Submission, error)
+	AdmitInterview(context.Context, string, string, string, interviews.ExecutionCommand) (judging.Submission, error)
 	InterviewSubmission(context.Context, string, string, string) (judging.Submission, error)
 }
 
@@ -345,14 +345,11 @@ func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 	if key == "" {
 		return
 	}
-	var c struct {
-		Kind        string          `json:"kind"`
-		CustomCases []problems.Case `json:"customCases,omitempty"`
-	}
+	var c interviews.ExecutionCommand
 	if !s.decode(w, r, &c, execution.MaxCustomCasesBytes+512*1024) {
 		return
 	}
-	if (c.Kind != "run" && c.Kind != "submit") || !validExecutionCases(c.Kind, c.CustomCases) {
+	if (c.Kind != "run" && c.Kind != "submit") || !validExecutionCases(c.Kind, c.CustomCases) || !uuid.MatchString(c.QuestionEpoch) || !uuid.MatchString(c.DocumentEpoch) || !sourceHash.MatchString(c.SourceHash) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid execution command"})
 		return
 	}
@@ -361,7 +358,7 @@ func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer cancel()
-	v, e := repo.AdmitInterview(ctx, owner(r), r.PathValue("id"), key, c.Kind, c.CustomCases)
+	v, e := repo.AdmitInterview(ctx, owner(r), r.PathValue("id"), key, c)
 	if e != nil {
 		s.err(w, r, e)
 		return

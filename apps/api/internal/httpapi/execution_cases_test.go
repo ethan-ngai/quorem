@@ -33,7 +33,7 @@ func TestExecutionCaseBounds(t *testing.T) {
 func TestInterviewAdmissionAcceptsBoundedLargeCustomCases(t *testing.T) {
 	repo := &wakeInterviewRepository{interviewRepositoryFake: &interviewRepositoryFake{}}
 	api := &Server{Store: repo}
-	body, err := json.Marshal(map[string]any{"kind": "run", "customCases": []any{map[string]any{"args": []string{strings.Repeat("a", 4096)}}}})
+	body, err := json.Marshal(map[string]any{"kind": "run", "questionEpoch": "00000000-0000-4000-8000-000000000001", "documentEpoch": "00000000-0000-4000-8000-000000000002", "sourceHash": strings.Repeat("a", 64), "customCases": []any{map[string]any{"args": []string{strings.Repeat("a", 4096)}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,5 +44,23 @@ func TestInterviewAdmissionAcceptsBoundedLargeCustomCases(t *testing.T) {
 	api.admitInterview(response, request)
 	if response.Code != 202 || repo.calls != 1 {
 		t.Fatalf("status=%d calls=%d body=%s", response.Code, repo.calls, response.Body.String())
+	}
+}
+
+func TestInterviewAdmissionRequiresDocumentFence(t *testing.T) {
+	for _, body := range []string{
+		`{"kind":"run"}`,
+		`{"kind":"run","questionEpoch":"00000000-0000-4000-8000-000000000001","documentEpoch":"00000000-0000-4000-8000-000000000002","sourceHash":"invalid"}`,
+	} {
+		repo := &wakeInterviewRepository{interviewRepositoryFake: &interviewRepositoryFake{}}
+		api := &Server{Store: repo}
+		request := httptest.NewRequest("POST", "/v1/interviews/room/submissions", strings.NewReader(body))
+		request.Header.Set("Idempotency-Key", "retry-command")
+		request.Header.Set("X-Quorem-Owner", "alice")
+		response := httptest.NewRecorder()
+		api.admitInterview(response, request)
+		if response.Code != 400 || repo.calls != 0 {
+			t.Fatalf("status=%d calls=%d", response.Code, repo.calls)
+		}
 	}
 }

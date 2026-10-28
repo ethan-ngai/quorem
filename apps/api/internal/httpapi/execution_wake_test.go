@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
-	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 )
 
 func TestRequiredWakePrecedesAdmissionAndPreventsOrphanCommit(t *testing.T) {
@@ -55,7 +56,7 @@ type wakeInterviewRepository struct {
 	deadline time.Duration
 }
 
-func (r *wakeInterviewRepository) AdmitInterview(ctx context.Context, _, _, _, kind string, _ []problems.Case) (judging.Submission, error) {
+func (r *wakeInterviewRepository) AdmitInterview(ctx context.Context, _, _, _ string, command interviews.ExecutionCommand) (judging.Submission, error) {
 	r.calls++
 	at, ok := ctx.Deadline()
 	if !ok {
@@ -79,7 +80,7 @@ func TestInterviewRequiredWakeValidatesCommandAndBoundsAdmission(t *testing.T) {
 				}
 				return nil
 			}}
-			request := httptest.NewRequest("POST", "/v1/interviews/room/submissions", bytes.NewBufferString(`{"kind":"`+kind+`"}`))
+			request := httptest.NewRequest("POST", "/v1/interviews/room/submissions", bytes.NewBufferString(`{"kind":"`+kind+`","questionEpoch":"00000000-0000-4000-8000-000000000001","documentEpoch":"00000000-0000-4000-8000-000000000002","sourceHash":"`+strings.Repeat("a", 64)+`"}`))
 			request.Header.Set("Idempotency-Key", "retry-command")
 			request.Header.Set("X-Quorem-Owner", "alice")
 			response := httptest.NewRecorder()

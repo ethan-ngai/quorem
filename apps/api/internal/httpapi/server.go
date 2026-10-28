@@ -36,6 +36,7 @@ type Server struct {
 	Local                bool
 }
 
+var sourceHash = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 func (s *Server) Handler() http.Handler {

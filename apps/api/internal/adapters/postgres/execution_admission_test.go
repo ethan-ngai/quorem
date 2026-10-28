@@ -56,7 +56,7 @@ func TestExecutionAdmissionPoliciesAcrossRoomTypes(t *testing.T) {
 				if mode == "workspace" {
 					result, err = s.Admit(ctx, "bob", ID(), judging.Command{WorkspaceID: workspace, Kind: "run", Source: "source"}, "body")
 				} else {
-					result, err = s.AdmitInterview(ctx, "bob", room, ID(), "run", nil)
+					result, err = admitInterviewForTest(s, ctx, "bob", room, ID(), "run", nil)
 				}
 				if (policy.code == "" && err != nil) || errorCode(err) != policy.code {
 					t.Fatalf("want %s, got %v", policy.code, err)
@@ -88,7 +88,7 @@ func TestConcurrentInterviewAndWorkspaceShareOwnerSlot(t *testing.T) {
 	go func() {
 		defer group.Done()
 		<-start
-		_, err := s.AdmitInterview(ctx, "bob", room, ID(), "run", nil)
+		_, err := admitInterviewForTest(s, ctx, "bob", room, ID(), "run", nil)
 		results <- err
 	}()
 	close(start)

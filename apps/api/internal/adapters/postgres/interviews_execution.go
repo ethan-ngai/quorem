@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
-	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 )
 
 // Interview admission snapshots persisted source under its document lock; private fixtures remain owner-scoped.
-func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, customCases []problems.Case) (judging.Submission, error) {
+func (s *Store) AdmitInterview(ctx context.Context, user, id, key string, command interviews.ExecutionCommand) (judging.Submission, error) {
 	var out judging.Submission
+	kind, customCases := command.Kind, command.CustomCases
 	if kind != "run" && kind != "submit" {
 		return out, failure("invalid_input", 400, "Choose run or submit")
 	}
@@ -29,10 +30,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 		return out, err
 	}
 
-	hash := interviewFingerprint(id+":submission", struct {
-		Kind  string
-		Cases []problems.Case
-	}{kind, customCases})
+	hash := interviewFingerprint(id+":submission", command)
 	prior, data, err := priorInterviewOperation(ctx, tx, user, key, hash)
 	if err != nil {
 		return out, err
@@ -45,6 +43,12 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 			return out, err
 		}
 		return s.submission(ctx, tx, user, stored.SubmissionID)
+	}
+	if command.QuestionEpoch != v.snapshot.QuestionEpoch {
+		return out, failure("document_changed", 409, "Question changed; open its current document")
+	}
+	if command.DocumentEpoch != v.snapshot.Document.Epoch || command.SourceHash != Hash([]byte(v.snapshot.Document.Source)) {
+		return out, failure("document_changed", 409, "Document changed; synchronize and retry")
 	}
 	level := 1
 	var progressScope any

@@ -90,7 +90,7 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 	if _, err = s.JoinInterview(ctx, "bob", strings.TrimPrefix(v.InvitePath, "/interview-invite/"), "", ""); err != nil {
 		t.Fatal(err)
 	}
-	sub, err := s.AdmitInterview(ctx, "alice", v.ID, ID(), "submit", nil)
+	sub, err := admitInterviewForTest(s, ctx, "alice", v.ID, ID(), "submit", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 	if advanced.Question.PrivateCaseDetails[0].Status != "accepted" || advanced.Question.PrivateCaseDetails[1].Status != "" {
 		t.Fatal("private prefix", advanced.Question.PrivateCaseDetails)
 	}
-	if _, err = s.AdmitInterview(ctx, "bob", v.ID, ID(), "run", nil); err != nil {
+	if _, err = admitInterviewForTest(s, ctx, "bob", v.ID, ID(), "run", nil); err != nil {
 		t.Fatal(err)
 	}
 	pending, err := s.Interview(ctx, "bob", v.ID)

@@ -2249,6 +2249,9 @@
                     "type": "string",
                     "enum": ["run", "submit"]
                   },
+                  "questionEpoch": { "type": "string", "format": "uuid" },
+                  "documentEpoch": { "type": "string", "format": "uuid" },
+                  "sourceHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
                   "customCases": {
                     "type": "array",
                     "minItems": 1,
@@ -2256,7 +2259,7 @@
                     "items": { "$ref": "#/components/schemas/CustomCase" }
                   }
                 },
-                "required": ["kind"],
+                "required": ["kind", "questionEpoch", "documentEpoch", "sourceHash"],
                 "additionalProperties": false
               }
             }

@@ -262,20 +262,20 @@ function InterviewPad({
         );
       }
       const recoveryKey = `quorem.interview-execution.v1.${id}`;
-      const fingerprint = await sha256(
-        JSON.stringify({
-          questionEpoch: initial.questionEpoch,
-          documentEpoch: initial.document.epoch,
-          source: editor.current?.getSource() ?? initial.document.source,
-          kind,
-          customCases,
-        }),
-      );
+      const sourceHash = await sha256(editor.current?.getSource() ?? initial.document.source);
+      const command = {
+        kind,
+        customCases,
+        questionEpoch: initial.questionEpoch,
+        documentEpoch: initial.document.epoch,
+        sourceHash,
+      };
+      const fingerprint = await sha256(JSON.stringify(command));
       pendingRequest.current = pendingExecution(recoveryKey, fingerprint, pendingRequest.current);
       const submission = await interviewRequest<Submission>(
         `/v1/interviews/${id}/submissions`,
         "POST",
-        { kind, customCases },
+        command,
         pendingRequest.current.key,
       );
       clearPendingExecution(recoveryKey, pendingRequest.current.key);
