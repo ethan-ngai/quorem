@@ -71,4 +71,11 @@ Node values use the same JSON linked-list and breadth-first-tree codec as Python
 Java/TypeScript/OCaml have syntax highlighting; Python alone has remote IntelliSense.
 Docker fixtures prove local compiler/codec behavior; cloud sandbox release validation remains separate.
 
-PostgreSQL 17 SQL cases use a separate ephemeral cluster per sandbox; build `apps/runner/Dockerfile.postgres` as `quorem-postgres:local`. `RUNNER_POSTGRES_IMAGE` overrides it. SQL setup, comparison, authoring, and Odyssey limits are documented in `docs/implementation/sql-problems.md`. Deployment validates the hosted PostgreSQL role and deadline isolation.
+PostgreSQL 17 SQL cases use a separate ephemeral cluster per sandbox. Rebuild the test image after changing the harness, then run all SQL sandbox tests:
+
+```sh
+docker build -f apps/runner/Dockerfile.postgres -t quorem-postgres:local .
+QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'
+```
+
+Set `QUOREM_TEST_POSTGRES_IMAGE` to test a different local image; its `/opt/quorem/harness.py` must match this checkout. `RUNNER_POSTGRES_IMAGE` overrides the runtime image. SQL setup, comparison, authoring, and Odyssey limits are documented in `docs/implementation/sql-problems.md`. Deployment validates the hosted PostgreSQL role and deadline isolation.
