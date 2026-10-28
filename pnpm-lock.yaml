@@ -253,6 +253,9 @@ importers:
       '@quorem/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@tanstack/react-query':
+        specifier: 5.104.1
+        version: 5.104.1(react@19.3.0)
       astro:
         specifier: ^6.0.0
         version: 6.4.8(@types/node@24.19.2)(supports-color@10.2.2)(typescript@6.0.3)(yaml@2.9.1)
