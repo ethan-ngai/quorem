@@ -202,7 +202,25 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 		t.Fatal("interview claim", job, err)
 	}
 	spec, err := s.LoadExecution(ctx, job)
-	if err != nil || spec.Problem.SQL == nil || !spec.PrivateDetails {
+	if err != nil || spec.Problem.SQL == nil || !spec.PrivateDetails || spec.SubmitCasesAreSamples {
 		t.Fatal("interview SQL execution", spec, err)
+	}
+	if err = s.Complete(ctx, job, execution.Completion{SubmissionID: job.SubmissionID, AttemptID: job.AttemptID, Verdict: execution.Accepted}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE users SET admission_tokens=2 WHERE id='bob'`); err != nil {
+		t.Fatal(err)
+	}
+	submission, err = admitInterviewForTest(s, ctx, "bob", room.ID, ID(), "submit", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err = s.Claim(ctx)
+	if err != nil || job.SubmissionID != submission.ID {
+		t.Fatal(job, err)
+	}
+	spec, err = s.LoadExecution(ctx, job)
+	if err != nil || spec.SubmitCasesAreSamples || spec.Problem.SQL == nil || len(spec.Cases) != 20 || len(spec.SubmitSamples) != 1 {
+		t.Fatal("published SQL private suite", spec, err)
 	}
 }
