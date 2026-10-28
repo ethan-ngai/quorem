@@ -140,7 +140,7 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 			t.Fatal(job, e)
 		}
 		spec, e := s.LoadExecution(ctx, job)
-		if e != nil || len(spec.Cases) != total || spec.Source != starter || len(spec.Problem.Odyssey.Levels) != total || len(spec.SubmitSamples) != total {
+		if e != nil || spec.SubmitCasesAreSamples || len(spec.Cases) != total || spec.Source != starter || len(spec.Problem.Odyssey.Levels) != total || len(spec.SubmitSamples) != total {
 			t.Fatal("immutable source/cumulative cases", spec, e)
 		}
 		finishInterviewJob(t, s, job, passed, total)

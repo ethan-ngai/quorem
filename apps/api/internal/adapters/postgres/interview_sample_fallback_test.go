@@ -7,17 +7,29 @@ import (
 	"testing"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
 func TestInterviewSampleFallbackExecutionAndVisibility(t *testing.T) {
-	for _, fallback := range []bool{true, false} {
-		t.Run(map[bool]string{true: "no private cases", false: "equal private case"}[fallback], func(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		fallback, empty bool
+	}{
+		{name: "null private cases", fallback: true},
+		{name: "empty private cases", fallback: true, empty: true},
+		{name: "equal private case"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fallback := tc.fallback
 			s := interviewTestStore(t)
 			ctx := context.Background()
 			q := customInterviewQuestion()
 			if fallback {
 				q.Custom.PrivateCases = nil
+				if tc.empty {
+					q.Custom.PrivateCases = []problems.Case{}
+				}
 			} else {
 				q.Custom.PrivateCases = q.Custom.PublicCases
 			}
@@ -31,6 +43,19 @@ func TestInterviewSampleFallbackExecutionAndVisibility(t *testing.T) {
 			submission, err := admitInterviewForTest(s, ctx, "bob", room.ID, ID(), "submit", nil)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if fallback {
+				var shape string
+				if err = s.Pool.QueryRow(ctx, `SELECT jsonb_typeof(q.fixture->'hiddenCases') FROM interview_execution e JOIN interview_question_snapshots q ON q.session_id=e.session_id AND q.id=e.fixture_id WHERE e.submission_id=$1`, submission.ID).Scan(&shape); err != nil {
+					t.Fatal(err)
+				}
+				want := "null"
+				if tc.empty {
+					want = "array"
+				}
+				if shape != want {
+					t.Fatalf("snapshot private cases: %s", shape)
+				}
 			}
 			job, err := s.Claim(ctx)
 			if err != nil || job.SubmissionID != submission.ID {
