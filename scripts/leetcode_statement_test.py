@@ -52,6 +52,13 @@ class StatementTest(unittest.TestCase):
         result = format_question(content, html)['problem']
         self.assertIn('- First\n- Second\n  1. Inner A\n  2. Inner B\n- Third', result['statementMarkdown'])
 
+    def test_list_paragraph_does_not_become_a_code_block(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>Intro.</p><ul><li>First<p>\n\tContinuation.</p></li></ul><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2</pre><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
+        result = format_question(content, html)['problem']
+        self.assertIn('  Continuation.', result['statementMarkdown'])
+        self.assertNotIn('\t', result['statementMarkdown'])
+
     def test_multiline_explanation_and_table_are_retained(self):
         content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
         html = '<p><code>x</code> is a value.</p><p><strong>Example 1:</strong></p><div><p><strong>Input:</strong> x = 1</p><p><strong>Output:</strong> 2</p><p><strong>Explanation:</strong> See below.</p></div><table><tr><th>x</th><th>y</th></tr><tr><td>1</td><td>2</td></tr></table><p><strong>Constraints:</strong></p><p>None.</p>'

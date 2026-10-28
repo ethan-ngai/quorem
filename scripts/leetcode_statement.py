@@ -45,6 +45,7 @@ def render(node, in_code=False, plain=False):
         lines = []
         for index, item in enumerate(items, 1):
             body = render(item, in_code, plain).strip().removeprefix('- ')
+            body = re.sub(r'(?m)^[ \t]*\t', '', body)
             body = re.sub(r'\n(?:[ \t]*\n)+(?=(?:- |\d+\. ))', '\n', body)
             prefix = f'{index}. ' if tag == 'ol' else '- '
             lines.append(prefix + body.replace('\n', '\n' + ' ' * len(prefix)))
@@ -61,6 +62,13 @@ def render(node, in_code=False, plain=False):
             width = max(len(row) for row in table)
             line = lambda row: '| ' + ' | '.join(row + [''] * (width - len(row))) + ' |'
             return '\n' + line(table[0]) + '\n' + line(['---'] * width) + '\n' + '\n'.join(line(row) for row in table[1:]) + '\n\n'
+    if tag == 'li':
+        parts = []
+        for child in node.children:
+            if isinstance(child, Node) and child.tag == 'p' and ''.join(parts).strip():
+                parts.append('\n\n')
+            parts.append(render(child, in_code, plain))
+        return '- ' + ''.join(parts).strip() + '\n'
     content = ''.join(render(child, in_code or tag == 'code', plain) for child in node.children)
     if tag == 'sup':
         if content.strip() in ('st', 'nd', 'rd', 'th'):
@@ -86,8 +94,6 @@ def render(node, in_code=False, plain=False):
         return f"![{node.attrs.get('alt') or 'Image'}]({node.attrs.get('src', '')})"
     if tag == 'a' and node.attrs.get('href') and not plain:
         return f"[{content}]({node.attrs['href']})"
-    if tag == 'li':
-        return '- ' + content.strip() + '\n'
     if tag in ('p', 'div', 'pre', 'ul', 'ol', 'table', 'tr'):
         return content.strip() + '\n\n'
     if tag in ('td', 'th'):
