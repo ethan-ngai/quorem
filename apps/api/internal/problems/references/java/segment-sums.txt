@@ -1,4 +1,0 @@
-class Solution {
-public ListNode segmentSums(ListNode head){ListNode dummy=new ListNode(),tail=dummy;int total=0;boolean active=false;while(head!=null){if(head.val==0){if(active){tail.next=new ListNode(total);tail=tail.next;}total=0;active=false;}else{total+=head.val;active=true;}head=head.next;}if(active)tail.next=new ListNode(total);return dummy.next;}
-}
-

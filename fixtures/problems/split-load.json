@@ -1,11 +1,13 @@
 {
   "problem": {
+    "languages": [],
     "id": "1b3361b0-1fa0-5597-81e4-913b0318ac45",
     "slug": "split-load",
     "version": "4",
     "title": "Split Load",
     "difficulty": "hard",
     "tags": ["arrays", "binary search"],
+    "companies": [],
     "statementMarkdown": "Split `loads` into exactly `groups` nonempty contiguous groups. Minimize the largest group sum and return that minimum. Loads are nonnegative, $1 \\le$ `groups` $\\le$ `len(loads)`, and $0 \\le$ `sum(loads)` $\\le 2^{31} - 1$.",
     "examples": [
       {
@@ -61,7 +63,10 @@
       },
       {
         "kind": "range",
-        "target": { "parameter": "loads", "projection": "sum" },
+        "target": {
+          "parameter": "loads",
+          "projection": "sum"
+        },
         "min": 0,
         "max": 2147483647
       }
@@ -72,7 +77,7 @@
       "parameters": [
         {
           "name": "loads",
-          "type": "list<int>"
+          "type": "list\u003cint\u003e"
         },
         {
           "name": "groups",
@@ -81,7 +86,7 @@
       ],
       "returnType": "int"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def splitLoad(self, loads: list[int], groups: int) -> int:\n        pass\n",
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def splitLoad(self, loads: list[int], groups: int) -\u003e int:\n        pass\n",
     "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
@@ -92,8 +97,6 @@
       "maxNestingDepth": 100
     }
   },
-  "harnessRevision": "quorem-harness-v2",
-  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {
       "args": [[7, 2, 5, 10, 8], 2],
@@ -214,5 +217,36 @@
       "expected": 8
     }
   ],
-  "referenceSource": "def solve(loads, groups):\n    lo, hi = max(loads), sum(loads)\n    while lo < hi:\n        mid = (lo+hi)//2; used = 1; current = 0\n        for load in loads:\n            if current + load > mid: used += 1; current = 0\n            current += load\n        if used <= groups: hi = mid\n        else: lo = mid+1\n    return lo\nclass Solution:\n    def splitLoad(self, loads, groups):\n        return solve(loads, groups)\n"
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "implementations": [
+    {
+      "language": "python",
+      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def splitLoad(self, loads: list[int], groups: int) -\u003e int:\n        pass\n",
+      "runtimeRevision": "python-3.12-v1",
+      "harnessRevision": "quorem-harness-v2",
+      "referenceSource": "def solve(loads, groups):\n    lo, hi = max(loads), sum(loads)\n    while lo \u003c hi:\n        mid = (lo+hi)//2; used = 1; current = 0\n        for load in loads:\n            if current + load \u003e mid: used += 1; current = 0\n            current += load\n        if used \u003c= groups: hi = mid\n        else: lo = mid+1\n    return lo\nclass Solution:\n    def splitLoad(self, loads, groups):\n        return solve(loads, groups)\n"
+    },
+    {
+      "language": "java",
+      "starterSource": "class Solution {\n    public int splitLoad(int[] loads, int groups) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "java-21.0.9-v1",
+      "harnessRevision": "quorem-java-v1",
+      "referenceSource": "class Solution {\npublic int splitLoad(int[] loads,int groups) { int lo=Arrays.stream(loads).max().orElse(0),hi=Arrays.stream(loads).sum(); while(lo\u003chi){int mid=lo+(hi-lo)/2,used=1,total=0;for(int load:loads){if(total+load\u003emid){used++;total=0;}total+=load;}if(used\u003c=groups)hi=mid;else lo=mid+1;}return lo; }\n}\n\n"
+    },
+    {
+      "language": "typescript",
+      "starterSource": "class Solution {\n    splitLoad(loads: (number)[], groups: number): number {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
+      "harnessRevision": "quorem-typescript-v1",
+      "referenceSource": "class Solution {\nsplitLoad(loads:number[],groups:number):number{let lo=Math.max(...loads),hi=loads.reduce((a,b)=\u003ea+b,0);while(lo\u003chi){const mid=Math.floor((lo+hi)/2);let used=1,total=0;for(const load of loads){if(total+load\u003emid){used++;total=0;}total+=load;}if(used\u003c=groups)hi=mid;else lo=mid+1;}return lo;}\n}\n\n"
+    },
+    {
+      "language": "ocaml",
+      "starterSource": "let splitLoad (loads:(int) list) (groups:int) : int =\n    failwith \"Implement solution\"\n",
+      "runtimeRevision": "ocaml-4.13.1-v1",
+      "harnessRevision": "quorem-ocaml-v1",
+      "referenceSource": "let splitLoad loads groups = let lo=ref (List.fold_left max 0 loads) and hi=ref (List.fold_left (+) 0 loads) in while !lo \u003c !hi do let mid=(!lo + !hi)/2 in let used=ref 1 and total=ref 0 in List.iter (fun x -\u003e if !total+x\u003emid then (incr used;total:=0);total:= !total+x) loads; if !used\u003c=groups then hi:=mid else lo:=mid+1 done; !lo\n"
+    }
+  ],
+  "solutions": []
 }

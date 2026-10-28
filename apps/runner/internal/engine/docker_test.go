@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func dockerTests(t *testing.T) []worker.Fixture {
+func dockerSeedTests(t *testing.T) []worker.SeedFixture {
 	t.Helper()
 	if os.Getenv("QUOREM_TEST_DOCKER") != "1" {
 		t.Skip("QUOREM_TEST_DOCKER=1 enables development Docker integration")
@@ -24,6 +24,25 @@ func dockerTests(t *testing.T) []worker.Fixture {
 		t.Fatal(err)
 	}
 	return f
+}
+func dockerTests(t *testing.T) []worker.Fixture {
+	t.Helper()
+	seeds := dockerSeedTests(t)
+	fixtures := make([]worker.Fixture, len(seeds))
+	for i := range seeds {
+		fixtures[i] = seeds[i].Fixture
+	}
+	return fixtures
+}
+func fixtureReference(t *testing.T, f worker.SeedFixture, language string) string {
+	t.Helper()
+	for _, impl := range f.Implementations {
+		if impl.Language == language {
+			return impl.ReferenceSource
+		}
+	}
+	t.Fatalf("missing %s reference for %s", language, f.Problem.Slug)
+	return ""
 }
 func executeFixture(t *testing.T, f worker.Fixture, source, kind string, cases []worker.Case) execution.Completion {
 	t.Helper()

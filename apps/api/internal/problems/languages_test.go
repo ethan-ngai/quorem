@@ -8,12 +8,13 @@ func TestLanguageArtifactsCoverCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range fixtures {
-		implementations, references, e := Implementations(f)
-		if e != nil {
-			t.Fatal(e)
-		}
-		if len(implementations) != 4 || len(references) != 4 {
+		if len(f.Implementations) != 4 {
 			t.Fatal(f.Problem.Slug)
+		}
+		for _, impl := range f.Implementations {
+			if impl.ReferenceSource == "" {
+				t.Fatal(f.Problem.Slug, impl.Language)
+			}
 		}
 	}
 }

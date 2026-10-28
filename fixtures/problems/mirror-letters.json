@@ -1,11 +1,13 @@
 {
   "problem": {
+    "languages": [],
     "id": "7e6af288-c26f-5ab1-beed-1fc6538d31d2",
     "slug": "mirror-letters",
     "version": "2",
     "title": "Mirror Letters",
     "difficulty": "easy",
     "tags": ["strings", "two pointers"],
+    "companies": [],
     "statementMarkdown": "Reverse only ASCII letters (`A-Z`, `a-z`) in `text`. Every nonletter stays at its original index, and letter case travels with the letter.",
     "examples": [
       {
@@ -41,7 +43,7 @@
       ],
       "returnType": "str"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def mirrorLetters(self, text: str) -> str:\n        pass\n",
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def mirrorLetters(self, text: str) -\u003e str:\n        pass\n",
     "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
@@ -52,8 +54,6 @@
       "maxNestingDepth": 100
     }
   },
-  "harnessRevision": "quorem-harness-v2",
-  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {
       "args": [""],
@@ -140,5 +140,36 @@
       "expected": "[]z{}a"
     }
   ],
-  "referenceSource": "def solve(text):\n    letters = [c for c in text if c.isascii() and c.isalpha()]\n    return \"\".join(letters.pop() if c.isascii() and c.isalpha() else c for c in text)\nclass Solution:\n    def mirrorLetters(self, text):\n        return solve(text)\n"
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "implementations": [
+    {
+      "language": "python",
+      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def mirrorLetters(self, text: str) -\u003e str:\n        pass\n",
+      "runtimeRevision": "python-3.12-v1",
+      "harnessRevision": "quorem-harness-v2",
+      "referenceSource": "def solve(text):\n    letters = [c for c in text if c.isascii() and c.isalpha()]\n    return \"\".join(letters.pop() if c.isascii() and c.isalpha() else c for c in text)\nclass Solution:\n    def mirrorLetters(self, text):\n        return solve(text)\n"
+    },
+    {
+      "language": "java",
+      "starterSource": "class Solution {\n    public String mirrorLetters(String text) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "java-21.0.9-v1",
+      "harnessRevision": "quorem-java-v1",
+      "referenceSource": "class Solution {\nprivate boolean letter(char c){return c\u003e='a'\u0026\u0026c\u003c='z'||c\u003e='A'\u0026\u0026c\u003c='Z';} public String mirrorLetters(String text){char[] a=text.toCharArray();int l=0,r=a.length-1;while(l\u003cr){if(!letter(a[l]))l++;else if(!letter(a[r]))r--;else{char t=a[l];a[l++]=a[r];a[r--]=t;}}return new String(a);}\n}\n\n"
+    },
+    {
+      "language": "typescript",
+      "starterSource": "class Solution {\n    mirrorLetters(text: string): string {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
+      "harnessRevision": "quorem-typescript-v1",
+      "referenceSource": "class Solution {\nmirrorLetters(text:string):string{const a=Array.from(text);const letter=(c:string)=\u003e/^[a-zA-Z]$/.test(c);let l=0,r=a.length-1;while(l\u003cr){if(!letter(a[l]))l++;else if(!letter(a[r]))r--;else{[a[l],a[r]]=[a[r],a[l]];l++;r--;}}return a.join('');}\n}\n\n"
+    },
+    {
+      "language": "ocaml",
+      "starterSource": "let mirrorLetters (text:string) : string =\n    failwith \"Implement solution\"\n",
+      "runtimeRevision": "ocaml-4.13.1-v1",
+      "harnessRevision": "quorem-ocaml-v1",
+      "referenceSource": "let mirrorLetters text = let a=Bytes.of_string text in let letter c = c\u003e='a' \u0026\u0026 c\u003c='z' || c\u003e='A' \u0026\u0026 c\u003c='Z' in let l=ref 0 and r=ref (Bytes.length a-1) in while !l \u003c !r do if not (letter (Bytes.get a !l)) then incr l else if not (letter (Bytes.get a !r)) then decr r else (let c=Bytes.get a !l in Bytes.set a !l (Bytes.get a !r);Bytes.set a !r c;incr l;decr r) done;Bytes.to_string a\n"
+    }
+  ],
+  "solutions": []
 }

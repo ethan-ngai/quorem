@@ -142,7 +142,7 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 	}
 	return tx.Commit(ctx)
 }
-func (s *Store) Seed(ctx context.Context, fixtures []problems.Fixture) error {
+func (s *Store) Seed(ctx context.Context, fixtures []problems.SeedFixture) error {
 	// Fixture identities belong to explicit local seeding, never schema creation.
 	if _, err := s.Pool.Exec(ctx, `INSERT INTO users(id,display_name,participant_id) VALUES
  ('alice','Alice','00000000-0000-4000-8000-000000000001'),
@@ -156,13 +156,13 @@ func (s *Store) Seed(ctx context.Context, fixtures []problems.Fixture) error {
 }
 
 // SeedProblems installs append-only catalog content without development identities.
-func (s *Store) SeedProblems(ctx context.Context, fixtures []problems.Fixture) error {
+func (s *Store) SeedProblems(ctx context.Context, fixtures []problems.SeedFixture) error {
 	for _, f := range fixtures {
 		tx, err := s.Pool.Begin(ctx)
 		if err != nil {
 			return err
 		}
-		_, err = insertProblemVersion(ctx, tx, f)
+		_, err = insertProblemVersion(ctx, tx, f.Fixture)
 		if err != nil {
 			_ = tx.Rollback(ctx)
 			return err
@@ -170,9 +170,11 @@ func (s *Store) SeedProblems(ctx context.Context, fixtures []problems.Fixture) e
 		if err = tx.Commit(ctx); err != nil {
 			return err
 		}
-		implementations, references, err := problems.Implementations(f)
-		if err != nil {
-			return err
+		implementations := make([]problems.LanguageImplementation, 0, len(f.Implementations))
+		references := make(map[string]string, len(f.Implementations))
+		for _, impl := range f.Implementations {
+			implementations = append(implementations, impl.LanguageImplementation)
+			references[impl.Language] = impl.ReferenceSource
 		}
 		if err = s.RegisterImplementations(ctx, f.Problem.ID, implementations, references); err != nil {
 			return err

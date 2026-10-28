@@ -1,4 +1,0 @@
-class Solution {
-quotaWindow(text:string,quota:string):string{if(!quota)return '';const chars=Array.from(text),need=new Map<string,number>();for(const c of quota)need.set(c,(need.get(c)??0)+1);let missing=Array.from(quota).length,left=0,start=0,best=Infinity;for(let right=0;right<chars.length;right++){const c=chars[right];if((need.get(c)??0)>0)missing--;need.set(c,(need.get(c)??0)-1);while(missing===0){if(right-left+1<best){best=right-left+1;start=left;}const old=chars[left++];need.set(old,(need.get(old)??0)+1);if(need.get(old)!>0)missing++;}}return best===Infinity?'':chars.slice(start,start+best).join('');}
-}
-

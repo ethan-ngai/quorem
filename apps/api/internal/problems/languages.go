@@ -1,43 +1,9 @@
 package problems
 
 import (
-	"embed"
 	"fmt"
-	"github.com/ethan-ngai/quorem/internal/execution"
 	"strings"
 )
-
-//go:embed references/*/*.txt
-var referenceSources embed.FS
-
-// Implementations registers explicit local artifacts, never exposing private references publicly.
-func Implementations(f Fixture) ([]LanguageImplementation, map[string]string, error) {
-	result := []LanguageImplementation{{Language: "python", StarterSource: f.Problem.StarterSource, RuntimeRevision: f.Problem.RuntimeRevision, HarnessRevision: execution.HarnessRevision}}
-	references := map[string]string{"python": f.ReferenceSource}
-	for _, language := range []string{"java", "typescript", "ocaml"} {
-		source, err := referenceSources.ReadFile("references/" + language + "/" + f.Problem.Slug + ".txt")
-		if err != nil {
-			return nil, nil, err
-		}
-		runtime, _ := execution.LanguageRuntime(language)
-		signature := f.Problem.Signature
-		// Bundled Java artifacts predate list/array distinction; keep sealed starters stable.
-		if language == "java" {
-			signature.Parameters = append([]Parameter(nil), signature.Parameters...)
-			signature.ReturnType = strings.ReplaceAll(signature.ReturnType, "list<", "array<")
-			for i := range signature.Parameters {
-				signature.Parameters[i].Type = strings.ReplaceAll(signature.Parameters[i].Type, "list<", "array<")
-			}
-		}
-		starter, err := Starter(signature, language)
-		if err != nil {
-			return nil, nil, err
-		}
-		result = append(result, LanguageImplementation{Language: language, StarterSource: starter, RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness})
-		references[language] = string(source)
-	}
-	return result, references, nil
-}
 
 func languageType(kind, language string) (string, error) {
 	if strings.HasPrefix(kind, "optional<") {

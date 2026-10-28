@@ -17,6 +17,7 @@ type Spec = judging.Spec
 type Case = problems.Case
 type Parameter = problems.Parameter
 type Fixture = problems.Fixture
+type SeedFixture = problems.SeedFixture
 type SQLConfig = problems.SQLConfig
 
 func NormalizeCaseOutput(p problems.Problem, c Case, value []byte) ([]byte, error) {
@@ -26,7 +27,7 @@ func CaseExpected(p problems.Problem, c Case) []byte { return problems.CaseExpec
 func MethodSignatures(p problems.Problem) any        { return problems.OdysseyMethods(p) }
 
 func Normalize(typ string, value []byte) ([]byte, error) { return problems.Normalize(typ, value) }
-func LoadFixtures(dir string) ([]Fixture, error)         { return problems.LoadFixtures(dir) }
+func LoadFixtures(dir string) ([]SeedFixture, error)     { return problems.LoadFixtures(dir) }
 
 var ErrTeardown = errors.New("sandbox teardown unconfirmed")
 

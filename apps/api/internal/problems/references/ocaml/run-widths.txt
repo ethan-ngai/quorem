@@ -1,1 +1,0 @@
-let runWidths values = let rec loop prev width acc = function [] -> List.rev (if width=0 then acc else width::acc) | v::rest -> if prev=Some v then loop prev (width+1) acc rest else loop (Some v) 1 (if width=0 then acc else width::acc) rest in loop None 0 [] values

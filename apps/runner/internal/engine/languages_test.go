@@ -36,20 +36,17 @@ func executeLanguage(t *testing.T, f worker.Fixture, language, source, kind stri
 }
 
 func TestDockerLanguageCorpus(t *testing.T) {
-	fixtures := dockerTests(t)
+	fixtures := dockerSeedTests(t)
 	for _, lang := range []string{"java", "typescript", "ocaml"} {
 		for _, f := range fixtures {
 			t.Run(lang+"/"+f.Problem.Slug, func(t *testing.T) {
 				t.Parallel()
-				source, err := os.ReadFile("../../../api/internal/problems/references/" + lang + "/" + f.Problem.Slug + ".txt")
-				if err != nil {
-					t.Fatal(err)
-				}
-				result := executeLanguage(t, f, lang, string(source), "submit", f.HiddenCases)
+				source := fixtureReference(t, f, lang)
+				result := executeLanguage(t, f.Fixture, lang, source, "submit", f.HiddenCases)
 				if result.Verdict != execution.Accepted || result.Score == nil || result.Score.Passed != 20 || len(result.HiddenCases) != 20 {
 					t.Fatal(result)
 				}
-				wrong := incorrectSource(f, lang)
+				wrong := incorrectSource(f.Fixture, lang)
 				different := []worker.Case{}
 				for _, c := range f.HiddenCases {
 					if string(c.Expected) != "[]" && string(c.Expected) != "null" && string(c.Expected) != "0" && string(c.Expected) != "\"\"" {
@@ -57,7 +54,7 @@ func TestDockerLanguageCorpus(t *testing.T) {
 						break
 					}
 				}
-				failed := executeLanguage(t, f, lang, wrong, "run", different)
+				failed := executeLanguage(t, f.Fixture, lang, wrong, "run", different)
 				if failed.Verdict != execution.WrongAnswer {
 					t.Fatalf("incorrect reference accepted: %+v", failed)
 				}
