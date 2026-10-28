@@ -21,12 +21,13 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 	}
 	var j execution.Job
 	var data []byte
+	var suiteID string
 	var cancelled bool
 	var attempts int
-	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,COALESCE(ie.fixture->'problem',p.public),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
+	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,COALESCE(ie.fixture->'problem'->>'id',p.id::text),COALESCE(ie.fixture->'problem'->'limits',p.limits),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
  FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id
  WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running')
- ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
+ ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, nil
 	}
@@ -52,14 +53,12 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 		}
 		return execution.Job{}, tx.Commit(ctx)
 	}
-	var p problems.Problem
-	if err = json.Unmarshal(data, &p); err != nil {
+	if err = json.Unmarshal(data, &j.Limits); err != nil {
 		return j, err
 	}
 	j.AttemptID = ID()
 	j.SourceRef = j.SubmissionID
-	j.SuiteRef = p.ID
-	j.Limits = p.Limits
+	j.SuiteRef = suiteID
 	if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET attempt_id=$2,attempts=attempts+1,lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1", uuidLookup(j.JobID), uuidLookup(j.AttemptID)); err != nil {
 		return j, err
 	}
@@ -70,26 +69,26 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 }
 func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spec, error) {
 	var spec judging.Spec
-	var fixture, cases []byte
-	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,COALESCE(ie.fixture,p.fixture),s.cases,ie.submission_id IS NOT NULL FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&spec.Source, &spec.Kind, &fixture, &cases, &spec.PrivateDetails)
+	var problem, cases []byte
+	var level *int
+	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,CASE WHEN ie.submission_id IS NULL THEN jsonb_build_object('signature',v.signature,'odyssey',v.odyssey,'sql',v.sql_config,'examples',`+problemExamplesSQL+`) ELSE jsonb_build_object('signature',ie.fixture->'problem'->'signature','odyssey',ie.fixture->'problem'->'odyssey','sql',ie.fixture->'problem'->'sql','examples',ie.fixture->'problem'->'examples') END,s.cases,ie.submission_id IS NOT NULL,s.odyssey_level FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&spec.Source, &spec.Kind, &problem, &cases, &spec.PrivateDetails, &level)
 	if err != nil {
 		return spec, err
 	}
-	if err = json.Unmarshal(fixture, &spec.Fixture); err != nil {
+	if err = json.Unmarshal(problem, &spec.Problem); err != nil {
 		return spec, err
 	}
 	err = json.Unmarshal(cases, &spec.Cases)
-	if err == nil && spec.Fixture.Problem.Odyssey != nil {
-		var level *int
-		if err = s.Pool.QueryRow(ctx, "SELECT odyssey_level FROM submissions WHERE id=$1", j.SubmissionID).Scan(&level); err != nil {
-			return spec, err
-		}
+	if err == nil && spec.Problem.Odyssey != nil {
 		if level != nil {
-			spec.Fixture.Problem.Odyssey = &problems.Odyssey{Levels: spec.Fixture.Problem.Odyssey.Levels[:*level]}
+			if *level < 1 || *level > len(spec.Problem.Odyssey.Levels) {
+				return spec, errors.New("invalid admitted Odyssey level")
+			}
+			spec.Problem.Odyssey = &problems.Odyssey{Levels: spec.Problem.Odyssey.Levels[:*level]}
 		}
 	}
 	if err == nil && spec.Kind == "submit" {
-		spec.SubmitSamples = submissionSamples(spec.Fixture.Problem)
+		spec.SubmitSamples = spec.Problem.SampleCases()
 	}
 	return spec, err
 }

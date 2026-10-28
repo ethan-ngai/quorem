@@ -19,7 +19,7 @@ func executeCompiledCases(t *testing.T, fixture worker.Fixture, language, source
 	if suffix := os.Getenv("QUOREM_TEST_COMPILED_IMAGE_SUFFIX"); suffix != "" {
 		engine.Images = map[string]string{language: "quorem-" + language + ":" + suffix}
 	}
-	spec := worker.Spec{Source: source, Kind: "run", Fixture: fixture, Cases: cases}
+	spec := worker.Spec{Source: source, Kind: "run", Problem: fixture.Problem, Cases: cases}
 	job := execution.Job{SubmissionID: "compiled", AttemptID: rand.Text(), Language: language, RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()}
 	ctx, done := context.WithTimeout(context.Background(), time.Minute)
 	defer done()
@@ -32,11 +32,11 @@ func executeCompiledCases(t *testing.T, fixture worker.Fixture, language, source
 		if err != nil || result.Status != "executed" {
 			t.Fatalf("case%d: %+v %v", i, result, err)
 		}
-		actual, err := worker.NormalizeCaseOutput(fixture, c, result.Actual)
+		actual, err := worker.NormalizeCaseOutput(fixture.Problem, c, result.Actual)
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := worker.NormalizeCaseOutput(fixture, c, worker.CaseExpected(fixture, c))
+		expected, err := worker.NormalizeCaseOutput(fixture.Problem, c, worker.CaseExpected(fixture.Problem, c))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -91,7 +91,7 @@ func TestDockerFirstCaseCannotMutateCachedArtifact(t *testing.T) {
 	fixture.Problem.Signature.ReturnType = "int"
 	runtime, _ := execution.LanguageRuntime("typescript")
 	engine := &Docker{}
-	spec := worker.Spec{Source: `class Solution {solve(n:number):number {process.getBuiltinModule('fs').writeFileSync('/tmp/main.js','corrupted');return n+1;}}`, Fixture: fixture}
+	spec := worker.Spec{Source: `class Solution {solve(n:number):number {process.getBuiltinModule('fs').writeFileSync('/tmp/main.js','corrupted');return n+1;}}`, Problem: fixture.Problem}
 	job := execution.Job{AttemptID: rand.Text(), Language: "typescript", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

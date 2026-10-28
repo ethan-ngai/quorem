@@ -49,7 +49,7 @@ func BenchmarkDockerExecuteLatency(b *testing.B) {
 					}
 					return out
 				}
-				spec := worker.Spec{Source: source, Kind: "submit", Fixture: fixture, Cases: cases(scenario.cases), SubmitSamples: cases(scenario.samples)}
+				spec := worker.Spec{Source: source, Kind: "submit", Problem: fixture.Problem, Cases: cases(scenario.cases), SubmitSamples: cases(scenario.samples)}
 				docker := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) { return spec, nil }}
 				elapsed := make([]float64, 0, b.N)
 				b.ResetTimer()

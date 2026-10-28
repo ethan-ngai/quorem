@@ -568,14 +568,14 @@ func TestMatchEmptyDifficultyAndEncryptedInviteReplay(t *testing.T) {
 	if e != nil || retry.InviteURL != c.InviteURL {
 		t.Fatal("restart changed invite", retry, e)
 	}
-	execSQL(t, s, "DELETE FROM problem_versions WHERE public->>'difficulty'='hard'")
+	execSQL(t, s, "DELETE FROM problem_versions WHERE difficulty='hard'")
 	if _, e = s.JoinMatch(ctx, "bob", ID(), token); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "temporarily_unavailable" {
+	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "no_matching_questions" {
 		t.Fatal(e)
 	}
 	v, e := s.Match(ctx, "alice", c.ID)
@@ -605,11 +605,11 @@ func TestMatchSelectionFiltersDifficultyAfterLatestVersion(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	execSQL(t, s, "DELETE FROM problem_versions WHERE public->>'difficulty'='easy' AND id<>$1", p.ID)
-	latest := ID()
-	execSQL(t, s, `INSERT INTO problem_versions(id,slug,version,public,fixture)
- SELECT $1::uuid,slug,version+1,public || jsonb_build_object('id',$1::uuid::text,'version',(version+1)::text,'difficulty','hard'),fixture
- FROM problem_versions WHERE id=$2`, latest, p.ID)
+	execSQL(t, s, "DELETE FROM problem_versions WHERE difficulty='easy' AND id<>$1", p.ID)
+	f := copyProblemFixture(t, s, p.ID)
+	f.Problem.Difficulty = "hard"
+	insertTestProblem(t, s, f)
+	latest := f.Problem.ID
 	c, e := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulty: "easy"})
 	if e != nil {
 		t.Fatal(e)
@@ -620,7 +620,7 @@ func TestMatchSelectionFiltersDifficultyAfterLatestVersion(t *testing.T) {
 	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "temporarily_unavailable" {
+	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "no_matching_questions" {
 		t.Fatal("retained easy version entered pool", e)
 	}
 	v, e := s.Match(ctx, "alice", c.ID)
@@ -631,7 +631,7 @@ func TestMatchSelectionFiltersDifficultyAfterLatestVersion(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	execSQL(t, s, "DELETE FROM problem_versions WHERE public->>'difficulty'='hard' AND id<>$1", latest)
+	execSQL(t, s, "DELETE FROM problem_versions WHERE difficulty='hard' AND id<>$1", latest)
 	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
 		t.Fatal(e)
 	}

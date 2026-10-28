@@ -92,6 +92,17 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 		if err != nil || j.SubmissionID != sub.ID {
 			t.Fatal(j, err)
 		}
+		if level == 1 {
+			if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET odyssey_level=99 WHERE id=$1", sub.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = s.LoadExecution(ctx, j); err == nil {
+				t.Fatal("invalid level accepted")
+			}
+			if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET odyssey_level=$2 WHERE id=$1", sub.ID, level); err != nil {
+				t.Fatal(err)
+			}
+		}
 		spec, err := s.LoadExecution(ctx, j)
 		if err != nil {
 			t.Fatal(err)
@@ -100,7 +111,7 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 		if level == 2 {
 			total = 4
 		}
-		if len(spec.Cases) != total || spec.Source != cmd.Source || len(spec.Fixture.Problem.Odyssey.Levels) != level {
+		if len(spec.Cases) != total || spec.Source != cmd.Source || len(spec.Problem.Odyssey.Levels) != level {
 			t.Fatal("snapshot/cumulative suite", spec)
 		}
 		statuses := []execution.HiddenCaseResult{}
@@ -180,4 +191,20 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 		t.Fatal("reset after cancellation", err)
 	}
 
+}
+
+func TestOdysseyRejectsClassicWorkspace(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	p, err := s.Problem(ctx, "run-widths", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := s.CreateWorkspace(ctx, "alice", p.ID, "python")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Odyssey(ctx, "alice", w.ID); errorCode(err) != "invalid_input" {
+		t.Fatalf("classic workspace: %v", err)
+	}
 }

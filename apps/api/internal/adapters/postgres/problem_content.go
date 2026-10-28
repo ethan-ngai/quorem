@@ -10,21 +10,42 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Aggregate only public records; judge references and hidden cases cannot enter this projection.
-const publicProblemSQL = `SELECT jsonb_build_object(
+const problemExamplesSQL = `COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]')`
+const problemHiddenCasesSQL = `COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb)`
+const odysseySuitesSQL = `CASE WHEN v.odyssey IS NULL THEN NULL ELSE
+ (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb)
+ FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END`
+
+const fullProblemJSONSQL = `jsonb_build_object(
  'id',v.id,'isPrivate',p.owner_id IS NOT NULL,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
- 'sql',v.public->'sql',
- 'odyssey',CASE WHEN v.public->'odyssey' IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.public->'odyssey'->'levels'->0)) ELSE NULL END,
+ 'sql',v.sql_config,
+ 'odyssey',v.odyssey,
  'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,
- 'solutionLanguages',CASE WHEN v.public->'odyssey' IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(source)<>''),'[]'::jsonb) END,
- 'complexityLanguages',CASE WHEN v.public->'odyssey' IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),'[]'::jsonb) END,
+ 'solutionLanguages',CASE WHEN v.odyssey IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(source)<>''),'[]'::jsonb) END,
+ 'complexityLanguages',CASE WHEN v.odyssey IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),'[]'::jsonb) END,
  'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
  'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'),
- 'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'),
+ 'examples',` + problemExamplesSQL + `,
  'languages',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'),
- 'starterSource',py.starter_source,'runtimeRevision',py.runtime_revision)
+ 'starterSource',py.starter_source,'runtimeRevision',py.runtime_revision)`
+
+// Public reads include only the first Odyssey level and no private records.
+const publicProblemSQL = `SELECT jsonb_set(` + fullProblemJSONSQL + `,'{odyssey}',
+ CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE 'null'::jsonb END)
  FROM problem_versions v JOIN problems p ON p.id=v.problem_id
- JOIN problem_languages py ON py.version_id=v.id AND py.language=CASE WHEN v.public->'sql' IS NOT NULL THEN 'postgresql' ELSE 'python' END `
+ JOIN problem_languages py ON py.version_id=v.id AND py.language=CASE WHEN v.sql_config IS NOT NULL THEN 'postgresql' ELSE 'python' END `
+
+// Only trusted execution and interview paths use the complete fixture projection.
+func fixtureProjectionSQL(versionID string) string {
+	return `(SELECT jsonb_build_object(
+ 'problem',` + fullProblemJSONSQL + `,
+ 'hiddenCases',` + problemHiddenCasesSQL + `,
+ 'odysseyHiddenCases',` + odysseySuitesSQL + `,
+ 'harnessRevision',py.harness_revision,'referenceSource',py.reference_source,'attribution',v.attribution)
+ FROM problem_versions v JOIN problems p ON p.id=v.problem_id
+ JOIN problem_languages py ON py.version_id=v.id AND py.language=CASE WHEN v.sql_config IS NOT NULL THEN 'postgresql' ELSE 'python' END
+ WHERE v.id=` + versionID + `)`
+}
 
 func (s *Store) Problem(ctx context.Context, value string, byID bool) (problems.Problem, error) {
 	return s.problem(ctx, value, byID, false)
@@ -76,7 +97,7 @@ func (s *Store) Solutions(ctx context.Context, versionID string) ([]problems.Edi
 		return nil, err
 	}
 	var odyssey bool
-	if err := s.Pool.QueryRow(ctx, "SELECT COALESCE(public->'odyssey' IS NOT NULL,false) FROM problem_versions WHERE id::text=$1", versionID).Scan(&odyssey); err == nil && odyssey {
+	if err := s.Pool.QueryRow(ctx, "SELECT odyssey IS NOT NULL FROM problem_versions WHERE id::text=$1", versionID).Scan(&odyssey); err == nil && odyssey {
 		return []problems.EditorialSolution{}, nil
 	}
 	return s.readSolutions(ctx, versionID)

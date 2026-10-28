@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
-	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
 )
@@ -29,7 +28,7 @@ type matchRecord struct {
 
 func lockMatch(ctx context.Context, tx pgx.Tx, id string) (matchRecord, error) {
 	var m matchRecord
-	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,difficulties,question_filters,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.QuestionFilters, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
+	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulties[1],duration_minutes,difficulties,question_filters,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.QuestionFilters, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = failure("not_found", 404, "Match not found")
 	}
@@ -43,9 +42,9 @@ func (s *Store) matchSnapshot(ctx context.Context, tx pgx.Tx, owner string, m ma
 	}
 	total := 0
 	if m.started != nil {
-		err := tx.QueryRow(ctx, `SELECT CASE WHEN fixture->'problem'->'odyssey' IS NOT NULL THEN
-			COALESCE((SELECT sum(jsonb_array_length(stage)) FROM jsonb_array_elements(fixture->'odysseyHiddenCases') stage), 0)
-			ELSE jsonb_array_length(fixture->'hiddenCases') END FROM problem_versions WHERE id::text=$1`, m.problem).Scan(&total)
+		err := tx.QueryRow(ctx, `SELECT CASE WHEN v.odyssey IS NOT NULL THEN
+			(SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id)
+			ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END FROM problem_versions v WHERE v.id::text=$1`, m.problem).Scan(&total)
 		if err != nil {
 			return v, err
 		}
@@ -271,7 +270,7 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 		}
 		encoded := base64.RawURLEncoding.EncodeToString(token)
 		m := matchRecord{id: ID(), state: "waiting", mode: settings.Mode}
-		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6,$7,NULLIF($8,'')::uuid,$9,$10,$11,$12)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
+		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,'waiting',$5,$6,NULLIF($7,'')::uuid,$8,$9,$10,$11)", m.id, owner, Hash([]byte(encoded)), settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1);", m.id, owner); err != nil {
@@ -478,7 +477,7 @@ func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, 
 		m.settings = settings
 		m.mode = settings.Mode
 		m.state = "waiting"
-		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,mode=$4,difficulties=$5,selected_problem_version_id=NULLIF($6,'')::uuid,rules=$7,access_mode=$8,admission_locked=$9,question_filters=$10,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
+		if _, err := tx.Exec(ctx, "UPDATE matches SET duration_minutes=$2,mode=$3,difficulties=$4,selected_problem_version_id=NULLIF($5,'')::uuid,rules=$6,access_mode=$7,admission_locked=$8,question_filters=$9,state='waiting' WHERE id=$1", id, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, "UPDATE match_participants SET ready=false WHERE match_id=$1", id)
@@ -547,8 +546,9 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 	id := m.id
 	var rows pgx.Rows
 	var err error
+	selection := "SELECT v.id::text,EXISTS(SELECT 1 FROM problem_languages l WHERE l.version_id=v.id AND l.language='postgresql') FROM problem_versions v JOIN problems p ON p.id=v.problem_id"
 	if m.settings.SelectedProblemVersionID != "" {
-		rows, err = tx.Query(ctx, "SELECT v.public FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND (p.owner_id IS NULL OR p.owner_id=$2)", m.settings.SelectedProblemVersionID, m.host)
+		rows, err = tx.Query(ctx, selection+" WHERE v.id::text=$1 AND (p.owner_id IS NULL OR p.owner_id=$2)", m.settings.SelectedProblemVersionID, m.host)
 	} else {
 		filters := m.settings.QuestionFilters
 		sql := "false"
@@ -556,21 +556,20 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 			sql = "true"
 		}
 		f := ProblemFilter{Difficulty: strings.Join(m.settings.Difficulties, ","), Type: filters.Type, SQL: sql, Topic: filters.Topic, Company: filters.Company}
-		rows, err = tx.Query(ctx, "SELECT v.public FROM problem_versions v JOIN problems p ON p.id=v.problem_id"+catalogWhere+" ORDER BY v.id", catalogArgs(f, m.host)...)
+		rows, err = tx.Query(ctx, selection+catalogWhere+" ORDER BY v.id", catalogArgs(f, m.host)...)
 	}
 
 	if err != nil {
 		return err
 	}
-	pool := []problems.Problem{}
+	type candidate struct {
+		id  string
+		sql bool
+	}
+	pool := []candidate{}
 	for rows.Next() {
-		var data []byte
-		var p problems.Problem
-		if err = rows.Scan(&data); err != nil {
-			rows.Close()
-			return err
-		}
-		if err = json.Unmarshal(data, &p); err != nil {
+		var p candidate
+		if err = rows.Scan(&p.id, &p.sql); err != nil {
 			rows.Close()
 			return err
 		}
@@ -590,8 +589,8 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 	}
 	p := pool[choice.Int64()]
 	m.state = "active"
-	m.problem = p.ID
-	if err = tx.QueryRow(ctx, "UPDATE matches SET state='active',problem_version_id=$2,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=$1 RETURNING started_at,deadline", id, p.ID).Scan(&m.started, &m.deadline); err != nil {
+	m.problem = p.id
+	if err = tx.QueryRow(ctx, "UPDATE matches SET state='active',problem_version_id=$2,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=$1 RETURNING started_at,deadline", id, p.id).Scan(&m.started, &m.deadline); err != nil {
 		return err
 	}
 	rows, err = tx.Query(ctx, "SELECT owner_id FROM match_participants WHERE match_id=$1 ORDER BY seat", id)
@@ -613,12 +612,12 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 		return err
 	}
 	language := "python"
-	if p.SQL != nil {
+	if p.sql {
 		language = "postgresql"
 	}
 	for _, o := range owners {
 		w := ID()
-		if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,$4,'match',$5)", w, o, p.ID, language, id); err != nil {
+		if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,$4,'match',$5)", w, o, p.id, language, id); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", id, o, w); err != nil {

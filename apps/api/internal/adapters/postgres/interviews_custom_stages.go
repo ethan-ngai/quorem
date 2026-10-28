@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
@@ -19,14 +18,8 @@ func validateCustomInterviewStages(f *problems.Fixture, c *interviews.CustomQues
 	}
 	f.Problem.Odyssey = c.Odyssey
 	f.OdysseyHiddenCases = c.OdysseyHiddenCases
-	content := problems.QuestionContent{Problem: f.Problem, OdysseyHiddenCases: f.OdysseyHiddenCases}
-	if err := problems.ValidateQuestionDraft(content); err != nil {
-		return err
-	}
-	if strings.TrimSpace(f.Problem.Title) == "" || strings.TrimSpace(f.Problem.StatementMarkdown) == "" {
-		return fmt.Errorf("Title and statement required")
-	}
-	if err := problems.ValidateOdyssey(content); err != nil {
+	content := problems.QuestionContent{Problem: f.Problem, OdysseyHiddenCases: f.OdysseyHiddenCases, Attribution: f.Attribution}
+	if err := problems.ValidateQuestionDefinition(content, false); err != nil {
 		return err
 	}
 	primary, first := f.Problem.Signature, c.Odyssey.Levels[0].Methods[0]

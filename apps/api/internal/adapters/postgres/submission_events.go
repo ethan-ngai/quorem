@@ -51,7 +51,7 @@ func (s *Store) DispatchSubmissionEvents(ctx context.Context, publish func(realt
 			}
 		}
 		if len(notices) > 0 {
-			if _, err = tx.Exec(ctx, `DELETE FROM submission_outbox WHERE sequence IN (SELECT sequence FROM submission_outbox WHERE published_at IS NOT NULL AND occurred_at<clock_timestamp()-interval '7 days' ORDER BY sequence LIMIT 256)`); err != nil {
+			if err = cleanupPublishedOutbox(ctx, tx, "submission_outbox"); err != nil {
 				return 0, err
 			}
 		}

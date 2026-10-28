@@ -40,6 +40,28 @@ func authoringContent(t *testing.T, s *Store) problems.QuestionContent {
 	}
 	return c
 }
+
+func TestPublishedCaseCallsSurviveProjectionAndFork(t *testing.T) {
+	s := adminStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	p, err := s.Problem(ctx, "run-widths", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := copyProblemFixture(t, s, p.ID)
+	f.Problem.Examples[0].Calls = []problems.MethodCall{{MethodName: "sample", Args: []json.RawMessage{}, Expected: json.RawMessage("1")}}
+	f.HiddenCases[0].Calls = []problems.MethodCall{{MethodName: "private", Args: []json.RawMessage{}, Expected: json.RawMessage("2")}}
+	insertTestProblem(t, s, f)
+	id := f.Problem.ID
+	public, err := s.Problem(ctx, id, true)
+	if err != nil || len(public.Examples) == 0 || len(public.Examples[0].Calls) != 1 || public.Examples[0].Calls[0].MethodName != "sample" {
+		t.Fatalf("public calls: %+v %v", public.Examples, err)
+	}
+	fork, err := s.QuestionContent(ctx, id)
+	if err != nil || len(fork.HiddenCases) == 0 || len(fork.HiddenCases[0].Calls) != 1 || fork.HiddenCases[0].Calls[0].MethodName != "private" {
+		t.Fatalf("private calls: %+v %v", fork.HiddenCases, err)
+	}
+}
 func TestQuestionDraftPublishingPreservesPriorVersions(t *testing.T) {
 	s := adminStore(t)
 	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})

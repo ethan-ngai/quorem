@@ -37,7 +37,7 @@ func TestPostgresSandbox(t *testing.T) {
 	} {
 		t.Run(test.source, func(t *testing.T) {
 			d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-				return worker.Spec{Source: test.source, Kind: "submit", Fixture: fixture, Cases: []worker.Case{c}}, nil
+				return worker.Spec{Source: test.source, Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{c}}, nil
 			}}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -57,7 +57,7 @@ func TestPostgresSandbox(t *testing.T) {
 			t.Fatal(err)
 		}
 		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: "SELECT id FROM items", Kind: "submit", Fixture: schemaFixture, Cases: []worker.Case{schemaCase}}, nil
+			return worker.Spec{Source: "SELECT id FROM items", Kind: "submit", Problem: schemaFixture.Problem, Cases: []worker.Case{schemaCase}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -67,14 +67,14 @@ func TestPostgresSandbox(t *testing.T) {
 		}
 		schemaCase.Expected = json.RawMessage(`{"rows":[]}`)
 		d.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: "SELECT id::bigint AS id FROM items WHERE false", Kind: "submit", Fixture: schemaFixture, Cases: []worker.Case{schemaCase}}, nil
+			return worker.Spec{Source: "SELECT id::bigint AS id FROM items WHERE false", Kind: "submit", Problem: schemaFixture.Problem, Cases: []worker.Case{schemaCase}}, nil
 		}
 		result, err = d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "wrong-type", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 		if err != nil || result.Verdict != execution.WrongAnswer {
 			t.Fatalf("wrong output type: %+v %v", result, err)
 		}
 		d.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: "SELECT id::bigint AS id FROM items WHERE false", Kind: "run", Fixture: schemaFixture, Cases: []worker.Case{schemaCase}}, nil
+			return worker.Spec{Source: "SELECT id::bigint AS id FROM items WHERE false", Kind: "run", Problem: schemaFixture.Problem, Cases: []worker.Case{schemaCase}}, nil
 		}
 		result, err = d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "visible-types", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 		if err != nil || len(result.PublicCaseResults) != 1 || len(result.PublicCaseResults[0].SQLTypes) != 1 || result.PublicCaseResults[0].SQLTypes[0] != "bigint" {
@@ -85,7 +85,7 @@ func TestPostgresSandbox(t *testing.T) {
 		numeric := c
 		numeric.Expected = json.RawMessage(`{"columns":["amount"],"rows":[[{"$numeric":"12345678901234567890.1234567890"}]]}`)
 		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: "SELECT 12345678901234567890.123456789::numeric AS amount", Kind: "submit", Fixture: fixture, Cases: []worker.Case{numeric}}, nil
+			return worker.Spec{Source: "SELECT 12345678901234567890.123456789::numeric AS amount", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{numeric}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -99,7 +99,7 @@ func TestPostgresSandbox(t *testing.T) {
 		bigcase := c
 		bigcase.Expected = json.RawMessage(`{"columns":["amount"],"rows":[[{"$bigint":"9223372036854775807"}]]}`)
 		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: "SELECT 9223372036854775807::bigint AS amount", Kind: "submit", Fixture: fixture, Cases: []worker.Case{bigcase}}, nil
+			return worker.Spec{Source: "SELECT 9223372036854775807::bigint AS amount", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{bigcase}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -125,7 +125,7 @@ func TestPostgresLeftJoinTextResult(t *testing.T) {
 	}
 	runtime, _ := execution.RuntimeForRevision("postgresql-17.6-v1", "quorem-postgresql-v1")
 	d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: "-- Write your query here.\nSELECT c.id, name FROM customers c LEFT JOIN orders o\nON c.id = o.customer_id WHERE customer_id IS NULL;", Kind: "run", Fixture: fixture, Cases: []worker.Case{c}}, nil
+		return worker.Spec{Source: "-- Write your query here.\nSELECT c.id, name FROM customers c LEFT JOIN orders o\nON c.id = o.customer_id WHERE customer_id IS NULL;", Kind: "run", Problem: fixture.Problem, Cases: []worker.Case{c}}, nil
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -163,7 +163,7 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-				return worker.Spec{Source: test.source, Kind: "run", Fixture: fixture, Cases: []worker.Case{sample}}, nil
+				return worker.Spec{Source: test.source, Kind: "run", Problem: fixture.Problem, Cases: []worker.Case{sample}}, nil
 			}}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -178,7 +178,7 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 	}
 	t.Run("hidden data", func(t *testing.T) {
 		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: "SELECT id::integer AS id FROM items", Kind: "submit", Fixture: fixture, Cases: []worker.Case{private}, SubmitSamples: []worker.Case{sample}}, nil
+			return worker.Spec{Source: "SELECT id::integer AS id FROM items", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{private}, SubmitSamples: []worker.Case{sample}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -197,7 +197,7 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 			t.Fatal(err)
 		}
 		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: "SELECT query_to_xml(id, true, false, '')::text AS id FROM items", Kind: "submit", Fixture: fixture, Cases: []worker.Case{hidden}, SubmitSamples: []worker.Case{visible}}, nil
+			return worker.Spec{Source: "SELECT query_to_xml(id, true, false, '')::text AS id FROM items", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{hidden}, SubmitSamples: []worker.Case{visible}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

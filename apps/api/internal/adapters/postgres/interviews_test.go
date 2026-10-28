@@ -170,6 +170,14 @@ func TestInterviewAdmissionSnapshotsSourceAndSharedResults(t *testing.T) {
 	if source != v.Document.Source || !strings.Contains(string(fixture), "987654") || !strings.Contains(string(cases), "987654") {
 		t.Fatal("admission snapshot differs")
 	}
+	var admitted problems.Fixture
+	if err = json.Unmarshal(fixture, &admitted); err != nil {
+		t.Fatal(err)
+	}
+	job, err := s.Claim(ctx)
+	if err != nil || job.SubmissionID != sub.ID || job.SuiteRef != admitted.Problem.ID || job.Limits != admitted.Problem.Limits {
+		t.Fatalf("interview claim snapshot: %+v %v", job, err)
+	}
 	shared, err := s.InterviewSubmission(ctx, "alice", v.ID, sub.ID)
 	if err != nil || shared.ID != sub.ID {
 		t.Fatal("shared result", err)
@@ -405,5 +413,19 @@ func TestInterviewCustomRunAdmission(t *testing.T) {
 	spec, err := s.LoadExecution(ctx, job)
 	if err != nil || string(spec.Cases[0].Args[0]) != "41" {
 		t.Fatal(spec.Cases, err)
+	}
+}
+
+func TestInterviewQuestionDefinitionWithoutPrivateCases(t *testing.T) {
+	s := interviewTestStore(t)
+	ctx := context.Background()
+	q := customInterviewQuestion()
+	q.Custom.PrivateCases = nil
+	if _, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Public tests", Question: q}); err != nil {
+		t.Fatal(err)
+	}
+	q.Custom.PrivateCases = []problems.Case{{Args: []json.RawMessage{json.RawMessage(`"wrong"`)}, Expected: json.RawMessage(`1`)}}
+	if _, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Invalid tests", Question: q}); errorCode(err) != "invalid_input" {
+		t.Fatalf("invalid private case: %v", err)
 	}
 }

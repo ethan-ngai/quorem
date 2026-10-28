@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -335,7 +334,7 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 			return f, err
 		}
 		var data []byte
-		err := s.Pool.QueryRow(ctx, `SELECT v.fixture FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND p.current_version_id=v.id`, q.ProblemVersionID).Scan(&data)
+		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+` FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id::text=$1 AND p.current_version_id=selected.id`, q.ProblemVersionID).Scan(&data)
 		if err == pgx.ErrNoRows {
 			return f, failure("not_found", 404, "Question unavailable")
 		}
@@ -382,20 +381,12 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 			return f, failure("invalid_input", 400, err.Error())
 		}
 	} else {
-		// Reuse authoring/type validation without publishing private content or requiring a reference solution.
-		validation := problems.QuestionContent{Problem: f.Problem, HiddenCases: []problems.Case{}, Attribution: f.Attribution, Implementations: []problems.AuthoringImplementation{{LanguageImplementation: problems.LanguageImplementation{Language: "python", StarterSource: "private", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision}, ReferenceSource: "private"}}}
-		validation.Problem.Slug = "interview-private"
 		if len(c.PublicCases) == 0 || len(c.PublicCases) > 20 || len(c.PrivateCases) > 100 {
 			return f, failure("invalid_input", 400, "Provide 1-20 public tests and at most 100 private tests")
 		}
-		validation.HiddenCases = []problems.Case{c.PublicCases[0]}
-		if err := problems.ValidateQuestionPublication(validation); err != nil {
+		content := problems.QuestionContent{Problem: f.Problem, HiddenCases: c.PrivateCases, Attribution: f.Attribution}
+		if err := problems.ValidateQuestionDefinition(content, false); err != nil {
 			return f, failure("invalid_input", 400, err.Error())
-		}
-		for _, test := range c.PrivateCases {
-			if err := problems.ValidateProblemCase(f.Problem, test, true); err != nil {
-				return f, failure("invalid_input", 400, fmt.Sprintf("Private test: %v", err))
-			}
 		}
 	}
 

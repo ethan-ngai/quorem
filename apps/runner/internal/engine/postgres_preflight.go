@@ -32,7 +32,7 @@ func (d *Docker) VerifyPostgresSandbox(ctx context.Context) error {
 	} {
 		engine := *d
 		engine.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: probe.source, Kind: "submit", Fixture: fixture, Cases: []worker.Case{c}}, nil
+			return worker.Spec{Source: probe.source, Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{c}}, nil
 		}
 		attempt := "postgres-preflight-" + rand.Text()
 		bounded, cancel := context.WithTimeout(ctx, 120*time.Second)

@@ -69,7 +69,7 @@ func TestCodecBoundsAndCanonicalTrees(t *testing.T) {
 func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
 	sig := Signature{Parameters: []Parameter{{Name: "enabled", Type: "bool"}, {Name: "weights", Type: "list<list<float>>"}, {Name: "head", Type: "optional<ListNode>"}}, ReturnType: "TreeNode"}
 	valid := Case{Args: []json.RawMessage{json.RawMessage("true"), json.RawMessage("[[1.25],[]]"), json.RawMessage("null")}, Expected: json.RawMessage("[1,null,2]")}
-	if err := ValidateCustomCases(sig, []Case{valid}); err != nil {
+	if err := ValidateProblemCustomCases(Problem{Signature: sig}, []Case{valid}); err != nil {
 		t.Fatal(err)
 	}
 	for name, c := range map[string]Case{
@@ -81,19 +81,19 @@ func TestCustomCaseAdmissionTypesAndBounds(t *testing.T) {
 		"orphan output":   {Args: valid.Args, Expected: json.RawMessage("[1,null,null,2]")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if err := ValidateCustomCases(sig, []Case{c}); err == nil {
+			if err := ValidateProblemCustomCases(Problem{Signature: sig}, []Case{c}); err == nil {
 				t.Fatal("malformed custom case accepted")
 			}
 		})
 	}
-	if err := ValidateCustomCases(sig, []Case{}); err == nil {
+	if err := ValidateProblemCustomCases(Problem{Signature: sig}, []Case{}); err == nil {
 		t.Fatal("empty custom suite accepted")
 	}
-	if err := ValidateCustomCases(sig, make([]Case, 21)); err == nil {
+	if err := ValidateProblemCustomCases(Problem{Signature: sig}, make([]Case, 21)); err == nil {
 		t.Fatal("21 cases accepted")
 	}
 	largeString, _ := json.Marshal(string(make([]byte, 2<<20)))
-	if err := ValidateCustomCases(Signature{Parameters: []Parameter{{Name: "text", Type: "str"}}, ReturnType: "str"}, []Case{{Args: []json.RawMessage{largeString}}}); err == nil {
+	if err := ValidateProblemCustomCases(Problem{Signature: Signature{Parameters: []Parameter{{Name: "text", Type: "str"}}, ReturnType: "str"}}, []Case{{Args: []json.RawMessage{largeString}}}); err == nil {
 		t.Fatal("oversized custom suite accepted")
 	}
 	for _, typ := range []string{"optional<Graph>", "list<Graph>"} {

@@ -29,7 +29,7 @@ class Solution:
 `
 	private := true
 	d := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: source, Kind: "submit", Fixture: fixture, Cases: fixture.HiddenCases[:1], PrivateDetails: private}, nil
+		return worker.Spec{Source: source, Kind: "submit", Problem: fixture.Problem, Cases: fixture.HiddenCases[:1], PrivateDetails: private}, nil
 	}}
 	job := execution.Job{SubmissionID: "interview-details", AttemptID: rand.Text(), RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -63,7 +63,7 @@ func TestDockerSubmitSamplesRemainSeparateFromHiddenScoring(t *testing.T) {
 		}
 	}
 	d := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: fixture.ReferenceSource, Kind: "submit", Fixture: fixture, Cases: fixture.HiddenCases[:1], SubmitSamples: fixture.Problem.SampleCases()}, nil
+		return worker.Spec{Source: fixture.ReferenceSource, Kind: "submit", Problem: fixture.Problem, Cases: fixture.HiddenCases[:1], SubmitSamples: fixture.Problem.SampleCases()}, nil
 	}}
 	job := execution.Job{SubmissionID: "submit-samples", AttemptID: rand.Text(), RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

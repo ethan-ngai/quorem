@@ -21,7 +21,7 @@ func executeLanguage(t *testing.T, f worker.Fixture, language, source, kind stri
 	docker := &Docker{Image: os.Getenv("QUOREM_TEST_PYTHON_IMAGE"), Images: map[string]string{
 		"java": os.Getenv("QUOREM_TEST_JAVA_IMAGE"), "typescript": os.Getenv("QUOREM_TEST_TYPESCRIPT_IMAGE"), "ocaml": os.Getenv("QUOREM_TEST_OCAML_IMAGE"),
 	}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: source, Kind: kind, Fixture: f, Cases: cases}, nil
+		return worker.Spec{Source: source, Kind: kind, Problem: f.Problem, Cases: cases}, nil
 	}}
 	job := execution.Job{Language: language, JobID: "test", SubmissionID: "test", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()}
 	// Compilation is bounded with contestant execution; its larger envelope is explicit.

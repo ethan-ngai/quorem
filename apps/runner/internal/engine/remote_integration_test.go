@@ -138,7 +138,7 @@ func verifyRemoteSandbox(t *testing.T, remote *RemoteSandbox) {
 			t.Fatal("missing language runtime")
 		}
 		runner := &Docker{Remote: remote, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: tc.source, Kind: "run", Fixture: fixture, Cases: cases}, nil
+			return worker.Spec{Source: tc.source, Kind: "run", Problem: fixture.Problem, Cases: cases}, nil
 		}}
 		result, err := runner.Execute(ctx, execution.Job{Language: tc.language, AttemptID: "direct-" + tc.language, SubmissionID: "test", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 		if err != nil || result.Verdict != execution.Accepted {
@@ -148,7 +148,7 @@ func verifyRemoteSandbox(t *testing.T, remote *RemoteSandbox) {
 	}
 	runtime, _ := execution.LanguageRuntime("python")
 	runner := &Docker{Remote: remote, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: "class Solution:\n def solve(self, value):\n  if value == 1:\n   while True: pass\n  return value + 1", Kind: "run", Fixture: fixture, Cases: cases}, nil
+		return worker.Spec{Source: "class Solution:\n def solve(self, value):\n  if value == 1:\n   while True: pass\n  return value + 1", Kind: "run", Problem: fixture.Problem, Cases: cases}, nil
 	}}
 	limits := execution.DefaultLimits()
 	limits.WallTimeMS = 200
@@ -175,7 +175,7 @@ func verifyRemoteSandbox(t *testing.T, remote *RemoteSandbox) {
 			t.Fatal("missing Odyssey runtime")
 		}
 		runner := &Docker{Remote: remote, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: impl.ReferenceSource, Kind: "submit", Fixture: odyssey, Cases: odysseyCases}, nil
+			return worker.Spec{Source: impl.ReferenceSource, Kind: "submit", Problem: odyssey.Problem, Cases: odysseyCases}, nil
 		}}
 		result, err := runner.Execute(ctx, execution.Job{Language: impl.Language, AttemptID: "odyssey-" + impl.Language, SubmissionID: "test", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 		if err != nil || result.Verdict != execution.Accepted || result.Score == nil || result.Score.Passed != 4 {

@@ -97,7 +97,7 @@ func (d *Docker) VerifySandbox(ctx context.Context) error {
 	for _, probe := range probes {
 		engine := *d
 		engine.Resolve = func(context.Context, execution.Job) (worker.Spec, error) {
-			return worker.Spec{Source: probe.source, Kind: "run", Fixture: fixture, Cases: []worker.Case{test}}, nil
+			return worker.Spec{Source: probe.source, Kind: "run", Problem: fixture.Problem, Cases: []worker.Case{test}}, nil
 		}
 		attempt := "preflight-" + rand.Text()
 		job := execution.Job{AttemptID: attempt, SubmissionID: attempt, Language: "python", RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}

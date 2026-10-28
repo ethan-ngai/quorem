@@ -8,6 +8,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -27,7 +28,7 @@ func testStore(t *testing.T) *Store {
 	if err = store.Migrate(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Pool.Exec(ctx, "TRUNCATE guest_request_buckets,access_audit,entitlement_grants,quota_overrides,guest_sessions,guest_sponsor_locks,guest_execution_usage,execution_attempt_usage,match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,outbox_events,execution_idempotency,execution_jobs,submissions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
+	if _, err = store.Pool.Exec(ctx, "TRUNCATE guest_request_buckets,access_audit,entitlement_grants,quota_overrides,guest_sessions,guest_sponsor_locks,guest_execution_usage,execution_attempt_usage,match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,execution_idempotency,execution_jobs,submissions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
 		t.Fatal(err)
 	}
 	f, err := problems.LoadFixtures("../../../../../fixtures/problems")
@@ -38,6 +39,41 @@ func testStore(t *testing.T) *Store {
 		t.Fatal(err)
 	}
 	return store
+}
+
+func copyProblemFixture(t *testing.T, s *Store, id string) problems.Fixture {
+	t.Helper()
+	var raw []byte
+	if err := s.Pool.QueryRow(context.Background(), "SELECT "+fixtureProjectionSQL("$1::uuid"), id).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var f problems.Fixture
+	if err := json.Unmarshal(raw, &f); err != nil {
+		t.Fatal(err)
+	}
+	version, err := strconv.Atoi(f.Problem.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Problem.ID = ID()
+	f.Problem.Version = strconv.Itoa(version + 1)
+	return f
+}
+
+func insertTestProblem(t *testing.T, s *Store, f problems.Fixture) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = insertProblemVersion(ctx, tx, f); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
 }
 func errorCode(err error) string {
 	var e *Error

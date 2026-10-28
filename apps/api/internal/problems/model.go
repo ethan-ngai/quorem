@@ -44,6 +44,15 @@ type ProblemExample struct {
 }
 
 func (p Problem) SampleCases() []Case {
+	if p.Odyssey != nil {
+		var cases []Case
+		for _, level := range p.Odyssey.Levels {
+			for _, example := range level.Examples {
+				cases = append(cases, example.Case)
+			}
+		}
+		return cases
+	}
 	cases := make([]Case, len(p.Examples))
 	for i, example := range p.Examples {
 		cases[i] = example.Case

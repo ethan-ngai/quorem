@@ -75,16 +75,53 @@ func NormalizeQuestionDraft(c QuestionContent) QuestionContent {
 		c.Solutions = []EditorialSolution{}
 	}
 	for i := range p.Examples {
-		if p.Examples[i].Args == nil {
-			p.Examples[i].Args = []json.RawMessage{}
-		}
+		normalizeDraftCase(&p.Examples[i].Case)
 	}
 	for i := range c.HiddenCases {
-		if c.HiddenCases[i].Args == nil {
-			c.HiddenCases[i].Args = []json.RawMessage{}
+		normalizeDraftCase(&c.HiddenCases[i])
+	}
+	if p.Odyssey != nil {
+		if p.Odyssey.Levels == nil {
+			p.Odyssey.Levels = []OdysseyLevel{}
+		}
+		for i := range p.Odyssey.Levels {
+			level := &p.Odyssey.Levels[i]
+			if level.Methods == nil {
+				level.Methods = []Signature{}
+			}
+			if level.Examples == nil {
+				level.Examples = []ProblemExample{}
+			}
+			for j := range level.Methods {
+				if level.Methods[j].Parameters == nil {
+					level.Methods[j].Parameters = []Parameter{}
+				}
+			}
+			for j := range level.Examples {
+				normalizeDraftCase(&level.Examples[j].Case)
+			}
+		}
+	}
+	for i := range c.OdysseyHiddenCases {
+		if c.OdysseyHiddenCases[i] == nil {
+			c.OdysseyHiddenCases[i] = []Case{}
+		}
+		for j := range c.OdysseyHiddenCases[i] {
+			normalizeDraftCase(&c.OdysseyHiddenCases[i][j])
 		}
 	}
 	return c
+}
+
+func normalizeDraftCase(c *Case) {
+	if c.Args == nil {
+		c.Args = []json.RawMessage{}
+	}
+	for i := range c.Calls {
+		if c.Calls[i].Args == nil {
+			c.Calls[i].Args = []json.RawMessage{}
+		}
+	}
 }
 
 // Drafts may be incomplete; all saved content remains bounded and valid UTF-8.
@@ -142,8 +179,8 @@ func ValidateQuestionDraft(c QuestionContent) error {
 	return nil
 }
 
-// Publication validates metadata and wire cases; compilation/reference acceptance is a separate gate.
-func ValidateQuestionPublication(c QuestionContent) error {
+// ValidateQuestionDefinition checks shared metadata and cases before publication or interview use.
+func ValidateQuestionDefinition(c QuestionContent, requireHidden bool) error {
 	if err := ValidateQuestionDraft(c); err != nil {
 		return err
 	}
@@ -162,7 +199,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 	if strings.TrimSpace(c.Attribution) == "" {
 		return fmt.Errorf("attribution required")
 	}
-	if p.Odyssey == nil && (len(p.Examples) == 0 || len(c.HiddenCases) == 0) {
+	if p.Odyssey == nil && (len(p.Examples) == 0 || (requireHidden && len(c.HiddenCases) == 0)) {
 		return fmt.Errorf("public examples and at least one hidden case required")
 	}
 	seenTags := map[string]bool{}
@@ -213,6 +250,15 @@ func ValidateQuestionPublication(c QuestionContent) error {
 			return fmt.Errorf("hidden case %d: %w", i+1, err)
 		}
 	}
+	return nil
+}
+
+// Publication additionally requires pinned implementations and private references.
+func ValidateQuestionPublication(c QuestionContent) error {
+	if err := ValidateQuestionDefinition(c, true); err != nil {
+		return err
+	}
+	p := c.Problem
 	languages := map[string]bool{}
 	for _, v := range c.Implementations {
 		runtime, ok := execution.LanguageRuntime(v.Language)

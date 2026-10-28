@@ -23,7 +23,7 @@ func TestCompilationBudgetProducesContestantVerdict(t *testing.T) {
 	f.HiddenCases = []worker.Case{{Expected: []byte("[]")}, {Expected: []byte("[]")}, {Expected: []byte("[]")}}
 	runtime, _ := execution.LanguageRuntime("java")
 	engine := &Docker{client: client, compilationLimit: 40 * time.Millisecond, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Kind: "submit", Fixture: f, Cases: f.HiddenCases}, nil
+		return worker.Spec{Kind: "submit", Problem: f.Problem, Cases: f.HiddenCases}, nil
 	}}
 	result, err := engine.Execute(context.Background(), execution.Job{Language: "java", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 	if err != nil || result.Verdict != execution.TimeLimit || result.Score == nil || result.Score.Passed != 0 || result.Score.Total != 3 || len(result.HiddenCases) != 3 {
@@ -61,7 +61,7 @@ func TestCompilationIsReusedWithoutCarryingCaseInputs(t *testing.T) {
 	cases := []worker.Case{{Expected: []byte(`[]`)}, {Expected: []byte(`[]`)}, {Expected: []byte(`[]`)}}
 	runtime, _ := execution.LanguageRuntime("typescript")
 	docker := &Docker{client: client, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: "source", Kind: "submit", Fixture: f, Cases: cases}, nil
+		return worker.Spec{Source: "source", Kind: "submit", Problem: f.Problem, Cases: cases}, nil
 	}}
 	result, err := docker.Execute(context.Background(), execution.Job{AttemptID: "compile-once", Language: "typescript", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 	if err != nil || result.Verdict != execution.Accepted || compiles.Load() != 1 || executes.Load() != 2 {
@@ -85,7 +85,7 @@ func TestFirstCaseTimeoutDoesNotDiscardLaterCases(t *testing.T) {
 	cases := []worker.Case{{Expected: []byte(`[]`)}, {Expected: []byte(`[]`)}}
 	runtime, _ := execution.LanguageRuntime("typescript")
 	engine := &Docker{client: client, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Kind: "submit", Fixture: f, Cases: cases}, nil
+		return worker.Spec{Kind: "submit", Problem: f.Problem, Cases: cases}, nil
 	}}
 	limits := execution.DefaultLimits()
 	limits.WallTimeMS = 50

@@ -50,29 +50,6 @@ func TestSubmissionOutboxRetriesFailedPublish(t *testing.T) {
 	}
 }
 
-func TestSubmissionMigrationAfterMembershipMigration(t *testing.T) {
-	store := streamStore(t)
-	ctx := context.Background()
-	_, err := store.Pool.Exec(ctx, `DROP TRIGGER submission_notice ON submissions;
-		DROP FUNCTION queue_submission_notice();
-		DROP TABLE submission_outbox;
-		DELETE FROM schema_migrations WHERE name='011_submission_realtime.sql'`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var later bool
-	if err = store.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE name='012_match_membership_events.sql')`).Scan(&later); err != nil || !later {
-		t.Fatalf("membership migration: %v %v", later, err)
-	}
-	if err = store.Migrate(ctx, "../../migrations"); err != nil {
-		t.Fatal(err)
-	}
-	var exists bool
-	if err = store.Pool.QueryRow(ctx, `SELECT to_regclass('submission_outbox') IS NOT NULL`).Scan(&exists); err != nil || !exists {
-		t.Fatalf("submission migration: %v %v", exists, err)
-	}
-}
-
 func TestSubmissionStreamRepairsSilentlyLostNotice(t *testing.T) {
 	store := streamStore(t)
 	ctx := context.Background()

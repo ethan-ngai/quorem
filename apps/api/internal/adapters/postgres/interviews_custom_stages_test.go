@@ -114,7 +114,7 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 		t.Fatal("candidate future/private projection", candidate, err)
 	}
 	var catalog int
-	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM problem_versions WHERE slug='interview-private'`).Scan(&catalog); err != nil || catalog != 0 {
+	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM problems WHERE slug='interview-private'`).Scan(&catalog); err != nil || catalog != 0 {
 		t.Fatal("private stages published", catalog, err)
 	}
 	submit := func(total, passed int) {

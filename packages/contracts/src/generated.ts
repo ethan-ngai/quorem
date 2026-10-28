@@ -949,14 +949,7 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages?: components["schemas"]["LanguageImplementation"][];
-            sql?: {
-                /** @enum {string} */
-                dialect: "postgresql";
-                /** @enum {string} */
-                outputOrder: "ordered" | "unordered";
-                tables?: components["schemas"]["SqlTableSchema"][];
-                output?: components["schemas"]["SqlColumn"][];
-            };
+            sql?: components["schemas"]["SqlConfig"];
             odyssey?: components["schemas"]["Odyssey"];
             solutionLanguages?: components["schemas"]["Language"][];
             /** @description Languages with published complexity; contains no costs or solution source. */
@@ -1279,6 +1272,7 @@ export interface components {
         };
         QuestionProblem: {
             id: string;
+            isPrivate?: boolean;
             slug: string;
             version: string;
             title: string;
@@ -1294,15 +1288,19 @@ export interface components {
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
             languages: components["schemas"]["LanguageImplementation"][];
-            sql?: {
-                /** @enum {string} */
-                dialect: "postgresql";
-                /** @enum {string} */
-                outputOrder: "ordered" | "unordered";
-                tables?: components["schemas"]["SqlTableSchema"][];
-                output?: components["schemas"]["SqlColumn"][];
-            };
+            sql?: components["schemas"]["SqlConfig"];
             odyssey?: components["schemas"]["Odyssey"];
+            solutionLanguages?: components["schemas"]["Language"][];
+            /** @description Languages with published complexity; contains no costs or solution source. */
+            complexityLanguages?: components["schemas"]["Language"][];
+        };
+        SqlConfig: {
+            /** @enum {string} */
+            dialect: "postgresql";
+            /** @enum {string} */
+            outputOrder: "ordered" | "unordered";
+            tables?: components["schemas"]["SqlTableSchema"][];
+            output?: components["schemas"]["SqlColumn"][];
         };
         SqlColumn: {
             name: string;

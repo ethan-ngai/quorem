@@ -116,28 +116,32 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 		return problems.QuestionContent{}, err
 	}
 	c := problems.QuestionContent{Problem: p, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
-	var original []byte
-	if err = s.Pool.QueryRow(ctx, "SELECT fixture FROM problem_versions WHERE id::text=$1", versionID).Scan(&original); err != nil {
+	var odyssey, suites []byte
+	if err = s.Pool.QueryRow(ctx, "SELECT v.odyssey,"+odysseySuitesSQL+" FROM problem_versions v WHERE v.id::text=$1", versionID).Scan(&odyssey, &suites); err != nil {
 		return c, err
 	}
-	var fixture problems.Fixture
-	if err = json.Unmarshal(original, &fixture); err != nil {
-		return c, err
+	if odyssey != nil {
+		if err = json.Unmarshal(odyssey, &c.Problem.Odyssey); err != nil {
+			return c, err
+		}
 	}
-	c.Problem.Odyssey = fixture.Problem.Odyssey
-	c.OdysseyHiddenCases = fixture.OdysseyHiddenCases
+	if suites != nil {
+		if err = json.Unmarshal(suites, &c.OdysseyHiddenCases); err != nil {
+			return c, err
+		}
+	}
 
 	if err = s.Pool.QueryRow(ctx, "SELECT attribution FROM problem_versions WHERE id::text=$1", versionID).Scan(&c.Attribution); err != nil {
 		return c, err
 	}
-	rows, err := s.Pool.Query(ctx, "SELECT args,expected FROM problem_test_cases WHERE version_id::text=$1 ORDER BY ordinal", versionID)
+	rows, err := s.Pool.Query(ctx, "SELECT args,expected,calls FROM problem_test_cases WHERE version_id::text=$1 ORDER BY ordinal", versionID)
 	if err != nil {
 		return c, err
 	}
 	for rows.Next() {
-		var args, expected []byte
+		var args, expected, calls []byte
 		var test problems.Case
-		if err = rows.Scan(&args, &expected); err != nil {
+		if err = rows.Scan(&args, &expected, &calls); err != nil {
 			rows.Close()
 			return c, err
 		}
@@ -146,6 +150,10 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 			return c, err
 		}
 		test.Expected = expected
+		if err = json.Unmarshal(calls, &test.Calls); err != nil {
+			rows.Close()
+			return c, err
+		}
 		c.HiddenCases = append(c.HiddenCases, test)
 	}
 	err = rows.Err()
@@ -268,7 +276,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 		return d, err
 	}
 	var version int
-	if err = tx.QueryRow(ctx, "SELECT COALESCE(MAX(version),0)+1 FROM problem_versions WHERE slug=$1", c.Problem.Slug).Scan(&version); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT COALESCE(MAX(v.version),0)+1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE p.slug=$1", c.Problem.Slug).Scan(&version); err != nil {
 		return d, err
 	}
 	p := c.Problem
@@ -285,16 +293,12 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	p.StarterSource = primary.StarterSource
 	p.RuntimeRevision = primary.RuntimeRevision
 	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
-	public, err := json.Marshal(p)
+	inserted, err := insertProblemVersion(ctx, tx, fixture)
 	if err != nil {
 		return d, err
 	}
-	private, err := json.Marshal(fixture)
-	if err != nil {
-		return d, err
-	}
-	if _, err = tx.Exec(ctx, "INSERT INTO problem_versions(id,slug,version,public,fixture) VALUES($1,$2,$3,$4,$5)", p.ID, p.Slug, version, public, private); err != nil {
-		return d, err
+	if !inserted {
+		return d, failure("revision_conflict", 409, "Problem version already exists")
 	}
 	// Catalog metadata belongs to the stable problem, not its immutable version.
 	if privateOwner != nil && p.LeetcodeID != nil {

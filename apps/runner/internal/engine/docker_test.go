@@ -28,7 +28,7 @@ func dockerTests(t *testing.T) []worker.Fixture {
 func executeFixture(t *testing.T, f worker.Fixture, source, kind string, cases []worker.Case) execution.Completion {
 	t.Helper()
 	docker := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: source, Kind: kind, Fixture: f, Cases: cases}, nil
+		return worker.Spec{Source: source, Kind: kind, Problem: f.Problem, Cases: cases}, nil
 	}}
 	j := execution.Job{JobID: "test", SubmissionID: "test", AttemptID: rand.Text(), RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -150,7 +150,7 @@ func TestDockerCancellationTearsDown(t *testing.T) {
 	f := dockerTests(t)[0]
 	ctx, cancel := context.WithCancel(context.Background())
 	docker := &Docker{Image: "quorem-python:local", Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
-		return worker.Spec{Source: "class Solution:\n def levelSpreads(self, root):\n  while True: pass", Kind: "run", Fixture: f, Cases: f.Problem.SampleCases()[:1]}, nil
+		return worker.Spec{Source: "class Solution:\n def levelSpreads(self, root):\n  while True: pass", Kind: "run", Problem: f.Problem, Cases: f.Problem.SampleCases()[:1]}, nil
 	}}
 	attempt := "cancel-" + rand.Text()
 	job := execution.Job{SubmissionID: "cancel", AttemptID: attempt, RuntimeRevision: execution.RuntimeRevision, HarnessRevision: execution.HarnessRevision, Limits: execution.DefaultLimits()}
