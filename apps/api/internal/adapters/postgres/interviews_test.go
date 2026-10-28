@@ -170,6 +170,14 @@ func TestInterviewAdmissionSnapshotsSourceAndSharedResults(t *testing.T) {
 	if source != v.Document.Source || !strings.Contains(string(fixture), "987654") || !strings.Contains(string(cases), "987654") {
 		t.Fatal("admission snapshot differs")
 	}
+	var admitted problems.Fixture
+	if err = json.Unmarshal(fixture, &admitted); err != nil {
+		t.Fatal(err)
+	}
+	job, err := s.Claim(ctx)
+	if err != nil || job.SubmissionID != sub.ID || job.SuiteRef != admitted.Problem.ID || job.Limits != admitted.Problem.Limits {
+		t.Fatalf("interview claim snapshot: %+v %v", job, err)
+	}
 	shared, err := s.InterviewSubmission(ctx, "alice", v.ID, sub.ID)
 	if err != nil || shared.ID != sub.ID {
 		t.Fatal("shared result", err)

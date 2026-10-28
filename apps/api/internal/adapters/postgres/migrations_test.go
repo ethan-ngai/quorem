@@ -235,8 +235,8 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 	}
 	id := ID()
 	if _, err = pool.Exec(ctx, `INSERT INTO problem_versions(id,slug,version,public,fixture)
- VALUES($1,'run-widths',1,jsonb_set($2::jsonb,'{examples,0,calls}','[{"methodName":"public","args":[]}]'),
- jsonb_set($3::jsonb,'{hiddenCases,0,calls}','[{"methodName":"private","args":[]}]'))`, id, public, fixture); err != nil {
+ VALUES($1,'run-widths',1,jsonb_set($2::jsonb || '{"sql":{"dialect":"postgresql"},"odyssey":{"levels":[{"title":"First"}]}}'::jsonb,'{examples,0,calls}','[{"methodName":"public","args":[]}]'),
+ jsonb_set(jsonb_set($3::jsonb,'{problem}',($3::jsonb->'problem') || '{"sql":{"dialect":"postgresql"},"odyssey":{"levels":[{"title":"First"}]}}'::jsonb),'{hiddenCases,0,calls}','[{"methodName":"private","args":[]}]'))`, id, public, fixture); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE problem_versions SET sealed=true WHERE id=$1`, id); err != nil {
@@ -256,5 +256,19 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 	}
 	if _, err = pool.Exec(ctx, `UPDATE problem_examples SET calls='[]' WHERE version_id=$1`, id); err == nil {
 		t.Fatal("sealed example became mutable")
+	}
+	migration, err = os.ReadFile("../../../migrations/023_problem_kind_config.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var dialect, title string
+	if err = pool.QueryRow(ctx, `SELECT sql_config->>'dialect',odyssey->'levels'->0->>'title' FROM problem_versions WHERE id=$1`, id).Scan(&dialect, &title); err != nil || dialect != "postgresql" || title != "First" {
+		t.Fatalf("configuration backfill: %q %q %v", dialect, title, err)
+	}
+	if _, err = pool.Exec(ctx, `UPDATE problem_versions SET odyssey=NULL WHERE id=$1`, id); err == nil {
+		t.Fatal("sealed version became mutable")
 	}
 }

@@ -575,7 +575,7 @@ func TestMatchEmptyDifficultyAndEncryptedInviteReplay(t *testing.T) {
 	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "temporarily_unavailable" {
+	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "no_matching_questions" {
 		t.Fatal(e)
 	}
 	v, e := s.Match(ctx, "alice", c.ID)
@@ -620,7 +620,7 @@ func TestMatchSelectionFiltersDifficultyAfterLatestVersion(t *testing.T) {
 	if _, e = s.ReadyMatch(ctx, "alice", c.ID, ID(), true); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "temporarily_unavailable" {
+	if _, e = s.ReadyMatch(ctx, "bob", c.ID, ID(), true); errorCode(e) != "no_matching_questions" {
 		t.Fatal("retained easy version entered pool", e)
 	}
 	v, e := s.Match(ctx, "alice", c.ID)

@@ -21,12 +21,13 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 	}
 	var j execution.Job
 	var data []byte
+	var suiteID string
 	var cancelled bool
 	var attempts int
-	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,COALESCE(ie.fixture->'problem',p.public),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
+	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,w.problem_version_id,COALESCE(ie.fixture->'problem'->>'id',p.id::text),COALESCE(ie.fixture->'problem'->'limits',p.limits),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
  FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id
  WHERE NOT j.finished AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND s.state IN ('queued','running')
- ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
+ ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, nil
 	}
@@ -52,14 +53,12 @@ func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
 		}
 		return execution.Job{}, tx.Commit(ctx)
 	}
-	var p problems.Problem
-	if err = json.Unmarshal(data, &p); err != nil {
+	if err = json.Unmarshal(data, &j.Limits); err != nil {
 		return j, err
 	}
 	j.AttemptID = ID()
 	j.SourceRef = j.SubmissionID
-	j.SuiteRef = p.ID
-	j.Limits = p.Limits
+	j.SuiteRef = suiteID
 	if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET attempt_id=$2,attempts=attempts+1,lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1", uuidLookup(j.JobID), uuidLookup(j.AttemptID)); err != nil {
 		return j, err
 	}

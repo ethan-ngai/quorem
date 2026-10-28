@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
-	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
 )
@@ -547,8 +546,9 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 	id := m.id
 	var rows pgx.Rows
 	var err error
+	selection := "SELECT v.id::text,EXISTS(SELECT 1 FROM problem_languages l WHERE l.version_id=v.id AND l.language='postgresql') FROM problem_versions v JOIN problems p ON p.id=v.problem_id"
 	if m.settings.SelectedProblemVersionID != "" {
-		rows, err = tx.Query(ctx, "SELECT v.public FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND (p.owner_id IS NULL OR p.owner_id=$2)", m.settings.SelectedProblemVersionID, m.host)
+		rows, err = tx.Query(ctx, selection+" WHERE v.id::text=$1 AND (p.owner_id IS NULL OR p.owner_id=$2)", m.settings.SelectedProblemVersionID, m.host)
 	} else {
 		filters := m.settings.QuestionFilters
 		sql := "false"
@@ -556,21 +556,20 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 			sql = "true"
 		}
 		f := ProblemFilter{Difficulty: strings.Join(m.settings.Difficulties, ","), Type: filters.Type, SQL: sql, Topic: filters.Topic, Company: filters.Company}
-		rows, err = tx.Query(ctx, "SELECT v.public FROM problem_versions v JOIN problems p ON p.id=v.problem_id"+catalogWhere+" ORDER BY v.id", catalogArgs(f, m.host)...)
+		rows, err = tx.Query(ctx, selection+catalogWhere+" ORDER BY v.id", catalogArgs(f, m.host)...)
 	}
 
 	if err != nil {
 		return err
 	}
-	pool := []problems.Problem{}
+	type candidate struct {
+		id  string
+		sql bool
+	}
+	pool := []candidate{}
 	for rows.Next() {
-		var data []byte
-		var p problems.Problem
-		if err = rows.Scan(&data); err != nil {
-			rows.Close()
-			return err
-		}
-		if err = json.Unmarshal(data, &p); err != nil {
+		var p candidate
+		if err = rows.Scan(&p.id, &p.sql); err != nil {
 			rows.Close()
 			return err
 		}
@@ -590,8 +589,8 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 	}
 	p := pool[choice.Int64()]
 	m.state = "active"
-	m.problem = p.ID
-	if err = tx.QueryRow(ctx, "UPDATE matches SET state='active',problem_version_id=$2,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=$1 RETURNING started_at,deadline", id, p.ID).Scan(&m.started, &m.deadline); err != nil {
+	m.problem = p.id
+	if err = tx.QueryRow(ctx, "UPDATE matches SET state='active',problem_version_id=$2,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=$1 RETURNING started_at,deadline", id, p.id).Scan(&m.started, &m.deadline); err != nil {
 		return err
 	}
 	rows, err = tx.Query(ctx, "SELECT owner_id FROM match_participants WHERE match_id=$1 ORDER BY seat", id)
@@ -613,12 +612,12 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 		return err
 	}
 	language := "python"
-	if p.SQL != nil {
+	if p.sql {
 		language = "postgresql"
 	}
 	for _, o := range owners {
 		w := ID()
-		if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,$4,'match',$5)", w, o, p.ID, language, id); err != nil {
+		if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,$4,'match',$5)", w, o, p.id, language, id); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", id, o, w); err != nil {
