@@ -262,7 +262,8 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 	return v, tx.Commit(ctx)
 }
 func (s *Store) Cleanup(ctx context.Context) error {
-	_, err := s.Pool.Exec(ctx, `DELETE FROM guest_request_buckets WHERE window_start<statement_timestamp()-interval '2 hours';
+	_, err := s.Pool.Exec(ctx, `DELETE FROM execution_checkpoints c USING execution_jobs j,submissions s,users u WHERE c.job_id=j.id AND j.submission_id=s.id AND u.id=s.owner_id AND s.state NOT IN ('queued','running') AND s.admitted_at<statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END;
+ DELETE FROM guest_request_buckets WHERE window_start<statement_timestamp()-interval '2 hours';
  UPDATE submissions s SET source='',result=NULL,cases='[]'::jsonb WHERE admitted_at<statement_timestamp()-interval '7 days' AND state NOT IN ('queued','running') AND (source<>'' OR result IS NOT NULL OR cases<>'[]'::jsonb) AND EXISTS(SELECT 1 FROM users u WHERE u.id=s.owner_id AND u.kind='guest');
  UPDATE users u SET display_name='Expired guest' WHERE kind='guest' AND display_name<>'Expired guest' AND EXISTS(SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<statement_timestamp()-interval '7 days');
  DELETE FROM execution_idempotency WHERE expires_at < statement_timestamp();

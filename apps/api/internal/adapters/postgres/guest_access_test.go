@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/access"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
@@ -232,6 +233,23 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	if err != nil || job.SubmissionID != second.ID {
 		t.Fatalf("claim %+v %v", job, err)
 	}
+	if _, err = s.Pool.Exec(ctx, "UPDATE execution_jobs SET attempt_started_at=clock_timestamp()-interval '65 seconds' WHERE id=$1", job.JobID); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.SaveCheckpoint(ctx, job, execution.CheckpointCase{Ordinal: 0, Frame: json.RawMessage(`{"status":"executed"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.YieldExecution(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	var stillReserved bool
+	if err = s.Pool.QueryRow(ctx, "SELECT settled_at IS NULL FROM guest_execution_usage WHERE submission_id=$1", second.ID).Scan(&stillReserved); err != nil || !stillReserved {
+		t.Fatal("yield released reservation", err)
+	}
+	job, err = s.ClaimResumable(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Complete(ctx, job, execution.Completion{SubmissionID: job.SubmissionID, AttemptID: job.AttemptID, EngineFailure: "transient infrastructure fault"}); err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +263,7 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	if _, err := s.Pool.Exec(ctx, "UPDATE execution_jobs SET available_at=clock_timestamp()-interval '1 second' WHERE submission_id=$1", second.ID); err != nil {
 		t.Fatal(err)
 	}
-	job, err = s.Claim(ctx)
+	job, err = s.ClaimResumable(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +278,7 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	var charged int
 	s.Pool.QueryRow(ctx, "SELECT count(*),sum(charged_seconds) FROM guest_execution_usage WHERE settled_at IS NOT NULL").Scan(&settled, &charged)
 	s.Pool.QueryRow(ctx, "SELECT count(*) FROM execution_attempt_usage WHERE submission_id=$1", second.ID).Scan(&attempts)
-	if settled != 2 || attempts != 2 || charged > 60 {
+	if settled != 2 || attempts != 3 || charged < 65 {
 		t.Fatalf("settlement duplicated: %d/%d/%d", settled, attempts, charged)
 	}
 	if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET admitted_at=clock_timestamp()-interval '31 days'; UPDATE guest_sessions SET expires_at=clock_timestamp()-interval '8 days'"); err != nil {

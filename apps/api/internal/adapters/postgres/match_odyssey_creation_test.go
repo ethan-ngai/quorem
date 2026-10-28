@@ -84,6 +84,20 @@ func TestCreateMatchWithPublicOdyssey(t *testing.T) {
 		t.Fatal(err)
 	}
 	job := claimJobs(t, s, 1)[0]
+	if err = s.SaveCheckpoint(ctx, job, execution.CheckpointCase{Ordinal: 0, Frame: json.RawMessage(`{"status":"executed"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.YieldExecution(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := s.Match(ctx, "alice", created.ID)
+	if err != nil || pending.State != "active" || pending.Outcome != nil {
+		t.Fatal("partial score resolved match", pending, err)
+	}
+	job, err = s.ClaimResumable(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	spec, err := s.LoadExecution(ctx, job)
 	if err != nil {
 		t.Fatal(err)
