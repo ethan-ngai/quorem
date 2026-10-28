@@ -321,4 +321,24 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
  (SELECT response->>'submissionId'='s' FROM interview_operations WHERE key='submission')`).Scan(&cleared, &submissionRetained); err != nil || !cleared || !submissionRetained {
 		t.Fatalf("operation null migration: %v %v %v", cleared, submissionRetained, err)
 	}
+	if _, err = pool.Exec(ctx, `INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES('00000000-0000-4000-8000-000000000109','match-host',$1,'postgresql')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,match_id,kind,source,source_hash,state,cases)
+ SELECT '00000000-0000-4000-8000-000000000110','match-host','00000000-0000-4000-8000-000000000109',id,'run','','hash','completed','[]' FROM matches LIMIT 1`); err != nil {
+		t.Fatal(err)
+	}
+	migration, err = os.ReadFile("../../../migrations/037_workspace_context_integrity.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err == nil {
+		t.Fatal("inconsistent workspace context accepted")
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM submissions WHERE id='00000000-0000-4000-8000-000000000110'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
 }

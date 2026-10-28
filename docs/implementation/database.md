@@ -6,6 +6,8 @@ Published problem fields, languages, examples, hidden cases and Odyssey cases li
 
 Submissions belong to exactly one workspace or interview. Interview executions reference immutable, content-addressed question snapshots, so later edits cannot change a historical execution; their session identity must match the submission. Identical snapshots are shared within a session and follow its lifetime. Submission cases and results capture the admitted and completed job. Match and interview membership, guest usage, idempotency and realtime outboxes have separate lifecycles. Better Auth owns its separate schema and provider-defined account, session and passkey fields.
 
+Workspace identity is immutable. Its language must be available for its problem version; submission and participant references must match its owner and match context.
+
 ## Integration tests
 
 `QUOREM_TEST_DATABASE_URL` and `AUTH_TEST_DATABASE_URL` must name separate disposable databases, never running development databases. Product tests truncate fixture state; HTTP suites isolate their own schemas. Auth suites run serially against a disposable auth schema. Test a fresh baseline and repeated startup before adding schema changes.
