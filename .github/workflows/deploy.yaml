@@ -344,6 +344,11 @@ jobs:
       TF_VAR_project_name: ${{ vars.NEON_PROJECT_NAME || 'quorem-production' }}
       TF_VAR_region: ${{ vars.NEON_REGION || 'aws-us-east-1' }}
       TF_VAR_max_compute_cu: ${{ vars.NEON_MAX_COMPUTE_CU || '4' }}
+      TF_VAR_api_lossless_results: ${{ vars.QUOREM_API_LOSSLESS_RESULTS || 'false' }}
+      TF_VAR_api_lossless_cases: ${{ vars.QUOREM_API_LOSSLESS_CASES || 'false' }}
+      TF_VAR_judge_lossless_results: ${{ vars.QUOREM_JUDGE_LOSSLESS_RESULTS || 'false' }}
+      TF_VAR_judge_lossless_cases: ${{ vars.QUOREM_JUDGE_LOSSLESS_CASES || 'false' }}
+      TF_VAR_judge_resumable_execution: ${{ vars.QUOREM_JUDGE_RESUMABLE_EXECUTION || 'false' }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

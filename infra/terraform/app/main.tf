@@ -14,6 +14,34 @@ variable "domain" { type = string }
 variable "image" { type = string }
 variable "judge_image" { type = string }
 variable "case_image_revision" { type = string }
+variable "api_lossless_results" {
+  type    = bool
+  default = false
+}
+variable "judge_lossless_results" {
+  type    = bool
+  default = false
+}
+variable "judge_lossless_cases" {
+  type    = bool
+  default = false
+  validation {
+    condition     = !var.judge_lossless_cases || var.judge_lossless_results
+    error_message = "Lossless judge cases require lossless judge result writes."
+  }
+}
+variable "api_lossless_cases" {
+  type    = bool
+  default = false
+  validation {
+    condition     = !var.api_lossless_cases || (var.api_lossless_results && var.judge_lossless_cases && var.judge_lossless_results)
+    error_message = "Lossless API cases require lossless API results and capable judges."
+  }
+}
+variable "judge_resumable_execution" {
+  type    = bool
+  default = false
+}
 variable "app_pool_shards" {
   type    = number
   default = 4
@@ -202,6 +230,8 @@ locals {
     QUOREM_REALTIME_PROVIDER         = "postgres-notify"
     QUOREM_SKIP_MIGRATIONS           = "true"
     QUOREM_DATABASE_MAX_CONNS        = "4"
+    QUOREM_LOSSLESS_CASES            = tostring(var.api_lossless_cases)
+    QUOREM_LOSSLESS_RESULT_WRITES    = tostring(var.api_lossless_results)
     AUTH_DATABASE_MAX_CONNS          = "4"
     QUOREM_API_MAX_REQUESTS          = tostring(var.app_http_capacity)
     QUOREM_REALTIME_CONNECTION_LIMIT = tostring(var.app_ws_capacity)
@@ -211,12 +241,15 @@ locals {
     QUOREM_JUDGE_CONTROL_TOKEN       = random_password.judge_control.result
   }, var.auth_environment)
   judge_runtime = {
-    DATABASE_URL               = var.database_url
-    QUOREM_DATABASE_MAX_CONNS  = "2"
-    QUOREM_JUDGE_CONTROL_TOKEN = random_password.judge_control.result
-    RUNNER_ADDR                = "0.0.0.0:8090"
-    RUNNER_CONCURRENCY         = "2"
-    QUOREM_CASE_SANDBOX_ORIGIN = local.origin
+    DATABASE_URL                  = var.database_url
+    QUOREM_DATABASE_MAX_CONNS     = "2"
+    QUOREM_LOSSLESS_CASES         = tostring(var.judge_lossless_cases)
+    QUOREM_LOSSLESS_RESULT_WRITES = tostring(var.judge_lossless_results)
+    QUOREM_RESUMABLE_EXECUTION    = tostring(var.judge_resumable_execution)
+    QUOREM_JUDGE_CONTROL_TOKEN    = random_password.judge_control.result
+    RUNNER_ADDR                   = "0.0.0.0:8090"
+    RUNNER_CONCURRENCY            = "2"
+    QUOREM_CASE_SANDBOX_ORIGIN    = local.origin
   }
 }
 resource "cloudflare_queue" "judge" {
