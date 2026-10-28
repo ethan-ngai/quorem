@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/internal/execution"
+	"github.com/jackc/pgx/v5/pgconn"
 	"testing"
 )
 
@@ -44,5 +46,10 @@ func TestLanguageWorkspaceAdmissionSnapshots(t *testing.T) {
 	}
 	if _, err = s.CreateWorkspace(ctx, "alice", problem.ID, "rust"); err == nil {
 		t.Fatal("unsupported language admitted")
+	}
+	_, err = s.Pool.Exec(ctx, `INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'alice',$2,'postgresql')`, ID(), problem.ID)
+	var constraint *pgconn.PgError
+	if !errors.As(err, &constraint) || constraint.Code != "23503" {
+		t.Fatalf("workspace accepted an unavailable problem language: %v", err)
 	}
 }

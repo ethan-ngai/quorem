@@ -237,4 +237,32 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
  (SELECT count(*) FROM interview_outbox) FROM submissions WHERE id='00000000-0000-4000-8000-000000000105'`).Scan(&migrated, &noticesAfter); err != nil || !migrated || noticesAfter != noticesBefore {
 		t.Fatalf("interview context migration: %v notices=%d/%d %v", migrated, noticesBefore, noticesAfter, err)
 	}
+	migration, err = os.ReadFile("../../../migrations/031_workspace_language_integrity.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO users(id,display_name) VALUES('other-host','Other')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES('00000000-0000-4000-8000-000000000106','other-host',$1,'python')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases)
+ VALUES('00000000-0000-4000-8000-000000000107','other-host','00000000-0000-4000-8000-000000000106','run','','hash','completed','[]')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err == nil {
+		t.Fatal("referenced invalid workspace accepted")
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM submissions WHERE id='00000000-0000-4000-8000-000000000107'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var workspaces, executions int
+	if err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM workspaces WHERE id='00000000-0000-4000-8000-000000000104'),
+ (SELECT count(*) FROM interview_execution WHERE submission_id='00000000-0000-4000-8000-000000000105')`).Scan(&workspaces, &executions); err != nil || workspaces != 0 || executions != 1 {
+		t.Fatalf("legacy workspace cleanup: %d workspaces, %d executions: %v", workspaces, executions, err)
+	}
 }
