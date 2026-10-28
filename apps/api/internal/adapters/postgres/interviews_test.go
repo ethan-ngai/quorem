@@ -330,7 +330,17 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 		t.Fatal("regression marked complete", err)
 	}
 	old := submit(4, 4, false)
+	if err = s.SaveCheckpoint(ctx, old, execution.CheckpointCase{Ordinal: 0, Frame: json.RawMessage(`{"status":"executed"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.YieldExecution(ctx, old); err != nil {
+		t.Fatal(err)
+	}
 	replacement, err := s.UpdateInterviewQuestion(ctx, "alice", v.ID, ID(), q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err = s.ClaimResumable(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

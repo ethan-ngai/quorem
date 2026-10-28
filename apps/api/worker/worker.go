@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
@@ -29,6 +30,7 @@ func Normalize(typ string, value []byte) ([]byte, error) { return problems.Norma
 func LoadFixtures(dir string) ([]SeedFixture, error)     { return problems.LoadFixtures(dir) }
 
 var ErrTeardown = errors.New("sandbox teardown unconfirmed")
+var ErrYield = errors.New("execution checkpointed")
 
 type attemptReaper interface {
 	TeardownAttempt(context.Context, string) error
@@ -45,6 +47,7 @@ type Repository interface {
 }
 type Service struct {
 	store         Repository
+	resumable     bool
 	queue         delivery.Queue
 	close         func()
 	admissionWake chan struct{}
@@ -54,6 +57,7 @@ type Service struct {
 type Option func(*Service)
 
 func WithQueue(queue delivery.Queue) Option { return func(s *Service) { s.queue = queue } }
+func WithResumable(enabled bool) Option     { return func(s *Service) { s.resumable = enabled } }
 func New(store Repository, options ...Option) *Service {
 	s := &Service{store: store, admissionWake: make(chan struct{}, 1)}
 	for _, option := range options {
@@ -69,6 +73,35 @@ func (s *Service) Close() {
 }
 func (s *Service) Load(ctx context.Context, j execution.Job) (Spec, error) {
 	return s.store.LoadExecution(ctx, j)
+}
+
+type checkpointRepository interface {
+	LoadCheckpoint(context.Context, execution.Job) (execution.Checkpoint, error)
+	ReplayCheckpoint(context.Context, execution.Job, int, func(int, json.RawMessage) error) error
+	SaveCheckpoint(context.Context, execution.Job, execution.CheckpointCase) error
+	YieldExecution(context.Context, execution.Job) error
+}
+
+func (s *Service) LoadCheckpoint(ctx context.Context, j execution.Job) (execution.Checkpoint, error) {
+	store, ok := s.store.(checkpointRepository)
+	if !ok {
+		return execution.Checkpoint{}, errors.New("checkpoint repository unavailable")
+	}
+	return store.LoadCheckpoint(ctx, j)
+}
+func (s *Service) ReplayCheckpoint(ctx context.Context, j execution.Job, count int, consume func(int, json.RawMessage) error) error {
+	store, ok := s.store.(checkpointRepository)
+	if !ok {
+		return errors.New("checkpoint repository unavailable")
+	}
+	return store.ReplayCheckpoint(ctx, j, count, consume)
+}
+func (s *Service) SaveCheckpoint(ctx context.Context, j execution.Job, c execution.CheckpointCase) error {
+	store, ok := s.store.(checkpointRepository)
+	if !ok {
+		return errors.New("checkpoint repository unavailable")
+	}
+	return store.SaveCheckpoint(ctx, j, c)
 }
 func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -160,7 +193,7 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 			retry()
 			continue
 		}
-		delay, present, err := deadlines.NextExecutionDeadline(ctx)
+		delay, present, err := s.nextExecutionDeadline(ctx, deadlines)
 		if err != nil {
 			log.Print("Execution deadline unavailable")
 			retry()
@@ -231,7 +264,19 @@ func (s *Service) claimOnceWithContext(claimCtx, executeCtx context.Context, eng
 		}
 	}
 	claimStarted := time.Now()
-	job, err := s.store.Claim(claimCtx)
+	var job execution.Job
+	var err error
+	if s.resumable {
+		claimer, ok := s.store.(interface {
+			ClaimResumable(context.Context) (execution.Job, error)
+		})
+		if !ok {
+			return false, errors.New("resumable claims unavailable")
+		}
+		job, err = claimer.ClaimResumable(claimCtx)
+	} else {
+		job, err = s.store.Claim(claimCtx)
+	}
 	if err != nil {
 		if claimDeadlineReached(err, claimCtx, executeCtx) {
 			return false, nil
@@ -315,6 +360,16 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 	<-watchDone
 	if errors.Is(err, ErrTeardown) {
 		return err
+	}
+	if errors.Is(err, ErrYield) {
+		store, ok := s.store.(checkpointRepository)
+		if !ok {
+			return errors.New("checkpoint repository unavailable")
+		}
+		finalCtx, finish := context.WithTimeout(context.Background(), execution.CompletionTimeout)
+		defer finish()
+		outcome = "checkpointed"
+		return store.YieldExecution(finalCtx, j)
 	}
 	outcome = "completed"
 	if err != nil {

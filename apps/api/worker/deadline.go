@@ -45,3 +45,13 @@ func (q *queueTimer) set(delay time.Duration, present bool) {
 }
 func (q *queueTimer) resetBackoff() { q.retry = 200 * time.Millisecond }
 func (q *queueTimer) stop()         { q.timer.Stop() }
+
+// Disabled judges ignore checkpoint-only deadlines until a capable judge changes the queue.
+func (s *Service) nextExecutionDeadline(ctx context.Context, deadlines executionDeadline) (time.Duration, bool, error) {
+	if filtered, ok := deadlines.(interface {
+		NextRunnableExecutionDeadline(context.Context, bool) (time.Duration, bool, error)
+	}); ok {
+		return filtered.NextRunnableExecutionDeadline(ctx, s.resumable)
+	}
+	return deadlines.NextExecutionDeadline(ctx)
+}
