@@ -180,15 +180,7 @@ func ValidateConstraints(sig Signature, constraints []Constraint) error {
 	}
 	return nil
 }
-func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
-	var value any
-	for i, p := range sig.Parameters {
-		if p.Name == t.Parameter {
-			normalized, _ := normalizeInput(p.Type, c.Args[i], execution.MaxInputElements)
-			_ = json.Unmarshal(normalized, &value)
-			break
-		}
-	}
+func project(value any, t *ConstraintTarget) []float64 {
 	if t.Projection == "length" {
 		if s, ok := value.(string); ok {
 			return []float64{float64(utf8.RuneCountInString(s))}
@@ -225,12 +217,34 @@ func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
 	}
 	return result
 }
+
+// CaseValidator reuses question-level validation across a suite.
+type CaseValidator struct {
+	problem            Problem
+	methods            map[string]Signature
+	constraintsChecked bool
+	constraintsError   error
+}
+
+func NewCaseValidator(p Problem) *CaseValidator {
+	v := &CaseValidator{problem: p}
+	if p.SQL == nil && p.Odyssey != nil {
+		v.methods = OdysseyMethods(p)
+	}
+	return v
+}
+
 func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
+	return NewCaseValidator(p).Validate(c, expectedRequired)
+}
+
+func (v *CaseValidator) Validate(c Case, expectedRequired bool) error {
+	p := v.problem
 	if p.SQL != nil {
 		return validateSQLCase(p.SQL, c, expectedRequired)
 	}
 	if p.Odyssey != nil {
-		return ValidateOdysseyCase(p, c, expectedRequired)
+		return validateCalls(v.methods, c, expectedRequired, inputLimit(p))
 	}
 	if len(c.Calls) > 0 {
 		return fmt.Errorf("method sequences require Odyssey")
@@ -238,25 +252,43 @@ func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
 	if err := validateCaseLimit(p.Signature, c, expectedRequired, inputLimit(p)); err != nil {
 		return err
 	}
-	if err := ValidateConstraints(p.Signature, p.Constraints); err != nil {
-		return err
+	if !v.constraintsChecked {
+		v.constraintsError = ValidateConstraints(p.Signature, p.Constraints)
+		v.constraintsChecked = true
+	}
+	if v.constraintsError != nil {
+		return v.constraintsError
+	}
+	values := make(map[string]any)
+	projectTarget := func(target *ConstraintTarget) []float64 {
+		value, ok := values[target.Parameter]
+		if !ok {
+			for i, param := range p.Signature.Parameters {
+				if param.Name == target.Parameter {
+					_ = json.Unmarshal(c.Args[i], &value)
+					values[target.Parameter] = value
+					break
+				}
+			}
+		}
+		return project(value, target)
 	}
 	for _, rule := range p.Constraints {
 		switch rule.Kind {
 		case "range":
-			for _, v := range project(p.Signature, c, rule.Target) {
+			for _, v := range projectTarget(rule.Target) {
 				if math.IsNaN(v) || math.IsInf(v, 0) || rule.Min != nil && v < *rule.Min || rule.Max != nil && v > *rule.Max {
 					return fmt.Errorf("argument %s: %s outside allowed range", rule.Target.Parameter, rule.Target.Projection)
 				}
 			}
 		case "comparison":
-			a, b := project(p.Signature, c, rule.Left)[0], project(p.Signature, c, rule.Right)[0]
+			a, b := projectTarget(rule.Left)[0], projectTarget(rule.Right)[0]
 			valid := map[string]bool{"eq": a == b, "le": a <= b, "lt": a < b, "ge": a >= b, "gt": a > b}[rule.Operator]
 			if !valid || math.IsNaN(a) || math.IsNaN(b) || math.IsInf(a, 0) || math.IsInf(b, 0) {
 				return fmt.Errorf("arguments %s and %s: comparison %s failed", rule.Left.Parameter, rule.Right.Parameter, rule.Operator)
 			}
 		case "property":
-			values := project(p.Signature, c, rule.Target)
+			values := projectTarget(rule.Target)
 			seen := map[float64]bool{}
 			for i, v := range values {
 				if rule.Property == "unique" && seen[v] || rule.Property != "unique" && i > 0 && values[i-1] > v {
@@ -276,8 +308,9 @@ func ValidateProblemCustomCases(p Problem, cases []Case) error {
 	if err != nil || len(data) > execution.MaxCustomCasesBytes {
 		return fmt.Errorf("custom cases exceed 2 MiB")
 	}
+	validator := NewCaseValidator(p)
 	for i, c := range cases {
-		if err := ValidateProblemCase(p, c, false); err != nil {
+		if err := validator.Validate(c, false); err != nil {
 			return fmt.Errorf("case %d: %w", i+1, err)
 		}
 	}

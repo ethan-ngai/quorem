@@ -1,4 +1,0 @@
-class Solution {
-private boolean letter(char c){return c>='a'&&c<='z'||c>='A'&&c<='Z';} public String mirrorLetters(String text){char[] a=text.toCharArray();int l=0,r=a.length-1;while(l<r){if(!letter(a[l]))l++;else if(!letter(a[r]))r--;else{char t=a[l];a[l++]=a[r];a[r--]=t;}}return new String(a);}
-}
-

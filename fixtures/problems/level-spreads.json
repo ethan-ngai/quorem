@@ -1,11 +1,13 @@
 {
   "problem": {
+    "languages": [],
     "id": "3f4f998a-7911-5097-91ea-70651bcb363b",
     "slug": "level-spreads",
     "version": "3",
     "title": "Level Spreads",
     "difficulty": "medium",
     "tags": ["binary trees", "breadth first search"],
+    "companies": [],
     "statementMarkdown": "For each occupied level of the binary tree, return its largest value minus its smallest value. Return levels from root downward. Inputs guarantee these differences fit a signed 32-bit integer.",
     "examples": [
       {
@@ -57,9 +59,9 @@
           "type": "TreeNode"
         }
       ],
-      "returnType": "list<int>"
+      "returnType": "list\u003cint\u003e"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def levelSpreads(self, root: Optional[TreeNode]) -> list[int]:\n        pass\n",
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def levelSpreads(self, root: Optional[TreeNode]) -\u003e list[int]:\n        pass\n",
     "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
@@ -70,8 +72,6 @@
       "maxNestingDepth": 100
     }
   },
-  "harnessRevision": "quorem-harness-v2",
-  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {
       "args": [null],
@@ -160,5 +160,36 @@
       "expected": [0, 1, 3, 7, 15, 31]
     }
   ],
-  "referenceSource": "def solve(root):\n    if isinstance(root, list):\n        from collections import deque\n        if not root: return []\n        nodes = [None if v is None else [v, None, None] for v in root]\n        parents = deque([nodes[0]]); i = 1\n        while parents and i < len(nodes):\n            parent = parents.popleft()\n            for side in (1, 2):\n                if i < len(nodes):\n                    parent[side] = nodes[i]\n                    if nodes[i] is not None: parents.append(nodes[i])\n                    i += 1\n        def visit(n): return None if n is None else (n[0], visit(n[1]), visit(n[2]))\n        root = visit(nodes[0])\n    elif root is not None:\n        def visit(n): return None if n is None else (n.val, visit(n.left), visit(n.right))\n        root = visit(root)\n    if root is None: return []\n    level = [root]; result = []\n    while level:\n        result.append(max(n[0] for n in level)-min(n[0] for n in level))\n        level = [c for n in level for c in n[1:] if c is not None]\n    return result\nclass Solution:\n    def levelSpreads(self, root):\n        return solve(root)\n"
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "implementations": [
+    {
+      "language": "python",
+      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def levelSpreads(self, root: Optional[TreeNode]) -\u003e list[int]:\n        pass\n",
+      "runtimeRevision": "python-3.12-v1",
+      "harnessRevision": "quorem-harness-v2",
+      "referenceSource": "def solve(root):\n    if isinstance(root, list):\n        from collections import deque\n        if not root: return []\n        nodes = [None if v is None else [v, None, None] for v in root]\n        parents = deque([nodes[0]]); i = 1\n        while parents and i \u003c len(nodes):\n            parent = parents.popleft()\n            for side in (1, 2):\n                if i \u003c len(nodes):\n                    parent[side] = nodes[i]\n                    if nodes[i] is not None: parents.append(nodes[i])\n                    i += 1\n        def visit(n): return None if n is None else (n[0], visit(n[1]), visit(n[2]))\n        root = visit(nodes[0])\n    elif root is not None:\n        def visit(n): return None if n is None else (n.val, visit(n.left), visit(n.right))\n        root = visit(root)\n    if root is None: return []\n    level = [root]; result = []\n    while level:\n        result.append(max(n[0] for n in level)-min(n[0] for n in level))\n        level = [c for n in level for c in n[1:] if c is not None]\n    return result\nclass Solution:\n    def levelSpreads(self, root):\n        return solve(root)\n"
+    },
+    {
+      "language": "java",
+      "starterSource": "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\nclass Solution {\n    public int[] levelSpreads(TreeNode root) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "java-21.0.9-v1",
+      "harnessRevision": "quorem-java-v1",
+      "referenceSource": "class Solution {\npublic int[] levelSpreads(TreeNode root){if(root==null)return new int[0];ArrayDeque\u003cTreeNode\u003e q=new ArrayDeque\u003c\u003e();q.add(root);ArrayList\u003cInteger\u003ea=new ArrayList\u003c\u003e();while(!q.isEmpty()){int size=q.size(),lo=Integer.MAX_VALUE,hi=Integer.MIN_VALUE;for(int i=0;i\u003csize;i++){TreeNode n=q.remove();lo=Math.min(lo,n.val);hi=Math.max(hi,n.val);if(n.left!=null)q.add(n.left);if(n.right!=null)q.add(n.right);}a.add(hi-lo);}return a.stream().mapToInt(Integer::intValue).toArray();}\n}\n\n"
+    },
+    {
+      "language": "typescript",
+      "starterSource": "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\nclass Solution {\n    levelSpreads(root: TreeNode | null): (number)[] {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
+      "harnessRevision": "quorem-typescript-v1",
+      "referenceSource": "class Solution {\nlevelSpreads(root:TreeNode|null):number[]{if(!root)return [];let level=[root];const a:number[]=[];while(level.length){a.push(Math.max(...level.map(n=\u003en.val))-Math.min(...level.map(n=\u003en.val)));const next:TreeNode[]=[];for(const n of level){if(n.left)next.push(n.left);if(n.right)next.push(n.right);}level=next;}return a;}\n}\n\n"
+    },
+    {
+      "language": "ocaml",
+      "starterSource": "(* Judge supplies mutable list_node {value:int; next:list_node option} and tree_node {value:int; left:tree_node option; right:tree_node option}. *)\nlet levelSpreads (root:tree_node option) : (int) list =\n    failwith \"Implement solution\"\n",
+      "runtimeRevision": "ocaml-4.13.1-v1",
+      "harnessRevision": "quorem-ocaml-v1",
+      "referenceSource": "let levelSpreads (root:tree_node option) = let rec loop acc level = match level with [] -\u003e List.rev acc | _ -\u003e let lo=List.fold_left (fun v (n:tree_node) -\u003e min v n.value) max_int level and hi=List.fold_left (fun v (n:tree_node) -\u003e max v n.value) min_int level in let next=List.concat_map (fun (n:tree_node) -\u003e List.filter_map Fun.id [n.left;n.right]) level in loop ((hi-lo)::acc) next in match root with None -\u003e [] | Some n -\u003e loop [] [n]\n"
+    }
+  ],
+  "solutions": []
 }

@@ -1,11 +1,13 @@
 {
   "problem": {
+    "languages": [],
     "id": "869f9a71-cb7a-5650-b19c-01115ddeb860",
     "slug": "segment-sums",
     "version": "3",
     "title": "Segment Sums",
     "difficulty": "medium",
     "tags": ["linked lists"],
+    "companies": [],
     "statementMarkdown": "The linked list contains integer values separated by zero nodes. Return a new list with the sum of each nonempty segment, including segments at either end. Consecutive zero separators create no segment. A segment whose sum is zero still creates a zero node.",
     "examples": [
       {
@@ -59,7 +61,7 @@
       ],
       "returnType": "ListNode"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def segmentSums(self, head: Optional[ListNode]) -> Optional[ListNode]:\n        pass\n",
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def segmentSums(self, head: Optional[ListNode]) -\u003e Optional[ListNode]:\n        pass\n",
     "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
@@ -70,8 +72,6 @@
       "maxNestingDepth": 100
     }
   },
-  "harnessRevision": "quorem-harness-v2",
-  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {
       "args": [null],
@@ -168,5 +168,36 @@
       "expected": [15, 9]
     }
   ],
-  "referenceSource": "def solve(head):\n    if isinstance(head, list) or head is None:\n        values = head or []\n        out = []; total = 0; active = False\n        for value in values + [0]:\n            if value == 0:\n                if active: out.append(total)\n                total = 0; active = False\n            else: total += value; active = True\n        return out or None\n    from quorem_types import ListNode\n    values = []\n    while head: values.append(head.val); head = head.next\n    values = solve(values) or []\n    dummy = ListNode(); tail = dummy\n    for value in values: tail.next = ListNode(value); tail = tail.next\n    return dummy.next\nclass Solution:\n    def segmentSums(self, head):\n        return solve(head)\n"
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "implementations": [
+    {
+      "language": "python",
+      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def segmentSums(self, head: Optional[ListNode]) -\u003e Optional[ListNode]:\n        pass\n",
+      "runtimeRevision": "python-3.12-v1",
+      "harnessRevision": "quorem-harness-v2",
+      "referenceSource": "def solve(head):\n    if isinstance(head, list) or head is None:\n        values = head or []\n        out = []; total = 0; active = False\n        for value in values + [0]:\n            if value == 0:\n                if active: out.append(total)\n                total = 0; active = False\n            else: total += value; active = True\n        return out or None\n    from quorem_types import ListNode\n    values = []\n    while head: values.append(head.val); head = head.next\n    values = solve(values) or []\n    dummy = ListNode(); tail = dummy\n    for value in values: tail.next = ListNode(value); tail = tail.next\n    return dummy.next\nclass Solution:\n    def segmentSums(self, head):\n        return solve(head)\n"
+    },
+    {
+      "language": "java",
+      "starterSource": "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\nclass Solution {\n    public ListNode segmentSums(ListNode head) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "java-21.0.9-v1",
+      "harnessRevision": "quorem-java-v1",
+      "referenceSource": "class Solution {\npublic ListNode segmentSums(ListNode head){ListNode dummy=new ListNode(),tail=dummy;int total=0;boolean active=false;while(head!=null){if(head.val==0){if(active){tail.next=new ListNode(total);tail=tail.next;}total=0;active=false;}else{total+=head.val;active=true;}head=head.next;}if(active)tail.next=new ListNode(total);return dummy.next;}\n}\n\n"
+    },
+    {
+      "language": "typescript",
+      "starterSource": "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\nclass Solution {\n    segmentSums(head: ListNode | null): ListNode | null {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
+      "harnessRevision": "quorem-typescript-v1",
+      "referenceSource": "class Solution {\nsegmentSums(head:ListNode|null):ListNode|null{const dummy=new ListNode();let tail=dummy,total=0,active=false;while(head){if(head.val===0){if(active){tail.next=new ListNode(total);tail=tail.next;}total=0;active=false;}else{total+=head.val;active=true;}head=head.next;}if(active)tail.next=new ListNode(total);return dummy.next;}\n}\n\n"
+    },
+    {
+      "language": "ocaml",
+      "starterSource": "(* Judge supplies mutable list_node {value:int; next:list_node option} and tree_node {value:int; left:tree_node option; right:tree_node option}. *)\nlet segmentSums (head:list_node option) : list_node option =\n    failwith \"Implement solution\"\n",
+      "runtimeRevision": "ocaml-4.13.1-v1",
+      "harnessRevision": "quorem-ocaml-v1",
+      "referenceSource": "let segmentSums (head:list_node option) = let rec values acc = function None -\u003e List.rev acc | Some (n:list_node) -\u003e values (n.value::acc) n.next in let rec collect total active acc = function [] -\u003e List.rev (if active then total::acc else acc) | 0::xs -\u003e collect 0 false (if active then total::acc else acc) xs | x::xs -\u003e collect (total+x) true acc xs in List.fold_right (fun v tail -\u003e Some {value=v;next=tail}) (collect 0 false [] (values [] head)) None\n"
+    }
+  ],
+  "solutions": []
 }

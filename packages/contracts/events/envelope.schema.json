@@ -663,7 +663,7 @@
           }
         }
       },
-      "required": ["id", "workspaceId", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
+      "required": ["id", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
       "additionalProperties": false
     },
     "MatchState": {

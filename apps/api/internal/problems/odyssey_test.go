@@ -50,8 +50,8 @@ func TestOdysseyPublicationAndCumulativeSuites(t *testing.T) {
 	if err != nil || len(tests) != 4 || len(p.Odyssey.Levels) != 2 {
 		t.Fatal(p, tests, err)
 	}
-	if string(CaseExpected(p, tests[2])) != "[5,true,false,3]" {
-		t.Fatal(string(CaseExpected(p, tests[2])))
+	if string(NewCaseCodec(p).Expected(tests[2])) != "[5,true,false,3]" {
+		t.Fatal(string(NewCaseCodec(p).Expected(tests[2])))
 	}
 	if _, _, err = CompileOdyssey(f, 3, "submit"); err == nil {
 		t.Fatal("accepted nonexistent level")
@@ -65,35 +65,35 @@ func TestOdysseyCallValidationAndHeterogeneousResults(t *testing.T) {
 	c := odysseyContent(t)
 	p := c.Problem
 	test := c.OdysseyHiddenCases[1][0]
-	if _, err := NormalizeCaseOutput(p, test, []byte(`[5,true,false,3]`)); err != nil {
+	if _, err := NewCaseCodec(p).Normalize(test, []byte(`[5,true,false,3]`)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NormalizeCaseOutput(p, test, []byte(`[5,1,false,3]`)); err == nil {
+	if _, err := NewCaseCodec(p).Normalize(test, []byte(`[5,1,false,3]`)); err == nil {
 		t.Fatal("wrong result type accepted")
 	}
 	test.Calls[0].MethodName = "__getattribute__"
-	if err := ValidateOdysseyCase(p, test, true); err == nil {
+	if err := ValidateProblemCase(p, test, true); err == nil {
 		t.Fatal("undeclared method accepted")
 	}
 }
 func TestOdysseyVoidMethods(t *testing.T) {
 	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "clear", ReturnType: "void"}}}}}}
 	c := Case{Args: []json.RawMessage{}, Calls: []MethodCall{{MethodName: "clear", Args: []json.RawMessage{}, Expected: json.RawMessage("null")}}}
-	if err := ValidateOdysseyCase(p, c, true); err != nil {
+	if err := ValidateProblemCase(p, c, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NormalizeCaseOutput(p, c, []byte(`[null]`)); err != nil {
+	if _, err := NewCaseCodec(p).Normalize(c, []byte(`[null]`)); err != nil {
 		t.Fatal(err)
 	}
 	c.Calls[0].Expected = json.RawMessage("1")
-	if err := ValidateOdysseyCase(p, c, true); err != nil {
+	if err := ValidateProblemCase(p, c, true); err != nil {
 		t.Fatal("void expectations should be ignored", err)
 	}
 	c.Calls[0].Expected = nil
-	if string(CaseExpected(p, c)) != "[null]" {
+	if string(NewCaseCodec(p).Expected(c)) != "[null]" {
 		t.Fatal("void calls must not disable comparison of the remaining results")
 	}
-	actual, err := NormalizeCaseOutput(p, c, []byte(`[42]`))
+	actual, err := NewCaseCodec(p).Normalize(c, []byte(`[42]`))
 	if err != nil || string(actual) != "[null]" {
 		t.Fatal("void return checked", string(actual), err)
 	}
@@ -115,26 +115,51 @@ func TestOdysseyPublicationWithVoidEntryMethod(t *testing.T) {
 func TestUnorderedMethodOutput(t *testing.T) {
 	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "top_k", ReturnType: "list<str>", OutputOrder: "unordered"}, {ClassName: "Solution", MethodName: "words", ReturnType: "list<str>"}}}}}}
 	c := Case{Calls: []MethodCall{{MethodName: "top_k"}, {MethodName: "words"}}}
-	a, err := NormalizeCaseOutput(p, c, []byte(`[["z","a"],["z","a"]]`))
+	a, err := NewCaseCodec(p).Normalize(c, []byte(`[["z","a"],["z","a"]]`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := NormalizeCaseOutput(p, c, []byte(`[["a","z"],["z","a"]]`))
+	b, err := NewCaseCodec(p).Normalize(c, []byte(`[["a","z"],["z","a"]]`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(a) != string(b) {
 		t.Fatal("unordered IDs rejected", string(a), string(b))
 	}
-	different, _ := NormalizeCaseOutput(p, c, []byte(`[["a","z"],["a","z"]]`))
+	different, _ := NewCaseCodec(p).Normalize(c, []byte(`[["a","z"],["a","z"]]`))
 	if string(different) == string(a) {
 		t.Fatal("ordered list normalized")
 	}
-	duplicate, _ := NormalizeCaseOutput(p, c, []byte(`[["a","a"],["z","a"]]`))
+	duplicate, _ := NewCaseCodec(p).Normalize(c, []byte(`[["a","a"],["z","a"]]`))
 	if string(duplicate) == string(a) {
 		t.Fatal("duplicates ignored")
 	}
 	if validOutputOrder(Signature{ReturnType: "str", OutputOrder: "unordered"}) {
 		t.Fatal("unordered scalar allowed")
+	}
+}
+
+func TestCaseCodecReusesQuestionAcrossCases(t *testing.T) {
+	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{
+		{MethodName: "clear", ReturnType: "void"},
+		{MethodName: "values", ReturnType: "list<int>", OutputOrder: "unordered"},
+	}}}}}
+	codec := NewCaseCodec(p)
+	c := Case{Calls: []MethodCall{{MethodName: "clear"}, {MethodName: "values", Expected: json.RawMessage(`[2,1]`)}}}
+	want, err := codec.Normalize(c, codec.Expected(c))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := codec.Normalize(c, json.RawMessage(`[99,[1,2]]`))
+	if err != nil || string(got) != string(want) {
+		t.Fatalf("got %s, want %s: %v", got, want, err)
+	}
+	c.Calls[1].Expected = nil
+	if codec.Expected(c) != nil {
+		t.Fatal("missing expectation became comparable")
+	}
+	c.Calls[1].MethodName = "unknown"
+	if _, err = codec.Normalize(c, json.RawMessage(`[null,[]]`)); err == nil {
+		t.Fatal("unknown method accepted")
 	}
 }

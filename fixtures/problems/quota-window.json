@@ -1,11 +1,13 @@
 {
   "problem": {
+    "languages": [],
     "id": "d83802b1-ad72-5082-a220-4ff8e2aa572a",
     "slug": "quota-window",
     "version": "2",
     "title": "Quota Window",
     "difficulty": "hard",
     "tags": ["strings", "sliding window"],
+    "companies": [],
     "statementMarkdown": "Return the shortest contiguous substring of `text` containing every character of `quota` with at least its multiplicity. Match characters exactly, including case. Ties choose the earliest substring. Return an empty string if quota is empty or no window exists.",
     "examples": [
       {
@@ -54,7 +56,7 @@
       ],
       "returnType": "str"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def quotaWindow(self, text: str, quota: str) -> str:\n        pass\n",
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def quotaWindow(self, text: str, quota: str) -\u003e str:\n        pass\n",
     "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
@@ -65,8 +67,6 @@
       "maxNestingDepth": 100
     }
   },
-  "harnessRevision": "quorem-harness-v2",
-  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {
       "args": ["AXBCAYBC", "ABC"],
@@ -155,5 +155,36 @@
       "expected": "bac"
     }
   ],
-  "referenceSource": "def solve(text, quota):\n    from collections import Counter\n    if not quota: return \"\"\n    need = Counter(quota); missing = len(quota); left = 0; best = None\n    for right, char in enumerate(text):\n        if need[char] > 0: missing -= 1\n        need[char] -= 1\n        while missing == 0:\n            if best is None or right-left+1 < best[1]-best[0]: best = (left,right+1)\n            need[text[left]] += 1\n            if need[text[left]] > 0: missing += 1\n            left += 1\n    return \"\" if best is None else text[best[0]:best[1]]\nclass Solution:\n    def quotaWindow(self, text, quota):\n        return solve(text, quota)\n"
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "implementations": [
+    {
+      "language": "python",
+      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def quotaWindow(self, text: str, quota: str) -\u003e str:\n        pass\n",
+      "runtimeRevision": "python-3.12-v1",
+      "harnessRevision": "quorem-harness-v2",
+      "referenceSource": "def solve(text, quota):\n    from collections import Counter\n    if not quota: return \"\"\n    need = Counter(quota); missing = len(quota); left = 0; best = None\n    for right, char in enumerate(text):\n        if need[char] \u003e 0: missing -= 1\n        need[char] -= 1\n        while missing == 0:\n            if best is None or right-left+1 \u003c best[1]-best[0]: best = (left,right+1)\n            need[text[left]] += 1\n            if need[text[left]] \u003e 0: missing += 1\n            left += 1\n    return \"\" if best is None else text[best[0]:best[1]]\nclass Solution:\n    def quotaWindow(self, text, quota):\n        return solve(text, quota)\n"
+    },
+    {
+      "language": "java",
+      "starterSource": "class Solution {\n    public String quotaWindow(String text, String quota) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "java-21.0.9-v1",
+      "harnessRevision": "quorem-java-v1",
+      "referenceSource": "class Solution {\npublic String quotaWindow(String text,String quota){\n    int[] chars=text.codePoints().toArray(), requested=quota.codePoints().toArray();\n    if(requested.length==0)return \"\";\n    HashMap\u003cInteger,Integer\u003e need=new HashMap\u003c\u003e();\n    for(int c:requested)need.put(c,need.getOrDefault(c,0)+1);\n    int missing=requested.length,left=0,start=0,best=Integer.MAX_VALUE;\n    for(int right=0;right\u003cchars.length;right++){\n        int c=chars[right]; if(need.getOrDefault(c,0)\u003e0)missing--;need.put(c,need.getOrDefault(c,0)-1);\n        while(missing==0){\n            if(right-left+1\u003cbest){best=right-left+1;start=left;}\n            int old=chars[left++];need.put(old,need.getOrDefault(old,0)+1);if(need.get(old)\u003e0)missing++;\n        }\n    }\n    return best==Integer.MAX_VALUE?\"\":new String(chars,start,best);\n}\n}\n"
+    },
+    {
+      "language": "typescript",
+      "starterSource": "class Solution {\n    quotaWindow(text: string, quota: string): string {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
+      "harnessRevision": "quorem-typescript-v1",
+      "referenceSource": "class Solution {\nquotaWindow(text:string,quota:string):string{if(!quota)return '';const chars=Array.from(text),need=new Map\u003cstring,number\u003e();for(const c of quota)need.set(c,(need.get(c)??0)+1);let missing=Array.from(quota).length,left=0,start=0,best=Infinity;for(let right=0;right\u003cchars.length;right++){const c=chars[right];if((need.get(c)??0)\u003e0)missing--;need.set(c,(need.get(c)??0)-1);while(missing===0){if(right-left+1\u003cbest){best=right-left+1;start=left;}const old=chars[left++];need.set(old,(need.get(old)??0)+1);if(need.get(old)!\u003e0)missing++;}}return best===Infinity?'':chars.slice(start,start+best).join('');}\n}\n\n"
+    },
+    {
+      "language": "ocaml",
+      "starterSource": "let quotaWindow (text:string) (quota:string) : string =\n    failwith \"Implement solution\"\n",
+      "runtimeRevision": "ocaml-4.13.1-v1",
+      "harnessRevision": "quorem-ocaml-v1",
+      "referenceSource": "let scalars text =\n    let rec loop index acc =\n        if index=String.length text then Array.of_list (List.rev acc) else\n        let byte=Char.code text.[index] in\n        let width=if byte\u003c128 then 1 else if byte\u003c224 then 2 else if byte\u003c240 then 3 else 4 in\n        loop (index+width) (String.sub text index width::acc)\n    in loop 0 []\n\nlet quotaWindow text quota =\n    let chars=scalars text and requested=scalars quota in\n    if Array.length requested=0 then \"\" else\n    let need=Hashtbl.create 32 in\n    let get c=Option.value (Hashtbl.find_opt need c) ~default:0 in\n    Array.iter (fun c -\u003e Hashtbl.replace need c (get c+1)) requested;\n    let missing=ref (Array.length requested) and left=ref 0 and start=ref 0 and best=ref max_int in\n    Array.iteri (fun right c -\u003e\n        if get c\u003e0 then decr missing;\n        Hashtbl.replace need c (get c-1);\n        while !missing=0 do\n            if right- !left+1\u003c !best then (best:=right- !left+1;start:= !left);\n            let old=chars.(!left) in\n            Hashtbl.replace need old (get old+1);\n            if get old\u003e0 then incr missing;\n            incr left\n        done\n    ) chars;\n    if !best=max_int then \"\" else String.concat \"\" (Array.to_list (Array.sub chars !start !best))\n"
+    }
+  ],
+  "solutions": []
 }

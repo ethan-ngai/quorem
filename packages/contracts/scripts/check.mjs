@@ -46,6 +46,7 @@ const validateProblem = ajv.compile({ $ref: `${document.$id}#/$defs/ProblemVersi
 for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
   assert(validateProblem(fixture.problem), `${name}: ${JSON.stringify(validateProblem.errors)}`);
+  assert(validateQuestion(fixture), `${name}: ${JSON.stringify(validateQuestion.errors)}`);
 }
 const validateInterviewCustom = ajv.compile({
   $ref: `${document.$id}#/$defs/InterviewCustomQuestion`,

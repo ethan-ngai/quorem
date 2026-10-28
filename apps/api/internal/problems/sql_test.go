@@ -7,21 +7,21 @@ import (
 
 func TestSQLResultsPreserveDuplicatesAndOrdering(t *testing.T) {
 	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "unordered"}}
-	a, err := NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"columns":["x"],"rows":[[2],[1],[1],[null]]}`))
+	a, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"columns":["x"],"rows":[[2],[1],[1],[null]]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"columns":["x"],"rows":[[1],[null],[2],[1]]}`))
+	b, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"columns":["x"],"rows":[[1],[null],[2],[1]]}`))
 	if err != nil || string(a) != string(b) {
 		t.Fatal(string(a), string(b), err)
 	}
-	c, _ := NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"columns":["x"],"rows":[[1],[null],[2]]}`))
+	c, _ := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"columns":["x"],"rows":[[1],[null],[2]]}`))
 	if string(a) == string(c) {
 		t.Fatal("duplicate lost")
 	}
 	p.SQL.OutputOrder = "ordered"
-	a, _ = NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"columns":["x"],"rows":[[1],[2]]}`))
-	b, _ = NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"columns":["x"],"rows":[[2],[1]]}`))
+	a, _ = NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"columns":["x"],"rows":[[1],[2]]}`))
+	b, _ = NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"columns":["x"],"rows":[[2],[1]]}`))
 	if string(a) == string(b) {
 		t.Fatal("order lost")
 	}
@@ -67,7 +67,7 @@ func TestSQLNumericCanonicalization(t *testing.T) {
 	p := Problem{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "ordered"}}
 	normalize := func(text string) string {
 		t.Helper()
-		result, err := NormalizeCaseOutput(p, Case{}, json.RawMessage(text))
+		result, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(text))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,11 +99,11 @@ func TestLegacySQLCasesRemainRunnableButRequireSchemaForPublication(t *testing.T
 
 func TestSQLFloatingResultsNormalizeByPseudotype(t *testing.T) {
 	p := Problem{SQL: &SQLConfig{OutputOrder: "ordered", Output: []SQLColumn{{Name: "value", Type: "real"}}}}
-	expected, err := NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"rows":[[0.1],[10000000000]]}`))
+	expected, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"rows":[[0.1],[10000000000]]}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	actual, err := NormalizeCaseOutput(p, Case{}, json.RawMessage(`{"columns":["value"],"rows":[[0.10000000149011612],[10000000000.0]]}`))
+	actual, err := NewCaseCodec(p).Normalize(Case{}, json.RawMessage(`{"columns":["value"],"rows":[[0.10000000149011612],[10000000000.0]]}`))
 	if err != nil || string(expected) != string(actual) {
 		t.Fatalf("%s != %s: %v", expected, actual, err)
 	}

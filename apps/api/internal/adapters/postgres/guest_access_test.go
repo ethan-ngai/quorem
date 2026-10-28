@@ -263,7 +263,7 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	if settled != 2 || attempts != 2 || charged > 60 {
 		t.Fatalf("settlement duplicated: %d/%d/%d", settled, attempts, charged)
 	}
-	if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET admitted_at=clock_timestamp()-interval '8 days'; UPDATE guest_sessions SET expires_at=clock_timestamp()-interval '8 days'"); err != nil {
+	if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET admitted_at=clock_timestamp()-interval '31 days'; UPDATE guest_sessions SET expires_at=clock_timestamp()-interval '8 days'"); err != nil {
 		t.Fatal(err)
 	}
 	if err = s.Cleanup(ctx); err != nil {
@@ -275,6 +275,16 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	}
 	if err = s.Pool.QueryRow(ctx, "SELECT count(*) FROM guest_execution_usage WHERE settled_at IS NOT NULL").Scan(&retained); err != nil || retained != 2 {
 		t.Fatal("retention lost accounting", retained, err)
+	}
+	var before, after string
+	if err = s.Pool.QueryRow(ctx, "SELECT xmin::text FROM submissions WHERE id=$1", second.ID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Cleanup(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Pool.QueryRow(ctx, "SELECT xmin::text FROM submissions WHERE id=$1", second.ID).Scan(&after); err != nil || before != after {
+		t.Fatal("cleanup rewrote an already-cleared submission", before, after, err)
 	}
 }
 

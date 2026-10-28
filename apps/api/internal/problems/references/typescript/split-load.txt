@@ -1,4 +1,0 @@
-class Solution {
-splitLoad(loads:number[],groups:number):number{let lo=Math.max(...loads),hi=loads.reduce((a,b)=>a+b,0);while(lo<hi){const mid=Math.floor((lo+hi)/2);let used=1,total=0;for(const load of loads){if(total+load>mid){used++;total=0;}total+=load;}if(used<=groups)hi=mid;else lo=mid+1;}return lo;}
-}
-

@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
 	"github.com/ethan-ngai/quorem/internal/execution"
-	"os"
 	"testing"
 )
 
 func TestDockerLanguageUnicodeParity(t *testing.T) {
-	fixtures := dockerTests(t)
+	fixtures := dockerSeedTests(t)
 	for _, f := range fixtures {
 		if f.Problem.Slug != "mirror-letters" && f.Problem.Slug != "quota-window" {
 			continue
@@ -23,11 +22,8 @@ func TestDockerLanguageUnicodeParity(t *testing.T) {
 		for _, language := range []string{"java", "typescript", "ocaml"} {
 			t.Run(language+"/"+f.Problem.Slug, func(t *testing.T) {
 				t.Parallel()
-				source, err := os.ReadFile("../../../api/internal/problems/references/" + language + "/" + f.Problem.Slug + ".txt")
-				if err != nil {
-					t.Fatal(err)
-				}
-				result := executeLanguage(t, f, language, string(source), "run", cases)
+				source := fixtureReference(t, f, language)
+				result := executeLanguage(t, f.Fixture, language, source, "run", cases)
 				if result.Verdict != execution.Accepted {
 					t.Fatalf("%+v", result)
 				}

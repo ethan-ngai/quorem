@@ -41,8 +41,9 @@ func validateCustomInterviewStages(f *problems.Fixture, c *interviews.CustomQues
 	if err != nil {
 		return err
 	}
+	validator := problems.NewCaseValidator(firstProblem)
 	for _, test := range c.PublicCases {
-		if err = problems.ValidateOdysseyCase(firstProblem, test, true); err != nil {
+		if err = validator.Validate(test, true); err != nil {
 			return fmt.Errorf("First-stage public test: %w", err)
 		}
 	}

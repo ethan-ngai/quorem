@@ -199,7 +199,7 @@ func TestInterviewCustomQuestionPermissionIndependentOfHosting(t *testing.T) {
 	}
 }
 
-func TestInterviewBaselineAndMatchesExcludePrivateQuestions(t *testing.T) {
+func TestInterviewSubmissionsAndMatchesProtectPrivateQuestions(t *testing.T) {
 	s := interviewTestStore(t)
 	ctx := context.Background()
 	f, err := s.interviewQuestion(ctx, "alice", customInterviewQuestion())
@@ -230,9 +230,8 @@ func TestInterviewBaselineAndMatchesExcludePrivateQuestions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var global bool
-	if err = s.Pool.QueryRow(ctx, `SELECT p.owner_id IS NULL FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=$1`, sub.WorkspaceID).Scan(&global); err != nil || !global {
-		t.Fatal("interview baseline exposed private workspace", global, err)
+	if sub.WorkspaceID != "" {
+		t.Fatal("interview created a solo workspace", sub.WorkspaceID)
 	}
 }
 

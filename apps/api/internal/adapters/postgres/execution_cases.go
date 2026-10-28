@@ -25,8 +25,9 @@ func executionCases(f *problems.Fixture, level int, kind string, custom []proble
 	if publicFallback && len(cases) == 0 {
 		return nil, failure("invalid_input", 400, "No tests configured")
 	}
+	validator := problems.NewCaseValidator(f.Problem)
 	for _, test := range cases {
-		if err := problems.ValidateProblemCase(f.Problem, test, false); err != nil {
+		if err := validator.Validate(test, false); err != nil {
 			return nil, failure("invalid_input", 400, err.Error())
 		}
 	}

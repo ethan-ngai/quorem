@@ -35,11 +35,12 @@ func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.Odyssey
 }
 
 func (s *Store) advanceOdyssey(ctx context.Context, tx pgx.Tx, submissionID string) error {
-	var scope, problemID string
+	var scope *string
+	var problemID string
 	var level *int
 	var total *int
-	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.odyssey_scope,w.id)::text,COALESCE(ie.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),CASE WHEN ie.fixture IS NOT NULL THEN COALESCE(NULLIF(jsonb_array_length(ie.fixture->'odysseyHiddenCases'),0),jsonb_array_length(ie.fixture->'problem'->'odyssey'->'levels')) ELSE jsonb_array_length(v.odyssey->'levels') END FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &total)
-	if err != nil || level == nil || total == nil {
+	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.odyssey_scope,w.id)::text,COALESCE(ie.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),CASE WHEN ie.fixture IS NOT NULL THEN COALESCE(NULLIF(jsonb_array_length(ie.fixture->'odysseyHiddenCases'),0),jsonb_array_length(ie.fixture->'problem'->'odyssey'->'levels')) ELSE jsonb_array_length(v.odyssey->'levels') END FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &total)
+	if err != nil || scope == nil || level == nil || total == nil {
 		return err
 	}
 	next := *level + 1
@@ -47,7 +48,7 @@ func (s *Store) advanceOdyssey(ctx context.Context, tx pgx.Tx, submissionID stri
 	if completed {
 		next = *total
 	}
-	_, err = tx.Exec(ctx, `UPDATE odyssey_progress SET level=$4,completed=$5 WHERE scope_id=$1 AND problem_version_id=$2 AND level=$3 AND NOT completed`, scope, problemID, *level, next, completed)
+	_, err = tx.Exec(ctx, `UPDATE odyssey_progress SET level=$4,completed=$5 WHERE scope_id=$1 AND problem_version_id=$2 AND level=$3 AND NOT completed`, *scope, problemID, *level, next, completed)
 	return err
 }
 

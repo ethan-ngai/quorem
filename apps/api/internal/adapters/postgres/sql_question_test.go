@@ -181,8 +181,23 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var baseline string
-	if err = s.Pool.QueryRow(ctx, `SELECT w.problem_version_id::text FROM submissions s JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=$1`, submission.ID).Scan(&baseline); err != nil || baseline == d.PublishedVersionID {
-		t.Fatal("private version used as solo baseline", baseline, err)
+	var hasWorkspace bool
+	var interviewID string
+	if err = s.Pool.QueryRow(ctx, `SELECT workspace_id IS NOT NULL,interview_id::text FROM submissions WHERE id=$1`, submission.ID).Scan(&hasWorkspace, &interviewID); err != nil || hasWorkspace || interviewID != room.ID || submission.WorkspaceID != "" {
+		t.Fatal("interview submission context", hasWorkspace, interviewID, err)
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE submissions SET interview_id=NULL WHERE id=$1`, submission.ID); err == nil {
+		t.Fatal("submission accepted without a context")
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE interview_execution SET session_id=$2 WHERE submission_id=$1`, submission.ID, ID()); err == nil {
+		t.Fatal("interview execution accepted a different session")
+	}
+	job, err := s.Claim(ctx)
+	if err != nil || job.SubmissionID != submission.ID || job.ProblemVersionID != d.PublishedVersionID {
+		t.Fatal("interview claim", job, err)
+	}
+	spec, err := s.LoadExecution(ctx, job)
+	if err != nil || spec.Problem.SQL == nil || !spec.PrivateDetails {
+		t.Fatal("interview SQL execution", spec, err)
 	}
 }

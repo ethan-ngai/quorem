@@ -1,0 +1,3 @@
+CREATE INDEX guest_request_buckets_window ON guest_request_buckets(window_start);
+CREATE INDEX execution_idempotency_expiry ON execution_idempotency(expires_at);
+CREATE INDEX cancellation_idempotency_expiry ON cancellation_idempotency(expires_at);

@@ -1,4 +1,0 @@
-class Solution {
-levelSpreads(root:TreeNode|null):number[]{if(!root)return [];let level=[root];const a:number[]=[];while(level.length){a.push(Math.max(...level.map(n=>n.val))-Math.min(...level.map(n=>n.val)));const next:TreeNode[]=[];for(const n of level){if(n.left)next.push(n.left);if(n.right)next.push(n.right);}level=next;}return a;}
-}
-

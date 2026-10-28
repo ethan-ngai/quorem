@@ -1,9 +1,11 @@
 package problems
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/ethan-ngai/quorem/internal/execution"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -125,36 +127,47 @@ type Fixture struct {
 	ReferenceSource    string   `json:"referenceSource"`
 }
 
-func LoadFixtures(dir string) ([]Fixture, error) {
+type SeedFixture struct {
+	Fixture
+	Implementations []AuthoringImplementation
+}
+
+func LoadFixtures(dir string) ([]SeedFixture, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "*.json"))
 	if err != nil {
 		return nil, err
 	}
-	var fixtures []Fixture
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no question fixtures in %s", dir)
+	}
+	fixtures := make([]SeedFixture, 0, len(paths))
 	for _, path := range paths {
-		data, e := os.ReadFile(path)
-		if e != nil {
-			return nil, e
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
 		}
-		var f Fixture
-		if e = json.Unmarshal(data, &f); e != nil {
-			return nil, e
+		var content QuestionContent
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		if err = decoder.Decode(&content); err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		if len(f.HiddenCases) == 0 || len(f.HiddenCases) > MaxHiddenCases {
-			return nil, fmt.Errorf("%s needs 1 to 100 cases", path)
+		if decoder.Decode(new(any)) != io.EOF {
+			return nil, fmt.Errorf("%s: trailing JSON", path)
 		}
-		if e = ValidateConstraints(f.Problem.Signature, f.Problem.Constraints); e != nil {
-			return nil, fmt.Errorf("%s: %w", path, e)
+		if err = ValidateQuestionPublication(content); err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		for _, c := range append(append([]Case{}, f.Problem.SampleCases()...), f.HiddenCases...) {
-			if e = ValidateProblemCase(f.Problem, c, true); e != nil {
-				return nil, fmt.Errorf("%s: %w", path, e)
+		fixture := Fixture{Problem: content.Problem, HiddenCases: content.HiddenCases, OdysseyHiddenCases: content.OdysseyHiddenCases, Attribution: content.Attribution}
+		for _, impl := range content.Implementations {
+			if (fixture.Problem.SQL == nil && impl.Language == "python") || (fixture.Problem.SQL != nil && impl.Language == "postgresql") {
+				fixture.Problem.StarterSource = impl.StarterSource
+				fixture.Problem.RuntimeRevision = impl.RuntimeRevision
+				fixture.HarnessRevision = impl.HarnessRevision
+				fixture.ReferenceSource = impl.ReferenceSource
 			}
 		}
-		fixtures = append(fixtures, f)
-	}
-	if len(fixtures) != 6 {
-		return nil, fmt.Errorf("need six fixtures, found %d", len(fixtures))
+		fixtures = append(fixtures, SeedFixture{Fixture: fixture, Implementations: content.Implementations})
 	}
 	return fixtures, nil
 }

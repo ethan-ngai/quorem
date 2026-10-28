@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,15 +92,8 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 			t.Fatal(path, e)
 		}
 	}
-	fixture, err := os.ReadFile("../../../../../fixtures/problems/run-widths.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fields map[string]json.RawMessage
-	if err = json.Unmarshal(fixture, &fields); err != nil {
-		t.Fatal(err)
-	}
-	public := fields["problem"]
+	public := []byte(`{"id":"00000000-0000-4000-8000-000000000001","slug":"run-widths","version":"1","title":"Example","difficulty":"easy","statementMarkdown":"Example","signature":{},"constraints":[],"limits":{},"starterSource":"source","runtimeRevision":"runtime","examples":[{"args":[],"expected":1}],"tags":[]}`)
+	fixture := []byte(`{"problem":{},"hiddenCases":[{"args":[],"expected":2}],"harnessRevision":"harness","referenceSource":"reference","attribution":"test"}`)
 	id := ID()
 	if _, err = pool.Exec(ctx, `WITH docs AS (SELECT jsonb_set($2::jsonb || jsonb_build_object('id',$1::uuid::text,'version','1') || '{"sql":{"dialect":"postgresql"},"odyssey":{"levels":[{"title":"First"}]}}'::jsonb,'{examples,0,calls}','[{"methodName":"public","args":[]}]') AS public,
  jsonb_set($3::jsonb,'{hiddenCases,0,calls}','[{"methodName":"private","args":[]}]') AS fixture)
@@ -214,5 +206,63 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 	}
 	if _, err = pool.Exec(ctx, `INSERT INTO quota_overrides(user_id,resource,value,actor,reason) VALUES('match-host','guest_jobs',1,'test','old')`); err == nil {
 		t.Fatal("retired quota accepted")
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token)
+ VALUES('00000000-0000-4000-8000-000000000101','match-host','Interview','{}','python','','00000000-0000-4000-8000-000000000102','00000000-0000-4000-8000-000000000103','invitee','token','interviewer','token2')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES('00000000-0000-4000-8000-000000000104','match-host',$1,'python')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases)
+ VALUES('00000000-0000-4000-8000-000000000105','match-host','00000000-0000-4000-8000-000000000104','run','','hash','queued','[]');
+ INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture,question_epoch)
+ VALUES('00000000-0000-4000-8000-000000000105','00000000-0000-4000-8000-000000000101',0,'00000000-0000-4000-8000-000000000102','{}','00000000-0000-4000-8000-000000000103')`); err != nil {
+		t.Fatal(err)
+	}
+	var noticesBefore int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM interview_outbox`).Scan(&noticesBefore); err != nil {
+		t.Fatal(err)
+	}
+	migration, err = os.ReadFile("../../../migrations/029_interview_submission_context.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var migrated bool
+	var noticesAfter int
+	if err = pool.QueryRow(ctx, `SELECT workspace_id IS NULL AND interview_id='00000000-0000-4000-8000-000000000101',
+ (SELECT count(*) FROM interview_outbox) FROM submissions WHERE id='00000000-0000-4000-8000-000000000105'`).Scan(&migrated, &noticesAfter); err != nil || !migrated || noticesAfter != noticesBefore {
+		t.Fatalf("interview context migration: %v notices=%d/%d %v", migrated, noticesBefore, noticesAfter, err)
+	}
+	migration, err = os.ReadFile("../../../migrations/031_workspace_language_integrity.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO users(id,display_name) VALUES('other-host','Other')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES('00000000-0000-4000-8000-000000000106','other-host',$1,'python')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases)
+ VALUES('00000000-0000-4000-8000-000000000107','other-host','00000000-0000-4000-8000-000000000106','run','','hash','completed','[]')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err == nil {
+		t.Fatal("referenced invalid workspace accepted")
+	}
+	if _, err = pool.Exec(ctx, `DELETE FROM submissions WHERE id='00000000-0000-4000-8000-000000000107'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var workspaces, executions int
+	if err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM workspaces WHERE id='00000000-0000-4000-8000-000000000104'),
+ (SELECT count(*) FROM interview_execution WHERE submission_id='00000000-0000-4000-8000-000000000105')`).Scan(&workspaces, &executions); err != nil || workspaces != 0 || executions != 1 {
+		t.Fatalf("legacy workspace cleanup: %d workspaces, %d executions: %v", workspaces, executions, err)
 	}
 }

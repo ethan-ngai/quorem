@@ -1,4 +1,0 @@
-class Solution {
-segmentSums(head:ListNode|null):ListNode|null{const dummy=new ListNode();let tail=dummy,total=0,active=false;while(head){if(head.val===0){if(active){tail.next=new ListNode(total);tail=tail.next;}total=0;active=false;}else{total+=head.val;active=true;}head=head.next;}if(active)tail.next=new ListNode(total);return dummy.next;}
-}
-

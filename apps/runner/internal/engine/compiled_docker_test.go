@@ -27,16 +27,17 @@ func executeCompiledCases(t *testing.T, fixture worker.Fixture, language, source
 	if err != nil || compiled.Status != "executed" {
 		t.Fatalf("compile: %+v %v", compiled, err)
 	}
+	codec := worker.NewCaseCodec(fixture.Problem)
 	for i, c := range cases {
 		result, err := engine.runRequest(ctx, job, i, compiledCaseRequest(spec, c, artifact), job.Limits.OutputBytes)
 		if err != nil || result.Status != "executed" {
 			t.Fatalf("case%d: %+v %v", i, result, err)
 		}
-		actual, err := worker.NormalizeCaseOutput(fixture.Problem, c, result.Actual)
+		actual, err := codec.Normalize(c, result.Actual)
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected, err := worker.NormalizeCaseOutput(fixture.Problem, c, worker.CaseExpected(fixture.Problem, c))
+		expected, err := codec.Normalize(c, codec.Expected(c))
 		if err != nil {
 			t.Fatal(err)
 		}

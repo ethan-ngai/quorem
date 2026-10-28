@@ -165,3 +165,48 @@ func TestSumProjection(t *testing.T) {
 		t.Fatal("string sum accepted")
 	}
 }
+
+func TestConstraintsShareDecodedInputAcrossProjections(t *testing.T) {
+	min := float64(0)
+	p := Problem{
+		Signature: Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"},
+		Constraints: []Constraint{
+			{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Min: &min},
+			{Kind: "property", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Property: "unique"},
+			{Kind: "comparison", Left: &ConstraintTarget{Parameter: "values", Projection: "length"}, Right: &ConstraintTarget{Parameter: "values", Projection: "sum"}, Operator: "le"},
+		},
+	}
+	for _, test := range []struct {
+		raw   string
+		valid bool
+	}{
+		{`[1,2,3]`, true}, {`[1,1,2]`, false}, {`[-1,2,3]`, false}, {`[0]`, false},
+	} {
+		err := ValidateProblemCase(p, Case{Args: []json.RawMessage{json.RawMessage(test.raw)}}, false)
+		if (err == nil) != test.valid {
+			t.Fatalf("%s: %v", test.raw, err)
+		}
+	}
+}
+
+func TestCaseValidatorChecksEveryCase(t *testing.T) {
+	min := float64(0)
+	p := Problem{Signature: Signature{Parameters: []Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, Constraints: []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "n", Projection: "value"}, Min: &min}}}
+	validator := NewCaseValidator(p)
+	for _, test := range []struct {
+		raw   string
+		valid bool
+	}{{`1`, true}, {`-1`, false}, {`"bad"`, false}, {`2`, true}} {
+		err := validator.Validate(Case{Args: []json.RawMessage{json.RawMessage(test.raw)}}, false)
+		if (err == nil) != test.valid {
+			t.Fatalf("%s: %v", test.raw, err)
+		}
+	}
+	p.Constraints[0].Kind = "invalid"
+	validator = NewCaseValidator(p)
+	for i := 0; i < 2; i++ {
+		if validator.Validate(Case{Args: []json.RawMessage{json.RawMessage(`1`)}}, false) == nil {
+			t.Fatal("invalid constraint accepted")
+		}
+	}
+}

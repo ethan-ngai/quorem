@@ -1,11 +1,13 @@
 {
   "problem": {
+    "languages": [],
     "id": "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
     "slug": "run-widths",
     "version": "3",
     "title": "Run Widths",
     "difficulty": "easy",
     "tags": ["arrays"],
+    "companies": [],
     "statementMarkdown": "Return the lengths of the maximal contiguous runs of equal values in `values`, in order. Empty input returns an empty list.",
     "examples": [
       {
@@ -50,12 +52,12 @@
       "parameters": [
         {
           "name": "values",
-          "type": "list<int>"
+          "type": "list\u003cint\u003e"
         }
       ],
-      "returnType": "list<int>"
+      "returnType": "list\u003cint\u003e"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def runWidths(self, values: list[int]) -> list[int]:\n        pass\n",
+    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def runWidths(self, values: list[int]) -\u003e list[int]:\n        pass\n",
     "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
@@ -66,8 +68,6 @@
       "maxNestingDepth": 100
     }
   },
-  "harnessRevision": "quorem-harness-v2",
-  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
   "hiddenCases": [
     {
       "args": [[]],
@@ -194,5 +194,36 @@
       "expected": [3, 2, 1]
     }
   ],
-  "referenceSource": "def solve(values):\n    result = []\n    for i, value in enumerate(values):\n        if i == 0 or value != values[i-1]: result.append(1)\n        else: result[-1] += 1\n    return result\nclass Solution:\n    def runWidths(self, values):\n        return solve(values)\n"
+  "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
+  "implementations": [
+    {
+      "language": "python",
+      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def runWidths(self, values: list[int]) -\u003e list[int]:\n        pass\n",
+      "runtimeRevision": "python-3.12-v1",
+      "harnessRevision": "quorem-harness-v2",
+      "referenceSource": "def solve(values):\n    result = []\n    for i, value in enumerate(values):\n        if i == 0 or value != values[i-1]: result.append(1)\n        else: result[-1] += 1\n    return result\nclass Solution:\n    def runWidths(self, values):\n        return solve(values)\n"
+    },
+    {
+      "language": "java",
+      "starterSource": "class Solution {\n    public int[] runWidths(int[] values) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "java-21.0.9-v1",
+      "harnessRevision": "quorem-java-v1",
+      "referenceSource": "class Solution {\npublic int[] runWidths(int[] values) { ArrayList\u003cInteger\u003e a=new ArrayList\u003c\u003e(); for(int i=0;i\u003cvalues.length;i++) { if(i==0||values[i]!=values[i-1])a.add(1);else a.set(a.size()-1,a.get(a.size()-1)+1); } return a.stream().mapToInt(Integer::intValue).toArray(); }\n}\n\n"
+    },
+    {
+      "language": "typescript",
+      "starterSource": "class Solution {\n    runWidths(values: (number)[]): (number)[] {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
+      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
+      "harnessRevision": "quorem-typescript-v1",
+      "referenceSource": "class Solution {\nrunWidths(values:number[]):number[]{const a:number[]=[];values.forEach((v,i)=\u003e{if(i===0||v!==values[i-1])a.push(1);else a[a.length-1]++;});return a;}\n}\n\n"
+    },
+    {
+      "language": "ocaml",
+      "starterSource": "let runWidths (values:(int) list) : (int) list =\n    failwith \"Implement solution\"\n",
+      "runtimeRevision": "ocaml-4.13.1-v1",
+      "harnessRevision": "quorem-ocaml-v1",
+      "referenceSource": "let runWidths values = let rec loop prev width acc = function [] -\u003e List.rev (if width=0 then acc else width::acc) | v::rest -\u003e if prev=Some v then loop prev (width+1) acc rest else loop (Some v) 1 (if width=0 then acc else width::acc) rest in loop None 0 [] values\n"
+    }
+  ],
+  "solutions": []
 }

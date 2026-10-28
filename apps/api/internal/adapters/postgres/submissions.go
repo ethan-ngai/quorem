@@ -163,7 +163,7 @@ type querier interface {
 func (s *Store) submission(ctx context.Context, q querier, owner, id string) (judging.Submission, error) {
 	var v judging.Submission
 	var data []byte
-	err := q.QueryRow(ctx, "SELECT id,workspace_id,kind,state,source_hash,admitted_at,updated_at,result,custom_run FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data, &v.CustomRun)
+	err := q.QueryRow(ctx, "SELECT id,COALESCE(workspace_id::text,''),kind,state,source_hash,admitted_at,updated_at,result,custom_run FROM submissions WHERE id=$1 AND owner_id=$2", uuidLookup(id), owner).Scan(&v.ID, &v.WorkspaceID, &v.Kind, &v.State, &v.SourceHash, &v.AdmittedAt, &v.UpdatedAt, &data, &v.CustomRun)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return v, failure("not_found", 404, "Submission not found")
 	}
@@ -248,6 +248,11 @@ func (s *Store) CancelWithKey(ctx context.Context, owner, id, key string) (judgi
 	return v, tx.Commit(ctx)
 }
 func (s *Store) Cleanup(ctx context.Context) error {
-	_, err := s.Pool.Exec(ctx, "DELETE FROM guest_request_buckets WHERE window_start<clock_timestamp()-interval '2 hours'; UPDATE submissions s SET source='',result=NULL,cases='[]'::jsonb WHERE admitted_at<clock_timestamp()-interval '7 days' AND state NOT IN ('queued','running') AND EXISTS(SELECT 1 FROM users u WHERE u.id=s.owner_id AND u.kind='guest'); UPDATE users u SET display_name='Expired guest' WHERE kind='guest' AND EXISTS(SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<clock_timestamp()-interval '7 days'); DELETE FROM execution_idempotency WHERE expires_at < clock_timestamp(); DELETE FROM cancellation_idempotency WHERE expires_at < clock_timestamp(); UPDATE submissions SET source='',result=NULL WHERE admitted_at < clock_timestamp()-interval '30 days' AND state NOT IN ('queued','running')")
+	_, err := s.Pool.Exec(ctx, `DELETE FROM guest_request_buckets WHERE window_start<statement_timestamp()-interval '2 hours';
+ UPDATE submissions s SET source='',result=NULL,cases='[]'::jsonb WHERE admitted_at<statement_timestamp()-interval '7 days' AND state NOT IN ('queued','running') AND (source<>'' OR result IS NOT NULL OR cases<>'[]'::jsonb) AND EXISTS(SELECT 1 FROM users u WHERE u.id=s.owner_id AND u.kind='guest');
+ UPDATE users u SET display_name='Expired guest' WHERE kind='guest' AND display_name<>'Expired guest' AND EXISTS(SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<statement_timestamp()-interval '7 days');
+ DELETE FROM execution_idempotency WHERE expires_at < statement_timestamp();
+ DELETE FROM cancellation_idempotency WHERE expires_at < statement_timestamp();
+ UPDATE submissions SET source='',result=NULL WHERE admitted_at < statement_timestamp()-interval '30 days' AND state NOT IN ('queued','running') AND (source<>'' OR result IS NOT NULL)`)
 	return err
 }

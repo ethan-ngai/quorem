@@ -55,3 +55,31 @@ func TestQuestionDefinitionSharesValidationWithoutPrivateReferences(t *testing.T
 		t.Fatal("invalid private case accepted")
 	}
 }
+
+func TestSignatureValidationAcrossQuestionTypes(t *testing.T) {
+	fixtures, err := LoadFixtures("../../../../fixtures/problems")
+	if err != nil {
+		t.Fatal(err)
+	}
+	classic := QuestionContent{Problem: fixtures[0].Problem, HiddenCases: fixtures[0].HiddenCases, Attribution: fixtures[0].Attribution}
+	for name, mutate := range map[string]func(*Signature){
+		"bad method":          func(s *Signature) { s.MethodName = "not-valid" },
+		"bad codec":           func(s *Signature) { s.Parameters[0].Type = "unknown" },
+		"bad return":          func(s *Signature) { s.ReturnType = "unknown" },
+		"duplicate parameter": func(s *Signature) { s.Parameters = append(s.Parameters, s.Parameters[0]) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			ordinary := classic
+			ordinary.Problem.Signature.Parameters = append([]Parameter(nil), classic.Problem.Signature.Parameters...)
+			mutate(&ordinary.Problem.Signature)
+			if ValidateQuestionDefinition(ordinary, true) == nil {
+				t.Fatal("classic signature accepted")
+			}
+			staged := odysseyContent(t)
+			mutate(&staged.Problem.Odyssey.Levels[0].Methods[0])
+			if ValidateOdyssey(staged) == nil {
+				t.Fatal("Odyssey signature accepted")
+			}
+		})
+	}
+}

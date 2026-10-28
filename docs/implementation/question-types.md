@@ -19,6 +19,6 @@ Void method return values are ignored; those calls remain in execution order and
 
 A collection-returning signature may set `outputOrder: "unordered"`. The judge canonicalizes only that return value's outer collection for both actual and expected output. Duplicates and nested ordering remain significant. Other methods in the same stateful test keep their own comparison policy. Omitted `outputOrder` means ordered comparison.
 
-Frontend mappings and literal rendering: `apps/web/src/features/editor/questionTypes.ts`. Validation and codecs: `apps/api/internal/problems/{codec,input,languages,odyssey}.go`. Language execution codecs: `apps/runner/{python,polyglot}/harness.py`. Cross-language parity tests cover shared wire values. Adding a pseudotype requires updating all these boundaries together.
+Frontend mappings and literal rendering: `apps/web/src/features/editor/questionTypes.ts`. Validation and codecs: `apps/api/internal/problems/{codec,case_codec,input,languages,odyssey}.go`. Language execution codecs: `apps/runner/{python,polyglot}/harness.py`. Cross-language parity tests cover shared wire values. Adding a pseudotype requires updating all these boundaries together.
 
 Odyssey starters contain a constructor and first-step methods. Unlocks append missing method stubs inside the existing `Solution` class using the selected language's parser. Existing code and methods are preserved. Collaborative insertions use the shared document's current version so simultaneous unlocks cannot duplicate stubs.
