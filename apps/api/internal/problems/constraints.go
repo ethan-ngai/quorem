@@ -217,12 +217,34 @@ func project(value any, t *ConstraintTarget) []float64 {
 	}
 	return result
 }
+
+// CaseValidator reuses question-level validation across a suite.
+type CaseValidator struct {
+	problem            Problem
+	methods            map[string]Signature
+	constraintsChecked bool
+	constraintsError   error
+}
+
+func NewCaseValidator(p Problem) *CaseValidator {
+	v := &CaseValidator{problem: p}
+	if p.SQL == nil && p.Odyssey != nil {
+		v.methods = OdysseyMethods(p)
+	}
+	return v
+}
+
 func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
+	return NewCaseValidator(p).Validate(c, expectedRequired)
+}
+
+func (v *CaseValidator) Validate(c Case, expectedRequired bool) error {
+	p := v.problem
 	if p.SQL != nil {
 		return validateSQLCase(p.SQL, c, expectedRequired)
 	}
 	if p.Odyssey != nil {
-		return ValidateOdysseyCase(p, c, expectedRequired)
+		return validateCalls(v.methods, c, expectedRequired, inputLimit(p))
 	}
 	if len(c.Calls) > 0 {
 		return fmt.Errorf("method sequences require Odyssey")
@@ -230,8 +252,12 @@ func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
 	if err := validateCaseLimit(p.Signature, c, expectedRequired, inputLimit(p)); err != nil {
 		return err
 	}
-	if err := ValidateConstraints(p.Signature, p.Constraints); err != nil {
-		return err
+	if !v.constraintsChecked {
+		v.constraintsError = ValidateConstraints(p.Signature, p.Constraints)
+		v.constraintsChecked = true
+	}
+	if v.constraintsError != nil {
+		return v.constraintsError
 	}
 	values := make(map[string]any)
 	projectTarget := func(target *ConstraintTarget) []float64 {
@@ -282,8 +308,9 @@ func ValidateProblemCustomCases(p Problem, cases []Case) error {
 	if err != nil || len(data) > execution.MaxCustomCasesBytes {
 		return fmt.Errorf("custom cases exceed 2 MiB")
 	}
+	validator := NewCaseValidator(p)
 	for i, c := range cases {
-		if err := ValidateProblemCase(p, c, false); err != nil {
+		if err := validator.Validate(c, false); err != nil {
 			return fmt.Errorf("case %d: %w", i+1, err)
 		}
 	}

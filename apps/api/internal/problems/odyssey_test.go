@@ -72,21 +72,21 @@ func TestOdysseyCallValidationAndHeterogeneousResults(t *testing.T) {
 		t.Fatal("wrong result type accepted")
 	}
 	test.Calls[0].MethodName = "__getattribute__"
-	if err := ValidateOdysseyCase(p, test, true); err == nil {
+	if err := ValidateProblemCase(p, test, true); err == nil {
 		t.Fatal("undeclared method accepted")
 	}
 }
 func TestOdysseyVoidMethods(t *testing.T) {
 	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "clear", ReturnType: "void"}}}}}}
 	c := Case{Args: []json.RawMessage{}, Calls: []MethodCall{{MethodName: "clear", Args: []json.RawMessage{}, Expected: json.RawMessage("null")}}}
-	if err := ValidateOdysseyCase(p, c, true); err != nil {
+	if err := ValidateProblemCase(p, c, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NormalizeCaseOutput(p, c, []byte(`[null]`)); err != nil {
 		t.Fatal(err)
 	}
 	c.Calls[0].Expected = json.RawMessage("1")
-	if err := ValidateOdysseyCase(p, c, true); err != nil {
+	if err := ValidateProblemCase(p, c, true); err != nil {
 		t.Fatal("void expectations should be ignored", err)
 	}
 	c.Calls[0].Expected = nil

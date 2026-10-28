@@ -76,10 +76,6 @@ func validateCalls(methods map[string]Signature, c Case, required bool, limit in
 	return nil
 }
 
-func ValidateOdysseyCase(p Problem, c Case, required bool) error {
-	return validateCalls(OdysseyMethods(p), c, required, inputLimit(p))
-}
-
 // Compile only unlocked methods and cumulative suites into an admitted snapshot.
 func CompileOdyssey(f Fixture, level int, kind string) (Problem, []Case, error) {
 	p := f.Problem

@@ -227,13 +227,14 @@ func ValidateQuestionDefinition(c QuestionContent, requireHidden bool) error {
 	if limits.WallTimeMS < 1 || limits.WallTimeMS > max.WallTimeMS || limits.MemoryBytes < 1 || limits.MemoryBytes > max.MemoryBytes || limits.OutputBytes < 1 || limits.OutputBytes > max.OutputBytes || limits.MaxProcesses < 1 || limits.MaxProcesses > max.MaxProcesses || limits.MaxCollectionElements < 1 || limits.MaxCollectionElements > execution.MaxInputElements || limits.MaxNestingDepth < 1 || limits.MaxNestingDepth > max.MaxNestingDepth {
 		return fmt.Errorf("execution limits exceed supported bounds")
 	}
+	validator := NewCaseValidator(p)
 	for _, example := range p.Examples {
-		if err := ValidateProblemCase(p, example.Case, true); err != nil {
+		if err := validator.Validate(example.Case, true); err != nil {
 			return fmt.Errorf("example: %w", err)
 		}
 	}
 	for i, test := range c.HiddenCases {
-		if err := ValidateProblemCase(p, test, true); err != nil {
+		if err := validator.Validate(test, true); err != nil {
 			return fmt.Errorf("hidden case %d: %w", i+1, err)
 		}
 	}
