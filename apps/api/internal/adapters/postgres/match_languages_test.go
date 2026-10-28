@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestMatchLanguagesPreserveWorkspaceOwnershipAndQueueSnapshots(t *testing.T) {
@@ -21,6 +23,11 @@ func TestMatchLanguagesPreserveWorkspaceOwnershipAndQueueSnapshots(t *testing.T)
 	}
 	if _, err = s.Workspace(ctx, "bob", switched.ID); errorCode(err) != "not_found" {
 		t.Fatal("cross-owner language workspace", err)
+	}
+	_, err = s.Pool.Exec(ctx, `UPDATE match_participants SET workspace_id=$1 WHERE match_id=$2 AND owner_id='bob'`, switched.ID, id)
+	var constraint *pgconn.PgError
+	if !errors.As(err, &constraint) || constraint.Code != "23503" {
+		t.Fatalf("participant accepted another owner's workspace: %v", err)
 	}
 	retried, err := s.SwitchMatchLanguage(ctx, "alice", id, "java-selection", "java")
 	if err != nil || retried.ID != switched.ID {

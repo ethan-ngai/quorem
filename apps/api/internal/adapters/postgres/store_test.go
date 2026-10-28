@@ -7,6 +7,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
+	"github.com/jackc/pgx/v5/pgconn"
 	"os"
 	"strconv"
 	"sync"
@@ -100,7 +101,11 @@ func TestWorkspaceReuseAndOwner(t *testing.T) {
 	if _, err = store.Workspace(ctx, "bob", w.ID); errorCode(err) != "not_found" {
 		t.Fatal("owner isolation", err)
 	}
-
+	_, err = store.Pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'bob',$2,'run','','hash','queued','[]')`, ID(), w.ID)
+	var constraint *pgconn.PgError
+	if !errors.As(err, &constraint) || constraint.Code != "23503" {
+		t.Fatalf("cross-owner workspace accepted: %v", err)
+	}
 }
 func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	store := testStore(t)
