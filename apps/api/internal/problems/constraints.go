@@ -244,7 +244,7 @@ func (v *CaseValidator) Validate(c Case, expectedRequired bool) error {
 		return validateSQLCase(p.SQL, c, expectedRequired)
 	}
 	if p.Odyssey != nil {
-		return validateCalls(v.methods, c, expectedRequired, inputLimit(p.QuestionDefinition))
+		return v.validateSequence(v.methods, c, expectedRequired)
 	}
 	if len(c.Calls) > 0 {
 		return fmt.Errorf("method sequences require Odyssey")
@@ -252,6 +252,28 @@ func (v *CaseValidator) Validate(c Case, expectedRequired bool) error {
 	if err := validateCaseLimit(p.Signature, c, expectedRequired, inputLimit(p.QuestionDefinition)); err != nil {
 		return err
 	}
+	return v.validateConstraints(c)
+}
+
+func (v *CaseValidator) validateSequence(methods map[string]Signature, c Case, expectedRequired bool) error {
+	if err := validateCalls(methods, c, expectedRequired, inputLimit(v.problem.QuestionDefinition)); err != nil {
+		return err
+	}
+	if len(v.problem.Constraints) == 0 {
+		return nil
+	}
+	for i, call := range c.Calls {
+		if call.MethodName == v.problem.Signature.MethodName {
+			if err := v.validateConstraints(Case{Args: call.Args}); err != nil {
+				return fmt.Errorf("call %d: %w", i+1, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (v *CaseValidator) validateConstraints(c Case) error {
+	p := v.problem
 	if !v.constraintsChecked {
 		v.constraintsError = ValidateConstraints(p.Signature, p.Constraints)
 		v.constraintsChecked = true

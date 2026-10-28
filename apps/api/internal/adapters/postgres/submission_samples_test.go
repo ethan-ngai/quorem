@@ -38,6 +38,20 @@ func TestSubmitPublicSamplesDoNotChangeHiddenScore(t *testing.T) {
 	for i := range spec.SubmitSamples {
 		completion.SubmitSampleResults = append(completion.SubmitSampleResults, execution.PublicCaseResult{Index: i, Status: "accepted", Stdout: "public sample"})
 	}
+	invalidVerdict := completion
+	invalidVerdict.Score = &execution.Score{Passed: len(spec.Cases) - 1, Total: len(spec.Cases)}
+	if err = s.Complete(ctx, job, invalidVerdict); err == nil {
+		t.Fatal("accepted verdict with a partial score")
+	}
+	invalidVerdict = completion
+	invalidVerdict.Verdict = execution.WrongAnswer
+	if err = s.Complete(ctx, job, invalidVerdict); err == nil {
+		t.Fatal("rejected verdict with a perfect score")
+	}
+	invalidVerdict.Verdict = execution.Verdict("unknown")
+	if err = s.Complete(ctx, job, invalidVerdict); err == nil {
+		t.Fatal("unknown verdict accepted")
+	}
 	incomplete := completion
 	incomplete.SubmitSampleResults = append(append([]execution.PublicCaseResult{}, completion.SubmitSampleResults...), execution.PublicCaseResult{Index: len(spec.SubmitSamples)})
 	if err = s.Complete(ctx, job, incomplete); err == nil {

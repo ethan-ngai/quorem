@@ -108,3 +108,50 @@ func TestSQLFloatingResultsNormalizeByPseudotype(t *testing.T) {
 		t.Fatalf("%s != %s: %v", expected, actual, err)
 	}
 }
+
+func TestSQLTimestampsNormalizeByColumnType(t *testing.T) {
+	problem := Problem{QuestionDefinition: QuestionDefinition{SQL: &SQLConfig{Dialect: "postgresql", OutputOrder: "ordered", Output: []SQLColumn{{Name: "wall", Type: "timestamp"}, {Name: "instant", Type: "timestamptz"}}}}}
+	codec := NewCaseCodec(problem)
+	actual, err := codec.Normalize(Case{}, json.RawMessage(`{"columns":["wall","instant"],"rows":[["2024-01-01T12:00:00.123457","2024-01-01T10:00:00+00:00"]]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		`{"rows":[["2024-01-01 12:00:00.1234567","2024-01-01T12:00:00+02:00"]]}`,
+		`{"rows":[["2024-01-01T12:00:00.1234570","2024-01-01 10:00:00"]]}`,
+		`{"rows":[["2024-01-01 12:00:00.123457","2024-01-01 12:00:00+02:00"]]}`,
+	} {
+		result, err := codec.Normalize(Case{}, json.RawMessage(expected))
+		if err != nil || string(result) != string(actual) {
+			t.Fatalf("%s != %s: %v", result, actual, err)
+		}
+	}
+	for input, want := range map[string]string{
+		"2024-01-01 12:00:00.1234565":    "2024-01-01T12:00:00.123456",
+		"2024-01-01 12:00:00.1234575":    "2024-01-01T12:00:00.123458",
+		"2024-01-01 12:00:00.1234565001": "2024-01-01T12:00:00.123457",
+	} {
+		if got, err := normalizeSQLTimestamp("timestamp", input); err != nil || got != want {
+			t.Fatalf("round %s: %s %v", input, got, err)
+		}
+	}
+	if _, err := codec.Normalize(Case{}, json.RawMessage(`{"rows":[["invalid","2024-01-01T10:00:00Z"]]}`)); err == nil {
+		t.Fatal("invalid timestamp accepted")
+	}
+}
+
+func TestSQLRealExpectedValuesFitColumnPrecision(t *testing.T) {
+	for _, test := range []struct {
+		kind, value string
+		valid       bool
+	}{
+		{"real", "3.4028235e38", true},
+		{"real", "3.5e38", false},
+		{"double precision", "3.5e38", true},
+		{"double precision", "1e309", false},
+	} {
+		if got := validSQLResultValue(test.kind, json.RawMessage(test.value)); got != test.valid {
+			t.Errorf("%s %s: got %v", test.kind, test.value, got)
+		}
+	}
+}

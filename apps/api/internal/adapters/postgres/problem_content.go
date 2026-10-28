@@ -102,10 +102,9 @@ func (s *Store) Solutions(ctx context.Context, versionID string) ([]problems.Edi
 	}
 	return s.readSolutions(ctx, versionID)
 }
+
+// Callers authorize the version before reading its editorial records.
 func (s *Store) readSolutions(ctx context.Context, versionID string) ([]problems.EditorialSolution, error) {
-	if _, err := s.Problem(ctx, versionID, true); err != nil {
-		return nil, err
-	}
 	rows, err := s.Pool.Query(ctx, `SELECT language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes FROM problem_solutions WHERE version_id::text=$1 ORDER BY language`, versionID)
 	if err != nil {
 		return nil, err

@@ -209,3 +209,63 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 	})
 
 }
+
+func TestPostgresTimestampComparison(t *testing.T) {
+	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
+		t.Skip("requires PostgreSQL sandbox")
+	}
+	var fixture worker.Fixture
+	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"ordered","tables":[{"name":"events","columns":[{"name":"wall","type":"timestamp"},{"name":"instant","type":"timestamptz"}]}],"output":[{"name":"wall","type":"timestamp"},{"name":"instant","type":"timestamptz"}]}}}`), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	var test worker.Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"events","rows":[["2024-01-01T12:00:00.1234567","2024-01-01 10:00:00"]]}]}],"expected":{"rows":[["2024-01-01 12:00:00.1234567","2024-01-01T12:00:00+02:00"]]}}`), &test); err != nil {
+		t.Fatal(err)
+	}
+	image := os.Getenv("QUOREM_TEST_POSTGRES_IMAGE")
+	if image == "" {
+		image = "quorem-postgres:local"
+	}
+	d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		return worker.Spec{Source: "SELECT wall, instant FROM events", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{test}}, nil
+	}}
+	runtime, _ := execution.LanguageRuntime("postgresql")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "timestamp", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
+	if err != nil || result.Verdict != execution.Accepted {
+		t.Fatalf("timestamp comparison: %+v %v", result, err)
+	}
+}
+
+func TestPostgresNonFiniteOutputIsContestantError(t *testing.T) {
+	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
+		t.Skip("requires PostgreSQL sandbox")
+	}
+	var fixture worker.Fixture
+	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"ordered","tables":[{"name":"items","columns":[{"name":"id","type":"integer"}]}],"output":[{"name":"value","type":"real"}]}}}`), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	var test worker.Case
+	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[]}]}],"expected":{"rows":[[0]]}}`), &test); err != nil {
+		t.Fatal(err)
+	}
+	image := os.Getenv("QUOREM_TEST_POSTGRES_IMAGE")
+	if image == "" {
+		image = "quorem-postgres:local"
+	}
+	runtime, _ := execution.LanguageRuntime("postgresql")
+	for _, tc := range []struct{ kind, value string }{{"run", "NaN"}, {"submit", "Infinity"}} {
+		t.Run(tc.kind, func(t *testing.T) {
+			d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+				return worker.Spec{Source: "SELECT '" + tc.value + "'::real AS value", Kind: tc.kind, Problem: fixture.Problem, Cases: []worker.Case{test}}, nil
+			}}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			result, err := d.Execute(ctx, execution.Job{Language: "postgresql", SubmissionID: "nonfinite", AttemptID: rand.Text(), RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
+			if err != nil || result.Verdict != execution.InvalidOutput || result.EngineFailure != "" {
+				t.Fatalf("non-finite output: %+v %v", result, err)
+			}
+		})
+	}
+}

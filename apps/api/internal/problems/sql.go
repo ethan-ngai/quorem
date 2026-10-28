@@ -278,7 +278,11 @@ func validSQLResultValue(kind string, raw json.RawMessage) bool {
 		if json.Unmarshal(raw, &value) != nil {
 			return false
 		}
-		_, err := strconv.ParseFloat(value.String(), 64)
+		bits := 64
+		if kind == "real" {
+			bits = 32
+		}
+		_, err := strconv.ParseFloat(value.String(), bits)
 		return err == nil
 	}
 	if kind == "bigint" {
@@ -359,15 +363,44 @@ func validSQLValue(kind string, raw json.RawMessage) bool {
 		if !ok {
 			return false
 		}
-		layouts := []string{"2006-01-02T15:04:05", "2006-01-02 15:04:05", time.RFC3339Nano}
-		for _, layout := range layouts {
-			if _, err := time.Parse(layout, text); err == nil {
-				return true
-			}
-		}
-		return false
+		_, err := parseSQLTimestamp(text)
+		return err == nil
 	}
 	return false
+}
+
+func parseSQLTimestamp(text string) (time.Time, error) {
+	for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02 15:04:05", time.RFC3339Nano, "2006-01-02 15:04:05Z07:00"} {
+		if value, err := time.Parse(layout, text); err == nil {
+			return value, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid SQL timestamp")
+}
+
+// PostgreSQL timestamps without a zone compare by wall time; zoned timestamps compare in UTC.
+func normalizeSQLTimestamp(kind, text string) (string, error) {
+	value, err := parseSQLTimestamp(text)
+	if err != nil {
+		return "", err
+	}
+	// PostgreSQL stores microseconds, rounding halfway values to even.
+	micros := value.Nanosecond() / 1000
+	if point := strings.IndexByte(text, '.'); point >= 0 {
+		end := point + 1
+		for end < len(text) && text[end] >= '0' && text[end] <= '9' {
+			end++
+		}
+		digits := text[point+1 : end]
+		if len(digits) > 6 && (digits[6] > '5' || digits[6] == '5' && (strings.Trim(digits[7:], "0") != "" || micros%2 == 1)) {
+			micros++
+		}
+	}
+	value = value.Add(-time.Duration(value.Nanosecond())).Add(time.Duration(micros) * time.Microsecond)
+	if kind == "timestamptz" {
+		return value.UTC().Format(time.RFC3339Nano), nil
+	}
+	return value.Format("2006-01-02T15:04:05.999999999"), nil
 }
 
 // Numeric markers preserve PostgreSQL numeric precision and remain distinct from text.

@@ -31,7 +31,7 @@ func TestExecutionCases(t *testing.T) {
 			if tc.noHidden {
 				f.HiddenCases = nil
 			}
-			cases, err := executionCases(&f, 0, tc.kind, tc.custom, tc.fallback)
+			cases, err := executionCases(f, 0, tc.kind, tc.custom, tc.fallback)
 			if tc.invalid {
 				if errorCode(err) != "invalid_input" {
 					t.Fatalf("expected invalid input: %v", err)

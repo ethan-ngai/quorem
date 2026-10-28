@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import json
+import math
 import os
 import subprocess
 import sys
@@ -31,7 +32,7 @@ def main():
         definitions = {table["name"]: table["columns"] for table in schema["tables"]}
         setup = {"tables": [{"name": table["name"], "columns": definitions[table["name"]], "rows": table["rows"]} for table in setup["tables"]]}
     subprocess.run([f"{BIN}/initdb", "-D", "/tmp/pgdata", "--no-locale", "--encoding=UTF8", "--auth=trust"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    server = subprocess.Popen([f"{BIN}/postgres", "-D", "/tmp/pgdata", "-k", "/tmp", "-c", "listen_addresses=", "-c", "fsync=off", "-c", "shared_buffers=12MB", "-c", "max_connections=5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    server = subprocess.Popen([f"{BIN}/postgres", "-D", "/tmp/pgdata", "-k", "/tmp", "-c", "listen_addresses=", "-c", "timezone=UTC", "-c", "fsync=off", "-c", "shared_buffers=12MB", "-c", "max_connections=5"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         for _ in range(100):
             try:
@@ -73,8 +74,11 @@ def main():
                 else:
                     columns = [column.name for column in cursor.description]
                     rows = cursor.fetchmany(10001)
-                    rows = [[{"$bigint": str(value)} if isinstance(value, int) and not isinstance(value, bool) and (value > 2147483647 or value < -2147483648) else value for value in row] for row in rows]
-                    result = {"status": "executed", "actual": {"columns": columns, "rows": rows}, "sqlTypes": [OUTPUT_TYPE_NAMES[column.type_code] for column in cursor.description]}
+                    if any(isinstance(value, float) and not math.isfinite(value) for row in rows for value in row):
+                        result = {"status": "invalid_output", "stderr": "The query returned a non-finite number."}
+                    else:
+                        rows = [[{"$bigint": str(value)} if isinstance(value, int) and not isinstance(value, bool) and (value > 2147483647 or value < -2147483648) else value for value in row] for row in rows]
+                        result = {"status": "executed", "actual": {"columns": columns, "rows": rows}, "sqlTypes": [OUTPUT_TYPE_NAMES[column.type_code] for column in cursor.description]}
             except psycopg2.Error as error:
                 message = (error.diag.message_primary or "The query could not be executed.")[:1024]
                 result = {"status": "syntax_error" if error.pgcode == "42601" else "runtime_error", "stderr": message}

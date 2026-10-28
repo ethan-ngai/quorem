@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
+	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"strings"
 	"testing"
@@ -72,5 +73,48 @@ func TestSourceOnlyEditorialPublication(t *testing.T) {
 	other := identity.With(context.Background(), identity.Principal{UserID: "bob"})
 	if _, err := s.Solutions(other, p.ID); errorCode(err) != "not_found" {
 		t.Fatalf("private solution exposed: %v", err)
+	}
+}
+
+func TestPrivateMatchParticipantCanReadAllowedComplexity(t *testing.T) {
+	s := adminStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	content := authoringContent(t, s)
+	content.Problem.Slug = "private-match-complexity"
+	content.Solutions = []problems.EditorialSolution{{Language: "python", Source: "solution", TimeComplexity: "O(n)", SpaceComplexity: "O(1)"}}
+	draft, err := s.CreateQuestionDraft(ctx, "alice", content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err = s.PublishQuestionDraftTo(ctx, "alice", draft.ID, draft.Revision, "private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	room, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{SelectedProblemVersionID: draft.PublishedVersionID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.JoinMatch(ctx, "bob", ID(), inviteToken(t, room)); err != nil {
+		t.Fatal(err)
+	}
+	for _, user := range []string{"alice", "bob"} {
+		if _, err = s.ReadyMatch(ctx, user, room.ID, ID(), true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bob := identity.With(context.Background(), identity.Principal{UserID: "bob"})
+	items, err := s.Solutions(bob, draft.PublishedVersionID)
+	if err != nil || len(items) != 1 || items[0].TimeComplexity != "O(n)" {
+		t.Fatalf("participant complexity unavailable: %+v %v", items, err)
+	}
+	if _, err = s.Problem(bob, draft.PublishedVersionID, true); errorCode(err) != "not_found" {
+		t.Fatalf("private catalog access granted: %v", err)
+	}
+	if _, err = s.QuestionContent(bob, draft.PublishedVersionID); errorCode(err) != "forbidden" {
+		t.Fatalf("private authoring content exposed: %v", err)
+	}
+	outsider := identity.With(context.Background(), identity.Principal{UserID: "charlie"})
+	if _, err = s.Solutions(outsider, draft.PublishedVersionID); errorCode(err) != "not_found" {
+		t.Fatalf("nonparticipant editorial exposed: %v", err)
 	}
 }

@@ -117,6 +117,7 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM problems WHERE slug='interview-private'`).Scan(&catalog); err != nil || catalog != 0 {
 		t.Fatal("private stages published", catalog, err)
 	}
+	var snapshotID string
 	submit := func(total, passed int) {
 		t.Helper()
 		if _, err = s.Pool.Exec(ctx, `UPDATE users SET admission_tokens=2 WHERE id='bob'`); err != nil {
@@ -126,12 +127,20 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 		if e != nil {
 			t.Fatal(e)
 		}
+		var storedID string
+		if e = s.Pool.QueryRow(ctx, `SELECT encode(fixture_id,'hex') FROM interview_execution WHERE submission_id=$1`, sub.ID).Scan(&storedID); e != nil {
+			t.Fatal(e)
+		}
+		if snapshotID != "" && storedID != snapshotID {
+			t.Fatal("same question stored a new snapshot after stage advancement")
+		}
+		snapshotID = storedID
 		job, e := s.Claim(ctx)
 		if e != nil || job.SubmissionID != sub.ID {
 			t.Fatal(job, e)
 		}
 		spec, e := s.LoadExecution(ctx, job)
-		if e != nil || len(spec.Cases) != total || spec.Source != starter {
+		if e != nil || len(spec.Cases) != total || spec.Source != starter || len(spec.Problem.Odyssey.Levels) != total || len(spec.SubmitSamples) != total {
 			t.Fatal("immutable source/cumulative cases", spec, e)
 		}
 		finishInterviewJob(t, s, job, passed, total)
