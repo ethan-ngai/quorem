@@ -28,9 +28,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 		if hash != bodyHash {
 			return judging.Submission{}, failure("idempotency_conflict", 409, "Key was used for a different command")
 		}
-		v, e := s.submission(ctx, tx, owner, prior)
-		v.State = "queued"
-		return v, e
+		return s.submission(ctx, tx, owner, prior)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, err

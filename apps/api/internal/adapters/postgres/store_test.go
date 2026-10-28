@@ -139,8 +139,8 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 		t.Fatal(err)
 	}
 	again, err := store.Admit(ctx, "alice", "same", cmd, "a")
-	if err != nil || again.ID != first.ID {
-		t.Fatal("retry before busy", err)
+	if err != nil || again.ID != first.ID || again.State != "queued" || again.ExecutionJobID != "" {
+		t.Fatal("retry before busy", again, err)
 	}
 	if _, err = store.Admit(ctx, "alice", "same", cmd, "b"); errorCode(err) != "idempotency_conflict" {
 		t.Fatal(err)
@@ -151,6 +151,9 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	job, err := store.Claim(ctx)
 	if err != nil || job.SubmissionID != first.ID {
 		t.Fatal(job, err)
+	}
+	if replay, err := store.Admit(ctx, "alice", "same", cmd, "a"); err != nil || replay.State != "running" || replay.ID != first.ID {
+		t.Fatalf("running retry: %+v %v", replay, err)
 	}
 	if _, err = store.Cancel(ctx, "alice", first.ID); err != nil {
 		t.Fatal(err)
@@ -164,6 +167,9 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	got, _ := store.Submission(ctx, "alice", first.ID)
 	if got.State != "cancelled" || got.Score != nil {
 		t.Fatal(got)
+	}
+	if replay, err := store.Admit(ctx, "alice", "same", cmd, "a"); err != nil || replay.State != "cancelled" || replay.ID != first.ID {
+		t.Fatalf("cancelled retry: %+v %v", replay, err)
 	}
 	second, err := store.Admit(ctx, "alice", "second", cmd, "e")
 	if err != nil {
@@ -206,6 +212,9 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	got, _ = store.Submission(ctx, "alice", second.ID)
 	if got.State != "completed" || got.Score.Passed != 7 || len(got.HiddenCases) != 20 || got.HiddenCases[0].Status != execution.Accepted || got.HiddenCases[7].Status != execution.WrongAnswer || len(got.Diagnostics) != 0 || len(got.PublicCases) != 0 {
 		t.Fatal("completion redaction", got)
+	}
+	if replay, err := store.Admit(ctx, "alice", "second", cmd, "e"); err != nil || replay.State != "completed" || replay.ID != second.ID || replay.Score == nil || replay.Score.Passed != 7 {
+		t.Fatalf("completed retry: %+v %v", replay, err)
 	}
 	if _, err = store.Admit(ctx, "alice", "quota", cmd, "f"); errorCode(err) != "quota_exceeded" {
 		t.Fatal(err)
