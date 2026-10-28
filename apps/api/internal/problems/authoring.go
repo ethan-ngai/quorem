@@ -179,8 +179,8 @@ func ValidateQuestionDraft(c QuestionContent) error {
 	return nil
 }
 
-// Publication validates metadata and wire cases; compilation/reference acceptance is a separate gate.
-func ValidateQuestionPublication(c QuestionContent) error {
+// ValidateQuestionDefinition checks shared metadata and cases before publication or interview use.
+func ValidateQuestionDefinition(c QuestionContent, requireHidden bool) error {
 	if err := ValidateQuestionDraft(c); err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func ValidateQuestionPublication(c QuestionContent) error {
 	if strings.TrimSpace(c.Attribution) == "" {
 		return fmt.Errorf("attribution required")
 	}
-	if p.Odyssey == nil && (len(p.Examples) == 0 || len(c.HiddenCases) == 0) {
+	if p.Odyssey == nil && (len(p.Examples) == 0 || (requireHidden && len(c.HiddenCases) == 0)) {
 		return fmt.Errorf("public examples and at least one hidden case required")
 	}
 	seenTags := map[string]bool{}
@@ -250,6 +250,15 @@ func ValidateQuestionPublication(c QuestionContent) error {
 			return fmt.Errorf("hidden case %d: %w", i+1, err)
 		}
 	}
+	return nil
+}
+
+// Publication additionally requires pinned implementations and private references.
+func ValidateQuestionPublication(c QuestionContent) error {
+	if err := ValidateQuestionDefinition(c, true); err != nil {
+		return err
+	}
+	p := c.Problem
 	languages := map[string]bool{}
 	for _, v := range c.Implementations {
 		runtime, ok := execution.LanguageRuntime(v.Language)

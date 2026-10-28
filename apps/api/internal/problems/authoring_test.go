@@ -36,3 +36,22 @@ func TestNormalizeQuestionDraftNestedCases(t *testing.T) {
 		t.Fatal("nested arrays were not normalized")
 	}
 }
+
+func TestQuestionDefinitionSharesValidationWithoutPrivateReferences(t *testing.T) {
+	fixtures, err := LoadFixtures("../../../../fixtures/problems")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fixtures[0]
+	content := QuestionContent{Problem: f.Problem, Attribution: f.Attribution}
+	if err = ValidateQuestionDefinition(content, false); err != nil {
+		t.Fatal(err)
+	}
+	if err = ValidateQuestionPublication(content); err == nil {
+		t.Fatal("published question accepted without private cases")
+	}
+	content.HiddenCases = []Case{{}}
+	if err = ValidateQuestionDefinition(content, false); err == nil {
+		t.Fatal("invalid private case accepted")
+	}
+}
