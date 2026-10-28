@@ -20,6 +20,10 @@ func OdysseyMethods(p Problem) map[string]Signature {
 	return methods
 }
 
+func validOdysseyLevel(level OdysseyLevel, hidden []Case) bool {
+	return strings.TrimSpace(level.Title) != "" && len(level.Title) <= 160 && strings.TrimSpace(level.StatementMarkdown) != "" && len(level.StatementMarkdown) <= 65536 && len(level.Examples) >= 1 && len(level.Examples) <= 20 && len(hidden) >= 1 && len(hidden) <= 20
+}
+
 func ValidateOdyssey(c QuestionContent) error {
 	levels := c.Problem.Odyssey.Levels
 	if len(levels) < 1 || len(levels) > 8 || len(c.OdysseyHiddenCases) != len(levels) {
@@ -43,7 +47,7 @@ func ValidateOdyssey(c QuestionContent) error {
 	methods := map[string]Signature{}
 	validator := NewCaseValidator(Problem{QuestionDefinition: c.Problem})
 	for i, level := range levels {
-		if strings.TrimSpace(level.Title) == "" || len(level.Title) > 160 || strings.TrimSpace(level.StatementMarkdown) == "" || len(level.StatementMarkdown) > 65536 || len(level.Methods) < 1 || len(level.Methods) > 16 || len(level.Examples) < 1 || len(level.Examples) > 20 || len(c.OdysseyHiddenCases[i]) < 1 || len(c.OdysseyHiddenCases[i]) > 20 {
+		if !validOdysseyLevel(level, c.OdysseyHiddenCases[i]) || len(level.Methods) < 1 || len(level.Methods) > 16 {
 			return fmt.Errorf("invalid Odyssey level %d", i+1)
 		}
 		for _, sig := range level.Methods {

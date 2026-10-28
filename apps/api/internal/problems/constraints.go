@@ -99,6 +99,10 @@ func targetType(sig Signature, t *ConstraintTarget) (string, error) {
 	}
 	return "", fmt.Errorf("parameter %s: projection %s invalid for %s", t.Parameter, t.Projection, typ)
 }
+func validProseConstraint(c Constraint) bool {
+	return strings.TrimSpace(c.Text) != "" && c.Target == nil && c.Left == nil && c.Right == nil && c.Min == nil && c.Max == nil && c.Operator == "" && c.Property == ""
+}
+
 func ValidateConstraints(sig Signature, constraints []Constraint) error {
 	names := map[string]bool{}
 	for _, p := range sig.Parameters {
@@ -117,7 +121,7 @@ func ValidateConstraints(sig Signature, constraints []Constraint) error {
 		fail := func(message string) error { return fmt.Errorf("constraint %d: %s", i+1, message) }
 		switch c.Kind {
 		case "prose":
-			if strings.TrimSpace(c.Text) == "" || c.Target != nil || c.Left != nil || c.Right != nil || c.Min != nil || c.Max != nil || c.Operator != "" || c.Property != "" {
+			if !validProseConstraint(c) {
 				return fail("invalid prose")
 			}
 		case "range":
