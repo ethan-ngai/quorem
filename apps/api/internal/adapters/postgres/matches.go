@@ -255,7 +255,7 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 		return result, failure("invalid_input", 400, "Invalid match settings")
 	}
 	err := s.matchCommand(ctx, owner, "create", key, settings, func(tx pgx.Tx) (any, error) {
-		if err := validateMatchProblem(ctx, tx, settings); err != nil {
+		if err := validateMatchProblem(ctx, tx, owner, settings); err != nil {
 			return nil, err
 		}
 		if err := requireGuestHosting(ctx, tx, owner, settings.AccessMode); err != nil {
@@ -450,7 +450,7 @@ func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, 
 		if count > settings.Capacity() {
 			return failure("invalid_transition", 409, "Too many players for this mode")
 		}
-		if err := validateMatchProblem(ctx, tx, settings); err != nil {
+		if err := validateMatchProblem(ctx, tx, owner, settings); err != nil {
 			return err
 		}
 		if err := requireGuestHosting(ctx, tx, owner, settings.AccessMode); err != nil {
@@ -544,7 +544,7 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 		return err
 	}
 	id := m.id
-	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL) AND (($2<>'' AND id::text=$2) OR ($2='' AND public->'sql' IS NULL AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1))) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID)
+	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE (($2<>'' AND id::text=$2 AND problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL OR owner_id=$3)) OR ($2='' AND problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL) AND public->'sql' IS NULL AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1))) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID, m.host)
 	if err != nil {
 		return err
 	}

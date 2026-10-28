@@ -15,6 +15,7 @@ import (
 type ProblemRepository interface {
 	ProblemCatalog(context.Context, problems.ProblemFilter) (problems.ProblemPage, error)
 	Problem(context.Context, string, bool) (problems.Problem, error)
+	MatchProblem(context.Context, string) (problems.Problem, error)
 	Solutions(context.Context, string) ([]problems.EditorialSolution, error)
 	HasActiveMatchProblem(context.Context, string, string) (bool, error)
 }

@@ -264,7 +264,16 @@ func (s *Server) problem(w http.ResponseWriter, r *http.Request) {
 	if id != "" {
 		value = id
 	}
-	v, e := s.Store.Problem(r.Context(), value, id != "")
+	if id != "" {
+		v, e := s.Store.MatchProblem(r.Context(), value)
+		if e != nil {
+			s.err(w, r, e)
+			return
+		}
+		respond(w, 200, v)
+		return
+	}
+	v, e := s.Store.Problem(r.Context(), value, false)
 	if e != nil {
 		s.err(w, r, e)
 		return

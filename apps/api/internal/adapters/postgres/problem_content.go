@@ -27,12 +27,20 @@ const publicProblemSQL = `SELECT jsonb_build_object(
  JOIN problem_languages py ON py.version_id=v.id AND py.language=CASE WHEN v.public->'sql' IS NOT NULL THEN 'postgresql' ELSE 'python' END `
 
 func (s *Store) Problem(ctx context.Context, value string, byID bool) (problems.Problem, error) {
+	return s.problem(ctx, value, byID, false)
+}
+
+func (s *Store) MatchProblem(ctx context.Context, value string) (problems.Problem, error) {
+	return s.problem(ctx, value, true, true)
+}
+
+func (s *Store) problem(ctx context.Context, value string, byID, matchAccess bool) (problems.Problem, error) {
 	query := publicProblemSQL + " WHERE p.slug=$1 AND v.id=p.current_version_id"
 	if byID {
 		query = publicProblemSQL + " WHERE v.id::text=$1"
 	}
 	var data []byte
-	err := s.Pool.QueryRow(ctx, query+" AND (p.owner_id IS NULL OR p.owner_id=$2)", value, identity.Subject(ctx).UserID).Scan(&data)
+	err := s.Pool.QueryRow(ctx, query+" AND (p.owner_id IS NULL OR p.owner_id=$2 OR ($3 AND EXISTS (SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=$2 AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing'))))", value, identity.Subject(ctx).UserID, matchAccess).Scan(&data)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return problems.Problem{}, failure("not_found", 404, "Problem not found")
 	}
@@ -64,7 +72,7 @@ func (s *Store) Problems(ctx context.Context) ([]problems.Problem, error) {
 }
 
 func (s *Store) Solutions(ctx context.Context, versionID string) ([]problems.EditorialSolution, error) {
-	if _, err := s.Problem(ctx, versionID, true); err != nil {
+	if _, err := s.MatchProblem(ctx, versionID); err != nil {
 		return nil, err
 	}
 	var odyssey bool

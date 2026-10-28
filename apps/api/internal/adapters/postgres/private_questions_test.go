@@ -209,7 +209,7 @@ func TestInterviewBaselineAndMatchesExcludePrivateQuestions(t *testing.T) {
 		tx.Rollback(ctx)
 		t.Fatal(err)
 	}
-	if err = validateMatchProblem(ctx, tx, matches.Settings{SelectedProblemVersionID: f.Problem.ID}); errorCode(err) != "invalid_input" {
+	if err = validateMatchProblem(ctx, tx, "bob", matches.Settings{SelectedProblemVersionID: f.Problem.ID}); errorCode(err) != "invalid_input" {
 		tx.Rollback(ctx)
 		t.Fatal("private match selection", err)
 	}
