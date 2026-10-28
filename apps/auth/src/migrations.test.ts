@@ -20,6 +20,9 @@ describe.skipIf(!url)("auth schema migrations", () => {
         { name: "002_profile_color.sql" },
         { name: "003_account_user_index.sql" },
       ]);
+      await database.query("DELETE FROM quorem_auth.schema_migrations WHERE name='001_schema.sql'");
+      await expect(migrateAuth(database)).rejects.toThrow("not a contiguous prefix");
+      await database.query("INSERT INTO quorem_auth.schema_migrations VALUES('001_schema.sql')");
       await database.query("INSERT INTO quorem_auth.schema_migrations VALUES('unavailable.sql')");
       await expect(migrateAuth(database)).rejects.toThrow("unavailable auth migration");
       expect(
@@ -30,6 +33,9 @@ describe.skipIf(!url)("auth schema migrations", () => {
         ).rowCount,
       ).toBe(1);
     } finally {
+      await database.query(
+        "INSERT INTO quorem_auth.schema_migrations VALUES('001_schema.sql') ON CONFLICT DO NOTHING",
+      );
       await database.query(
         "DELETE FROM quorem_auth.schema_migrations WHERE name='unavailable.sql'",
       );

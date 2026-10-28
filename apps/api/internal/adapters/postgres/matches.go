@@ -28,7 +28,7 @@ type matchRecord struct {
 
 func lockMatch(ctx context.Context, tx pgx.Tx, id string) (matchRecord, error) {
 	var m matchRecord
-	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,difficulties,question_filters,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.QuestionFilters, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
+	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulties[1],duration_minutes,difficulties,question_filters,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.QuestionFilters, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = failure("not_found", 404, "Match not found")
 	}
@@ -270,7 +270,7 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 		}
 		encoded := base64.RawURLEncoding.EncodeToString(token)
 		m := matchRecord{id: ID(), state: "waiting", mode: settings.Mode}
-		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6,$7,NULLIF($8,'')::uuid,$9,$10,$11,$12)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
+		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,'waiting',$5,$6,NULLIF($7,'')::uuid,$8,$9,$10,$11)", m.id, owner, Hash([]byte(encoded)), settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1);", m.id, owner); err != nil {
@@ -477,7 +477,7 @@ func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, 
 		m.settings = settings
 		m.mode = settings.Mode
 		m.state = "waiting"
-		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,mode=$4,difficulties=$5,selected_problem_version_id=NULLIF($6,'')::uuid,rules=$7,access_mode=$8,admission_locked=$9,question_filters=$10,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
+		if _, err := tx.Exec(ctx, "UPDATE matches SET duration_minutes=$2,mode=$3,difficulties=$4,selected_problem_version_id=NULLIF($5,'')::uuid,rules=$6,access_mode=$7,admission_locked=$8,question_filters=$9,state='waiting' WHERE id=$1", id, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, "UPDATE match_participants SET ready=false WHERE match_id=$1", id)

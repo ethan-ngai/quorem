@@ -41,7 +41,7 @@ Ports carry domain IDs/values and cancellation, never AWS SDK types. Avoid a gen
 - `submissions`: owner, optional match ID, problem/runtime/harness versions, source snapshot, run/submit kind, state, verdict, timing, timestamps, idempotency key.
 - `execution_jobs`: submission ID, attempts, lease expiry, availability timestamp; durable local PostgreSQL queue candidate.
 - `matches`: state, version, immutable problem version, start/deadline, outcome; `match_participants`: seats and participant state.
-- `outbox_events`: unique event ID, aggregate ID/version, payload schema version, delivery state.
+- Domain outboxes: event ID, aggregate identity, delivery state and domain-specific ordering.
 
 Use foreign keys, uniqueness, transactions, explicit query indexes, and keyset pagination. Store timestamps in UTC. Auth schema migrations belong to Better Auth service; product schema migrations belong to Go persistence owner. No pgvector migration until selection is in scope. Exact fields/codec/error shapes are specified in contracts.md; retention in operating-defaults.md.
 

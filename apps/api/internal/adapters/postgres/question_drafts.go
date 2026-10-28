@@ -276,7 +276,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 		return d, err
 	}
 	var version int
-	if err = tx.QueryRow(ctx, "SELECT COALESCE(MAX(version),0)+1 FROM problem_versions WHERE slug=$1", c.Problem.Slug).Scan(&version); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT COALESCE(MAX(v.version),0)+1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE p.slug=$1", c.Problem.Slug).Scan(&version); err != nil {
 		return d, err
 	}
 	p := c.Problem
@@ -293,16 +293,12 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	p.StarterSource = primary.StarterSource
 	p.RuntimeRevision = primary.RuntimeRevision
 	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
-	public, err := json.Marshal(p)
+	inserted, err := insertProblemVersion(ctx, tx, fixture)
 	if err != nil {
 		return d, err
 	}
-	private, err := json.Marshal(fixture)
-	if err != nil {
-		return d, err
-	}
-	if _, err = tx.Exec(ctx, "INSERT INTO problem_versions(id,slug,version,public,fixture) VALUES($1,$2,$3,$4,$5)", p.ID, p.Slug, version, public, private); err != nil {
-		return d, err
+	if !inserted {
+		return d, failure("revision_conflict", 409, "Problem version already exists")
 	}
 	// Catalog metadata belongs to the stable problem, not its immutable version.
 	if privateOwner != nil && p.LeetcodeID != nil {

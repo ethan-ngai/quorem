@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
@@ -113,55 +112,17 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 	for _, path := range paths {
 		names[filepath.Base(path)] = true
 	}
-	archive, err := loadMigrationArchive(dir)
-	if err != nil {
-		return fmt.Errorf("migration archive: %w", err)
-	}
-	if !names[archive.Baseline] {
-		return fmt.Errorf("migration archive baseline unavailable: %s", archive.Baseline)
-	}
-	if len(appliedNames) > 0 && !appliedNames[archive.Baseline] {
-		known := make(map[string]bool, len(archive.Migrations))
-		for _, entry := range archive.Migrations {
-			known[entry.Name] = true
-		}
-		for name := range appliedNames {
-			if !known[name] {
-				return fmt.Errorf("database has unavailable migration %s; for a current preproduction database run python3 scripts/adopt-schema.py --service product (see docs/implementation/database.md)", name)
-			}
-		}
-		missing := false
-		for _, entry := range archive.Migrations {
-			if appliedNames[entry.Name] {
-				if missing {
-					return fmt.Errorf("legacy migration history is not a contiguous prefix")
-				}
-				continue
-			}
-			missing = true
-		}
-		if !appliedNames[archive.Migrations[0].Name] {
-			return fmt.Errorf("legacy migration baseline missing")
-		}
-		for _, entry := range archive.Migrations[1:] {
-			if appliedNames[entry.Name] {
-				continue
-			}
-			if _, e := tx.Exec(ctx, string(entry.SQL)); e != nil {
-				return fmt.Errorf("legacy migration %s: %w", entry.Name, e)
-			}
-		}
-		if _, err = tx.Exec(ctx, "DELETE FROM schema_migrations"); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, "INSERT INTO schema_migrations(name) VALUES ($1)", archive.Baseline); err != nil {
-			return err
-		}
-		appliedNames = map[string]bool{archive.Baseline: true}
-	}
 	for name := range appliedNames {
 		if !names[name] {
-			return fmt.Errorf("database has unavailable migration %s; for a current preproduction database run python3 scripts/adopt-schema.py --service product (see docs/implementation/database.md)", name)
+			return fmt.Errorf("database has unavailable migration %s", name)
+		}
+	}
+	missing := false
+	for _, path := range paths {
+		if !appliedNames[filepath.Base(path)] {
+			missing = true
+		} else if missing {
+			return fmt.Errorf("migration history is not a contiguous prefix")
 		}
 	}
 	for _, path := range paths {
@@ -197,10 +158,16 @@ func (s *Store) Seed(ctx context.Context, fixtures []problems.Fixture) error {
 // SeedProblems installs append-only catalog content without development identities.
 func (s *Store) SeedProblems(ctx context.Context, fixtures []problems.Fixture) error {
 	for _, f := range fixtures {
-		public, _ := json.Marshal(f.Problem)
-		private, _ := json.Marshal(f)
-		_, err := s.Pool.Exec(ctx, "INSERT INTO problem_versions(id,slug,version,public,fixture) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING", f.Problem.ID, f.Problem.Slug, f.Problem.Version, public, private)
+		tx, err := s.Pool.Begin(ctx)
 		if err != nil {
+			return err
+		}
+		_, err = insertProblemVersion(ctx, tx, f)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		if err = tx.Commit(ctx); err != nil {
 			return err
 		}
 		implementations, references, err := problems.Implementations(f)

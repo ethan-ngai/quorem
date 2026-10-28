@@ -13,7 +13,7 @@ func saveInterviewCustomQuestion(ctx context.Context, tx pgx.Tx, owner string, f
 	f.Problem.Version = "1"
 	f.Problem.Examples = append([]problems.ProblemExample{}, f.Problem.Examples...)
 	f.HiddenCases = append([]problems.Case{}, f.HiddenCases...)
-	// Normalization creates the Python projection from legacy top-level fixture fields.
+	// The primary implementation supplies the shared fixture's runtime.
 	for _, impl := range f.Problem.Languages {
 		if impl.Language == "python" {
 			f.Problem.StarterSource = impl.StarterSource
@@ -42,16 +42,12 @@ func saveInterviewCustomQuestion(ctx context.Context, tx pgx.Tx, owner string, f
 	if _, err := tx.Exec(ctx, `INSERT INTO problems(slug,owner_id) VALUES($1,$2)`, f.Problem.Slug, owner); err != nil {
 		return err
 	}
-	public, err := json.Marshal(f.Problem)
+	inserted, err := insertProblemVersion(ctx, tx, f)
 	if err != nil {
 		return err
 	}
-	private, err := json.Marshal(f)
-	if err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `INSERT INTO problem_versions(id,slug,version,public,fixture) VALUES($1,$2,1,$3,$4)`, f.Problem.ID, f.Problem.Slug, public, private); err != nil {
-		return err
+	if !inserted {
+		return failure("revision_conflict", 409, "Problem version already exists")
 	}
 	for _, impl := range f.Problem.Languages {
 		if impl.Language == "python" {

@@ -85,8 +85,9 @@ func TestPublicationTransactionRollsBackAllContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
-	id := ID()
-	if _, err = tx.Exec(ctx, `INSERT INTO problem_versions(id,slug,version,public,fixture) SELECT $1,slug,version+1,public || jsonb_build_object('id',$1::uuid::text,'version',(version+1)::text),fixture FROM problem_versions WHERE id=$2`, id, p.ID); err != nil {
+	f := copyProblemFixture(t, s, p.ID)
+	id := f.Problem.ID
+	if _, err = insertProblemVersion(ctx, tx, f); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO problem_languages VALUES($1,'java','source','runtime','harness','reference')`, id); err != nil {

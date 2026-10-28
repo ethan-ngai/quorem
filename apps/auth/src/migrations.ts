@@ -14,7 +14,7 @@ export async function migrateAuth(database: Pool) {
     );
     if (!existing.rows[0].ledger && existing.rows[0].users) {
       throw new Error(
-        "Existing preproduction auth schema requires python3 scripts/adopt-schema.py --service auth (see docs/implementation/database.md)",
+        "Existing auth schema has no migration ledger; use a fresh database or migrate it explicitly",
       );
     }
     await client.query("CREATE SCHEMA IF NOT EXISTS quorem_auth");
@@ -28,6 +28,11 @@ export async function migrateAuth(database: Pool) {
     );
     for (const name of applied) {
       if (!files.includes(name)) throw new Error(`Database has unavailable auth migration ${name}`);
+    }
+    let missing = false;
+    for (const file of files) {
+      if (!applied.has(file)) missing = true;
+      else if (missing) throw new Error("Auth migration history is not a contiguous prefix");
     }
     for (const file of files) {
       if (applied.has(file)) continue;

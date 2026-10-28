@@ -48,15 +48,11 @@ func TestPublishedCaseCallsSurviveProjectionAndFork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := ID()
-	_, err = s.Pool.Exec(ctx, `INSERT INTO problem_versions(id,slug,version,public,fixture)
- SELECT $1,slug,version+1,
- jsonb_set(public || jsonb_build_object('id',$1::uuid::text,'version',(version+1)::text),'{examples,0,calls}', '[{"methodName":"sample","args":[],"expected":1}]'),
- jsonb_set(fixture,'{hiddenCases,0,calls}','[{"methodName":"private","args":[],"expected":2}]')
- FROM problem_versions WHERE id=$2`, id, p.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	f := copyProblemFixture(t, s, p.ID)
+	f.Problem.Examples[0].Calls = []problems.MethodCall{{MethodName: "sample", Args: []json.RawMessage{}, Expected: json.RawMessage("1")}}
+	f.HiddenCases[0].Calls = []problems.MethodCall{{MethodName: "private", Args: []json.RawMessage{}, Expected: json.RawMessage("2")}}
+	insertTestProblem(t, s, f)
+	id := f.Problem.ID
 	public, err := s.Problem(ctx, id, true)
 	if err != nil || len(public.Examples) == 0 || len(public.Examples[0].Calls) != 1 || public.Examples[0].Calls[0].MethodName != "sample" {
 		t.Fatalf("public calls: %+v %v", public.Examples, err)
