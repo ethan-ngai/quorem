@@ -79,13 +79,16 @@ def draft_index(base, user):
         seen.add(cursor)
 
 
-def same_fixture(actual, expected):
+def same_fixture(actual, expected, published=False):
     a, b = actual['problem'], expected['problem']
     problem_fields = ('leetcodeId', 'slug', 'companies', 'title', 'difficulty', 'tags',
                       'statementMarkdown', 'examples', 'constraints', 'signature', 'limits')
-    content_fields = ('hiddenCases', 'attribution', 'implementations', 'solutions')
+    content_fields = ('hiddenCases', 'attribution', 'solutions')
+    implementations = lambda content: [{k: v for k, v in item.items() if not (published and k == 'starterSource')}
+                                       for item in content.get('implementations', [])]
     return (all(a.get(field) == b.get(field) for field in problem_fields)
-            and all(actual.get(field) == expected.get(field) for field in content_fields))
+            and all(actual.get(field) == expected.get(field) for field in content_fields)
+            and implementations(actual) == implementations(expected))
 
 
 def save(path, ledger):
@@ -144,7 +147,16 @@ def main():
                 if published:
                     if published.get('leetcodeId') != content['problem']['leetcodeId']:
                         raise ValueError('published slug collision')
-                    ledger['items'][name] = {'sha256': digest, 'status': 'published', 'version': published.get('id')}
+                    version = published.get('id')
+                    if not version:
+                        raise ValueError('published version missing')
+                    if state.get('status') != 'published' or state.get('version') != version:
+                        if not state.get('id'):
+                            raise ValueError('existing publication has no matching import record')
+                        prior = request(base, args.dev_user, 'GET', '/v1/admin/question-drafts/' + state['id'])
+                        if prior.get('publishedVersionId') != version or not same_fixture(prior['content'], content, published=True):
+                            raise ValueError('existing publication does not match imported draft')
+                    ledger['items'][name] = {'sha256': digest, 'status': 'published', 'version': version, 'id': state.get('id')}
                     save(ledger_path, ledger)
                     continue
                 matches = index.get(slug, [])
