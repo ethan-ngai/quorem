@@ -130,14 +130,14 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 	if err = s.Pool.QueryRow(ctx, "SELECT attribution FROM problem_versions WHERE id::text=$1", versionID).Scan(&c.Attribution); err != nil {
 		return c, err
 	}
-	rows, err := s.Pool.Query(ctx, "SELECT args,expected FROM problem_test_cases WHERE version_id::text=$1 ORDER BY ordinal", versionID)
+	rows, err := s.Pool.Query(ctx, "SELECT args,expected,calls FROM problem_test_cases WHERE version_id::text=$1 ORDER BY ordinal", versionID)
 	if err != nil {
 		return c, err
 	}
 	for rows.Next() {
-		var args, expected []byte
+		var args, expected, calls []byte
 		var test problems.Case
-		if err = rows.Scan(&args, &expected); err != nil {
+		if err = rows.Scan(&args, &expected, &calls); err != nil {
 			rows.Close()
 			return c, err
 		}
@@ -146,6 +146,10 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 			return c, err
 		}
 		test.Expected = expected
+		if err = json.Unmarshal(calls, &test.Calls); err != nil {
+			rows.Close()
+			return c, err
+		}
 		c.HiddenCases = append(c.HiddenCases, test)
 	}
 	err = rows.Err()

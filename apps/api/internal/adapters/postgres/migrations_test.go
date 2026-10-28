@@ -198,3 +198,63 @@ func TestFlattenedMigrationRejectsGappedHistory(t *testing.T) {
 		t.Fatalf("gapped ledger changed: %d %v", count, err)
 	}
 }
+
+func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
+	base := testStore(t)
+	ctx := context.Background()
+	if _, err := base.Pool.Exec(ctx, "CREATE SCHEMA case_calls_upgrade"); err != nil {
+		t.Fatal(err)
+	}
+	defer base.Pool.Exec(ctx, "DROP SCHEMA case_calls_upgrade CASCADE")
+	config := base.Pool.Config()
+	config.ConnConfig.RuntimeParams["search_path"] = "case_calls_upgrade"
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	paths, err := filepath.Glob("../../../migrations/*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		if filepath.Base(path) >= "021_problem_case_calls.sql" {
+			break
+		}
+		data, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = pool.Exec(ctx, string(data)); e != nil {
+			t.Fatal(path, e)
+		}
+	}
+	var public, fixture []byte
+	if err = base.Pool.QueryRow(ctx, `SELECT public,fixture FROM problem_versions WHERE slug='run-widths'`).Scan(&public, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	id := ID()
+	if _, err = pool.Exec(ctx, `INSERT INTO problem_versions(id,slug,version,public,fixture)
+ VALUES($1,'run-widths',1,jsonb_set($2::jsonb,'{examples,0,calls}','[{"methodName":"public","args":[]}]'),
+ jsonb_set($3::jsonb,'{hiddenCases,0,calls}','[{"methodName":"private","args":[]}]'))`, id, public, fixture); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `UPDATE problem_versions SET sealed=true WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	migration, err := os.ReadFile("../../../migrations/021_problem_case_calls.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var example, hidden string
+	if err = pool.QueryRow(ctx, `SELECT (SELECT calls->0->>'methodName' FROM problem_examples WHERE version_id=$1 AND ordinal=0),
+ (SELECT calls->0->>'methodName' FROM problem_test_cases WHERE version_id=$1 AND ordinal=0)`, id).Scan(&example, &hidden); err != nil || example != "public" || hidden != "private" {
+		t.Fatalf("backfill: %q %q %v", example, hidden, err)
+	}
+	if _, err = pool.Exec(ctx, `UPDATE problem_examples SET calls='[]' WHERE version_id=$1`, id); err == nil {
+		t.Fatal("sealed example became mutable")
+	}
+}
