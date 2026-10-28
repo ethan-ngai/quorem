@@ -2,7 +2,7 @@ import { randomUUID } from "../../randomUUID";
 import type { Constraint, CustomCase, QuestionProblem, Signature } from "@quorem/contracts";
 
 import { bindArguments } from "./argumentBinding";
-import { validateConstraints } from "./constraintValidation";
+import { validateConstraints, validateSequenceCallConstraints } from "./constraintValidation";
 import { MAX_CUSTOM_CASE_BYTES } from "./inputLimits";
 import { normalizeSqlDraft } from "./sqlDraft";
 
@@ -103,6 +103,12 @@ export function parseProblemDraft(draft: CustomCaseDraft, problem: QuestionProbl
           throw new Error("Check each call's method and arguments.");
         method.parameters.forEach((parameter, index) =>
           validateTypedValue(parameter.type, call.args[index]),
+        );
+        validateSequenceCallConstraints(
+          problem.signature,
+          method.methodName,
+          call.args,
+          problem.constraints,
         );
         if (call.expected !== undefined && method.returnType !== "void")
           validateTypedValue(method.returnType, call.expected);

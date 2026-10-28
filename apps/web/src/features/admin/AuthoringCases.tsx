@@ -59,6 +59,16 @@ export function AuthoringCases({
     public: p.examples.map(draft),
     hidden: content.hiddenCases.map(draft),
   }));
+  useEffect(() => {
+    for (const tab of ["public", "hidden"] as const) {
+      try {
+        values[tab].forEach((test) => parseCustomDraft(test, p.signature, p.constraints));
+        validity.current(`cases:${tab}`, false);
+      } catch {
+        validity.current(`cases:${tab}`, true);
+      }
+    }
+  }, [values, p.signature, p.constraints]);
   const [explanations, setExplanations] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       values.public.map((test, index) => [test.id, p.examples[index]?.explanation ?? ""]),
@@ -67,8 +77,7 @@ export function AuthoringCases({
   function change(next: CustomCaseDraft[], descriptions = explanations) {
     setValues((current) => ({ ...current, [collection]: next }));
     try {
-      const tests = next.map((test) => parseCustomDraft(test, p.signature, p.constraints));
-      onValidityChange(`cases:${collection}`, false);
+      const tests = next.map((test) => parseCustomDraft(test, p.signature));
       if (collection === "public")
         onChange({
           ...content,
@@ -86,6 +95,8 @@ export function AuthoringCases({
           ...content,
           hiddenCases: tests.map((test) => ({ ...test, expected: test.expected! })),
         });
+      next.forEach((test) => parseCustomDraft(test, p.signature, p.constraints));
+      onValidityChange(`cases:${collection}`, false);
     } catch {
       onValidityChange(`cases:${collection}`, true);
     }
