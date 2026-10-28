@@ -106,9 +106,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	if err != nil {
 		return result, err
 	}
-	codec := worker.NewCaseCodec(spec.Problem)
-	passed := 0
-	allCompared := true
+	accumulator := newCaseAccumulator(spec, runtime.Language, result)
 	var compilationTime time.Duration
 	budget := d.compilationLimit
 	if budget <= 0 {
@@ -124,9 +122,8 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		cases = append(cases, spec.SubmitSamples...)
 	}
 	for i, c := range cases {
-		sample := i >= len(spec.Cases)
 		if ctx.Err() != nil {
-			return result, ctx.Err()
+			return accumulator.result, ctx.Err()
 		}
 		var f frame
 		if fatal != nil {
@@ -143,13 +140,13 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 				f, err = d.runRequest(ctx, j, i, compiledCaseRequest(spec, c, artifact), j.Limits.OutputBytes)
 			}
 			if err != nil {
-				return result, err
+				return accumulator.result, err
 			}
 			if compiling {
 				compilationTime += f.compilationTime
 				if len(f.Artifact) > 0 {
 					if err = validateCompiledArtifact(f.Artifact, runtime.Language); err != nil {
-						return result, err
+						return accumulator.result, err
 					}
 					artifact = f.Artifact
 				}
@@ -158,101 +155,13 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 				fatal = &f
 			}
 		}
-		status := f.Status
-		var actual, expected json.RawMessage
-		typeMismatch := false
-		if status == "executed" {
-			actual, err = codec.Normalize(c, f.Actual)
-			if err != nil {
-				status = "invalid_output"
-			} else if rawExpected := codec.Expected(c); len(rawExpected) > 0 {
-				typeMismatch = !sqlOutputTypesMatch(spec.Problem.SQL, f.SQLTypes)
-				expected, err = codec.Normalize(c, rawExpected)
-				if err != nil {
-					return result, errors.New("invalid trusted expectation")
-				}
-				if bytes.Equal(actual, expected) && !typeMismatch {
-					status = "accepted"
-					if !sample {
-						passed++
-					}
-				} else {
-					status = "wrong_answer"
-				}
-			} else {
-				typeMismatch = !sqlOutputTypesMatch(spec.Problem.SQL, f.SQLTypes)
-				if typeMismatch {
-					status = "wrong_answer"
-				} else if !sample {
-					allCompared = false
-				}
-			}
-		}
-		if !sample && status != "accepted" && status != "executed" && result.Verdict == "" {
-			result.Verdict = execution.Verdict(status)
-		}
-		if spec.Kind == "submit" && !sample {
-			hiddenStatus := execution.WrongAnswer
-			if status == "accepted" || status == "time_limit" {
-				hiddenStatus = execution.Verdict(status)
-			}
-			result.HiddenCases = append(result.HiddenCases, execution.HiddenCaseResult{Index: i, Status: hiddenStatus})
-		}
-		if spec.Kind == "run" || spec.PrivateDetails || sample {
-			public := execution.PublicCaseResult{Index: i, Status: status, Actual: actual, Expected: expected}
-			if len(actual) > 0 && spec.Problem.SQL != nil {
-				public.SQLTypes = f.SQLTypes
-			}
-			if typeMismatch {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Output column types do not match the SQL schema."})
-			}
-			if runtime.Language == "postgresql" && status != "executed" && status != "accepted" && f.Stderr != "" {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: f.Stderr, Line: f.Line})
-			} else {
-				if f.Line > 0 {
-					public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "Syntax error", Line: f.Line})
-				}
-				public.Stderr = f.Stderr
-			}
-			if runtime.Language == "postgresql" && status == "invalid_output" && f.Stderr == "" {
-				public.Diagnostics = append(public.Diagnostics, execution.Diagnostic{Message: "The query returned an invalid or unsupported result."})
-			}
-			public.Stdout = f.Stdout
-			if sample {
-				public.Index = i - len(spec.Cases)
-				result.SubmitSampleResults = append(result.SubmitSampleResults, public)
-			} else if spec.Kind == "run" {
-				result.PublicCaseResults = append(result.PublicCaseResults, public)
-			} else {
-				result.PrivateCaseResults = append(result.PrivateCaseResults, public)
-				if spec.SubmitCasesAreSamples {
-					result.SubmitSampleResults = append(result.SubmitSampleResults, public)
-				}
-			}
+		if err = accumulator.add(i, c, f); err != nil {
+			return accumulator.result, err
 		}
 	}
-	if spec.Kind == "submit" {
-		result.Score = &execution.Score{Passed: passed, Total: len(spec.Cases)}
-	}
-	if result.Verdict == "" && allCompared {
-		result.Verdict = execution.Accepted
-	}
-	return result, nil
+	return accumulator.finish(), nil
 }
-func sqlOutputTypesMatch(schema *worker.SQLConfig, actual []string) bool {
-	if schema == nil || len(schema.Output) == 0 {
-		return true
-	}
-	if len(actual) != len(schema.Output) {
-		return false
-	}
-	for i, column := range schema.Output {
-		if actual[i] != column.Type {
-			return false
-		}
-	}
-	return true
-}
+
 func sandboxRequest(spec worker.Spec, c worker.Case) []byte {
 	calls := make([]map[string]any, 0, len(c.Calls))
 	for _, call := range c.Calls {
