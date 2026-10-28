@@ -24,6 +24,9 @@ class DraftTest(unittest.TestCase):
         corpus = {'starter_code': 'class Solution:\n    def solve(self, x: int) -> int:\n        ', 'input_output': [{'input': 'x = 1', 'output': '2'}], 'problem_description': 'Statement', 'completion': 'class Solution: pass'}
         result = drafts.draft(item, corpus)
         self.assertEqual(result['problem']['examples'], [])
+        for key in ('starterSource', 'runtimeRevision', 'languages'):
+            self.assertNotIn(key, result['problem'])
+        self.assertEqual(result['implementations'][0]['language'], 'python')
         self.assertEqual(result['problem']['companies'], ['Example'])
         self.assertEqual(result['problem']['leetcodeId'], 1)
         self.assertEqual(result['problem']['limits']['maxCollectionElements'], 100000)

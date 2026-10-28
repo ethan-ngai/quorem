@@ -20,8 +20,6 @@
       ],
       "returnType": "int"
     },
-    "starterSource": "class Solution:\n    def __init__(self):\n        self.balance = 0\n\n    def deposit(self, amount: int) -> int:\n        pass\n",
-    "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
       "memoryBytes": 268435456,
@@ -117,8 +115,7 @@
           ]
         }
       ]
-    },
-    "languages": []
+    }
   },
   "hiddenCases": [],
   "odysseyHiddenCases": [

@@ -192,6 +192,9 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, `UPDATE interview_execution SET session_id=$2 WHERE submission_id=$1`, submission.ID, ID()); err == nil {
 		t.Fatal("interview execution accepted a different session")
 	}
+	if _, err = s.Pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES($1,'bob',$2,'run','','hash','completed','[]')`, ID(), room.ID); err == nil {
+		t.Fatal("interview submission accepted without an execution snapshot")
+	}
 	job, err := s.Claim(ctx)
 	if err != nil || job.SubmissionID != submission.ID || job.ProblemVersionID != d.PublishedVersionID {
 		t.Fatal("interview claim", job, err)

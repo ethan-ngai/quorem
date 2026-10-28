@@ -220,7 +220,7 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
       client.connect(transport);
       await client.initializing;
       const source = (prefix: string) =>
-        runWidths.problem.starterSource.replace("        pass", `        ${prefix}`);
+        runWidths.implementations[0]!.starterSource.replace("        pass", `        ${prefix}`);
       client.didOpen({
         uri,
         languageId: "python",

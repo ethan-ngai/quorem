@@ -7,13 +7,10 @@ import (
 
 func TestNormalizeQuestionDraftNestedCases(t *testing.T) {
 	content := QuestionContent{
-		Problem: Problem{
+		Problem: QuestionDefinition{Examples: []ProblemExample{{Case: Case{Calls: []MethodCall{{MethodName: "noop"}}}}}, Odyssey: &Odyssey{Levels: []OdysseyLevel{{
+			Methods:  []Signature{{MethodName: "noop"}},
 			Examples: []ProblemExample{{Case: Case{Calls: []MethodCall{{MethodName: "noop"}}}}},
-			Odyssey: &Odyssey{Levels: []OdysseyLevel{{
-				Methods:  []Signature{{MethodName: "noop"}},
-				Examples: []ProblemExample{{Case: Case{Calls: []MethodCall{{MethodName: "noop"}}}}},
-			}}},
-		},
+		}}}},
 		HiddenCases:        []Case{{Calls: []MethodCall{{MethodName: "noop"}}}},
 		OdysseyHiddenCases: [][]Case{{{Calls: []MethodCall{{MethodName: "noop"}}}}, nil},
 	}
@@ -43,7 +40,7 @@ func TestQuestionDefinitionSharesValidationWithoutPrivateReferences(t *testing.T
 		t.Fatal(err)
 	}
 	f := fixtures[0]
-	content := QuestionContent{Problem: f.Problem, Attribution: f.Attribution}
+	content := QuestionContent{Problem: f.Problem.QuestionDefinition, Attribution: f.Attribution}
 	if err = ValidateQuestionDefinition(content, false); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +58,7 @@ func TestSignatureValidationAcrossQuestionTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	classic := QuestionContent{Problem: fixtures[0].Problem, HiddenCases: fixtures[0].HiddenCases, Attribution: fixtures[0].Attribution}
+	classic := QuestionContent{Problem: fixtures[0].Problem.QuestionDefinition, HiddenCases: fixtures[0].HiddenCases, Attribution: fixtures[0].Attribution}
 	for name, mutate := range map[string]func(*Signature){
 		"bad method":          func(s *Signature) { s.MethodName = "not-valid" },
 		"bad codec":           func(s *Signature) { s.Parameters[0].Type = "unknown" },
@@ -81,5 +78,62 @@ func TestSignatureValidationAcrossQuestionTypes(t *testing.T) {
 				t.Fatal("Odyssey signature accepted")
 			}
 		})
+	}
+}
+
+func TestQuestionFixtureUsesAuthoredImplementations(t *testing.T) {
+	for _, tc := range []struct {
+		name, primary string
+		sql           *SQLConfig
+	}{
+		{name: "coding", primary: "python"},
+		{name: "sql", primary: "postgresql", sql: &SQLConfig{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			content := QuestionContent{
+				Problem:         QuestionDefinition{SQL: tc.sql},
+				Implementations: []AuthoringImplementation{{LanguageImplementation: LanguageImplementation{Language: tc.primary, StarterSource: "starter", RuntimeRevision: "runtime", HarnessRevision: "harness"}, ReferenceSource: "reference"}},
+			}
+			fixture, err := content.Fixture()
+			if err != nil || fixture.Problem.StarterSource != "starter" || fixture.Problem.RuntimeRevision != "runtime" || fixture.HarnessRevision != "harness" || fixture.ReferenceSource != "reference" || len(fixture.Problem.Languages) != 1 || fixture.Problem.Languages[0].Language != tc.primary {
+				t.Fatalf("fixture projection: %+v %v", fixture, err)
+			}
+			content.Implementations = append(content.Implementations, content.Implementations[0])
+			if _, err = content.Fixture(); err == nil {
+				t.Fatal("duplicate primary implementation accepted")
+			}
+			content.Implementations = nil
+			if _, err = content.Fixture(); err == nil {
+				t.Fatal("missing primary implementation accepted")
+			}
+		})
+	}
+}
+
+func TestQuestionDefinitionJSONOmitsRuntimeProjection(t *testing.T) {
+	fixtures, err := LoadFixtures("../../../../fixtures/problems")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := fixtures[0]
+	content := QuestionContent{Problem: f.Problem.QuestionDefinition, Implementations: f.Implementations}
+	encoded, err := json.Marshal(content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw struct {
+		Problem         map[string]json.RawMessage `json:"problem"`
+		Implementations []json.RawMessage          `json:"implementations"`
+	}
+	if err = json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"starterSource", "runtimeRevision", "languages", "isPrivate", "solutionLanguages", "complexityLanguages"} {
+		if _, exists := raw.Problem[key]; exists {
+			t.Fatalf("derived field %s in authored definition", key)
+		}
+	}
+	if len(raw.Implementations) != len(f.Implementations) {
+		t.Fatal("lost implementations")
 	}
 }

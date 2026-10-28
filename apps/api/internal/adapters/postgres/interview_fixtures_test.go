@@ -36,4 +36,26 @@ func TestInterviewFixtureDeduplicatesAndRemainsImmutable(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, `INSERT INTO interview_question_snapshots(session_id,id,fixture) VALUES($1,$2,'{}')`, room.ID, bytes.Repeat([]byte{0}, 32)); err == nil {
 		t.Fatal("snapshot accepted a mismatched content key")
 	}
+	if _, err = s.CloseInterview(ctx, "alice", room.ID, ID()); err != nil {
+		t.Fatal(err)
+	}
+	other := createInterviewTest(t, s)
+	tx, err = s.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = saveInterviewFixture(ctx, tx, other.ID, []byte(`{"a":1,"b":2}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, `DELETE FROM interviews WHERE id=$1`, room.ID); err != nil {
+		t.Fatal(err)
+	}
+	var remaining int
+	if err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM interview_question_snapshots WHERE id=$1`, first).Scan(&remaining); err != nil || remaining != 1 {
+		t.Fatalf("snapshot lifetime crossed sessions: %d %v", remaining, err)
+	}
 }

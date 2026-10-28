@@ -453,7 +453,7 @@ func TestDistributedInterviewLoad(t *testing.T) {
 }
 
 func seedLoadRooms(ctx context.Context, store *postgres.Store, prefix string, count, rooms int) error {
-	fixture := problems.Fixture{Problem: problems.Problem{Title: "Synthetic load question", StatementMarkdown: "Increment the value.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}}, HiddenCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`987654321`)}, Expected: json.RawMessage(`987654322`)}}}
+	fixture := problems.Fixture{Problem: problems.Problem{QuestionDefinition: problems.QuestionDefinition{Title: "Synthetic load question", StatementMarkdown: "Increment the value.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}}}, HiddenCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`987654321`)}, Expected: json.RawMessage(`987654322`)}}}
 	encoded, err := json.Marshal(fixture)
 	if err != nil {
 		return err

@@ -1,6 +1,5 @@
 {
   "problem": {
-    "languages": [],
     "id": "7e6af288-c26f-5ab1-beed-1fc6538d31d2",
     "slug": "mirror-letters",
     "version": "2",
@@ -43,8 +42,6 @@
       ],
       "returnType": "str"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def mirrorLetters(self, text: str) -\u003e str:\n        pass\n",
-    "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
       "memoryBytes": 268435456,

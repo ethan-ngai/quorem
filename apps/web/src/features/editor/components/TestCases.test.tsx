@@ -3,7 +3,11 @@ import type { ProblemVersion, Submission } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import fixture from "../../../../../../fixtures/problems/run-widths.json";
 import { TestCases } from "./TestCases";
-const problem = fixture.problem as ProblemVersion;
+const problem = {
+  ...fixture.problem,
+  starterSource: fixture.implementations[0]!.starterSource,
+  runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+} as ProblemVersion;
 describe("sample case selection", () => {
   it("renders a controlled sample in the shared case detail pane", () => {
     const html = renderToStaticMarkup(

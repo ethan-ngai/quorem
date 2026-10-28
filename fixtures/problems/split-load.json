@@ -1,6 +1,5 @@
 {
   "problem": {
-    "languages": [],
     "id": "1b3361b0-1fa0-5597-81e4-913b0318ac45",
     "slug": "split-load",
     "version": "4",
@@ -86,8 +85,6 @@
       ],
       "returnType": "int"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def splitLoad(self, loads: list[int], groups: int) -\u003e int:\n        pass\n",
-    "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
       "memoryBytes": 268435456,

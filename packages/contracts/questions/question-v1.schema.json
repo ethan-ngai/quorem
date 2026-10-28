@@ -52,9 +52,6 @@
         "id": {
           "type": "string"
         },
-        "isPrivate": {
-          "type": "boolean"
-        },
         "slug": {
           "type": "string"
         },
@@ -103,43 +100,14 @@
         "signature": {
           "$ref": "#/$defs/Signature"
         },
-        "starterSource": {
-          "type": "string"
-        },
-        "runtimeRevision": {
-          "type": "string"
-        },
         "limits": {
           "$ref": "#/$defs/ExecutionLimits"
-        },
-        "languages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LanguageImplementation"
-          }
         },
         "sql": {
           "$ref": "#/$defs/SqlConfig"
         },
         "odyssey": {
           "$ref": "#/$defs/Odyssey"
-        },
-        "solutionLanguages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Language"
-          },
-          "maxItems": 5,
-          "uniqueItems": true
-        },
-        "complexityLanguages": {
-          "type": "array",
-          "description": "Languages with published complexity; contains no costs or solution source.",
-          "items": {
-            "$ref": "#/$defs/Language"
-          },
-          "maxItems": 4,
-          "uniqueItems": true
         }
       },
       "additionalProperties": false,
@@ -154,10 +122,7 @@
         "examples",
         "constraints",
         "signature",
-        "starterSource",
-        "runtimeRevision",
-        "limits",
-        "languages"
+        "limits"
       ]
     },
     "Difficulty": {
@@ -489,26 +454,6 @@
       ],
       "additionalProperties": false
     },
-    "LanguageImplementation": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["language", "starterSource", "runtimeRevision", "harnessRevision"],
-      "properties": {
-        "language": {
-          "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
-        },
-        "starterSource": {
-          "type": "string"
-        },
-        "runtimeRevision": {
-          "type": "string"
-        },
-        "harnessRevision": {
-          "type": "string"
-        }
-      }
-    },
     "SqlConfig": {
       "type": "object",
       "properties": {
@@ -623,10 +568,6 @@
       },
       "required": ["title", "statementMarkdown", "methods", "examples"],
       "additionalProperties": false
-    },
-    "Language": {
-      "type": "string",
-      "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
     },
     "CustomCase": {
       "type": "object",

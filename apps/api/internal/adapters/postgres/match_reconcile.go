@@ -3,8 +3,8 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
+	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
 	"time"
 )
@@ -49,30 +49,30 @@ func (s *Store) reconcileMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) e
 		return err
 	}
 	submissions := []matches.SubmissionProgress{}
-	rows, err = tx.Query(ctx, `SELECT s.owner_id,s.state,s.match_sequence,s.result,COALESCE(s.odyssey_level < jsonb_array_length(p.odyssey->'levels'),false) FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id WHERE s.match_id=$1 AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`, m.id)
+	rows, err = tx.Query(ctx, `SELECT s.owner_id,s.state,s.match_sequence,COALESCE(s.result->>'verdict',''),s.result->'score',COALESCE(s.odyssey_level < jsonb_array_length(p.odyssey->'levels'),false) FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id WHERE s.match_id=$1 AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`, m.id)
 	if err != nil {
 		return err
 	}
 	for rows.Next() {
-		var owner, state string
+		var owner, state, verdict string
 		var sequence int64
-		var resultData []byte
+		var scoreData []byte
 		var intermediate bool
-		if err = rows.Scan(&owner, &state, &sequence, &resultData, &intermediate); err != nil {
+		if err = rows.Scan(&owner, &state, &sequence, &verdict, &scoreData, &intermediate); err != nil {
 			rows.Close()
 			return err
 		}
 		if _, exists := people[owner]; !exists {
 			continue
 		}
-		var result judging.Submission
-		if len(resultData) > 0 {
-			if err = json.Unmarshal(resultData, &result); err != nil {
+		var score *execution.Score
+		if len(scoreData) > 0 {
+			if err = json.Unmarshal(scoreData, &score); err != nil {
 				rows.Close()
 				return err
 			}
 		}
-		submissions = append(submissions, matches.SubmissionProgress{Owner: owner, State: state, Verdict: result.Verdict, Score: result.Score, Intermediate: intermediate})
+		submissions = append(submissions, matches.SubmissionProgress{Owner: owner, State: state, Verdict: execution.Verdict(verdict), Score: score, Intermediate: intermediate})
 	}
 	err = rows.Err()
 	rows.Close()

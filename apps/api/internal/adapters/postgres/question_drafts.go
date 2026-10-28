@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
@@ -89,7 +90,7 @@ func (s *Store) UpdateQuestionDraft(ctx context.Context, actor, id, revision str
 		return QuestionDraft{}, err
 	}
 	d, err := scanQuestionDraft(s.Pool.QueryRow(ctx, "UPDATE question_drafts SET content=$1,revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id::text=$3 AND revision::text=$4 AND published_version_id IS NULL AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) RETURNING "+draftColumns, data, actor, id, revision))
-	var missing *Error
+	var missing *application.Error
 	if errors.As(err, &missing) && missing.Code == "not_found" {
 		if _, e := s.QuestionDraft(ctx, id); e != nil {
 			return d, e
@@ -115,7 +116,7 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 	if err != nil {
 		return problems.QuestionContent{}, err
 	}
-	c := problems.QuestionContent{Problem: p, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
+	c := problems.QuestionContent{Problem: p.QuestionDefinition, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
 	var odyssey, suites []byte
 	if err = s.Pool.QueryRow(ctx, "SELECT v.odyssey,"+odysseySuitesSQL+" FROM problem_versions v WHERE v.id::text=$1", versionID).Scan(&odyssey, &suites); err != nil {
 		return c, err
@@ -279,20 +280,17 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	if err = tx.QueryRow(ctx, "SELECT COALESCE(MAX(v.version),0)+1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE p.slug=$1", c.Problem.Slug).Scan(&version); err != nil {
 		return d, err
 	}
-	p := c.Problem
-	p.ID = ID()
-	p.Version = strconv.Itoa(version)
-	p.Languages = []problems.LanguageImplementation{}
-	var primary problems.AuthoringImplementation
-	for _, v := range c.Implementations {
-		p.Languages = append(p.Languages, v.LanguageImplementation)
-		if v.Language == "python" && p.SQL == nil || v.Language == "postgresql" && p.SQL != nil {
-			primary = v
-		}
+	c.Problem.ID = ID()
+	c.Problem.Version = strconv.Itoa(version)
+	fixture, err := c.Fixture()
+	if err != nil {
+		return d, failure("invalid_input", 400, err.Error())
 	}
-	p.StarterSource = primary.StarterSource
-	p.RuntimeRevision = primary.RuntimeRevision
-	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
+	p := fixture.Problem
+	primaryLanguage := "python"
+	if p.SQL != nil {
+		primaryLanguage = "postgresql"
+	}
 	inserted, err := insertProblemVersion(ctx, tx, fixture)
 	if err != nil {
 		return d, err
@@ -327,7 +325,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 		}
 	}
 	for _, v := range c.Implementations {
-		if v.Language == primary.Language {
+		if v.Language == primaryLanguage {
 			continue
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,$2,$3,$4,$5,$6)`, p.ID, v.Language, v.StarterSource, v.RuntimeRevision, v.HarnessRevision, v.ReferenceSource); err != nil {
@@ -342,7 +340,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	if _, err = tx.Exec(ctx, "UPDATE problem_versions SET sealed=true WHERE id=$1", p.ID); err != nil {
 		return d, err
 	}
-	c.Problem = p
+	c.Problem = p.QuestionDefinition
 	content, err := json.Marshal(c)
 	if err != nil {
 		return d, err

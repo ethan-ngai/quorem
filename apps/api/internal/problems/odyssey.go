@@ -1,6 +1,7 @@
 package problems
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -23,6 +24,21 @@ func ValidateOdyssey(c QuestionContent) error {
 	levels := c.Problem.Odyssey.Levels
 	if len(levels) < 1 || len(levels) > 8 || len(c.OdysseyHiddenCases) != len(levels) {
 		return fmt.Errorf("Odyssey requires 1 to 8 levels with a private suite per level")
+	}
+	if len(levels[0].Methods) == 0 {
+		return fmt.Errorf("Odyssey requires a first-stage method")
+	}
+	primary, first := c.Problem.Signature, levels[0].Methods[0]
+	if primary.Parameters == nil {
+		primary.Parameters = []Parameter{}
+	}
+	if first.Parameters == nil {
+		first.Parameters = []Parameter{}
+	}
+	primaryJSON, _ := json.Marshal(primary)
+	firstJSON, _ := json.Marshal(first)
+	if !bytes.Equal(primaryJSON, firstJSON) {
+		return fmt.Errorf("primary signature must match the first stage method")
 	}
 	methods := map[string]Signature{}
 	for i, level := range levels {

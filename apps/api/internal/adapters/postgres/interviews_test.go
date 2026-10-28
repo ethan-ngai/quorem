@@ -122,7 +122,7 @@ func TestInterviewOrderedChangesStaleRetryAndIsolation(t *testing.T) {
 		t.Fatal("retry duplicated", err)
 	}
 	var stored bool
-	if err = s.Pool.QueryRow(ctx, `SELECT response='null'::jsonb FROM interview_operations WHERE owner_id='alice' AND key=$1`, key).Scan(&stored); err != nil || !stored {
+	if err = s.Pool.QueryRow(ctx, `SELECT response IS NULL FROM interview_operations WHERE owner_id='alice' AND key=$1`, key).Scan(&stored); err != nil || !stored {
 		t.Fatal("document retry duplicated update content", err)
 	}
 	if _, err = s.PushInterviewUpdates(ctx, "bob", v.ID, ID(), p); errorCode(err) != "stale_version" {

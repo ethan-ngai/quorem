@@ -151,10 +151,6 @@ export function QuestionFields({
                     problem: {
                       ...problem,
                       odyssey,
-                      starterSource:
-                        !isSQL && methods && !problem.starterSource
-                          ? initialOdysseySource(methods, "python")
-                          : problem.starterSource,
                     },
                     implementations: content.implementations.map((item) =>
                       !isSQL && methods && !item.starterSource

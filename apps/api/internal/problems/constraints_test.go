@@ -7,7 +7,7 @@ import (
 )
 
 func metadataProblem() Problem {
-	return Problem{Signature: Signature{Parameters: []Parameter{{Name: "loads", Type: "list<int>"}, {Name: "groups", Type: "int"}}, ReturnType: "int"}}
+	return Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{Parameters: []Parameter{{Name: "loads", Type: "list<int>"}, {Name: "groups", Type: "int"}}, ReturnType: "int"}}}
 }
 func TestStructuredAdmission(t *testing.T) {
 	p := metadataProblem()
@@ -81,7 +81,7 @@ func TestLegacyConstraints(t *testing.T) {
 	}
 }
 func TestNodeAndUnicodeProjections(t *testing.T) {
-	p := Problem{Signature: Signature{Parameters: []Parameter{{Name: "root", Type: "TreeNode"}, {Name: "text", Type: "str"}}, ReturnType: "int"}}
+	p := Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{Parameters: []Parameter{{Name: "root", Type: "TreeNode"}, {Name: "text", Type: "str"}}, ReturnType: "int"}}}
 	max := float64(2)
 	p.Constraints = []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "root", Projection: "nodeCount"}, Max: &max}, {Kind: "range", Target: &ConstraintTarget{Parameter: "text", Projection: "length"}, Max: &max}}
 	c := Case{Args: []json.RawMessage{json.RawMessage(`[1,null,2]`), json.RawMessage(`"αβ"`)}}
@@ -95,7 +95,7 @@ func TestNodeAndUnicodeProjections(t *testing.T) {
 }
 
 func TestComparisonOperators(t *testing.T) {
-	p := Problem{Signature: Signature{Parameters: []Parameter{{Name: "a", Type: "int"}, {Name: "b", Type: "int"}}, ReturnType: "int"}}
+	p := Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{Parameters: []Parameter{{Name: "a", Type: "int"}, {Name: "b", Type: "int"}}, ReturnType: "int"}}}
 	for _, test := range []struct {
 		operator string
 		a, b     string
@@ -168,14 +168,11 @@ func TestSumProjection(t *testing.T) {
 
 func TestConstraintsShareDecodedInputAcrossProjections(t *testing.T) {
 	min := float64(0)
-	p := Problem{
-		Signature: Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"},
-		Constraints: []Constraint{
-			{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Min: &min},
-			{Kind: "property", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Property: "unique"},
-			{Kind: "comparison", Left: &ConstraintTarget{Parameter: "values", Projection: "length"}, Right: &ConstraintTarget{Parameter: "values", Projection: "sum"}, Operator: "le"},
-		},
-	}
+	p := Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"}, Constraints: []Constraint{
+		{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Min: &min},
+		{Kind: "property", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Property: "unique"},
+		{Kind: "comparison", Left: &ConstraintTarget{Parameter: "values", Projection: "length"}, Right: &ConstraintTarget{Parameter: "values", Projection: "sum"}, Operator: "le"},
+	}}}
 	for _, test := range []struct {
 		raw   string
 		valid bool
@@ -191,7 +188,7 @@ func TestConstraintsShareDecodedInputAcrossProjections(t *testing.T) {
 
 func TestCaseValidatorChecksEveryCase(t *testing.T) {
 	min := float64(0)
-	p := Problem{Signature: Signature{Parameters: []Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, Constraints: []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "n", Projection: "value"}, Min: &min}}}
+	p := Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{Parameters: []Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, Constraints: []Constraint{{Kind: "range", Target: &ConstraintTarget{Parameter: "n", Projection: "value"}, Min: &min}}}}
 	validator := NewCaseValidator(p)
 	for _, test := range []struct {
 		raw   string

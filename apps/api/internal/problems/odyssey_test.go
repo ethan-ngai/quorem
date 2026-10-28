@@ -23,7 +23,7 @@ func TestOdysseyPublicationAndCumulativeSuites(t *testing.T) {
 	if err := ValidateQuestionPublication(c); err != nil {
 		t.Fatal(err)
 	}
-	f := Fixture{Problem: c.Problem, OdysseyHiddenCases: c.OdysseyHiddenCases}
+	f := Fixture{Problem: Problem{QuestionDefinition: c.Problem}, OdysseyHiddenCases: c.OdysseyHiddenCases}
 	runProblem, samples, err := CompileOdyssey(f, 1, "run")
 	if err != nil || len(samples) != len(c.Problem.Odyssey.Levels[0].Examples) || len(runProblem.Odyssey.Levels) != 1 {
 		t.Fatal("run includes incorrect levels", samples, err)
@@ -32,7 +32,7 @@ func TestOdysseyPublicationAndCumulativeSuites(t *testing.T) {
 	if err != nil || len(samples) != len(c.Problem.Odyssey.Levels[0].Examples)+len(c.Problem.Odyssey.Levels[1].Examples) {
 		t.Fatal("run omits cumulative examples", samples, err)
 	}
-	withoutPrivate := Fixture{Problem: c.Problem}
+	withoutPrivate := Fixture{Problem: Problem{QuestionDefinition: c.Problem}}
 	if _, _, err := CompileOdyssey(withoutPrivate, 1, "run"); err != nil {
 		t.Fatal("run requires private suites", err)
 	}
@@ -63,7 +63,7 @@ func TestOdysseyPublicationAndCumulativeSuites(t *testing.T) {
 }
 func TestOdysseyCallValidationAndHeterogeneousResults(t *testing.T) {
 	c := odysseyContent(t)
-	p := c.Problem
+	p := Problem{QuestionDefinition: c.Problem}
 	test := c.OdysseyHiddenCases[1][0]
 	if _, err := NewCaseCodec(p).Normalize(test, []byte(`[5,true,false,3]`)); err != nil {
 		t.Fatal(err)
@@ -76,8 +76,16 @@ func TestOdysseyCallValidationAndHeterogeneousResults(t *testing.T) {
 		t.Fatal("undeclared method accepted")
 	}
 }
+func TestOdysseyRequiresPrimarySignatureFromFirstStage(t *testing.T) {
+	c := odysseyContent(t)
+	c.Problem.Signature.MethodName = "different"
+	if err := ValidateQuestionPublication(c); err == nil {
+		t.Fatal("published primary signature differs from first stage")
+	}
+}
+
 func TestOdysseyVoidMethods(t *testing.T) {
-	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "clear", ReturnType: "void"}}}}}}
+	p := Problem{QuestionDefinition: QuestionDefinition{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "clear", ReturnType: "void"}}}}}}}
 	c := Case{Args: []json.RawMessage{}, Calls: []MethodCall{{MethodName: "clear", Args: []json.RawMessage{}, Expected: json.RawMessage("null")}}}
 	if err := ValidateProblemCase(p, c, true); err != nil {
 		t.Fatal(err)
@@ -113,7 +121,7 @@ func TestOdysseyPublicationWithVoidEntryMethod(t *testing.T) {
 }
 
 func TestUnorderedMethodOutput(t *testing.T) {
-	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "top_k", ReturnType: "list<str>", OutputOrder: "unordered"}, {ClassName: "Solution", MethodName: "words", ReturnType: "list<str>"}}}}}}
+	p := Problem{QuestionDefinition: QuestionDefinition{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "top_k", ReturnType: "list<str>", OutputOrder: "unordered"}, {ClassName: "Solution", MethodName: "words", ReturnType: "list<str>"}}}}}}}
 	c := Case{Calls: []MethodCall{{MethodName: "top_k"}, {MethodName: "words"}}}
 	a, err := NewCaseCodec(p).Normalize(c, []byte(`[["z","a"],["z","a"]]`))
 	if err != nil {
@@ -140,10 +148,10 @@ func TestUnorderedMethodOutput(t *testing.T) {
 }
 
 func TestCaseCodecReusesQuestionAcrossCases(t *testing.T) {
-	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{
+	p := Problem{QuestionDefinition: QuestionDefinition{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{
 		{MethodName: "clear", ReturnType: "void"},
 		{MethodName: "values", ReturnType: "list<int>", OutputOrder: "unordered"},
-	}}}}}
+	}}}}}}
 	codec := NewCaseCodec(p)
 	c := Case{Calls: []MethodCall{{MethodName: "clear"}, {MethodName: "values", Expected: json.RawMessage(`[2,1]`)}}}
 	want, err := codec.Normalize(c, codec.Expected(c))

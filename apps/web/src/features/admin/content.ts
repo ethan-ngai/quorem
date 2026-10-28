@@ -22,9 +22,6 @@ export function blankQuestion(): QuestionContent {
       examples: [],
       constraints: [],
       signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
-      starterSource: "",
-      runtimeRevision: revisions.python[0],
-      languages: [],
       limits: {
         wallTimeMs: 2000,
         memoryBytes: 268435456,

@@ -1,6 +1,5 @@
 {
   "problem": {
-    "languages": [],
     "id": "3f4f998a-7911-5097-91ea-70651bcb363b",
     "slug": "level-spreads",
     "version": "3",
@@ -61,8 +60,6 @@
       ],
       "returnType": "list\u003cint\u003e"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def levelSpreads(self, root: Optional[TreeNode]) -\u003e list[int]:\n        pass\n",
-    "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
       "memoryBytes": 268435456,

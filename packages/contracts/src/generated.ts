@@ -1272,7 +1272,6 @@ export interface components {
         };
         QuestionProblem: {
             id: string;
-            isPrivate?: boolean;
             slug: string;
             version: string;
             title: string;
@@ -1284,15 +1283,9 @@ export interface components {
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
             signature: components["schemas"]["Signature"];
-            starterSource: string;
-            runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
-            languages: components["schemas"]["LanguageImplementation"][];
             sql?: components["schemas"]["SqlConfig"];
             odyssey?: components["schemas"]["Odyssey"];
-            solutionLanguages?: components["schemas"]["Language"][];
-            /** @description Languages with published complexity; contains no costs or solution source. */
-            complexityLanguages?: components["schemas"]["Language"][];
         };
         SqlConfig: {
             /** @enum {string} */

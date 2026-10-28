@@ -1,5 +1,5 @@
 import { randomUUID } from "../../randomUUID";
-import type { Constraint, CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
+import type { Constraint, CustomCase, QuestionProblem, Signature } from "@quorem/contracts";
 
 import { bindArguments } from "./argumentBinding";
 import { validateConstraints } from "./constraintValidation";
@@ -46,7 +46,7 @@ function defaultValue(type: string): WireValue {
   return 0;
 }
 
-export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
+export function createCustomDraft(problem: QuestionProblem): CustomCaseDraft {
   const example = problem.examples[0];
   if (problem.sql || problem.odyssey) {
     return {
@@ -80,7 +80,7 @@ export function createCustomDraft(problem: ProblemVersion): CustomCaseDraft {
   };
 }
 
-export function parseProblemDraft(draft: CustomCaseDraft, problem: ProblemVersion): CustomCase {
+export function parseProblemDraft(draft: CustomCaseDraft, problem: QuestionProblem): CustomCase {
   if (!problem.sql && !problem.odyssey)
     return parseCustomDraft(draft, problem.signature, problem.constraints);
   if (problem.sql)
@@ -117,7 +117,7 @@ export function parseProblemDraft(draft: CustomCaseDraft, problem: ProblemVersio
 
 export function parseProblemDrafts(
   drafts: CustomCaseDraft[],
-  problem: ProblemVersion,
+  problem: QuestionProblem,
 ): CustomCase[] {
   if (!problem.sql && !problem.odyssey)
     return parseCustomDrafts(drafts, problem.signature, problem.constraints);
@@ -206,7 +206,7 @@ export function customDraftStorageKey(scope: string) {
   return `quorem.custom-cases.v1:${scope}`;
 }
 
-export function readCustomDrafts(scope: string, problem: ProblemVersion): CustomCaseDraft[] {
+export function readCustomDrafts(scope: string, problem: QuestionProblem): CustomCaseDraft[] {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(customDraftStorageKey(scope)) ?? "null");
     if (

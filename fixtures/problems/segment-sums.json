@@ -1,6 +1,5 @@
 {
   "problem": {
-    "languages": [],
     "id": "869f9a71-cb7a-5650-b19c-01115ddeb860",
     "slug": "segment-sums",
     "version": "3",
@@ -61,8 +60,6 @@
       ],
       "returnType": "ListNode"
     },
-    "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def segmentSums(self, head: Optional[ListNode]) -\u003e Optional[ListNode]:\n        pass\n",
-    "runtimeRevision": "python-3.12-v1",
     "limits": {
       "wallTimeMs": 2000,
       "memoryBytes": 268435456,

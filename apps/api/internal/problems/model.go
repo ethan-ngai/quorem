@@ -95,29 +95,33 @@ type OdysseyProgress struct {
 	Completed    bool                         `json:"completed"`
 	Levels       []OdysseyLevel               `json:"levels"`
 }
+type QuestionDefinition struct {
+	SQL               *SQLConfig       `json:"sql,omitempty"`
+	Odyssey           *Odyssey         `json:"odyssey,omitempty"`
+	ID                string           `json:"id"`
+	Slug              string           `json:"slug"`
+	Version           string           `json:"version"`
+	Title             string           `json:"title"`
+	Difficulty        string           `json:"difficulty"`
+	Tags              []string         `json:"tags"`
+	Companies         []string         `json:"companies"`
+	LeetcodeID        *int             `json:"leetcodeId,omitempty"`
+	StatementMarkdown string           `json:"statementMarkdown"`
+	Examples          []ProblemExample `json:"examples"`
+	Constraints       []Constraint     `json:"constraints"`
+	Signature         Signature        `json:"signature"`
+	Limits            execution.Limits `json:"limits"`
+}
 type Problem struct {
+	QuestionDefinition
 	IsPrivate           bool                     `json:"isPrivate,omitempty"`
-	SQL                 *SQLConfig               `json:"sql,omitempty"`
 	ComplexityLanguages []string                 `json:"complexityLanguages,omitempty"`
 	SolutionLanguages   []string                 `json:"solutionLanguages,omitempty"`
-	Odyssey             *Odyssey                 `json:"odyssey,omitempty"`
 	Languages           []LanguageImplementation `json:"languages"`
-	ID                  string                   `json:"id"`
-	Slug                string                   `json:"slug"`
-	Version             string                   `json:"version"`
-	Title               string                   `json:"title"`
-	Difficulty          string                   `json:"difficulty"`
-	Tags                []string                 `json:"tags"`
-	Companies           []string                 `json:"companies"`
-	LeetcodeID          *int                     `json:"leetcodeId,omitempty"`
-	StatementMarkdown   string                   `json:"statementMarkdown"`
-	Examples            []ProblemExample         `json:"examples"`
-	Constraints         []Constraint             `json:"constraints"`
-	Signature           Signature                `json:"signature"`
 	StarterSource       string                   `json:"starterSource"`
 	RuntimeRevision     string                   `json:"runtimeRevision"`
-	Limits              execution.Limits         `json:"limits"`
 }
+
 type Fixture struct {
 	OdysseyHiddenCases [][]Case `json:"odysseyHiddenCases,omitempty"`
 	Problem            Problem  `json:"problem"`
@@ -158,14 +162,9 @@ func LoadFixtures(dir string) ([]SeedFixture, error) {
 		if err = ValidateQuestionPublication(content); err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		fixture := Fixture{Problem: content.Problem, HiddenCases: content.HiddenCases, OdysseyHiddenCases: content.OdysseyHiddenCases, Attribution: content.Attribution}
-		for _, impl := range content.Implementations {
-			if (fixture.Problem.SQL == nil && impl.Language == "python") || (fixture.Problem.SQL != nil && impl.Language == "postgresql") {
-				fixture.Problem.StarterSource = impl.StarterSource
-				fixture.Problem.RuntimeRevision = impl.RuntimeRevision
-				fixture.HarnessRevision = impl.HarnessRevision
-				fixture.ReferenceSource = impl.ReferenceSource
-			}
+		fixture, err := content.Fixture()
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 		fixtures = append(fixtures, SeedFixture{Fixture: fixture, Implementations: content.Implementations})
 	}

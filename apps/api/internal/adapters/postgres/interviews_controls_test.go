@@ -44,6 +44,10 @@ func TestInterviewLanguageSwitchPreservesSharedDraftsAndQuestionScope(t *testing
 	if err != nil || !strings.HasPrefix(restored.Document.Source, "# shared python\n") {
 		t.Fatal("python draft lost", restored, err)
 	}
+	var activeDraft bool
+	if err = s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM interview_language_drafts WHERE session_id=$1 AND question_epoch=$2 AND language='python')`, v.ID, v.QuestionEpoch).Scan(&activeDraft); err != nil || activeDraft {
+		t.Fatal("active document retained a duplicate draft", activeDraft, err)
+	}
 	again, err := s.SwitchInterviewLanguage(ctx, "bob", v.ID, ID(), "java", restored.Document.Epoch)
 	if err != nil || !strings.HasPrefix(again.Document.Source, "// shared java\n") {
 		t.Fatal("java draft lost", again, err)

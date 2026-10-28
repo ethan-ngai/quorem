@@ -19,11 +19,39 @@ type AuthoringImplementation struct {
 }
 type QuestionContent struct {
 	OdysseyHiddenCases [][]Case                  `json:"odysseyHiddenCases,omitempty"`
-	Problem            Problem                   `json:"problem"`
+	Problem            QuestionDefinition        `json:"problem"`
 	HiddenCases        []Case                    `json:"hiddenCases"`
 	Attribution        string                    `json:"attribution"`
 	Implementations    []AuthoringImplementation `json:"implementations"`
 	Solutions          []EditorialSolution       `json:"solutions"`
+}
+
+// Fixture projects authored implementations into the immutable runtime representation.
+func (c QuestionContent) Fixture() (Fixture, error) {
+	p := Problem{QuestionDefinition: c.Problem, Languages: make([]LanguageImplementation, 0, len(c.Implementations))}
+	primaryLanguage := "python"
+	if p.SQL != nil {
+		primaryLanguage = "postgresql"
+	}
+	fixture := Fixture{Problem: p, HiddenCases: c.HiddenCases, OdysseyHiddenCases: c.OdysseyHiddenCases, Attribution: c.Attribution}
+	found := false
+	for _, impl := range c.Implementations {
+		fixture.Problem.Languages = append(fixture.Problem.Languages, impl.LanguageImplementation)
+		if impl.Language == primaryLanguage {
+			if found {
+				return Fixture{}, fmt.Errorf("duplicate primary implementation")
+			}
+			found = true
+			fixture.Problem.StarterSource = impl.StarterSource
+			fixture.Problem.RuntimeRevision = impl.RuntimeRevision
+			fixture.HarnessRevision = impl.HarnessRevision
+			fixture.ReferenceSource = impl.ReferenceSource
+		}
+	}
+	if !found {
+		return Fixture{}, fmt.Errorf("primary implementation missing")
+	}
+	return fixture, nil
 }
 
 var questionSlug = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
@@ -52,9 +80,6 @@ func NormalizeQuestionDraft(c QuestionContent) QuestionContent {
 	}
 	if p.Companies == nil {
 		p.Companies = []string{}
-	}
-	if p.Languages == nil {
-		p.Languages = []LanguageImplementation{}
 	}
 	if p.Examples == nil {
 		p.Examples = []ProblemExample{}
@@ -134,10 +159,10 @@ func ValidateQuestionDraft(c QuestionContent) error {
 		return fmt.Errorf("invalid UTF-8")
 	}
 	p := c.Problem
-	if len(p.Languages) > 4 || len(p.Tags) > 32 || len(p.Companies) > 64 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > MaxHiddenCases || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
+	if len(p.Tags) > 32 || len(p.Companies) > 64 || len(p.Examples) > 20 || len(p.Constraints) > 64 || len(c.HiddenCases) > MaxHiddenCases || len(c.Implementations) > 4 || len(c.Solutions) > 4 || len(p.Signature.Parameters) > 16 {
 		return fmt.Errorf("question collection limit exceeded")
 	}
-	if len(p.ID) > 64 || len(p.Version) > 32 || len(p.StarterSource) > 65536 || len(p.RuntimeRevision) > 128 || len(p.Slug) > 80 || len(p.Title) > 160 || len(p.StatementMarkdown) > 65536 || len(c.Attribution) > 2048 {
+	if len(p.ID) > 64 || len(p.Version) > 32 || len(p.Slug) > 80 || len(p.Title) > 160 || len(p.StatementMarkdown) > 65536 || len(c.Attribution) > 2048 {
 		return fmt.Errorf("question text limit exceeded")
 	}
 	if p.LeetcodeID != nil && (*p.LeetcodeID < 1 || *p.LeetcodeID > 2147483647) {
@@ -159,11 +184,6 @@ func ValidateQuestionDraft(c QuestionContent) error {
 	for _, constraint := range p.Constraints {
 		if len(constraint.Text) > 4096 {
 			return fmt.Errorf("constraint text limit exceeded")
-		}
-	}
-	for _, language := range p.Languages {
-		if len(language.StarterSource) > 65536 {
-			return fmt.Errorf("language source limit exceeded")
 		}
 	}
 	for _, v := range c.Implementations {
@@ -227,7 +247,7 @@ func ValidateQuestionDefinition(c QuestionContent, requireHidden bool) error {
 	if limits.WallTimeMS < 1 || limits.WallTimeMS > max.WallTimeMS || limits.MemoryBytes < 1 || limits.MemoryBytes > max.MemoryBytes || limits.OutputBytes < 1 || limits.OutputBytes > max.OutputBytes || limits.MaxProcesses < 1 || limits.MaxProcesses > max.MaxProcesses || limits.MaxCollectionElements < 1 || limits.MaxCollectionElements > execution.MaxInputElements || limits.MaxNestingDepth < 1 || limits.MaxNestingDepth > max.MaxNestingDepth {
 		return fmt.Errorf("execution limits exceed supported bounds")
 	}
-	validator := NewCaseValidator(p)
+	validator := NewCaseValidator(Problem{QuestionDefinition: p})
 	for _, example := range p.Examples {
 		if err := validator.Validate(example.Case, true); err != nil {
 			return fmt.Errorf("example: %w", err)
