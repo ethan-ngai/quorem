@@ -30,6 +30,15 @@ const constraints: Constraint[] = [
 ];
 
 describe("structured constraints", () => {
+  it("revalidates unchanged authoring cases when constraints change", () => {
+    const draft = { id: "one", args: ["[1,2]", "3"], expectedEnabled: true, expected: "0" };
+    expect(() => parseCustomDraft(draft, signature, constraints)).not.toThrow();
+    const stricter: Constraint[] = [
+      { kind: "range", target: { parameter: "values", projection: "length" }, max: 1 },
+    ];
+    expect(() => parseCustomDraft(draft, signature, stricter)).toThrow("Constraint:");
+    expect(() => parseCustomDraft(draft, signature, [])).not.toThrow();
+  });
   it("formats data without inspecting prose", () => {
     expect(formatConstraint(constraints[0]!)).toBe("1 ≤ len(values) ≤ 10^4");
     expect(

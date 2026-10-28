@@ -1,6 +1,6 @@
 /** @file stageDrafts.test.ts @description Stateful authoring preserves values and rejects future-method references. @module odyssey */
 import { describe, it, expect } from "vitest";
-import type { Signature } from "@quorem/contracts";
+import type { Constraint, Signature } from "@quorem/contracts";
 import {
   firstStage,
   methodDraft,
@@ -85,6 +85,39 @@ describe("typed stage authoring", () => {
       parameters: [{ name: "quantity", type: "str" }],
     });
     expect(changed[0]!.examples[0]!.calls[0]!.values.args).toEqual([""]);
+  });
+  it("validates primary-method constraints across stages but not later methods", () => {
+    const first = initial();
+    const constraints: Constraint[] = [
+      { kind: "range", target: { parameter: "amount", projection: "value" }, min: 1 },
+    ];
+    first.examples[0]!.calls[0]!.values.args = ["2"];
+    first.tests[0]!.calls[0]!.values.args = ["2"];
+    const later = methodDraft({ ...deposit, methodName: "withdraw" });
+    const second = {
+      ...firstStage(later.signature),
+      title: "Second",
+      statement: "Withdraw funds.",
+      methods: [later],
+      examples: [{ id: "case", calls: [callDraft(first.methods[0]!), callDraft(later)] }],
+      tests: [sequenceDraft(later)],
+    };
+    second.examples[0]!.calls[0]!.values.args = ["0"];
+    expect(() => parseStages([first, second], { constraints })).toThrow("Constraint:");
+    second.examples[0]!.calls[0]!.values.args = ["2"];
+    expect(() => parseStages([first, second], { constraints })).not.toThrow();
+    expect(() =>
+      parseStages([first, second], { constraints, allowIncomplete: true }),
+    ).not.toThrow();
+    const stricter: Constraint[] = [
+      { kind: "range", target: { parameter: "amount", projection: "value" }, min: 3 },
+    ];
+    expect(() =>
+      parseStages([first, second], { constraints: stricter, allowIncomplete: true }),
+    ).toThrow("Constraint:");
+    expect(() =>
+      parseStages([first, second], { constraints, allowIncomplete: true }),
+    ).not.toThrow();
   });
   it("keeps invalid typed text for correction and blocks submission with a specific error", () => {
     const first = initial();

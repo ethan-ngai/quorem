@@ -21,6 +21,18 @@ export function AuthoringStages({
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => () => validity.current("stages", false), []);
+  useEffect(() => {
+    try {
+      if (Object.values(invalidTypes).some(Boolean))
+        throw new Error("Fix the highlighted method types.");
+      parseStages(stages, { allowIncomplete: true, constraints: content.problem.constraints });
+      validity.current("stages", false);
+      setError(undefined);
+    } catch (cause) {
+      validity.current("stages", true);
+      setError((cause as Error).message);
+    }
+  }, [stages, invalidTypes, content.problem.constraints]);
   function change(next: StageDraft[], types = invalidTypes) {
     setStages(next);
     try {
@@ -39,6 +51,7 @@ export function AuthoringStages({
           starterSource: initialOdysseySource(parsed.odyssey.levels[0]!.methods, item.language),
         })),
       });
+      parseStages(next, { allowIncomplete: true, constraints: content.problem.constraints });
       onValidityChange("stages", false);
       setError(undefined);
     } catch (cause) {

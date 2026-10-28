@@ -1,7 +1,8 @@
 /** @file stageDrafts.ts @description Lossless typed authoring drafts for ordered methods and stateful test calls. @module odyssey */
 import { randomUUID } from "../../randomUUID";
-import type { CustomCase, OdysseyLevel, Signature } from "@quorem/contracts";
+import type { Constraint, CustomCase, OdysseyLevel, Signature } from "@quorem/contracts";
 import { supportedType } from "../editor/typedValues";
+import { validateSequenceCallConstraints } from "../editor/constraintValidation";
 import { blankQuestion } from "../admin/content";
 import { createCustomDraft, parseCustomDraft, type CustomCaseDraft } from "../editor/customCases";
 export type MethodDraft = { id: string; signature: Signature };
@@ -106,11 +107,15 @@ export function updateMethod(
 
 export function parseStages(
   stages: StageDraft[],
-  { allowIncomplete = false } = {},
+  {
+    allowIncomplete = false,
+    constraints = [],
+  }: { allowIncomplete?: boolean; constraints?: Constraint[] } = {},
 ): {
   odyssey: { levels: OdysseyLevel[] };
   odysseyHiddenCases: CustomCase[][];
 } {
+  const primary = stages[0]?.methods[0]?.signature;
   const available = new Map<string, Signature>();
   const names = new Set<string>();
   const hidden: CustomCase[][] = [];
@@ -169,6 +174,13 @@ export function parseStages(
                   ? { ...signature, returnType: "optional<int>" }
                   : signature,
               );
+              if (primary)
+                validateSequenceCallConstraints(
+                  primary,
+                  signature.methodName,
+                  parsed.args,
+                  constraints,
+                );
               return {
                 methodName: signature.methodName,
                 args: parsed.args,
