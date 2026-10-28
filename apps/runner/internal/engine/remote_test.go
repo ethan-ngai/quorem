@@ -80,6 +80,21 @@ func TestRemoteSandboxRejectsUnsafeEndpointsAndUnconfirmedTeardown(t *testing.T)
 	}
 }
 
+func TestCaseFrameTruncationReportsExitBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		data []byte
+		want string
+	}{
+		{nil, "case response truncated before exit"},
+		{testCaseFrame(3, []byte{0, 0, 0, 0}), "case response truncated after exit"},
+	} {
+		_, err := copyCaseFrames(bytes.NewReader(tc.data), io.Discard, io.Discard, nil)
+		if err == nil || err.Error() != tc.want {
+			t.Fatalf("truncation: got %v, want %s", err, tc.want)
+		}
+	}
+}
+
 func TestCancelledRemoteRequestCanConfirmCleanup(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
