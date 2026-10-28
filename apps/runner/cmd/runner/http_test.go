@@ -38,6 +38,7 @@ func TestHTTPDrainAuthenticationAndQueueAckBoundary(t *testing.T) {
 		{name: "wrong token", method: "POST", path: "/internal/drain", bearer: "Bearer wrong", status: 401},
 		{name: "remaining jobs", method: "POST", path: "/internal/drain", bearer: "Bearer " + token, status: 202, calls: 1},
 		{name: "globally idle", method: "POST", path: "/internal/drain", bearer: "Bearer " + token, complete: true, status: 200, calls: 1},
+		{name: "teardown unconfirmed", method: "POST", path: "/internal/drain", bearer: "Bearer " + token, err: worker.ErrTeardown, status: 503, calls: 1},
 		{name: "dependency failure", method: "POST", path: "/internal/drain", bearer: "Bearer " + token, err: errors.New("private database detail"), status: 503, calls: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
