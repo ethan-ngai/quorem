@@ -291,14 +291,15 @@ jobs:
       - name: Validate hosted case isolation and language behavior
         run: |
           mkdir -p .local
-          vp -C apps/realtime-cloudflare exec wrangler tail "$TF_VAR_name" --format json 2>/dev/null | python3 -u -c '
+          vp -C apps/realtime-cloudflare exec wrangler tail "$TF_VAR_name" --format json 2>.local/case-tail.err | python3 -u -c '
           import json, re, sys
           allowed = re.compile(r"^case-lifecycle (?:stop-begin|destroy-complete|stop-complete|delete-begin|delete-complete|exec-ready (?:python|java|typescript|ocaml|postgresql)|streams-complete (?:python|java|typescript|ocaml|postgresql)|stream-failed (?:python|java|typescript|ocaml|postgresql))$")
           for line in sys.stdin:
               try:
                   event = json.loads(line)
                   for log in event.get("logs", []):
-                      for message in log.get("message", []):
+                      messages = log.get("message", [])
+                      for message in [messages] if isinstance(messages, str) else messages:
                           if isinstance(message, str) and allowed.fullmatch(message): print(message, flush=True)
               except (ValueError, AttributeError, TypeError):
                   pass
@@ -313,6 +314,10 @@ jobs:
           test "$ready" = true
           if ! go test -v ./apps/runner/internal/engine -run '^TestRemoteSandboxHosted$' -count=1; then
             cat .local/case-lifecycle.log
+            if [ ! -s .local/case-lifecycle.log ]; then
+              echo "No lifecycle events received; tail stderr follows."
+              cat .local/case-tail.err
+            fi
             exit 1
           fi
       - name: Destroy temporary validation resources
