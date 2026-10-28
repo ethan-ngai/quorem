@@ -119,7 +119,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	}
 	defer tx.Rollback(ctx)
 	var matchID string
-	if err = tx.QueryRow(ctx, "SELECT COALESCE(match_id::text,'') FROM submissions WHERE id=$1", j.SubmissionID).Scan(&matchID); err != nil {
+	err = tx.QueryRow(ctx, "SELECT COALESCE(s.match_id::text,'') FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND s.id=$2", uuidLookup(j.JobID), uuidLookup(j.SubmissionID)).Scan(&matchID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
 	var match matchRecord
@@ -135,7 +139,7 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	var cancelled bool
 	var kind string
 	var attempts int
-	err = tx.QueryRow(ctx, `SELECT s.cancel_requested,s.kind,j.attempts FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' FOR UPDATE OF j,s`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&cancelled, &kind, &attempts)
+	err = tx.QueryRow(ctx, `SELECT s.cancel_requested,s.kind,j.attempts FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' AND s.id=$3 FOR UPDATE OF j,s`, uuidLookup(j.JobID), uuidLookup(j.AttemptID), uuidLookup(j.SubmissionID)).Scan(&cancelled, &kind, &attempts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
