@@ -310,4 +310,15 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 	if _, err = pool.Exec(ctx, `UPDATE interview_execution SET private_results='[]' WHERE submission_id='00000000-0000-4000-8000-000000000105'`); err != nil {
 		t.Fatal("private result update rejected", err)
 	}
+	migration, err = os.ReadFile("../../../migrations/036_normalize_operation_responses.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if err = pool.QueryRow(ctx, `SELECT (SELECT response IS NULL FROM interview_operations WHERE key='update'),
+ (SELECT response->>'submissionId'='s' FROM interview_operations WHERE key='submission')`).Scan(&cleared, &submissionRetained); err != nil || !cleared || !submissionRetained {
+		t.Fatalf("operation null migration: %v %v %v", cleared, submissionRetained, err)
+	}
 }

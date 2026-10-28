@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
@@ -89,7 +90,7 @@ func (s *Store) UpdateQuestionDraft(ctx context.Context, actor, id, revision str
 		return QuestionDraft{}, err
 	}
 	d, err := scanQuestionDraft(s.Pool.QueryRow(ctx, "UPDATE question_drafts SET content=$1,revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id::text=$3 AND revision::text=$4 AND published_version_id IS NULL AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) RETURNING "+draftColumns, data, actor, id, revision))
-	var missing *Error
+	var missing *application.Error
 	if errors.As(err, &missing) && missing.Code == "not_found" {
 		if _, e := s.QuestionDraft(ctx, id); e != nil {
 			return d, e

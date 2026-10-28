@@ -18,9 +18,6 @@ type Store struct {
 	inviteKey []byte
 }
 
-// Compatibility aliases keep adapter callers source-compatible during migration.
-type Error = application.Error
-
 func failure(code string, status int, message string) error {
 	return &application.Error{Code: code, Status: status, Message: message}
 }

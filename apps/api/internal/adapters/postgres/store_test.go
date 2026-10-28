@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
@@ -77,7 +78,7 @@ func insertTestProblem(t *testing.T, s *Store, f problems.Fixture) {
 	}
 }
 func errorCode(err error) string {
-	var e *Error
+	var e *application.Error
 	if errors.As(err, &e) {
 		return e.Code
 	}
@@ -105,6 +106,23 @@ func TestWorkspaceReuseAndOwner(t *testing.T) {
 	var constraint *pgconn.PgError
 	if !errors.As(err, &constraint) || constraint.Code != "23503" {
 		t.Fatalf("cross-owner workspace accepted: %v", err)
+	}
+}
+
+func TestCleanupExpiresMatchIdempotency(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if _, err := s.Pool.Exec(ctx, `INSERT INTO match_idempotency(owner_id,route,key,body_hash,response,expires_at) VALUES
+ ('alice','test','expired','hash','{}',statement_timestamp()-interval '1 second'),
+ ('alice','test','active','hash','{}',statement_timestamp()+interval '1 hour')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Cleanup(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var expired, active bool
+	if err := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM match_idempotency WHERE key='expired'),EXISTS(SELECT 1 FROM match_idempotency WHERE key='active')`).Scan(&expired, &active); err != nil || expired || !active {
+		t.Fatalf("match idempotency retention: expired=%v active=%v: %v", expired, active, err)
 	}
 }
 func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {

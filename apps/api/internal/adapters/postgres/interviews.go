@@ -224,7 +224,14 @@ func priorInterviewOperation(ctx context.Context, tx pgx.Tx, user, key, hash str
 	return id, data, nil
 }
 func saveInterviewOperation(ctx context.Context, tx pgx.Tx, user, key, hash, id string, response any) error {
-	data, _ := json.Marshal(response)
+	var data []byte
+	if response != nil {
+		var err error
+		data, err = json.Marshal(response)
+		if err != nil {
+			return err
+		}
+	}
 	_, err := tx.Exec(ctx, `INSERT INTO interview_operations(owner_id,key,fingerprint,session_id,response) VALUES($1,$2,$3,$4,$5)`, user, key, hash, id, data)
 	return err
 }

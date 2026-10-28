@@ -253,6 +253,7 @@ func (s *Store) Cleanup(ctx context.Context) error {
  UPDATE users u SET display_name='Expired guest' WHERE kind='guest' AND display_name<>'Expired guest' AND EXISTS(SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<statement_timestamp()-interval '7 days');
  DELETE FROM execution_idempotency WHERE expires_at < statement_timestamp();
  DELETE FROM cancellation_idempotency WHERE expires_at < statement_timestamp();
+ DELETE FROM match_idempotency WHERE expires_at < statement_timestamp();
  UPDATE submissions SET source='',result=NULL WHERE admitted_at < statement_timestamp()-interval '30 days' AND state NOT IN ('queued','running') AND (source<>'' OR result IS NOT NULL)`)
 	return err
 }
