@@ -32,12 +32,14 @@ type Submission struct {
 	InfrastructureError string                       `json:"infrastructureError,omitempty"`
 }
 type Spec struct {
-	SubmitSamples  []problems.Case
-	PrivateDetails bool
-	Source         string
-	Kind           string
-	Problem        problems.Problem
-	Cases          []problems.Case
+	// Interview fallback scores public samples when no private suite exists.
+	SubmitCasesAreSamples bool
+	SubmitSamples         []problems.Case
+	PrivateDetails        bool
+	Source                string
+	Kind                  string
+	Problem               problems.Problem
+	Cases                 []problems.Case
 }
 
 type InterviewCaseResult struct {
