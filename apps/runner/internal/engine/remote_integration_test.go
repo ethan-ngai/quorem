@@ -211,11 +211,13 @@ func logHostedCasePhase(t *testing.T, remote *RemoteSandbox, probeErr error) {
 		return
 	}
 	defer res.Body.Close()
-	var status struct{ Phase string }
+	var status struct{ Phase, Failure string }
 	if res.StatusCode == http.StatusOK && json.NewDecoder(io.LimitReader(res.Body, 256)).Decode(&status) == nil {
-		switch status.Phase {
-		case "idle", "admitted", "started", "exec-begin", "exec-ready", "streams-complete", "stop-begin", "destroy-begin", "destroy-complete", "stop-complete":
-			t.Logf("case lifecycle: %s", status.Phase)
+		for label, phase := range map[string]string{"lifecycle": status.Phase, "failure": status.Failure} {
+			switch phase {
+			case "none", "idle", "admitted", "started", "exec-begin", "exec-ready", "streams-complete", "stop-begin", "destroy-begin", "destroy-complete", "stop-complete":
+				t.Logf("case %s: %s", label, phase)
+			}
 		}
 	}
 }

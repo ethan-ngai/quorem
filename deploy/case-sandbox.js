@@ -72,7 +72,7 @@ export class CaseSandbox extends DurableObject {
 
   async fetch(request) {
     if (request.method === "GET" && this.env.CASE_DIAGNOSTICS === "true")
-      return Response.json({ phase: this.phase ?? "idle" });
+      return Response.json({ phase: this.phase ?? "idle", failure: this.failure ?? "none" });
     if (request.method === "DELETE") {
       console.log("case-lifecycle delete-begin");
       const token = request.headers.get("x-case-token");
@@ -107,6 +107,7 @@ export class CaseSandbox extends DurableObject {
       return new Response(null, { status: 400 });
     const active = { token };
     this.phase = "admitted";
+    this.failure = undefined;
     this.active = active;
     const generation = this.generation ?? 0;
     try {
@@ -191,6 +192,7 @@ export class CaseSandbox extends DurableObject {
             await writer.write(frame(4, new Uint8Array()));
             await writer.close();
           } catch (error) {
+            this.failure = this.phase;
             console.log(`case-lifecycle stream-failed ${language}`);
             try {
               await this.stop();
@@ -207,6 +209,7 @@ export class CaseSandbox extends DurableObject {
         headers: { "Content-Type": "application/octet-stream" },
       });
     } catch {
+      this.failure = this.phase;
       try {
         await this.stop();
       } catch {

@@ -87,10 +87,16 @@ test("case lifecycle diagnostics require the validation binding", async () => {
   const { context } = fixture();
   assert.equal((await new CaseSandbox(context, {}).fetch(request("GET"))).status, 405);
   const sandbox = new CaseSandbox(context, { CASE_DIAGNOSTICS: "true" });
-  assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), { phase: "idle" });
+  assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), {
+    phase: "idle",
+    failure: "none",
+  });
   const response = await sandbox.fetch(request());
   await response.arrayBuffer();
-  assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), { phase: "stop-complete" });
+  assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), {
+    phase: "stop-complete",
+    failure: "none",
+  });
 });
 
 test("direct case forwards current input and confirms teardown before its terminal frame", async () => {
@@ -124,9 +130,10 @@ test("invalid limits do not start a case and uncertain teardown remains fenced",
   );
   assert.equal(invalid.context.container.running, false);
   const failed = fixture({ failure: true });
-  const sandbox = new CaseSandbox(failed.context, {});
+  const sandbox = new CaseSandbox(failed.context, { CASE_DIAGNOSTICS: "true" });
   const response = await sandbox.fetch(request());
   await assert.rejects(() => response.arrayBuffer());
+  assert.equal((await (await sandbox.fetch(request("GET"))).json()).failure, "destroy-begin");
   assert.equal(failed.values.get("started"), "case-token-123456");
   assert.equal((await sandbox.fetch(request("DELETE"))).status, 503);
 });
