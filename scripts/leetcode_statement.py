@@ -56,7 +56,8 @@ def render(node, in_code=False, plain=False):
     if tag == 'sup':
         if content.strip() in ('st', 'nd', 'rd', 'th'):
             return content
-        return '^' + content.strip()
+        exponent = content.strip()
+        return '^' + (f'({exponent})' if re.search(r'\s|[+*/-]', exponent) else exponent)
     if tag == 'sub':
         return '_' + content.strip()
     if tag == 'u' and not plain:

@@ -39,6 +39,13 @@ class StatementTest(unittest.TestCase):
         self.assertIn('`ith` and 1st value are below 10^5', result['statementMarkdown'])
         self.assertEqual(result['examples'][0]['explanation'], 'The 2nd value.')
 
+    def test_superscript_expression_keeps_its_grouping(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>There are <code>2<sup>n - 1</sup></code> values.</p><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2</pre><p><strong>Constraints:</strong></p><ul><li><code>1 &lt;= k &lt;= 2<sup>n - 1</sup></code></li></ul>'
+        result = format_question(content, html)['problem']
+        self.assertIn('`2^(n - 1)`', result['statementMarkdown'])
+        self.assertEqual(result['constraints'][0]['text'], '`1 <= k <= 2^(n - 1)`')
+
     def test_multiline_explanation_and_table_are_retained(self):
         content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
         html = '<p><code>x</code> is a value.</p><p><strong>Example 1:</strong></p><div><p><strong>Input:</strong> x = 1</p><p><strong>Output:</strong> 2</p><p><strong>Explanation:</strong> See below.</p></div><table><tr><th>x</th><th>y</th></tr><tr><td>1</td><td>2</td></tr></table><p><strong>Constraints:</strong></p><p>None.</p>'
