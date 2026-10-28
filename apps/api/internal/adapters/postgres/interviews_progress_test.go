@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"strings"
 	"testing"
@@ -97,6 +98,19 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 	job, err := s.Claim(ctx)
 	if err != nil || job.SubmissionID != sub.ID {
 		t.Fatal(job, err)
+	}
+	if err = s.SaveCheckpoint(ctx, job, execution.CheckpointCase{Ordinal: 0, Frame: json.RawMessage(`{"status":"executed"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.YieldExecution(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.PassInterviewStage(ctx, "alice", v.ID, ID(), v.QuestionEpoch, 1); err != nil {
+		t.Fatal(err)
+	}
+	job, err = s.ClaimResumable(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
 	spec, err := s.LoadExecution(ctx, job)
 	if err != nil {

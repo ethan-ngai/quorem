@@ -21,6 +21,9 @@ type Docker struct {
 	Images           map[string]string
 	compilationLimit time.Duration
 	Resolve          func(context.Context, execution.Job) (worker.Spec, error)
+	LoadCheckpoint   func(context.Context, execution.Job) (execution.Checkpoint, error)
+	ReplayCheckpoint func(context.Context, execution.Job, int, func(int, json.RawMessage) error) error
+	SaveCheckpoint   func(context.Context, execution.Job, execution.CheckpointCase) error
 }
 
 const compilationBudget = 60 * time.Second
@@ -121,7 +124,44 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	if spec.Kind == "submit" && !spec.SubmitCasesAreSamples {
 		cases = append(cases, spec.SubmitSamples...)
 	}
-	for i, c := range cases {
+	start := 0
+	if (d.LoadCheckpoint == nil) != (d.SaveCheckpoint == nil) || (d.LoadCheckpoint == nil) != (d.ReplayCheckpoint == nil) {
+		return result, errors.New("incomplete checkpoint configuration")
+	}
+	if d.LoadCheckpoint != nil {
+		checkpoint, e := d.LoadCheckpoint(ctx, j)
+		if e != nil {
+			return result, e
+		}
+		if checkpoint.NextOrdinal < 0 || checkpoint.NextOrdinal > len(cases) || checkpoint.CompilationNanos < 0 || checkpoint.CompilationNanos > int64(2*time.Minute) {
+			return result, errors.New("invalid execution checkpoint")
+		}
+		compilationTime = time.Duration(checkpoint.CompilationNanos)
+		if len(checkpoint.Artifact) > 0 {
+			if e = validateCompiledArtifact(checkpoint.Artifact, runtime.Language); e != nil {
+				return result, e
+			}
+			artifact = checkpoint.Artifact
+		}
+		if len(checkpoint.Fatal) > 0 {
+			var stored frame
+			if e = json.Unmarshal(checkpoint.Fatal, &stored); e != nil || stored.Status != "syntax_error" || runtime.Language == "postgresql" {
+				return result, errors.New("invalid checkpoint fatal status")
+			}
+			fatal = &stored
+		}
+		start = checkpoint.NextOrdinal
+	}
+	for i := start; i < len(cases); i++ {
+		c := cases[i]
+		if d.SaveCheckpoint != nil && fatal == nil {
+			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < d.caseCheckpointReserve(j) {
+				if i == start {
+					return accumulator.result, errors.New("insufficient time for a checkpointed case")
+				}
+				return accumulator.result, worker.ErrYield
+			}
+		}
 		if ctx.Err() != nil {
 			return accumulator.result, ctx.Err()
 		}
@@ -155,11 +195,71 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 				fatal = &f
 			}
 		}
-		if err = accumulator.add(i, c, f); err != nil {
-			return accumulator.result, err
+		if d.SaveCheckpoint == nil {
+			if err = accumulator.add(i, c, f); err != nil {
+				return accumulator.result, err
+			}
+		} else {
+			// Validate before persistence; final scoring streams the full prefix once.
+			if err = newCaseAccumulator(spec, runtime.Language, result).add(i, c, f); err != nil {
+				return result, err
+			}
+		}
+		if d.SaveCheckpoint != nil {
+			stored := f
+			stored.Artifact = nil
+			if spec.Kind == "submit" && !spec.PrivateDetails && i < len(spec.Cases) {
+				stored.Stdout, stored.Stderr, stored.Line = "", "", 0
+			}
+			raw, e := json.Marshal(stored)
+			if e != nil {
+				return accumulator.result, e
+			}
+			var fatalData json.RawMessage
+			if fatal != nil {
+				fatalData, e = json.Marshal(fatal)
+				if e != nil {
+					return accumulator.result, e
+				}
+			}
+			if e = d.SaveCheckpoint(ctx, j, execution.CheckpointCase{Ordinal: i, Frame: raw, Artifact: f.Artifact, CompilationNanos: int64(compilationTime), Fatal: fatalData}); e != nil {
+				return accumulator.result, e
+			}
+			if deadline, ok := ctx.Deadline(); ok {
+				if i+1 == len(cases) && time.Until(deadline) < 30*time.Second {
+					return result, worker.ErrYield
+				}
+				if i+1 < len(cases) && fatal == nil && time.Until(deadline) < d.caseCheckpointReserve(j) {
+					return result, worker.ErrYield
+				}
+			}
+		}
+	}
+	if d.ReplayCheckpoint != nil && len(cases) > 0 {
+		accumulator = newCaseAccumulator(spec, runtime.Language, result)
+		err = d.ReplayCheckpoint(ctx, j, len(cases), func(i int, raw json.RawMessage) error {
+			if i < 0 || i >= len(cases) {
+				return errors.New("invalid checkpoint index")
+			}
+			var stored frame
+			if e := json.Unmarshal(raw, &stored); e != nil || len(stored.Artifact) != 0 {
+				return errors.New("invalid checkpoint case")
+			}
+			return accumulator.add(i, cases[i], stored)
+		})
+		if err != nil {
+			return result, err
 		}
 	}
 	return accumulator.finish(), nil
+}
+
+func (d *Docker) caseCheckpointReserve(j execution.Job) time.Duration {
+	startup := 10 * time.Second
+	if d.Remote != nil {
+		startup = 60 * time.Second
+	}
+	return startup + 10*time.Second + time.Duration(j.Limits.WallTimeMS)*time.Millisecond + execution.TeardownTimeout + execution.CompletionTimeout
 }
 
 func sandboxRequest(spec worker.Spec, c worker.Case) []byte {

@@ -79,3 +79,27 @@ QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestP
 ```
 
 Set `QUOREM_TEST_POSTGRES_IMAGE` to test a different local image; its `/opt/quorem/harness.py` must match this checkout. `RUNNER_POSTGRES_IMAGE` overrides the runtime image. SQL setup, comparison, authoring, and Odyssey limits are documented in `docs/implementation/sql-problems.md`. Deployment validates the hosted PostgreSQL role and deadline isolation.
+
+Resumable judging is opt-in with `QUOREM_RESUMABLE_EXECUTION=true`; it defaults
+false. Apply migrations first, deploy checkpoint-aware judges with the gate off,
+then enable it only after old judges have drained. Current disabled judges skip checkpointed jobs; a database claim guard stops
+older judges from claiming them. Older judges can stall the queue during a mixed
+rollout. For rollback, stop new admissions and keep capable judges running until
+checkpointed jobs finish; then disable the gate and replace judges. Otherwise,
+checkpointed jobs remain blocked until a capable judge returns. Never delete checkpoints to unblock the queue.
+
+Each saved case has finished sandbox teardown before it is persisted. Completed
+scores and interview-private details remain hidden until final completion.
+Match finalization still ends unresolved eligible work as no-contest after two
+minutes; long suites can complete after that outcome. Hosted case startup,
+cleanup, checkpoint storage, and end-to-end capacity need separate validation.
+Checkpoints compress each frame; resumes load only metadata, and final scoring
+streams the prefix once in four-row pages, releasing the database connection
+between pages for lease heartbeats. Ordinary hidden Submit output is omitted when no
+interviewer can access it. Public and interview results remain lossless and
+require memory proportional to their final size. A local disposable-PostgreSQL
+measurement of 320 control-heavy frames used 75.3 MiB of compressed payload and
+streamed in 2.02 s
+with 109.5 MiB sampled peak Go heap; hosted capacity remains unverified. Existing final result JSONB storage can independently
+reject NUL in public or interview-visible output; checkpoint bytea storage
+preserves NUL, but does not fix that existing final-result boundary.
