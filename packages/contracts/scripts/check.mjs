@@ -29,6 +29,19 @@ for (const [fixture, schema] of Object.entries({
   const validate = ajv.compile({ $ref: `${document.$id}#/$defs/${schema}` });
   assert(validate(fixtures[fixture]), JSON.stringify(validate.errors));
 }
+const publicFields = schemas.ProblemVersion.properties;
+const authorFields = schemas.QuestionProblem.properties;
+assert.deepEqual(Object.keys(authorFields).sort(), Object.keys(publicFields).sort());
+for (const name of Object.keys(authorFields)) {
+  if (name !== "id" && name !== "version")
+    assert.deepEqual(authorFields[name], publicFields[name], `Question field drift: ${name}`);
+}
+const validateQuestion = ajv.compile({ $ref: `${document.$id}#/$defs/QuestionContent` });
+const exampleQuestion = JSON.parse(readFileSync("questions/example-v1.json", "utf8"));
+exampleQuestion.problem.isPrivate = true;
+exampleQuestion.problem.solutionLanguages = ["python"];
+exampleQuestion.problem.complexityLanguages = ["python"];
+assert(validateQuestion(exampleQuestion), JSON.stringify(validateQuestion.errors));
 const validateProblem = ajv.compile({ $ref: `${document.$id}#/$defs/ProblemVersion` });
 for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));

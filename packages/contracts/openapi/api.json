@@ -3278,25 +3278,7 @@
               "$ref": "#/components/schemas/LanguageImplementation"
             }
           },
-          "sql": {
-            "type": "object",
-            "properties": {
-              "dialect": { "type": "string", "enum": ["postgresql"] },
-              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] },
-              "tables": {
-                "type": "array",
-                "maxItems": 16,
-                "items": { "$ref": "#/components/schemas/SqlTableSchema" }
-              },
-              "output": {
-                "type": "array",
-                "maxItems": 32,
-                "items": { "$ref": "#/components/schemas/SqlColumn" }
-              }
-            },
-            "required": ["dialect", "outputOrder"],
-            "additionalProperties": false
-          },
+          "sql": { "$ref": "#/components/schemas/SqlConfig" },
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
           },
@@ -4329,6 +4311,7 @@
           "id": {
             "type": "string"
           },
+          "isPrivate": { "type": "boolean" },
           "slug": {
             "type": "string"
           },
@@ -4382,27 +4365,22 @@
               "$ref": "#/components/schemas/LanguageImplementation"
             }
           },
-          "sql": {
-            "type": "object",
-            "properties": {
-              "dialect": { "type": "string", "enum": ["postgresql"] },
-              "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] },
-              "tables": {
-                "type": "array",
-                "maxItems": 16,
-                "items": { "$ref": "#/components/schemas/SqlTableSchema" }
-              },
-              "output": {
-                "type": "array",
-                "maxItems": 32,
-                "items": { "$ref": "#/components/schemas/SqlColumn" }
-              }
-            },
-            "required": ["dialect", "outputOrder"],
-            "additionalProperties": false
-          },
+          "sql": { "$ref": "#/components/schemas/SqlConfig" },
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
+          },
+          "solutionLanguages": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Language" },
+            "maxItems": 5,
+            "uniqueItems": true
+          },
+          "complexityLanguages": {
+            "type": "array",
+            "description": "Languages with published complexity; contains no costs or solution source.",
+            "items": { "$ref": "#/components/schemas/Language" },
+            "maxItems": 4,
+            "uniqueItems": true
           }
         },
         "additionalProperties": false,
@@ -4422,6 +4400,25 @@
           "limits",
           "languages"
         ]
+      },
+      "SqlConfig": {
+        "type": "object",
+        "properties": {
+          "dialect": { "type": "string", "enum": ["postgresql"] },
+          "outputOrder": { "type": "string", "enum": ["ordered", "unordered"] },
+          "tables": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "$ref": "#/components/schemas/SqlTableSchema" }
+          },
+          "output": {
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/components/schemas/SqlColumn" }
+          }
+        },
+        "required": ["dialect", "outputOrder"],
+        "additionalProperties": false
       },
       "SqlColumn": {
         "type": "object",
