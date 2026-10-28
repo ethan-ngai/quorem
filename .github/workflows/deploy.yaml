@@ -314,7 +314,9 @@ jobs:
             sleep 2
           done
           test "$ready" = true
-          if ! go test -v ./apps/runner/internal/engine -run '^TestRemoteSandboxHosted$' -count=1; then
+          count=1
+          if [ "$GITHUB_REF" = refs/heads/dev ]; then count=3; fi
+          if ! go test -v ./apps/runner/internal/engine -run '^TestRemoteSandboxHosted$' -count="$count" -timeout 40m; then
             cat .local/case-lifecycle.log
             if [ ! -s .local/case-lifecycle.log ]; then
               echo "No lifecycle events received; tail stderr follows."

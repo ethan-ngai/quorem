@@ -182,6 +182,9 @@ func verifyRemoteSandbox(t *testing.T, remote *RemoteSandbox) {
 		}}
 		result, err := runner.Execute(ctx, execution.Job{Language: impl.Language, AttemptID: "odyssey-" + impl.Language, SubmissionID: "test", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 		if err != nil || result.Verdict != execution.Accepted || result.Score == nil || result.Score.Passed != 4 {
+			if err != nil {
+				logHostedCasePhase(t, remote, fmt.Errorf("attempt odyssey-%s: %w", impl.Language, err))
+			}
 			t.Fatalf("Odyssey %s: %+v %v", impl.Language, result, err)
 		}
 		t.Logf("%s Odyssey four cases: %s", impl.Language, time.Since(started))
