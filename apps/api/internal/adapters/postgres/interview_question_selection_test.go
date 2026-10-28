@@ -32,6 +32,7 @@ func TestInterviewQuestionSelectionRequiresCurrentAccessibleVersion(t *testing.T
 		want                     string
 	}{
 		{"alice", first, "python", "not_found"},
+		{"alice", "not-a-uuid", "python", "not_found"},
 		{"bob", second, "python", "not_found"},
 		{"alice", second, "postgresql", "invalid_input"},
 	} {

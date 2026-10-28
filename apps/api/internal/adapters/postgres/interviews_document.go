@@ -9,8 +9,19 @@ import (
 )
 
 func (s *Store) InterviewDocument(ctx context.Context, user, id string) (interviews.Document, error) {
-	v, err := s.Interview(ctx, user, id)
-	return v.Document, err
+	var document interviews.Document
+	var disabled bool
+	err := s.Pool.QueryRow(ctx, `SELECT i.source,i.document_version,i.document_epoch,h.disabled`+interviewDocumentAccessSQL, uuidLookup(id), user).Scan(&document.Source, &document.Version, &document.Epoch, &disabled)
+	if err == pgx.ErrNoRows {
+		return interviews.Document{}, failure("not_found", 404, "Interview unavailable")
+	}
+	if err != nil {
+		return interviews.Document{}, err
+	}
+	if disabled {
+		return interviews.Document{}, failure("forbidden", 403, "Interview unavailable")
+	}
+	return document, nil
 }
 func (s *Store) InterviewUpdates(ctx context.Context, user, id, epoch string, version int64) (interviews.Updates, error) {
 	var out interviews.Updates
@@ -125,6 +136,8 @@ func interviewDocumentState(ctx context.Context, tx pgx.Tx, user, id string, act
 
 const interviewDocumentStateQuery = `SELECT i.state,CASE WHEN $3 THEN i.source ELSE '' END,i.document_version,i.document_epoch,
 	EXISTS(SELECT 1 FROM entitlement_grants g WHERE g.user_id=i.host_id AND g.feature IN ('internal','interviews.host') AND g.revoked_at IS NULL AND g.valid_from<=clock_timestamp() AND (g.expires_at IS NULL OR g.expires_at>clock_timestamp()))
-	FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL
-	JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id AND NOT h.disabled
+` + interviewDocumentAccessSQL + ` AND NOT h.disabled`
+
+const interviewDocumentAccessSQL = ` FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=$2 AND m.removed_at IS NULL
+	JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id
 	WHERE i.id=$1 AND i.deleted_at IS NULL`
