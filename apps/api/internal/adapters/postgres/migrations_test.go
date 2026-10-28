@@ -265,4 +265,21 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
  (SELECT count(*) FROM interview_execution WHERE submission_id='00000000-0000-4000-8000-000000000105')`).Scan(&workspaces, &executions); err != nil || workspaces != 0 || executions != 1 {
 		t.Fatalf("legacy workspace cleanup: %d workspaces, %d executions: %v", workspaces, executions, err)
 	}
+	if _, err = pool.Exec(ctx, `INSERT INTO interview_operations(owner_id,key,fingerprint,session_id,response) VALUES
+ ('match-host','update','hash','00000000-0000-4000-8000-000000000101','{"epoch":"e","version":1,"updates":[{"clientID":"x","changes":[1]}]}'),
+ ('match-host','submission','hash','00000000-0000-4000-8000-000000000101','{"submissionId":"s"}')`); err != nil {
+		t.Fatal(err)
+	}
+	migration, err = os.ReadFile("../../../migrations/033_remove_duplicate_update_responses.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var cleared, submissionRetained bool
+	if err = pool.QueryRow(ctx, `SELECT (SELECT response='null'::jsonb FROM interview_operations WHERE key='update'),
+ (SELECT response->>'submissionId'='s' FROM interview_operations WHERE key='submission')`).Scan(&cleared, &submissionRetained); err != nil || !cleared || !submissionRetained {
+		t.Fatalf("operation response migration: %v %v %v", cleared, submissionRetained, err)
+	}
 }

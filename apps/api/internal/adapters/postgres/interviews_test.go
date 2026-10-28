@@ -7,6 +7,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -117,8 +118,12 @@ func TestInterviewOrderedChangesStaleRetryAndIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	retry, err := s.PushInterviewUpdates(ctx, "alice", v.ID, key, p)
-	if err != nil || retry.Version != first.Version {
+	if err != nil || !reflect.DeepEqual(retry, first) {
 		t.Fatal("retry duplicated", err)
+	}
+	var stored bool
+	if err = s.Pool.QueryRow(ctx, `SELECT response='null'::jsonb FROM interview_operations WHERE owner_id='alice' AND key=$1`, key).Scan(&stored); err != nil || !stored {
+		t.Fatal("document retry duplicated update content", err)
 	}
 	if _, err = s.PushInterviewUpdates(ctx, "bob", v.ID, ID(), p); errorCode(err) != "stale_version" {
 		t.Fatal("stale write admitted", err)
