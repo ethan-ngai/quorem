@@ -9,7 +9,7 @@ Work ledger: [#194](https://github.com/ethan-ngai/quorem/issues/194).
 - Add `interview_execution_question(session_id, question_epoch, submission_id)`: current-question result lookup skips earlier question histories before joining submissions/jobs.
 - Qualify `ORDER BY interview_outbox.sequence`: the selected `sequence::text` otherwise shadows the numeric column, producing lexical order and an unnecessary sort. The regression covers sequence 2, 10 and 100.
 
-Migration `002_hot_query_indexes.sql` is additive. Existing indexes and constraints remain. It uses ordinary index creation inside the existing transactional migration runner; creating these indexes on a populated deployment takes write locks. Apply through the normal deployment migration step and measure migration duration against hosted data before claiming interruption-free rollout. No database credentials or production state were accessed.
+These indexes are included in the product schema baseline. Index creation in transactional migrations can lock populated tables; measure migration duration against hosted data before claiming interruption-free rollout.
 
 ## Local evidence
 
@@ -45,7 +45,7 @@ Observed after plans, without adding duplicate indexes:
 | Match and interview pending notices | Existing partial sequence indexes; interview SQL fixed rather than another index added   |
 | Interview guest credential          | Existing token-hash PK and unique owner key                                              |
 
-The separate Better Auth schema already has session token uniqueness, `auth_session_user`, identity provider/account uniqueness, user/email keys, and assurance-session PKs. This was a schema audit; the table above measures the product identity binding, not Better Auth request latency. No auth migration was needed.
+The separate Better Auth schema has session token uniqueness, `auth_session_user`, identity provider/account uniqueness, user/email keys, assurance-session PKs, and indexes for account ownership and expiry cleanup. The table above measures the product identity binding, not Better Auth request latency.
 
 The claim probe isolates job eligibility/order/locking; it is not the complete claim transaction with authorization/fixture joins or global admission serialization. Indexes do not remove required transactional serialization. Queue mutation/fencing and wakeup changes are owned by the separate worker change.
 

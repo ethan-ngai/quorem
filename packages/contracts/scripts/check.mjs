@@ -85,6 +85,31 @@ assert(
     odysseyHiddenCases: [Array(21).fill(stagedPad.odysseyHiddenCases[0][0])],
   }),
 );
+const interviewExecutionSchema =
+  api.paths["/v1/interviews/{id}/submissions"].post.requestBody.content["application/json"].schema;
+const validateInterviewExecution = ajv.compile(
+  JSON.parse(
+    JSON.stringify(interviewExecutionSchema).replaceAll(
+      "#/components/schemas/",
+      `${document.$id}#/$defs/`,
+    ),
+  ),
+);
+const interviewExecution = {
+  kind: "run",
+  level: 1,
+  questionEpoch: "00000000-0000-4000-8000-000000000001",
+  documentEpoch: "00000000-0000-4000-8000-000000000002",
+  sourceHash: "a".repeat(64),
+};
+assert(
+  validateInterviewExecution(interviewExecution),
+  JSON.stringify(validateInterviewExecution.errors),
+);
+for (const field of ["level", "questionEpoch", "documentEpoch", "sourceHash"]) {
+  assert(!validateInterviewExecution({ ...interviewExecution, [field]: undefined }), field);
+}
+assert(!validateInterviewExecution({ ...interviewExecution, sourceHash: "invalid" }));
 const validateHidden = ajv.compile({ $ref: `${document.$id}#/$defs/HiddenCaseResult` });
 for (const status of schemas.HiddenCaseResult.properties.status.enum)
   assert(validateHidden({ index: 0, status }));

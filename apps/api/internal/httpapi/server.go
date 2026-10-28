@@ -8,6 +8,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"io"
@@ -35,6 +36,7 @@ type Server struct {
 	Local                bool
 }
 
+var sourceHash = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var uuid = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 func (s *Server) Handler() http.Handler {
@@ -308,6 +310,16 @@ func (s *Server) getWorkspace(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, v)
 }
 func validSource(source string) bool { return utf8.ValidString(source) && len(source) <= 65536 }
+func validExecutionCases(kind string, cases []problems.Case) bool {
+	if cases == nil {
+		return true
+	}
+	if kind != "run" || len(cases) == 0 || len(cases) > 20 {
+		return false
+	}
+	encoded, err := json.Marshal(cases)
+	return err == nil && len(encoded) <= execution.MaxCustomCasesBytes
+}
 func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 	if identity.Subject(r.Context()).Guest && !s.GuestExecution {
 		s.err(w, r, &application.Error{Code: "temporarily_unavailable", Status: 503, Message: "Guest execution is temporarily paused"})
@@ -318,8 +330,7 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.Header.Get("Idempotency-Key")
-	custom, _ := json.Marshal(body.CustomCases)
-	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || len(custom) > execution.MaxCustomCasesBytes || len(body.CustomCases) > 20 || (body.CustomCases != nil && len(body.CustomCases) == 0) {
+	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || !validExecutionCases(body.Kind, body.CustomCases) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid execution command", Status: 400})
 		return
 	}

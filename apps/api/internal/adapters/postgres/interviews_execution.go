@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
-	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/jackc/pgx/v5"
 )
 
 // Interview admission snapshots persisted source under its document lock; private fixtures remain owner-scoped.
-func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, customCases []problems.Case) (judging.Submission, error) {
+func (s *Store) AdmitInterview(ctx context.Context, user, id, key string, command interviews.ExecutionCommand) (judging.Submission, error) {
 	var out judging.Submission
+	kind, customCases := command.Kind, command.CustomCases
 	if kind != "run" && kind != "submit" {
 		return out, failure("invalid_input", 400, "Choose run or submit")
 	}
@@ -29,10 +30,7 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 		return out, err
 	}
 
-	hash := interviewFingerprint(id+":submission", struct {
-		Kind  string
-		Cases []problems.Case
-	}{kind, customCases})
+	hash := interviewFingerprint(id+":submission", command)
 	prior, data, err := priorInterviewOperation(ctx, tx, user, key, hash)
 	if err != nil {
 		return out, err
@@ -46,17 +44,25 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 		}
 		return s.submission(ctx, tx, user, stored.SubmissionID)
 	}
+	if command.QuestionEpoch != v.snapshot.QuestionEpoch {
+		return out, failure("document_changed", 409, "Question changed; open its current document")
+	}
+	if command.DocumentEpoch != v.snapshot.Document.Epoch || command.SourceHash != Hash([]byte(v.snapshot.Document.Source)) {
+		return out, failure("document_changed", 409, "Document changed; synchronize and retry")
+	}
 	level := 1
 	var progressScope any
 	if v.fixture.Problem.Odyssey != nil {
-		level, _, err = interviewProgress(ctx, tx, v)
-		if err != nil {
-			return out, err
-		}
 		progressScope = v.snapshot.QuestionEpoch
 		if _, err = tx.Exec(ctx, `INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, progressScope, v.fixture.Problem.ID); err != nil {
 			return out, err
 		}
+		if err = tx.QueryRow(ctx, `SELECT level FROM odyssey_progress WHERE scope_id=$1 AND problem_version_id=$2 FOR UPDATE`, progressScope, v.fixture.Problem.ID).Scan(&level); err != nil {
+			return out, err
+		}
+	}
+	if command.Level != level {
+		return out, failure("stage_changed", 409, "Stage changed; refresh before running")
 	}
 	cases, err := executionCases(&v.fixture, level, kind, customCases, true)
 	if err != nil {
@@ -85,8 +91,15 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 	if _, err = tx.Exec(ctx, `INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,$3,$4,$5)`, jobID, submissionID, v.language, v.fixture.Problem.RuntimeRevision, v.fixture.HarnessRevision); err != nil {
 		return out, err
 	}
-	fixture, _ := json.Marshal(v.fixture)
-	if _, err = tx.Exec(ctx, `INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture,level,progress_scope,question_epoch) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, submissionID, id, v.snapshot.Document.Version, v.snapshot.Document.Epoch, fixture, level, progressScope, v.snapshot.QuestionEpoch); err != nil {
+	fixture, err := json.Marshal(v.fixture)
+	if err != nil {
+		return out, err
+	}
+	fixtureID, err := saveInterviewFixture(ctx, tx, id, fixture)
+	if err != nil {
+		return out, err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture_id,level,progress_scope,question_epoch) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, submissionID, id, v.snapshot.Document.Version, v.snapshot.Document.Epoch, fixtureID, level, progressScope, v.snapshot.QuestionEpoch); err != nil {
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE users SET admission_tokens=`+executionTokenBalance+`-1,tokens_updated_at=clock_timestamp() WHERE id=$1`, user); err != nil {

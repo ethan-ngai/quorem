@@ -18,6 +18,14 @@ type CustomQuestion struct {
 	PublicCases        []problems.Case    `json:"publicCases"`
 	PrivateCases       []problems.Case    `json:"privateCases"`
 }
+type ExecutionCommand struct {
+	Kind          string          `json:"kind"`
+	Level         int             `json:"level"`
+	CustomCases   []problems.Case `json:"customCases,omitempty"`
+	QuestionEpoch string          `json:"questionEpoch"`
+	DocumentEpoch string          `json:"documentEpoch"`
+	SourceHash    string          `json:"sourceHash"`
+}
 type QuestionInput struct {
 	Hints            *problems.HintVisibility `json:"hints,omitempty"`
 	ProblemVersionID string                   `json:"problemVersionId,omitempty"`

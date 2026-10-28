@@ -1,6 +1,10 @@
 package postgres
 
-import "github.com/ethan-ngai/quorem/apps/api/internal/problems"
+import (
+	"errors"
+
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+)
 
 func executionCases(f *problems.Fixture, level int, kind string, custom []problems.Case, publicFallback bool) ([]problems.Case, error) {
 	cases := f.HiddenCases
@@ -32,4 +36,18 @@ func executionCases(f *problems.Fixture, level int, kind string, custom []proble
 		}
 	}
 	return cases, nil
+}
+
+// Both workspace and interview executions persist their admitted stage separately.
+const admittedOdysseyLevelSQL = `COALESCE(s.odyssey_level,ie.level)`
+
+func limitAdmittedOdyssey(p *problems.Problem, level *int) error {
+	if p.Odyssey == nil {
+		return nil
+	}
+	if level == nil || *level < 1 || *level > len(p.Odyssey.Levels) {
+		return errors.New("invalid admitted Odyssey level")
+	}
+	p.Odyssey = &problems.Odyssey{Levels: p.Odyssey.Levels[:*level]}
+	return nil
 }

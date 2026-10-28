@@ -122,7 +122,7 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 		if _, err = s.Pool.Exec(ctx, `UPDATE users SET admission_tokens=2 WHERE id='bob'`); err != nil {
 			t.Fatal(err)
 		}
-		sub, e := s.AdmitInterview(ctx, "bob", v.ID, ID(), "submit", nil)
+		sub, e := admitInterviewForTest(s, ctx, "bob", v.ID, ID(), "submit", nil)
 		if e != nil {
 			t.Fatal(e)
 		}

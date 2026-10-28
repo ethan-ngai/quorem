@@ -7,6 +7,7 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
+	"github.com/jackc/pgx/v5/pgconn"
 	"os"
 	"strconv"
 	"sync"
@@ -28,7 +29,7 @@ func testStore(t *testing.T) *Store {
 	if err = store.Migrate(ctx, "../../../migrations"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Pool.Exec(ctx, "TRUNCATE guest_request_buckets,access_audit,entitlement_grants,quota_overrides,guest_sessions,guest_sponsor_locks,guest_execution_usage,execution_attempt_usage,match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,execution_idempotency,execution_jobs,submissions,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
+	if _, err = store.Pool.Exec(ctx, "TRUNCATE guest_request_buckets,access_audit,entitlement_grants,quota_overrides,guest_sessions,guest_sponsor_locks,guest_execution_usage,execution_attempt_usage,match_idempotency,match_outbox,match_reservations,match_participants,matches,cancellation_idempotency,execution_idempotency,execution_jobs,submissions,interview_question_snapshots,workspaces,problem_versions CASCADE; UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp()"); err != nil {
 		t.Fatal(err)
 	}
 	f, err := problems.LoadFixtures("../../../../../fixtures/problems")
@@ -100,7 +101,11 @@ func TestWorkspaceReuseAndOwner(t *testing.T) {
 	if _, err = store.Workspace(ctx, "bob", w.ID); errorCode(err) != "not_found" {
 		t.Fatal("owner isolation", err)
 	}
-
+	_, err = store.Pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'bob',$2,'run','','hash','queued','[]')`, ID(), w.ID)
+	var constraint *pgconn.PgError
+	if !errors.As(err, &constraint) || constraint.Code != "23503" {
+		t.Fatalf("cross-owner workspace accepted: %v", err)
+	}
 }
 func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	store := testStore(t)

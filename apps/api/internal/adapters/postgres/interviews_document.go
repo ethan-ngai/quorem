@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	"strings"
 
@@ -64,13 +63,12 @@ func (s *Store) PushInterviewUpdates(ctx context.Context, user, id, key string, 
 		return out, err
 	}
 	hash := interviewFingerprint(id+":updates", p)
-	prior, data, err := priorInterviewOperation(ctx, tx, user, key, hash)
+	prior, _, err := priorInterviewOperation(ctx, tx, user, key, hash)
 	if err != nil {
 		return out, err
 	}
 	if prior != "" {
-		err = json.Unmarshal(data, &out)
-		return out, err
+		return interviews.Updates{Epoch: p.Epoch, Version: p.Version + int64(len(p.Updates)), Updates: p.Updates}, nil
 	}
 	if p.Epoch != v.snapshot.Document.Epoch {
 		return out, failure("document_changed", 409, "Question changed; open its current document")
@@ -95,7 +93,7 @@ func (s *Store) PushInterviewUpdates(ctx context.Context, user, id, key string, 
 	if _, err = tx.Exec(ctx, `UPDATE interviews SET source=$2,document_version=$3,version=version+1,updated_at=clock_timestamp() WHERE id=$1`, id, source, out.Version); err != nil {
 		return out, err
 	}
-	if err = saveInterviewOperation(ctx, tx, user, key, hash, id, out); err != nil {
+	if err = saveInterviewOperation(ctx, tx, user, key, hash, id, nil); err != nil {
 		return out, err
 	}
 	return out, tx.Commit(ctx)

@@ -3125,6 +3125,12 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     kind: "run" | "submit";
+                    level: number;
+                    /** Format: uuid */
+                    questionEpoch: string;
+                    /** Format: uuid */
+                    documentEpoch: string;
+                    sourceHash: string;
                     customCases?: components["schemas"]["CustomCase"][];
                 };
             };

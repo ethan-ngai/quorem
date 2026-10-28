@@ -265,4 +265,49 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
  (SELECT count(*) FROM interview_execution WHERE submission_id='00000000-0000-4000-8000-000000000105')`).Scan(&workspaces, &executions); err != nil || workspaces != 0 || executions != 1 {
 		t.Fatalf("legacy workspace cleanup: %d workspaces, %d executions: %v", workspaces, executions, err)
 	}
+	if _, err = pool.Exec(ctx, `INSERT INTO interview_operations(owner_id,key,fingerprint,session_id,response) VALUES
+ ('match-host','update','hash','00000000-0000-4000-8000-000000000101','{"epoch":"e","version":1,"updates":[{"clientID":"x","changes":[1]}]}'),
+ ('match-host','submission','hash','00000000-0000-4000-8000-000000000101','{"submissionId":"s"}')`); err != nil {
+		t.Fatal(err)
+	}
+	migration, err = os.ReadFile("../../../migrations/033_remove_duplicate_update_responses.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var cleared, submissionRetained bool
+	if err = pool.QueryRow(ctx, `SELECT (SELECT response='null'::jsonb FROM interview_operations WHERE key='update'),
+ (SELECT response->>'submissionId'='s' FROM interview_operations WHERE key='submission')`).Scan(&cleared, &submissionRetained); err != nil || !cleared || !submissionRetained {
+		t.Fatalf("operation response migration: %v %v %v", cleared, submissionRetained, err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases)
+ VALUES('00000000-0000-4000-8000-000000000108','match-host','00000000-0000-4000-8000-000000000101','run','','hash','completed','[]');
+ INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,fixture,question_epoch)
+ VALUES('00000000-0000-4000-8000-000000000108','00000000-0000-4000-8000-000000000101',0,'00000000-0000-4000-8000-000000000102','{}','00000000-0000-4000-8000-000000000103')`); err != nil {
+		t.Fatal(err)
+	}
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM interview_outbox`).Scan(&noticesBefore); err != nil {
+		t.Fatal(err)
+	}
+	migration, err = os.ReadFile("../../../migrations/034_interview_question_snapshots.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var snapshots, linked int
+	if err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM interview_question_snapshots),
+ (SELECT count(*) FROM interview_execution e JOIN interview_question_snapshots q ON q.session_id=e.session_id AND q.id=e.fixture_id WHERE q.fixture='{}'),
+ (SELECT count(*) FROM interview_outbox)`).Scan(&snapshots, &linked, &noticesAfter); err != nil || snapshots != 1 || linked != 2 || noticesAfter != noticesBefore {
+		t.Fatalf("snapshot migration: %d snapshots, %d links, notices=%d/%d %v", snapshots, linked, noticesBefore, noticesAfter, err)
+	}
+	if _, err = pool.Exec(ctx, `UPDATE interview_execution SET document_version=1 WHERE submission_id='00000000-0000-4000-8000-000000000105'`); err == nil {
+		t.Fatal("interview execution context became mutable")
+	}
+	if _, err = pool.Exec(ctx, `UPDATE interview_execution SET private_results='[]' WHERE submission_id='00000000-0000-4000-8000-000000000105'`); err != nil {
+		t.Fatal("private result update rejected", err)
+	}
 }

@@ -39,7 +39,7 @@ func (s *Store) advanceOdyssey(ctx context.Context, tx pgx.Tx, submissionID stri
 	var problemID string
 	var level *int
 	var total *int
-	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.odyssey_scope,w.id)::text,COALESCE(ie.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),CASE WHEN ie.fixture IS NOT NULL THEN COALESCE(NULLIF(jsonb_array_length(ie.fixture->'odysseyHiddenCases'),0),jsonb_array_length(ie.fixture->'problem'->'odyssey'->'levels')) ELSE jsonb_array_length(v.odyssey->'levels') END FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &total)
+	err := tx.QueryRow(ctx, `SELECT COALESCE(ie.progress_scope,w.odyssey_scope,w.id)::text,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(ie.level,s.odyssey_level),CASE WHEN q.fixture IS NOT NULL THEN COALESCE(NULLIF(jsonb_array_length(q.fixture->'odysseyHiddenCases'),0),jsonb_array_length(q.fixture->'problem'->'odyssey'->'levels')) ELSE jsonb_array_length(v.odyssey->'levels') END FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=$1`, submissionID).Scan(&scope, &problemID, &level, &total)
 	if err != nil || scope == nil || level == nil || total == nil {
 		return err
 	}

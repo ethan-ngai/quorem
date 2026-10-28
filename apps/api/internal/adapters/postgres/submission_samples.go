@@ -14,18 +14,15 @@ import (
 func validateSubmitSamples(ctx context.Context, tx pgx.Tx, j execution.Job, results []execution.PublicCaseResult) error {
 	var raw []byte
 	var level *int
-	if err := tx.QueryRow(ctx, `SELECT COALESCE(ie.fixture->'problem',jsonb_build_object('examples',`+problemExamplesSQL+`,'odyssey',v.odyssey)),s.odyssey_level FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id WHERE s.id=$1`, j.SubmissionID).Scan(&raw, &level); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(q.fixture->'problem',jsonb_build_object('examples',`+problemExamplesSQL+`,'odyssey',v.odyssey)),`+admittedOdysseyLevelSQL+` FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=$1`, j.SubmissionID).Scan(&raw, &level); err != nil {
 		return err
 	}
 	var p problems.Problem
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return err
 	}
-	if p.Odyssey != nil && level != nil {
-		if *level < 1 || *level > len(p.Odyssey.Levels) {
-			return errors.New("invalid admitted sample level")
-		}
-		p.Odyssey = &problems.Odyssey{Levels: p.Odyssey.Levels[:*level]}
+	if err := limitAdmittedOdyssey(&p, level); err != nil {
+		return err
 	}
 	samples := p.SampleCases()
 	if len(results) != len(samples) {

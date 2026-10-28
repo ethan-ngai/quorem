@@ -1,6 +1,5 @@
 import { sha256 } from "../../sha256";
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
-import { randomUUID } from "../../randomUUID";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import type { DevelopmentIdentity, ProblemVersion, Submission, Workspace } from "@quorem/contracts";
@@ -17,6 +16,11 @@ import {
   type RunSnapshot,
 } from "./customCases";
 import { submissionStorageKey } from "./editorSettings";
+import {
+  clearPendingExecution,
+  pendingExecution,
+  type PendingExecution,
+} from "../execution/pendingExecution";
 import type { PythonEditorHandle } from "./PythonEditor";
 
 function errorMessage(error: unknown) {
@@ -58,7 +62,7 @@ export function useSubmission({
     value: RunSnapshot;
   }>();
   const admissionLock = useRef(false);
-  const pendingRequest = useRef<{ fingerprint: string; key: string } | undefined>(undefined);
+  const pendingRequest = useRef<PendingExecution | undefined>(undefined);
   const scope = workspace ? `${identity}:${workspace.id}` : "";
   const activeSubmissionId = active?.scope === scope ? active.id : undefined;
   const scopeRef = useRef(scope);
@@ -221,30 +225,7 @@ export function useSubmission({
           JSON.stringify({ scope, kind, source, customCases, level }),
         );
         const recoveryKey = `${submissionStorageKey(identity, workspace.id)}:pending`;
-        try {
-          const stored = localStorage.getItem(recoveryKey);
-          if (stored) {
-            const recovered: unknown = JSON.parse(stored);
-            if (
-              recovered &&
-              typeof recovered === "object" &&
-              "fingerprint" in recovered &&
-              recovered.fingerprint === fingerprint &&
-              "key" in recovered &&
-              typeof recovered.key === "string"
-            )
-              pendingRequest.current = { fingerprint, key: recovered.key };
-          }
-        } catch {
-          /* Browser storage may be unavailable; the current tab retains its retry key. */
-        }
-        if (pendingRequest.current?.fingerprint !== fingerprint)
-          pendingRequest.current = { fingerprint, key: randomUUID() };
-        try {
-          localStorage.setItem(recoveryKey, JSON.stringify(pendingRequest.current));
-        } catch {
-          /* Execution remains available without browser storage. */
-        }
+        pendingRequest.current = pendingExecution(recoveryKey, fingerprint, pendingRequest.current);
         const admission = await createSubmission(
           identity,
           workspace.id,
@@ -260,7 +241,6 @@ export function useSubmission({
             snapshot ? { scope, submissionId: admission.id, value: snapshot } : undefined,
           );
         }
-        pendingRequest.current = undefined;
         try {
           const previousId = localStorage.getItem(submissionStorageKey(identity, workspace.id));
           if (previousId && previousId !== admission.id)
@@ -268,7 +248,7 @@ export function useSubmission({
               `${submissionStorageKey(identity, workspace.id)}:snapshot:${previousId}`,
             );
           localStorage.setItem(submissionStorageKey(identity, workspace.id), admission.id);
-          localStorage.removeItem(recoveryKey);
+          clearPendingExecution(recoveryKey, pendingRequest.current.key);
           if (snapshot)
             localStorage.setItem(
               `${submissionStorageKey(identity, workspace.id)}:snapshot:${admission.id}`,
@@ -277,6 +257,7 @@ export function useSubmission({
         } catch {
           /* The live result still has an authoritative submission ID. */
         }
+        pendingRequest.current = undefined;
         return scopeRef.current === scope;
       } catch (cause) {
         if (scopeRef.current === scope) setError(errorMessage(cause));

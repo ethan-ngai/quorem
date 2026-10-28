@@ -1,5 +1,11 @@
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
+import { sha256 } from "../../sha256";
+import {
+  clearPendingExecution,
+  pendingExecution,
+  type PendingExecution,
+} from "../execution/pendingExecution";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { LockKeyhole } from "lucide-react";
 import { InterviewAlerts } from "./InterviewAlerts";
@@ -21,7 +27,7 @@ import { languageFileNames, type EditorLanguage } from "../editor/editorLanguage
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { useErrorNotification } from "../../ui/Notifications";
-import { interviewRequest } from "./api";
+import { InterviewError, interviewRequest } from "./api";
 import { createCollaboration, type CollaborationStatus } from "./collaboration";
 import { QuestionSetup } from "./QuestionSetup";
 import type { DevelopmentIdentity } from "@quorem/contracts";
@@ -127,6 +133,7 @@ function InterviewPad({
   const preferences = useLocalEditorPreferences();
   const queryClient = useQueryClient();
   const editor = useRef<PythonEditorHandle>(null);
+  const pendingRequest = useRef<PendingExecution | undefined>(undefined);
   const [status, setStatus] = useState<CollaborationStatus>("connecting");
   useEffect(() => {
     const notification = `interview-connection:${id}`;
@@ -254,12 +261,26 @@ function InterviewPad({
           cause instanceof Error ? cause.message : "Check the custom cases.",
         );
       }
+      const recoveryKey = `quorem.interview-execution.v1.${id}`;
+      const sourceHash = await sha256(editor.current?.getSource() ?? initial.document.source);
+      const command = {
+        kind,
+        customCases,
+        level: snapshot.question.progress?.level ?? 1,
+        questionEpoch: initial.questionEpoch,
+        documentEpoch: initial.document.epoch,
+        sourceHash,
+      };
+      const fingerprint = await sha256(JSON.stringify(command));
+      pendingRequest.current = pendingExecution(recoveryKey, fingerprint, pendingRequest.current);
       const submission = await interviewRequest<Submission>(
         `/v1/interviews/${id}/submissions`,
         "POST",
-        { kind, customCases },
-        randomUUID(),
+        command,
+        pendingRequest.current.key,
       );
+      clearPendingExecution(recoveryKey, pendingRequest.current.key);
+      pendingRequest.current = undefined;
       setRunSnapshot(
         kind === "run"
           ? {
@@ -284,6 +305,8 @@ function InterviewPad({
       queryClient.setQueryData(["interview-result", id, submission.id, resultAccess], submission);
       await queryClient.invalidateQueries({ queryKey: ["interview", id] });
     } catch (cause) {
+      if (cause instanceof InterviewError && cause.code === "stage_changed")
+        await queryClient.invalidateQueries({ queryKey: ["interview", id] });
       setError(userFacingErrorMessage(cause, "Could not run code. Try again."));
     } finally {
       setAdmitting(false);
