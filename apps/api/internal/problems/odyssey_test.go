@@ -76,6 +76,14 @@ func TestOdysseyCallValidationAndHeterogeneousResults(t *testing.T) {
 		t.Fatal("undeclared method accepted")
 	}
 }
+func TestOdysseyRequiresPrimarySignatureFromFirstStage(t *testing.T) {
+	c := odysseyContent(t)
+	c.Problem.Signature.MethodName = "different"
+	if err := ValidateQuestionPublication(c); err == nil {
+		t.Fatal("published primary signature differs from first stage")
+	}
+}
+
 func TestOdysseyVoidMethods(t *testing.T) {
 	p := Problem{Odyssey: &Odyssey{Levels: []OdysseyLevel{{Methods: []Signature{{ClassName: "Solution", MethodName: "clear", ReturnType: "void"}}}}}}
 	c := Case{Args: []json.RawMessage{}, Calls: []MethodCall{{MethodName: "clear", Args: []json.RawMessage{}, Expected: json.RawMessage("null")}}}

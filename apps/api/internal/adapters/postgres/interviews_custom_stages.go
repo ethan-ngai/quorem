@@ -1,8 +1,6 @@
 package postgres
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
@@ -21,18 +19,6 @@ func validateCustomInterviewStages(f *problems.Fixture, c *interviews.CustomQues
 	content := problems.QuestionContent{Problem: f.Problem, OdysseyHiddenCases: f.OdysseyHiddenCases, Attribution: f.Attribution}
 	if err := problems.ValidateQuestionDefinition(content, false); err != nil {
 		return err
-	}
-	primary, first := f.Problem.Signature, c.Odyssey.Levels[0].Methods[0]
-	if primary.Parameters == nil {
-		primary.Parameters = []problems.Parameter{}
-	}
-	if first.Parameters == nil {
-		first.Parameters = []problems.Parameter{}
-	}
-	primaryJSON, _ := json.Marshal(primary)
-	firstJSON, _ := json.Marshal(first)
-	if !bytes.Equal(primaryJSON, firstJSON) {
-		return fmt.Errorf("Primary signature must match the first stage method")
 	}
 	if len(c.PublicCases) == 0 || len(c.PublicCases) > 20 {
 		return fmt.Errorf("Provide 1-20 public tests")
