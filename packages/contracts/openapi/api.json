@@ -4881,9 +4881,6 @@
           "signature": {
             "$ref": "#/components/schemas/Signature"
           },
-          "starterSource": {
-            "type": "string"
-          },
           "publicCases": {
             "type": "array",
             "items": {
@@ -4917,7 +4914,6 @@
           "title",
           "statementMarkdown",
           "signature",
-          "starterSource",
           "publicCases",
           "privateCases"
         ],

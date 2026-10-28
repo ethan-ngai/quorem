@@ -131,7 +131,6 @@ func TestInterviewCustomQuestionsPersistPrivateLanguageImplementations(t *testin
 	ctx := authorContext("alice")
 	q := customInterviewQuestion()
 	q.Language = "java"
-	q.Custom.StarterSource = "class Solution { public long increment(long n) { return n + 1; } }"
 	v, err := s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Private Java interview", Question: q})
 	if err != nil {
 		t.Fatal(err)
@@ -141,7 +140,7 @@ func TestInterviewCustomQuestionsPersistPrivateLanguageImplementations(t *testin
 		t.Fatal(page, err)
 	}
 	p := page.Items[0]
-	if p.StarterSource == q.Custom.StarterSource || !strings.Contains(p.StarterSource, "class Solution:") {
+	if !strings.Contains(p.StarterSource, "class Solution:") {
 		t.Fatal("Python projection used selected Java source", p.StarterSource)
 	}
 	for _, language := range []string{"python", "java", "typescript", "ocaml"} {
@@ -155,7 +154,7 @@ func TestInterviewCustomQuestionsPersistPrivateLanguageImplementations(t *testin
 		if impl.RuntimeRevision != runtime.Revision || impl.HarnessRevision != runtime.Harness || impl.StarterSource == "" {
 			t.Fatal("wrong private implementation", language, impl)
 		}
-		if language == "java" && (impl.StarterSource == q.Custom.StarterSource || !strings.Contains(impl.StarterSource, "increment")) {
+		if language == "java" && !strings.Contains(impl.StarterSource, "increment") {
 			t.Fatal("selected source lost")
 		}
 		if _, err = s.CreateWorkspace(ctx, "alice", p.ID, language); err != nil {
@@ -165,7 +164,7 @@ func TestInterviewCustomQuestionsPersistPrivateLanguageImplementations(t *testin
 	if _, err = s.Problem(context.Background(), p.ID, true); errorCode(err) != "not_found" {
 		t.Fatal("custom interview global leak", err)
 	}
-	if v.Document.Source == q.Custom.StarterSource || !strings.Contains(v.Document.Source, "increment") {
+	if !strings.Contains(v.Document.Source, "increment") {
 		t.Fatal("interview source changed", v.Document.Source)
 	}
 	if _, err = s.CreateInterview(ctx, "alice", ID(), interviews.Create{Title: "Denied custom", Question: q}); errorCode(err) != "quota_exceeded" {

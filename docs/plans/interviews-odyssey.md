@@ -6,7 +6,7 @@ Ledger: [#115](https://github.com/ethan-ngai/quorem/issues/115).
 
 - Interviews are separate from competitive matches. Multiple interviewers and interviewees collaborate in one shared code document; all members edit/run. Interviewers manage questions, tests and membership.
 - Hosts require `interviews.host`; invited accounts and guests do not. Guest credentials are interview-scoped. Sessions persist for resumption.
-- Select a catalog question or privately define starter code, method contracts and tests. Custom interview content never enters the public catalog.
+- Select a catalog question or privately define method contracts and tests. Starters are generated from the methods; custom interview content remains in the host's private library.
 - Odyssey is an independent question mode usable in solo practice and interviews. All users can use Odyssey in solo practice; interview participants inherit the host's session access.
 - Only initial starter code is supplied. Later levels specify APIs; candidates write new methods/stubs without replacing earlier source.
 - Stateful tests contain ordered calls sharing one object; independent cases start fresh. Preserve existing language/runtime isolation.

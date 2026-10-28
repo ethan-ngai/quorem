@@ -1427,7 +1427,6 @@ export interface components {
             title: string;
             statementMarkdown: string;
             signature: components["schemas"]["Signature"];
-            starterSource: string;
             publicCases: components["schemas"]["CustomCase"][];
             privateCases: components["schemas"]["CustomCase"][];
             odyssey?: components["schemas"]["Odyssey"];

@@ -143,7 +143,6 @@ export function QuestionSetup({
             custom: {
               title: customTitle,
               statementMarkdown: statement,
-              starterSource: "",
               signature: stages[0]!.methods[0]!.signature,
               publicCases: staged.odyssey.levels[0]!.examples,
               privateCases: [],
@@ -173,7 +172,6 @@ export function QuestionSetup({
           custom: {
             title: customTitle,
             statementMarkdown: statement,
-            starterSource: "",
             signature,
             publicCases: parseCustomDrafts(publicCases, signature),
             privateCases: privateCases.length ? parseCustomDrafts(privateCases, signature) : [],

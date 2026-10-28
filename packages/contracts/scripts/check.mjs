@@ -87,8 +87,6 @@ const stagedPad = {
   title: "Private stages",
   statementMarkdown: "Implement each stage.",
   signature: authoredStages.problem.signature,
-  starterSource: authoredStages.implementations.find((item) => item.language === "python")
-    .starterSource,
   publicCases: authoredStages.problem.odyssey.levels[0].examples.map(({ args, calls }) => ({
     args,
     calls,
@@ -98,6 +96,7 @@ const stagedPad = {
   odysseyHiddenCases: authoredStages.odysseyHiddenCases,
 };
 assert(validateInterviewCustom(stagedPad), JSON.stringify(validateInterviewCustom.errors));
+assert(!validateInterviewCustom({ ...stagedPad, starterSource: "ignored" }));
 for (const missing of ["odyssey", "odysseyHiddenCases"]) {
   const invalid = { ...stagedPad };
   delete invalid[missing];

@@ -1996,9 +1996,6 @@
         "signature": {
           "$ref": "#/$defs/Signature"
         },
-        "starterSource": {
-          "type": "string"
-        },
         "publicCases": {
           "type": "array",
           "items": {
@@ -2028,14 +2025,7 @@
           }
         }
       },
-      "required": [
-        "title",
-        "statementMarkdown",
-        "signature",
-        "starterSource",
-        "publicCases",
-        "privateCases"
-      ],
+      "required": ["title", "statementMarkdown", "signature", "publicCases", "privateCases"],
       "additionalProperties": false,
       "dependentRequired": {
         "odyssey": ["odysseyHiddenCases"],

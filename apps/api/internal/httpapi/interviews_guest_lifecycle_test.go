@@ -71,7 +71,7 @@ func guestLifecycleStore(t *testing.T) *postgres.Store {
 }
 func guestLifecycleRoom(t *testing.T, s *postgres.Store) interviews.Snapshot {
 	t.Helper()
-	v, err := s.CreateInterview(context.Background(), "alice", postgres.ID(), interviews.Create{Title: "Guest lifecycle", Question: interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Increment", StatementMarkdown: "Add one.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, StarterSource: "class Solution:\n    def increment(self,n): return n+1\n", PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}}}})
+	v, err := s.CreateInterview(context.Background(), "alice", postgres.ID(), interviews.Create{Title: "Guest lifecycle", Question: interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Increment", StatementMarkdown: "Add one.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

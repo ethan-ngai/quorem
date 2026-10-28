@@ -19,7 +19,7 @@ func customStagedInterviewQuestion() interviews.QuestionInput {
 	take := problems.Signature{ClassName: "Solution", MethodName: "take", Parameters: []problems.Parameter{{Name: "amount", Type: "int"}}, ReturnType: "bool"}
 	first := problems.Case{Args: []json.RawMessage{}, Calls: []problems.MethodCall{{MethodName: "put", Args: []json.RawMessage{json.RawMessage(`3`)}, Expected: json.RawMessage(`null`)}, {MethodName: "total", Args: []json.RawMessage{}, Expected: json.RawMessage(`3`)}}}
 	second := problems.Case{Args: []json.RawMessage{}, Calls: []problems.MethodCall{{MethodName: "put", Args: []json.RawMessage{json.RawMessage(`8`)}, Expected: json.RawMessage(`null`)}, {MethodName: "take", Args: []json.RawMessage{json.RawMessage(`2`)}, Expected: json.RawMessage(`true`)}, {MethodName: "total", Args: []json.RawMessage{}, Expected: json.RawMessage(`6`)}}}
-	return interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Private staged counter", StatementMarkdown: "Build the counter across stages.", Signature: put, StarterSource: "class Solution:\n    def __init__(self): self.value = 0\n    def put(self, amount): self.value += amount\n    def total(self): return self.value\n", PublicCases: []problems.Case{first}, PrivateCases: []problems.Case{}, Odyssey: &problems.Odyssey{Levels: []problems.OdysseyLevel{{Title: "Accumulate", StatementMarkdown: "Implement put and total.", Methods: []problems.Signature{put, total}, Examples: []problems.ProblemExample{{Case: first}}}, {Title: "Withdraw", StatementMarkdown: "Add take without breaking previous methods.", Methods: []problems.Signature{take}, Examples: []problems.ProblemExample{{Case: second}}}}}, OdysseyHiddenCases: [][]problems.Case{{first}, {second}}}}
+	return interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Private staged counter", StatementMarkdown: "Build the counter across stages.", Signature: put, PublicCases: []problems.Case{first}, PrivateCases: []problems.Case{}, Odyssey: &problems.Odyssey{Levels: []problems.OdysseyLevel{{Title: "Accumulate", StatementMarkdown: "Implement put and total.", Methods: []problems.Signature{put, total}, Examples: []problems.ProblemExample{{Case: first}}}, {Title: "Withdraw", StatementMarkdown: "Add take without breaking previous methods.", Methods: []problems.Signature{take}, Examples: []problems.ProblemExample{{Case: second}}}}}, OdysseyHiddenCases: [][]problems.Case{{first}, {second}}}}
 }
 func cloneCustomStaged(q interviews.QuestionInput) interviews.QuestionInput {
 	data, _ := json.Marshal(q)
@@ -33,7 +33,7 @@ func TestPrivateCustomStagesValidateWithoutPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.ReferenceSource != "" || len(f.OdysseyHiddenCases) != 2 || len(f.Problem.Languages) != 4 || f.Problem.StarterSource == q.Custom.StarterSource {
+	if f.ReferenceSource != "" || len(f.OdysseyHiddenCases) != 2 || len(f.Problem.Languages) != 4 {
 		t.Fatal("private staged fixture", f)
 	}
 	for _, impl := range f.Problem.Languages {

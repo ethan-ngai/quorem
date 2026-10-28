@@ -365,7 +365,7 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 		return f, failure("invalid_input", 400, "Custom SQL interviews require a published SQL question")
 	}
 	c := q.Custom
-	f = problems.Fixture{Problem: problems.Problem{QuestionDefinition: problems.QuestionDefinition{ID: ID(), Slug: "interview-private", Version: "1", Title: strings.TrimSpace(c.Title), Difficulty: "easy", Tags: []string{}, StatementMarkdown: c.StatementMarkdown, Signature: c.Signature, Limits: execution.DefaultLimits(), Constraints: []problems.Constraint{}, Examples: []problems.ProblemExample{}}, StarterSource: c.StarterSource, RuntimeRevision: runtime.Revision}, HiddenCases: c.PrivateCases, HarnessRevision: runtime.Harness, Attribution: "Private interview"}
+	f = problems.Fixture{Problem: problems.Problem{QuestionDefinition: problems.QuestionDefinition{ID: ID(), Slug: "interview-private", Version: "1", Title: strings.TrimSpace(c.Title), Difficulty: "easy", Tags: []string{}, StatementMarkdown: c.StatementMarkdown, Signature: c.Signature, Limits: execution.DefaultLimits(), Constraints: []problems.Constraint{}, Examples: []problems.ProblemExample{}}, RuntimeRevision: runtime.Revision}, HiddenCases: c.PrivateCases, HarnessRevision: runtime.Harness, Attribution: "Private interview"}
 	if f.Problem.Signature.ClassName == "" {
 		f.Problem.Signature.ClassName = "Solution"
 	}

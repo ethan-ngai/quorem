@@ -74,8 +74,8 @@ func TestInterviewWebSocketCrossInstanceRecovery(t *testing.T) {
 			if _, err := store.Pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'alice','interviews.host','manual','ws','test','test'),(gen_random_uuid(),'alice','questions.custom','manual','ws','test','test')`); err != nil {
 				t.Fatal(err)
 			}
-			question := interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Increment", StatementMarkdown: "Increment n.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, StarterSource: "", PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}, PrivateCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`987654`)}, Expected: json.RawMessage(`987655`)}}}}
-			question.Custom.StarterSource = "class Solution:\n    def increment(self, n):\n        pass\n"
+			question := interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Increment", StatementMarkdown: "Increment n.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}, PrivateCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`987654`)}, Expected: json.RawMessage(`987655`)}}}}
+
 			pad, err := store.CreateInterview(ctx, "alice", postgres.ID(), interviews.Create{Title: "WS test", Question: question})
 			if err != nil {
 				t.Fatal(err)
@@ -318,7 +318,7 @@ func TestInterviewSocketReadsContinueWhileDocumentWriteWaits(t *testing.T) {
 	if _, err := store.Pool.Exec(ctx, `INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES(gen_random_uuid(),'alice','interviews.host','manual','concurrent','test','test'),(gen_random_uuid(),'alice','questions.custom','manual','concurrent','test','test')`); err != nil {
 		t.Fatal(err)
 	}
-	q := interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Increment", StatementMarkdown: "Increment n.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, StarterSource: "class Solution:\n    def increment(self, n):\n        pass\n", PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}, PrivateCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`2`)}, Expected: json.RawMessage(`3`)}}}}
+	q := interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Increment", StatementMarkdown: "Increment n.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}, PrivateCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`2`)}, Expected: json.RawMessage(`3`)}}}}
 	pad, err := store.CreateInterview(ctx, "alice", postgres.ID(), interviews.Create{Title: "Concurrent socket", Question: q})
 	if err != nil {
 		t.Fatal(err)
