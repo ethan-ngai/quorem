@@ -329,7 +329,7 @@ func (s *Store) interviewQuestion(ctx context.Context, actor string, q interview
 	}
 	if q.Custom == nil {
 		var data []byte
-		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+` FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id::text=$1 AND p.current_version_id=selected.id AND (p.owner_id IS NULL OR p.owner_id=$2)`, q.ProblemVersionID, actor).Scan(&data)
+		err := s.Pool.QueryRow(ctx, `SELECT `+fixtureProjectionSQL("selected.id")+` FROM problem_versions selected JOIN problems p ON p.id=selected.problem_id WHERE selected.id=$1 AND p.current_version_id=selected.id AND (p.owner_id IS NULL OR p.owner_id=$2)`, uuidLookup(q.ProblemVersionID), actor).Scan(&data)
 		if err == pgx.ErrNoRows {
 			return f, failure("not_found", 404, "Question unavailable")
 		}
