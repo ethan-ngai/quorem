@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
 // CodeMirror positions count UTF-16 units, including surrogate pairs in emoji.
@@ -38,6 +40,9 @@ func ApplyChanges(source string, changes json.RawMessage) (string, error) {
 			if len(raw) == 0 || raw[0] != '"' || !validJSONStringUTF16(raw) || json.Unmarshal(raw, &line) != nil || strings.Contains(line, "\n") || !utf8.ValidString(line) {
 				return "", fmt.Errorf("invalid inserted text")
 			}
+			if strings.ContainsRune(line, 0) {
+				return "", fmt.Errorf("source cannot contain NUL characters")
+			}
 			lines = append(lines, line)
 		}
 		next = append(next, utf16.Encode([]rune(strings.Join(lines, "\n")))...)
@@ -62,6 +67,9 @@ func ApplyChanges(source string, changes json.RawMessage) (string, error) {
 	result := string(utf16.Decode(next))
 	if len(result) > MaxSourceBytes {
 		return "", fmt.Errorf("document too large")
+	}
+	if !execution.ValidSource(result) {
+		return "", fmt.Errorf("source cannot contain NUL characters")
 	}
 	return result, nil
 }

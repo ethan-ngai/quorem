@@ -18,7 +18,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 type Server struct {
@@ -309,7 +308,6 @@ func (s *Server) getWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, v)
 }
-func validSource(source string) bool { return utf8.ValidString(source) && len(source) <= 65536 }
 func validExecutionCases(kind string, cases []problems.Case) bool {
 	if cases == nil {
 		return true
@@ -330,7 +328,11 @@ func (s *Server) admit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := r.Header.Get("Idempotency-Key")
-	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || !validSource(body.Source) || (body.Kind != "run" && body.Kind != "submit") || !validExecutionCases(body.Kind, body.CustomCases) {
+	if !execution.ValidSource(body.Source) {
+		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters", Status: 400})
+		return
+	}
+	if key == "" || len(key) > 128 || !uuid.MatchString(body.WorkspaceID) || (body.Kind != "run" && body.Kind != "submit") || !validExecutionCases(body.Kind, body.CustomCases) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Message: "Invalid execution command", Status: 400})
 		return
 	}

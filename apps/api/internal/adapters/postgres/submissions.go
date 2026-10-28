@@ -7,12 +7,16 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
 	"time"
 )
 
 func Hash(data []byte) string { return application.Hash(data) }
 func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command, bodyHash string) (judging.Submission, error) {
+	if !execution.ValidSource(c.Source) {
+		return judging.Submission{}, failure("invalid_input", 400, "Source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters")
+	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return judging.Submission{}, err
