@@ -30,8 +30,16 @@ type memoryRepository struct {
 func (r *memoryRepository) LoadExecution(context.Context, execution.Job) (Spec, error) {
 	return Spec{}, nil
 }
-func (r *memoryRepository) ReconcileBackground(context.Context) error         { r.reconciles++; return nil }
-func (r *memoryRepository) ExpiredAttempts(context.Context) ([]string, error) { return r.expired, nil }
+func (r *memoryRepository) ReconcileBackground(context.Context) error { r.reconciles++; return nil }
+func (r *memoryRepository) NextExpiredAttempt(context.Context, bool, string) (string, error) {
+	if len(r.expired) > 0 {
+		return r.expired[0], nil
+	}
+	return "", nil
+}
+func (r *memoryRepository) ClaimAfterTeardown(ctx context.Context, _ bool, _, _ string) (execution.Job, error) {
+	return r.Claim(ctx)
+}
 func (r *memoryRepository) Claim(context.Context) (execution.Job, error) {
 	r.claims++
 	if len(r.jobs) > 0 {
@@ -88,7 +96,7 @@ func (e *fakeEngine) Execute(ctx context.Context, j execution.Job) (execution.Co
 	}
 	return execution.Completion{AttemptID: j.AttemptID}, e.err
 }
-func (e *fakeEngine) TeardownAttempt(context.Context, string) error { return e.err }
+func (e *fakeEngine) TeardownAttempt(context.Context, string, string) error { return e.err }
 func TestExpiredSandboxMustBeReapedBeforeClaim(t *testing.T) {
 	repo := &memoryRepository{expired: []string{"old-attempt"}}
 	engine := &fakeEngine{err: errors.New("teardown failed")}

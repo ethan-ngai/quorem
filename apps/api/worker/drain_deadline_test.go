@@ -92,7 +92,7 @@ type blockedClaimRepository struct {
 	entered chan struct{}
 }
 
-func (r *blockedClaimRepository) Claim(ctx context.Context) (execution.Job, error) {
+func (r *blockedClaimRepository) ClaimAfterTeardown(ctx context.Context, _ bool, _, _ string) (execution.Job, error) {
 	select {
 	case r.entered <- struct{}{}:
 	default:
@@ -126,8 +126,8 @@ func TestClaimDeadlineDoesNotHideTeardownFailure(t *testing.T) {
 
 type expiredCutoffRepository struct{ *drainRepository }
 
-func (r *expiredCutoffRepository) ExpiredAttempts(context.Context) ([]string, error) {
-	return []string{"expired-attempt"}, nil
+func (r *expiredCutoffRepository) NextExpiredAttempt(context.Context, bool, string) (string, error) {
+	return "expired-attempt", nil
 }
 
 type cutoffFailureReaper struct{ entered chan struct{} }
@@ -135,7 +135,7 @@ type cutoffFailureReaper struct{ entered chan struct{} }
 func (e *cutoffFailureReaper) Execute(context.Context, execution.Job) (execution.Completion, error) {
 	return execution.Completion{}, errors.New("unexpected execution")
 }
-func (e *cutoffFailureReaper) TeardownAttempt(ctx context.Context, _ string) error {
+func (e *cutoffFailureReaper) TeardownAttempt(ctx context.Context, _, _ string) error {
 	close(e.entered)
 	<-ctx.Done()
 	return ErrTeardown

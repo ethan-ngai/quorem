@@ -176,14 +176,14 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, err := store.Claim(ctx)
+	old, err := store.ClaimAfterTeardown(ctx, false, "", "test-scope")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = store.Pool.Exec(ctx, "UPDATE execution_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1", old.JobID); err != nil {
 		t.Fatal(err)
 	}
-	fresh, err := store.Claim(ctx)
+	fresh, err := store.ClaimAfterTeardown(ctx, false, old.AttemptID, "test-scope")
 	if err != nil || fresh.AttemptID == old.AttemptID {
 		t.Fatal(fresh, err)
 	}
@@ -292,16 +292,18 @@ func TestCancellationIdempotencyAndExpiredCrashBudget(t *testing.T) {
 	if _, err = store.CancelWithKey(ctx, "alice", next.ID, "cancel"); errorCode(err) != "idempotency_conflict" {
 		t.Fatal(err)
 	}
+	var reaped string
 	for i := 0; i < 3; i++ {
-		job, e := store.Claim(ctx)
+		job, e := store.ClaimAfterTeardown(ctx, false, reaped, "test-scope")
 		if e != nil || job.JobID == "" {
 			t.Fatal(job, e)
 		}
 		if _, e = store.Pool.Exec(ctx, "UPDATE execution_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1", job.JobID); e != nil {
 			t.Fatal(e)
 		}
+		reaped = job.AttemptID
 	}
-	job, err := store.Claim(ctx)
+	job, err := store.ClaimAfterTeardown(ctx, false, reaped, "test-scope")
 	if err != nil || job.JobID != "" {
 		t.Fatal(job, err)
 	}

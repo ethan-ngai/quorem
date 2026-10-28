@@ -33,15 +33,15 @@ var ErrTeardown = errors.New("sandbox teardown unconfirmed")
 var ErrYield = errors.New("execution checkpointed")
 
 type attemptReaper interface {
-	TeardownAttempt(context.Context, string) error
+	TeardownAttempt(context.Context, string, string) error
 }
 
 // Repository owns atomic claims, leases, fencing, and durable completion.
 type Repository interface {
 	LoadExecution(context.Context, execution.Job) (Spec, error)
 	ReconcileBackground(context.Context) error
-	ExpiredAttempts(context.Context) ([]string, error)
-	Claim(context.Context) (execution.Job, error)
+	NextExpiredAttempt(context.Context, bool, string) (string, error)
+	ClaimAfterTeardown(context.Context, bool, string, string) (execution.Job, error)
 	Lease(context.Context, execution.Job, bool) (bool, error)
 	Complete(context.Context, execution.Job, execution.Completion) error
 }
@@ -193,7 +193,12 @@ func (s *Service) Run(ctx context.Context, engine execution.ExecutionEngine) err
 			retry()
 			continue
 		}
-		delay, present, err := s.nextExecutionDeadline(ctx, deadlines)
+		scope, err := sandboxScope(ctx, engine)
+		if err != nil {
+			retry()
+			continue
+		}
+		delay, present, err := s.nextExecutionDeadline(ctx, deadlines, scope)
 		if err != nil {
 			log.Print("Execution deadline unavailable")
 			retry()
@@ -246,37 +251,38 @@ func claimDeadlineReached(err error, claimCtx, executeCtx context.Context) bool 
 	return claimCtx.Err() != nil && executeCtx.Err() == nil && errors.Is(err, claimCtx.Err())
 }
 
+func sandboxScope(ctx context.Context, engine execution.ExecutionEngine) (string, error) {
+	if scoped, ok := engine.(interface {
+		SandboxScope(context.Context) (string, error)
+	}); ok {
+		return scoped.SandboxScope(ctx)
+	}
+	return "", nil
+}
+
 func (s *Service) claimOnceWithContext(claimCtx, executeCtx context.Context, engine execution.ExecutionEngine) (bool, error) {
-	attempts, e := s.store.ExpiredAttempts(claimCtx)
+	scope, e := sandboxScope(claimCtx, engine)
+	if e != nil {
+		return false, e
+	}
+	attempt, e := s.store.NextExpiredAttempt(claimCtx, s.resumable, scope)
 	if e != nil {
 		if claimDeadlineReached(e, claimCtx, executeCtx) {
 			return false, nil
 		}
 		return false, e
 	}
-	for _, attempt := range attempts {
+	if attempt != "" {
 		reaper, ok := engine.(attemptReaper)
 		if !ok {
 			return false, ErrTeardown
 		}
-		if err := reaper.TeardownAttempt(claimCtx, attempt); err != nil {
+		if err := reaper.TeardownAttempt(claimCtx, attempt, scope); err != nil {
 			return false, err
 		}
 	}
 	claimStarted := time.Now()
-	var job execution.Job
-	var err error
-	if s.resumable {
-		claimer, ok := s.store.(interface {
-			ClaimResumable(context.Context) (execution.Job, error)
-		})
-		if !ok {
-			return false, errors.New("resumable claims unavailable")
-		}
-		job, err = claimer.ClaimResumable(claimCtx)
-	} else {
-		job, err = s.store.Claim(claimCtx)
-	}
+	job, err := s.store.ClaimAfterTeardown(claimCtx, s.resumable, attempt, scope)
 	if err != nil {
 		if claimDeadlineReached(err, claimCtx, executeCtx) {
 			return false, nil

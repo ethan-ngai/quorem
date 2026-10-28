@@ -22,8 +22,13 @@ type drainRepository struct {
 func (r *drainRepository) LoadExecution(context.Context, execution.Job) (Spec, error) {
 	return Spec{}, nil
 }
-func (r *drainRepository) ReconcileBackground(context.Context) error         { return nil }
-func (r *drainRepository) ExpiredAttempts(context.Context) ([]string, error) { return nil, nil }
+func (r *drainRepository) ReconcileBackground(context.Context) error { return nil }
+func (r *drainRepository) NextExpiredAttempt(context.Context, bool, string) (string, error) {
+	return "", nil
+}
+func (r *drainRepository) ClaimAfterTeardown(ctx context.Context, _ bool, _, _ string) (execution.Job, error) {
+	return r.Claim(ctx)
+}
 func (r *drainRepository) Claim(context.Context) (execution.Job, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

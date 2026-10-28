@@ -73,7 +73,7 @@ func TestExecutionCheckpointYieldFenceAndCompletion(t *testing.T) {
 	if skipped, err := s.Claim(ctx); err != nil || skipped.JobID != "" {
 		t.Fatal("non-resumable judge claimed checkpoint", skipped, err)
 	}
-	if _, present, err := s.NextRunnableExecutionDeadline(ctx, false); err != nil || present {
+	if _, present, err := s.NextRunnableExecutionDeadline(ctx, false, ""); err != nil || present {
 		t.Fatal("checkpoint deadline visible to disabled judge", present, err)
 	}
 	bobWorkspace, err := s.CreateWorkspace(ctx, "bob", p.ID, "python")
