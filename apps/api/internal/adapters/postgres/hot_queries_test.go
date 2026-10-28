@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
 	"os"
 	"strings"
@@ -14,6 +15,15 @@ func TestIndexedUUIDLookupsPreserveNotFound(t *testing.T) {
 	v := createInterviewTest(t, s)
 	ctx := context.Background()
 	for _, bad := range []string{"", "not-a-uuid", strings.ReplaceAll(v.ID, "-", "")} {
+		if _, err := s.Admit(ctx, "alice", "bad", judging.Command{WorkspaceID: bad, Kind: "run"}, "bad"); errorCode(err) != "not_found" {
+			t.Fatalf("admission malformed lookup: %q %v", bad, err)
+		}
+		if _, err := s.Cancel(ctx, "alice", bad); errorCode(err) != "not_found" {
+			t.Fatalf("cancellation malformed lookup: %q %v", bad, err)
+		}
+		if _, err := s.Match(ctx, "alice", bad); errorCode(err) != "not_found" {
+			t.Fatalf("match malformed lookup: %q %v", bad, err)
+		}
 		if _, err := s.Interview(ctx, "alice", bad); errorCode(err) != "not_found" {
 			t.Fatalf("snapshot malformed lookup: %q %v", bad, err)
 		}
