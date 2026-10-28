@@ -7,7 +7,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/interviews"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
@@ -351,5 +353,37 @@ func TestLosslessDraftRejectsLegacyWritesAndAllowsDelete(t *testing.T) {
 	}
 	if _, err = s.Pool.Exec(ctx, `DELETE FROM question_drafts WHERE id=$1`, draft.ID); err != nil {
 		t.Fatalf("legacy delete: %v", err)
+	}
+}
+
+func TestDraftUpdateConflictWithSingleConnection(t *testing.T) {
+	t.Setenv("QUOREM_DATABASE_MAX_CONNS", "1")
+	s := testStore(t)
+	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
+	if _, err := s.Pool.Exec(ctx, `UPDATE users SET role='admin' WHERE id='alice'`); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile("../../../../../fixtures/odyssey/balance-ledger.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var content problems.QuestionContent
+	if err = json.Unmarshal(data, &content); err != nil {
+		t.Fatal(err)
+	}
+	draft, err := s.CreateQuestionDraft(ctx, "alice", content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ id, revision, want string }{
+		{draft.ID, "2", "revision_conflict"},
+		{ID(), "1", "not_found"},
+	} {
+		bounded, cancel := context.WithTimeout(ctx, 2*time.Second)
+		_, err = s.UpdateQuestionDraft(bounded, "alice", tc.id, tc.revision, draft.Content)
+		cancel()
+		if errorCode(err) != tc.want {
+			t.Fatalf("%s: expected %s, got %v", tc.id, tc.want, err)
+		}
 	}
 }

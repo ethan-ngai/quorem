@@ -122,7 +122,7 @@ func (s *Store) UpdateQuestionDraft(ctx context.Context, actor, id, revision str
 	d, err := scanQuestionDraft(tx.QueryRow(ctx, "UPDATE question_drafts SET content=$1,lossless_content=$5,revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id::text=$3 AND revision::text=$4 AND published_version_id IS NULL AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) RETURNING "+draftColumns, safe, actor, id, revision, lossless))
 	var missing *application.Error
 	if errors.As(err, &missing) && missing.Code == "not_found" {
-		if _, e := s.QuestionDraft(ctx, id); e != nil {
+		if _, e := questionDraft(ctx, tx, id); e != nil {
 			return d, e
 		}
 		return d, failure("revision_conflict", 409, "Draft changed or already published; reload it")
