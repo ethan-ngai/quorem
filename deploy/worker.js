@@ -53,7 +53,8 @@ async function caseRequest(request, env, attempt) {
     typeof env.JUDGE_CONTROL_TOKEN !== "string" ||
     env.JUDGE_CONTROL_TOKEN.length < 32 ||
     request.headers.get("Authorization") !== `Bearer ${env.JUDGE_CONTROL_TOKEN}` ||
-    (!(request.method === "GET" && attempt === "ready") && !["POST", "DELETE"].includes(request.method))
+    (!(request.method === "GET" && attempt === "ready") &&
+      !["POST", "DELETE"].includes(request.method))
   )
     return new Response(null, { status: 404 });
   if (!env.CASES) return new Response(null, { status: 503 });
@@ -159,7 +160,8 @@ const ingress = {
       else message.retry({ delaySeconds: 30 });
     }
     if (!valid.length) return;
-    let empty = false;
+    let safeToAck = false;
+    let needsContinuation = false;
     let reservationToken;
     let preferred;
     try {
@@ -178,7 +180,8 @@ const ingress = {
         locationHint: env.APP_LOCATION_HINT || "enam",
       }).fetch("https://judge/wake", { method: "POST" });
       const body = await response.json();
-      empty = response.status === 200 && body.queued === 0 && body.running === 0;
+      safeToAck = response.status === 200 && body.queued === 0 && body.running === 0;
+      needsContinuation = response.status === 202;
     } catch {
       /* Durable messages retry when startup, drain or dependencies are unavailable. */
     } finally {
@@ -187,9 +190,18 @@ const ingress = {
           .fetch("https://judge/release", { method: "POST", body: reservationToken })
           .catch(() => {});
     }
-    // One quiet-grace drain covers every pre-admission wake already present in this batch.
+    if (needsContinuation) {
+      try {
+        // Publish before acknowledging; duplicate wakeups are fenced by the database.
+        await env.JUDGE_WAKE.send(notification(valid[0].body), { delaySeconds: 2 });
+        safeToAck = true;
+      } catch {
+        // Preserve the original wake if the continuation was not durably accepted.
+      }
+    }
+    // A quiet-grace drain or a durable continuation covers every wake in this batch.
     for (const message of valid) {
-      if (empty) message.ack();
+      if (safeToAck) message.ack();
       else message.retry({ delaySeconds: Math.min(30, 2 ** Math.min(message.attempts ?? 1, 5)) });
     }
   },
