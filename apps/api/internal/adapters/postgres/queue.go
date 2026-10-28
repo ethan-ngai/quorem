@@ -129,6 +129,11 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if s.losslessResults {
+		if _, err = tx.Exec(ctx, "SELECT set_config('quorem.lossless_result_write','v1',true)"); err != nil {
+			return err
+		}
+	}
 	var matchID string
 	err = tx.QueryRow(ctx, "SELECT COALESCE(s.match_id::text,'') FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND s.id=$2", uuidLookup(j.JobID), uuidLookup(j.SubmissionID)).Scan(&matchID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -221,13 +226,19 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 				return errors.New("invalid private case details")
 			}
 		}
-		private, _ := json.Marshal(c.PrivateCaseResults)
-		if _, err = tx.Exec(ctx, `UPDATE interview_execution SET private_results=$2 WHERE submission_id=$1`, j.SubmissionID, private); err != nil {
+		private, privatePayload, e := encodePublicResults(c.PrivateCaseResults, s.losslessResults)
+		if e != nil {
+			return e
+		}
+		if _, err = tx.Exec(ctx, `UPDATE interview_execution SET private_results=$2,private_results_payload=$3 WHERE submission_id=$1`, j.SubmissionID, private, privatePayload); err != nil {
 			return err
 		}
 	}
-	encoded, _ := json.Marshal(result)
-	if _, err = tx.Exec(ctx, "UPDATE submissions SET state=$2,result=$3,updated_at=clock_timestamp() WHERE id=$1", j.SubmissionID, state, encoded); err != nil {
+	encoded, payload, err := encodeSubmissionResult(result, s.losslessResults)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, "UPDATE submissions SET state=$2,result=$3,result_payload=$4,updated_at=clock_timestamp() WHERE id=$1", j.SubmissionID, state, encoded, payload); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET finished=true,lease_until=NULL WHERE id=$1", j.JobID); err != nil {

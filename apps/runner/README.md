@@ -103,3 +103,5 @@ streamed in 2.02 s
 with 109.5 MiB sampled peak Go heap; hosted capacity remains unverified. Existing final result JSONB storage can independently
 reject NUL in public or interview-visible output; checkpoint bytea storage
 preserves NUL, but does not fix that existing final-result boundary.
+
+`QUOREM_LOSSLESS_RESULT_WRITES` defaults to `false`. Enable it only after all API readers support opaque execution-result payloads and older readers have drained. Turning it off prevents new byte-payload writes, but older API versions still cannot read payloads already written. Drain flag-enabled judges and follow the byte-payload count checks in `docs/implementation/database.md` before rolling back API readers. This switch is independent of resumable execution.

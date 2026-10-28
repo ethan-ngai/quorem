@@ -1,6 +1,9 @@
 package postgres
 
-import "context"
+import (
+	"context"
+	"os"
+)
 
 // OpenRunner needs only execution persistence; invitation/auth secrets belong to the API.
 func OpenRunner(ctx context.Context, url string) (*Store, error) {
@@ -8,5 +11,5 @@ func OpenRunner(ctx context.Context, url string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{Pool: pool}, nil
+	return &Store{Pool: pool, losslessResults: os.Getenv("QUOREM_LOSSLESS_RESULT_WRITES") == "true"}, nil
 }
