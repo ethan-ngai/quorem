@@ -205,6 +205,12 @@ func ValidateQuestionDefinition(c QuestionContent, requireHidden bool) error {
 		return err
 	}
 	p := c.Problem
+	if p.Odyssey == nil && len(c.OdysseyHiddenCases) != 0 {
+		return fmt.Errorf("staged tests require stages")
+	}
+	if p.Odyssey != nil && (len(p.Examples) != 0 || len(c.HiddenCases) != 0) {
+		return fmt.Errorf("put staged examples and tests in their stages")
+	}
 	if p.Odyssey != nil && p.SQL == nil {
 		if err := ValidateOdyssey(c); err != nil {
 			return err

@@ -144,8 +144,6 @@ export function QuestionSetup({
               title: customTitle,
               statementMarkdown: statement,
               signature: stages[0]!.methods[0]!.signature,
-              publicCases: staged.odyssey.levels[0]!.examples,
-              privateCases: [],
               ...staged,
             },
           },
@@ -174,7 +172,9 @@ export function QuestionSetup({
             statementMarkdown: statement,
             signature,
             publicCases: parseCustomDrafts(publicCases, signature),
-            privateCases: privateCases.length ? parseCustomDrafts(privateCases, signature) : [],
+            ...(privateCases.length
+              ? { privateCases: parseCustomDrafts(privateCases, signature) }
+              : {}),
           },
         },
         title.trim() || customTitle,

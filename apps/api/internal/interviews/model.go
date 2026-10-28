@@ -14,8 +14,8 @@ type CustomQuestion struct {
 	Title              string             `json:"title"`
 	StatementMarkdown  string             `json:"statementMarkdown"`
 	Signature          problems.Signature `json:"signature"`
-	PublicCases        []problems.Case    `json:"publicCases"`
-	PrivateCases       []problems.Case    `json:"privateCases"`
+	PublicCases        []problems.Case    `json:"publicCases,omitempty"`
+	PrivateCases       []problems.Case    `json:"privateCases,omitempty"`
 }
 type ExecutionCommand struct {
 	Kind          string          `json:"kind"`

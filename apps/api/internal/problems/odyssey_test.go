@@ -195,3 +195,24 @@ func TestOdysseyPrimaryConstraintsApplyToPublishedAndCustomCalls(t *testing.T) {
 		t.Fatal("published primary call bypassed constraint")
 	}
 }
+
+func TestStagedQuestionsRejectIgnoredTopLevelCases(t *testing.T) {
+	for _, duplicate := range []string{"examples", "hidden"} {
+		t.Run(duplicate, func(t *testing.T) {
+			content := odysseyContent(t)
+			if duplicate == "examples" {
+				content.Problem.Examples = content.Problem.Odyssey.Levels[0].Examples
+			} else {
+				content.HiddenCases = content.OdysseyHiddenCases[0]
+			}
+			if err := ValidateQuestionPublication(content); err == nil {
+				t.Fatal("accepted ignored top-level staged cases")
+			}
+		})
+	}
+	content := odysseyContent(t)
+	content.Problem.Odyssey = nil
+	if err := ValidateQuestionDefinition(content, false); err == nil {
+		t.Fatal("accepted staged suites without stages")
+	}
+}

@@ -22,7 +22,7 @@ func TestHTTPCreatePrivateStagedInterviewWithoutPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := interviews.Create{Title: "Private staged pad", Question: interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Answer", StatementMarkdown: "Return one.", Signature: method, PublicCases: []problems.Case{testCase}, PrivateCases: []problems.Case{}, Odyssey: &problems.Odyssey{Levels: []problems.OdysseyLevel{{Title: "Answer", StatementMarkdown: "Implement answer.", Methods: []problems.Signature{method}, Examples: []problems.ProblemExample{{Case: testCase}}}}}, OdysseyHiddenCases: [][]problems.Case{{testCase}}}}}
+	input := interviews.Create{Title: "Private staged pad", Question: interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Answer", StatementMarkdown: "Return one.", Signature: method, Odyssey: &problems.Odyssey{Levels: []problems.OdysseyLevel{{Title: "Answer", StatementMarkdown: "Implement answer.", Methods: []problems.Signature{method}, Examples: []problems.ProblemExample{{Case: testCase}}}}}, OdysseyHiddenCases: [][]problems.Case{{testCase}}}}}
 	body, err := json.Marshal(input)
 	if err != nil {
 		t.Fatal(err)

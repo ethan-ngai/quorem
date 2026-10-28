@@ -2025,7 +2025,41 @@
           }
         }
       },
-      "required": ["title", "statementMarkdown", "signature", "publicCases", "privateCases"],
+      "required": ["title", "statementMarkdown", "signature"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "odyssey": {}
+            },
+            "required": ["odyssey"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "publicCases": {}
+                  },
+                  "required": ["publicCases"]
+                },
+                {
+                  "properties": {
+                    "privateCases": {}
+                  },
+                  "required": ["privateCases"]
+                }
+              ]
+            }
+          },
+          "else": {
+            "properties": {
+              "publicCases": {}
+            },
+            "required": ["publicCases"]
+          }
+        }
+      ],
       "additionalProperties": false,
       "dependentRequired": {
         "odyssey": ["odysseyHiddenCases"],
