@@ -100,3 +100,13 @@ export function validateConstraints(
     if (!valid) throw new Error(`Constraint: ${formatConstraint(constraint)}.`);
   }
 }
+
+/** Odyssey constraints apply only to calls of the primary method. */
+export function validateSequenceCallConstraints(
+  primary: Signature,
+  methodName: string,
+  args: unknown[],
+  constraints: Constraint[],
+) {
+  if (methodName === primary.methodName) validateConstraints(primary, args, constraints);
+}

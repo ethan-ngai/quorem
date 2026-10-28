@@ -51,6 +51,7 @@ describe("typed custom cases", () => {
   it("validates stateful custom calls against unlocked methods", () => {
     const problem = {
       signature,
+      constraints: [],
       examples: [],
       odyssey: {
         levels: [{ title: "Step", statementMarkdown: "", methods: [signature], examples: [] }],
@@ -66,6 +67,48 @@ describe("typed custom cases", () => {
     expect(() =>
       parseProblemDrafts([{ ...sequence, args: ['[{"methodName":"locked","args":[]}]'] }], problem),
     ).toThrow("method and arguments");
+  });
+  it("enforces primary-method constraints in stateful runs while leaving other methods independent", () => {
+    const primary: Signature = {
+      className: "Solution",
+      methodName: "add",
+      parameters: [{ name: "text", type: "str" }],
+      returnType: "int",
+    };
+    const later: Signature = { ...primary, methodName: "other" };
+    const problem = {
+      signature: primary,
+      constraints: [{ kind: "range", target: { parameter: "text", projection: "length" }, max: 1 }],
+      examples: [],
+      odyssey: {
+        levels: [
+          { title: "first", statementMarkdown: "", methods: [primary], examples: [] },
+          { title: "second", statementMarkdown: "", methods: [later], examples: [] },
+        ],
+      },
+    } as unknown as ProblemVersion;
+    const make = (calls: unknown[]) => [{ ...draft, args: [JSON.stringify(calls)] }];
+    expect(() => parseProblemDrafts(make([{ methodName: "add", args: ["😀x"] }]), problem)).toThrow(
+      "Constraint:",
+    );
+    expect(() =>
+      parseProblemDrafts(
+        make([
+          { methodName: "add", args: ["😀"] },
+          { methodName: "other", args: ["long"] },
+        ]),
+        problem,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      parseProblemDrafts(
+        make([
+          { methodName: "other", args: ["long"] },
+          { methodName: "add", args: ["😀x"] },
+        ]),
+        problem,
+      ),
+    ).toThrow("Constraint:");
   });
   it("serializes declared argument order and optional expected output", () => {
     expect(parseCustomDrafts([draft], signature)).toEqual([{ args: [[1, 2], true] }]);
