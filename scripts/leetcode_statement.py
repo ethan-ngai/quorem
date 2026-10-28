@@ -40,6 +40,15 @@ def render(node, in_code=False, plain=False):
     if isinstance(node, str):
         return node
     tag = node.tag
+    if tag in ('ul', 'ol'):
+        items = [child for child in node.children if isinstance(child, Node) and child.tag == 'li']
+        lines = []
+        for index, item in enumerate(items, 1):
+            body = render(item, in_code, plain).strip().removeprefix('- ')
+            body = re.sub(r'\n(?:[ \t]*\n)+(?=(?:- |\d+\. ))', '\n', body)
+            prefix = f'{index}. ' if tag == 'ol' else '- '
+            lines.append(prefix + body.replace('\n', '\n' + ' ' * len(prefix)))
+        return '\n' + '\n'.join(lines) + '\n\n'
     if tag == 'table' and not plain:
         def rows(element):
             if isinstance(element, str):

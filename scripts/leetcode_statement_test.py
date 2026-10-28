@@ -46,6 +46,12 @@ class StatementTest(unittest.TestCase):
         self.assertIn('`2^(n - 1)`', result['statementMarkdown'])
         self.assertEqual(result['constraints'][0]['text'], '`1 <= k <= 2^(n - 1)`')
 
+    def test_list_whitespace_and_nesting(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>Choices:</p><ul>\n\t<li>First</li>\n\t<li>Second\n\t<ol>\n<li>Inner A</li>\n<li>Inner B</li></ol></li>\n<li>Third</li></ul><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2</pre><p><strong>Constraints:</strong></p><ul><li>None.</li></ul>'
+        result = format_question(content, html)['problem']
+        self.assertIn('- First\n- Second\n  1. Inner A\n  2. Inner B\n- Third', result['statementMarkdown'])
+
     def test_multiline_explanation_and_table_are_retained(self):
         content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
         html = '<p><code>x</code> is a value.</p><p><strong>Example 1:</strong></p><div><p><strong>Input:</strong> x = 1</p><p><strong>Output:</strong> 2</p><p><strong>Explanation:</strong> See below.</p></div><table><tr><th>x</th><th>y</th></tr><tr><td>1</td><td>2</td></tr></table><p><strong>Constraints:</strong></p><p>None.</p>'
