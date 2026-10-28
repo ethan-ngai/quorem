@@ -26,6 +26,35 @@ type QuestionContent struct {
 	Solutions          []EditorialSolution       `json:"solutions"`
 }
 
+// Fixture projects authored implementations into the immutable runtime representation.
+func (c QuestionContent) Fixture() (Fixture, error) {
+	p := c.Problem
+	p.Languages = make([]LanguageImplementation, 0, len(c.Implementations))
+	primaryLanguage := "python"
+	if p.SQL != nil {
+		primaryLanguage = "postgresql"
+	}
+	fixture := Fixture{Problem: p, HiddenCases: c.HiddenCases, OdysseyHiddenCases: c.OdysseyHiddenCases, Attribution: c.Attribution}
+	found := false
+	for _, impl := range c.Implementations {
+		fixture.Problem.Languages = append(fixture.Problem.Languages, impl.LanguageImplementation)
+		if impl.Language == primaryLanguage {
+			if found {
+				return Fixture{}, fmt.Errorf("duplicate primary implementation")
+			}
+			found = true
+			fixture.Problem.StarterSource = impl.StarterSource
+			fixture.Problem.RuntimeRevision = impl.RuntimeRevision
+			fixture.HarnessRevision = impl.HarnessRevision
+			fixture.ReferenceSource = impl.ReferenceSource
+		}
+	}
+	if !found {
+		return Fixture{}, fmt.Errorf("primary implementation missing")
+	}
+	return fixture, nil
+}
+
 var questionSlug = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 var symbolName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 

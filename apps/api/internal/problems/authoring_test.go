@@ -83,3 +83,35 @@ func TestSignatureValidationAcrossQuestionTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestQuestionFixtureUsesAuthoredImplementations(t *testing.T) {
+	for _, tc := range []struct {
+		name, primary string
+		sql           *SQLConfig
+	}{
+		{name: "coding", primary: "python"},
+		{name: "sql", primary: "postgresql", sql: &SQLConfig{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			content := QuestionContent{
+				Problem:         Problem{SQL: tc.sql, StarterSource: "stale", RuntimeRevision: "stale", Languages: []LanguageImplementation{{Language: "stale"}}},
+				Implementations: []AuthoringImplementation{{LanguageImplementation: LanguageImplementation{Language: tc.primary, StarterSource: "starter", RuntimeRevision: "runtime", HarnessRevision: "harness"}, ReferenceSource: "reference"}},
+			}
+			fixture, err := content.Fixture()
+			if err != nil || fixture.Problem.StarterSource != "starter" || fixture.Problem.RuntimeRevision != "runtime" || fixture.HarnessRevision != "harness" || fixture.ReferenceSource != "reference" || len(fixture.Problem.Languages) != 1 || fixture.Problem.Languages[0].Language != tc.primary {
+				t.Fatalf("fixture projection: %+v %v", fixture, err)
+			}
+			if content.Problem.StarterSource != "stale" || content.Problem.Languages[0].Language != "stale" {
+				t.Fatal("projection mutated authored content")
+			}
+			content.Implementations = append(content.Implementations, content.Implementations[0])
+			if _, err = content.Fixture(); err == nil {
+				t.Fatal("duplicate primary implementation accepted")
+			}
+			content.Implementations = nil
+			if _, err = content.Fixture(); err == nil {
+				t.Fatal("missing primary implementation accepted")
+			}
+		})
+	}
+}

@@ -280,20 +280,17 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 	if err = tx.QueryRow(ctx, "SELECT COALESCE(MAX(v.version),0)+1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE p.slug=$1", c.Problem.Slug).Scan(&version); err != nil {
 		return d, err
 	}
-	p := c.Problem
-	p.ID = ID()
-	p.Version = strconv.Itoa(version)
-	p.Languages = []problems.LanguageImplementation{}
-	var primary problems.AuthoringImplementation
-	for _, v := range c.Implementations {
-		p.Languages = append(p.Languages, v.LanguageImplementation)
-		if v.Language == "python" && p.SQL == nil || v.Language == "postgresql" && p.SQL != nil {
-			primary = v
-		}
+	c.Problem.ID = ID()
+	c.Problem.Version = strconv.Itoa(version)
+	fixture, err := c.Fixture()
+	if err != nil {
+		return d, failure("invalid_input", 400, err.Error())
 	}
-	p.StarterSource = primary.StarterSource
-	p.RuntimeRevision = primary.RuntimeRevision
-	fixture := problems.Fixture{OdysseyHiddenCases: c.OdysseyHiddenCases, Problem: p, HarnessRevision: primary.HarnessRevision, Attribution: c.Attribution, HiddenCases: c.HiddenCases, ReferenceSource: primary.ReferenceSource}
+	p := fixture.Problem
+	primaryLanguage := "python"
+	if p.SQL != nil {
+		primaryLanguage = "postgresql"
+	}
 	inserted, err := insertProblemVersion(ctx, tx, fixture)
 	if err != nil {
 		return d, err
@@ -328,7 +325,7 @@ func (s *Store) PublishQuestionDraftTo(ctx context.Context, actor, id, revision,
 		}
 	}
 	for _, v := range c.Implementations {
-		if v.Language == primary.Language {
+		if v.Language == primaryLanguage {
 			continue
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,$2,$3,$4,$5,$6)`, p.ID, v.Language, v.StarterSource, v.RuntimeRevision, v.HarnessRevision, v.ReferenceSource); err != nil {

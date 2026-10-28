@@ -158,14 +158,9 @@ func LoadFixtures(dir string) ([]SeedFixture, error) {
 		if err = ValidateQuestionPublication(content); err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		fixture := Fixture{Problem: content.Problem, HiddenCases: content.HiddenCases, OdysseyHiddenCases: content.OdysseyHiddenCases, Attribution: content.Attribution}
-		for _, impl := range content.Implementations {
-			if (fixture.Problem.SQL == nil && impl.Language == "python") || (fixture.Problem.SQL != nil && impl.Language == "postgresql") {
-				fixture.Problem.StarterSource = impl.StarterSource
-				fixture.Problem.RuntimeRevision = impl.RuntimeRevision
-				fixture.HarnessRevision = impl.HarnessRevision
-				fixture.ReferenceSource = impl.ReferenceSource
-			}
+		fixture, err := content.Fixture()
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 		fixtures = append(fixtures, SeedFixture{Fixture: fixture, Implementations: content.Implementations})
 	}
