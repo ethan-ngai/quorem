@@ -51,8 +51,16 @@ func capabilities(ctx context.Context, tx pgx.Tx, owner string) (access.Capabili
 	}
 	return c, rows.Err()
 }
+
+type capabilityTxStarter interface {
+	Begin(context.Context) (pgx.Tx, error)
+}
+
 func (s *Store) Capabilities(ctx context.Context, owner string) (access.Capabilities, error) {
-	tx, err := s.Pool.Begin(ctx)
+	return capabilitiesOn(ctx, s.Pool, owner)
+}
+func capabilitiesOn(ctx context.Context, db capabilityTxStarter, owner string) (access.Capabilities, error) {
+	tx, err := db.Begin(ctx)
 	if err != nil {
 		return access.Capabilities{}, err
 	}

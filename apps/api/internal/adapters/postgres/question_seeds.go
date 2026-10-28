@@ -36,12 +36,13 @@ func (s *Store) SeedQuestion(ctx context.Context, actor, visibility string, cont
 			conn.Conn().Close(context.Background())
 		}
 	}()
+	// All draft operations share the locked session; none need a second pool connection.
 	id, err := findSeedQuestion(ctx, conn, actor, prefix, slug, fingerprint)
 	if err != nil {
 		return "", err
 	}
 	if id == "" {
-		draft, err := s.CreateQuestionDraft(ctx, actor, content)
+		draft, err := createQuestionDraft(ctx, conn, actor, content)
 		if err != nil {
 			return "", err
 		}
@@ -50,12 +51,12 @@ func (s *Store) SeedQuestion(ctx context.Context, actor, visibility string, cont
 			return "", err
 		}
 	}
-	draft, err := s.QuestionDraft(ctx, id)
+	draft, err := questionDraft(ctx, conn, id)
 	if err != nil {
 		return "", err
 	}
 	if draft.PublishedVersionID == "" {
-		draft, err = s.PublishQuestionDraftTo(ctx, actor, id, draft.Revision, visibility)
+		draft, err = publishQuestionDraftTo(ctx, conn, actor, id, draft.Revision, visibility)
 		if err != nil {
 			return "", fmt.Errorf("publish seed: %w", err)
 		}
