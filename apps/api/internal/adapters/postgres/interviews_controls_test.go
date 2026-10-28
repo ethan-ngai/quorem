@@ -233,7 +233,7 @@ func TestInterviewLanguageSwitchRetainsOdysseyProgressAndExplicitFutureVisibilit
 	if v.Question.Progress.TotalLevels != 2 || len(v.Question.Progress.Levels) != 1 {
 		t.Fatal("total/locked levels", v.Question.Progress)
 	}
-	if len(v.Question.PrivateCaseDetails) != 4 || len(v.Question.PrivateCases) != 4 {
+	if len(v.Question.PrivateCaseDetails) != 4 {
 		t.Fatal("interviewer cannot see all stages tests", v.Question)
 	}
 	if _, err = s.JoinInterview(ctx, "bob", strings.TrimPrefix(v.InvitePath, "/interview-invite/"), "", ""); err != nil {

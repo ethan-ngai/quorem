@@ -4975,12 +4975,6 @@
           "language": {
             "$ref": "#/components/schemas/Language"
           },
-          "privateCases": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CustomCase"
-            }
-          },
           "progress": {
             "$ref": "#/components/schemas/OdysseyProgress"
           },

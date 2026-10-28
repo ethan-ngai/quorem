@@ -2121,12 +2121,6 @@
         "language": {
           "$ref": "#/$defs/Language"
         },
-        "privateCases": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/CustomCase"
-          }
-        },
         "progress": {
           "$ref": "#/$defs/OdysseyProgress"
         },
