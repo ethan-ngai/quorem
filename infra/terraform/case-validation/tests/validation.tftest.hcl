@@ -16,7 +16,7 @@ variables {
 run "isolated_case_application" {
   command = plan
   assert {
-    condition     = jsondecode(restapi_object.case.data).scheduling_policy == "durable_object" && local.origin == "https://quorem-validation-123.fixture.workers.dev" && length(local.images) == 5
+    condition     = jsondecode(restapi_object.case.data).scheduling_policy == "durable_object" && local.origin == "https://quorem-validation-123.fixture.workers.dev" && length(local.images) == 5 && cloudflare_worker.test.observability.enabled
     error_message = "Validation must use a run-scoped Worker and isolated case images."
   }
 }
