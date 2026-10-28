@@ -192,3 +192,19 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 	}
 
 }
+
+func TestOdysseyRejectsClassicWorkspace(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	p, err := s.Problem(ctx, "run-widths", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := s.CreateWorkspace(ctx, "alice", p.ID, "python")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Odyssey(ctx, "alice", w.ID); errorCode(err) != "invalid_input" {
+		t.Fatalf("classic workspace: %v", err)
+	}
+}
