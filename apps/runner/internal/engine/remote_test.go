@@ -95,6 +95,30 @@ func TestCaseFrameTruncationReportsExitBoundary(t *testing.T) {
 	}
 }
 
+type failingCaseReader struct {
+	data []byte
+	err  error
+}
+
+func (r *failingCaseReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, r.err
+	}
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
+func TestCaseFramePreservesTransportErrors(t *testing.T) {
+	transportErr := errors.New("connection reset")
+	for _, data := range [][]byte{nil, testCaseFrame(3, []byte{0, 0, 0, 0})[:9], testCaseFrame(3, []byte{0, 0, 0, 0})} {
+		_, err := copyCaseFrames(&failingCaseReader{data: data, err: transportErr}, io.Discard, io.Discard, nil)
+		if !errors.Is(err, transportErr) {
+			t.Fatalf("lost transport error: %v", err)
+		}
+	}
+}
+
 func TestCancelledRemoteRequestCanConfirmCleanup(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
