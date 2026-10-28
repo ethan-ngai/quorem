@@ -85,8 +85,8 @@ func TestCaseFrameTruncationReportsExitBoundary(t *testing.T) {
 		data []byte
 		want string
 	}{
-		{nil, "case response truncated before exit"},
-		{testCaseFrame(3, []byte{0, 0, 0, 0}), "case response truncated after exit"},
+		{nil, "case response truncated before exit: EOF"},
+		{testCaseFrame(3, []byte{0, 0, 0, 0}), "case response truncated after exit: EOF"},
 	} {
 		_, err := copyCaseFrames(bytes.NewReader(tc.data), io.Discard, io.Discard, nil)
 		if err == nil || err.Error() != tc.want {
@@ -232,7 +232,7 @@ func TestInterruptedCaseRequiresConfirmedCleanup(t *testing.T) {
 				t.Fatalf("cleanup calls=%d token present=%t", deletes, caseToken != "")
 			}
 			if cleanupStatus == http.StatusNoContent {
-				if err == nil || err.Error() != "case response truncated before exit" {
+				if err == nil || err.Error() != "case response truncated before exit: unexpected EOF" || !errors.Is(err, io.ErrUnexpectedEOF) {
 					t.Fatalf("lost interrupted response: %v", err)
 				}
 			} else if !errors.Is(err, worker.ErrTeardown) {

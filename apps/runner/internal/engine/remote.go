@@ -103,9 +103,9 @@ func copyCaseFrames(reader io.Reader, stdout, stderr io.Writer, onExit func()) (
 				return 0, fmt.Errorf("case response read failed: %w", err)
 			}
 			if exited {
-				return 0, errors.New("case response truncated after exit")
+				return 0, fmt.Errorf("case response truncated after exit: %w", err)
 			}
-			return 0, errors.New("case response truncated before exit")
+			return 0, fmt.Errorf("case response truncated before exit: %w", err)
 		}
 		size := binary.BigEndian.Uint32(header[4:])
 		if header[1] != 0 || header[2] != 0 || header[3] != 0 || size > 65536 {
@@ -122,7 +122,7 @@ func copyCaseFrames(reader io.Reader, stdout, stderr io.Writer, onExit func()) (
 			}
 			if _, err := io.CopyN(writer, reader, int64(size)); err != nil {
 				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-					return 0, errors.New("case response truncated before exit")
+					return 0, fmt.Errorf("case response truncated before exit: %w", err)
 				}
 				return 0, err
 			}
@@ -135,7 +135,7 @@ func copyCaseFrames(reader io.Reader, stdout, stderr io.Writer, onExit func()) (
 				if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 					return 0, fmt.Errorf("case response read failed: %w", err)
 				}
-				return 0, errors.New("case response truncated before exit")
+				return 0, fmt.Errorf("case response truncated before exit: %w", err)
 			}
 			exitCode = int(int32(binary.BigEndian.Uint32(code[:])))
 			exited = true
