@@ -85,6 +85,12 @@ def parse_bound(rule, names):
 def parse_extra(rule, names):
     text = rule.replace('`', '').replace('\u200b', '').strip()
     plain = text.replace('**', '')
+    lengths = re.findall(r'\b([A-Za-z_]\w*)\[i\]\.length', text)
+    if len(lengths) == 1 and lengths[0] in names and 'i' not in names and '_quorem_length' not in names:
+        expression = text.replace(f'{lengths[0]}[i].length', '_quorem_length')
+        comparison = parse_extra(expression, names + ['_quorem_length'])
+        if comparison and comparison[0] == 'comparison':
+            return ('element-length-comparison', lengths[0], comparison[1])
     element = re.findall(r'\b([A-Za-z_]\w*)\[([A-Za-z]+)\](?!\s*[.\[])', text)
     if (len(element) == 1 and element[0][0] in names and element[0][1] in ('i', 'j')
             and element[0][1] not in names and '_quorem_element' not in names):
@@ -122,7 +128,13 @@ def parse_extra(rule, names):
     def allowed(node):
         if isinstance(node, ast.Constant): return type(node.value) is int and abs(node.value) <= 10 ** 15
         if isinstance(node, ast.Name): return node.id in names
-        if isinstance(node, ast.Attribute): return node.attr == 'length' and isinstance(node.value, ast.Name) and node.value.id in names
+        if isinstance(node, ast.Attribute):
+            value = node.value
+            if node.attr != 'length': return False
+            if isinstance(value, ast.Name): return value.id in names
+            return (isinstance(value, ast.Subscript) and isinstance(value.value, ast.Name) and
+                    value.value.id in names and isinstance(value.slice, ast.Constant) and
+                    type(value.slice.value) is int and value.slice.value == 0)
         if isinstance(node, ast.UnaryOp): return isinstance(node.op, ast.USub) and allowed(node.operand)
         if isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Pow):
@@ -141,6 +153,13 @@ def parse_extra(rule, names):
 
 
 def extra_satisfies(rule, arguments):
+    if rule[0] == 'element-length-comparison':
+        values = arguments.get(rule[1])
+        return isinstance(values, list) and all(
+            isinstance(value, (list, str)) and
+            extra_satisfies(('comparison', rule[2]), {**arguments, '_quorem_length': len(value)})
+            for value in values
+        )
     if rule[0] == 'element-comparison':
         values = arguments.get(rule[1])
         return isinstance(values, list) and all(
@@ -176,7 +195,12 @@ def extra_satisfies(rule, arguments):
             if not numeric(value): raise ValueError('non-numeric value')
             return value
         if isinstance(node, ast.Attribute):
-            value = arguments[node.value.id]
+            if isinstance(node.value, ast.Subscript):
+                rows = arguments[node.value.value.id]
+                if not isinstance(rows, list) or not rows: raise ValueError('missing first row')
+                value = rows[0]
+            else:
+                value = arguments[node.value.id]
             if not isinstance(value, (str, list)): raise ValueError('invalid length')
             return len(value)
         if isinstance(node, ast.Tuple): return [calc(x) for x in node.elts]

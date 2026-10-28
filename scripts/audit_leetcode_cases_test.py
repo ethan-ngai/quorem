@@ -49,6 +49,24 @@ class QualityTest(unittest.TestCase):
         self.assertFalse(value_satisfies(parse_extra('edges[i].length == 2', names), dict(values, edges=[[1]])))
         self.assertFalse(value_satisfies(parse_extra('1 <= k, n <= 10', names), dict(values, k=11)))
 
+    def test_first_row_length(self):
+        rule = parse_extra('1 <= matrix[0].length <= 3', ['matrix'])
+        self.assertIsNotNone(rule)
+        self.assertTrue(value_satisfies(rule, {'matrix': [[1, 2], []]}))
+        self.assertFalse(value_satisfies(rule, {'matrix': [[]]}))
+        self.assertFalse(value_satisfies(rule, {'matrix': []}))
+        self.assertFalse(value_satisfies(rule, {'matrix': [1]}))
+        self.assertIsNone(parse_extra('matrix[-1].length <= 3', ['matrix']))
+
+    def test_each_row_length_bound(self):
+        rule = parse_extra('1 <= words[i].length <= 3', ['words'])
+        self.assertIsNotNone(rule)
+        self.assertTrue(value_satisfies(rule, {'words': ['a', 'abc']}))
+        self.assertFalse(value_satisfies(rule, {'words': ['a', '']}))
+        self.assertFalse(value_satisfies(rule, {'words': ['abcd']}))
+        self.assertFalse(value_satisfies(rule, {'words': [1]}))
+        self.assertIsNone(parse_extra('words[i].length <= 3', ['words', 'i']))
+
     def test_lowercase_english_only_and_unsupported_expressions(self):
         rule = parse_extra('`s` consists of only lowercase English letters.', ['s'])
         self.assertTrue(value_satisfies(rule, {'s': 'abc'}))
