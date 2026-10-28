@@ -70,7 +70,7 @@ func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spe
 	var spec judging.Spec
 	var problem, cases []byte
 	var level *int
-	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,CASE WHEN ie.submission_id IS NULL THEN jsonb_build_object('signature',v.signature,'odyssey',v.odyssey,'sql',v.sql_config,'examples',`+problemExamplesSQL+`) ELSE jsonb_build_object('signature',q.fixture->'problem'->'signature','odyssey',q.fixture->'problem'->'odyssey','sql',q.fixture->'problem'->'sql','examples',q.fixture->'problem'->'examples') END,s.cases,ie.submission_id IS NOT NULL,`+admittedOdysseyLevelSQL+` FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished`, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&spec.Source, &spec.Kind, &problem, &cases, &spec.PrivateDetails, &level)
+	err := s.Pool.QueryRow(ctx, `SELECT s.source,s.kind,CASE WHEN ie.submission_id IS NULL THEN jsonb_build_object('signature',v.signature,'odyssey',v.odyssey,'sql',v.sql_config,'examples',`+problemExamplesSQL+`) ELSE jsonb_build_object('signature',q.fixture->'problem'->'signature','odyssey',q.fixture->'problem'->'odyssey','sql',q.fixture->'problem'->'sql','examples',q.fixture->'problem'->'examples') END,s.cases,ie.submission_id IS NOT NULL,`+admittedOdysseyLevelSQL+` FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE j.id=$1 AND j.attempt_id=$2 AND j.lease_until>clock_timestamp() AND NOT j.finished AND s.id=$3`, uuidLookup(j.JobID), uuidLookup(j.AttemptID), uuidLookup(j.SubmissionID)).Scan(&spec.Source, &spec.Kind, &problem, &cases, &spec.PrivateDetails, &level)
 	if err != nil {
 		return spec, err
 	}
@@ -89,8 +89,8 @@ func (s *Store) LoadExecution(ctx context.Context, j execution.Job) (judging.Spe
 
 func (s *Store) Lease(ctx context.Context, j execution.Job, heartbeat bool) (bool, error) {
 	var cancelled bool
-	query := `SELECT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp()`
-	err := s.Pool.QueryRow(ctx, query, uuidLookup(j.JobID), uuidLookup(j.AttemptID)).Scan(&cancelled)
+	query := `SELECT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.id=$3`
+	err := s.Pool.QueryRow(ctx, query, uuidLookup(j.JobID), uuidLookup(j.AttemptID), uuidLookup(j.SubmissionID)).Scan(&cancelled)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -101,7 +101,7 @@ func (s *Store) Lease(ctx context.Context, j execution.Job, heartbeat bool) (boo
 		return false, nil
 	}
 	if heartbeat {
-		tag, e := s.Pool.Exec(ctx, "UPDATE execution_jobs SET lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1 AND attempt_id=$2 AND NOT finished AND lease_until>clock_timestamp()", uuidLookup(j.JobID), uuidLookup(j.AttemptID))
+		tag, e := s.Pool.Exec(ctx, "UPDATE execution_jobs SET lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1 AND attempt_id=$2 AND NOT finished AND lease_until>clock_timestamp() AND submission_id=$3", uuidLookup(j.JobID), uuidLookup(j.AttemptID), uuidLookup(j.SubmissionID))
 		if e != nil {
 			return false, e
 		}

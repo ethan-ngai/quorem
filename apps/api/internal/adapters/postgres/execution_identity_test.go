@@ -8,7 +8,7 @@ import (
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
-func TestCompletionFencesSubmissionIdentity(t *testing.T) {
+func TestExecutionFencesSubmissionIdentity(t *testing.T) {
 	s := testStore(t)
 	ctx := context.Background()
 	p, err := s.Problem(ctx, "run-widths", false)
@@ -39,6 +39,20 @@ func TestCompletionFencesSubmissionIdentity(t *testing.T) {
 	}
 	mixed := first
 	mixed.SubmissionID = second.SubmissionID
+	if _, err = s.LoadExecution(ctx, mixed); err == nil {
+		t.Fatal("mixed identity loaded another submission")
+	}
+	for _, heartbeat := range []bool{false, true} {
+		if alive, err := s.Lease(ctx, mixed, heartbeat); err != nil || alive {
+			t.Fatalf("mixed identity retained lease: %v %v", alive, err)
+		}
+		if alive, err := s.Lease(ctx, first, heartbeat); err != nil || !alive {
+			t.Fatalf("valid identity lost lease: %v %v", alive, err)
+		}
+	}
+	if _, err = s.LoadExecution(ctx, first); err != nil {
+		t.Fatal("valid execution unavailable", err)
+	}
 	if err = s.Complete(ctx, mixed, execution.Completion{SubmissionID: mixed.SubmissionID, AttemptID: mixed.AttemptID, Verdict: execution.Accepted}); err != nil {
 		t.Fatal(err)
 	}
