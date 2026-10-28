@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +80,45 @@ func TestRemoteSandboxRejectsUnsafeEndpointsAndUnconfirmedTeardown(t *testing.T)
 	}
 }
 
+func TestCaseFrameTruncationReportsExitBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		data []byte
+		want string
+	}{
+		{nil, "case response truncated before exit: EOF"},
+		{testCaseFrame(3, []byte{0, 0, 0, 0}), "case response truncated after exit: EOF"},
+	} {
+		_, err := copyCaseFrames(bytes.NewReader(tc.data), io.Discard, io.Discard, nil)
+		if err == nil || err.Error() != tc.want {
+			t.Fatalf("truncation: got %v, want %s", err, tc.want)
+		}
+	}
+}
+
+type failingCaseReader struct {
+	data []byte
+	err  error
+}
+
+func (r *failingCaseReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, r.err
+	}
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
+func TestCaseFramePreservesTransportErrors(t *testing.T) {
+	transportErr := errors.New("connection reset")
+	for _, data := range [][]byte{nil, testCaseFrame(3, []byte{0, 0, 0, 0})[:9], testCaseFrame(3, []byte{0, 0, 0, 0})} {
+		_, err := copyCaseFrames(&failingCaseReader{data: data, err: transportErr}, io.Discard, io.Discard, nil)
+		if !errors.Is(err, transportErr) {
+			t.Fatalf("lost transport error: %v", err)
+		}
+	}
+}
+
 func TestCancelledRemoteRequestCanConfirmCleanup(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
@@ -142,6 +182,63 @@ func TestRemoteCleanupDoesNotConsumeContestantTime(t *testing.T) {
 	f, err := (&Docker{Remote: remote}).runCase(context.Background(), execution.Job{AttemptID: "attempt", Limits: limits}, 0, worker.Spec{}, worker.Case{})
 	if err != nil || f.Status != "executed" {
 		t.Fatalf("cleanup consumed contestant time: %+v %v", f, err)
+	}
+}
+
+func TestRemoteFailureBeforeReadinessPreservesTransportError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	remote, err := NewRemoteSandbox(server.URL, "12345678901234567890123456789012")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = (&Docker{Remote: remote}).runCase(context.Background(), execution.Job{AttemptID: "attempt", Limits: execution.DefaultLimits()}, 0, worker.Spec{}, worker.Case{})
+	if err == nil || !strings.Contains(err.Error(), "case request failed (503)") {
+		t.Fatalf("lost transport failure: %v", err)
+	}
+}
+
+func TestInterruptedCaseRequiresConfirmedCleanup(t *testing.T) {
+	for _, cleanupStatus := range []int{http.StatusNoContent, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(cleanupStatus), func(t *testing.T) {
+			var caseToken string
+			var deletes int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					deletes++
+					if r.Header.Get("X-Case-Token") != caseToken {
+						t.Error("cleanup did not fence the interrupted case")
+					}
+					w.WriteHeader(cleanupStatus)
+					return
+				}
+				caseToken = r.Header.Get("X-Case-Token")
+				w.Header().Set("Content-Length", "100")
+				_, _ = w.Write(testCaseFrame(1, []byte{0}))
+			}))
+			defer server.Close()
+			remote, err := NewRemoteSandbox(server.URL, "12345678901234567890123456789012")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = (&Docker{Remote: remote}).runCase(context.Background(), execution.Job{AttemptID: "attempt", Limits: execution.DefaultLimits()}, 0, worker.Spec{}, worker.Case{})
+			if deletes != 1 || caseToken == "" {
+				t.Fatalf("cleanup calls=%d token present=%t", deletes, caseToken != "")
+			}
+			if cleanupStatus == http.StatusNoContent {
+				if err == nil || err.Error() != "case response truncated before exit: unexpected EOF" || !errors.Is(err, io.ErrUnexpectedEOF) {
+					t.Fatalf("lost interrupted response: %v", err)
+				}
+			} else if !errors.Is(err, worker.ErrTeardown) {
+				t.Fatalf("accepted unconfirmed cleanup: %v", err)
+			}
+		})
 	}
 }
 

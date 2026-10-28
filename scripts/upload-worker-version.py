@@ -63,10 +63,20 @@ def prepare_image(account, token, image, opener=None, sleep=time.sleep, clock=ti
         headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
     )
     deadline = clock() + 900
+    failures = 0
     while clock() < deadline:
         # Cloudflare defines preparation as idempotent; repeating observes its state.
-        with opener(request, timeout=30) as response:
-            raw = response.read(1048577)
+        try:
+            with opener(request, timeout=30) as response:
+                raw = response.read(1048577)
+        except HTTPError as error:
+            if error.code not in (429, 502, 503, 504) or failures >= 5:
+                raise
+            error.close()
+            failures += 1
+            sleep(min(2 ** failures, 10))
+            continue
+        failures = 0
         if len(raw) > 1048576:
             raise RuntimeError("Image preparation response exceeded its bound")
         try:

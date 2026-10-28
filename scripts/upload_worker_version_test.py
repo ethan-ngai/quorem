@@ -72,6 +72,22 @@ class UploadTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'timed out'):
             module.prepare_image('a' * 32, 'secret', image, pending, sleep=lambda _: None, clock=lambda: next(times))
 
+    def test_image_preparation_retries_transient_provider_errors(self):
+        image = f"registry.cloudflare.com/{'a' * 32}/judge@sha256:{'b' * 64}"
+        calls = []
+        def open_request(request, timeout):
+            calls.append(request)
+            if len(calls) == 1:
+                raise module.HTTPError(request.full_url, 502, 'unavailable', {}, None)
+            return Response(b'{"success":true,"result":{"status":"ready"}}')
+        module.prepare_image('a' * 32, 'secret', image, open_request, sleep=lambda _: None)
+        self.assertEqual(len(calls), 2)
+        def forbidden(request, timeout):
+            raise module.HTTPError(request.full_url, 403, 'forbidden', {}, None)
+        with self.assertRaises(module.HTTPError) as raised:
+            module.prepare_image('a' * 32, 'secret', image, forbidden, sleep=lambda _: None)
+        raised.exception.close()
+
     def test_resolve_image_uses_short_lived_credentials_and_manifest_digest(self):
         requests = []
         def open_request(request, timeout):

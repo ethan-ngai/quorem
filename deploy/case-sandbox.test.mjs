@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CaseSandbox } from "./case-sandbox.js";
 
-function fixture({ failure = false } = {}) {
+function fixture({ failure = false, streamFailure = false } = {}) {
   const values = new Map();
   const pending = [];
   let sent = new Uint8Array();
@@ -52,6 +52,10 @@ function fixture({ failure = false } = {}) {
           }),
           stdout: new ReadableStream({
             start(controller) {
+              if (streamFailure) {
+                controller.error(new Error("stream unavailable"));
+                return;
+              }
               controller.enqueue(new Uint8Array([0, 49]));
               controller.close();
             },
@@ -82,6 +86,34 @@ function request(method = "POST", headers = {}) {
     ...(method === "POST" ? { body: "case-input" } : {}),
   });
 }
+
+test("case lifecycle diagnostics require the validation binding", async () => {
+  const { context } = fixture();
+  assert.equal((await new CaseSandbox(context, {}).fetch(request("GET"))).status, 405);
+  const sandbox = new CaseSandbox(context, { CASE_DIAGNOSTICS: "true" });
+  assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), {
+    phase: "idle",
+    failure: "none",
+    source: "none",
+  });
+  const response = await sandbox.fetch(request());
+  await response.arrayBuffer();
+  assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), {
+    phase: "stop-complete",
+    failure: "none",
+    source: "none",
+  });
+});
+
+test("case diagnostics preserve the failed stream source after teardown", async () => {
+  const { context } = fixture({ streamFailure: true });
+  const sandbox = new CaseSandbox(context, { CASE_DIAGNOSTICS: "true" });
+  const response = await sandbox.fetch(request());
+  await assert.rejects(() => response.arrayBuffer());
+  const diagnostic = await (await sandbox.fetch(request("GET"))).json();
+  assert.equal(diagnostic.source, "stdout");
+  assert.equal(diagnostic.phase, "stop-complete");
+});
 
 test("direct case forwards current input and confirms teardown before its terminal frame", async () => {
   const { context, pending, values, input } = fixture();
@@ -114,9 +146,11 @@ test("invalid limits do not start a case and uncertain teardown remains fenced",
   );
   assert.equal(invalid.context.container.running, false);
   const failed = fixture({ failure: true });
-  const sandbox = new CaseSandbox(failed.context, {});
+  const sandbox = new CaseSandbox(failed.context, { CASE_DIAGNOSTICS: "true" });
   const response = await sandbox.fetch(request());
   await assert.rejects(() => response.arrayBuffer());
+  assert.equal((await (await sandbox.fetch(request("GET"))).json()).failure, "destroy-begin");
+  assert.equal((await (await sandbox.fetch(request("GET"))).json()).source, "destroy");
   assert.equal(failed.values.get("started"), "case-token-123456");
   assert.equal((await sandbox.fetch(request("DELETE"))).status, 503);
 });

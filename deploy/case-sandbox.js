@@ -40,13 +40,17 @@ async function input(request) {
 export class CaseSandbox extends DurableObject {
   stop() {
     this.stopping ??= (async () => {
+      this.phase = "stop-begin";
       console.log("case-lifecycle stop-begin");
-      if ((await this.ctx.storage.get("started")) || this.ctx.container.running)
-        await this.ctx.container.destroy();
+      const started = await this.ctx.storage.get("started");
+      this.phase = "destroy-begin";
+      if (started || this.ctx.container.running) await this.ctx.container.destroy();
+      this.phase = "destroy-complete";
       console.log("case-lifecycle destroy-complete");
       await this.ctx.storage.delete("started");
       await this.ctx.storage.delete("deadline");
       await this.ctx.storage.deleteAlarm();
+      this.phase = "stop-complete";
       console.log("case-lifecycle stop-complete");
     })().finally(() => {
       this.stopping = undefined;
@@ -67,6 +71,12 @@ export class CaseSandbox extends DurableObject {
   }
 
   async fetch(request) {
+    if (request.method === "GET" && this.env.CASE_DIAGNOSTICS === "true")
+      return Response.json({
+        phase: this.phase ?? "idle",
+        failure: this.failure ?? "none",
+        source: this.failureSource ?? "none",
+      });
     if (request.method === "DELETE") {
       console.log("case-lifecycle delete-begin");
       const token = request.headers.get("x-case-token");
@@ -100,6 +110,9 @@ export class CaseSandbox extends DurableObject {
     )
       return new Response(null, { status: 400 });
     const active = { token };
+    this.phase = "admitted";
+    this.failure = undefined;
+    this.failureSource = undefined;
     this.active = active;
     const generation = this.generation ?? 0;
     try {
@@ -128,7 +141,9 @@ export class CaseSandbox extends DurableObject {
         instance: { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
         enableInternet: false,
       });
+      this.phase = "started";
       await container.setInactivityTimeout(180_000);
+      this.phase = "exec-begin";
       const process = await container.exec(
         [
           "/usr/bin/env",
@@ -141,6 +156,7 @@ export class CaseSandbox extends DurableObject {
         ],
         { user: "0:0", stdin: "pipe", stdout: "pipe", stderr: "pipe" },
       );
+      this.phase = "exec-ready";
       console.log(`case-lifecycle exec-ready ${language}`);
       console.log(
         `Case started language=${language} duration_ms=${Math.round(performance.now() - started)}`,
@@ -165,21 +181,35 @@ export class CaseSandbox extends DurableObject {
       };
       this.ctx.waitUntil(
         (async () => {
+          let source;
+          let step = "streams";
+          const observe = (promise, name) =>
+            promise.catch((error) => {
+              source ??= name;
+              throw error;
+            });
           try {
             const [, , , exitCode] = await Promise.all([
-              sendInput,
-              pump(process.stdout, 1),
-              pump(process.stderr, 2),
-              process.exitCode,
+              observe(sendInput, "input"),
+              observe(pump(process.stdout, 1), "stdout"),
+              observe(pump(process.stderr, 2), "stderr"),
+              observe(process.exitCode, "exit"),
             ]);
+            this.phase = "streams-complete";
             console.log(`case-lifecycle streams-complete ${language}`);
             const exit = new Uint8Array(4);
             new DataView(exit.buffer).setInt32(0, exitCode);
+            step = "exit-frame";
             await writer.write(frame(3, exit));
+            step = "destroy";
             await this.stop();
+            step = "terminal-frame";
             await writer.write(frame(4, new Uint8Array()));
+            step = "close";
             await writer.close();
           } catch (error) {
+            this.failure = this.phase;
+            this.failureSource = source ?? step;
             console.log(`case-lifecycle stream-failed ${language}`);
             try {
               await this.stop();
@@ -196,6 +226,8 @@ export class CaseSandbox extends DurableObject {
         headers: { "Content-Type": "application/octet-stream" },
       });
     } catch {
+      this.failure = this.phase;
+      this.failureSource = "setup";
       try {
         await this.stop();
       } catch {

@@ -1083,3 +1083,26 @@ void test("case readiness requires authentication and does not start a case", as
   assert.equal((await worker.fetch(request(), configuration)).status, 204);
   assert.equal((await worker.fetch(request(), { ...configuration, CASES: undefined })).status, 503);
 });
+
+void test("case diagnostics require both authentication and the validation binding", async () => {
+  const url = `${env.APP_ORIGIN}/internal/case/attempt-123`;
+  const configuration = {
+    ...env,
+    CASES: { getByName: () => ({ fetch: () => new Response("diagnostic") }) },
+  };
+  const request = (authenticated) =>
+    new Request(url, {
+      headers: authenticated ? { Authorization: `Bearer ${env.JUDGE_CONTROL_TOKEN}` } : {},
+    });
+  assert.equal((await worker.fetch(request(true), configuration)).status, 404);
+  assert.equal(
+    (await worker.fetch(request(false), { ...configuration, CASE_DIAGNOSTICS: "true" })).status,
+    404,
+  );
+  assert.equal(
+    await (
+      await worker.fetch(request(true), { ...configuration, CASE_DIAGNOSTICS: "true" })
+    ).text(),
+    "diagnostic",
+  );
+});

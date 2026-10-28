@@ -105,7 +105,7 @@ func (d *Docker) VerifySandbox(ctx context.Context) error {
 		result, err := engine.Execute(bounded, job)
 		cancel()
 		if err != nil {
-			return fmt.Errorf("sandbox %s: %w", probe.name, err)
+			return fmt.Errorf("sandbox %s attempt %s: %w", probe.name, attempt, err)
 		}
 		if result.Verdict != probe.verdict {
 			return fmt.Errorf("sandbox %s: expected %s, got %s (%+v)", probe.name, probe.verdict, result.Verdict, result.PublicCaseResults)

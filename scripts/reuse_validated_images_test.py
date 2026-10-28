@@ -51,10 +51,10 @@ class ReuseImagesTests(unittest.TestCase):
         self.git('commit', '-qm', 'fixture')
         return self.git('rev-parse', 'HEAD')
 
-    def resolve(self, run_id='123'):
+    def resolve(self, run_id='123', case_only=False):
         def api(path):
             return self.jobs if '/jobs?' in path else self.run
-        return reuse.resolve(run_id, self.current, 'fixture/project', api, self.git)
+        return reuse.resolve(run_id, self.current, 'fixture/project', api, self.git, case_only)
 
     def test_infrastructure_and_documentation_retry_reuses_both_images(self):
         self.assertEqual(self.resolve(), self.source)
@@ -110,6 +110,26 @@ class ReuseImagesTests(unittest.TestCase):
         for value in ['../outside', '123?extra=true', '']:
             with self.subTest(value=value):
                 with self.assertRaisesRegex(RuntimeError, 'Invalid release identifiers'): self.resolve(value)
+
+    def test_case_probe_allows_runner_changes_but_rejects_case_image_changes(self):
+        self.write('apps/runner/internal/engine/remote.go', 'diagnostics\n')
+        self.current = self.commit()
+        self.assertEqual(self.resolve(case_only=True), self.source)
+        self.write('apps/runner/polyglot/harness.py', 'changed harness\n')
+        self.current = self.commit()
+        with self.assertRaisesRegex(RuntimeError, 'Image inputs changed'):
+            self.resolve(case_only=True)
+
+    def test_case_probe_accepts_matching_inputs_across_branches(self):
+        self.git('checkout', '-q', '--detach', self.source)
+        self.write('infra/other.tf', 'other branch\n')
+        self.current = self.commit()
+        self.assertEqual(self.resolve(case_only=True), self.source)
+        self.run['head_sha'] = self.current
+        self.current = self.source
+        self.assertEqual(self.resolve(case_only=True), self.run['head_sha'])
+        with self.assertRaisesRegex(RuntimeError, 'not an ancestor'):
+            self.resolve()
 
 
 if __name__ == '__main__':
