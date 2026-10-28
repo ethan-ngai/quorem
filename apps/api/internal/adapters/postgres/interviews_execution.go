@@ -46,20 +46,10 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 		}
 		return s.submission(ctx, tx, user, stored.SubmissionID)
 	}
-	cases := v.fixture.HiddenCases
-	if kind == "run" || len(cases) == 0 {
-		cases = v.fixture.Problem.SampleCases()
-	}
 	level := 1
 	var progressScope any
 	if v.fixture.Problem.Odyssey != nil {
 		level, _, err = interviewProgress(ctx, tx, v)
-		if err != nil {
-			return out, err
-		}
-		var compiled problems.Problem
-		compiled, cases, err = problems.CompileOdyssey(v.fixture, level, kind)
-		v.fixture.Problem = compiled
 		if err != nil {
 			return out, err
 		}
@@ -68,17 +58,9 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 			return out, err
 		}
 	}
-	if customCases != nil {
-		if kind != "run" {
-			return out, failure("invalid_input", 400, "Submit cannot choose cases")
-		}
-		if err = problems.ValidateProblemCustomCases(v.fixture.Problem, customCases); err != nil {
-			return out, failure("invalid_input", 400, err.Error())
-		}
-		cases = customCases
-	}
-	if len(cases) == 0 {
-		return out, failure("invalid_input", 400, "No tests configured")
+	cases, err := executionCases(&v.fixture, level, kind, customCases, true)
+	if err != nil {
+		return out, err
 	}
 	if _, err = ownerExecutionAdmission(ctx, tx, user); err != nil {
 		return out, err

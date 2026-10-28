@@ -82,45 +82,24 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
 	if err = json.Unmarshal(fixtureData, &f); err != nil {
 		return judging.Submission{}, err
 	}
-	cases := f.HiddenCases
+	level := 0
 	if f.Problem.Odyssey != nil {
 		if _, err = tx.Exec(ctx, "INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES($1,$2) ON CONFLICT DO NOTHING", odysseyScope, f.Problem.ID); err != nil {
 			return judging.Submission{}, err
 		}
-		var level int
 		if err = tx.QueryRow(ctx, "SELECT level FROM odyssey_progress WHERE scope_id=$1 AND problem_version_id=$2 FOR UPDATE", odysseyScope, f.Problem.ID).Scan(&level); err != nil {
 			return judging.Submission{}, err
 		}
 		if c.Level != level {
 			return judging.Submission{}, failure("revision_conflict", 409, "Odyssey level changed; reload progress")
 		}
-		var p problems.Problem
-		p, cases, err = problems.CompileOdyssey(f, level, c.Kind)
-		if err != nil {
-			return judging.Submission{}, err
-		}
-		f.Problem = p
 		odysseyLevel = &level
 	}
+	cases, err := executionCases(&f, level, c.Kind, c.CustomCases, false)
+	if err != nil {
+		return judging.Submission{}, err
+	}
 
-	if c.Kind == "run" {
-		if f.Problem.Odyssey == nil {
-			cases = f.Problem.SampleCases()
-		}
-		if c.CustomCases != nil {
-			if err = problems.ValidateProblemCustomCases(f.Problem, c.CustomCases); err != nil {
-				return judging.Submission{}, failure("invalid_input", 400, err.Error())
-			}
-			cases = c.CustomCases
-		}
-	} else if c.CustomCases != nil {
-		return judging.Submission{}, failure("invalid_input", 400, "Submit cannot choose cases")
-	}
-	for _, test := range cases {
-		if err = problems.ValidateProblemCase(f.Problem, test, false); err != nil {
-			return judging.Submission{}, failure("invalid_input", 400, err.Error())
-		}
-	}
 	tokens, err := ownerExecutionAdmission(ctx, tx, owner)
 	if err != nil {
 		return judging.Submission{}, err
