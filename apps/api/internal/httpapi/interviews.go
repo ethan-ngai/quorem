@@ -349,10 +349,10 @@ func (s *Server) admitInterview(w http.ResponseWriter, r *http.Request) {
 		Kind        string          `json:"kind"`
 		CustomCases []problems.Case `json:"customCases,omitempty"`
 	}
-	if !s.decode(w, r, &c, 1024) {
+	if !s.decode(w, r, &c, execution.MaxCustomCasesBytes+512*1024) {
 		return
 	}
-	if (c.Kind != "run" && c.Kind != "submit") || (c.CustomCases != nil && (c.Kind != "run" || len(c.CustomCases) == 0 || len(c.CustomCases) > 20)) {
+	if (c.Kind != "run" && c.Kind != "submit") || !validExecutionCases(c.Kind, c.CustomCases) {
 		s.err(w, r, &application.Error{Code: "invalid_input", Status: 400, Message: "Invalid execution command"})
 		return
 	}
