@@ -49,6 +49,7 @@ export async function createSubmission(
   idempotencyKey: string = randomUUID(),
   level?: number,
 ) {
+  if (source.includes("\0")) throw new UserFacingError("Source cannot contain NUL characters.");
   const { data, error } = await api(identity).POST("/v1/submissions", {
     params: { header: { "Idempotency-Key": idempotencyKey } },
     body: { workspaceId, kind, source, customCases, ...(level !== undefined ? { level } : {}) },

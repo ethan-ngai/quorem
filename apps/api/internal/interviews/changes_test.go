@@ -36,3 +36,13 @@ func TestRejectMalformedChanges(t *testing.T) {
 		t.Fatal("accepted split surrogate")
 	}
 }
+
+func TestSourceNULRejectedButEscapedLiteralAllowed(t *testing.T) {
+	if _, err := ApplyChanges("", json.RawMessage(`[[0,"a\u0000b"]]`)); err == nil {
+		t.Fatal("accepted NUL source")
+	}
+	got, err := ApplyChanges("", json.RawMessage(`[[0,"print('\\\\0')"]]`))
+	if err != nil || got != `print('\\0')` {
+		t.Fatal(got, err)
+	}
+}

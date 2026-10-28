@@ -3,10 +3,11 @@ package interviews
 import (
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
+	"github.com/ethan-ngai/quorem/internal/execution"
 	"time"
 )
 
-const MaxSourceBytes = 65536
+const MaxSourceBytes = execution.MaxSourceBytes
 
 type CustomQuestion struct {
 	Odyssey            *problems.Odyssey  `json:"odyssey,omitempty"`

@@ -1,7 +1,13 @@
 /** @file collaboration.test.ts @description Durable retry, concurrent rebasing and backlog recovery. @module interviews */
 import { unlockedMethodEdit } from "../odyssey/methodStubs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EditorState, ChangeSet, type Extension, type TransactionSpec } from "@codemirror/state";
+import {
+  EditorState,
+  ChangeSet,
+  Transaction,
+  type Extension,
+  type TransactionSpec,
+} from "@codemirror/state";
 import { getSyncedVersion } from "@codemirror/collab";
 import { createCollaboration } from "./collaboration";
 import { InterviewError, interviewRequest } from "./api";
@@ -75,8 +81,11 @@ function client(source = "", onSnapshot?: Parameters<typeof createCollaboration>
   return {
     ...controller,
     statuses,
-    edit(text: string) {
-      state = state.update({ changes: { from: state.doc.length, insert: text } }).state;
+    edit(text: string, userEvent?: string) {
+      state = state.update({
+        changes: { from: state.doc.length, insert: text },
+        ...(userEvent ? { annotations: Transaction.userEvent.of(userEvent) } : {}),
+      }).state;
     },
     get state() {
       return state;
@@ -86,6 +95,19 @@ function client(source = "", onSnapshot?: Parameters<typeof createCollaboration>
 }
 
 describe("shared document synchronization", () => {
+  it("rejects NUL insertions without disturbing valid document edits", () => {
+    const local = client("start");
+    local.edit(" normal 😀");
+    const before = local.state.doc.toString();
+    local.edit("\0bad", "input.paste");
+    expect(local.state.doc.toString()).toBe(before);
+    local.edit("\0bad", "input.type.compose");
+    expect(local.state.doc.toString()).toBe(before);
+    local.edit(" valid\\0");
+    expect(local.state.doc.toString()).toBe(`${before} valid\\0`);
+    local.destroy();
+  });
+
   it("rebases a concurrent remote insertion before retrying local changes", async () => {
     const local = client();
     local.edit("A");

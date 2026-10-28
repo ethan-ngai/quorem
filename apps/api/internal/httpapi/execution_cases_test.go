@@ -64,3 +64,15 @@ func TestInterviewAdmissionRequiresDocumentFence(t *testing.T) {
 		}
 	}
 }
+
+func TestExecutionRejectsNULSourceBeforeAdmission(t *testing.T) {
+	repo := &admissionRepository{}
+	api := &Server{Store: repo}
+	request := httptest.NewRequest("POST", "/v1/submissions", strings.NewReader(`{"workspaceId":"00000000-0000-4000-8000-000000000001","kind":"run","source":"a\u0000b"}`))
+	request.Header.Set("Idempotency-Key", "key")
+	response := httptest.NewRecorder()
+	api.admit(response, request)
+	if response.Code != 400 || repo.calls != 0 || !strings.Contains(response.Body.String(), "NUL") {
+		t.Fatal(response.Code, repo.calls, response.Body.String())
+	}
+}

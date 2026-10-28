@@ -10,7 +10,8 @@ import type {
 import type { EditorLanguage } from "../editor/editorLanguages";
 import { createInterviewRuleReporter } from "./ruleEvents";
 import { getSyncedVersion } from "@codemirror/collab";
-import { ChangeSet, type Extension } from "@codemirror/state";
+import { ChangeSet, EditorState, type Extension } from "@codemirror/state";
+import { toast } from "sonner";
 import type { EditorView } from "@codemirror/view";
 import { createDocumentSync, type CollaborationStatus } from "../collaboration/documentSync";
 import { createInterviewSocket } from "./socket";
@@ -34,6 +35,15 @@ export function createCollaboration(
   let view: EditorView | undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   let odyssey: { progress: OdysseyProgress; language: EditorLanguage } | undefined;
+  const sourceFilter = EditorState.changeFilter.of((transaction) => {
+    let hasNUL = false;
+    transaction.changes.iterChanges((_fromA, _toA, _fromB, _toB, inserted) => {
+      if (inserted.toString().includes("\0")) hasNUL = true;
+    });
+    if (hasNUL)
+      toast.error("Source cannot contain NUL characters.", { id: "interview-source-nul" });
+    return !hasNUL;
+  });
   const sync = createDocumentSync({
     document,
     clientID,
@@ -139,7 +149,8 @@ export function createCollaboration(
     reportRule: reports.report,
     isSynchronized: sync.isSynchronized,
     extension: [
-      ...sync.extension,
+      [sync.extension[0]!, sourceFilter],
+      ...sync.extension.slice(1),
       presenceExtension(transport, document.epoch, clientID),
     ] as Extension,
     flush: sync.flush,

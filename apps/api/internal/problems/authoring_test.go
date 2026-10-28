@@ -137,3 +137,18 @@ func TestQuestionDefinitionJSONOmitsRuntimeProjection(t *testing.T) {
 		t.Fatal("lost implementations")
 	}
 }
+
+func TestDraftRejectsNULSourceButAllowsEscapedLiteral(t *testing.T) {
+	c := QuestionContent{Implementations: []AuthoringImplementation{{LanguageImplementation: LanguageImplementation{StarterSource: "ok"}, ReferenceSource: "bad\x00source"}}}
+	if err := ValidateQuestionDraft(c); err == nil {
+		t.Fatal("accepted NUL reference")
+	}
+	c.Implementations[0].ReferenceSource = `return "\\0"`
+	if err := ValidateQuestionDraft(c); err != nil {
+		t.Fatal(err)
+	}
+	c.Solutions = []EditorialSolution{{Source: "bad\x00source"}}
+	if err := ValidateQuestionDraft(c); err == nil {
+		t.Fatal("accepted NUL editorial")
+	}
+}
