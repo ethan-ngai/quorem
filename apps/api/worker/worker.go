@@ -20,11 +20,10 @@ type Fixture = problems.Fixture
 type SeedFixture = problems.SeedFixture
 type SQLConfig = problems.SQLConfig
 
-func NormalizeCaseOutput(p problems.Problem, c Case, value []byte) ([]byte, error) {
-	return problems.NormalizeCaseOutput(p, c, value)
-}
-func CaseExpected(p problems.Problem, c Case) []byte { return problems.CaseExpected(p, c) }
-func MethodSignatures(p problems.Problem) any        { return problems.OdysseyMethods(p) }
+type CaseCodec = problems.CaseCodec
+
+func NewCaseCodec(p problems.Problem) *CaseCodec { return problems.NewCaseCodec(p) }
+func MethodSignatures(p problems.Problem) any    { return problems.OdysseyMethods(p) }
 
 func Normalize(typ string, value []byte) ([]byte, error) { return problems.Normalize(typ, value) }
 func LoadFixtures(dir string) ([]SeedFixture, error)     { return problems.LoadFixtures(dir) }

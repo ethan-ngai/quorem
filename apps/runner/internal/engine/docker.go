@@ -107,6 +107,7 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 	if err != nil {
 		return result, err
 	}
+	codec := worker.NewCaseCodec(spec.Problem)
 	passed := 0
 	allCompared := true
 	var compilationTime time.Duration
@@ -159,12 +160,12 @@ func (d *Docker) Execute(ctx context.Context, j execution.Job) (execution.Comple
 		var actual, expected json.RawMessage
 		typeMismatch := false
 		if status == "executed" {
-			actual, err = worker.NormalizeCaseOutput(spec.Problem, c, f.Actual)
+			actual, err = codec.Normalize(c, f.Actual)
 			if err != nil {
 				status = "invalid_output"
-			} else if len(worker.CaseExpected(spec.Problem, c)) > 0 {
+			} else if rawExpected := codec.Expected(c); len(rawExpected) > 0 {
 				typeMismatch = !sqlOutputTypesMatch(spec.Problem.SQL, f.SQLTypes)
-				expected, err = worker.NormalizeCaseOutput(spec.Problem, c, worker.CaseExpected(spec.Problem, c))
+				expected, err = codec.Normalize(c, rawExpected)
 				if err != nil {
 					return result, errors.New("invalid trusted expectation")
 				}
