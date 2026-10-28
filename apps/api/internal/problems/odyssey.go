@@ -33,18 +33,11 @@ func ValidateOdyssey(c QuestionContent) error {
 			return fmt.Errorf("invalid Odyssey level %d", i+1)
 		}
 		for _, sig := range level.Methods {
-			if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 || len(sig.Parameters) > 16 || (sig.ReturnType != "void" && !validType(sig.ReturnType, 0)) {
+			if err := validateSignature(sig, true); err != nil {
 				return fmt.Errorf("invalid Odyssey method")
 			}
 			if _, exists := methods[sig.MethodName]; exists {
 				return fmt.Errorf("duplicate Odyssey method")
-			}
-			seen := map[string]bool{}
-			for _, p := range sig.Parameters {
-				if !symbolName.MatchString(p.Name) || len(p.Name) > 80 || seen[p.Name] || ValidateInputConfig(p.Type, p.Input) != nil {
-					return fmt.Errorf("invalid Odyssey parameter")
-				}
-				seen[p.Name] = true
 			}
 			methods[sig.MethodName] = sig
 		}

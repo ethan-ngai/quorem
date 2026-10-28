@@ -211,20 +211,7 @@ func ValidateQuestionDefinition(c QuestionContent, requireHidden bool) error {
 	}
 	if p.SQL == nil {
 		sig := p.Signature
-		if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 {
-			return fmt.Errorf("Solution class and valid method name required")
-		}
-		seenParameters := map[string]bool{}
-		for _, param := range sig.Parameters {
-			if !symbolName.MatchString(param.Name) || len(param.Name) > 80 || seenParameters[param.Name] {
-				return fmt.Errorf("invalid or duplicate parameter")
-			}
-			seenParameters[param.Name] = true
-			if err := ValidateInputConfig(param.Type, param.Input); err != nil {
-				return err
-			}
-		}
-		if err := ValidateInputConfig(sig.ReturnType, nil); err != nil && !(p.Odyssey != nil && sig.ReturnType == "void") {
+		if err := validateSignature(sig, p.Odyssey != nil); err != nil {
 			return err
 		}
 		if err := ValidateConstraints(sig, p.Constraints); err != nil {
@@ -251,6 +238,26 @@ func ValidateQuestionDefinition(c QuestionContent, requireHidden bool) error {
 		}
 	}
 	return nil
+}
+
+func validateSignature(sig Signature, allowVoid bool) error {
+	if !validOutputOrder(sig) || sig.ClassName != "Solution" || !symbolName.MatchString(sig.MethodName) || len(sig.MethodName) > 80 || len(sig.Parameters) > 16 {
+		return fmt.Errorf("Solution class and valid method name required")
+	}
+	seen := map[string]bool{}
+	for _, param := range sig.Parameters {
+		if !symbolName.MatchString(param.Name) || len(param.Name) > 80 || seen[param.Name] {
+			return fmt.Errorf("invalid or duplicate parameter")
+		}
+		seen[param.Name] = true
+		if err := ValidateInputConfig(param.Type, param.Input); err != nil {
+			return err
+		}
+	}
+	if allowVoid && sig.ReturnType == "void" {
+		return nil
+	}
+	return ValidateInputConfig(sig.ReturnType, nil)
 }
 
 // Publication additionally requires pinned implementations and private references.
