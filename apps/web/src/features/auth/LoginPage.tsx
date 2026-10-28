@@ -12,7 +12,7 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff, Fingerprint } from "lucide-react";
-import { signIn, signInWithPassword } from "./session";
+import { signIn, signInDestination, signInWithPassword, useSession } from "./session";
 import { signInReferral } from "./signInReferral";
 import {
   fetchAuthCapabilities,
@@ -40,6 +40,16 @@ export function LoginPage() {
   )
     return <SocialEmailSetup />;
   if (new URLSearchParams(location.search).get("reset") === "1") return <PasswordReset />;
+  return <SessionAwareLogin />;
+}
+
+function SessionAwareLogin() {
+  const session = useSession();
+  const authenticated = !!session.data && session.data.kind !== "guest";
+  useEffect(() => {
+    if (authenticated) location.replace(signInDestination());
+  }, [authenticated]);
+  if (session.isPending || authenticated) return <LoadingScreen label="Opening account…" />;
   return <LoginForm />;
 }
 

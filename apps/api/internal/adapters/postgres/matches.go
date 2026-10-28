@@ -544,7 +544,7 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 		return err
 	}
 	id := m.id
-	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE public->'sql' IS NULL AND problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL) AND (($2<>'' AND id::text=$2) OR ($2='' AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1))) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID)
+	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL) AND (($2<>'' AND id::text=$2) OR ($2='' AND public->'sql' IS NULL AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1))) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID)
 	if err != nil {
 		return err
 	}
@@ -598,9 +598,13 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 	if err != nil {
 		return err
 	}
+	language := "python"
+	if p.SQL != nil {
+		language = "postgresql"
+	}
 	for _, o := range owners {
 		w := ID()
-		if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)", w, o, p.ID, id); err != nil {
+		if _, err = tx.Exec(ctx, "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,$4,'match',$5)", w, o, p.ID, language, id); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, "UPDATE match_participants SET workspace_id=$3 WHERE match_id=$1 AND owner_id=$2", id, o, w); err != nil {
