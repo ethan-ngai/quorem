@@ -206,8 +206,15 @@ func (s *Service) claim(ctx context.Context, engine execution.ExecutionEngine) b
 	return more && err == nil
 }
 func (s *Service) claimOnce(ctx context.Context, engine execution.ExecutionEngine) (bool, error) {
-	attempts, e := s.store.ExpiredAttempts(ctx)
+	return s.claimOnceWithContext(ctx, ctx, engine)
+}
+
+func (s *Service) claimOnceWithContext(claimCtx, executeCtx context.Context, engine execution.ExecutionEngine) (bool, error) {
+	attempts, e := s.store.ExpiredAttempts(claimCtx)
 	if e != nil {
+		if claimCtx.Err() != nil && executeCtx.Err() == nil {
+			return false, nil
+		}
 		return false, e
 	}
 	for _, attempt := range attempts {
@@ -215,19 +222,25 @@ func (s *Service) claimOnce(ctx context.Context, engine execution.ExecutionEngin
 		if !ok {
 			return false, ErrTeardown
 		}
-		if err := reaper.TeardownAttempt(ctx, attempt); err != nil {
+		if err := reaper.TeardownAttempt(claimCtx, attempt); err != nil {
+			if claimCtx.Err() != nil && executeCtx.Err() == nil {
+				return false, nil
+			}
 			return false, err
 		}
 	}
 	claimStarted := time.Now()
-	job, err := s.store.Claim(ctx)
+	job, err := s.store.Claim(claimCtx)
 	if err != nil {
+		if claimCtx.Err() != nil && executeCtx.Err() == nil {
+			return false, nil
+		}
 		return false, err
 	}
 	if job.JobID == "" {
 		return false, nil
 	}
-	return true, s.execute(ctx, engine, job, time.Since(claimStarted))
+	return true, s.execute(executeCtx, engine, job, time.Since(claimStarted))
 }
 func (s *Service) execute(parent context.Context, engine execution.ExecutionEngine, j execution.Job, claimDuration time.Duration) error {
 	started := time.Now()
@@ -242,7 +255,7 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 	defer func() {
 		log.Printf("Judge execution timing language=%s claim_ms=%d execute_ms=%d complete_ms=%d total_ms=%d cases=%d samples=%d outcome=%s", language, claimDuration.Milliseconds(), executeDuration.Milliseconds(), completeDuration.Milliseconds(), (time.Since(started) + claimDuration).Milliseconds(), cases, samples, outcome)
 	}()
-	ctx, cancel := context.WithTimeout(parent, 120*time.Second)
+	ctx, cancel := context.WithTimeout(parent, execution.AttemptTimeout)
 	defer cancel()
 	notifications, release, watchErr := s.subscribeCancellation(ctx, j.SubmissionID)
 	if release != nil {
@@ -308,7 +321,7 @@ func (s *Service) execute(parent context.Context, engine execution.ExecutionEngi
 		completion = execution.Completion{SubmissionID: j.SubmissionID, AttemptID: j.AttemptID, EngineFailure: "Execution engine unavailable"}
 	}
 	// Engine returns only after teardown, so cancellation may release the owner slot now.
-	finalCtx, finalCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	finalCtx, finalCancel := context.WithTimeout(context.Background(), execution.CompletionTimeout)
 	defer finalCancel()
 	completeStarted := time.Now()
 	if err = s.store.Complete(finalCtx, j, completion); err != nil {
