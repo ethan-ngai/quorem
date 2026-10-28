@@ -197,4 +197,22 @@ func TestCaseCallsMigrationBackfillsSealedVersions(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT difficulties[1] FROM matches`).Scan(&difficulty); err != nil || difficulty != "hard" {
 		t.Fatalf("match difficulty lost: %q %v", difficulty, err)
 	}
+	if _, err = pool.Exec(ctx, `INSERT INTO quota_overrides(user_id,resource,value,actor,reason) VALUES
+ ('match-host','guest_jobs',1,'test','old'),('match-host','guest_concurrency',2,'test','current')`); err != nil {
+		t.Fatal(err)
+	}
+	migration, err = os.ReadFile("../../../migrations/028_remove_guest_allowances.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	var quotaCount int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM quota_overrides WHERE resource='guest_concurrency'`).Scan(&quotaCount); err != nil || quotaCount != 1 {
+		t.Fatalf("current quota lost: %d %v", quotaCount, err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO quota_overrides(user_id,resource,value,actor,reason) VALUES('match-host','guest_jobs',1,'test','old')`); err == nil {
+		t.Fatal("retired quota accepted")
+	}
 }

@@ -206,11 +206,6 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 			}
 		}
 	}
-	s.Pool.Exec(ctx, "UPDATE matches SET guest_job_limit=1,guest_seconds_limit=60 WHERE id=$1", room.ID)
-	// Legacy overrides must not reintroduce cumulative allowances.
-	if _, err := s.Pool.Exec(ctx, "INSERT INTO quota_overrides(user_id,resource,value,actor,reason) VALUES('alice','guest_jobs',1,'test','Legacy'),('alice','guest_seconds',1,'test','Legacy')"); err != nil {
-		t.Fatal(err)
-	}
 	cmd := judging.Command{WorkspaceID: workspaces[0], Kind: "run", Source: "pass"}
 	first, err := s.Admit(ctx, owners[0], ID(), cmd, "one")
 	if err != nil {
@@ -219,7 +214,7 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	cmd.WorkspaceID = workspaces[1]
 	second, err := s.Admit(ctx, owners[1], ID(), cmd, "two")
 	if err != nil {
-		t.Fatal("legacy room allowance blocked admission", err)
+		t.Fatal("guest admission", err)
 	}
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
