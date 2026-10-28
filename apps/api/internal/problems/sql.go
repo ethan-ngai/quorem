@@ -190,6 +190,11 @@ func normalizeSQLResult(data json.RawMessage, unordered bool) (json.RawMessage, 
 
 func validateSQLPublication(c QuestionContent) error {
 	p := c.Problem
+	for i, constraint := range p.Constraints {
+		if constraint.Kind != "prose" || !validProseConstraint(constraint) {
+			return fmt.Errorf("constraint %d: SQL supports informational prose only", i+1)
+		}
+	}
 	if p.SQL.Dialect != "postgresql" || (p.SQL.OutputOrder != "ordered" && p.SQL.OutputOrder != "unordered") {
 		return fmt.Errorf("invalid SQL dialect or output order")
 	}
@@ -216,7 +221,7 @@ func validateSQLPublication(c QuestionContent) error {
 		return fmt.Errorf("SQL Odyssey requires 1 to 8 levels with private suites")
 	}
 	for i, level := range p.Odyssey.Levels {
-		if len(level.Methods) != 0 || len(level.Title) == 0 || len(level.StatementMarkdown) == 0 || len(level.Examples) < 1 || len(level.Examples) > 20 || len(c.OdysseyHiddenCases[i]) < 1 || len(c.OdysseyHiddenCases[i]) > 20 {
+		if len(level.Methods) != 0 || !validOdysseyLevel(level, c.OdysseyHiddenCases[i]) {
 			return fmt.Errorf("invalid SQL Odyssey level %d", i+1)
 		}
 		for _, test := range c.OdysseyHiddenCases[i] {
