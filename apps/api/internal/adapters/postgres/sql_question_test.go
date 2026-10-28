@@ -66,7 +66,7 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	if _, err = s.CreateMatch(ctx, "bob", ID(), matches.Settings{Difficulties: []string{"easy"}, SelectedProblemVersionID: p.ID}); errorCode(err) != "invalid_input" {
 		t.Fatalf("non-owner hosted private problem: %v", err)
 	}
-	match, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulties: []string{"easy"}, SelectedProblemVersionID: p.ID})
+	match, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulties: []string{"easy"}, QuestionFilters: matches.QuestionFilters{SQL: "true"}})
 	if err != nil {
 		t.Fatal(err)
 	}

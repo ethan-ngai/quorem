@@ -3,7 +3,9 @@ package matches
 import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const Showdown = "showdown"
@@ -35,15 +37,47 @@ type RuleEvent struct {
 	OccurredAt time.Time `json:"occurredAt"`
 }
 
+type QuestionFilters struct {
+	Type    string `json:"type,omitempty"`
+	SQL     string `json:"sql,omitempty"`
+	Topic   string `json:"topic,omitempty"`
+	Company string `json:"company,omitempty"`
+}
+
+func (f QuestionFilters) valid() bool {
+	if f.Type != "" && f.Type != "classic" && f.Type != "odyssey" {
+		return false
+	}
+	if f.SQL != "" && f.SQL != "true" {
+		return false
+	}
+	for _, list := range []string{f.Topic, f.Company} {
+		if list == "" {
+			continue
+		}
+		values := strings.Split(list, ",")
+		if len(values) > 16 {
+			return false
+		}
+		for _, value := range values {
+			if value == "" || !utf8.ValidString(value) || strings.ContainsRune(value, 0) || utf8.RuneCountInString(value) > 80 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 type Settings struct {
-	AdmissionLocked          bool     `json:"admissionLocked"`
-	AccessMode               string   `json:"accessMode"`
-	Mode                     string   `json:"mode"`
-	Difficulties             []string `json:"difficulties"`
-	SelectedProblemVersionID string   `json:"selectedProblemVersionId,omitempty"`
-	Rules                    Rules    `json:"rules"`
-	Difficulty               string   `json:"difficulty"`
-	DurationMinutes          int      `json:"durationMinutes"`
+	QuestionFilters          QuestionFilters `json:"questionFilters"`
+	AdmissionLocked          bool            `json:"admissionLocked"`
+	AccessMode               string          `json:"accessMode"`
+	Mode                     string          `json:"mode"`
+	Difficulties             []string        `json:"difficulties"`
+	SelectedProblemVersionID string          `json:"selectedProblemVersionId,omitempty"`
+	Rules                    Rules           `json:"rules"`
+	Difficulty               string          `json:"difficulty"`
+	DurationMinutes          int             `json:"durationMinutes"`
 }
 
 func (s Settings) Normalize() Settings {
@@ -78,6 +112,9 @@ func (s Settings) Capacity() int {
 	return 2
 }
 func (s Settings) Valid() bool {
+	if !s.QuestionFilters.valid() {
+		return false
+	}
 	if s.AccessMode != "accounts_only" && s.AccessMode != "guests_allowed" {
 		return false
 	}

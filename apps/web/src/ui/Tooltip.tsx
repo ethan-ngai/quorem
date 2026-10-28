@@ -1,6 +1,6 @@
 import "./tooltip.css";
 import * as RadixTooltip from "@radix-ui/react-tooltip";
-import type { ReactElement, ReactNode } from "react";
+import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 
 /** Shared keyboard-accessible hint; portals avoid pane clipping. */
 export function Tooltip({
@@ -14,10 +14,13 @@ export function Tooltip({
   side?: "top" | "right" | "bottom" | "left";
   disabled?: boolean;
 }) {
-  if (disabled) return children;
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
   return (
     <RadixTooltip.Provider delayDuration={100}>
-      <RadixTooltip.Root>
+      <RadixTooltip.Root open={!disabled && open} onOpenChange={setOpen}>
         <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
         <RadixTooltip.Portal>
           <RadixTooltip.Content

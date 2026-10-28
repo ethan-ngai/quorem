@@ -8,9 +8,7 @@ import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { useSession } from "../auth/session";
-import { useQuery } from "@tanstack/react-query";
-import type { InterviewQuestionInput, Signature } from "@quorem/contracts";
-import { interviewRequest } from "./api";
+import type { InterviewQuestionInput, Signature, ProblemVersion } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { SelectField } from "../../ui/SelectField";
 import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
@@ -74,7 +72,7 @@ export function QuestionSetup({
   const sectionId = useId();
   const [language, setLanguage] = useState<EditorLanguage>("python");
   const [selected, setSelected] = useState("");
-  const [search, setSearch] = useState("");
+  const [selectedProblem, setSelectedProblem] = useState<ProblemVersion>();
   const [customTitle, setCustomTitle] = useState("");
   const [statement, setStatement] = useState("");
   const [signature, setSignature] = useState<Signature>(initialSignature);
@@ -99,14 +97,6 @@ export function QuestionSetup({
     setMode(next);
   }
   const [error, setError] = useState<string>();
-  const catalog = useQuery({
-    queryKey: ["interview-catalog", session.data?.user.id, search],
-    queryFn: () =>
-      interviewRequest<{
-        items: { id: string; title: string; slug: string; complexityLanguages?: string[] }[];
-      }>(`/v1/problems?limit=100&q=${encodeURIComponent(search)}`),
-    enabled: mode === "catalog",
-  });
   function updateSignature(next: Signature) {
     setSignature(next);
     const defaults = newCase(next);
@@ -133,9 +123,7 @@ export function QuestionSetup({
       }
       submitQuestion(
         { language, problemVersionId: selected },
-        title.trim() ||
-          catalog.data?.items.find((item) => item.id === selected)?.title ||
-          "Interview",
+        title.trim() || selectedProblem?.title || "Interview",
       );
       return;
     }
@@ -264,24 +252,18 @@ export function QuestionSetup({
           hidden={mode !== "catalog"}
           disabled={mode !== "catalog"}
         >
-          <label className="admin-field">
+          <div className="admin-field">
             <span>Problem</span>
             <ProblemPicker
-              items={catalog.data?.items ?? []}
+              items={selectedProblem ? [selectedProblem] : []}
               value={selected}
-              onChange={(value) => setSelected(value ?? "")}
-              onSearchChange={setSearch}
-              disabled={catalog.isPending && !catalog.data}
+              onChange={(value, problem) => {
+                setSelected(value ?? "");
+                setSelectedProblem(problem);
+              }}
+              disabled={busy}
             />
-          </label>
-          {catalog.isError && (
-            <p role="alert">
-              Could not load questions.{" "}
-              <button type="button" className="quiet-button" onClick={() => void catalog.refetch()}>
-                Retry
-              </button>
-            </p>
-          )}
+          </div>
         </fieldset>
         <fieldset
           className="admin-fields"
@@ -376,10 +358,7 @@ export function QuestionSetup({
         {showHints && (
           <QuestionHintsControls
             complexityAvailable={
-              mode === "catalog" &&
-              !!catalog.data?.items
-                .find((item) => item.id === selected)
-                ?.complexityLanguages?.includes(language)
+              mode === "catalog" && !!selectedProblem?.complexityLanguages?.includes(language)
             }
             value={hints}
             onChange={setHints}

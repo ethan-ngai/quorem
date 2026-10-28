@@ -1,0 +1,31 @@
+.selection-feedback {
+  position: relative;
+  isolation: isolate;
+}
+.selection-feedback::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--color-overlay);
+  opacity: 0;
+  transform: scaleY(0.85);
+  transition:
+    opacity var(--motion-fast) var(--motion-easing),
+    transform var(--motion-standard) var(--motion-easing),
+    border-radius var(--motion-standard) var(--motion-easing);
+}
+.selection-feedback[aria-pressed="true"]::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+.selection-feedback:not(:disabled):not([aria-pressed="true"]):hover::before {
+  opacity: 0.5;
+  transform: scaleY(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .selection-feedback::before {
+    transition: none;
+  }
+}

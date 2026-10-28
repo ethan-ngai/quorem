@@ -1,5 +1,6 @@
 import { formatLabel } from "../../ui/formatLabel";
-import { QuestionTypeFilter } from "./QuestionTypeFilter";
+import { QuestionIndicators } from "./QuestionIndicators";
+import { CatalogFilters } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout, CatalogTable } from "./CatalogLayout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -66,7 +67,13 @@ export function PracticeBrowser() {
     search.library === "private" && actor === undefined && session.isError;
   const { topics, companies } = catalogFacets(queryClient, actor, search, catalog.data);
   const filtered = Boolean(
-    search.q || search.difficulty || search.topic || search.company || library || search.type,
+    search.q ||
+    search.difficulty ||
+    search.topic ||
+    search.company ||
+    library ||
+    search.type ||
+    search.sql,
   );
   const sort = search.sort ?? "title";
   const SortIcon = search.order === "desc" ? ArrowDown : ArrowUp;
@@ -85,6 +92,7 @@ export function PracticeBrowser() {
       company: undefined,
       library: undefined,
       type: undefined,
+      sql: undefined,
     });
   };
   const page = search.page ?? 1;
@@ -127,7 +135,7 @@ export function PracticeBrowser() {
           </label>
         </div>
         <div className="practice-filters">
-          <QuestionTypeFilter value={search.type} onChange={(type) => update({ type })} />
+          <CatalogFilters search={search} update={update} topics={topics} companies={companies} />
           {canChooseLibrary && (
             <SegmentedControl
               iconOnly
@@ -155,33 +163,6 @@ export function PracticeBrowser() {
               ]}
             />
           )}
-          <CatalogFilter
-            label="Difficulty"
-            selected={filterValues(search.difficulty)}
-            onChange={(values) => update({ difficulty: values.join(",") || undefined })}
-            options={["easy", "medium", "hard"].map((value) => ({
-              value,
-              label: formatLabel(value),
-            }))}
-          />
-          <CatalogFilter
-            label="Topics"
-            selected={filterValues(search.topic)}
-            onChange={(values) => update({ topic: values.join(",") || undefined })}
-            options={[...new Set([...topics, ...filterValues(search.topic)])].map((value) => ({
-              value,
-              label: formatLabel(value),
-            }))}
-          />
-          <CatalogFilter
-            label="Companies"
-            selected={filterValues(search.company)}
-            onChange={(values) => update({ company: values.join(",") || undefined })}
-            options={[...new Set([...companies, ...filterValues(search.company)])].map((value) => ({
-              value,
-              label: value,
-            }))}
-          />
           {filtered && (
             <button
               type="button"
@@ -244,6 +225,7 @@ export function PracticeBrowser() {
                         Difficulty {sort === "difficulty" && <SortIcon size={13} />}
                       </button>
                     </th>
+                    <th aria-label="Question format" />
                   </tr>
                 }
               >
@@ -264,15 +246,17 @@ export function PracticeBrowser() {
                         {problem.title}
                       </Link>
                       <div className="practice-topic-list">
-                        {problem.tags.map((tag) => (
-                          <button
-                            key={tag}
-                            onClick={() => update({ topic: addFilter(search.topic, tag) })}
-                            aria-label={`Filter by ${formatLabel(tag)}`}
-                          >
-                            {formatLabel(tag)}
-                          </button>
-                        ))}
+                        {problem.tags
+                          .filter((tag) => tag.toLowerCase() !== "sql")
+                          .map((tag) => (
+                            <button
+                              key={tag}
+                              onClick={() => update({ topic: addFilter(search.topic, tag) })}
+                              aria-label={`Filter by ${formatLabel(tag)}`}
+                            >
+                              {formatLabel(tag)}
+                            </button>
+                          ))}
                       </div>
                     </td>
                     <td>
@@ -286,6 +270,12 @@ export function PracticeBrowser() {
                       >
                         {formatLabel(problem.difficulty)}
                       </button>
+                    </td>
+                    <td className="practice-format">
+                      <QuestionIndicators
+                        privateQuestion={problem.isPrivate === true}
+                        odyssey={!!problem.odyssey}
+                      />
                     </td>
                   </tr>
                 ))}

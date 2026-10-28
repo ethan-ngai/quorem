@@ -2,7 +2,7 @@
 import { createApiClient, type DevelopmentIdentity } from "@quorem/contracts";
 import { authenticatedFetch } from "../features/auth/session";
 import { UserFacingError } from "../ui/errors";
-import { specificErrorMessage } from "./safeError";
+import { safeErrorMessage } from "./safeError";
 
 const apiOrigin = () => import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
 
@@ -34,17 +34,7 @@ export function requireData<T>(data: T | undefined, error: unknown): T {
   const code = detail && typeof detail === "object" && "code" in detail ? detail.code : undefined;
   const serverMessage =
     detail && typeof detail === "object" && "message" in detail ? detail.message : undefined;
-  const safeMessages: Record<string, string> = {
-    guest_hosting_paused: "Guest hosting is paused. Turn off Allow guests to continue.",
-    step_up_required: "Sign in with a verified passkey again before publishing.",
-    entitlement_required: "This feature is not enabled for this account.",
-    quota_exceeded: "Execution allowance reached. Please try again later.",
-    rate_limited: "Too many requests. Try again shortly.",
-    room_full: "This lobby is full.",
-  };
-  const message =
-    typeof code === "string" && Object.hasOwn(safeMessages, code)
-      ? (specificErrorMessage(code, serverMessage) ?? safeMessages[code])
-      : "Request failed. Please try again.";
-  throw new UserFacingError(message);
+  const message = safeErrorMessage(code, serverMessage);
+  if (message) throw new UserFacingError(message);
+  throw new Error("API request failed");
 }

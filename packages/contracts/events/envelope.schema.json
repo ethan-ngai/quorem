@@ -290,6 +290,9 @@
           "type": "string",
           "format": "uuid"
         },
+        "isPrivate": {
+          "type": "boolean"
+        },
         "slug": {
           "type": "string"
         },
@@ -824,6 +827,9 @@
           "maxItems": 3,
           "uniqueItems": true
         },
+        "questionFilters": {
+          "$ref": "#/$defs/MatchQuestionFilters"
+        },
         "selectedProblemVersionId": {
           "type": "string",
           "format": "uuid"
@@ -863,6 +869,28 @@
       ],
       "additionalProperties": false
     },
+    "MatchQuestionFilters": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["classic", "odyssey"]
+        },
+        "sql": {
+          "type": "string",
+          "enum": ["true"]
+        },
+        "topic": {
+          "type": "string",
+          "maxLength": 1295
+        },
+        "company": {
+          "type": "string",
+          "maxLength": 1295
+        }
+      },
+      "additionalProperties": false
+    },
     "CreateMatchRequest": {
       "type": "object",
       "properties": {
@@ -884,6 +912,9 @@
           "minItems": 1,
           "maxItems": 3,
           "uniqueItems": true
+        },
+        "questionFilters": {
+          "$ref": "#/$defs/MatchQuestionFilters"
         },
         "selectedProblemVersionId": {
           "type": "string",

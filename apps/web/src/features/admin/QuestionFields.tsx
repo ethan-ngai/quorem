@@ -1,3 +1,4 @@
+import { DifficultySegments } from "../../ui/DifficultySegments";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
 import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionBasics } from "../../ui/QuestionBasics";
@@ -243,18 +244,13 @@ export function QuestionFields({
                 />
               </Field>
               <Field label="Difficulty">
-                <SelectField
-                  label="Difficulty"
-                  value={problem.difficulty}
+                <DifficultySegments
+                  selected={[problem.difficulty]}
+                  single
                   disabled={disabled}
-                  onChange={(value) =>
-                    setProblem({ difficulty: value as ProblemVersion["difficulty"] })
-                  }
-                  options={[
-                    { value: "easy", label: "Easy" },
-                    { value: "medium", label: "Medium" },
-                    { value: "hard", label: "Hard" },
-                  ]}
+                  onChange={([difficulty]) => {
+                    if (difficulty) setProblem({ difficulty });
+                  }}
                 />
               </Field>
             </div>

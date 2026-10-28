@@ -102,12 +102,18 @@ func TestPrivateQuestionAuthoringAndReadIsolation(t *testing.T) {
 		if e != nil || page.Total != tc.want {
 			t.Fatal("private catalog", page, e)
 		}
+		if tc.want == 1 && !page.Items[0].IsPrivate {
+			t.Fatal("private catalog item missing visibility")
+		}
 	}
 	global, e := s.ProblemCatalog(alice, problems.ProblemFilter{Page: 1, Limit: 100, Library: "global"})
 	if e != nil {
 		t.Fatal(e)
 	}
 	for _, p := range global.Items {
+		if p.IsPrivate {
+			t.Fatal("global question marked private")
+		}
 		if p.ID == own.ID {
 			t.Fatal("private question in global catalog")
 		}

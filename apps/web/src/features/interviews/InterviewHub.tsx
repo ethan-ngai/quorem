@@ -1,3 +1,4 @@
+import { userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -88,7 +89,7 @@ export function InterviewHub() {
       setCreated(session);
       await sessions.refetch();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not create interview.");
+      setError(userFacingErrorMessage(cause, "Could not create the interview. Try again."));
     } finally {
       setBusy(false);
     }
@@ -113,7 +114,7 @@ export function InterviewHub() {
       await sessions.refetch();
       setLifecycle(action === "end" ? { session, action: "delete" } : undefined);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not update interview.");
+      setError(userFacingErrorMessage(cause, "Could not update the interview. Try again."));
     } finally {
       setBusy(false);
     }

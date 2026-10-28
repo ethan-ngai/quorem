@@ -32,7 +32,8 @@
   flex-direction: column;
   gap: var(--space-2);
 }
-.admin-rail label {
+.admin-rail label,
+.admin-picker {
   display: grid;
   gap: var(--space-2);
 }

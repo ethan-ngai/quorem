@@ -12,7 +12,7 @@ import (
 
 // Aggregate only public records; judge references and hidden cases cannot enter this projection.
 const publicProblemSQL = `SELECT jsonb_build_object(
- 'id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
+ 'id',v.id,'isPrivate',p.owner_id IS NOT NULL,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
  'sql',v.public->'sql',
  'odyssey',CASE WHEN v.public->'odyssey' IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.public->'odyssey'->'levels'->0)) ELSE NULL END,
  'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,

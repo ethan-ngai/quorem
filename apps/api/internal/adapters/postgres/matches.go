@@ -8,6 +8,7 @@ import (
 	"errors"
 	"math/big"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
@@ -28,7 +29,7 @@ type matchRecord struct {
 
 func lockMatch(ctx context.Context, tx pgx.Tx, id string) (matchRecord, error) {
 	var m matchRecord
-	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,difficulties,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
+	err := tx.QueryRow(ctx, `SELECT id,host_owner_id,state,mode,version,difficulty,duration_minutes,difficulties,question_filters,COALESCE(selected_problem_version_id::text,''),rules,access_mode,admission_locked,expires_at,COALESCE(problem_version_id::text,''),started_at,deadline,finalizing_at,outcome FROM matches WHERE id::text=$1 FOR UPDATE`, id).Scan(&m.id, &m.host, &m.state, &m.mode, &m.version, &m.settings.Difficulty, &m.settings.DurationMinutes, &m.settings.Difficulties, &m.settings.QuestionFilters, &m.settings.SelectedProblemVersionID, &m.settings.Rules, &m.settings.AccessMode, &m.settings.AdmissionLocked, &m.expires, &m.problem, &m.started, &m.deadline, &m.finalizing, &m.outcome)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = failure("not_found", 404, "Match not found")
 	}
@@ -270,7 +271,7 @@ func (s *Store) CreateMatch(ctx context.Context, owner, key string, settings mat
 		}
 		encoded := base64.RawURLEncoding.EncodeToString(token)
 		m := matchRecord{id: ID(), state: "waiting", mode: settings.Mode}
-		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6,$7,NULLIF($8,'')::uuid,$9,$10,$11)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked); err != nil {
+		if _, err := tx.Exec(ctx, "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,difficulty,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters) VALUES($1,$2,$3,clock_timestamp()+interval '24 hours',$4,$5,'waiting',$6,$7,NULLIF($8,'')::uuid,$9,$10,$11,$12)", m.id, owner, Hash([]byte(encoded)), settings.Difficulty, settings.DurationMinutes, m.mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1);", m.id, owner); err != nil {
@@ -477,7 +478,7 @@ func (s *Store) UpdateMatchSettings(ctx context.Context, owner, id, key string, 
 		m.settings = settings
 		m.mode = settings.Mode
 		m.state = "waiting"
-		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,mode=$4,difficulties=$5,selected_problem_version_id=NULLIF($6,'')::uuid,rules=$7,access_mode=$8,admission_locked=$9,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked); err != nil {
+		if _, err := tx.Exec(ctx, "UPDATE matches SET difficulty=$2,duration_minutes=$3,mode=$4,difficulties=$5,selected_problem_version_id=NULLIF($6,'')::uuid,rules=$7,access_mode=$8,admission_locked=$9,question_filters=$10,state='waiting' WHERE id=$1", id, settings.Difficulty, settings.DurationMinutes, settings.Mode, settings.Difficulties, settings.SelectedProblemVersionID, settings.Rules, settings.AccessMode, settings.AdmissionLocked, settings.QuestionFilters); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, "UPDATE match_participants SET ready=false WHERE match_id=$1", id)
@@ -544,7 +545,20 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 		return err
 	}
 	id := m.id
-	rows, err := tx.Query(ctx, "SELECT public FROM problem_versions WHERE (($2<>'' AND id::text=$2 AND problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL OR owner_id=$3)) OR ($2='' AND problem_id IN (SELECT id FROM problems WHERE owner_id IS NULL) AND public->'sql' IS NULL AND id IN (SELECT DISTINCT ON (slug) id FROM problem_versions ORDER BY slug,version DESC) AND public->>'difficulty'=ANY($1))) ORDER BY id", m.settings.Difficulties, m.settings.SelectedProblemVersionID, m.host)
+	var rows pgx.Rows
+	var err error
+	if m.settings.SelectedProblemVersionID != "" {
+		rows, err = tx.Query(ctx, "SELECT v.public FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND (p.owner_id IS NULL OR p.owner_id=$2)", m.settings.SelectedProblemVersionID, m.host)
+	} else {
+		filters := m.settings.QuestionFilters
+		sql := "false"
+		if filters.SQL == "true" {
+			sql = "true"
+		}
+		f := ProblemFilter{Difficulty: strings.Join(m.settings.Difficulties, ","), Type: filters.Type, SQL: sql, Topic: filters.Topic, Company: filters.Company}
+		rows, err = tx.Query(ctx, "SELECT v.public FROM problem_versions v JOIN problems p ON p.id=v.problem_id"+catalogWhere+" ORDER BY v.id", catalogArgs(f, m.host)...)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -568,7 +582,7 @@ func (s *Store) startMatch(ctx context.Context, tx pgx.Tx, m *matchRecord) error
 		return err
 	}
 	if len(pool) == 0 {
-		return failure("temporarily_unavailable", 503, "Difficulty pool is empty")
+		return failure("no_matching_questions", 409, "No questions match the selected filters")
 	}
 	choice, err := rand.Int(rand.Reader, big.NewInt(int64(len(pool))))
 	if err != nil {
