@@ -180,15 +180,7 @@ func ValidateConstraints(sig Signature, constraints []Constraint) error {
 	}
 	return nil
 }
-func project(sig Signature, c Case, t *ConstraintTarget) []float64 {
-	var value any
-	for i, p := range sig.Parameters {
-		if p.Name == t.Parameter {
-			normalized, _ := normalizeInput(p.Type, c.Args[i], execution.MaxInputElements)
-			_ = json.Unmarshal(normalized, &value)
-			break
-		}
-	}
+func project(value any, t *ConstraintTarget) []float64 {
 	if t.Projection == "length" {
 		if s, ok := value.(string); ok {
 			return []float64{float64(utf8.RuneCountInString(s))}
@@ -241,22 +233,36 @@ func ValidateProblemCase(p Problem, c Case, expectedRequired bool) error {
 	if err := ValidateConstraints(p.Signature, p.Constraints); err != nil {
 		return err
 	}
+	values := make(map[string]any)
+	projectTarget := func(target *ConstraintTarget) []float64 {
+		value, ok := values[target.Parameter]
+		if !ok {
+			for i, param := range p.Signature.Parameters {
+				if param.Name == target.Parameter {
+					_ = json.Unmarshal(c.Args[i], &value)
+					values[target.Parameter] = value
+					break
+				}
+			}
+		}
+		return project(value, target)
+	}
 	for _, rule := range p.Constraints {
 		switch rule.Kind {
 		case "range":
-			for _, v := range project(p.Signature, c, rule.Target) {
+			for _, v := range projectTarget(rule.Target) {
 				if math.IsNaN(v) || math.IsInf(v, 0) || rule.Min != nil && v < *rule.Min || rule.Max != nil && v > *rule.Max {
 					return fmt.Errorf("argument %s: %s outside allowed range", rule.Target.Parameter, rule.Target.Projection)
 				}
 			}
 		case "comparison":
-			a, b := project(p.Signature, c, rule.Left)[0], project(p.Signature, c, rule.Right)[0]
+			a, b := projectTarget(rule.Left)[0], projectTarget(rule.Right)[0]
 			valid := map[string]bool{"eq": a == b, "le": a <= b, "lt": a < b, "ge": a >= b, "gt": a > b}[rule.Operator]
 			if !valid || math.IsNaN(a) || math.IsNaN(b) || math.IsInf(a, 0) || math.IsInf(b, 0) {
 				return fmt.Errorf("arguments %s and %s: comparison %s failed", rule.Left.Parameter, rule.Right.Parameter, rule.Operator)
 			}
 		case "property":
-			values := project(p.Signature, c, rule.Target)
+			values := projectTarget(rule.Target)
 			seen := map[float64]bool{}
 			for i, v := range values {
 				if rule.Property == "unique" && seen[v] || rule.Property != "unique" && i > 0 && values[i-1] > v {

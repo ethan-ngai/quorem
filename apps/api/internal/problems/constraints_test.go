@@ -165,3 +165,26 @@ func TestSumProjection(t *testing.T) {
 		t.Fatal("string sum accepted")
 	}
 }
+
+func TestConstraintsShareDecodedInputAcrossProjections(t *testing.T) {
+	min := float64(0)
+	p := Problem{
+		Signature: Signature{Parameters: []Parameter{{Name: "values", Type: "list<int>"}}, ReturnType: "int"},
+		Constraints: []Constraint{
+			{Kind: "range", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Min: &min},
+			{Kind: "property", Target: &ConstraintTarget{Parameter: "values", Projection: "elements"}, Property: "unique"},
+			{Kind: "comparison", Left: &ConstraintTarget{Parameter: "values", Projection: "length"}, Right: &ConstraintTarget{Parameter: "values", Projection: "sum"}, Operator: "le"},
+		},
+	}
+	for _, test := range []struct {
+		raw   string
+		valid bool
+	}{
+		{`[1,2,3]`, true}, {`[1,1,2]`, false}, {`[-1,2,3]`, false}, {`[0]`, false},
+	} {
+		err := ValidateProblemCase(p, Case{Args: []json.RawMessage{json.RawMessage(test.raw)}}, false)
+		if (err == nil) != test.valid {
+			t.Fatalf("%s: %v", test.raw, err)
+		}
+	}
+}
