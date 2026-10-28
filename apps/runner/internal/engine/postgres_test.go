@@ -1,10 +1,13 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,10 +16,34 @@ import (
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
-func TestPostgresSandbox(t *testing.T) {
+// PostgreSQL sandbox tests must execute the harness from this checkout.
+func postgresTestImage(t *testing.T) string {
+	t.Helper()
 	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
 		t.Skip("QUOREM_TEST_POSTGRES_DOCKER=1 enables PostgreSQL sandbox tests")
 	}
+	image := os.Getenv("QUOREM_TEST_POSTGRES_IMAGE")
+	if image == "" {
+		image = "quorem-postgres:local"
+	}
+	source, err := os.ReadFile(filepath.Join("..", "..", "postgres", "harness.py"))
+	if err != nil {
+		t.Fatalf("read PostgreSQL harness from checkout: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	actual, err := exec.CommandContext(ctx, "docker", "run", "--rm", "--network=none", "--pull=never", "--entrypoint=cat", image, "/opt/quorem/harness.py").Output()
+	if err != nil {
+		t.Fatalf("read PostgreSQL harness from image %q: %v; build a current image with docker build -f apps/runner/Dockerfile.postgres -t quorem-postgres:local .", image, err)
+	}
+	if !bytes.Equal(source, actual) {
+		t.Fatalf("PostgreSQL image %q has a stale harness; build a current image with docker build -f apps/runner/Dockerfile.postgres -t quorem-postgres:local . and select it with QUOREM_TEST_POSTGRES_IMAGE", image)
+	}
+	return image
+}
+
+func TestPostgresSandbox(t *testing.T) {
+	image := postgresTestImage(t)
 	var fixture worker.Fixture
 	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered"}},"hiddenCases":[]}`), &fixture); err != nil {
 		t.Fatal(err)
@@ -36,7 +63,7 @@ func TestPostgresSandbox(t *testing.T) {
 		{"COPY items TO PROGRAM 'id'", execution.RuntimeError},
 	} {
 		t.Run(test.source, func(t *testing.T) {
-			d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+			d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 				return worker.Spec{Source: test.source, Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{c}}, nil
 			}}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -56,7 +83,7 @@ func TestPostgresSandbox(t *testing.T) {
 		if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[[2],[1]]}]}],"expected":{"rows":[[1],[2]]}}`), &schemaCase); err != nil {
 			t.Fatal(err)
 		}
-		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 			return worker.Spec{Source: "SELECT id FROM items", Kind: "submit", Problem: schemaFixture.Problem, Cases: []worker.Case{schemaCase}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -84,7 +111,7 @@ func TestPostgresSandbox(t *testing.T) {
 	t.Run("numeric precision", func(t *testing.T) {
 		numeric := c
 		numeric.Expected = json.RawMessage(`{"columns":["amount"],"rows":[[{"$numeric":"12345678901234567890.1234567890"}]]}`)
-		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 			return worker.Spec{Source: "SELECT 12345678901234567890.123456789::numeric AS amount", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{numeric}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -98,7 +125,7 @@ func TestPostgresSandbox(t *testing.T) {
 	t.Run("bigint precision", func(t *testing.T) {
 		bigcase := c
 		bigcase.Expected = json.RawMessage(`{"columns":["amount"],"rows":[[{"$bigint":"9223372036854775807"}]]}`)
-		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 			return worker.Spec{Source: "SELECT 9223372036854775807::bigint AS amount", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{bigcase}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -112,9 +139,7 @@ func TestPostgresSandbox(t *testing.T) {
 }
 
 func TestPostgresLeftJoinTextResult(t *testing.T) {
-	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
-		t.Skip("requires PostgreSQL sandbox")
-	}
+	image := postgresTestImage(t)
 	var fixture worker.Fixture
 	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered"}}}`), &fixture); err != nil {
 		t.Fatal(err)
@@ -124,7 +149,7 @@ func TestPostgresLeftJoinTextResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime, _ := execution.RuntimeForRevision("postgresql-17.6-v1", "quorem-postgresql-v1")
-	d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+	d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 		return worker.Spec{Source: "-- Write your query here.\nSELECT c.id, name FROM customers c LEFT JOIN orders o\nON c.id = o.customer_id WHERE customer_id IS NULL;", Kind: "run", Problem: fixture.Problem, Cases: []worker.Case{c}}, nil
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -136,9 +161,7 @@ func TestPostgresLeftJoinTextResult(t *testing.T) {
 }
 
 func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
-	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
-		t.Skip("requires PostgreSQL sandbox")
-	}
+	image := postgresTestImage(t)
 	var fixture worker.Fixture
 	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"unordered"}}}`), &fixture); err != nil {
 		t.Fatal(err)
@@ -162,7 +185,7 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 		{"no columns", "SELECT FROM items", "at least one column", execution.InvalidOutput},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+			d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 				return worker.Spec{Source: test.source, Kind: "run", Problem: fixture.Problem, Cases: []worker.Case{sample}}, nil
 			}}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -177,7 +200,7 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 		})
 	}
 	t.Run("hidden data", func(t *testing.T) {
-		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 			return worker.Spec{Source: "SELECT id::integer AS id FROM items", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{private}, SubmitSamples: []worker.Case{sample}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -196,7 +219,7 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 		if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","columns":[{"name":"id","type":"text"}],"rows":[["SELECT 1"]]}]}],"expected":{"columns":["id"],"rows":[]}}`), &visible); err != nil {
 			t.Fatal(err)
 		}
-		d := &Docker{Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
+		d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 			return worker.Spec{Source: "SELECT query_to_xml(id, true, false, '')::text AS id FROM items", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{hidden}, SubmitSamples: []worker.Case{visible}}, nil
 		}}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -211,9 +234,7 @@ func TestPostgresVisibleDiagnosticsAndHiddenRedaction(t *testing.T) {
 }
 
 func TestPostgresTimestampComparison(t *testing.T) {
-	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
-		t.Skip("requires PostgreSQL sandbox")
-	}
+	image := postgresTestImage(t)
 	var fixture worker.Fixture
 	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"ordered","tables":[{"name":"events","columns":[{"name":"wall","type":"timestamp"},{"name":"instant","type":"timestamptz"}]}],"output":[{"name":"wall","type":"timestamp"},{"name":"instant","type":"timestamptz"}]}}}`), &fixture); err != nil {
 		t.Fatal(err)
@@ -221,10 +242,6 @@ func TestPostgresTimestampComparison(t *testing.T) {
 	var test worker.Case
 	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"events","rows":[["2024-01-01T12:00:00.1234567","2024-01-01 10:00:00"]]}]}],"expected":{"rows":[["2024-01-01 12:00:00.1234567","2024-01-01T12:00:00+02:00"]]}}`), &test); err != nil {
 		t.Fatal(err)
-	}
-	image := os.Getenv("QUOREM_TEST_POSTGRES_IMAGE")
-	if image == "" {
-		image = "quorem-postgres:local"
 	}
 	d := &Docker{Images: map[string]string{"postgresql": image}, Resolve: func(context.Context, execution.Job) (worker.Spec, error) {
 		return worker.Spec{Source: "SELECT wall, instant FROM events", Kind: "submit", Problem: fixture.Problem, Cases: []worker.Case{test}}, nil
@@ -239,9 +256,7 @@ func TestPostgresTimestampComparison(t *testing.T) {
 }
 
 func TestPostgresNonFiniteOutputIsContestantError(t *testing.T) {
-	if os.Getenv("QUOREM_TEST_POSTGRES_DOCKER") != "1" {
-		t.Skip("requires PostgreSQL sandbox")
-	}
+	image := postgresTestImage(t)
 	var fixture worker.Fixture
 	if err := json.Unmarshal([]byte(`{"problem":{"sql":{"dialect":"postgresql","outputOrder":"ordered","tables":[{"name":"items","columns":[{"name":"id","type":"integer"}]}],"output":[{"name":"value","type":"real"}]}}}`), &fixture); err != nil {
 		t.Fatal(err)
@@ -249,10 +264,6 @@ func TestPostgresNonFiniteOutputIsContestantError(t *testing.T) {
 	var test worker.Case
 	if err := json.Unmarshal([]byte(`{"args":[{"tables":[{"name":"items","rows":[]}]}],"expected":{"rows":[[0]]}}`), &test); err != nil {
 		t.Fatal(err)
-	}
-	image := os.Getenv("QUOREM_TEST_POSTGRES_IMAGE")
-	if image == "" {
-		image = "quorem-postgres:local"
 	}
 	runtime, _ := execution.LanguageRuntime("postgresql")
 	for _, tc := range []struct{ kind, value string }{{"run", "NaN"}, {"submit", "Infinity"}} {
