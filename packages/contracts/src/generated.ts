@@ -1427,12 +1427,11 @@ export interface components {
             title: string;
             statementMarkdown: string;
             signature: components["schemas"]["Signature"];
-            starterSource: string;
-            publicCases: components["schemas"]["CustomCase"][];
-            privateCases: components["schemas"]["CustomCase"][];
+            publicCases?: components["schemas"]["CustomCase"][];
+            privateCases?: components["schemas"]["CustomCase"][];
             odyssey?: components["schemas"]["Odyssey"];
             odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
-        };
+        } & unknown;
         InterviewQuestionInput: {
             problemVersionId?: string;
             custom?: components["schemas"]["InterviewCustomQuestion"];

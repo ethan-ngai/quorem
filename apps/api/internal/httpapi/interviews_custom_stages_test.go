@@ -18,8 +18,11 @@ func TestHTTPCreatePrivateStagedInterviewWithoutPublication(t *testing.T) {
 	ctx := context.Background()
 	method := problems.Signature{ClassName: "Solution", MethodName: "answer", Parameters: []problems.Parameter{}, ReturnType: "int"}
 	testCase := problems.Case{Args: []json.RawMessage{}, Calls: []problems.MethodCall{{MethodName: "answer", Args: []json.RawMessage{}, Expected: json.RawMessage(`1`)}}}
-	starter := "class Solution:\n    def answer(self): return 1\n"
-	input := interviews.Create{Title: "Private staged pad", Question: interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Answer", StatementMarkdown: "Return one.", Signature: method, StarterSource: starter, PublicCases: []problems.Case{testCase}, PrivateCases: []problems.Case{}, Odyssey: &problems.Odyssey{Levels: []problems.OdysseyLevel{{Title: "Answer", StatementMarkdown: "Implement answer.", Methods: []problems.Signature{method}, Examples: []problems.ProblemExample{{Case: testCase}}}}}, OdysseyHiddenCases: [][]problems.Case{{testCase}}}}}
+	starter, err := problems.GenerateStarter([]problems.Signature{method}, "python", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := interviews.Create{Title: "Private staged pad", Question: interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Answer", StatementMarkdown: "Return one.", Signature: method, Odyssey: &problems.Odyssey{Levels: []problems.OdysseyLevel{{Title: "Answer", StatementMarkdown: "Implement answer.", Methods: []problems.Signature{method}, Examples: []problems.ProblemExample{{Case: testCase}}}}}, OdysseyHiddenCases: [][]problems.Case{{testCase}}}}}
 	body, err := json.Marshal(input)
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +41,7 @@ func TestHTTPCreatePrivateStagedInterviewWithoutPublication(t *testing.T) {
 	if err = json.Unmarshal(w.Body.Bytes(), &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Question.Progress == nil || snapshot.Question.Progress.TotalLevels != 1 || snapshot.Document.Source == starter || !strings.Contains(snapshot.Document.Source, "def answer") || len(snapshot.Question.PrivateCaseDetails) != 1 {
+	if snapshot.Question.Progress == nil || snapshot.Question.Progress.TotalLevels != 1 || snapshot.Document.Source != starter || !strings.Contains(snapshot.Document.Source, "def answer") || len(snapshot.Question.PrivateCaseDetails) != 1 {
 		t.Fatal("private staged HTTP response", snapshot)
 	}
 	var publications int

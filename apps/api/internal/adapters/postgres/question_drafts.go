@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -132,6 +133,10 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 		}
 	}
 
+	if c.Problem.Odyssey != nil && len(c.Problem.Odyssey.Levels) > 0 && sameStageExamples(c.Problem.Examples, c.Problem.Odyssey.Levels[0].Examples) {
+		c.Problem.Examples = []problems.ProblemExample{}
+	}
+
 	if err = s.Pool.QueryRow(ctx, "SELECT attribution FROM problem_versions WHERE id::text=$1", versionID).Scan(&c.Attribution); err != nil {
 		return c, err
 	}
@@ -181,6 +186,28 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 	}
 	c.Solutions, err = s.readSolutions(ctx, versionID)
 	return c, err
+}
+
+func sameStageExamples(a, b []problems.ProblemExample) bool {
+	if len(a) == 0 || len(a) != len(b) {
+		return false
+	}
+	canonical := func(value problems.ProblemExample) []byte {
+		if value.Args == nil {
+			value.Args = []json.RawMessage{}
+		}
+		if len(value.Calls) > 0 && bytes.Equal(bytes.TrimSpace(value.Expected), []byte("null")) {
+			value.Expected = nil
+		}
+		data, _ := json.Marshal(value)
+		return data
+	}
+	for i := range a {
+		if !bytes.Equal(canonical(a[i]), canonical(b[i])) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Store) PublishQuestionDraft(ctx context.Context, actor, id, revision string) (QuestionDraft, error) {

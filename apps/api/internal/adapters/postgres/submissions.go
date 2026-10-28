@@ -46,7 +46,7 @@ func (s *Store) Admit(ctx context.Context, owner, key string, c judging.Command,
  'problem',jsonb_build_object('id',v.id,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'odyssey',v.odyssey,'examples',`+problemExamplesSQL+`),
  'hiddenCases',CASE WHEN $3='submit' THEN `+problemHiddenCasesSQL+` ELSE '[]'::jsonb END,
  'odysseyHiddenCases',CASE WHEN $3='submit' THEN `+odysseySuitesSQL+` ELSE NULL END),
- COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,COALESCE(w.odyssey_scope,w.id)::text
+ COALESCE(w.match_id::text,''),w.language,l.runtime_revision,l.harness_revision,w.id::text
  FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problem_languages l ON l.version_id=w.problem_version_id AND l.language=w.language WHERE w.id::text=$1 AND w.owner_id=$2`, c.WorkspaceID, owner, c.Kind).Scan(&fixtureData, &matchID, &language, &runtimeRevision, &harnessRevision, &odysseyScope)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return judging.Submission{}, failure("not_found", 404, "Workspace not found")

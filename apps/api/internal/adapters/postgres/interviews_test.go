@@ -24,7 +24,7 @@ func interviewTestStore(t *testing.T) *Store {
 	return s
 }
 func customInterviewQuestion() interviews.QuestionInput {
-	return interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Private increment", StatementMarkdown: "Return n plus one.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, StarterSource: "class Solution:\n    def increment(self, n):\n        return n + 1\n", PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}, PrivateCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`987654`)}, Expected: json.RawMessage(`987655`)}}}}
+	return interviews.QuestionInput{Language: "python", Custom: &interviews.CustomQuestion{Title: "Private increment", StatementMarkdown: "Return n plus one.", Signature: problems.Signature{ClassName: "Solution", MethodName: "increment", Parameters: []problems.Parameter{{Name: "n", Type: "int"}}, ReturnType: "int"}, PublicCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`1`)}, Expected: json.RawMessage(`2`)}}, PrivateCases: []problems.Case{{Args: []json.RawMessage{json.RawMessage(`987654`)}, Expected: json.RawMessage(`987655`)}}}}
 }
 func createInterviewTest(t *testing.T, s *Store) interviews.Snapshot {
 	t.Helper()

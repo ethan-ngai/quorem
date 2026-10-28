@@ -87,17 +87,22 @@ const stagedPad = {
   title: "Private stages",
   statementMarkdown: "Implement each stage.",
   signature: authoredStages.problem.signature,
-  starterSource: authoredStages.implementations.find((item) => item.language === "python")
-    .starterSource,
-  publicCases: authoredStages.problem.odyssey.levels[0].examples.map(({ args, calls }) => ({
-    args,
-    calls,
-  })),
-  privateCases: [],
   odyssey: authoredStages.problem.odyssey,
   odysseyHiddenCases: authoredStages.odysseyHiddenCases,
 };
 assert(validateInterviewCustom(stagedPad), JSON.stringify(validateInterviewCustom.errors));
+assert(!validateInterviewCustom({ ...stagedPad, starterSource: "ignored" }));
+assert(!validateInterviewCustom({ ...stagedPad, publicCases: [] }));
+assert(!validateInterviewCustom({ ...stagedPad, privateCases: [] }));
+const classicPad = {
+  title: "Classic",
+  statementMarkdown: "Solve it.",
+  signature: stagedPad.signature,
+  publicCases: [{ args: [1], expected: 1 }],
+};
+assert(validateInterviewCustom(classicPad), JSON.stringify(validateInterviewCustom.errors));
+const { publicCases: _, ...missingCases } = classicPad;
+assert(!validateInterviewCustom(missingCases));
 for (const missing of ["odyssey", "odysseyHiddenCases"]) {
   const invalid = { ...stagedPad };
   delete invalid[missing];

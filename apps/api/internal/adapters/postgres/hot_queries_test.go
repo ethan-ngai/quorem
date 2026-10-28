@@ -26,6 +26,12 @@ func TestIndexedUUIDLookupsPreserveNotFound(t *testing.T) {
 		if _, err := s.Workspace(ctx, "alice", bad); errorCode(err) != "not_found" {
 			t.Fatalf("workspace malformed lookup: %q %v", bad, err)
 		}
+		if _, err := s.Odyssey(ctx, "alice", bad); errorCode(err) != "not_found" {
+			t.Fatalf("odyssey malformed lookup: %q %v", bad, err)
+		}
+		if err := s.ResetOdyssey(ctx, "alice", bad); errorCode(err) != "not_found" {
+			t.Fatalf("reset odyssey malformed lookup: %q %v", bad, err)
+		}
 		if _, err := s.InterviewSubmission(ctx, "alice", v.ID, bad); errorCode(err) != "not_found" {
 			t.Fatalf("interview submission malformed lookup: %q %v", bad, err)
 		}
