@@ -176,3 +176,38 @@ func TestContinuousRunnerReapsAtAbandonedLeaseDeadline(t *testing.T) {
 		t.Fatal("reaped job was not reclaimed")
 	}
 }
+
+func TestPostgresDrainCutoffDoesNotClaimBehindQueueLock(t *testing.T) {
+	store := executionWakeStore(t)
+	ctx := context.Background()
+	wakeAdmission(t, store, "alice")
+	tx, err := store.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(740020)`); err != nil {
+		t.Fatal(err)
+	}
+	engine := &retryWakeEngine{}
+	service := New(store)
+	deadline := time.Now().Add(100 * time.Millisecond)
+	result := startCutoffDrain(service, engine, 1, deadline)
+	r := <-result
+	if r.err != nil || r.complete || r.state.Queued != 1 || engine.attempts.Load() != 0 {
+		t.Fatalf("blocked drain: %+v attempts=%d", r, engine.attempts.Load())
+	}
+	var attempts int
+	if err = store.Pool.QueryRow(ctx, `SELECT max(attempts) FROM execution_jobs WHERE NOT finished`).Scan(&attempts); err != nil || attempts != 0 {
+		t.Fatalf("claim after cutoff: %d %v", attempts, err)
+	}
+	if err = tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	retryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	state, complete, err := service.drain(retryCtx, engine, 1, 20*time.Millisecond)
+	if err != nil || !complete || state.Queued != 0 || engine.attempts.Load() != 1 {
+		t.Fatalf("retry: %+v %v %v attempts=%d", state, complete, err, engine.attempts.Load())
+	}
+}

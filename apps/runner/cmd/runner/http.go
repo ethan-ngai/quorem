@@ -41,6 +41,9 @@ func drainHandler(service executionDrainer, engine execution.ExecutionEngine, sl
 		// Leave time for bounded sandbox teardown and durable completion below the 240s HTTP limit.
 		ctx, cancel := context.WithTimeout(r.Context(), 210*time.Second)
 		defer cancel()
+		// A new attempt needs its full execution, teardown, and completion window.
+		deadline, _ := ctx.Deadline()
+		ctx = worker.WithDrainClaimDeadline(ctx, deadline.Add(-execution.AttemptTimeout-execution.TeardownTimeout-execution.CompletionTimeout))
 		state, complete, err := service.Drain(ctx, engine, slots)
 		status := http.StatusAccepted
 		if err != nil {
