@@ -128,3 +128,79 @@ run "alternate_auth_providers" {
     error_message = "Provider secrets must not reach judges."
   }
 }
+
+run "judging_rollout_defaults" {
+  command = plan
+  assert {
+    condition     = local.runtime.QUOREM_LOSSLESS_CASES == "false" && local.runtime.QUOREM_LOSSLESS_RESULT_WRITES == "false" && local.judge_runtime.QUOREM_LOSSLESS_CASES == "false" && local.judge_runtime.QUOREM_LOSSLESS_RESULT_WRITES == "false" && local.judge_runtime.QUOREM_RESUMABLE_EXECUTION == "false"
+    error_message = "Lossless cases, lossless results and resumable judging must default off for both roles."
+  }
+}
+
+run "judges_first" {
+  command = plan
+  variables {
+    judge_lossless_results    = true
+    judge_lossless_cases      = true
+    judge_resumable_execution = true
+  }
+  assert {
+    condition     = local.runtime.QUOREM_LOSSLESS_CASES == "false" && local.runtime.QUOREM_LOSSLESS_RESULT_WRITES == "false" && local.judge_runtime.QUOREM_LOSSLESS_CASES == "true" && local.judge_runtime.QUOREM_LOSSLESS_RESULT_WRITES == "true" && local.judge_runtime.QUOREM_RESUMABLE_EXECUTION == "true"
+    error_message = "Judge rollout must not enable API writes."
+  }
+  assert {
+    condition     = local.judge_configuration.environment_variables[0].value == sha256(jsonencode(local.judge_runtime)) && [for binding in cloudflare_worker_version.app.bindings : binding.text if binding.name == "APP_RUNTIME_REVISION"][0] == sha256(jsonencode(local.runtime))
+    error_message = "Both roles must fence their runtime configuration revisions."
+  }
+  assert {
+    condition     = sha256(jsonencode(local.judge_runtime)) != sha256(jsonencode(merge(local.judge_runtime, { QUOREM_LOSSLESS_CASES = "false", QUOREM_LOSSLESS_RESULT_WRITES = "false", QUOREM_RESUMABLE_EXECUTION = "false" })))
+    error_message = "Judge capability changes must change the judge runtime revision."
+  }
+  assert {
+    condition     = [for binding in local.fast_worker_config.metadata.bindings : binding.text if binding.name == "JUDGE_FAST_REVISION"][0] == sha256(jsonencode([var.judge_image, local.judge_runtime, var.judge_vcpu, var.judge_memory_mib])) && jsondecode([for binding in local.fast_worker_config.metadata.bindings : binding.text if binding.name == "JUDGE_RUNTIME_ENV"][0]).QUOREM_LOSSLESS_CASES == "true"
+    error_message = "Fast judges must receive the enabled runtime and matching revision."
+  }
+}
+
+run "api_after_judges" {
+  command = plan
+  variables {
+    api_lossless_results   = true
+    api_lossless_cases     = true
+    judge_lossless_results = true
+    judge_lossless_cases   = true
+  }
+  assert {
+    condition     = local.runtime.QUOREM_LOSSLESS_CASES == "true" && local.runtime.QUOREM_LOSSLESS_RESULT_WRITES == "true" && local.judge_runtime.QUOREM_LOSSLESS_CASES == "true" && local.judge_runtime.QUOREM_LOSSLESS_RESULT_WRITES == "true"
+    error_message = "Enabled lossless cases require both roles and result writers."
+  }
+  assert {
+    condition     = sha256(jsonencode(local.runtime)) != sha256(jsonencode(merge(local.runtime, { QUOREM_LOSSLESS_CASES = "false", QUOREM_LOSSLESS_RESULT_WRITES = "false" })))
+    error_message = "API capability changes must change the API runtime revision."
+  }
+}
+
+run "reject_judge_cases_without_results" {
+  command = plan
+  variables { judge_lossless_cases = true }
+  expect_failures = [var.judge_lossless_cases]
+}
+
+run "reject_api_cases_without_judges" {
+  command = plan
+  variables {
+    api_lossless_results = true
+    api_lossless_cases   = true
+  }
+  expect_failures = [var.api_lossless_cases]
+}
+
+run "reject_api_cases_without_results" {
+  command = plan
+  variables {
+    api_lossless_cases     = true
+    judge_lossless_cases   = true
+    judge_lossless_results = true
+  }
+  expect_failures = [var.api_lossless_cases]
+}
