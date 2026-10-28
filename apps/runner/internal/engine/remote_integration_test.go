@@ -145,6 +145,9 @@ func verifyRemoteSandbox(t *testing.T, remote *RemoteSandbox) {
 		}}
 		result, err := runner.Execute(ctx, execution.Job{Language: tc.language, AttemptID: "direct-" + tc.language, SubmissionID: "test", RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 		if err != nil || result.Verdict != execution.Accepted {
+			if err != nil {
+				logHostedCasePhase(t, remote, fmt.Errorf("attempt direct-%s: %w", tc.language, err))
+			}
 			t.Fatalf("%s: %+v %v", tc.language, result, err)
 		}
 		t.Logf("%s two cases: %s", tc.language, time.Since(started))

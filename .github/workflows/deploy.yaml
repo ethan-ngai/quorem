@@ -47,7 +47,7 @@ on:
         type: boolean
         default: false
       reuse_run_id:
-        description: Completed production run whose verified images can be reused for an infrastructure-only retry
+        description: Completed production run whose verified images can be reused
         required: false
         type: string
         default: ""
@@ -245,7 +245,7 @@ jobs:
 
   validate-hosted-case:
     needs: build
-    if: ${{ always() && !cancelled() && !inputs.restart_objects && ((github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped'))) || (github.ref == 'refs/heads/dev' && inputs.validate_hosted && needs.build.result == 'success')) }}
+    if: ${{ always() && !cancelled() && !inputs.restart_objects && ((github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped'))) || (github.ref == 'refs/heads/dev' && inputs.validate_hosted && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped')))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -253,6 +253,8 @@ jobs:
       TF_VAR_image_revision: ${{ github.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
         with:
           node-version-file: .node-version
@@ -268,10 +270,11 @@ jobs:
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - name: Resolve production image revision
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || inputs.reuse_run_id != ''
         env:
           GH_TOKEN: ${{ github.token }}
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+          QUOREM_REUSE_CASE_IMAGES_ONLY: ${{ github.ref == 'refs/heads/dev' }}
         run: |
           echo "TF_VAR_image_prefix=quorem-case" >> "$GITHUB_ENV"
           if [ -n "$REUSE_RUN_ID" ]; then
@@ -331,7 +334,7 @@ jobs:
             terraform -chdir=infra/terraform/case-validation destroy -input=false -auto-approve
           fi
       - name: Delete temporary validation images
-        if: ${{ always() && github.ref == 'refs/heads/dev' }}
+        if: ${{ always() && github.ref == 'refs/heads/dev' && inputs.reuse_run_id == '' }}
         run: |
           failed=false
           for language in python java typescript ocaml postgresql; do

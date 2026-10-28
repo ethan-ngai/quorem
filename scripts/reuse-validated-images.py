@@ -19,6 +19,15 @@ IMAGE_INPUTS = [
     'scripts/package-auth.py', 'scripts/build-judge-images.py',
 ]
 
+CASE_IMAGE_INPUTS = [
+    'apps/runner/Dockerfile', 'apps/runner/Dockerfile.java',
+    'apps/runner/Dockerfile.typescript', 'apps/runner/Dockerfile.ocaml',
+    'apps/runner/Dockerfile.postgres', 'apps/runner/python', 'apps/runner/polyglot',
+    'apps/runner/postgres', 'apps/runner/direct', 'internal/execution/public',
+    'deploy/Dockerfile.case', 'deploy/cgroup.py', 'deploy/seccomp.py',
+    'scripts/build-judge-images.py',
+]
+
 REQUIRED_STEPS = {
     'Validate application and judge', 'Build application and judge images',
     'Verify split runtime roles', 'Verify direct sandbox isolation',
@@ -48,7 +57,7 @@ def build_definition(text):
         raise RuntimeError('Deployment build definition missing') from None
 
 
-def resolve(run_id, current, repository, api=github, command=git):
+def resolve(run_id, current, repository, api=github, command=git, case_only=False):
     if not re.fullmatch(r'[0-9]{1,20}', run_id) or not re.fullmatch(r'[0-9a-f]{40}', current):
         raise RuntimeError('Invalid release identifiers')
     if not re.fullmatch(r'[\w.-]+/[\w.-]+', repository):
@@ -67,12 +76,14 @@ def resolve(run_id, current, repository, api=github, command=git):
     if build.get('conclusion') != 'success' or not REQUIRED_STEPS <= succeeded:
         raise RuntimeError('Both role images must have passed verification and publication')
     try:
-        command('merge-base', '--is-ancestor', source, current)
-        command('diff', '--quiet', source, current, '--', *IMAGE_INPUTS)
-        before = command('show', source + ':' + WORKFLOW)
-        after = command('show', current + ':' + WORKFLOW)
-        if build_definition(before) != build_definition(after):
-            raise RuntimeError('Image build steps changed; rebuild required')
+        if not case_only:
+            command('merge-base', '--is-ancestor', source, current)
+        command('diff', '--quiet', source, current, '--', *(CASE_IMAGE_INPUTS if case_only else IMAGE_INPUTS))
+        if not case_only:
+            before = command('show', source + ':' + WORKFLOW)
+            after = command('show', current + ':' + WORKFLOW)
+            if build_definition(before) != build_definition(after):
+                raise RuntimeError('Image build steps changed; rebuild required')
     except subprocess.CalledProcessError:
         raise RuntimeError('Image inputs changed or source is not an ancestor; rebuild required') from None
     return source
@@ -82,10 +93,11 @@ def main():
     current = os.environ['GITHUB_SHA']
     if git('rev-parse', 'HEAD') != current:
         raise RuntimeError('Checkout must match the current release')
-    revision = resolve(os.environ['REUSE_RUN_ID'], current, os.environ['GITHUB_REPOSITORY'])
+    case_only = os.environ.get('QUOREM_REUSE_CASE_IMAGES_ONLY') == 'true'
+    revision = resolve(os.environ['REUSE_RUN_ID'], current, os.environ['GITHUB_REPOSITORY'], case_only=case_only)
     with open(os.environ['GITHUB_ENV'], 'a') as output:
         output.write('IMAGE_REVISION=' + revision + '\n')
-    print('Reusing both verified role images from ' + revision)
+    print(('Reusing verified case images from ' if case_only else 'Reusing both verified role images from ') + revision)
 
 
 if __name__ == '__main__':
