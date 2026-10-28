@@ -19,7 +19,7 @@ type QuestionDraft = problems.QuestionDraft
 type QuestionDraftSummary = problems.QuestionDraftSummary
 type QuestionDraftPage = problems.QuestionDraftPage
 
-const draftColumns = "id::text,revision::text,content,COALESCE(published_version_id::text,''),updated_at"
+const draftColumns = "id::text,revision::text,COALESCE(lossless_content,convert_to(content::text,'UTF8')),COALESCE(published_version_id::text,''),updated_at"
 
 func scanQuestionDraft(row pgx.Row) (QuestionDraft, error) {
 	var d QuestionDraft
@@ -55,7 +55,11 @@ func createQuestionDraft(ctx context.Context, db questionDB, actor string, conte
 	if err != nil {
 		return QuestionDraft{}, err
 	}
-	return scanQuestionDraft(db.QueryRow(ctx, "INSERT INTO question_drafts(content,created_by,updated_by,owner_id) SELECT $1,$2,$2,CASE WHEN role='admin' THEN NULL ELSE id END FROM users WHERE id=$2 RETURNING "+draftColumns, data, actor))
+	safe, lossless, err := caseStorageJSON(data, false)
+	if err != nil {
+		return QuestionDraft{}, err
+	}
+	return scanQuestionDraft(db.QueryRow(ctx, "INSERT INTO question_drafts(content,lossless_content,created_by,updated_by,owner_id) SELECT $1,$3,$2,$2,CASE WHEN role='admin' THEN NULL ELSE id END FROM users WHERE id=$2 RETURNING "+draftColumns, safe, actor, lossless))
 }
 func (s *Store) QuestionDraft(ctx context.Context, id string) (QuestionDraft, error) {
 	return questionDraft(ctx, s.Pool, id)
@@ -103,13 +107,28 @@ func (s *Store) UpdateQuestionDraft(ctx context.Context, actor, id, revision str
 	if err != nil {
 		return QuestionDraft{}, err
 	}
-	d, err := scanQuestionDraft(s.Pool.QueryRow(ctx, "UPDATE question_drafts SET content=$1,revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id::text=$3 AND revision::text=$4 AND published_version_id IS NULL AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) RETURNING "+draftColumns, data, actor, id, revision))
+	safe, lossless, err := caseStorageJSON(data, false)
+	if err != nil {
+		return QuestionDraft{}, err
+	}
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return QuestionDraft{}, err
+	}
+	defer tx.Rollback(ctx)
+	if err = enableLosslessCaseWrites(ctx, tx); err != nil {
+		return QuestionDraft{}, err
+	}
+	d, err := scanQuestionDraft(tx.QueryRow(ctx, "UPDATE question_drafts SET content=$1,lossless_content=$5,revision=revision+1,updated_by=$2,updated_at=clock_timestamp() WHERE id::text=$3 AND revision::text=$4 AND published_version_id IS NULL AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) RETURNING "+draftColumns, safe, actor, id, revision, lossless))
 	var missing *application.Error
 	if errors.As(err, &missing) && missing.Code == "not_found" {
-		if _, e := s.QuestionDraft(ctx, id); e != nil {
+		if _, e := questionDraft(ctx, tx, id); e != nil {
 			return d, e
 		}
 		return d, failure("revision_conflict", 409, "Draft changed or already published; reload it")
+	}
+	if err == nil {
+		err = tx.Commit(ctx)
 	}
 	return d, err
 }
@@ -131,8 +150,8 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 		return problems.QuestionContent{}, err
 	}
 	c := problems.QuestionContent{Problem: p.QuestionDefinition, HiddenCases: []problems.Case{}, Implementations: []problems.AuthoringImplementation{}, Solutions: []problems.EditorialSolution{}}
-	var odyssey, suites []byte
-	if err = s.Pool.QueryRow(ctx, "SELECT v.odyssey,"+odysseySuitesSQL+" FROM problem_versions v WHERE v.id::text=$1", versionID).Scan(&odyssey, &suites); err != nil {
+	var odyssey, suites, lossless []byte
+	if err = s.Pool.QueryRow(ctx, "SELECT v.odyssey,"+odysseySuitesSQL+",v.lossless_fixture FROM problem_versions v WHERE v.id::text=$1", versionID).Scan(&odyssey, &suites, &lossless); err != nil {
 		return c, err
 	}
 	if odyssey != nil {
@@ -197,6 +216,25 @@ func (s *Store) QuestionContent(ctx context.Context, versionID string) (problems
 	if err != nil {
 		return c, err
 	}
+	if len(lossless) > 0 {
+		var fixture problems.Fixture
+		if err = json.Unmarshal(lossless, &fixture); err != nil {
+			return c, err
+		}
+		c.Problem.Examples = fixture.Problem.Examples
+		if c.Problem.Odyssey != nil && fixture.Problem.Odyssey != nil {
+			for i := range c.Problem.Odyssey.Levels {
+				if i >= len(fixture.Problem.Odyssey.Levels) {
+					break
+				}
+				c.Problem.Odyssey.Levels[i].Examples = fixture.Problem.Odyssey.Levels[i].Examples
+			}
+		}
+		c.HiddenCases, c.OdysseyHiddenCases = fixture.HiddenCases, fixture.OdysseyHiddenCases
+		if c.Problem.Odyssey != nil && len(c.Problem.Odyssey.Levels) > 0 && sameStageExamples(c.Problem.Examples, c.Problem.Odyssey.Levels[0].Examples) {
+			c.Problem.Examples = []problems.ProblemExample{}
+		}
+	}
 	c.Solutions, err = s.readSolutions(ctx, versionID)
 	return c, err
 }
@@ -245,6 +283,9 @@ func publishQuestionDraftTo(ctx context.Context, db questionDB, actor, id, revis
 		return QuestionDraft{}, err
 	}
 	defer tx.Rollback(ctx)
+	if err = enableLosslessCaseWrites(ctx, tx); err != nil {
+		return QuestionDraft{}, err
+	}
 	d, err := scanQuestionDraft(tx.QueryRow(ctx, "SELECT "+draftColumns+" FROM question_drafts WHERE id::text=$1 AND (owner_id=$2 OR (owner_id IS NULL AND EXISTS(SELECT 1 FROM users WHERE id=$2 AND role='admin'))) FOR UPDATE", id, actor))
 	if err != nil {
 		return d, err
@@ -388,7 +429,11 @@ func publishQuestionDraftTo(ctx context.Context, db questionDB, actor, id, revis
 	if err != nil {
 		return d, err
 	}
-	d, err = scanQuestionDraft(tx.QueryRow(ctx, "UPDATE question_drafts SET published_version_id=$1,content=$2,revision=revision+1,updated_by=$3,updated_at=clock_timestamp() WHERE id::text=$4 RETURNING "+draftColumns, p.ID, content, actor, id))
+	safe, lossless, err := caseStorageJSON(content, false)
+	if err != nil {
+		return d, err
+	}
+	d, err = scanQuestionDraft(tx.QueryRow(ctx, "UPDATE question_drafts SET published_version_id=$1,content=$2,lossless_content=$5,revision=revision+1,updated_by=$3,updated_at=clock_timestamp() WHERE id::text=$4 RETURNING "+draftColumns, p.ID, safe, actor, id, lossless))
 	if err != nil {
 		return d, err
 	}

@@ -41,6 +41,9 @@ func (s *Store) SwitchInterviewLanguage(ctx context.Context, user, id, key, lang
 	if implementation == nil {
 		return empty, failure("invalid_input", 400, "Language unavailable for this question")
 	}
+	if err = enableLosslessCaseWrites(ctx, tx); err != nil {
+		return empty, err
+	}
 	if language != v.language {
 		if _, err = tx.Exec(ctx, `INSERT INTO interview_language_drafts(session_id,question_epoch,language,source) VALUES($1,$2,$3,$4) ON CONFLICT(session_id,question_epoch,language) DO UPDATE SET source=EXCLUDED.source`, id, v.snapshot.QuestionEpoch, v.language, v.snapshot.Document.Source); err != nil {
 			return empty, err
@@ -56,7 +59,11 @@ func (s *Store) SwitchInterviewLanguage(ctx context.Context, user, id, key, lang
 		v.fixture.Problem.RuntimeRevision = implementation.RuntimeRevision
 		v.fixture.HarnessRevision = implementation.HarnessRevision
 		data, _ := encodeInterviewQuestion(v.fixture, v.snapshot.Hints)
-		if _, err = tx.Exec(ctx, `UPDATE interviews SET language=$2,source=$3,document_version=0,document_epoch=$4,question=$5,version=version+1,updated_at=clock_timestamp() WHERE id=$1`, id, language, source, ID(), data); err != nil {
+		data, lossless, err := caseStorageJSON(data, false)
+		if err != nil {
+			return empty, err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE interviews SET language=$2,source=$3,document_version=0,document_epoch=$4,question=$5,lossless_question=$6,version=version+1,updated_at=clock_timestamp() WHERE id=$1`, id, language, source, ID(), data, lossless); err != nil {
 			return empty, err
 		}
 	}

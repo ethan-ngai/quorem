@@ -85,7 +85,11 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key string, comman
 	}
 	submissionID, jobID := ID(), ID()
 	encoded, _ := json.Marshal(cases)
-	if _, err = tx.Exec(ctx, `INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,custom_run) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,$8)`, submissionID, user, id, kind, v.snapshot.Document.Source, Hash([]byte(v.snapshot.Document.Source)), encoded, customCases != nil); err != nil {
+	encoded, lossless, err := caseStorageJSON(encoded, true)
+	if err != nil {
+		return out, err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,custom_run,lossless_cases) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,$8,$9)`, submissionID, user, id, kind, v.snapshot.Document.Source, Hash([]byte(v.snapshot.Document.Source)), encoded, customCases != nil, lossless); err != nil {
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,$3,$4,$5)`, jobID, submissionID, v.language, v.fixture.Problem.RuntimeRevision, v.fixture.HarnessRevision); err != nil {
