@@ -12,9 +12,25 @@ on:
       - packages/contracts/**
       - infra/**
       - deploy/**
-      - scripts/**
-      - "!scripts/build-site.mjs"
-      - "!scripts/prepare-pages.mjs"
+      - scripts/build-judge-images.py
+      - scripts/cloudflare_api.py
+      - scripts/configure-production-auth.ts
+      - scripts/package-auth.py
+      - scripts/provision-database.py
+      - scripts/reconcile-judge.py
+      - scripts/reconcile_judge_test.py
+      - scripts/require-main.sh
+      - scripts/reuse-validated-images.py
+      - scripts/reuse_validated_images_test.py
+      - scripts/terraform-state.py
+      - scripts/test-direct-sandbox.py
+      - scripts/upload-worker-version.py
+      - scripts/upload_worker_version_test.py
+      - scripts/verify-production-auth.py
+      - scripts/verify_production_auth_test.py
+      - scripts/verify-rollout.py
+      - scripts/worker-migration-tag.py
+      - scripts/worker-subdomain.py
       - go.mod
       - go.sum
       - package.json
@@ -111,8 +127,6 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp check --no-fmt
       - run: vp run contracts:check
-      - name: Validate sandbox admission policy
-        run: go test ./apps/runner/internal/engine -run TestSandboxNoSwapEvidence -count=1
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.13.5

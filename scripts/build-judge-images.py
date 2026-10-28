@@ -1,8 +1,12 @@
 """Build independent judge images concurrently; preserve each build's diagnostics."""
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import argparse
 import subprocess
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--base-only', action='store_true')
+args = parser.parse_args()
 languages = ("python", "java", "typescript", "ocaml", "postgres")
 Path("deploy/images").mkdir(parents=True, exist_ok=True)
 Path(".local/deploy").mkdir(parents=True, exist_ok=True)
@@ -13,11 +17,13 @@ def build(language):
     dockerfile = "apps/runner/Dockerfile" + ("" if language == "python" else f".{language}")
     tag = f"quorem-{language}:production"
     with path.open("w") as log:
-        for command in (
+        commands = [
             ["docker", "build", "-f", dockerfile, "-t", tag, "."],
             ["docker", "tag", tag, f"quorem-{language}:local"],
-            ["docker", "save", tag, "-o", f"deploy/images/{language}.tar"],
-        ):
+        ]
+        if not args.base_only:
+            commands.append(["docker", "save", tag, "-o", f"deploy/images/{language}.tar"])
+        for command in commands:
             result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
             if result.returncode:
                 raise RuntimeError(f"{language} build failed:\n{path.read_text()}")
