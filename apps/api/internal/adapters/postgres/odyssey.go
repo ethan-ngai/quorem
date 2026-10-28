@@ -12,7 +12,7 @@ func (s *Store) Odyssey(ctx context.Context, owner, id string) (problems.Odyssey
 	var result problems.OdysseyProgress
 	var data, statuses []byte
 	history := `SELECT s.id,s.admitted_at,s.result->'publicCases' AS cases FROM submissions s WHERE s.workspace_id=w.id AND s.state='completed' AND NOT s.custom_run AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`
-	err := s.Pool.QueryRow(ctx, `SELECT v.odyssey,COALESCE(o.level,1),COALESCE(o.completed,false),(`+caseStatusesSQL(history)+`) FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id::text=$1 AND w.owner_id=$2`, id, owner).Scan(&data, &result.Level, &result.Completed, &statuses)
+	err := s.Pool.QueryRow(ctx, `SELECT v.odyssey,COALESCE(o.level,1),COALESCE(o.completed,false),(`+caseStatusesSQL(history)+`) FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id=$1 AND w.owner_id=$2`, uuidLookup(id), owner).Scan(&data, &result.Level, &result.Completed, &statuses)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, failure("not_found", 404, "Workspace not found")
 	}
@@ -69,7 +69,7 @@ func (s *Store) ResetOdyssey(ctx context.Context, owner, id string) error {
 		return err
 	}
 	var scope, problemID string
-	err = tx.QueryRow(ctx, `SELECT id::text,problem_version_id::text FROM workspaces WHERE id::text=$1 AND owner_id=$2 AND kind='solo'`, id, owner).Scan(&scope, &problemID)
+	err = tx.QueryRow(ctx, `SELECT id::text,problem_version_id::text FROM workspaces WHERE id=$1 AND owner_id=$2 AND kind='solo'`, uuidLookup(id), owner).Scan(&scope, &problemID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return failure("not_found", 404, "Practice workspace not found")
 	}
@@ -77,7 +77,7 @@ func (s *Store) ResetOdyssey(ctx context.Context, owner, id string) error {
 		return err
 	}
 	var active bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM submissions WHERE workspace_id::text=$1 AND state IN ('queued','running'))`, scope).Scan(&active); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM submissions WHERE workspace_id=$1 AND state IN ('queued','running'))`, uuidLookup(scope)).Scan(&active); err != nil {
 		return err
 	}
 	if active {
