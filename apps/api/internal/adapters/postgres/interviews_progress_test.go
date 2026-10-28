@@ -102,6 +102,9 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(spec.Problem.Odyssey.Levels) != 1 || len(spec.SubmitSamples) != 1 {
+		t.Fatalf("future stage included in execution: %+v", spec.Problem.Odyssey)
+	}
 	private := []execution.PublicCaseResult{{Index: 0, Status: "accepted"}}
 	completion := execution.Completion{SubmissionID: sub.ID, AttemptID: job.AttemptID, Verdict: execution.Accepted, Score: &execution.Score{Passed: len(spec.Cases), Total: len(spec.Cases)}, PrivateCaseResults: private}
 	for index := range spec.Cases {
@@ -110,8 +113,17 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 	for index := range spec.SubmitSamples {
 		completion.SubmitSampleResults = append(completion.SubmitSampleResults, execution.PublicCaseResult{Index: index, Status: "accepted"})
 	}
+	extra := completion
+	extra.SubmitSampleResults = append(append([]execution.PublicCaseResult{}, completion.SubmitSampleResults...), execution.PublicCaseResult{Index: 1, Status: "accepted"})
+	if err = s.Complete(ctx, job, extra); err == nil {
+		t.Fatal("accepted future-stage sample")
+	}
 	if err = s.Complete(ctx, job, completion); err != nil {
 		t.Fatal(err)
+	}
+	result, err := s.InterviewSubmission(ctx, "bob", v.ID, sub.ID)
+	if err != nil || len(result.PublicCases) != 1 {
+		t.Fatalf("future samples exposed: %+v %v", result.PublicCases, err)
 	}
 	advanced, err := s.Interview(ctx, "alice", v.ID)
 	if err != nil || advanced.Question.Progress.Level != 2 || len(advanced.Question.Progress.CaseStatuses) != 1 || advanced.Question.Progress.CaseStatuses[0].Status != "accepted" {

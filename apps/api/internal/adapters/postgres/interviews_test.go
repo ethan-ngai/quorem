@@ -300,6 +300,9 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 		if e != nil || len(spec.Cases) != total {
 			t.Fatal("cumulative snapshot", len(spec.Cases), e)
 		}
+		if len(spec.Problem.Odyssey.Levels) != total/2 || len(spec.SubmitSamples) != total/2 {
+			t.Fatal("admitted stage samples", spec.Problem.Odyssey, len(spec.SubmitSamples))
+		}
 		if finish {
 			finishInterviewJob(t, s, job, passed, total)
 		}
