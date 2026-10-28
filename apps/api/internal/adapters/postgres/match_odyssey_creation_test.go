@@ -15,6 +15,7 @@ import (
 
 func TestCreateMatchWithPublicOdyssey(t *testing.T) {
 	s := adminStore(t)
+	s.losslessResults = true
 	ctx := identity.With(context.Background(), identity.Principal{UserID: "alice", Admin: true})
 	data, err := os.ReadFile("../../../../../fixtures/odyssey/balance-ledger.json")
 	if err != nil {

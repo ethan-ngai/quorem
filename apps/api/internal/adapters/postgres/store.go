@@ -14,8 +14,9 @@ import (
 )
 
 type Store struct {
-	Pool      *pgxpool.Pool
-	inviteKey []byte
+	Pool            *pgxpool.Pool
+	inviteKey       []byte
+	losslessResults bool
 }
 
 func failure(code string, status int, message string) error {
@@ -66,7 +67,7 @@ func Open(ctx context.Context, url string) (*Store, error) {
 		p.Close()
 		return nil, err
 	}
-	return &Store{Pool: p, inviteKey: key}, nil
+	return &Store{Pool: p, inviteKey: key, losslessResults: os.Getenv("QUOREM_LOSSLESS_RESULT_WRITES") == "true"}, nil
 }
 func (s *Store) Migrate(ctx context.Context, dir string) error {
 	tx, err := s.Pool.Begin(ctx)
