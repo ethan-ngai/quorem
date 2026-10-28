@@ -38,7 +38,7 @@ class Document(HTMLParser):
 
 def render(node, in_code=False, plain=False):
     if isinstance(node, str):
-        return node
+        return re.sub(r'\$(?=\d)', r'\\$', node) if not in_code and not plain else node
     tag = node.tag
     if tag in ('ul', 'ol'):
         items = [child for child in node.children if isinstance(child, Node) and child.tag == 'li']
