@@ -42,8 +42,9 @@ export class CaseSandbox extends DurableObject {
     this.stopping ??= (async () => {
       this.phase = "stop-begin";
       console.log("case-lifecycle stop-begin");
-      if ((await this.ctx.storage.get("started")) || this.ctx.container.running)
-        await this.ctx.container.destroy();
+      const started = await this.ctx.storage.get("started");
+      this.phase = "destroy-begin";
+      if (started || this.ctx.container.running) await this.ctx.container.destroy();
       this.phase = "destroy-complete";
       console.log("case-lifecycle destroy-complete");
       await this.ctx.storage.delete("started");
