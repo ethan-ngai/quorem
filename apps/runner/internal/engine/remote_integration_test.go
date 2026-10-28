@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -114,10 +115,12 @@ func verifyRemoteSandbox(t *testing.T, remote *RemoteSandbox) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	if err := (&Docker{Remote: remote}).VerifySandbox(ctx); err != nil {
+		logHostedCasePhase(t, remote, err)
 		t.Fatal(fmt.Errorf("remote preflight: %w", err))
 	}
 	t.Logf("general isolation preflight: %s", time.Since(started))
 	if err := (&Docker{Remote: remote}).VerifyPostgresSandbox(ctx); err != nil {
+		logHostedCasePhase(t, remote, err)
 		t.Fatal(fmt.Errorf("remote PostgreSQL preflight: %w", err))
 	}
 	fixture := worker.Fixture{}
@@ -182,6 +185,35 @@ func verifyRemoteSandbox(t *testing.T, remote *RemoteSandbox) {
 			t.Fatalf("Odyssey %s: %+v %v", impl.Language, result, err)
 		}
 		t.Logf("%s Odyssey four cases: %s", impl.Language, time.Since(started))
+	}
+}
+
+func logHostedCasePhase(t *testing.T, remote *RemoteSandbox, probeErr error) {
+	if os.Getenv("QUOREM_TEST_DIRECT_ORIGIN") == "" {
+		return
+	}
+	match := regexp.MustCompile(`attempt ([A-Za-z0-9-]+)`).FindStringSubmatch(probeErr.Error())
+	if len(match) != 2 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := remote.request(ctx, match[1], http.MethodGet, nil)
+	if err != nil {
+		return
+	}
+	res, err := remote.client.Do(req)
+	if err != nil {
+		t.Log("case diagnostics unavailable")
+		return
+	}
+	defer res.Body.Close()
+	var status struct{ Phase string }
+	if res.StatusCode == http.StatusOK && json.NewDecoder(io.LimitReader(res.Body, 256)).Decode(&status) == nil {
+		switch status.Phase {
+		case "idle", "admitted", "started", "exec-begin", "exec-ready", "streams-complete", "stop-begin", "destroy-complete", "stop-complete":
+			t.Logf("case lifecycle: %s", status.Phase)
+		}
 	}
 }
 

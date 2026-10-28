@@ -39,7 +39,7 @@ func (d *Docker) VerifyPostgresSandbox(ctx context.Context) error {
 		result, err := engine.Execute(bounded, execution.Job{Language: "postgresql", AttemptID: attempt, SubmissionID: attempt, RuntimeRevision: runtime.Revision, HarnessRevision: runtime.Harness, Limits: execution.DefaultLimits()})
 		cancel()
 		if err != nil || result.Verdict != probe.want {
-			return fmt.Errorf("PostgreSQL sandbox %s: expected %s, got %s: %v", probe.name, probe.want, result.Verdict, err)
+			return fmt.Errorf("PostgreSQL sandbox %s attempt %s: expected %s, got %s: %v", probe.name, attempt, probe.want, result.Verdict, err)
 		}
 	}
 	return nil
