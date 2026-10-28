@@ -117,7 +117,7 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 				busy.Add(1)
 				err := func() error {
 					if err := s.store.ReconcileBackground(claimCtx); err != nil {
-						if claimCtx.Err() != nil && ctx.Err() == nil {
+						if claimDeadlineReached(err, claimCtx, ctx) {
 							return nil
 						}
 						return err
@@ -137,16 +137,18 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 					}
 					return nil
 				}()
+				if err != nil {
+					select {
+					case failures <- err:
+					default:
+					}
+				}
 				busy.Add(-1)
 				select {
 				case changed <- struct{}{}:
 				default:
 				}
 				if err != nil {
-					select {
-					case failures <- err:
-					default:
-					}
 					return
 				}
 			}
@@ -227,10 +229,20 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 				continue
 			default:
 			}
+			select {
+			case err := <-failures:
+				return state, false, err
+			default:
+			}
 			return state, true, nil
 		}
 		if claimCtx.Err() != nil && ctx.Err() == nil {
 			if busy.Load() == 0 && (state.Queued != 0 || state.Running != 0) {
+				select {
+				case err := <-failures:
+					return state, false, err
+				default:
+				}
 				return state, false, nil
 			}
 			select {

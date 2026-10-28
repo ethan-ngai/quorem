@@ -123,3 +123,46 @@ func TestClaimDeadlineDoesNotHideTeardownFailure(t *testing.T) {
 		t.Fatalf("teardown error lost: %v", err)
 	}
 }
+
+type expiredCutoffRepository struct{ *drainRepository }
+
+func (r *expiredCutoffRepository) ExpiredAttempts(context.Context) ([]string, error) {
+	return []string{"expired-attempt"}, nil
+}
+
+type cutoffFailureReaper struct{ entered chan struct{} }
+
+func (e *cutoffFailureReaper) Execute(context.Context, execution.Job) (execution.Completion, error) {
+	return execution.Completion{}, errors.New("unexpected execution")
+}
+func (e *cutoffFailureReaper) TeardownAttempt(ctx context.Context, _ string) error {
+	close(e.entered)
+	<-ctx.Done()
+	return ErrTeardown
+}
+
+func TestDrainCutoffReportsUnconfirmedExpiredAttemptTeardown(t *testing.T) {
+	repo := &expiredCutoffRepository{drainRepository: &drainRepository{jobs: []execution.Job{{JobID: "queued"}}}}
+	engine := &cutoffFailureReaper{entered: make(chan struct{})}
+	done := startCutoffDrain(New(repo), engine, 1, time.Now().Add(80*time.Millisecond))
+	select {
+	case <-engine.entered:
+	case <-time.After(time.Second):
+		t.Fatal("reaper never started")
+	}
+	result := <-done
+	if result.complete || !errors.Is(result.err, ErrTeardown) {
+		t.Fatalf("teardown failure hidden: %+v", result)
+	}
+}
+
+func TestClaimCutoffDoesNotHideUnrelatedFailure(t *testing.T) {
+	claimCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if claimDeadlineReached(errors.New("database failed"), claimCtx, context.Background()) {
+		t.Fatal("database failure treated as cutoff")
+	}
+	if !claimDeadlineReached(context.Canceled, claimCtx, context.Background()) {
+		t.Fatal("cutoff cancellation not recognized")
+	}
+}
