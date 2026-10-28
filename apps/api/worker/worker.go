@@ -209,10 +209,14 @@ func (s *Service) claimOnce(ctx context.Context, engine execution.ExecutionEngin
 	return s.claimOnceWithContext(ctx, ctx, engine)
 }
 
+func claimDeadlineReached(err error, claimCtx, executeCtx context.Context) bool {
+	return claimCtx.Err() != nil && executeCtx.Err() == nil && errors.Is(err, claimCtx.Err())
+}
+
 func (s *Service) claimOnceWithContext(claimCtx, executeCtx context.Context, engine execution.ExecutionEngine) (bool, error) {
 	attempts, e := s.store.ExpiredAttempts(claimCtx)
 	if e != nil {
-		if claimCtx.Err() != nil && executeCtx.Err() == nil {
+		if claimDeadlineReached(e, claimCtx, executeCtx) {
 			return false, nil
 		}
 		return false, e
@@ -223,16 +227,13 @@ func (s *Service) claimOnceWithContext(claimCtx, executeCtx context.Context, eng
 			return false, ErrTeardown
 		}
 		if err := reaper.TeardownAttempt(claimCtx, attempt); err != nil {
-			if claimCtx.Err() != nil && executeCtx.Err() == nil {
-				return false, nil
-			}
 			return false, err
 		}
 	}
 	claimStarted := time.Now()
 	job, err := s.store.Claim(claimCtx)
 	if err != nil {
-		if claimCtx.Err() != nil && executeCtx.Err() == nil {
+		if claimDeadlineReached(err, claimCtx, executeCtx) {
 			return false, nil
 		}
 		return false, err
