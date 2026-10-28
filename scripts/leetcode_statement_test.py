@@ -32,6 +32,13 @@ class StatementTest(unittest.TestCase):
             format_question(original, html)
         self.assertEqual(original['problem']['statementMarkdown'], 'old')
 
+    def test_ordinal_suffixes_are_readable_and_exponents_remain(self):
+        content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
+        html = '<p>The <code>i<sup>th</sup></code> and 1<sup>st </sup>value are below 10<sup>5</sup>.</p><p><strong>Example 1:</strong></p><pre>Input: 1\nOutput: 2\nExplanation: The 2<sup>nd</sup> value.</pre><p><strong>Constraints:</strong></p><p>None.</p>'
+        result = format_question(content, html)['problem']
+        self.assertIn('`ith` and 1st value are below 10^5', result['statementMarkdown'])
+        self.assertEqual(result['examples'][0]['explanation'], 'The 2nd value.')
+
     def test_multiline_explanation_and_table_are_retained(self):
         content = {'problem': {'statementMarkdown': 'old', 'examples': [{'args': [1], 'expected': 2}]}}
         html = '<p><code>x</code> is a value.</p><p><strong>Example 1:</strong></p><div><p><strong>Input:</strong> x = 1</p><p><strong>Output:</strong> 2</p><p><strong>Explanation:</strong> See below.</p></div><table><tr><th>x</th><th>y</th></tr><tr><td>1</td><td>2</td></tr></table><p><strong>Constraints:</strong></p><p>None.</p>'

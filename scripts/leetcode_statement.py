@@ -54,6 +54,8 @@ def render(node, in_code=False, plain=False):
             return '\n' + line(table[0]) + '\n' + line(['---'] * width) + '\n' + '\n'.join(line(row) for row in table[1:]) + '\n\n'
     content = ''.join(render(child, in_code or tag == 'code', plain) for child in node.children)
     if tag == 'sup':
+        if content.strip() in ('st', 'nd', 'rd', 'th'):
+            return content
         return '^' + content.strip()
     if tag == 'sub':
         return '_' + content.strip()
