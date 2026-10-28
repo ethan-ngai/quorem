@@ -32,22 +32,6 @@ func validateCaseLimit(sig Signature, c Case, expectedRequired bool, limit int) 
 	}
 	return nil
 }
-func ValidateCustomCases(sig Signature, cases []Case) error {
-	if len(cases) < 1 || len(cases) > 20 {
-		return fmt.Errorf("custom cases must contain 1 to 20 cases")
-	}
-	encoded, err := json.Marshal(cases)
-	if err != nil || len(encoded) > execution.MaxCustomCasesBytes {
-		return fmt.Errorf("custom cases exceed 2 MiB")
-	}
-	for i, c := range cases {
-		if err := ValidateCase(sig, c, false); err != nil {
-			return fmt.Errorf("case %d: %w", i+1, err)
-		}
-	}
-	return nil
-}
-
 func validType(typ string, depth int) bool {
 	if depth > 100 {
 		return false
