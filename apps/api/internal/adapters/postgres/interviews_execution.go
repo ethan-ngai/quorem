@@ -77,26 +77,9 @@ func (s *Store) AdmitInterview(ctx context.Context, user, id, key, kind string, 
 	if err = executionQueueAdmission(ctx, tx); err != nil {
 		return out, err
 	}
-	// Baseline workspace satisfies job FKs; interview execution always uses its private snapshot.
-	// SQL can reuse a Python baseline without exposing a private question as a solo workspace.
-	baselineLanguage := v.language
-	if baselineLanguage == "postgresql" {
-		baselineLanguage = "python"
-	}
-	var baseline string
-	if err = tx.QueryRow(ctx, `SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id JOIN problem_languages l ON l.version_id=v.id AND l.language=$1 WHERE v.id=p.current_version_id AND p.owner_id IS NULL ORDER BY v.id LIMIT 1`, baselineLanguage).Scan(&baseline); err != nil {
-		return out, err
-	}
-	workspaceID := ID()
-	if _, err = tx.Exec(ctx, `INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,$4) ON CONFLICT(owner_id,problem_version_id,language) WHERE kind='solo' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id`, workspaceID, user, baseline, v.language); err != nil {
-		return out, err
-	}
-	if err = tx.QueryRow(ctx, `SELECT id FROM workspaces WHERE owner_id=$1 AND problem_version_id=$2 AND language=$3 AND kind='solo'`, user, baseline, v.language).Scan(&workspaceID); err != nil {
-		return out, err
-	}
 	submissionID, jobID := ID(), ID()
 	encoded, _ := json.Marshal(cases)
-	if _, err = tx.Exec(ctx, `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,custom_run) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,$8)`, submissionID, user, workspaceID, kind, v.snapshot.Document.Source, Hash([]byte(v.snapshot.Document.Source)), encoded, customCases != nil); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,custom_run) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,$8)`, submissionID, user, id, kind, v.snapshot.Document.Source, Hash([]byte(v.snapshot.Document.Source)), encoded, customCases != nil); err != nil {
 		return out, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,$3,$4,$5)`, jobID, submissionID, v.language, v.fixture.Problem.RuntimeRevision, v.fixture.HarnessRevision); err != nil {

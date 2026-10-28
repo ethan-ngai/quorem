@@ -18,7 +18,7 @@ type Submission struct {
 	PrivateCaseResults  []InterviewCaseResult        `json:"privateCaseResults,omitempty"`
 	ExecutionJobID      string                       `json:"-"`
 	ID                  string                       `json:"id"`
-	WorkspaceID         string                       `json:"workspaceId"`
+	WorkspaceID         string                       `json:"workspaceId,omitempty"`
 	Kind                string                       `json:"kind"`
 	State               string                       `json:"state"`
 	SourceHash          string                       `json:"sourceHash"`

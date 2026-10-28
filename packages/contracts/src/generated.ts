@@ -1017,7 +1017,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
-            workspaceId: string;
+            workspaceId?: string;
             kind: components["schemas"]["SubmissionKind"];
             state: components["schemas"]["SubmissionState"];
             sourceHash: string;
