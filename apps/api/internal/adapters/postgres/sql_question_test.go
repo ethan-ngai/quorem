@@ -47,7 +47,7 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err = s.PublishQuestionDraft(ctx, "alice", d.ID, d.Revision)
+	d, err = s.PublishQuestionDraftTo(ctx, "alice", d.ID, d.Revision, "private")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +58,13 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	fork, err := s.QuestionContent(ctx, p.ID)
 	if err != nil || fork.Problem.SQL == nil || len(fork.HiddenCases) != 4 {
 		t.Fatal(fork, err)
+	}
+	bob := identity.With(context.Background(), identity.Principal{UserID: "bob"})
+	if _, err = s.MatchProblem(bob, p.ID); errorCode(err) != "not_found" {
+		t.Fatalf("private problem visible before match: %v", err)
+	}
+	if _, err = s.CreateMatch(ctx, "bob", ID(), matches.Settings{Difficulties: []string{"easy"}, SelectedProblemVersionID: p.ID}); errorCode(err) != "invalid_input" {
+		t.Fatalf("non-owner hosted private problem: %v", err)
 	}
 	match, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulties: []string{"easy"}, SelectedProblemVersionID: p.ID})
 	if err != nil {
@@ -71,6 +78,13 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err = s.MatchProblem(bob, p.ID); err != nil {
+		t.Fatalf("participant cannot read private problem: %v", err)
+	}
+	charlie := identity.With(context.Background(), identity.Principal{UserID: "charlie"})
+	if _, err = s.MatchProblem(charlie, p.ID); errorCode(err) != "not_found" {
+		t.Fatalf("nonparticipant read private problem: %v", err)
+	}
 	for _, owner := range []string{"alice", "bob"} {
 		workspace := matchWorkspace(t, s, match.ID, owner)
 		var language string
@@ -80,6 +94,14 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 		if _, err = s.Admit(ctx, owner, ID(), judging.Command{WorkspaceID: workspace, Kind: "run", Source: "SELECT id FROM items"}, ID()); err != nil {
 			t.Fatal(err)
 		}
+	}
+	adminBob := identity.With(context.Background(), identity.Principal{UserID: "bob", Admin: true})
+	if _, err = s.QuestionContent(adminBob, p.ID); errorCode(err) != "not_found" {
+		t.Fatalf("participant cloned private content: %v", err)
+	}
+	execSQL(t, s, "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id='bob'", match.ID)
+	if _, err = s.MatchProblem(bob, p.ID); errorCode(err) != "not_found" {
+		t.Fatalf("private access survived forfeit: %v", err)
 	}
 	// Clear match jobs before exercising the independent practice admission.
 	if _, err = s.Pool.Exec(ctx, "DELETE FROM execution_jobs WHERE submission_id IN (SELECT id FROM submissions WHERE match_id=$1)", match.ID); err != nil {

@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-func validateMatchProblem(ctx context.Context, tx pgx.Tx, settings matches.Settings) error {
+func validateMatchProblem(ctx context.Context, tx pgx.Tx, owner string, settings matches.Settings) error {
 	if settings.SelectedProblemVersionID == "" {
 		return nil
 	}
 	var exists bool
-	if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND p.owner_id IS NULL)", settings.SelectedProblemVersionID).Scan(&exists); err != nil {
+	if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=$1 AND (p.owner_id IS NULL OR p.owner_id=$2))", settings.SelectedProblemVersionID, owner).Scan(&exists); err != nil {
 		return err
 	}
 	if !exists {
