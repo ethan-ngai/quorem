@@ -11,6 +11,7 @@ import (
 )
 
 const problemExamplesSQL = `COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]')`
+const problemHiddenCasesSQL = `COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb)`
 const odysseySuitesSQL = `CASE WHEN v.odyssey IS NULL THEN NULL ELSE
  (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb)
  FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END`
@@ -38,7 +39,7 @@ const publicProblemSQL = `SELECT jsonb_set(` + fullProblemJSONSQL + `,'{odyssey}
 func fixtureProjectionSQL(versionID string) string {
 	return `(SELECT jsonb_build_object(
  'problem',` + fullProblemJSONSQL + `,
- 'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
+ 'hiddenCases',` + problemHiddenCasesSQL + `,
  'odysseyHiddenCases',` + odysseySuitesSQL + `,
  'harnessRevision',py.harness_revision,'referenceSource',py.reference_source,'attribution',v.attribution)
  FROM problem_versions v JOIN problems p ON p.id=v.problem_id

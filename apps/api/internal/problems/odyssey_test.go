@@ -32,6 +32,16 @@ func TestOdysseyPublicationAndCumulativeSuites(t *testing.T) {
 	if err != nil || len(samples) != len(c.Problem.Odyssey.Levels[0].Examples)+len(c.Problem.Odyssey.Levels[1].Examples) {
 		t.Fatal("run omits cumulative examples", samples, err)
 	}
+	withoutPrivate := Fixture{Problem: c.Problem}
+	if _, _, err := CompileOdyssey(withoutPrivate, 1, "run"); err != nil {
+		t.Fatal("run requires private suites", err)
+	}
+	if _, _, err := CompileOdyssey(withoutPrivate, 1, "submit"); err == nil {
+		t.Fatal("submit accepted missing private suites")
+	}
+	if _, _, err := CompileOdyssey(f, 1, "unknown"); err == nil {
+		t.Fatal("accepted invalid execution kind")
+	}
 	p, tests, err := CompileOdyssey(f, 1, "submit")
 	if err != nil || len(tests) != 2 || len(p.Odyssey.Levels) != 1 {
 		t.Fatal(p, tests, err)

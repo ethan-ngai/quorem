@@ -90,7 +90,7 @@ func ValidateOdysseyCase(p Problem, c Case, required bool) error {
 // Compile only unlocked methods and cumulative suites into an admitted snapshot.
 func CompileOdyssey(f Fixture, level int, kind string) (Problem, []Case, error) {
 	p := f.Problem
-	if p.Odyssey == nil || level < 1 || level > len(p.Odyssey.Levels) || len(f.OdysseyHiddenCases) != len(p.Odyssey.Levels) {
+	if p.Odyssey == nil || level < 1 || level > len(p.Odyssey.Levels) || (kind != "run" && kind != "submit") || (kind == "submit" && len(f.OdysseyHiddenCases) != len(p.Odyssey.Levels)) {
 		return p, nil, fmt.Errorf("invalid Odyssey level")
 	}
 	p.Odyssey = &Odyssey{Levels: append([]OdysseyLevel{}, p.Odyssey.Levels[:level]...)}
