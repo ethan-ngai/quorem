@@ -75,16 +75,53 @@ func NormalizeQuestionDraft(c QuestionContent) QuestionContent {
 		c.Solutions = []EditorialSolution{}
 	}
 	for i := range p.Examples {
-		if p.Examples[i].Args == nil {
-			p.Examples[i].Args = []json.RawMessage{}
-		}
+		normalizeDraftCase(&p.Examples[i].Case)
 	}
 	for i := range c.HiddenCases {
-		if c.HiddenCases[i].Args == nil {
-			c.HiddenCases[i].Args = []json.RawMessage{}
+		normalizeDraftCase(&c.HiddenCases[i])
+	}
+	if p.Odyssey != nil {
+		if p.Odyssey.Levels == nil {
+			p.Odyssey.Levels = []OdysseyLevel{}
+		}
+		for i := range p.Odyssey.Levels {
+			level := &p.Odyssey.Levels[i]
+			if level.Methods == nil {
+				level.Methods = []Signature{}
+			}
+			if level.Examples == nil {
+				level.Examples = []ProblemExample{}
+			}
+			for j := range level.Methods {
+				if level.Methods[j].Parameters == nil {
+					level.Methods[j].Parameters = []Parameter{}
+				}
+			}
+			for j := range level.Examples {
+				normalizeDraftCase(&level.Examples[j].Case)
+			}
+		}
+	}
+	for i := range c.OdysseyHiddenCases {
+		if c.OdysseyHiddenCases[i] == nil {
+			c.OdysseyHiddenCases[i] = []Case{}
+		}
+		for j := range c.OdysseyHiddenCases[i] {
+			normalizeDraftCase(&c.OdysseyHiddenCases[i][j])
 		}
 	}
 	return c
+}
+
+func normalizeDraftCase(c *Case) {
+	if c.Args == nil {
+		c.Args = []json.RawMessage{}
+	}
+	for i := range c.Calls {
+		if c.Calls[i].Args == nil {
+			c.Calls[i].Args = []json.RawMessage{}
+		}
+	}
 }
 
 // Drafts may be incomplete; all saved content remains bounded and valid UTF-8.
