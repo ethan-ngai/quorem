@@ -42,7 +42,50 @@ type sqlResult struct {
 	Rows    [][]json.RawMessage `json:"rows"`
 }
 
+func sqlCaseContainsNUL(c Case) bool {
+	for _, call := range c.Calls {
+		if strings.ContainsRune(call.MethodName, 0) || sqlCaseContainsNUL(Case{Args: call.Args, Expected: call.Expected}) {
+			return true
+		}
+	}
+	var contains func(any) bool
+	contains = func(value any) bool {
+		switch v := value.(type) {
+		case string:
+			return strings.ContainsRune(v, 0)
+		case []any:
+			for _, item := range v {
+				if contains(item) {
+					return true
+				}
+			}
+		case map[string]any:
+			for key, item := range v {
+				if strings.ContainsRune(key, 0) || contains(item) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, raw := range append(append([]json.RawMessage{}, c.Args...), c.Expected) {
+		if len(raw) == 0 {
+			continue
+		}
+		var value any
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.UseNumber()
+		if decoder.Decode(&value) == nil && contains(value) {
+			return true
+		}
+	}
+	return false
+}
+
 func validateSQLCase(config *SQLConfig, c Case, required bool) error {
+	if sqlCaseContainsNUL(c) {
+		return fmt.Errorf("SQL text cannot contain NUL characters")
+	}
 	// Published versions predate schemas and remain runnable; new publication requires one.
 	if len(config.Tables) == 0 && len(config.Output) == 0 {
 		return validateLegacySQLCase(c, required)
@@ -151,7 +194,7 @@ func normalizeSQLResult(data json.RawMessage, unordered bool) (json.RawMessage, 
 		return nil, fmt.Errorf("invalid SQL result")
 	}
 	for _, col := range result.Columns {
-		if col == "" || len(col) > 256 {
+		if col == "" || len(col) > 256 || strings.ContainsRune(col, 0) {
 			return nil, fmt.Errorf("invalid SQL result column")
 		}
 	}
@@ -351,8 +394,8 @@ func validSQLValue(kind string, raw json.RawMessage) bool {
 		}
 		return sqlNumeric.MatchString(text)
 	case "text":
-		_, ok := value.(string)
-		return ok
+		text, ok := value.(string)
+		return ok && !strings.ContainsRune(text, 0)
 	case "boolean":
 		_, ok := value.(bool)
 		return ok
@@ -460,6 +503,11 @@ func canonicalSQLValue(value any) (any, error) {
 		return nil, fmt.Errorf("unsupported SQL result value")
 	case []any:
 		return nil, fmt.Errorf("unsupported SQL result value")
+	case string:
+		if strings.ContainsRune(v, 0) {
+			return nil, fmt.Errorf("SQL text cannot contain NUL characters")
+		}
+		return v, nil
 	case json.Number:
 		if n, err := strconv.ParseInt(v.String(), 10, 64); err == nil && (n > 2147483647 || n < -2147483648) {
 			return nil, fmt.Errorf("large SQL integers require a bigint marker")

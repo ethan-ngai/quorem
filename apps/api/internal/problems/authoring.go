@@ -165,6 +165,34 @@ func ValidateQuestionDraft(c QuestionContent) error {
 	if len(p.ID) > 64 || len(p.Version) > 32 || len(p.Slug) > 80 || len(p.Title) > 160 || len(p.StatementMarkdown) > 65536 || len(c.Attribution) > 2048 {
 		return fmt.Errorf("question text limit exceeded")
 	}
+	if p.SQL != nil {
+		for _, example := range p.Examples {
+			if sqlCaseContainsNUL(example.Case) {
+				return fmt.Errorf("SQL text cannot contain NUL characters")
+			}
+		}
+		for _, test := range c.HiddenCases {
+			if sqlCaseContainsNUL(test) {
+				return fmt.Errorf("SQL text cannot contain NUL characters")
+			}
+		}
+		if p.Odyssey != nil {
+			for _, level := range p.Odyssey.Levels {
+				for _, example := range level.Examples {
+					if sqlCaseContainsNUL(example.Case) {
+						return fmt.Errorf("SQL text cannot contain NUL characters")
+					}
+				}
+			}
+		}
+		for _, suite := range c.OdysseyHiddenCases {
+			for _, test := range suite {
+				if sqlCaseContainsNUL(test) {
+					return fmt.Errorf("SQL text cannot contain NUL characters")
+				}
+			}
+		}
+	}
 	if p.LeetcodeID != nil && (*p.LeetcodeID < 1 || *p.LeetcodeID > 2147483647) {
 		return fmt.Errorf("invalid LeetCode ID")
 	}
@@ -187,12 +215,18 @@ func ValidateQuestionDraft(c QuestionContent) error {
 		}
 	}
 	for _, v := range c.Implementations {
-		if len(v.StarterSource) > 65536 || len(v.ReferenceSource) > 65536 || len(v.RuntimeRevision) > 128 || len(v.HarnessRevision) > 128 {
-			return fmt.Errorf("language source limit exceeded")
+		if !execution.ValidSource(v.StarterSource) || !execution.ValidSource(v.ReferenceSource) {
+			return fmt.Errorf("language source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters")
+		}
+		if len(v.RuntimeRevision) > 128 || len(v.HarnessRevision) > 128 {
+			return fmt.Errorf("language revision limit exceeded")
 		}
 	}
 	for _, v := range c.Solutions {
-		if len(v.Source) > 65536 || len(v.ExplanationMarkdown) > 65536 || len(v.TimeComplexity) > 256 || len(v.SpaceComplexity) > 256 || len(v.ComplexityNotes) > 4096 {
+		if !execution.ValidSource(v.Source) {
+			return fmt.Errorf("editorial source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters")
+		}
+		if len(v.ExplanationMarkdown) > 65536 || len(v.TimeComplexity) > 256 || len(v.SpaceComplexity) > 256 || len(v.ComplexityNotes) > 4096 {
 			return fmt.Errorf("editorial text limit exceeded")
 		}
 	}

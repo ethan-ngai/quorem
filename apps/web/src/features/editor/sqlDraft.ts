@@ -63,7 +63,10 @@ export function sqlCellText(value: unknown): string {
 function cell(value: unknown, type: string, output: boolean): unknown {
   if (value === null) return null;
   const source = sqlCellText(value);
-  if (type === "text") return source;
+  if (type === "text") {
+    if (source.includes("\0")) throw new Error("SQL text cannot contain NUL characters.");
+    return source;
+  }
   if (type === "boolean") {
     if (source === "true") return true;
     if (source === "false") return false;

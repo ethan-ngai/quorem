@@ -87,3 +87,17 @@ it("rejects real output beyond PostgreSQL's float32 range", () => {
     normalizeSqlDraft(realProblem, setup, JSON.stringify({ rows: [[3.4e38]] })),
   ).not.toThrow();
 });
+
+it("rejects NUL in SQL input and expected text", () => {
+  const textProblem = {
+    ...problem,
+    sql: { ...problem.sql!, output: [{ name: "name", type: "text" as const }] },
+  };
+  const setup = (name: string) =>
+    JSON.stringify({ tables: [{ name: "items", rows: [["1", "2", name, true]] }] });
+  expect(() => normalizeSqlDraft(textProblem, setup("a\0b"))).toThrow("NUL");
+  expect(() =>
+    normalizeSqlDraft(textProblem, setup("valid"), JSON.stringify({ rows: [["a\0b"]] })),
+  ).toThrow("NUL");
+  expect(() => normalizeSqlDraft(textProblem, setup("\\0"))).not.toThrow();
+});

@@ -234,3 +234,44 @@ func TestOdysseyLevelMetadataConsistentAcrossQuestionTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestSQLNULFixtureAndResultRejection(t *testing.T) {
+	for _, staged := range []bool{false, true} {
+		for _, field := range []string{"input", "expected"} {
+			t.Run(fmt.Sprintf("staged=%t/%s", staged, field), func(t *testing.T) {
+				c := sqlQuestionForValidation(t, staged)
+				c.Problem.SQL.Tables[0].Columns[0].Type = "text"
+				c.Problem.SQL.Output[0].Type = "text"
+				setup := json.RawMessage(`{"tables":[{"name":"items","rows":[["valid"]]}]}`)
+				expected := json.RawMessage(`{"rows":[["valid"]]}`)
+				if field == "input" {
+					setup = json.RawMessage(`{"tables":[{"name":"items","rows":[["\u0000"]]}]}`)
+				} else {
+					expected = json.RawMessage(`{"rows":[["\u0000"]]}`)
+				}
+				test := Case{Args: []json.RawMessage{setup}, Expected: expected}
+				if staged {
+					c.Problem.Odyssey.Levels[0].Examples[0].Case = test
+					c.OdysseyHiddenCases[0][0] = test
+				} else {
+					c.Problem.Examples[0].Case = test
+					c.HiddenCases[0] = test
+				}
+				if err := ValidateQuestionDraft(c); err == nil {
+					t.Fatal("draft accepted SQL NUL")
+				}
+				if err := ValidateProblemCase(Problem{QuestionDefinition: c.Problem}, test, true); err == nil {
+					t.Fatal("SQL case accepted NUL")
+				}
+			})
+		}
+	}
+}
+
+func TestCodingStringCaseAllowsNUL(t *testing.T) {
+	p := Problem{QuestionDefinition: QuestionDefinition{Signature: Signature{ClassName: "Solution", MethodName: "echo", Parameters: []Parameter{{Name: "s", Type: "str"}}, ReturnType: "str"}}}
+	c := Case{Args: []json.RawMessage{json.RawMessage(`"\u0000"`)}, Expected: json.RawMessage(`"\u0000"`)}
+	if err := ValidateProblemCase(p, c, true); err != nil {
+		t.Fatal(err)
+	}
+}
