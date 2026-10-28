@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"github.com/ethan-ngai/quorem/apps/api/internal/judging"
+	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
@@ -57,6 +58,38 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	fork, err := s.QuestionContent(ctx, p.ID)
 	if err != nil || fork.Problem.SQL == nil || len(fork.HiddenCases) != 4 {
 		t.Fatal(fork, err)
+	}
+	match, err := s.CreateMatch(ctx, "alice", ID(), matches.Settings{Difficulties: []string{"easy"}, SelectedProblemVersionID: p.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.JoinMatch(ctx, "bob", ID(), inviteToken(t, match)); err != nil {
+		t.Fatal(err)
+	}
+	for _, owner := range []string{"alice", "bob"} {
+		if _, err = s.ReadyMatch(ctx, owner, match.ID, ID(), true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, owner := range []string{"alice", "bob"} {
+		workspace := matchWorkspace(t, s, match.ID, owner)
+		var language string
+		if err = s.Pool.QueryRow(ctx, "SELECT language FROM workspaces WHERE id=$1", workspace).Scan(&language); err != nil || language != "postgresql" {
+			t.Fatalf("match workspace language: %s %v", language, err)
+		}
+		if _, err = s.Admit(ctx, owner, ID(), judging.Command{WorkspaceID: workspace, Kind: "run", Source: "SELECT id FROM items"}, ID()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Clear match jobs before exercising the independent practice admission.
+	if _, err = s.Pool.Exec(ctx, "DELETE FROM execution_jobs WHERE submission_id IN (SELECT id FROM submissions WHERE match_id=$1)", match.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, "UPDATE submissions SET state='failed' WHERE match_id=$1", match.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Pool.Exec(ctx, "UPDATE users SET admission_tokens=2 WHERE id='alice'"); err != nil {
+		t.Fatal(err)
 	}
 	w, err := s.CreateWorkspace(ctx, "alice", p.ID, "postgresql")
 	if err != nil {
