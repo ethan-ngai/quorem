@@ -15,6 +15,9 @@ type SubmissionProgress struct {
 	Verdict      execution.Verdict
 	Score        *execution.Score
 	Intermediate bool
+	// MaxPossible is a private upper bound from a fenced checkpoint.
+	MaxPossible *int
+	CannotPass  bool
 }
 type Reconciliation struct {
 	Progress     map[string]Progress
@@ -31,7 +34,6 @@ func Reconcile(now, deadline time.Time, finalizing *time.Time, owners []string, 
 	}
 	candidate := ""
 	blocked := false
-	uncertain := map[string]bool{}
 	earlierUncertain := map[string]bool{}
 	for _, submission := range submissions {
 		progress, exists := result.Progress[submission.Owner]
@@ -45,8 +47,8 @@ func Reconcile(now, deadline time.Time, finalizing *time.Time, owners []string, 
 				candidate = submission.Owner
 			}
 		} else {
-			uncertain[submission.Owner] = true
-			if candidate == "" && !submission.Intermediate {
+			provenFailed := submission.CannotPass && submission.MaxPossible != nil && *submission.MaxPossible >= 0
+			if candidate == "" && !submission.Intermediate && !provenFailed {
 				earlierUncertain[submission.Owner] = true
 				blocked = true
 			}
@@ -61,11 +63,22 @@ func Reconcile(now, deadline time.Time, finalizing *time.Time, owners []string, 
 			draw = true
 		}
 	}
-	// The sole leader's unresolved work cannot lower their existing best score.
-	if candidate == "" && !now.Before(deadline) && !draw {
+	// Incomplete work matters only if it can change the final winner or tie.
+	if candidate == "" && !now.Before(deadline) {
 		blocked = false
-		for owner := range uncertain {
-			if owner != winner {
+		for _, submission := range submissions {
+			if _, exists := result.Progress[submission.Owner]; !exists || (submission.State == "completed" && submission.Score != nil) {
+				continue
+			}
+			if !draw && submission.Owner == winner {
+				continue
+			}
+			provenFailed := submission.CannotPass && submission.MaxPossible != nil && *submission.MaxPossible >= 0
+			if !submission.Intermediate && !provenFailed {
+				blocked = true
+				continue
+			}
+			if !provenFailed || (draw && *submission.MaxPossible > high) || (!draw && *submission.MaxPossible >= high) {
 				blocked = true
 			}
 		}

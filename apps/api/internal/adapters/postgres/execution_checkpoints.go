@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"github.com/jackc/pgx/v5"
 )
@@ -91,6 +92,18 @@ func (s *Store) SaveCheckpoint(ctx context.Context, j execution.Job, c execution
 		return err
 	}
 	defer tx.Rollback(ctx)
+	// Reconcile under the match lock before making a new bound visible.
+	matchID, failed, err := checkpointMatchFailure(ctx, tx, j, c)
+	if err != nil {
+		return err
+	}
+	var match matchRecord
+	if failed {
+		match, err = lockMatch(ctx, tx, matchID)
+		if err != nil {
+			return err
+		}
+	}
 	var live bool
 	err = tx.QueryRow(ctx, `SELECT NOT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.submission_id=$2 AND j.attempt_id=$3 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' FOR UPDATE OF j,s`, uuidLookup(j.JobID), uuidLookup(j.SubmissionID), uuidLookup(j.AttemptID)).Scan(&live)
 	if err != nil {
@@ -109,16 +122,77 @@ func (s *Store) SaveCheckpoint(ctx context.Context, j execution.Job, c execution
 	if next != c.Ordinal {
 		return errors.New("checkpoint ordinal mismatch")
 	}
+	// Freeze overdue uncertainty after all row-lock waits and before recording this bound.
+	if failed {
+		if err = s.reconcileMatch(ctx, tx, &match); err != nil {
+			return err
+		}
+	}
 	if _, err = tx.Exec(ctx, `INSERT INTO execution_checkpoint_cases(job_id,ordinal,frame) VALUES($1,$2,$3)`, uuidLookup(j.JobID), c.Ordinal, compressed); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE execution_checkpoints SET next_ordinal=next_ordinal+1,artifact=COALESCE($2::jsonb,artifact),compilation_nanos=$3,fatal=$4,last_attempt_id=$5 WHERE job_id=$1`, uuidLookup(j.JobID), nullableJSON(c.Artifact), c.CompilationNanos, nullableBytes(c.Fatal), uuidLookup(j.AttemptID)); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE execution_checkpoints SET next_ordinal=next_ordinal+1,artifact=COALESCE($2::jsonb,artifact),compilation_nanos=$3,fatal=$4,last_attempt_id=$5,definite_failures=definite_failures+$6 WHERE job_id=$1`, uuidLookup(j.JobID), nullableJSON(c.Artifact), c.CompilationNanos, nullableBytes(c.Fatal), uuidLookup(j.AttemptID), boolInt(failed)); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE execution_jobs SET attempts=1 WHERE id=$1`, uuidLookup(j.JobID)); err != nil {
 		return err
 	}
+	if failed {
+		if err = s.reconcileMatch(ctx, tx, &match); err != nil {
+			return err
+		}
+	}
 	return tx.Commit(ctx)
+}
+
+func boolInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
+}
+
+// Only admitted match submit cases can provide a definitive bound; malformed data stays unknown.
+func checkpointMatchFailure(ctx context.Context, tx pgx.Tx, j execution.Job, c execution.CheckpointCase) (string, bool, error) {
+	var matchID string
+	var rawCase, rawProblem []byte
+	var level *int
+	err := tx.QueryRow(ctx, `SELECT s.match_id::text,s.cases->($3::int),jsonb_build_object('signature',v.signature,'constraints',v.constraints,'odyssey',v.odyssey,'sql',v.sql_config),s.odyssey_level FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions v ON v.id=w.problem_version_id WHERE j.id=$1 AND s.id=$2 AND s.match_id IS NOT NULL AND s.kind='submit' AND $3::int<jsonb_array_length(s.cases)`, uuidLookup(j.JobID), uuidLookup(j.SubmissionID), c.Ordinal).Scan(&matchID, &rawCase, &rawProblem, &level)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	var test problems.Case
+	var problem problems.Problem
+	var frame struct {
+		Status   string          `json:"status"`
+		Actual   json.RawMessage `json:"actual"`
+		SQLTypes []string        `json:"sqlTypes"`
+	}
+	if string(rawCase) == "null" || json.Unmarshal(rawCase, &test) != nil || json.Unmarshal(rawProblem, &problem) != nil || json.Unmarshal(c.Frame, &frame) != nil || limitAdmittedOdyssey(&problem, level) != nil || problems.NewCaseValidator(problem).Validate(test, true) != nil {
+		return "", false, nil
+	}
+	switch frame.Status {
+	case "executed":
+		if !json.Valid(frame.Actual) {
+			return "", false, nil
+		}
+	case "syntax_error", "runtime_error", "time_limit", "memory_limit", "output_limit", "invalid_output":
+	default:
+		return "", false, nil
+	}
+	status, _, _, _, err := problems.NewCaseCodec(problem).Compare(test, frame.Status, frame.Actual, frame.SQLTypes)
+	if err != nil {
+		return "", false, nil
+	}
+	switch status {
+	case "wrong_answer", "syntax_error", "runtime_error", "time_limit", "memory_limit", "output_limit", "invalid_output":
+		return matchID, true, nil
+	default:
+		return "", false, nil
+	}
 }
 
 func compressCheckpoint(raw []byte) ([]byte, error) {
