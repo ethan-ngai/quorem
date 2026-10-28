@@ -53,7 +53,7 @@ func TestInterviewManualStagePass(t *testing.T) {
 		t.Fatal("old stage passed again", err)
 	}
 	candidate, err := s.Interview(ctx, "bob", v.ID)
-	if err != nil || candidate.Question.Progress.Level != 2 || len(candidate.Question.Progress.Levels) != 2 || len(candidate.Question.PrivateCases) != 0 {
+	if err != nil || candidate.Question.Progress.Level != 2 || len(candidate.Question.Progress.Levels) != 2 || len(candidate.Question.PrivateCaseDetails) != 0 {
 		t.Fatal("candidate unlock/privacy", candidate, err)
 	}
 	if _, err = s.SetInterviewMember(ctx, "alice", v.ID, ID(), "bob", "interviewer"); err != nil {

@@ -1449,7 +1449,6 @@ export interface components {
         InterviewQuestion: {
             problem: components["schemas"]["ProblemVersion"];
             language: components["schemas"]["Language"];
-            privateCases?: components["schemas"]["CustomCase"][];
             progress?: components["schemas"]["OdysseyProgress"];
             languages: components["schemas"]["Language"][];
             privateCaseDetails?: components["schemas"]["InterviewCaseDetail"][];

@@ -127,14 +127,6 @@ func interviewSnapshot(ctx context.Context, tx pgx.Tx, v interviewRecord) (inter
 		if err != nil {
 			return out, err
 		}
-		out.Question.PrivateCases = v.fixture.HiddenCases
-		if v.fixture.Problem.Odyssey != nil {
-			_, tests, err := problems.CompileOdyssey(v.fixture, len(v.fixture.Problem.Odyssey.Levels), "submit")
-			if err != nil {
-				return out, err
-			}
-			out.Question.PrivateCases = tests
-		}
 		out.InvitePath = "/interview-invite/" + v.token
 		out.Invites = &interviews.InvitePaths{Interviewer: "/interview-invite/" + v.interviewerToken, Interviewee: out.InvitePath}
 	}

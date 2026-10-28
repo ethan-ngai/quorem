@@ -56,7 +56,6 @@ type Question struct {
 	Progress           *Progress        `json:"progress,omitempty"`
 	Problem            problems.Problem `json:"problem"`
 	Language           string           `json:"language"`
-	PrivateCases       []problems.Case  `json:"privateCases,omitempty"`
 }
 type Snapshot struct {
 	AdmissionLocked    bool                     `json:"admissionLocked"`
