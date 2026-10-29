@@ -7,6 +7,17 @@
   gap: var(--space-3);
   padding: var(--space-2) 0;
 }
+.editorial-controls button[aria-expanded="true"] {
+  color: var(--color-text);
+  background: var(--color-overlay);
+}
+.editorial-controls .editorial-chevron {
+  width: 12px;
+  height: 12px;
+}
+.editorial-controls button[aria-expanded="true"] .editorial-chevron {
+  transform: rotate(180deg);
+}
 .editorial-content {
   padding: var(--space-2) 0 var(--space-3);
   font-size: 13px;

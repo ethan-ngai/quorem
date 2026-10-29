@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
-import { VisibilityIcon } from "../../../ui/Icon";
+import { Braces, ChevronDown, Clock3 } from "lucide-react";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 
@@ -77,7 +77,8 @@ export function EditorialPanel({
             aria-expanded={active === "complexity"}
             onClick={() => setActive(active === "complexity" ? null : "complexity")}
           >
-            <VisibilityIcon visible={active === "complexity"} /> Complexity
+            <Clock3 aria-hidden="true" /> Complexity
+            <ChevronDown className="editorial-chevron" aria-hidden="true" />
           </button>
         )}
         {solutionAvailable && (
@@ -87,7 +88,8 @@ export function EditorialPanel({
             aria-expanded={active === "solution"}
             onClick={() => setActive(active === "solution" ? null : "solution")}
           >
-            <VisibilityIcon visible={active === "solution"} /> Solution
+            <Braces aria-hidden="true" /> Solution
+            <ChevronDown className="editorial-chevron" aria-hidden="true" />
           </button>
         )}
       </div>
