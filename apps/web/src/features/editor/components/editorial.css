@@ -69,24 +69,23 @@
 .editorial-source {
   overflow: auto;
   margin: var(--space-3) 0 0;
-  padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--color-inline-code);
   font: 12px/1.5 var(--font-code);
 }
 .editorial-source pre {
   margin: 0;
+  padding: var(--space-3);
   font: inherit;
 }
 .editorial-source .cm-editor {
   height: auto;
-  background: transparent;
 }
 .editorial-source .cm-scroller {
   overflow-x: auto;
 }
 .editorial-source .cm-content {
-  padding: 0;
+  padding: var(--space-3);
 }
 .editorial-source .cm-line {
   padding: 0;

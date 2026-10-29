@@ -589,6 +589,8 @@ function InterviewPad({
             {snapshot.hints?.complexity === true &&
               question.problem.complexityLanguages?.includes(language) && (
                 <EditorialPanel
+                  theme={theme.theme}
+                  colorScheme={preferences.editorSchemes[theme.theme]}
                   identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
                   versionId={question.problem.id}
                   language={language}
@@ -603,6 +605,8 @@ function InterviewPad({
             {snapshot.hints?.complexity === true &&
               question.problem.complexityLanguages?.includes(language) && (
                 <EditorialPanel
+                  theme={theme.theme}
+                  colorScheme={preferences.editorSchemes[theme.theme]}
                   identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
                   versionId={question.problem.id}
                   language={language}

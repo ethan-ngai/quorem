@@ -8,6 +8,8 @@ import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Braces, Clock3 } from "lucide-react";
 import { EditorialCode } from "./EditorialCode";
 import type { EditorLanguage } from "../editorLanguages";
+import type { EditorTheme } from "../PythonEditor";
+import type { EditorScheme } from "../editorSchemes";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 
@@ -33,6 +35,8 @@ async function loadComplexity(identity: DevelopmentIdentity, id: string) {
 export function EditorialPanel({
   identity,
   versionId,
+  theme,
+  colorScheme,
   language = "python",
   inMatch = false,
   available = true,
@@ -40,6 +44,8 @@ export function EditorialPanel({
 }: {
   identity: DevelopmentIdentity;
   versionId: string;
+  theme: EditorTheme;
+  colorScheme: EditorScheme;
   language?: string;
   inMatch?: boolean;
   available?: boolean;
@@ -141,6 +147,8 @@ export function EditorialPanel({
               <EditorialCode
                 source={selectedSolution.source}
                 language={language as EditorLanguage}
+                theme={theme}
+                colorScheme={colorScheme}
               />
             </>
           ) : (

@@ -8,7 +8,7 @@ it("keeps editorial content hidden while enabling preload for published complexi
   const client = new QueryClient();
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <EditorialPanel identity="alice" versionId="version" />
+      <EditorialPanel theme="light" colorScheme="workspace" identity="alice" versionId="version" />
     </QueryClientProvider>,
   );
   expect(markup).toContain("Show complexity");
@@ -27,7 +27,14 @@ it("omits spoilers in match workspaces", () => {
   const client = new QueryClient();
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <EditorialPanel identity="alice" versionId="version" inMatch solutionAvailable />
+      <EditorialPanel
+        theme="light"
+        colorScheme="workspace"
+        identity="alice"
+        versionId="version"
+        inMatch
+        solutionAvailable
+      />
     </QueryClientProvider>,
   );
   expect(markup).toBe("");
@@ -37,7 +44,13 @@ it("omits the disclosure and fetch when no published complexity exists", () => {
   const client = new QueryClient();
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <EditorialPanel identity="alice" versionId="missing-complexity" available={false} />
+      <EditorialPanel
+        theme="light"
+        colorScheme="workspace"
+        identity="alice"
+        versionId="missing-complexity"
+        available={false}
+      />
     </QueryClientProvider>,
   );
   expect(html).toBe("");
@@ -54,6 +67,8 @@ it("offers a source-only solution without inventing complexity", () => {
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <EditorialPanel
+        theme="light"
+        colorScheme="workspace"
         identity="alice"
         versionId="source-only"
         available={false}
