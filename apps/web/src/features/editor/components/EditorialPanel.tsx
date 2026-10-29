@@ -1,7 +1,6 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
 import { userFacingErrorMessage } from "../../../ui/errors";
 import { useState } from "react";
-import * as Popover from "../../../ui/Popover";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
@@ -44,7 +43,7 @@ export function EditorialPanel({
   available?: boolean;
   solutionAvailable?: boolean;
 }) {
-  const [complexityOpen, setComplexityOpen] = useState(false);
+  const [active, setActive] = useState<"complexity" | "solution" | null>(null);
   const complexity = useQuery({
     queryKey: ["complexity", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
@@ -52,59 +51,6 @@ export function EditorialPanel({
     staleTime: Infinity,
     retry: false,
   });
-  const selected = complexity.data?.find((item) => item.language === language);
-  if (inMatch || (!available && !solutionAvailable)) return null;
-  return (
-    <>
-      {available && (
-        <Popover.Root open={complexityOpen} onOpenChange={setComplexityOpen}>
-          <Popover.Trigger asChild>
-            <button
-              className="topics-toggle"
-              aria-label={complexityOpen ? "Hide complexity" : "Show complexity"}
-              aria-expanded={complexityOpen}
-            >
-              <VisibilityIcon visible={complexityOpen} />
-              Complexity
-            </button>
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content className="editorial-popover" align="start" aria-label="Complexity">
-              {complexity.isPending ? (
-                <p role="status">Loading complexity…</p>
-              ) : complexity.isError ? (
-                <p role="alert">
-                  {userFacingErrorMessage(
-                    complexity.error,
-                    "Complexity unavailable. Please try again.",
-                  )}
-                </p>
-              ) : selected ? (
-                <ComplexityDetails value={selected} />
-              ) : (
-                <p>No published complexity for {labels[language] ?? language}.</p>
-              )}
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
-      )}
-      {solutionAvailable && (
-        <SolutionDisclosure identity={identity} versionId={versionId} language={language} />
-      )}
-    </>
-  );
-}
-
-export function SolutionDisclosure({
-  identity,
-  versionId,
-  language,
-}: {
-  identity: DevelopmentIdentity;
-  versionId: string;
-  language: string;
-}) {
-  const [open, setOpen] = useState(false);
   const solutions = useQuery({
     queryKey: ["solutions", identity, versionId],
     queryFn: async () => {
@@ -113,48 +59,81 @@ export function SolutionDisclosure({
       });
       return requireData(data, error).items;
     },
+    enabled: !inMatch && solutionAvailable,
     staleTime: Infinity,
     retry: false,
   });
-  const selected = solutions.data?.find((item) => item.language === language);
+  if (inMatch || (!available && !solutionAvailable)) return null;
+  const selectedComplexity = complexity.data?.find((item) => item.language === language);
+  const selectedSolution = solutions.data?.find((item) => item.language === language);
+  const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        <button
-          className="topics-toggle"
-          aria-label={open ? "Hide solution" : "Show solution"}
-          aria-expanded={open}
-        >
-          <VisibilityIcon visible={open} /> Solution
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          className="editorial-popover editorial-popover-solution"
-          align="start"
-          aria-label="Solution"
-        >
-          {solutions.isPending ? (
+    <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
+      <div className="editorial-controls">
+        {visible && (
+          <button className="topics-toggle editorial-back" onClick={() => setActive(null)}>
+            ← Back to question
+          </button>
+        )}
+        {available && (
+          <button
+            className="topics-toggle"
+            aria-label={active === "complexity" ? "Hide complexity" : "Show complexity"}
+            aria-expanded={active === "complexity"}
+            onClick={() => setActive(active === "complexity" ? null : "complexity")}
+          >
+            <VisibilityIcon visible={active === "complexity"} /> Complexity
+          </button>
+        )}
+        {solutionAvailable && (
+          <button
+            className="topics-toggle"
+            aria-label={active === "solution" ? "Hide solution" : "Show solution"}
+            aria-expanded={active === "solution"}
+            onClick={() => setActive(active === "solution" ? null : "solution")}
+          >
+            <VisibilityIcon visible={active === "solution"} /> Solution
+          </button>
+        )}
+      </div>
+      {visible && (
+        <div className="editorial-content" aria-live="polite">
+          {active === "complexity" ? (
+            complexity.isPending ? (
+              <p role="status">Loading complexity…</p>
+            ) : complexity.isError ? (
+              <p role="alert">
+                {userFacingErrorMessage(
+                  complexity.error,
+                  "Complexity unavailable. Please try again.",
+                )}
+              </p>
+            ) : selectedComplexity ? (
+              <ComplexityDetails value={selectedComplexity} />
+            ) : (
+              <p>No published complexity for {labels[language] ?? language}.</p>
+            )
+          ) : solutions.isPending ? (
             <p role="status">Loading solution…</p>
           ) : solutions.isError ? (
             <p role="alert">
               {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}
             </p>
-          ) : selected ? (
+          ) : selectedSolution ? (
             <>
-              {selected.explanationMarkdown && (
-                <StatementMarkdown source={selected.explanationMarkdown} />
+              {selectedSolution.explanationMarkdown && (
+                <StatementMarkdown source={selectedSolution.explanationMarkdown} />
               )}
               <pre className="editorial-source">
-                <code>{selected.source}</code>
+                <code>{selectedSolution.source}</code>
               </pre>
             </>
           ) : (
             <p>No published solution for {labels[language] ?? language}.</p>
           )}
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        </div>
+      )}
+    </section>
   );
 }
 

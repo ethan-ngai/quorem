@@ -21,7 +21,7 @@ it("keeps editorial content hidden while enabling preload for published complexi
       .getQueryCache()
       .getAll()
       .map((query) => query.queryKey[0]),
-  ).toEqual(["complexity"]);
+  ).toEqual(["complexity", "solutions"]);
 });
 
 it("omits spoilers in match workspaces", () => {
