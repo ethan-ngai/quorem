@@ -11,7 +11,7 @@ it("keeps editorial content hidden while enabling preload for published complexi
       <EditorialPanel identity="alice" versionId="version" />
     </QueryClientProvider>,
   );
-  expect(markup).toContain("Complexity");
+  expect(markup).toContain("Show complexity");
   expect(markup).not.toContain("solutions");
   expect(markup).not.toContain("editorial-source");
   expect(markup).not.toContain("Auxiliary space");
@@ -61,8 +61,8 @@ it("offers a source-only solution without inventing complexity", () => {
       />
     </QueryClientProvider>,
   );
-  expect(html).toContain("Solution");
-  expect(html).not.toContain("Complexity");
+  expect(html).toContain("Show solution");
+  expect(html).not.toContain("Show complexity");
   expect(html).not.toContain("editorial-source");
   expect(
     client
