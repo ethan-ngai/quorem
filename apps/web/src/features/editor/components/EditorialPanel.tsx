@@ -5,7 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
-import { Braces, ChevronDown, Clock3 } from "lucide-react";
+import { Braces, Clock3 } from "lucide-react";
+import { EditorialCode } from "./EditorialCode";
+import type { EditorLanguage } from "../editorLanguages";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 
@@ -44,6 +46,14 @@ export function EditorialPanel({
   solutionAvailable?: boolean;
 }) {
   const [active, setActive] = useState<"complexity" | "solution" | null>(null);
+  const [displayed, setDisplayed] = useState<"complexity" | "solution" | null>(null);
+  function toggle(item: "complexity" | "solution") {
+    if (active === item) setActive(null);
+    else {
+      setDisplayed(item);
+      setActive(item);
+    }
+  }
   const complexity = useQuery({
     queryKey: ["complexity", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
@@ -75,10 +85,9 @@ export function EditorialPanel({
             className="topics-toggle"
             aria-label={active === "complexity" ? "Hide complexity" : "Show complexity"}
             aria-expanded={active === "complexity"}
-            onClick={() => setActive(active === "complexity" ? null : "complexity")}
+            onClick={() => toggle("complexity")}
           >
             <Clock3 aria-hidden="true" /> Complexity
-            <ChevronDown className="editorial-chevron" aria-hidden="true" />
           </button>
         )}
         {solutionAvailable && (
@@ -86,16 +95,24 @@ export function EditorialPanel({
             className="topics-toggle"
             aria-label={active === "solution" ? "Hide solution" : "Show solution"}
             aria-expanded={active === "solution"}
-            onClick={() => setActive(active === "solution" ? null : "solution")}
+            onClick={() => toggle("solution")}
           >
             <Braces aria-hidden="true" /> Solution
-            <ChevronDown className="editorial-chevron" aria-hidden="true" />
           </button>
         )}
       </div>
-      {visible && (
-        <div className="editorial-content" aria-live="polite" tabIndex={0}>
-          {active === "complexity" ? (
+      {displayed && (available || solutionAvailable) && (
+        <div
+          key={displayed}
+          className="editorial-content"
+          data-visible={!!visible}
+          aria-hidden={!visible}
+          inert={!visible}
+          onAnimationEnd={() => {
+            if (!visible) setDisplayed(null);
+          }}
+        >
+          {displayed === "complexity" ? (
             complexity.isPending ? (
               <p role="status">Loading complexity…</p>
             ) : complexity.isError ? (
@@ -121,9 +138,10 @@ export function EditorialPanel({
               {selectedSolution.explanationMarkdown && (
                 <StatementMarkdown source={selectedSolution.explanationMarkdown} />
               )}
-              <pre className="editorial-source">
-                <code>{selectedSolution.source}</code>
-              </pre>
+              <EditorialCode
+                source={selectedSolution.source}
+                language={language as EditorLanguage}
+              />
             </>
           ) : (
             <p>No published solution for {labels[language] ?? language}.</p>
