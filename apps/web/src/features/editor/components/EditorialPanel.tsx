@@ -1,11 +1,10 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
 import { userFacingErrorMessage } from "../../../ui/errors";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
-import { VisibilityIcon } from "../../../ui/Icon";
+import { ChevronDown } from "lucide-react";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 
@@ -43,7 +42,6 @@ export function EditorialPanel({
   available?: boolean;
   solutionAvailable?: boolean;
 }) {
-  const [active, setActive] = useState<"complexity" | "solution" | null>(null);
   const complexity = useQuery({
     queryKey: ["complexity", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
@@ -66,35 +64,15 @@ export function EditorialPanel({
   if (inMatch || (!available && !solutionAvailable)) return null;
   const selectedComplexity = complexity.data?.find((item) => item.language === language);
   const selectedSolution = solutions.data?.find((item) => item.language === language);
-  const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
-    <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
-      <div className="editorial-controls">
-        {available && (
-          <button
-            className="topics-toggle"
-            aria-label={active === "complexity" ? "Hide complexity" : "Show complexity"}
-            aria-expanded={active === "complexity"}
-            onClick={() => setActive(active === "complexity" ? null : "complexity")}
-          >
-            <VisibilityIcon visible={active === "complexity"} /> Complexity
-          </button>
-        )}
-        {solutionAvailable && (
-          <button
-            className="topics-toggle"
-            aria-label={active === "solution" ? "Hide solution" : "Show solution"}
-            aria-expanded={active === "solution"}
-            onClick={() => setActive(active === "solution" ? null : "solution")}
-          >
-            <VisibilityIcon visible={active === "solution"} /> Solution
-          </button>
-        )}
-      </div>
-      {visible && (
-        <div className="editorial-content" aria-live="polite" tabIndex={0}>
-          {active === "complexity" ? (
-            complexity.isPending ? (
+    <section className="editorial-section" aria-label="Question guidance">
+      {available && (
+        <details className="editorial-disclosure">
+          <summary>
+            Complexity <ChevronDown size={14} aria-hidden="true" />
+          </summary>
+          <div className="editorial-content">
+            {complexity.isPending ? (
               <p role="status">Loading complexity…</p>
             ) : complexity.isError ? (
               <p role="alert">
@@ -107,26 +85,36 @@ export function EditorialPanel({
               <ComplexityDetails value={selectedComplexity} />
             ) : (
               <p>No published complexity for {labels[language] ?? language}.</p>
-            )
-          ) : solutions.isPending ? (
-            <p role="status">Loading solution…</p>
-          ) : solutions.isError ? (
-            <p role="alert">
-              {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}
-            </p>
-          ) : selectedSolution ? (
-            <>
-              {selectedSolution.explanationMarkdown && (
-                <StatementMarkdown source={selectedSolution.explanationMarkdown} />
-              )}
-              <pre className="editorial-source">
-                <code>{selectedSolution.source}</code>
-              </pre>
-            </>
-          ) : (
-            <p>No published solution for {labels[language] ?? language}.</p>
-          )}
-        </div>
+            )}
+          </div>
+        </details>
+      )}
+      {solutionAvailable && (
+        <details className="editorial-disclosure">
+          <summary>
+            Solution <ChevronDown size={14} aria-hidden="true" />
+          </summary>
+          <div className="editorial-content">
+            {solutions.isPending ? (
+              <p role="status">Loading solution…</p>
+            ) : solutions.isError ? (
+              <p role="alert">
+                {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}
+              </p>
+            ) : selectedSolution ? (
+              <>
+                {selectedSolution.explanationMarkdown && (
+                  <StatementMarkdown source={selectedSolution.explanationMarkdown} />
+                )}
+                <pre className="editorial-source">
+                  <code>{selectedSolution.source}</code>
+                </pre>
+              </>
+            ) : (
+              <p>No published solution for {labels[language] ?? language}.</p>
+            )}
+          </div>
+        </details>
       )}
     </section>
   );
