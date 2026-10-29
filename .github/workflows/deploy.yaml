@@ -134,15 +134,15 @@ jobs:
           cache: true
       - run: vp install --frozen-lockfile
       - run: vp check --no-fmt
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
       - run: vp run contracts:check
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - name: Validate Terraform configuration
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
         run: |
           terraform fmt -check infra/terraform/app/main.tf infra/terraform/database/main.tf
           terraform -chdir=infra/terraform/app init -backend=false -input=false
@@ -154,13 +154,13 @@ jobs:
           terraform -chdir=infra/terraform/case-validation validate
           terraform -chdir=infra/terraform/case-validation test
       - name: Validate elastic routing policy
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
         run: |
           node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
           python3 -m unittest discover -s scripts -p 'reconcile_judge_test.py'
           python3 -m unittest discover -s scripts -p 'upload_worker_version_test.py'
       - name: Validate workerd routing and WebSocket lifecycle
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
         run: |
           mkdir -p .local
           vp -C apps/realtime-cloudflare exec wrangler dev --config ../../deploy/wrangler.test.jsonc --port 8791 --ip 127.0.0.1 --show-interactive-dev-session=false > .local/workerd.log 2>&1 &
@@ -172,7 +172,7 @@ jobs:
           done
           if ! node deploy/workerd-check.mjs; then cat .local/workerd.log; exit 1; fi
       - name: Validate fast judge routing
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
         run: |
           mkdir -p .local
           vp -C apps/realtime-cloudflare exec wrangler dev --config ../../deploy/wrangler.fast-test.jsonc --port 8796 --ip 127.0.0.1 --show-interactive-dev-session=false > .local/fast-workerd.log 2>&1 &
@@ -192,12 +192,11 @@ jobs:
       - name: Build isolated language images
         run: python3 scripts/build-judge-images.py
       - name: Verify direct sandbox isolation
-        if: ${{ false }}
         run: |
           python3 scripts/test-direct-sandbox.py
           QUOREM_TEST_DIRECT_DOCKER=1 go test ./apps/runner/internal/engine -run TestRemoteSandboxPreflightWithDocker -count=1
       - name: Validate application and judge
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
         env:
           QUOREM_TEST_DOCKER: "1"
         run: |
@@ -210,7 +209,7 @@ jobs:
           docker build --platform linux/amd64 -f deploy/Dockerfile -t "quorem-app:$GITHUB_SHA" .
           docker build --platform linux/amd64 -f deploy/Dockerfile.direct-judge -t "quorem-judge:$GITHUB_SHA" .
       - name: Verify split runtime roles
-        if: ${{ false }}
+        if: env.HOSTED_ONLY != 'true'
         run: |
           docker run --rm "quorem-app:$GITHUB_SHA" --verify-only
           docker run --rm --entrypoint sh "quorem-app:$GITHUB_SHA" -c 'test ! -e /app/bin/runner && ! command -v docker && ! command -v dockerd'
@@ -246,7 +245,7 @@ jobs:
 
   validate-hosted-case:
     needs: build
-    if: ${{ false && always() && !cancelled() && !inputs.restart_objects && ((github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped'))) || (github.ref == 'refs/heads/dev' && inputs.validate_hosted && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped')))) }}
+    if: ${{ always() && !cancelled() && !inputs.restart_objects && ((github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped'))) || (github.ref == 'refs/heads/dev' && inputs.validate_hosted && (needs.build.result == 'success' || (inputs.reuse_run_id != '' && needs.build.result == 'skipped')))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -348,7 +347,7 @@ jobs:
       group: production-apply-${{ github.ref }}
       cancel-in-progress: false
     needs: [build, validate-hosted-case]
-    if: ${{ always() && !cancelled() && needs.validate-hosted-case.result == 'skipped' && github.ref == 'refs/heads/main' && !inputs.restart_objects && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '' && needs.build.result == 'skipped')) }}
+    if: ${{ always() && !cancelled() && needs.validate-hosted-case.result == 'success' && github.ref == 'refs/heads/main' && !inputs.restart_objects && (needs.build.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id != '' && needs.build.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -369,7 +368,6 @@ jobs:
       - name: Require current main
         run: bash scripts/require-main.sh
       - name: Validate image reuse guard
-        if: ${{ false }}
         run: python3 -m unittest discover -s scripts -p 'reuse_validated_images_test.py'
       - name: Resolve verified image revision
         if: inputs.reuse_run_id != ''
@@ -392,7 +390,6 @@ jobs:
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - name: Validate current routing policy
-        if: ${{ false }}
         run: node --import ./deploy/test-register.mjs --test deploy/*.test.mjs
       - name: Configure production email and social providers
         env:
@@ -439,7 +436,6 @@ jobs:
       - name: Provision Neon
         run: python3 scripts/provision-database.py
       - name: Validate seed rollout gates
-        if: ${{ false }}
         run: |
           python3 -m unittest discover -s scripts -p 'validate_seed_gates_test.py'
           python3 scripts/validate-seed-gates.py
@@ -481,7 +477,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: python3 scripts/reconcile-judge.py
       - name: Verify production routes
-        if: ${{ false }}
+        if: github.ref == 'refs/heads/main'
         run: |
           curl_args=(--max-time 75 --retry 6 --retry-all-errors --retry-delay 2 --fail --silent --show-error)
           curl "${curl_args[@]}" "$AUTH_ORIGIN/health"
@@ -493,7 +489,6 @@ jobs:
           test "$(curl --silent -o /dev/null -w '%{http_code}' "$AUTH_ORIGIN/internal/session/test")" = 404
           echo "Production: $AUTH_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
       - name: Verify production sign-in, API latency and revocation
-        if: ${{ false }}
         env:
           AUTH_BOOTSTRAP_USERNAME: ethanmngai
           AUTH_BOOTSTRAP_PASSWORD: ${{ secrets.AUTH_BOOTSTRAP_PASSWORD }}
