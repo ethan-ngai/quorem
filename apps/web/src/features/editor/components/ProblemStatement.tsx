@@ -99,13 +99,13 @@ export function ProblemStatement({
           ))}
         </div>
       )}
-      {children}
       <div className="problem-body">
         {navigation}
         <div className="problem-copy">
           <StatementMarkdown source={problem.statementMarkdown} />
         </div>
         {problem.sql && <SqlSchema schema={problem.sql} />}
+        {children}
         {beforeExamples}
         {problem.examples.length > 0 && (
           <section className="problem-section" aria-labelledby={`${examplesId}-heading`}>
