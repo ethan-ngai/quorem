@@ -99,105 +99,122 @@ export function ProblemStatement({
           ))}
         </div>
       )}
-      {navigation}
-      <div className="problem-copy">
-        <StatementMarkdown source={problem.statementMarkdown} />
-      </div>
-      {problem.sql && <SqlSchema schema={problem.sql} />}
-      {beforeExamples}
-      {problem.examples.length > 0 && (
-        <section className="problem-section" aria-labelledby={`${examplesId}-heading`}>
-          <h2 id={`${examplesId}-heading`}>Examples</h2>
-          <div className="example-navigation">
-            <AuthoringTabs
-              id={examplesId}
-              label="Examples"
-              appearance="underline"
-              tabs={problem.examples.map((_, index) => ({
-                value: String(index),
-                label: `Example ${index + 1}`,
-              }))}
-              value={String(selectedExample)}
-              onChange={(value) => setSelection({ problemId: problem.id, index: Number(value) })}
-            />
-          </div>
-          <div className="example-list">
-            {problem.examples.slice(selectedExample, selectedExample + 1).map((example) => (
-              <div
-                key={selectedExample}
-                role="tabpanel"
-                id={`${examplesId}-${selectedExample}-panel`}
-                aria-labelledby={`${examplesId}-${selectedExample}`}
-                tabIndex={0}
-              >
-                <div className="example-content">
-                  {example.calls?.length ? (
-                    <div className="example-sequence">
-                      <SequenceCaseValues
-                        problem={problem}
-                        calls={example.calls}
-                        outputLabel="Output"
-                      />
-                    </div>
-                  ) : problem.sql ? (
-                    <div className="sql-example-data">
-                      <div className="sql-example-label">Input</div>
-                      <SqlTables input label="Input" schema={problem.sql} value={example.args[0]} />
-                      <SqlTables label="Output" schema={problem.sql} value={example.expected} />
-                    </div>
-                  ) : (
-                    <div className="example-data">
-                      <div>
-                        <Tooltip content="Input">
-                          <span className="value-label" tabIndex={0} aria-label="Input">
-                            <Icon name="input" />
-                          </span>
-                        </Tooltip>
-                        <code>{exampleInput(problem, example.args, language)}</code>
+      <div className="problem-body">
+        {navigation}
+        <div className="problem-copy">
+          <StatementMarkdown source={problem.statementMarkdown} />
+        </div>
+        {problem.sql && <SqlSchema schema={problem.sql} />}
+        {beforeExamples}
+        {problem.examples.length > 0 && (
+          <section className="problem-section" aria-labelledby={`${examplesId}-heading`}>
+            <h2 id={`${examplesId}-heading`}>Examples</h2>
+            <div className="example-navigation">
+              <AuthoringTabs
+                id={examplesId}
+                label="Examples"
+                appearance="underline"
+                tabs={problem.examples.map((_, index) => ({
+                  value: String(index),
+                  label: `Example ${index + 1}`,
+                }))}
+                value={String(selectedExample)}
+                onChange={(value) => setSelection({ problemId: problem.id, index: Number(value) })}
+              />
+            </div>
+            <div className="example-list">
+              {problem.examples.slice(selectedExample, selectedExample + 1).map((example) => (
+                <div
+                  key={selectedExample}
+                  role="tabpanel"
+                  id={`${examplesId}-${selectedExample}-panel`}
+                  aria-labelledby={`${examplesId}-${selectedExample}`}
+                  tabIndex={0}
+                >
+                  <div className="example-content">
+                    {example.calls?.length ? (
+                      <div className="example-sequence">
+                        <SequenceCaseValues
+                          problem={problem}
+                          calls={example.calls}
+                          outputLabel="Output"
+                        />
                       </div>
-                      <div>
-                        <Tooltip content="Output">
-                          <span className="value-label" tabIndex={0} aria-label="Output">
-                            <Icon name="output" />
-                          </span>
-                        </Tooltip>
-                        <code>
-                          {questionValue(example.expected, language, problem.signature.returnType)}
-                        </code>
+                    ) : problem.sql ? (
+                      <div className="sql-example-data">
+                        <div className="sql-example-label">Input</div>
+                        <SqlTables
+                          input
+                          label="Input"
+                          schema={problem.sql}
+                          value={example.args[0]}
+                        />
+                        <SqlTables label="Output" schema={problem.sql} value={example.expected} />
                       </div>
-                    </div>
-                  )}
-                  <div className="example-explanation">
-                    {example.explanation && (
-                      <div className="example-explanation-content">
-                        <Tooltip content="Explanation">
-                          <span className="explanation-icon" tabIndex={0} aria-label="Explanation">
-                            <Icon name="explanation" />
-                          </span>
-                        </Tooltip>
+                    ) : (
+                      <div className="example-data">
                         <div>
-                          <StatementMarkdown source={example.explanation} />
+                          <Tooltip content="Input">
+                            <span className="value-label" tabIndex={0} aria-label="Input">
+                              <Icon name="input" />
+                            </span>
+                          </Tooltip>
+                          <code>{exampleInput(problem, example.args, language)}</code>
+                        </div>
+                        <div>
+                          <Tooltip content="Output">
+                            <span className="value-label" tabIndex={0} aria-label="Output">
+                              <Icon name="output" />
+                            </span>
+                          </Tooltip>
+                          <code>
+                            {questionValue(
+                              example.expected,
+                              language,
+                              problem.signature.returnType,
+                            )}
+                          </code>
                         </div>
                       </div>
                     )}
+                    <div className="example-explanation">
+                      {example.explanation && (
+                        <div className="example-explanation-content">
+                          <Tooltip content="Explanation">
+                            <span
+                              className="explanation-icon"
+                              tabIndex={0}
+                              aria-label="Explanation"
+                            >
+                              <Icon name="explanation" />
+                            </span>
+                          </Tooltip>
+                          <div>
+                            <StatementMarkdown source={example.explanation} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      {problem.constraints.length > 0 && (
-        <section className="problem-section" aria-labelledby="constraints-heading">
-          <h2 id="constraints-heading">Constraints</h2>
-          <ul className="constraint-list">
-            {problem.constraints.map((constraint, constraintIndex) => {
-              return <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>;
-            })}
-          </ul>
-        </section>
-      )}
-      {children}
+              ))}
+            </div>
+          </section>
+        )}
+        {problem.constraints.length > 0 && (
+          <section className="problem-section" aria-labelledby="constraints-heading">
+            <h2 id="constraints-heading">Constraints</h2>
+            <ul className="constraint-list">
+              {problem.constraints.map((constraint, constraintIndex) => {
+                return (
+                  <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+        {children}
+      </div>
     </div>
   );
 }

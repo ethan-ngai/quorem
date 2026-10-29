@@ -1,11 +1,15 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
 import { userFacingErrorMessage } from "../../../ui/errors";
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
-import { VisibilityIcon } from "../../../ui/Icon";
+import { Braces, Clock3 } from "lucide-react";
+import { EditorialCode } from "./EditorialCode";
+import type { EditorLanguage } from "../editorLanguages";
+import type { EditorTheme } from "../PythonEditor";
+import type { EditorScheme } from "../editorSchemes";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 
@@ -20,7 +24,7 @@ const labels: Record<string, string> = {
   ocaml: "OCaml",
 };
 
-/** Costs load only after disclosure; the response contains no solution source. */
+/** Complexity is separate from published solution source. */
 async function loadComplexity(identity: DevelopmentIdentity, id: string) {
   const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/complexity", {
     params: { path: { id } },
@@ -31,6 +35,8 @@ async function loadComplexity(identity: DevelopmentIdentity, id: string) {
 export function EditorialPanel({
   identity,
   versionId,
+  theme,
+  colorScheme,
   language = "python",
   inMatch = false,
   available = true,
@@ -38,73 +44,29 @@ export function EditorialPanel({
 }: {
   identity: DevelopmentIdentity;
   versionId: string;
+  theme: EditorTheme;
+  colorScheme: EditorScheme;
   language?: string;
   inMatch?: boolean;
   available?: boolean;
   solutionAvailable?: boolean;
 }) {
-  const [complexityOpen, setComplexityOpen] = useState(false);
-  const regionId = useId();
+  const [active, setActive] = useState<"complexity" | "solution" | null>(null);
+  const [displayed, setDisplayed] = useState<"complexity" | "solution" | null>(null);
+  function toggle(item: "complexity" | "solution") {
+    if (active === item) setActive(null);
+    else {
+      setDisplayed(item);
+      setActive(item);
+    }
+  }
   const complexity = useQuery({
     queryKey: ["complexity", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
-    enabled: complexityOpen && !inMatch && available,
+    enabled: !inMatch && available,
+    staleTime: Infinity,
     retry: false,
   });
-  const selected = complexity.data?.find((item) => item.language === language);
-  if (inMatch || (!available && !solutionAvailable)) return null;
-  return (
-    <>
-      {available && (
-        <section className="editorial-section" aria-label="Complexity">
-          <button
-            className="topics-toggle"
-            aria-label={complexityOpen ? "Hide complexity" : "Show complexity"}
-            aria-expanded={complexityOpen}
-            aria-controls={regionId}
-            onClick={() => setComplexityOpen(!complexityOpen)}
-          >
-            <VisibilityIcon visible={complexityOpen} />
-            Complexity
-          </button>
-          {complexityOpen && (
-            <div id={regionId}>
-              {complexity.isPending ? (
-                <p role="status">Loading complexity…</p>
-              ) : complexity.isError ? (
-                <p role="alert">
-                  {userFacingErrorMessage(
-                    complexity.error,
-                    "Complexity unavailable. Please try again.",
-                  )}
-                </p>
-              ) : selected ? (
-                <ComplexityDetails value={selected} />
-              ) : (
-                <p>No published complexity for {labels[language] ?? language}.</p>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-      {solutionAvailable && (
-        <SolutionDisclosure identity={identity} versionId={versionId} language={language} />
-      )}
-    </>
-  );
-}
-
-export function SolutionDisclosure({
-  identity,
-  versionId,
-  language,
-}: {
-  identity: DevelopmentIdentity;
-  versionId: string;
-  language: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const regionId = useId();
   const solutions = useQuery({
     queryKey: ["solutions", identity, versionId],
     queryFn: async () => {
@@ -113,37 +75,81 @@ export function SolutionDisclosure({
       });
       return requireData(data, error).items;
     },
-    enabled: open,
+    enabled: !inMatch && solutionAvailable,
+    staleTime: Infinity,
     retry: false,
   });
-  const selected = solutions.data?.find((item) => item.language === language);
+  if (inMatch || (!available && !solutionAvailable)) return null;
+  const selectedComplexity = complexity.data?.find((item) => item.language === language);
+  const selectedSolution = solutions.data?.find((item) => item.language === language);
+  const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
-    <section className="editorial-section" aria-label="Solution">
-      <button
-        className="topics-toggle"
-        aria-label={open ? "Hide solution" : "Show solution"}
-        aria-expanded={open}
-        aria-controls={regionId}
-        onClick={() => setOpen(!open)}
-      >
-        <VisibilityIcon visible={open} /> Solution
-      </button>
-      {open && (
-        <div id={regionId}>
-          {solutions.isPending ? (
+    <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
+      <div className="editorial-controls">
+        {available && (
+          <button
+            className="topics-toggle"
+            aria-label={active === "complexity" ? "Hide complexity" : "Show complexity"}
+            aria-expanded={active === "complexity"}
+            onClick={() => toggle("complexity")}
+          >
+            <Clock3 aria-hidden="true" /> Complexity
+          </button>
+        )}
+        {solutionAvailable && (
+          <button
+            className="topics-toggle"
+            aria-label={active === "solution" ? "Hide solution" : "Show solution"}
+            aria-expanded={active === "solution"}
+            onClick={() => toggle("solution")}
+          >
+            <Braces aria-hidden="true" /> Solution
+          </button>
+        )}
+      </div>
+      {displayed && (available || solutionAvailable) && (
+        <div
+          key={displayed}
+          className="editorial-content"
+          data-visible={!!visible}
+          aria-hidden={!visible}
+          inert={!visible}
+          onAnimationEnd={() => {
+            if (!visible) setDisplayed(null);
+          }}
+        >
+          {displayed === "complexity" ? (
+            complexity.isPending ? (
+              <p role="status">Loading complexity…</p>
+            ) : complexity.isError ? (
+              <p role="alert">
+                {userFacingErrorMessage(
+                  complexity.error,
+                  "Complexity unavailable. Please try again.",
+                )}
+              </p>
+            ) : selectedComplexity ? (
+              <ComplexityDetails value={selectedComplexity} />
+            ) : (
+              <p>No published complexity for {labels[language] ?? language}.</p>
+            )
+          ) : solutions.isPending ? (
             <p role="status">Loading solution…</p>
           ) : solutions.isError ? (
             <p role="alert">
               {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}
             </p>
-          ) : selected ? (
+          ) : selectedSolution ? (
             <>
-              {selected.explanationMarkdown && (
-                <StatementMarkdown source={selected.explanationMarkdown} />
+              {selectedSolution.explanationMarkdown && (
+                <StatementMarkdown source={selectedSolution.explanationMarkdown} />
               )}
-              <pre className="editorial-source">
-                <code>{selected.source}</code>
-              </pre>
+              <EditorialCode
+                source={selectedSolution.source}
+                language={language as EditorLanguage}
+                theme={theme}
+                colorScheme={colorScheme}
+              />
             </>
           ) : (
             <p>No published solution for {labels[language] ?? language}.</p>

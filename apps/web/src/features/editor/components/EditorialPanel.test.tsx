@@ -4,16 +4,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import { EditorialPanel } from "./EditorialPanel";
 
-it("does not render or fetch editorial code and costs on initial opening", () => {
+it("keeps editorial content hidden while enabling preload for published complexity", () => {
   const client = new QueryClient();
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <EditorialPanel identity="alice" versionId="version" />
+      <EditorialPanel theme="light" colorScheme="workspace" identity="alice" versionId="version" />
     </QueryClientProvider>,
   );
   expect(markup).toContain("Show complexity");
   expect(markup).not.toContain("solutions");
-  expect(markup).toContain("visibility-icon");
   expect(markup).not.toContain("editorial-source");
   expect(markup).not.toContain("Auxiliary space");
   expect(
@@ -21,20 +20,21 @@ it("does not render or fetch editorial code and costs on initial opening", () =>
       .getQueryCache()
       .getAll()
       .map((query) => query.queryKey[0]),
-  ).toEqual(["complexity"]);
-  expect(
-    client
-      .getQueryCache()
-      .getAll()
-      .every((query) => query.state.fetchStatus === "idle"),
-  ).toBe(true);
+  ).toEqual(["complexity", "solutions"]);
 });
 
 it("omits spoilers in match workspaces", () => {
   const client = new QueryClient();
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <EditorialPanel identity="alice" versionId="version" inMatch solutionAvailable />
+      <EditorialPanel
+        theme="light"
+        colorScheme="workspace"
+        identity="alice"
+        versionId="version"
+        inMatch
+        solutionAvailable
+      />
     </QueryClientProvider>,
   );
   expect(markup).toBe("");
@@ -44,7 +44,13 @@ it("omits the disclosure and fetch when no published complexity exists", () => {
   const client = new QueryClient();
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <EditorialPanel identity="alice" versionId="missing-complexity" available={false} />
+      <EditorialPanel
+        theme="light"
+        colorScheme="workspace"
+        identity="alice"
+        versionId="missing-complexity"
+        available={false}
+      />
     </QueryClientProvider>,
   );
   expect(html).toBe("");
@@ -56,11 +62,13 @@ it("omits the disclosure and fetch when no published complexity exists", () => {
   ).toBe(true);
 });
 
-it("offers a source-only solution without inventing complexity or fetching it", () => {
+it("offers a source-only solution without inventing complexity", () => {
   const client = new QueryClient();
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <EditorialPanel
+        theme="light"
+        colorScheme="workspace"
         identity="alice"
         versionId="source-only"
         available={false}

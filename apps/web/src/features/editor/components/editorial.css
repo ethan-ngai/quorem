@@ -1,12 +1,99 @@
 .editorial-section {
-  margin: var(--space-5) 0;
+  margin: var(--space-5) 0 var(--space-4);
   border-top: 1px solid var(--color-border);
-  padding-top: var(--space-4);
+}
+.editorial-controls {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.editorial-controls button[aria-expanded="true"] {
+  color: var(--color-text);
+  background: var(--color-overlay);
+}
+.editorial-content {
+  padding: var(--space-2) 0 var(--space-3);
+  font-size: 13px;
+  line-height: 1.5;
+  animation: editorial-enter var(--motion-standard) var(--motion-easing) both;
+}
+.editorial-content[data-visible="false"] {
+  animation: editorial-exit var(--motion-fast) var(--motion-easing) both;
+}
+@keyframes editorial-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes editorial-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editorial-content,
+  .editorial-content[data-visible="false"] {
+    animation-duration: 1ms;
+    animation-name: editorial-fade-in;
+  }
+  .editorial-content[data-visible="false"] {
+    animation-name: editorial-fade-out;
+  }
+  @keyframes editorial-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes editorial-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+.editorial-content p {
+  margin: 0 0 var(--space-3);
+}
+
+.editorial-source {
+  overflow: auto;
+  margin: var(--space-3) 0 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-inline-code);
+  font: 12px/1.5 var(--font-code);
+}
+.editorial-source pre {
+  margin: 0;
+  padding: var(--space-3);
+  font: inherit;
+}
+.editorial-source .cm-editor {
+  height: auto;
+}
+.editorial-source .cm-scroller {
+  overflow-x: auto;
+}
+.editorial-source .cm-content {
+  padding: var(--space-3);
+}
+.editorial-source .cm-line {
+  padding: 0;
 }
 .editorial-complexity dl {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
 }
 .editorial-complexity dl div {
   display: flex;
@@ -18,4 +105,10 @@
 }
 .editorial-complexity dt {
   color: var(--color-text-secondary);
+}
+.editorial-complexity .katex {
+  font-size: 1em;
+}
+.editorial-complexity dl + * {
+  margin-top: var(--space-3);
 }
