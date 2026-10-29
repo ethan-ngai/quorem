@@ -100,7 +100,7 @@ export default function HeroEditorPreview() {
             ref={editor}
             documentKey="marketing-hero-stairs"
             documentUri="file:///preview/climbing-stairs.py"
-            initialSource={finalSource}
+            initialSource={frames[stage].source}
             theme={theme}
             colorScheme="workspace"
             fontSize={12}
@@ -109,7 +109,7 @@ export default function HeroEditorPreview() {
             readOnly
             onSourceChange={() => {}}
           />
-          <pre className="preview-source">{finalSource}</pre>
+          <pre className="preview-source">{frames[stage].source}</pre>
         </div>
         <footer className="execution-bar demo-execution-bar hero-execution">
           <span className="hero-run-status" data-passed={phase >= 2}>
