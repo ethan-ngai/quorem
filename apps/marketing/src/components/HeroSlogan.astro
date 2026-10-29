@@ -1,19 +1,50 @@
 ---
 import "@fontsource/silkscreen/latin-400.css";
+
+// Pixel cells and advances extracted from the bundled Silkscreen regular font.
+const glyphs: Record<string, { width: number; pixels: number[][] }> = {"t":{"width":5,"pixels":[[2,0],[2,1],[2,2],[2,3],[1,4],[2,4],[3,4]]},"n":{"width":7,"pixels":[[1,0],[5,0],[1,1],[4,1],[5,1],[1,2],[3,2],[5,2],[1,3],[2,3],[5,3],[1,4],[5,4]]},"l":{"width":5,"pixels":[[1,0],[2,0],[3,0],[1,1],[1,2],[1,3],[1,4]]},"p":{"width":6,"pixels":[[1,0],[1,1],[1,2],[2,2],[3,2],[1,3],[4,3],[1,4],[2,4],[3,4]]},"b":{"width":6,"pixels":[[1,0],[2,0],[3,0],[1,1],[4,1],[1,2],[2,2],[3,2],[4,2],[1,3],[4,3],[1,4],[2,4],[3,4]]},"h":{"width":6,"pixels":[[1,0],[4,0],[1,1],[4,1],[1,2],[2,2],[3,2],[4,2],[1,3],[4,3],[1,4],[4,4]]},"C":{"width":6,"pixels":[[2,0],[3,0],[1,1],[4,1],[1,2],[1,3],[4,3],[2,4],[3,4]]},"m":{"width":7,"pixels":[[1,0],[5,0],[1,1],[5,1],[1,2],[3,2],[5,2],[1,3],[2,3],[4,3],[5,3],[1,4],[5,4]]},"d":{"width":6,"pixels":[[1,0],[2,0],[3,0],[1,1],[4,1],[1,2],[4,2],[1,3],[4,3],[1,4],[2,4],[3,4]]},"a":{"width":6,"pixels":[[1,0],[4,0],[1,1],[4,1],[1,2],[2,2],[3,2],[4,2],[1,3],[4,3],[2,4],[3,4]]},"e":{"width":5,"pixels":[[1,0],[2,0],[3,0],[1,1],[1,2],[2,2],[3,2],[1,3],[1,4],[2,4],[3,4]]},"o":{"width":6,"pixels":[[2,0],[3,0],[1,1],[4,1],[1,2],[4,2],[1,3],[4,3],[2,4],[3,4]]},"y":{"width":7,"pixels":[[3,0],[3,1],[3,2],[2,3],[4,3],[1,4],[5,4]]},"g":{"width":6,"pixels":[[2,0],[3,0],[1,1],[4,1],[1,2],[3,2],[4,2],[1,3],[2,4],[3,4],[4,4]]}," ":{"width":4,"pixels":[]},"r":{"width":6,"pixels":[[1,0],[4,0],[1,1],[3,1],[1,2],[2,2],[3,2],[1,3],[4,3],[1,4],[2,4],[3,4]]},"i":{"width":3,"pixels":[[1,0],[1,1],[1,2],[1,3],[1,4]]}};
+const slogan = "Compete beyond the algorithm";
+let offset = 0;
+const pixels: { x: number; y: number; accent: boolean; delay: number }[] = [];
+for (const [index, char] of Array.from(slogan).entries()) {
+  const glyph = glyphs[char];
+  for (const [x, y] of glyph.pixels) {
+    const seed = (index * 47 + x * 73 + y * 113 + 337) % 127;
+    pixels.push({ x: offset + x, y, accent: index >= 8 && index < 14, delay: seed / 127 * 1100 });
+  }
+  offset += glyph.width;
+}
 ---
-<p class="hero-tagline">Compete <span>beyond</span> the algorithm</p>
+<p class="hero-tagline">
+  <svg aria-hidden="true" viewBox={`0 -7.72 ${offset} 9.2`} style={`width: ${offset / 8}em`}>
+    {pixels.map(({ x, y, accent, delay }) => (
+      <rect x={x - 0.05} y={-y - 1.05} width="1.1" height="1.1" class:list={{ accent }} style={`--pixel-delay: ${delay}ms`} />
+    ))}
+  </svg>
+  <span class="slogan-text">{slogan.slice(0, 8)}<span>{slogan.slice(8, 14)}</span>{slogan.slice(14)}</span>
+</p>
 
 <style>
   .hero-tagline {
+    position: relative;
     margin: 0;
     color: var(--color-text);
     font-family: "Silkscreen", var(--font-interface);
     font-size: clamp(14px, 1.7vw, 24px);
-    font-weight: 400;
-    font-style: normal;
     line-height: 1.15;
-    letter-spacing: 0;
     white-space: nowrap;
   }
-  .hero-tagline span { color: var(--color-primary); }
+  svg { display: block; height: 1.15em; fill: currentColor; shape-rendering: crispEdges; }
+  .accent { fill: var(--color-primary); }
+  .slogan-text { position: absolute; inset: 0; color: transparent; }
+  .slogan-text span { color: inherit; }
+  .slogan-text::selection, .slogan-text span::selection {
+    color: var(--color-text);
+    background: var(--color-primary);
+    -webkit-text-fill-color: var(--color-text);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    rect { animation: pixel-appear 1ms var(--pixel-delay) both; }
+    @keyframes pixel-appear { from { opacity: 0; } to { opacity: 1; } }
+  }
 </style>

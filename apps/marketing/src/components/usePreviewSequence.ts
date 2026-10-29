@@ -6,7 +6,7 @@ export function usePreviewSequence(
   delay: number | ((stage: number) => number),
 ) {
   const root = useRef<HTMLDivElement>(null);
-  const [stage, setStage] = useState(finalStage);
+  const [stage, setStage] = useState(autoPlay ? 0 : finalStage);
   const [visible, setVisible] = useState(false);
   const [automatic, setAutomatic] = useState(true);
   const [hidden, setHidden] = useState(false);
