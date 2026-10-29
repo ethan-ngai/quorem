@@ -171,11 +171,18 @@ kbd {
   color: var(--color-text-secondary);
 }
 .problem-scroll {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   padding: 28px;
-  overflow: auto;
+  overflow: hidden;
   scrollbar-color: var(--color-border) transparent;
   scrollbar-width: thin;
+}
+.problem-body {
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
 }
 .eyebrow {
   color: var(--color-text-secondary);

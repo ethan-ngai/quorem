@@ -70,11 +70,6 @@ export function EditorialPanel({
   return (
     <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
       <div className="editorial-controls">
-        {visible && (
-          <button className="topics-toggle editorial-back" onClick={() => setActive(null)}>
-            ← Back to question
-          </button>
-        )}
         {available && (
           <button
             className="topics-toggle"
@@ -97,7 +92,7 @@ export function EditorialPanel({
         )}
       </div>
       {visible && (
-        <div className="editorial-content" aria-live="polite">
+        <div className="editorial-content" aria-live="polite" tabIndex={0}>
           {active === "complexity" ? (
             complexity.isPending ? (
               <p role="status">Loading complexity…</p>

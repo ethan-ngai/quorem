@@ -8,6 +8,8 @@
   padding: var(--space-2) 0;
 }
 .editorial-content {
+  max-height: min(200px, 25vh);
+  overflow: auto;
   padding: var(--space-2) 0 var(--space-3);
   font-size: 13px;
   line-height: 1.5;
@@ -45,14 +47,4 @@
 }
 .editorial-complexity dl + * {
   margin-top: var(--space-3);
-}
-
-.problem-scroll:has(.editorial-section[data-open="true"]) .problem-body,
-.problem-scroll:has(.editorial-section[data-open="true"]) .topic-list,
-.problem-scroll:has(.editorial-section[data-open="true"]) .problem-heading .topics-toggle {
-  display: none;
-}
-.editorial-back {
-  margin-right: auto;
-  color: var(--color-text);
 }
