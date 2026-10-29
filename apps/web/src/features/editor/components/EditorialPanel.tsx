@@ -1,6 +1,7 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
 import { userFacingErrorMessage } from "../../../ui/errors";
-import { useId, useState } from "react";
+import { useState } from "react";
+import * as Popover from "../../../ui/Popover";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
@@ -20,7 +21,7 @@ const labels: Record<string, string> = {
   ocaml: "OCaml",
 };
 
-/** Costs load only after disclosure; the response contains no solution source. */
+/** Complexity is separate from published solution source. */
 async function loadComplexity(identity: DevelopmentIdentity, id: string) {
   const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/complexity", {
     params: { path: { id } },
@@ -44,11 +45,11 @@ export function EditorialPanel({
   solutionAvailable?: boolean;
 }) {
   const [complexityOpen, setComplexityOpen] = useState(false);
-  const regionId = useId();
   const complexity = useQuery({
     queryKey: ["complexity", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
-    enabled: complexityOpen && !inMatch && available,
+    enabled: !inMatch && available,
+    staleTime: Infinity,
     retry: false,
   });
   const selected = complexity.data?.find((item) => item.language === language);
@@ -56,19 +57,19 @@ export function EditorialPanel({
   return (
     <>
       {available && (
-        <section className="editorial-section" aria-label="Complexity">
-          <button
-            className="topics-toggle"
-            aria-label={complexityOpen ? "Hide complexity" : "Show complexity"}
-            aria-expanded={complexityOpen}
-            aria-controls={regionId}
-            onClick={() => setComplexityOpen(!complexityOpen)}
-          >
-            <VisibilityIcon visible={complexityOpen} />
-            Complexity
-          </button>
-          {complexityOpen && (
-            <div id={regionId}>
+        <Popover.Root open={complexityOpen} onOpenChange={setComplexityOpen}>
+          <Popover.Trigger asChild>
+            <button
+              className="topics-toggle"
+              aria-label={complexityOpen ? "Hide complexity" : "Show complexity"}
+              aria-expanded={complexityOpen}
+            >
+              <VisibilityIcon visible={complexityOpen} />
+              Complexity
+            </button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content className="editorial-popover" align="start" aria-label="Complexity">
               {complexity.isPending ? (
                 <p role="status">Loading complexity…</p>
               ) : complexity.isError ? (
@@ -83,9 +84,9 @@ export function EditorialPanel({
               ) : (
                 <p>No published complexity for {labels[language] ?? language}.</p>
               )}
-            </div>
-          )}
-        </section>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
       )}
       {solutionAvailable && (
         <SolutionDisclosure identity={identity} versionId={versionId} language={language} />
@@ -104,7 +105,6 @@ export function SolutionDisclosure({
   language: string;
 }) {
   const [open, setOpen] = useState(false);
-  const regionId = useId();
   const solutions = useQuery({
     queryKey: ["solutions", identity, versionId],
     queryFn: async () => {
@@ -113,23 +113,27 @@ export function SolutionDisclosure({
       });
       return requireData(data, error).items;
     },
-    enabled: open,
+    staleTime: Infinity,
     retry: false,
   });
   const selected = solutions.data?.find((item) => item.language === language);
   return (
-    <section className="editorial-section" aria-label="Solution">
-      <button
-        className="topics-toggle"
-        aria-label={open ? "Hide solution" : "Show solution"}
-        aria-expanded={open}
-        aria-controls={regionId}
-        onClick={() => setOpen(!open)}
-      >
-        <VisibilityIcon visible={open} /> Solution
-      </button>
-      {open && (
-        <div id={regionId}>
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button
+          className="topics-toggle"
+          aria-label={open ? "Hide solution" : "Show solution"}
+          aria-expanded={open}
+        >
+          <VisibilityIcon visible={open} /> Solution
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          className="editorial-popover editorial-popover-solution"
+          align="start"
+          aria-label="Solution"
+        >
           {solutions.isPending ? (
             <p role="status">Loading solution…</p>
           ) : solutions.isError ? (
@@ -148,9 +152,9 @@ export function SolutionDisclosure({
           ) : (
             <p>No published solution for {labels[language] ?? language}.</p>
           )}
-        </div>
-      )}
-    </section>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 

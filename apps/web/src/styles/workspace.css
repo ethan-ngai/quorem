@@ -728,6 +728,7 @@ kbd {
 .problem-meta {
   display: flex;
   align-items: start;
+  flex-wrap: wrap;
   gap: 12px;
 }
 .topics-toggle {

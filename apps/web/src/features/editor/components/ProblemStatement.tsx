@@ -73,6 +73,7 @@ export function ProblemStatement({
           <span className={`difficulty difficulty-${problem.difficulty}`}>
             {problem.difficulty}
           </span>
+          {children}
           {allowTopics && problem.tags.length > 0 && (
             <button
               className="topics-toggle"
@@ -197,7 +198,6 @@ export function ProblemStatement({
           </ul>
         </section>
       )}
-      {children}
     </div>
   );
 }

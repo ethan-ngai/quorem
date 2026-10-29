@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import { EditorialPanel } from "./EditorialPanel";
 
-it("does not render or fetch editorial code and costs on initial opening", () => {
+it("keeps editorial content hidden while enabling preload for published complexity", () => {
   const client = new QueryClient();
   const markup = renderToStaticMarkup(
     <QueryClientProvider client={client}>
@@ -22,12 +22,6 @@ it("does not render or fetch editorial code and costs on initial opening", () =>
       .getAll()
       .map((query) => query.queryKey[0]),
   ).toEqual(["complexity"]);
-  expect(
-    client
-      .getQueryCache()
-      .getAll()
-      .every((query) => query.state.fetchStatus === "idle"),
-  ).toBe(true);
 });
 
 it("omits spoilers in match workspaces", () => {
@@ -56,7 +50,7 @@ it("omits the disclosure and fetch when no published complexity exists", () => {
   ).toBe(true);
 });
 
-it("offers a source-only solution without inventing complexity or fetching it", () => {
+it("offers a source-only solution without inventing complexity", () => {
   const client = new QueryClient();
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
