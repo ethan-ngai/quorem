@@ -105,7 +105,6 @@ export function ProblemStatement({
           <StatementMarkdown source={problem.statementMarkdown} />
         </div>
         {problem.sql && <SqlSchema schema={problem.sql} />}
-        {children}
         {beforeExamples}
         {problem.examples.length > 0 && (
           <section className="problem-section" aria-labelledby={`${examplesId}-heading`}>
@@ -214,6 +213,7 @@ export function ProblemStatement({
             </ul>
           </section>
         )}
+        {children}
       </div>
     </div>
   );
