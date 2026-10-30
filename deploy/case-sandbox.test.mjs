@@ -87,7 +87,7 @@ function request(method = "POST", headers = {}) {
   });
 }
 
-test("case lifecycle diagnostics require the validation binding", async () => {
+void test("case lifecycle diagnostics require the validation binding", async () => {
   const { context } = fixture();
   assert.equal((await new CaseSandbox(context, {}).fetch(request("GET"))).status, 405);
   const sandbox = new CaseSandbox(context, { CASE_DIAGNOSTICS: "true" });
@@ -105,7 +105,7 @@ test("case lifecycle diagnostics require the validation binding", async () => {
   });
 });
 
-test("case diagnostics preserve the failed stream source after teardown", async () => {
+void test("case diagnostics preserve the failed stream source after teardown", async () => {
   const { context } = fixture({ streamFailure: true });
   const sandbox = new CaseSandbox(context, { CASE_DIAGNOSTICS: "true" });
   const response = await sandbox.fetch(request());
@@ -115,7 +115,7 @@ test("case diagnostics preserve the failed stream source after teardown", async 
   assert.equal(diagnostic.phase, "stop-complete");
 });
 
-test("direct case forwards current input and confirms teardown before its terminal frame", async () => {
+void test("direct case forwards current input and confirms teardown before its terminal frame", async () => {
   const { context, pending, values, input } = fixture();
   const sandbox = new CaseSandbox(context, {});
   const response = await sandbox.fetch(request());
@@ -134,7 +134,7 @@ test("direct case forwards current input and confirms teardown before its termin
   assert.equal(context.alarm, undefined);
 });
 
-test("invalid limits do not start a case and uncertain teardown remains fenced", async () => {
+void test("invalid limits do not start a case and uncertain teardown remains fenced", async () => {
   const invalid = fixture();
   assert.equal(
     (
@@ -155,7 +155,7 @@ test("invalid limits do not start a case and uncertain teardown remains fenced",
   assert.equal((await sandbox.fetch(request("DELETE"))).status, 503);
 });
 
-test("teardown fences a case whose input is still arriving", async () => {
+void test("teardown fences a case whose input is still arriving", async () => {
   const { context } = fixture();
   const sandbox = new CaseSandbox(context, {});
   let controller;

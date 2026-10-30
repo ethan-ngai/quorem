@@ -4914,7 +4914,14 @@
         "allOf": [
           {
             "if": { "properties": { "odyssey": {} }, "required": ["odyssey"] },
-            "then": { "not": { "anyOf": [{ "properties": { "publicCases": {} }, "required": ["publicCases"] }, { "properties": { "privateCases": {} }, "required": ["privateCases"] }] } },
+            "then": {
+              "not": {
+                "anyOf": [
+                  { "properties": { "publicCases": {} }, "required": ["publicCases"] },
+                  { "properties": { "privateCases": {} }, "required": ["privateCases"] }
+                ]
+              }
+            },
             "else": { "properties": { "publicCases": {} }, "required": ["publicCases"] }
           }
         ],

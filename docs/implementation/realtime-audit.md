@@ -4,13 +4,13 @@ Tracked in [#262](https://github.com/ethan-ngai/quorem/issues/262). PostgreSQL r
 
 ## Browser state
 
-| Consumer | Previous interval | Event path |
-| --- | --- | --- |
-| Submission status | 800 ms while judging | Owner-authorized submission WebSocket, with an initial read and reconnect snapshot |
-| Match | 2 s disconnected, 5 s connected | Match WebSocket, with reconnect snapshots and version-gap recovery |
-| Invitation preview | 5 s | Token-authorized invalidations, followed by a preview fetch |
-| Current match | 5 s | Shared owner membership WebSocket and authoritative refresh |
-| Interview hub | 10 s | Shared owner membership WebSocket and authorized list refresh |
+| Consumer           | Previous interval               | Event path                                                                         |
+| ------------------ | ------------------------------- | ---------------------------------------------------------------------------------- |
+| Submission status  | 800 ms while judging            | Owner-authorized submission WebSocket, with an initial read and reconnect snapshot |
+| Match              | 2 s disconnected, 5 s connected | Match WebSocket, with reconnect snapshots and version-gap recovery                 |
+| Invitation preview | 5 s                             | Token-authorized invalidations, followed by a preview fetch                        |
+| Current match      | 5 s                             | Shared owner membership WebSocket and authoritative refresh                        |
+| Interview hub      | 10 s                            | Shared owner membership WebSocket and authorized list refresh                      |
 
 ## Backend scheduling and recovery
 
