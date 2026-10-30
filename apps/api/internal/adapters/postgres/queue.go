@@ -12,12 +12,17 @@ import (
 const runnableExecutionPredicate = `NOT j.finished AND s.state IN ('queued','running') AND ($1 OR NOT EXISTS(SELECT 1 FROM execution_checkpoints c WHERE c.job_id=j.id)) AND ($2 OR (s.lossless_cases IS NULL AND p.lossless_fixture IS NULL AND q.lossless_fixture IS NULL))`
 
 func (s *Store) Claim(ctx context.Context) (execution.Job, error) {
-	return s.claim(ctx, false)
+	return s.claim(ctx, false, "", "")
 }
 func (s *Store) ClaimResumable(ctx context.Context) (execution.Job, error) {
-	return s.claim(ctx, true)
+	return s.claim(ctx, true, "", "")
 }
-func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error) {
+
+// ClaimAfterTeardown accepts only the exact expired attempt already torn down by this worker.
+func (s *Store) ClaimAfterTeardown(ctx context.Context, resumable bool, attempt, scope string) (execution.Job, error) {
+	return s.claim(ctx, resumable, attempt, scope)
+}
+func (s *Store) claim(ctx context.Context, resumable bool, reaped, scope string) (execution.Job, error) {
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return execution.Job{}, err
@@ -34,6 +39,9 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 			return execution.Job{}, err
 		}
 	}
+	if _, err = tx.Exec(ctx, "SELECT set_config('quorem.sandbox_scope',$1,true)", scope); err != nil {
+		return execution.Job{}, err
+	}
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740020)"); err != nil {
 		return execution.Job{}, err
 	}
@@ -42,15 +50,21 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 	var suiteID string
 	var cancelled bool
 	var attempts int
-	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(q.fixture->'problem'->>'id',p.id::text),COALESCE(q.fixture->'problem'->'limits',p.limits),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision
+	var previousAttempt *string
+	err = tx.QueryRow(ctx, `SELECT j.id,j.submission_id,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text),COALESCE(q.fixture->'problem'->>'id',p.id::text),COALESCE(q.fixture->'problem'->'limits',p.limits),s.cancel_requested,j.attempts,j.language,j.runtime_revision,j.harness_revision,j.attempt_id::text
  FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id
- WHERE `+runnableExecutionPredicate+` AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp())
- ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`, resumable, lossless).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision)
+ WHERE `+runnableExecutionPredicate+` AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND (j.attempt_id IS NULL OR (j.attempt_id=$3 AND j.sandbox_scope=$4 AND $4<>''))
+ ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`, resumable, lossless, uuidLookup(reaped), scope).Scan(&j.JobID, &j.SubmissionID, &j.ProblemVersionID, &suiteID, &data, &cancelled, &attempts, &j.Language, &j.RuntimeRevision, &j.HarnessRevision, &previousAttempt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, nil
 	}
 	if err != nil {
 		return j, err
+	}
+	if previousAttempt != nil {
+		if _, err = tx.Exec(ctx, "SELECT set_config('quorem.reaped_attempt',$1,true)", *previousAttempt); err != nil {
+			return j, err
+		}
 	}
 	if cancelled {
 		if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE id=$1", j.JobID); err != nil {
@@ -75,6 +89,7 @@ func (s *Store) claim(ctx context.Context, resumable bool) (execution.Job, error
 		return j, err
 	}
 	j.AttemptID = ID()
+	j.SandboxScope = scope
 	j.SourceRef = j.SubmissionID
 	j.SuiteRef = suiteID
 	if _, err = tx.Exec(ctx, "UPDATE execution_jobs SET attempt_id=$2,attempts=attempts+1,lease_until=clock_timestamp()+interval '90 seconds' WHERE id=$1", uuidLookup(j.JobID), uuidLookup(j.AttemptID)); err != nil {
@@ -263,21 +278,17 @@ func (s *Store) Complete(ctx context.Context, j execution.Job, c execution.Compl
 	return tx.Commit(ctx)
 }
 
-func (s *Store) ExpiredAttempts(ctx context.Context) ([]string, error) {
-	rows, err := s.Pool.Query(ctx, "SELECT attempt_id FROM execution_jobs WHERE NOT finished AND attempt_id IS NOT NULL AND lease_until<clock_timestamp()")
-	if err != nil {
-		return nil, err
+// NextExpiredAttempt limits teardown work to one eligible lease per claim cycle.
+func (s *Store) NextExpiredAttempt(ctx context.Context, resumable bool, scope string) (string, error) {
+	if scope == "" {
+		return "", nil
 	}
-	defer rows.Close()
-	attempts := []string{}
-	for rows.Next() {
-		var attempt string
-		if err = rows.Scan(&attempt); err != nil {
-			return nil, err
-		}
-		attempts = append(attempts, attempt)
+	var attempt string
+	err := s.Pool.QueryRow(ctx, `SELECT j.attempt_id::text FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE `+runnableExecutionPredicate+` AND j.available_at<=clock_timestamp() AND j.attempt_id IS NOT NULL AND j.lease_until<clock_timestamp() AND j.sandbox_scope=$3 ORDER BY j.available_at,j.id LIMIT 1`, resumable, losslessCasesEnabled(), scope).Scan(&attempt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
 	}
-	return attempts, rows.Err()
+	return attempt, err
 }
 
 func validateSubmitCompletion(c execution.Completion, admittedCount int) error {

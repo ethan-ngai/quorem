@@ -6,6 +6,8 @@ Published problem fields, languages, examples, hidden cases and Odyssey cases li
 
 Submissions belong to exactly one workspace or interview. Each interview submission and its execution reference one another through deferred and immediate foreign keys. Executions reference immutable, content-addressed question snapshots, so later edits cannot change a historical execution. Identical snapshots are shared within a session and follow its lifetime. Submission cases and results capture the admitted and completed job. Match and interview membership, guest usage, idempotency and realtime outboxes have separate lifecycles. Better Auth owns its separate schema and provider-defined account, session and passkey fields.
 
+Expired execution attempts may be reclaimed only after teardown of that exact attempt. The database guard rejects an older judge replacing or finalizing an expired attempt without the new confirmation; drain old judges during rollout because they can retry and stall affected work. Rolling back the judge binary while this guard remains enabled prevents old judges from recovering expired attempts.
+
 Workspace identity is immutable. Its language must be available for its problem version; submission and participant references must match its owner and match context.
 
 The current interview document lives on the session. Language drafts store inactive documents; switching consumes the selected draft and saves the outgoing document atomically.
