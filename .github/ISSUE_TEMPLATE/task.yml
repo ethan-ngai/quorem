@@ -1,0 +1,29 @@
+name: Engineering task
+description: Track maintenance, documentation, refactoring, or validation.
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What needs to change, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Affected components, boundaries, and relevant implementation evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Completion and validation
+      description: Acceptance criteria and the checks or evidence needed to close this task.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Related issues, prerequisite work, or blockers.

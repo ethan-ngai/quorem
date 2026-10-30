@@ -1,28 +1,117 @@
-# Quorem
+<a id="readme-top"></a>
 
-Multiplayer coding practice in Python, Java, TypeScript and OCaml. A practice catalog, Showdown and Free-for-all, isolated judging, browser drafts, experimental Python IntelliSense and admin question authoring.
+<div align="center">
 
-Requires Vite+ (`vp`), Node 24.21.0, Go 1.27.1, Python 3, and running Docker. No AWS credentials.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/favicon-dark.svg" />
+  <img src="apps/web/public/logo-pixel.svg" alt="Quorem logo" width="80" />
+</picture>
+
+<h1>Quorem</h1>
+
+<strong>Compete beyond the algorithm.</strong>
+
+Private coding matches, solo practice, and collaborative interviews.
+
+<p>
+  <a href="https://quorem.app"><strong>Try Quorem</strong></a> ·
+  <a href="https://quorem.app/practice">Browse problems</a> ·
+  <a href="https://github.com/ethan-ngai/quorem/issues">Report a bug</a>
+</p>
+
+<p>
+  <img src="https://img.shields.io/badge/Go-00ADD8?style=flat&amp;logo=go&amp;logoColor=white" alt="Go" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/React-20232A?style=flat&amp;logo=react&amp;logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&amp;logo=postgresql&amp;logoColor=white" alt="PostgreSQL" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL v3" /></a>
+</p>
+
+</div>
+
+<p align="center">
+  <a href="https://quorem.app">
+    <img src="docs/images/readme/hero-dark.jpg" alt="Quorem homepage with the Climbing Stairs editor and player results" width="720" />
+  </a>
+</p>
+
+## Contents
+
+- [About the project](#about-the-project)
+- [Features](#features)
+- [Run locally](#run-locally)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
+
+## About the project
+
+Quorem brings coding practice and private competition into one workspace. Pick a problem, invite a friend or group, and race for the first correct submission. Everyone writes their own solution; the match tracks results without sharing opponents' code.
+
+The repository also includes solo practice, collaborative interviews, question authoring, and isolated judging for **Python, Java, TypeScript, OCaml, and PostgreSQL**.
+
+Start at **[quorem.app](https://quorem.app)**. Create an account to run and submit in solo practice, or [create a private match](https://quorem.app/practice?create=match).
+
+## Features
+
+**Private matches.** Showdown pairs two players; Free-for-all supports 2–8. Choose a problem or filtered random selection, set the duration and lobby rules, and share an invitation. The first correct submission wins. At the deadline, passed tests decide the result; ties draw.
+
+<p align="center">
+  <img src="docs/images/readme/match-modes-dark.jpg" alt="Showdown and Free-for-all, with separate contestants and test results" width="720" />
+</p>
+
+- **Solo practice:** filter by difficulty, topics, companies and question type. Solve in Python, Java, TypeScript, OCaml or PostgreSQL.
+- **Editor:** run custom cases, inspect results beside your code, and retain browser drafts. Light and dark themes supported.
+- **Interviews:** collaborate in a shared editor, run solutions, and control stage advancement. Interviewer-private tests stay private.
+- **Odyssey:** solve progressive questions that add requirements and methods across stages.
+- **Question authoring:** create coding or SQL questions with structured signatures, examples, hidden tests and editorials. Publish versioned questions to global or private libraries.
+- **Judging:** execute submissions in bounded sandboxes. SQL cases use isolated PostgreSQL instances and a restricted query role.
+
+Hosting, guest admission and authoring depend on [account permissions](docs/implementation/guest-access.md). Images are illustrative previews from [quorem.app](https://quorem.app).
+
+## Run locally
+
+Requires **[Vite+](https://viteplus.dev) (`vp`), Node.js 24.21.0, Go 1.27.1, Python 3, and Docker with Compose**. Keep Docker running. Local development uses fixtures and requires no cloud provider credentials.
 
 ```sh
+git clone https://github.com/ethan-ngai/quorem.git
+cd quorem
 make install
 make dev
 ```
 
-Open http://localhost:5173 for the Astro homepage; /practice lists questions, /practice/{slug} opens the editor, and /match/{id} opens a match. The supervisor builds language images, starts PostgreSQL, seeds six original problems and real accounts, and starts auth, API, judge, web, and the optional Go language gateway. Hosted IntelliSense is disabled by default; its browser-first replacement and future paid hosted delivery are [held/planned](docs/plans/intelligence-model.md). Sign in as `alice` (admin) or `bob` using `AUTH_SEED_PASSWORD` from ignored `.local/auth-preview.json`. Guests may read questions/edit code; IntelliSense, Run and Submit require sign-in.
+Open **[http://localhost:5173](http://localhost:5173)**. The supervisor builds judge images, starts local services, applies migrations, seeds problems and accounts, and runs the marketing site and workspace with live HMR. The first startup includes container builds.
 
-Profile photos use private S3 storage; `make dev` starts Garage at loopback port 53900 with persisted local credentials/data. Missing photos use HTML initials. Workspace settings sits beside the profile button. See [profile storage](docs/implementation/profile-photos.md).
+Sign in as `alice` (admin) or `bob` using the generated `AUTH_SEED_PASSWORD` in ignored `.local/auth-preview.json`. Keep this file private; these accounts are local fixtures.
 
-`make check` checks TypeScript, contracts, editor/language/auth tests and Go. `make build` builds apps. `make seed` restores problem data; `make reset` deletes the local database volume and reseeds it. Create a private match as Alice, open its invite in a separate browser profile/private window, sign in as Bob, and ready both players.
+| Command | Purpose |
+| --- | --- |
+| `make dev` | Run the integrated local stack with live HMR |
+| `vp -C apps/web dev` | Run workspace Vite against existing local services |
+| `vp -C apps/marketing run dev` | Run marketing Astro with live HMR |
+| `make check` | Check types, contracts, tests and Go vet |
+| `make build` | Build the site and Go services |
+| `make seed` | Seed the local problem catalog |
+| `make reset` | Delete local Compose volumes and reseed |
 
-Existing databases: [verified baseline adoption](docs/implementation/database.md).
+PostgreSQL integration tests require `QUOREM_TEST_DATABASE_URL` pointing to a **separate disposable database**. Tests truncate data; never point them at your running development database.
 
-Implementation evidence and limitations: [local 1v1 verification](docs/implementation/local-1v1.md), [earlier solo checkpoint](docs/implementation/local-solo.md).
+## Documentation
 
-Plans and dependency-ordered tickets: [docs/plans/README.md](docs/plans/README.md), [tickets](docs/plans/tickets.md). UI rules: [DESIGN.md](DESIGN.md).
+| Area | Read more |
+| --- | --- |
+| Architecture | [System design](docs/plans/architecture.md) · [Provider adapters](docs/implementation/platform-adapters.md) |
+| Gameplay | [Match modes](docs/implementation/match-modes.md) · [Guest access](docs/implementation/guest-access.md) |
+| Editor and questions | [Languages](docs/implementation/multiple-languages.md) · [SQL](docs/implementation/sql-problems.md) · [Authoring](docs/implementation/question-authoring.md) |
+| Data and deployment | [Database](docs/implementation/database.md) · [Production](docs/implementation/production.md) · [Deployment workflows](deploy/README.md) |
+| Design and plans | [Design system](DESIGN.md) · [Plans](docs/plans/README.md) · [Open issues](https://github.com/ethan-ngai/quorem/issues) |
 
-Public authentication and AWS deployment remain subsequent milestones. Development Docker isolation must pass the documented public sandbox release gate before accepting public code.
+## Contributing
 
-`vp run build` assembles marketing and the workspace into `apps/web/dist`. Serve `/` as `index.html`; rewrite `/practice`, `/practice/*`, `/match/*`, and `/invite/*` to `app.html`, and preserve static asset paths. `vp -C apps/web preview` implements these rules locally. Rebuild marketing after changes with `vp -C apps/marketing run build`; `make dev` builds it at startup.
+[Open an issue](https://github.com/ethan-ngai/quorem/issues) for bugs or feature requests. Include reproduction steps and expected behavior; omit credentials and private code.
 
-IntelliSense gateway limits, local measurements and deployment/cost estimates: [Go language gateway](docs/implementation/language-gateway.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) before making changes. Use `vp` for TypeScript tooling, follow [DESIGN.md](DESIGN.md) for UI work, and target `dev`.
+
+## License
+
+Licensed under the **[GNU Affero General Public License v3.0](LICENSE)**.

@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a reproducible problem.
+title: "fix: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report vulnerabilities privately to contact@quorem.app. Do not include credentials, tokens, private questions, hidden tests, or personal data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened? What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal steps, example, or public problem URL. Use accounts and data you control.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Hosted or local? Include commit/version, browser, OS, and language/runtime when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Sanitized logs, screenshots, frequency, or a workaround.
