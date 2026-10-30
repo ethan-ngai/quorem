@@ -45,6 +45,15 @@ let dec_int = function JNumber s -> let n=int_of_string s in if n< -2147483648 |
 let dec_float = function JNumber s -> float_of_string s | _ -> invalid ()
 let dec_bool = function JBool v -> v | _ -> invalid ()
 let dec_str = function JString s -> s | _ -> invalid ()
+let dec_datetime v =
+ let s=dec_str v in
+ let n start len = int_of_string (String.sub s start len) in
+ let y=n 0 4 and m=n 5 2 and day=n 8 2 in
+ let leap = y mod 4 = 0 && (y mod 100 <> 0 || y mod 400 = 0) in
+ let months = [|31; (if leap then 29 else 28);31;30;31;30;31;31;30;31;30;31|] in
+ let yday = ref (day-1) in for i=0 to m-2 do yday := !yday + months.(i) done;
+ let prev=y-1 in let days=365*prev+prev/4-prev/100+prev/400+ !yday in
+ {Unix.tm_sec=n 17 2;tm_min=n 14 2;tm_hour=n 11 2;tm_mday=day;tm_mon=m-1;tm_year=y-1900;tm_wday=(days+1) mod 7;tm_yday= !yday;tm_isdst=false}
 let dec_list f v = List.map f (array v)
 let dec_array f v = Array.of_list (dec_list f v)
 let dec_optional f = function JNull -> None | v -> Some (f v)
@@ -65,7 +74,7 @@ def decoder(t):
     if t.startswith('optional<'):return '(dec_optional '+decoder(t[9:-1])+')'
     if t.startswith('list<'):return '(dec_list '+decoder(t[5:-1])+')'
     if t.startswith('array<'):return '(dec_array '+decoder(t[6:-1])+')'
-    return {'int':'dec_int','float':'dec_float','bool':'dec_bool','str':'dec_str','ListNode':'dec_node','TreeNode':'dec_tree'}[t]
+    return {'int':'dec_int','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime','ListNode':'dec_node','TreeNode':'dec_tree'}[t]
 
 def source(r,h):
     signatures=dict(r.get('methods') or {})

@@ -19,7 +19,7 @@ static String encode(String t,Object v,int d){if(d>100||(d>0&&++count>10000))thr
 if(t.startsWith("optional<"))return v==null?"null":encode(t.substring(9,t.length()-1),v,d+1);
 if(t.startsWith("list<")||t.startsWith("array<")){boolean array=t.startsWith("array<");if(v==null||(!(v instanceof java.util.List)&&!v.getClass().isArray())||(array&&!v.getClass().isArray())||seen.put(v,true)!=null)throw new IllegalArgumentException(); java.util.ArrayList<String> a=new java.util.ArrayList<>();int n=v instanceof java.util.List?((java.util.List<?>)v).size():java.lang.reflect.Array.getLength(v);for(int i=0;i<n;i++)a.add(encode(t.substring(array?6:5,t.length()-1),v instanceof java.util.List?((java.util.List<?>)v).get(i):java.lang.reflect.Array.get(v,i),d+1));return "["+String.join(",",a)+"]";}
 if(t.equals("ListNode")||t.equals("TreeNode")){if(v==null)return "null";java.util.ArrayList<Object> q=new java.util.ArrayList<>();java.util.ArrayList<String>a=new java.util.ArrayList<>();q.add(v);for(int i=0;i<q.size();i++){Object n=q.get(i);if(n==null){a.add("null");continue;}if(seen.put(n,true)!=null||q.size()>10000)throw new IllegalArgumentException();if(t.equals("ListNode")){ListNode x=(ListNode)n;a.add(encode("int",x.val,d+1));if(x.next!=null)q.add(x.next);}else{TreeNode x=(TreeNode)n;a.add(encode("int",x.val,d+1));q.add(x.left);q.add(x.right);}}while(!a.isEmpty()&&a.get(a.size()-1).equals("null"))a.remove(a.size()-1);return "["+String.join(",",a)+"]";}
-if(t.equals("str"))return quote((String)v);if(t.equals("int")){if(!(v instanceof Integer))throw new IllegalArgumentException();return v.toString();}if(t.equals("float")){double x=((Number)v).doubleValue();if(!Double.isFinite(x))throw new IllegalArgumentException();return Double.toString(x);}if(t.equals("bool"))return ((Boolean)v).toString();throw new IllegalArgumentException();}
+if(t.equals("datetime")){java.time.LocalDateTime x=(java.time.LocalDateTime)v;if(x.getNano()!=0)throw new IllegalArgumentException();return quote(x.format(java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss")));}if(t.equals("str"))return quote((String)v);if(t.equals("int")){if(!(v instanceof Integer))throw new IllegalArgumentException();return v.toString();}if(t.equals("float")){double x=((Number)v).doubleValue();if(!Double.isFinite(x))throw new IllegalArgumentException();return Double.toString(x);}if(t.equals("bool"))return ((Boolean)v).toString();throw new IllegalArgumentException();}
 '''
 TS_TYPES='''class ListNode { constructor(public val=0,public next:ListNode|null=null){} }
 class TreeNode { constructor(public val=0,public left:TreeNode|null=null,public right:TreeNode|null=null){} }
@@ -31,6 +31,7 @@ if(t.startsWith('array<'))t='list<'+t.slice(6);
 if(t.startsWith('list<')){if(!Array.isArray(v)||seen.has(v))throw Error('invalid_output');seen.add(v);return v.map(x=>encode(t.slice(5,-1),x,d+1));}
 if(t==='ListNode'||t==='TreeNode'){if(v===null)return null;const q=[v],a:any[]=[];for(let i=0;i<q.length;i++){const n=q[i];if(n===null){a.push(null);continue;}if(!(n instanceof (t==='ListNode'?ListNode:TreeNode))||seen.has(n)||q.length>10000)throw Error('invalid_output');seen.add(n);a.push(encode('int',n.val,d+1));if(t==='ListNode'){if((n as any).next!==null)q.push((n as any).next);}else q.push((n as any).left,(n as any).right);}while(a.at(-1)===null)a.pop();return a.length?a:null;}
 if(t==='void')return null;
+if(t==='datetime'){if(!(v instanceof Date)||!Number.isFinite(v.getTime()))throw Error('invalid_output');if(v.getUTCMilliseconds()!==0)throw Error('invalid_output');return v.toISOString().slice(0,-5);}
 if(t==='int'&&(!Number.isInteger(v)||v< -2147483648||v>2147483647)||t==='float'&&(typeof v!=='number'||!Number.isFinite(v))||t==='str'&&typeof v!=='string'||t==='bool'&&typeof v!=='boolean')throw Error('invalid_output');return v;}
 '''
 OCAML_TYPES='''type list_node = { mutable value:int; mutable next:list_node option }
@@ -44,6 +45,7 @@ let enc_int d v = guard d; if v < -2147483648 || v > 2147483647 then failwith "i
 let enc_float d v = guard d; if not (Float.is_finite v) then failwith "invalid_output"; Printf.sprintf "%.17g" v
 let enc_bool d v = guard d; string_of_bool v
 let enc_str d v = guard d; quote v
+let enc_datetime d (v:Unix.tm) = guard d; quote (Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02d" (v.tm_year+1900) (v.tm_mon+1) v.tm_mday v.tm_hour v.tm_min v.tm_sec)
 let enc_list f d v = guard d; "[" ^ String.concat "," (List.map (f (d+1)) v) ^ "]"
 let enc_optional f d v = guard d; match v with None -> "null" | Some x -> f (d+1) x
 let enc_node d v = match v with None -> "null" | Some _ -> let rec loop acc n = match n with None -> "["^String.concat "," (List.rev acc)^"]" | Some (x:list_node) -> loop (enc_int (d+1) x.value::acc) x.next in loop [] v
@@ -54,7 +56,7 @@ def ocaml_encoder(t):
     if t.startswith('optional<'): return '(enc_optional '+ocaml_encoder(t[9:-1])+')'
     if t.startswith('array<'): return '(fun d xs -> (enc_list '+ocaml_encoder(t[6:-1])+') d (Array.to_list xs))'
     if t.startswith('list<'): return '(enc_list '+ocaml_encoder(t[5:-1])+')'
-    return {'int':'enc_int','float':'enc_float','bool':'enc_bool','str':'enc_str','ListNode':'enc_node','TreeNode':'enc_tree'}[t]
+    return {'int':'enc_int','float':'enc_float','bool':'enc_bool','str':'enc_str','datetime':'enc_datetime','ListNode':'enc_node','TreeNode':'enc_tree'}[t]
 
 def run(cmd, data=None):
     # Drain to files: contestant output cannot grow the trusted supervisor's memory.

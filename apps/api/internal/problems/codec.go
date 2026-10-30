@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
@@ -37,7 +38,7 @@ func validType(typ string, depth int) bool {
 		return false
 	}
 	switch typ {
-	case "int", "float", "bool", "str", "ListNode", "TreeNode":
+	case "int", "float", "bool", "str", "datetime", "ListNode", "TreeNode":
 		return true
 	}
 	for _, wrapper := range []string{"optional<", "list<", "array<"} {
@@ -176,6 +177,16 @@ func normalize(typ string, v any, depth int, count *int, limit int) (any, error)
 			return float64(0), nil
 		}
 		return f, nil
+	case "datetime":
+		s, ok := v.(string)
+		if !ok || len(s) != 19 || s[:4] == "0000" {
+			return nil, fmt.Errorf("expected datetime as YYYY-MM-DDTHH:MM:SS")
+		}
+		parsed, err := time.Parse("2006-01-02T15:04:05", s)
+		if err != nil || parsed.Format("2006-01-02T15:04:05") != s {
+			return nil, fmt.Errorf("expected datetime as YYYY-MM-DDTHH:MM:SS")
+		}
+		return s, nil
 	case "str":
 		s, ok := v.(string)
 		if !ok {

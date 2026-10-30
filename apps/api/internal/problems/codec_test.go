@@ -163,3 +163,22 @@ func TestArrayPseudoType(t *testing.T) {
 		}
 	}
 }
+
+func TestDatetimeCodec(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		valid bool
+	}{
+		{`"2024-02-29T23:59:59"`, true}, {`"0001-01-01T00:00:00"`, true},
+		{`"2023-02-29T00:00:00"`, false}, {`"0000-01-01T00:00:00"`, false},
+		{`"2024-01-01T00:00:00Z"`, false}, {`"2024-01-01T00:00:00.000+00:00"`, false},
+	} {
+		_, err := Normalize("datetime", json.RawMessage(tc.value))
+		if (err == nil) != tc.valid {
+			t.Errorf("%s: %v", tc.value, err)
+		}
+	}
+	if _, err := Normalize("list<optional<datetime>>", json.RawMessage(`[null,"2024-02-29T23:59:59"]`)); err != nil {
+		t.Fatal(err)
+	}
+}

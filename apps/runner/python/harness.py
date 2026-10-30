@@ -1,3 +1,4 @@
+import datetime
 import collections
 import contextlib
 import io
@@ -36,6 +37,8 @@ def decode(kind, value):
         return None if value is None else decode(kind[9:-1], value)
     if kind.startswith('list<'):
         return [decode(kind[5:-1], v) for v in value]
+    if kind == 'datetime':
+        return datetime.datetime.fromisoformat(value)
     if kind == 'ListNode':
         dummy = ListNode()
         tail = dummy
@@ -106,6 +109,13 @@ def encode(kind, value, depth=0, count=None, seen=None):
             while result and result[-1] is None:
                 result.pop()
         return result or None
+    if kind == 'datetime':
+        if not isinstance(value, datetime.datetime) or value.tzinfo is not None or value.microsecond != 0:
+            raise InvalidOutput()
+        try:
+            return value.isoformat(timespec='seconds')
+        except (OverflowError, ValueError):
+            raise InvalidOutput()
     if kind == 'int':
         if type(value) is not int or not -(2**31) <= value < 2**31:
             raise InvalidOutput()

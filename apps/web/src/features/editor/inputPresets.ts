@@ -91,7 +91,7 @@ function scalarSource(type: string, source: string, depth = 0): WireValue {
       scalarSource(list ?? (type === "TreeNode" ? "optional<int>" : "int"), item, depth + 1),
     );
   }
-  if (type === "str") {
+  if (type === "str" || type === "datetime") {
     const value: unknown = JSON.parse(source);
     if (typeof value !== "string") throw new Error("Quote each string entry.");
     return value;
@@ -248,7 +248,7 @@ export function resolveInputPreset(type: string, config?: InputConfig): InputPre
   let id: string;
   if (innerType(type, "optional")) return new NullablePreset(type, config);
   else if (type === "int" || type === "float") id = "number";
-  else if (type === "str") id = "text";
+  else if (type === "str" || type === "datetime") id = "text";
   else if (type === "bool") id = "boolean";
   else if (type === "TreeNode") id = "tree";
   else if (type === "ListNode") id = "linkedList";

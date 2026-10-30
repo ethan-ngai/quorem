@@ -19,3 +19,17 @@ it("maps shared lists and arrays to each language", () => {
   expect(() => validateTypedValue("array<optional<int>>", [1, null])).not.toThrow();
   expect(() => validateTypedValue("array<int>", [null])).toThrow();
 });
+
+it("datetime types and wire validation", () => {
+  expect(questionTypeName("datetime", "python")).toBe("datetime.datetime");
+  expect(questionTypeName("list<datetime>", "java")).toBe(
+    "java.util.List<java.time.LocalDateTime>",
+  );
+  expect(questionTypeName("datetime", "typescript")).toBe("Date");
+  expect(questionTypeName("datetime", "ocaml")).toBe("Unix.tm");
+  expect(() =>
+    validateTypedValue("list<optional<datetime>>", [null, "2024-02-29T00:00:00"]),
+  ).not.toThrow();
+  expect(() => validateTypedValue("datetime", "2023-02-29T00:00:00")).toThrow();
+  expect(() => validateTypedValue("datetime", "2024-01-01T00:00:00Z")).toThrow();
+});

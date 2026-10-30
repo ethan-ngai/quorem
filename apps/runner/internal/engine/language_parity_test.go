@@ -3,6 +3,7 @@ package engine
 import (
 	"encoding/json"
 	"github.com/ethan-ngai/quorem/apps/api/worker"
+
 	"github.com/ethan-ngai/quorem/internal/execution"
 	"testing"
 )
@@ -124,6 +125,29 @@ func TestDockerCollectionPseudoTypes(t *testing.T) {
 	} {
 		t.Run(test.language, func(t *testing.T) {
 			result := executeLanguage(t, f, test.language, test.source, "run", cases)
+			if result.Verdict != execution.Accepted {
+				t.Fatalf("%+v", result)
+			}
+		})
+	}
+}
+
+func TestDockerDatetimeParity(t *testing.T) {
+	f := dockerTests(t)[0]
+	f.Problem.Signature.MethodName = "solve"
+	if err := json.Unmarshal([]byte(`[{"name":"value","type":"list<optional<datetime>>"}]`), &f.Problem.Signature.Parameters); err != nil {
+		t.Fatal(err)
+	}
+	f.Problem.Signature.ReturnType = "list<optional<datetime>>"
+	value := json.RawMessage(`["2024-02-29T23:59:59",null,"0001-01-01T00:00:00"]`)
+	for _, test := range []struct{ language, source string }{
+		{"python", "class Solution:\n    def solve(self, value):\n        return value\n"},
+		{"java", "class Solution {public java.util.List<java.time.LocalDateTime> solve(java.util.List<java.time.LocalDateTime> value){return value;}}"},
+		{"typescript", "class Solution {solve(value:(Date|null)[]):(Date|null)[]{return value;}}"},
+		{"ocaml", "let solve (value:Unix.tm option list) = (match List.hd value with Some d when d.tm_wday = 4 && d.tm_yday = 59 && not d.tm_isdst -> () | _ -> failwith \"calendar fields\"); value"},
+	} {
+		t.Run(test.language, func(t *testing.T) {
+			result := executeLanguage(t, f, test.language, test.source, "run", []worker.Case{{Args: []json.RawMessage{value}, Expected: value}})
 			if result.Verdict != execution.Accepted {
 				t.Fatalf("%+v", result)
 			}

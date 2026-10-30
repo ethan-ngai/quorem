@@ -6,6 +6,7 @@ function decode(t:string,v:any):any {
  if(t.startsWith('optional<'))return v===null?null:decode(t.slice(9,-1),v);
  if(t.startsWith('array<'))t='list<'+t.slice(6);
  if(t.startsWith('list<'))return v.map((x:any)=>decode(t.slice(5,-1),x));
+ if(t==='datetime')return new Date(v+'Z');
  if(t==='ListNode'){let next:ListNode|null=null;for(let i=(v?.length??0)-1;i>=0;i--)next=new ListNode(v[i],next);return next;}
  if(t==='TreeNode'){if(!v?.length||v[0]===null)return null;const root=new TreeNode(v[0]);const q=[root];let i=1;for(let p=0;p<q.length&&i<v.length;p++){const n=q[p]!;const left=v[i++];if(left!==null){n.left=new TreeNode(left);q.push(n.left);}if(i<v.length){const right=v[i++];if(right!==null){n.right=new TreeNode(right);q.push(n.right);}}}return root;}
  return v;

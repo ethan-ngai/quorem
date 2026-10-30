@@ -12,7 +12,8 @@ export function innerType(type: string, wrapper: "optional" | "list" | "array") 
 
 export function supportedType(type: string, depth = 0): boolean {
   if (depth > 100) return false;
-  if (["int", "float", "str", "bool", "ListNode", "TreeNode"].includes(type)) return true;
+  if (["int", "float", "str", "bool", "datetime", "ListNode", "TreeNode"].includes(type))
+    return true;
   const inner = innerType(type, "optional") ?? innerType(type, "list");
   return inner !== undefined && supportedType(inner, depth + 1);
 }
@@ -73,6 +74,14 @@ export function validateTypedValue(
   } else if (type === "float") {
     if (typeof value !== "number" || !Number.isFinite(value))
       throw new Error("Enter a finite number.");
+  } else if (type === "datetime") {
+    if (
+      typeof value !== "string" ||
+      !/^(?!0000)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value) ||
+      !Number.isFinite(Date.parse(value + "Z")) ||
+      new Date(value + "Z").toISOString().slice(0, 19) !== value
+    )
+      throw new Error("Enter a datetime as YYYY-MM-DDTHH:mm:ss.");
   } else if (type === "str") {
     if (typeof value !== "string") throw new Error("Enter a string.");
   } else if (type === "bool") {
