@@ -1,0 +1,29 @@
+---
+import QuoremWordmark from "./QuoremWordmark.astro";
+interface Props { id: string }
+const { id } = Astro.props;
+---
+<span class="brand-lockup" aria-hidden="true">
+  <span class="brand-mark"></span>
+  <span class="brand-lockup-wordmark"><QuoremWordmark id={id} /></span>
+</span>
+<style>
+  .brand-lockup {
+    --lockup-unit: calc(var(--brand-lockup-width, 156px) / 156);
+    display: inline-flex;
+    align-items: center;
+    gap: calc(12 * var(--lockup-unit));
+    color: var(--color-text);
+  }
+  .brand-lockup .brand-mark {
+    width: calc(32 * var(--lockup-unit));
+    height: calc(32 * var(--lockup-unit));
+    flex: none;
+  }
+  .brand-lockup-wordmark {
+    display: flex;
+    width: calc(112 * var(--lockup-unit));
+    /* Center letter bodies; the q tail extends below the baseline. */
+    transform: translateY(calc(3 * var(--lockup-unit)));
+  }
+</style>

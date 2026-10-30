@@ -4,7 +4,7 @@ import { PublicLayout } from "./PublicLayout";
 
 export function NotFoundPage() {
   return (
-    <PublicLayout title="Page not found">
+    <PublicLayout>
       <main id="main-content" className="not-found-main" tabIndex={-1}>
         <div className="not-found-content">
           <div className="not-found-path" aria-hidden="true">

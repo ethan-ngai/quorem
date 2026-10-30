@@ -1065,17 +1065,6 @@ summary:focus-visible {
   gap: 12px;
   color: var(--color-text);
 }
-.footer-brand .brand-mark {
-  width: 32px;
-  height: 32px;
-  flex: none;
-}
-.footer-wordmark {
-  display: flex;
-  width: 112px;
-  /* Center the letter bodies; the q tail extends below their baseline. */
-  transform: translateY(3px);
-}
 .footer-sitemap {
   max-width: 500px;
   display: flex;
