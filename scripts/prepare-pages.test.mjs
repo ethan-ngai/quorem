@@ -54,11 +54,11 @@ await test("static routes expose metadata before JavaScript; private routes and 
   }
 });
 
-await test("invitation metadata never exposes tokens and title text is escaped", () => {
+await test("invitation metadata never exposes tokens and metadata text is escaped", () => {
   const html = seoMarkup("/invite/secret-token?ref=private");
   assert.ok(!html.includes("secret-token"));
   assert.ok(!html.includes("ref=private"));
-  assert.ok(seoMarkup("/").includes("Matches &amp; Interviews"));
+  assert.ok(seoMarkup("/practice/workspace").includes("Quorem&#39;s coding editor"));
   assert.equal(pageSeo("/practice/").indexable, true);
   assert.equal(pageSeo("/practice/private-question").indexable, false);
 });
