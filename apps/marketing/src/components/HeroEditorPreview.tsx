@@ -1,3 +1,4 @@
+import "../../../web/src/ui/select-field.css";
 import { LanguageLogo } from "../../../web/src/ui/LanguageLogo";
 import { usePreviewTheme } from "./usePreviewTheme";
 import { useEffect, useRef } from "react";
@@ -43,10 +44,10 @@ const typingEnd = frames.length - 1;
 frames.push(...[650, 1100, 1000, 1200, 800].map((delay) => ({ source: finalSource, delay })));
 const frameDelay = (stage: number) => frames[stage].delay;
 /** A finite, read-only typing scene using the app's mounted CodeMirror editor. */
-export default function HeroEditorPreview() {
+export default function HeroEditorPreview({ staticPreview = false }: { staticPreview?: boolean }) {
   const editor = useRef<PythonEditorHandle>(null);
   const theme = usePreviewTheme();
-  const { root, stage } = usePreviewSequence(frames.length - 1, true, frameDelay);
+  const { root, stage } = usePreviewSequence(frames.length - 1, !staticPreview, frameDelay);
   const phase = Math.max(0, stage - typingEnd);
   useEffect(() => editor.current?.replaceSource(frames[stage].source), [stage]);
   return (

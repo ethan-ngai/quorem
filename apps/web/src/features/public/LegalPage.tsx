@@ -24,7 +24,7 @@ export function LegalPage({ document: kind }: { document: "privacy" | "terms" })
   }, [document]);
   const other = kind === "privacy" ? "terms" : "privacy";
   return (
-    <PublicLayout title={document.title}>
+    <PublicLayout>
       <main id="main-content" className="legal-main" tabIndex={-1}>
         <div className="legal-heading" id="top">
           <a className="public-back" href="/">

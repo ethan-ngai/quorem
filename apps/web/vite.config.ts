@@ -1,4 +1,5 @@
 /** @file vite.config.ts @description Editor development and build configuration. @module web */
+import { seoMarkup } from "../../packages/ui/src/seo";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite-plus";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -34,6 +35,17 @@ function marketingPages(): Plugin {
   };
   return {
     name: "quorem-marketing",
+    transformIndexHtml(html, context) {
+      return html.replace(
+        "<!-- site-seo -->",
+        seoMarkup(
+          context.server
+            ? new URL(context.originalUrl ?? context.path, "http://localhost").pathname
+            : "/app",
+          process.env.QUOREM_SITE_URL,
+        ),
+      );
+    },
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         if (new URL(req.url ?? "/", "http://localhost").pathname !== "/") return next();

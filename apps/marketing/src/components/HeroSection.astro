@@ -1,0 +1,38 @@
+---
+import BrandLockup from "./BrandLockup.astro";
+import HeroDots from "./HeroDots.astro";
+import HeroSlogan from "./HeroSlogan.astro";
+import QuoremWordmark from "./QuoremWordmark.astro";
+import HeroEditorPreview from "./HeroEditorPreview";
+import { Icon } from "../../../web/src/ui/Icon";
+interface Props { socialPreview?: boolean }
+const { socialPreview = false } = Astro.props;
+---
+            <section class="hero" aria-labelledby="hero-title">
+                <HeroDots />
+                <div class="hero-top page-width">
+                    <div class="hero-copy">
+                        <h1 id="hero-title" class:list={["hero-wordmark", { "hero-brand-lockup": socialPreview }]} aria-label="Quorem">
+                            {socialPreview ? <BrandLockup id="hero-wordmark" /> : <QuoremWordmark id="hero-wordmark" />}
+                        </h1>
+                        <HeroSlogan />
+                        <div class="hero-intro">
+                            <div class="hero-actions">
+                                <a
+                                    class="hero-cta"
+                                    href="/practice?create=match"
+                                >
+                                    <span>Create match</span><Icon name="arrow" />
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-workspace">
+                        <HeroEditorPreview client:load staticPreview={socialPreview} />
+                    </div>
+                </div>
+            </section>
+
+<style>
+  .hero-brand-lockup { --brand-lockup-width: 520px; width: 520px; max-width: none; }
+</style>

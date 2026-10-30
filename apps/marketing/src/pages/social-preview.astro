@@ -1,0 +1,28 @@
+---
+import "@fontsource-variable/geist";
+import "@fontsource/jetbrains-mono/400.css";
+import "@quorem/ui/theme.css";
+import "@quorem/ui/controls.css";
+import "../styles/marketing.css";
+import "../../../web/src/features/editor/components/problem-statement.css";
+import "../../../web/src/features/editor/components/machine-values.css";
+import HeroSection from "../components/HeroSection.astro";
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Quorem social preview</title>
+  </head>
+  <body><HeroSection socialPreview /></body>
+</html>
+<style is:global>
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  .hero { min-height: 630px; height: 630px; margin: 0; padding-block: 48px; }
+  .hero-top { width: calc(100% - 112px); grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 48px; }
+  .hero-copy { padding-bottom: 0; }
+  .hero-workspace { margin-top: 0; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+</style>
