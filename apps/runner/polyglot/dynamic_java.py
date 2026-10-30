@@ -18,6 +18,7 @@ static Object decode(String t,Object v){
  if(t.startsWith("list<")||t.startsWith("array<")){java.util.List<?>xs=(java.util.List<?>)v;Object[]a=new Object[xs.size()];String inner=t.substring(t.startsWith("list<")?5:6,t.length()-1);for(int i=0;i<a.length;i++)a[i]=decode(inner,xs.get(i));return a;}
  if(t.equals("ListNode")){if(v==null)return null;java.util.List<?>xs=(java.util.List<?>)v;ListNode node=null;for(int i=xs.size()-1;i>=0;i--)node=new ListNode(((Number)xs.get(i)).intValue(),node);return node;}
  if(t.equals("TreeNode")){if(v==null)return null;java.util.List<?>xs=(java.util.List<?>)v;if(xs.isEmpty()||xs.get(0)==null)return null;TreeNode root=new TreeNode(((Number)xs.get(0)).intValue());java.util.ArrayList<TreeNode>q=new java.util.ArrayList<>();q.add(root);int i=1;for(int p=0;p<q.size()&&i<xs.size();p++){TreeNode n=q.get(p);Object left=xs.get(i++);if(left!=null){n.left=new TreeNode(((Number)left).intValue());q.add(n.left);}if(i<xs.size()){Object right=xs.get(i++);if(right!=null){n.right=new TreeNode(((Number)right).intValue());q.add(n.right);}}}return root;}
+ if(t.equals("datetime"))return java.time.LocalDateTime.parse((String)v);
  if(t.equals("float"))return ((Number)v).doubleValue();if(t.equals("int"))return ((Number)v).intValue();return v;
 }
 '''

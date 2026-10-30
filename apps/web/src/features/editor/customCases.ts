@@ -40,6 +40,7 @@ export function formatTypedField(type: string, value: WireValue, config?: InputC
 
 function defaultValue(type: string): WireValue {
   if (type === "str") return "";
+  if (type === "datetime") return "1970-01-01T00:00:00";
   if (type === "bool") return false;
   if (type === "ListNode" || type === "TreeNode" || innerType(type, "optional")) return null;
   if (innerType(type, "list")) return [];

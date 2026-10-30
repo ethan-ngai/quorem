@@ -18,11 +18,39 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     return `(${inner})[]`.replace(/^\((\w+)\)/, "$1");
   }
   const names: Record<EditorLanguage, Record<string, string>> = {
-    python: { void: "None", int: "int", float: "float", bool: "bool", str: "str" },
-    java: { void: "void", int: "int", float: "double", bool: "boolean", str: "String" },
-    typescript: { void: "void", int: "number", float: "number", bool: "boolean", str: "string" },
+    python: {
+      void: "None",
+      int: "int",
+      float: "float",
+      bool: "bool",
+      str: "str",
+      datetime: "datetime.datetime",
+    },
+    java: {
+      void: "void",
+      int: "int",
+      float: "double",
+      bool: "boolean",
+      str: "String",
+      datetime: "java.time.LocalDateTime",
+    },
+    typescript: {
+      void: "void",
+      int: "number",
+      float: "number",
+      bool: "boolean",
+      str: "string",
+      datetime: "Date",
+    },
     postgresql: {},
-    ocaml: { void: "unit", int: "int", float: "float", bool: "bool", str: "string" },
+    ocaml: {
+      void: "unit",
+      int: "int",
+      float: "float",
+      bool: "bool",
+      str: "string",
+      datetime: "Unix.tm",
+    },
   };
   return names[language][type] ?? type;
 }

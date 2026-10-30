@@ -9,6 +9,7 @@ const types = [
   "float",
   "str",
   "bool",
+  "datetime",
   "array<int>",
   "array<str>",
   "list<int>",

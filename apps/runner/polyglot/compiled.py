@@ -26,7 +26,7 @@ def prepare(r,lang,h):
         Path('/tmp/main.ts').write_text(dynamic_typescript.source(r,h))
         return ['tsc','--strict','--target','ES2022','--module','commonjs','--skipLibCheck','--outDir','/tmp','/tmp/main.ts']
     Path('/tmp/main.ml').write_text(dynamic_ocaml.source(r,h))
-    return ['ocamlc','-o','/tmp/main.byte','/tmp/main.ml']
+    return ['ocamlc','-I','+unix','-o','/tmp/main.byte','unix.cma','/tmp/main.ml']
 
 def valid_name(name,lang):
     if not isinstance(name,str) or len(name)>255 or '/' in name or '\\' in name or '\0' in name or name.startswith('.'):return False
