@@ -20,16 +20,15 @@ Coding cases with NUL use byte payloads alongside JSONB query projections. `QUOR
 
 Disabling the flags stops new NUL cases but does not make existing payloads safe for old readers. Before rolling back readers, drain enabled writers and judges and remove or replace every NUL-bearing draft, version, interview, and retained submission through byte-aware tooling; verify all `lossless_content`, `lossless_fixture`, `lossless_public`, `lossless_stages`, `lossless_question`, and `lossless_cases` columns are NULL. Never convert these bytes to JSONB. Public problem reads select public examples separately from private fixtures; Odyssey progress restores only unlocked stage examples. Interview fixtures and admitted submission cases retain private data and follow their existing ownership and cleanup boundaries.
 
-
 The production Actions workflow passes these repository variables to Terraform; unset means `false`. Change them only as part of an authorized production rollout, then dispatch the production workflow on `main` and verify the target role rollout before the next step. Application and judge settings have separate runtime-revision hashes; the application router fences old revisions, but rollout status alone does not prove every old process has drained.
 
-| Repository variable | Role | Purpose |
-| --- | --- | --- |
-| `QUOREM_API_LOSSLESS_RESULTS` | API | Permit lossless case handling alongside result-capable readers. |
-| `QUOREM_API_LOSSLESS_CASES` | API | Accept and persist NUL-bearing coding cases. |
-| `QUOREM_JUDGE_LOSSLESS_RESULTS` | Judge | Write lossless result payloads. |
-| `QUOREM_JUDGE_LOSSLESS_CASES` | Judge | Claim and execute NUL-bearing cases. |
-| `QUOREM_JUDGE_RESUMABLE_EXECUTION` | Judge | Opt in to checkpointed execution independently. |
+| Repository variable                | Role  | Purpose                                                         |
+| ---------------------------------- | ----- | --------------------------------------------------------------- |
+| `QUOREM_API_LOSSLESS_RESULTS`      | API   | Permit lossless case handling alongside result-capable readers. |
+| `QUOREM_API_LOSSLESS_CASES`        | API   | Accept and persist NUL-bearing coding cases.                    |
+| `QUOREM_JUDGE_LOSSLESS_RESULTS`    | Judge | Write lossless result payloads.                                 |
+| `QUOREM_JUDGE_LOSSLESS_CASES`      | Judge | Claim and execute NUL-bearing cases.                            |
+| `QUOREM_JUDGE_RESUMABLE_EXECUTION` | Judge | Opt in to checkpointed execution independently.                 |
 
 For lossless cases: deploy the byte-aware code and migrations with every variable false; verify old API readers have drained before enabling API case settings. The deployment seed runs before the Terraform rollout and can write NUL-bearing data as soon as those settings are enabled. Enable judge lossless results and verify every old API reader is gone before any judge writes payloads. Enable judge lossless cases and verify capable judges are serving, then enable both API lossless settings. Do not combine these steps into one apply: Terraform validates configured dependencies but cannot prove deployment order or process drainage. For resumable execution, first deploy checkpoint-aware judges with its variable false, verify older judges have drained, then enable it in a separate rollout. Hosted isolation, capacity, and end-to-end rollout remain release checks.
 
