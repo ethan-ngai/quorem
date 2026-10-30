@@ -31,7 +31,11 @@ Private coding matches, solo practice, and collaborative interviews.
 
 <p align="center">
   <a href="https://quorem.app">
-    <img src="docs/images/readme/hero-dark.webp" alt="Quorem homepage with the Climbing Stairs editor and player results" width="720" />
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/hero-dark.webp" />
+      <source media="(prefers-color-scheme: light)" srcset="docs/images/readme/hero-light.webp" />
+      <img src="docs/images/readme/hero-light.webp" alt="Quorem homepage with the Climbing Stairs editor and player results" width="720" />
+    </picture>
   </a>
 </p>
 
@@ -57,7 +61,11 @@ Start at **[quorem.app](https://quorem.app)**. Create an account to run and subm
 **Private matches.** Showdown pairs two players; Free-for-all supports 2–8. Choose a problem or filtered random selection, set the duration and lobby rules, and share an invitation. The first correct submission wins. At the deadline, passed tests decide the result; ties draw.
 
 <p align="center">
-  <img src="docs/images/readme/match-modes-dark.webp" alt="Showdown and Free-for-all, with separate contestants and test results" width="720" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/match-modes-dark.webp" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/readme/match-modes-light.webp" />
+    <img src="docs/images/readme/match-modes-light.webp" alt="Showdown and Free-for-all, with separate contestants and test results" width="720" />
+  </picture>
 </p>
 
 - **Solo practice:** filter by difficulty, topics, companies and question type. Solve in Python, Java, TypeScript, OCaml or PostgreSQL.
