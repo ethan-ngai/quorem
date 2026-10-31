@@ -37,6 +37,8 @@ jobs:
           QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
           WRANGLER_SEND_METRICS: "false"
         run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
+      - name: Container runner release validation
+        run: node scripts/hono-container-validation.mjs
       - run: node --test scripts/hono-stage-config.test.mjs scripts/hono-stage-gate.test.mjs scripts/hono-stage-secrets.test.mjs
       - run: node scripts/hono-stage-gate.mjs
       - run: terraform -chdir=infra/terraform/hono-stage fmt -check -recursive
@@ -46,9 +48,7 @@ jobs:
       - run: node scripts/hono-stage-config.mjs deploy/hono/stage.fixture.json deploy/hono/terraform-outputs.fixture.json "$RUNNER_TEMP/hono-stage.json"
       - run: vp -C apps/api exec wrangler deploy --dry-run --config "$RUNNER_TEMP/hono-stage.json" --outdir "$RUNNER_TEMP/hono-worker"
       - run: docker build -f deploy/hono/Dockerfile.api -t quorem-hono-api:validation .
-      - run: docker build -f deploy/hono/Dockerfile.runner --target runner -t quorem-hono-runner:validation .
-      - run: docker build -f deploy/hono/Dockerfile.runner --target verifier -t quorem-hono-verifier:validation .
-      - run: docker run --rm --network none --entrypoint docker quorem-hono-runner:validation --version
+      - run: docker run --rm --network none --entrypoint docker quorem-hono-runner:36b --version
       - name: Runner and verifier process contracts
         env:
           QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
