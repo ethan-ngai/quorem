@@ -154,7 +154,7 @@ func claimJobs(t *testing.T, s *Store, n int) []execution.Job {
 	t.Helper()
 	jobs := []execution.Job{}
 	for range n {
-		j, e := s.Claim(context.Background())
+		j, e := claimTestJob(context.Background(), s, false)
 		if e != nil || j.JobID == "" {
 			t.Fatal(j, e)
 		}

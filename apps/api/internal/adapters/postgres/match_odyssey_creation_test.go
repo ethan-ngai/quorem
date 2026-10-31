@@ -95,7 +95,7 @@ func TestCreateMatchWithPublicOdyssey(t *testing.T) {
 	if err != nil || pending.State != "active" || pending.Outcome != nil {
 		t.Fatal("partial score resolved match", pending, err)
 	}
-	job, err = s.ClaimResumable(ctx)
+	job, err = claimTestJob(ctx, s, true)
 	if err != nil {
 		t.Fatal(err)
 	}

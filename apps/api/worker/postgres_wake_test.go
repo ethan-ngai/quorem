@@ -62,6 +62,8 @@ type retryWakeEngine struct {
 	failFirst bool
 }
 
+func (e *retryWakeEngine) SandboxScope(context.Context) (string, error) { return "test-scope", nil }
+
 func (e *retryWakeEngine) Execute(ctx context.Context, j execution.Job) (execution.Completion, error) {
 	attempt := e.attempts.Add(1)
 	if e.started != nil {

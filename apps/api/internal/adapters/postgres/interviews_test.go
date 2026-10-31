@@ -183,7 +183,7 @@ func TestInterviewAdmissionSnapshotsSourceAndSharedResults(t *testing.T) {
 	if err = json.Unmarshal(fixture, &admitted); err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != sub.ID || job.SuiteRef != admitted.Problem.ID || job.Limits != admitted.Problem.Limits {
 		t.Fatalf("interview claim snapshot: %+v %v", job, err)
 	}
@@ -259,7 +259,7 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 	if _, err = admitInterviewForTest(s, ctx, "bob", gated.ID, ID(), "run", nil); err != nil {
 		t.Fatal("admission without Odyssey grant", err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err = s.Claim(ctx)
+	job, err = claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != prior.ID {
 		t.Fatal("claim run", job, err)
 	}
@@ -296,7 +296,7 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 		if e != nil {
 			t.Fatal(e)
 		}
-		job, e := s.Claim(ctx)
+		job, e := claimTestJob(ctx, s, false)
 		if e != nil || job.SubmissionID != sub.ID {
 			t.Fatal("claim", job, e)
 		}
@@ -340,7 +340,7 @@ func TestInterviewOdysseySharesProgressAndProtectsReplacementEpoch(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, err = s.ClaimResumable(ctx)
+	old, err = claimTestJob(ctx, s, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +446,7 @@ func TestInterviewCustomRunAdmission(t *testing.T) {
 	if _, err = admitInterviewForTest(s, ctx, "bob", v.ID, key, "run", cases); errorCode(err) != "idempotency_conflict" {
 		t.Fatal("changed retry accepted", err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}

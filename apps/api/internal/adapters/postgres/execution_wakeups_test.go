@@ -168,9 +168,9 @@ func TestRunnableDeadlineMatchesClaimCapabilities(t *testing.T) {
 							}
 							var job execution.Job
 							if resumable {
-								job, e = s.ClaimResumable(ctx)
+								job, e = claimTestJob(ctx, s, true)
 							} else {
-								job, e = s.Claim(ctx)
+								job, e = claimTestJob(ctx, s, false)
 							}
 							if e != nil {
 								t.Fatal(e)
@@ -223,7 +223,7 @@ func TestRunnableDeadlineSkipsUnsupportedEarlierJob(t *testing.T) {
 	if err != nil || !present || delay < 3*time.Second || delay > 5*time.Second {
 		t.Fatalf("ordinary deadline: %s %t %v", delay, present, err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.JobID != "" {
 		t.Fatalf("claimed before ordinary deadline: %+v %v", job, err)
 	}
@@ -232,7 +232,7 @@ func TestRunnableDeadlineSkipsUnsupportedEarlierJob(t *testing.T) {
 	if err != nil || !present || delay != 0 {
 		t.Fatalf("lossless deadline: %s %t %v", delay, present, err)
 	}
-	job, err = s.Claim(ctx)
+	job, err = claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != blocked.ID {
 		t.Fatalf("capable claim: %+v %v", job, err)
 	}
@@ -243,7 +243,7 @@ func TestRunnableDeadlineSkipsUnsupportedEarlierJob(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, `UPDATE execution_jobs SET available_at=clock_timestamp()-interval '1 second' WHERE submission_id=$1`, delayed.ID); err != nil {
 		t.Fatal(err)
 	}
-	job, err = s.Claim(ctx)
+	job, err = claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != delayed.ID {
 		t.Fatalf("ordinary claim: %+v %v", job, err)
 	}

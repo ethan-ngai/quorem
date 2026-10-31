@@ -229,7 +229,7 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	if _, err := s.CancelWithKey(ctx, owners[0], first.ID, ID()); err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != second.ID {
 		t.Fatalf("claim %+v %v", job, err)
 	}
@@ -246,7 +246,7 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	if err = s.Pool.QueryRow(ctx, "SELECT settled_at IS NULL FROM guest_execution_usage WHERE submission_id=$1", second.ID).Scan(&stillReserved); err != nil || !stillReserved {
 		t.Fatal("yield released reservation", err)
 	}
-	job, err = s.ClaimResumable(ctx)
+	job, err = claimTestJob(ctx, s, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestGuestExecutionReservationsAndFencedSettlement(t *testing.T) {
 	if _, err := s.Pool.Exec(ctx, "UPDATE execution_jobs SET available_at=clock_timestamp()-interval '1 second' WHERE submission_id=$1", second.ID); err != nil {
 		t.Fatal(err)
 	}
-	job, err = s.ClaimResumable(ctx)
+	job, err = claimTestJob(ctx, s, true)
 	if err != nil {
 		t.Fatal(err)
 	}

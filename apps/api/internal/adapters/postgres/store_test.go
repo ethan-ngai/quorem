@@ -44,6 +44,10 @@ func testStore(t *testing.T) *Store {
 	return store
 }
 
+func claimTestJob(ctx context.Context, store *Store, resumable bool) (execution.Job, error) {
+	return store.ClaimAfterTeardown(ctx, resumable, "", "test-scope")
+}
+
 func copyProblemFixture(t *testing.T, s *Store, id string) problems.Fixture {
 	t.Helper()
 	var raw []byte
@@ -149,7 +153,7 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	if _, err = store.Admit(ctx, "alice", "other", cmd, "c"); errorCode(err) != "user_busy" {
 		t.Fatal(err)
 	}
-	job, err := store.Claim(ctx)
+	job, err := claimTestJob(ctx, store, false)
 	if err != nil || job.SubmissionID != first.ID {
 		t.Fatal(job, err)
 	}
@@ -176,7 +180,7 @@ func TestAdmissionRetryBusyCancellationAndFences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, err := store.ClaimAfterTeardown(ctx, false, "", "test-scope")
+	old, err := claimTestJob(ctx, store, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +253,7 @@ func TestConcurrentAdmissionAndInfrastructureRetry(t *testing.T) {
 		t.Fatal(accepted)
 	}
 	for attempt := 0; attempt < 3; attempt++ {
-		job, err := store.Claim(ctx)
+		job, err := claimTestJob(ctx, store, false)
 		if err != nil || job.JobID == "" {
 			t.Fatal(job, err)
 		}

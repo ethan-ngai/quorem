@@ -93,7 +93,7 @@ func TestLosslessWorkspaceAdmissionAndClaim(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("QUOREM_LOSSLESS_CASES", "false")
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.JobID != "" {
 		t.Fatalf("disabled judge claimed job: %+v %v", job, err)
 	}
@@ -102,7 +102,7 @@ func TestLosslessWorkspaceAdmissionAndClaim(t *testing.T) {
 	}
 	t.Setenv("QUOREM_LOSSLESS_RESULT_WRITES", "true")
 	t.Setenv("QUOREM_LOSSLESS_CASES", "true")
-	job, err = s.Claim(ctx)
+	job, err = claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != sub.ID {
 		t.Fatalf("claim: %+v %v", job, err)
 	}
@@ -161,7 +161,7 @@ func TestLosslessInterviewPrivateCases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
