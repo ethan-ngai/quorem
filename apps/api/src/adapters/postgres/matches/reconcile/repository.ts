@@ -48,8 +48,8 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
   if (!match || match.outcome !== null) return;
   if (!match.started) {
     if (match.expired) {
-      await finish(tx, id, "cancelled", null, "invite_expired");
-      await event(tx, id, "match.completed");
+      await finishMatch(tx, id, "cancelled", null, "invite_expired");
+      await matchEvent(tx, id, "match.completed");
     }
     return;
   }
@@ -102,7 +102,7 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
     changed = true;
   }
   if (decision.outcome) {
-    await finish(
+    await finishMatch(
       tx,
       id,
       decision.outcome.kind,
@@ -111,9 +111,10 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
     );
     changed = true;
   }
-  if (changed) await event(tx, id, decision.outcome ? "match.completed" : "match.updated");
+  if (changed) await matchEvent(tx, id, decision.outcome ? "match.completed" : "match.updated");
 }
-async function finish(
+/** Caller holds the match lock and emits the versioned notice. */
+export async function finishMatch(
   tx: Transaction,
   id: string,
   kind: string,
@@ -134,7 +135,8 @@ async function finish(
   );
   await tx.execute(sql`DELETE FROM match_reservations WHERE match_id=${id}::uuid`);
 }
-async function event(
+/** Caller holds the match lock; increments the aggregate version once. */
+export async function matchEvent(
   tx: Transaction,
   id: string,
   type: "match.updated" | "match.completed",
