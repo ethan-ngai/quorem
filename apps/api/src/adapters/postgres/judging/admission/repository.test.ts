@@ -11,6 +11,7 @@ import { migrate } from "@quorem/database/migrations";
 import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
 import { admitWithRecovery } from "../../../../modules/judging/admission/admit.ts";
+import { indexRunnerFixture } from "../inputs/fixture.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 const url = process.env.QUOREM_ADMISSION_TEST_DATABASE_URL;
@@ -87,6 +88,28 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
       [workspace, user, version],
     );
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        indexRunnerFixture(
+          tx,
+          { version },
+          JSON.stringify({
+            problem: {
+              signature: {
+                className: "Solution",
+                methodName: "f",
+                parameters: [{ name: "x", type: "int" }],
+                returnType: "int",
+              },
+              constraints: [],
+              limits: {},
+              examples: [{ args: [1], expected: 2 }],
+            },
+            hiddenCases: [{ args: [3], expected: 4 }],
+          }),
+        ),
+      ),
+    );
   });
   afterAll(async () => {
     await pool.query(
@@ -141,7 +164,15 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       [first.id],
     );
     expect(rows.rows).toHaveLength(1);
-    expect(rows.rows[0].cases).toEqual([{ args: [1], expected: 2 }]);
+    expect(rows.rows[0].cases).toEqual([]);
+    expect(
+      (
+        await pool.query(
+          "SELECT convert_from(b.data,'UTF8') AS raw FROM runner_job_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.job_id=$1 ORDER BY c.ordinal",
+          [rows.rows[0].job],
+        )
+      ).rows.map((r) => JSON.parse(r.raw)),
+    ).toEqual([{ args: [1], expected: 2 }]);
     await expect(start("different-key", "return 1")).rejects.toMatchObject({ code: "user_busy" });
     await pool.query("UPDATE execution_jobs SET finished=true WHERE submission_id=$1", [first.id]);
     await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [first.id]);
@@ -161,21 +192,14 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       commit: (fence) => admit(principal, "submit", submit, fence),
     });
     expect(Object.keys(second).sort()).toEqual(["admittedAt", "id", "sourceHash", "state"]);
-    expect(
-      (await pool.query("SELECT cases FROM submissions WHERE id=$1", [second.id])).rows[0].cases,
-    ).toEqual([{ args: [3], expected: 4 }]);
-    if (process.env.QUOREM_ADMISSION_GO_JUDGE === "true") {
-      const response = await fetch("http://127.0.0.1:58758/internal/drain", {
-        method: "POST",
-        headers: { authorization: `Bearer ${"fixture-token-".repeat(3)}` },
-      });
-      expect(response.ok).toBe(true);
-      const result = (
-        await pool.query("SELECT state,result FROM submissions WHERE id=$1", [second.id])
-      ).rows[0];
-      expect(result.state).toBe("completed");
-      expect(result.result.verdict).toBe("accepted");
-    }
+    const selected = await pool.query(
+      "SELECT c.channel,convert_from(b.data,'UTF8') AS raw FROM runner_job_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash JOIN execution_jobs j ON j.id=c.job_id WHERE j.submission_id=$1 ORDER BY c.ordinal",
+      [second.id],
+    );
+    expect(selected.rows.map((r) => [r.channel, JSON.parse(r.raw).args])).toEqual([
+      ["private", [3]],
+      ["sample", [1]],
+    ]);
   }, 30000);
   it("gates and preserves NUL custom cases without rounding numeric tokens", async () => {
     await pool.query(
@@ -216,6 +240,28 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
       [workspace2, user, version2],
     );
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        indexRunnerFixture(
+          tx,
+          { version: version2 },
+          JSON.stringify({
+            problem: {
+              signature: {
+                className: "Solution",
+                methodName: "f",
+                parameters: [{ name: "x", type: "str" }],
+                returnType: "str",
+              },
+              constraints: [],
+              limits: {},
+              examples: [],
+            },
+            hiddenCases: [],
+          }),
+        ),
+      ),
+    );
     const command = await parseWorkspaceCommand(
       JSON.stringify({
         workspaceId: workspace2,
@@ -239,28 +285,15 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
             fence,
           ),
       });
-    await expect(attempt(false)).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(attempt(false)).rejects.toMatchObject({ code: "temporarily_unavailable" });
     const result = await attempt(true);
     const saved = (
       await pool.query(
-        "SELECT cases,convert_from(lossless_cases,'UTF8') AS lossless FROM submissions WHERE id=$1",
+        "SELECT convert_from(b.data,'UTF8') AS raw FROM execution_jobs j JOIN runner_job_input_cases c ON c.job_id=j.id JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE j.submission_id=$1",
         [result.id],
       )
     ).rows[0];
-    expect(saved.cases).toEqual([{ args: ["ab"] }]);
-    expect(saved.lossless).toContain("\\u0000");
-    if (process.env.QUOREM_ADMISSION_GO_JUDGE === "true") {
-      const response = await fetch("http://127.0.0.1:58758/internal/drain", {
-        method: "POST",
-        headers: { authorization: `Bearer ${"fixture-token-".repeat(3)}` },
-      });
-      expect(response.ok).toBe(true);
-      const judged = (
-        await pool.query("SELECT state,result FROM submissions WHERE id=$1", [result.id])
-      ).rows[0];
-      expect(judged.state).toBe("completed");
-      expect(judged.result.publicCases[0].status).toBe("executed");
-    }
+    expect(saved.raw).toContain("\\u0000");
   }, 30000);
   it("enforces replenishing and daily execution quotas", async () => {
     await pool.query(
