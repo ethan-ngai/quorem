@@ -117,12 +117,10 @@ function core(
       throw new Error("primary signature must match the first stage method");
     let methods: Signature[] = [];
     const names = new Set<string>();
-    let hiddenCount = 0;
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i],
         suite = suites[i],
         rawLevel = object(rawLevels[i]);
-      hiddenCount += suite.length;
       if (
         !level.title.trim() ||
         new TextEncoder().encode(level.title).length > 160 ||
@@ -144,7 +142,6 @@ function core(
       for (const ex of array(rawLevel.examples)) validateCase(ex, methods);
       for (const test of array(rawSuites[i])) validateCase(test, methods);
     }
-    if (hiddenCount > 100) throw new Error("hidden case limit exceeded");
   } else {
     for (const ex of array(rawProblem.examples)) validateCase(ex);
     for (const test of array(raw.hiddenCases)) validateCase(test);

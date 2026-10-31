@@ -130,3 +130,29 @@ it("accepts published coding fixture corpus", () => {
     expect(() => validateQuestionPublication(raw, checkSchema, resolve), name).not.toThrow();
   }
 });
+it("accepts eight valid Odyssey levels with twenty hidden cases each", () => {
+  const raw = readFileSync(
+    new URL("../../../fixtures/odyssey/balance-ledger.json", import.meta.url),
+    "utf8",
+  );
+  const fixture = JSON.parse(raw);
+  const level = fixture.problem.odyssey.levels[0];
+  const hidden = fixture.odysseyHiddenCases[0][0];
+  fixture.problem.odyssey.levels = Array.from({ length: 8 }, (_, i) => ({
+    ...structuredClone(level),
+    methods:
+      i === 0
+        ? structuredClone(level.methods)
+        : [{ ...structuredClone(level.methods[0]), methodName: `extra${i}` }],
+  }));
+  fixture.odysseyHiddenCases = Array.from({ length: 8 }, () =>
+    Array.from({ length: 20 }, () => structuredClone(hidden)),
+  );
+  const resolve = (language: string) => {
+    const impl = fixture.implementations.find((x: { language: string }) => x.language === language);
+    return impl && { revision: impl.runtimeRevision, harness: impl.harnessRevision };
+  };
+  expect(() =>
+    validateQuestionPublication(JSON.stringify(fixture), checkSchema, resolve),
+  ).not.toThrow();
+});

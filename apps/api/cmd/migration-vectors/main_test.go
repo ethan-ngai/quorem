@@ -13,7 +13,7 @@ import (
 
 func TestGolden(t *testing.T) {
 	pub, priv := vectors()
-	for path, values := range map[string][]vector{"../../../../fixtures/migration/public/go-oracle.json": pub, "../../../../fixtures/migration/private/go-oracle.json": priv} {
+	for path, values := range map[string][]vector{"../../../../fixtures/migration/public/go-oracle.json": pub, "../../../../fixtures/migration/private/go-oracle.json": priv, "../../../../fixtures/migration/private/question-edge-oracle.json": questionVectors()} {
 		got, err := encode(values)
 		if err != nil {
 			t.Fatal(err)

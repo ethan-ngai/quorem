@@ -7,7 +7,6 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "./json.ts";
-import { normalizeQuestionValue } from "./value-codec.ts";
 
 type SqlConfig = components["schemas"]["SqlConfig"];
 const numeric = /^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,3})?$/;
@@ -67,15 +66,49 @@ function canonical(value: JsonValue): JsonValue {
         : "unsupported SQL result value",
   );
 }
-function timestamp(kind: string, text: string): string {
-  const m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d:\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)?$/.exec(text);
+export function normalizeSqlTimestamp(kind: string, text: string): string {
+  const m = /^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)?$/.exec(
+    text,
+  );
   if (!m) throw new Error("invalid SQL timestamp");
-  try {
-    normalizeQuestionValue("datetime", `${m[1]}T${m[2]}`);
-  } catch {
+  const [, ys, ms, ds, hs, mins, ss, fraction = "", zone = "Z"] = m;
+  const year = Number(ys),
+    month = Number(ms),
+    day = Number(ds),
+    hour = Number(hs),
+    minute = Number(mins),
+    second = Number(ss);
+  const days = [
+    31,
+    year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > days[month - 1] ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  )
     throw new Error("invalid SQL timestamp");
+  let offset = 0;
+  if (zone !== "Z") {
+    const zh = Number(zone.slice(1, 3)),
+      zm = Number(zone.slice(4, 6));
+    if (zh > 24 || zm > 60) throw new Error("invalid SQL timestamp");
+    offset = (zh * 60 + zm) * (zone[0] === "-" ? -1 : 1);
   }
-  const fraction = m[3] ?? "";
   let micros = Number(fraction.slice(0, 6).padEnd(6, "0"));
   if (
     fraction.length > 6 &&
@@ -83,16 +116,23 @@ function timestamp(kind: string, text: string): string {
       (fraction[6] === "5" && (/[1-9]/.test(fraction.slice(7)) || micros % 2 === 1)))
   )
     micros++;
-  const zone = kind === "timestamptz" ? (m[4] ?? "Z") : "Z";
-  const base = Date.parse(`${m[1]}T${m[2]}${zone}`);
-  if (!Number.isFinite(base)) throw new Error("invalid SQL timestamp");
-  const date = new Date(base + Math.floor(micros / 1000000) * 1000);
-  const iso = date.toISOString().slice(0, 19);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, 0);
+  date.setTime(
+    date.getTime() +
+      (Math.floor(micros / 1000000) - (kind === "timestamptz" ? offset * 60 : 0)) * 1000,
+  );
+  const y = date.getUTCFullYear();
+  const formattedYear = (y < 0 ? "-" : "") + String(Math.abs(y)).padStart(4, "0");
+  const two = (n: number) => String(n).padStart(2, "0");
+  const iso = `${formattedYear}-${two(date.getUTCMonth() + 1)}-${two(date.getUTCDate())}T${two(date.getUTCHours())}:${two(date.getUTCMinutes())}:${two(date.getUTCSeconds())}`;
   const part = String(micros % 1000000)
     .padStart(6, "0")
     .replace(/0+$/, "");
   return iso + (part ? `.${part}` : "") + (kind === "timestamptz" ? "Z" : "");
 }
+
 function scientific(value: number): string {
   if (Object.is(value, -0)) return "-0e+00";
   const [coefficient, power] = value.toExponential().split("e");
@@ -127,7 +167,7 @@ export function normalizeSqlResult(config: SqlConfig, json: string): string {
     return row.map((cell, i) => {
       const kind = config.output?.[i]?.type;
       if ((kind === "timestamp" || kind === "timestamptz") && typeof cell === "string")
-        return timestamp(kind, cell);
+        return normalizeSqlTimestamp(kind, cell);
       if ((kind === "real" || kind === "double precision") && cell instanceof JsonNumber) {
         const number = Number(cell.lexeme);
         const f = kind === "real" ? Math.fround(number) : number;

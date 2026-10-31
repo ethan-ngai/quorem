@@ -16,3 +16,6 @@ it("imports and executes lossless question codecs in workerd", () => {
     ),
   ).toBe('{"columns":["n"],"rows":[[{"$numeric":"1"}]]}');
 });
+
+import { assertDifferentialVectors } from "./differential.ts";
+it("matches Go edge vectors in workerd", assertDifferentialVectors);

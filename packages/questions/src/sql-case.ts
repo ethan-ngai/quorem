@@ -1,7 +1,7 @@
 /** @file sql-case.ts @description PostgreSQL schema-bound case validation. @module questions */
 import type { components } from "@quorem/contracts/schema";
 import { JsonNumber, parseLosslessJson, type JsonValue } from "./json.ts";
-import { normalizeQuestionValue } from "./value-codec.ts";
+import { normalizeSqlTimestamp } from "./sql-result.ts";
 
 type SqlConfig = components["schemas"]["SqlConfig"];
 type SqlColumn = components["schemas"]["SqlColumn"];
@@ -65,22 +65,11 @@ function valueValid(kind: string, value: JsonValue, result: boolean): boolean {
   }
   if (kind === "text") return typeof value === "string" && !value.includes("\0");
   if (kind === "boolean") return typeof value === "boolean";
-  if (kind === "date") {
+  if (kind === "date" || kind === "timestamp" || kind === "timestamptz") {
     if (typeof value !== "string") return false;
     try {
-      normalizeQuestionValue("datetime", `${value}T00:00:00`);
+      normalizeSqlTimestamp(kind, kind === "date" ? `${value}T00:00:00` : value);
       return true;
-    } catch {
-      return false;
-    }
-  }
-  if (kind === "timestamp" || kind === "timestamptz") {
-    if (typeof value !== "string") return false;
-    const m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d:\d\d)(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)?$/.exec(value);
-    if (!m) return false;
-    try {
-      normalizeQuestionValue("datetime", `${m[1]}T${m[2]}`);
-      return Number.isFinite(Date.parse(value.replace(" ", "T")));
     } catch {
       return false;
     }
