@@ -92,3 +92,28 @@ void test("resources must match Terraform outputs", () => {
   ])
     assert.throws(() => stageConfig(input(), { ...outputs(), ...change }, "/tmp/wrangler.json"));
 });
+
+void test("profile binding must use the actual provisioned bucket and explicit private image mode", () => {
+  const i = input();
+  Object.assign(i.vars, {
+    PROFILE_MEDIA_ENABLED: "true",
+    PROFILE_IMAGE_SERVICE_URL: "https://image-stage.example",
+    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
+  });
+  const o = { ...outputs(), profile_bucket_name: { value: "quorem-hono-stage-profile" } };
+  assert.equal(
+    stageConfig(i, o, "/tmp/wrangler.json").r2_buckets[0].bucket_name,
+    "quorem-hono-stage-profile",
+  );
+  assert.throws(() =>
+    stageConfig({ ...i, profileBucket: "another-bucket" }, o, "/tmp/wrangler.json"),
+  );
+  assert.throws(() => stageConfig(i, outputs(), "/tmp/wrangler.json"));
+  assert.throws(() =>
+    stageConfig(
+      { ...i, vars: { ...i.vars, PROFILE_IMAGE_ACCESS_MODE: "none" } },
+      o,
+      "/tmp/wrangler.json",
+    ),
+  );
+});

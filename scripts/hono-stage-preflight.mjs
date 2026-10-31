@@ -23,6 +23,8 @@ const secretNames = [
   "APPLE_CLIENT_SECRET",
   "GITHUB_CLIENT_SECRET",
   "PROFILE_IMAGE_SERVICE_TOKEN",
+  "PROFILE_IMAGE_ACCESS_CLIENT_ID",
+  "PROFILE_IMAGE_ACCESS_CLIENT_SECRET",
   "RUNNER_PEERS",
   "VERIFICATION_SOURCE_CREDENTIAL",
   "VERIFICATION_SERVICE_CREDENTIAL",
@@ -50,11 +52,43 @@ export function checkStagePreflight(input, outputs, secrets) {
     "TRUST_CLOUDFLARE_PEER",
   ])
     flag(merged[name]);
+  checkWorkerAuth(config.vars, workerSecrets, Boolean(config.r2_buckets));
+}
+/** Validate the canonical Worker auth constructor without binding real providers. */
+export function checkWorkerAuth(vars, secrets, hasBucket) {
   workerRuntime({
-    ...merged,
+    ...Object.fromEntries(
+      secretNames
+        .filter((name) => secrets[name] !== undefined)
+        .map((name) => [name, secrets[name]]),
+    ),
+    ...vars,
     DB: { connectionString: "postgres://fixture:fixture@127.0.0.1:1/fixture" },
-    ...(config.r2_buckets ? { PROFILE_BUCKET: {} } : {}),
+    ...(hasBucket ? { PROFILE_BUCKET: {} } : {}),
   });
+}
+const hostOnly = new Set([
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_USERNAME",
+  "SMTP_PASSWORD",
+  "AUTH_EMAIL_SES_REGION",
+  "CLOUDFLARE_ACCESS_CLIENT_ID",
+  "CLOUDFLARE_ACCESS_CLIENT_SECRET",
+]);
+/** Return only validated API Worker secrets for stdin-only secret upload. */
+export function validatedWorkerSecrets(input, outputs, secrets) {
+  checkStagePreflight(input, outputs, secrets);
+  return Object.fromEntries(
+    secretNames
+      .filter(
+        (name) =>
+          !hostOnly.has(name) &&
+          secrets[name] !== undefined &&
+          (!name.startsWith("PROFILE_IMAGE_") || input.vars.PROFILE_MEDIA_ENABLED === "true"),
+      )
+      .map((name) => [name, secrets[name]]),
+  );
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

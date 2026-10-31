@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { checkStagePreflight } from "./hono-stage-preflight.mjs";
+import { checkStagePreflight, validatedWorkerSecrets } from "./hono-stage-preflight.mjs";
 const input = () =>
   JSON.parse(readFileSync(new URL("../deploy/hono/stage.fixture.json", import.meta.url)));
 const outputs = () =>
@@ -99,15 +99,19 @@ void test("uses actual Worker restrictions for mail, encryption key, and profile
   );
   const profile = login();
   profile.profileBucket = "fixture-bucket";
+  const profileOutputs = { ...outputs(), profile_bucket_name: { value: "fixture-bucket" } };
   Object.assign(profile.vars, {
     PROFILE_MEDIA_ENABLED: "true",
     PROFILE_IMAGE_SERVICE_URL: "https://images.example",
+    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
   });
-  assert.throws(() => checkStagePreflight(profile, outputs(), secrets()), /image service/);
+  assert.throws(() => checkStagePreflight(profile, profileOutputs, secrets()), /image service/);
   assert.doesNotThrow(() =>
-    checkStagePreflight(profile, outputs(), {
+    checkStagePreflight(profile, profileOutputs, {
       ...secrets(),
       PROFILE_IMAGE_SERVICE_TOKEN: "x".repeat(32),
+      PROFILE_IMAGE_ACCESS_CLIENT_ID: "profile-id",
+      PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "profile-secret",
     }),
   );
 });
@@ -127,4 +131,27 @@ void test("CLI failure never prints a supplied secret", async () => {
   assert.notEqual(result.status, 0);
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(marker));
   assert.match(result.stderr, /Stage preflight failed/);
+});
+
+void test("secret upload projection omits private signing and host-only credentials", () => {
+  const projected = validatedWorkerSecrets(login(), outputs(), {
+    ...secrets(),
+    CASE_OWNER_PRIVATE_KEY: "fixture-private-key",
+    QUOREM_VERIFICATION_SIGNING_KEY_PEM: "fixture-signing-key",
+    QUOREM_CASE_SECRET: "fixture-case-secret",
+  });
+  assert.equal(projected.MATCH_INVITE_KEY, secrets().MATCH_INVITE_KEY);
+  assert.equal(
+    projected.VERIFICATION_ACCESS_CLIENT_SECRET,
+    secrets().VERIFICATION_ACCESS_CLIENT_SECRET,
+  );
+  for (const key of [
+    "PROFILE_IMAGE_SERVICE_TOKEN",
+    "CASE_OWNER_PRIVATE_KEY",
+    "QUOREM_VERIFICATION_SIGNING_KEY_PEM",
+    "QUOREM_CASE_SECRET",
+    "CLOUDFLARE_ACCESS_CLIENT_ID",
+    "CLOUDFLARE_ACCESS_CLIENT_SECRET",
+  ])
+    assert.equal(projected[key], undefined);
 });
