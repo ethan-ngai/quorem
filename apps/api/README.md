@@ -13,6 +13,8 @@ make language-hono
 
 Configure each service before starting it. The API runtime settings are defined in [Node composition](src/runtime/node.ts) and [runtime configuration](src/runtime/composition/config.ts); auth settings are defined in [auth configuration](../auth/src/config.ts) and [platform configuration](../auth/src/platform-config.ts). Runner and verifier settings are defined in [runner configuration](../runner/src/runtime/config.ts); language settings are defined in [the language gateway](../language/src/main.ts). Managed identity uses Better Auth sessions and verified tokens. Local development identity is an explicit Node-only configuration, not the default or a public Worker fallback.
 
+`EXECUTION_WAKE_PROVIDER=sqs|cloudflare-rest` selects the Node delivery adapter. Node consumes published wakes and requires `EXECUTION_DRAIN_URL`, `EXECUTION_DRAIN_SECRET`, and `EXECUTION_DRAIN_ACCESS_MODE=none|cloudflare-access`; Access mode also requires its client ID/secret pair. Only local fixtures may explicitly disable consumption with `EXECUTION_NODE_QUEUE_MODE=disabled`. Workers uses its native queue handler.
+
 Native API startup does not apply migrations. Use a direct privileged migration connection to the same PostgreSQL database used by API/auth; product and auth retain separate schemas and ledgers:
 
 ```sh
