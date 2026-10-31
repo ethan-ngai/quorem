@@ -338,6 +338,15 @@ describe.skipIf(!url)("runner claim fences", () => {
     expect(row.payload).toContain("\\u0000");
     expect(row.payload).toContain('"expected":2');
     expect(row.payload).not.toContain("987655");
+    expect(
+      Number(
+        (
+          await pool.query("SELECT count(*) FROM execution_completion_staging WHERE job_id=$1", [
+            job,
+          ])
+        ).rows[0].count,
+      ),
+    ).toBe(0);
     const diagnostic = await pool.query(
       "SELECT convert_from(field_data,'UTF8') AS data FROM submission_result_header_fields WHERE submission_id=$1 AND field='diagnostics'",
       [submission],
