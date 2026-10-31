@@ -136,7 +136,9 @@ void test(
       const observed = {
         ...sandbox,
         runCase: async (request: Parameters<typeof sandbox.runCase>[0], signal?: AbortSignal) => {
-          const raw = new TextDecoder().decode(request.input),
+          const parts: Uint8Array[] = [];
+          for await (const chunk of request.input.open()) parts.push(chunk);
+          const raw = new TextDecoder().decode(Buffer.concat(parts)),
             value = JSON.parse(raw);
           assert.ok(!raw.includes('"expected"'));
           operations.push(value.operation ?? "direct");

@@ -1,3 +1,4 @@
+import { bytesInput } from "./input.ts";
 /// <reference types="node" />
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -38,7 +39,7 @@ void test(
       ordinal: 0,
       language: "python",
       limits: defaultLimits(),
-      input,
+      input: bytesInput(input),
       outputLimit: 65536,
       timeoutMs: 30000,
     };
@@ -77,7 +78,7 @@ void test(
         ordinal: 1,
         language: "python",
         limits: defaultLimits(),
-        input: isolationInput,
+        input: bytesInput(isolationInput),
         outputLimit: 65536,
         timeoutMs: 30000,
       });
@@ -97,19 +98,21 @@ void test(
         ordinal: 2,
         language: "python",
         limits: defaultLimits(),
-        input: new TextEncoder().encode(
-          JSON.stringify({
-            source: "class Solution:\n def f(self):\n  while True: pass",
-            signature: {
-              className: "Solution",
-              methodName: "f",
-              parameters: [],
-              returnType: "int",
-            },
-            args: [],
-            calls: [],
-            methods: [],
-          }),
+        input: bytesInput(
+          new TextEncoder().encode(
+            JSON.stringify({
+              source: "class Solution:\n def f(self):\n  while True: pass",
+              signature: {
+                className: "Solution",
+                methodName: "f",
+                parameters: [],
+                returnType: "int",
+              },
+              args: [],
+              calls: [],
+              methods: [],
+            }),
+          ),
         ),
         outputLimit: 65536,
         timeoutMs: 30000,
@@ -196,7 +199,7 @@ void test(
         ordinal: 0,
         language: "python",
         limits: defaultLimits(),
-        input: new Uint8Array([1]),
+        input: bytesInput(new Uint8Array([1])),
         outputLimit: 65536,
         timeoutMs: 1000,
       }),
@@ -244,5 +247,58 @@ void test(
     child.kill("SIGKILL");
     await closed;
     await assert.rejects(sandbox.teardownAttempt(fence), /unconfirmed/);
+  },
+);
+void test(
+  "real Docker streams a large case and rejects a false input digest",
+  { skip: !socket, timeout: 60000 },
+  async (t) => {
+    const { createHash } = await import("node:crypto");
+    const stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-stream-input-")));
+    t.after(() => rm(stateRoot, { recursive: true, force: true }));
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "stream-input",
+      cleanupMs: 10000,
+    });
+    const prefix = Buffer.from(
+      '{"source":"class Solution:\\n def f(self,x): return len(x)","signature":{"className":"Solution","methodName":"f","parameters":[{"name":"x","type":"str"}],"returnType":"int"},"args":["',
+    );
+    const part = Buffer.alloc(65536, 120),
+      count = 32,
+      suffix = Buffer.from('"],"calls":[],"methods":[]}');
+    const digest = createHash("sha256").update(prefix);
+    for (let i = 0; i < count; i++) digest.update(part);
+    const input = {
+      size: prefix.length + part.length * count + suffix.length,
+      hash: digest.update(suffix).digest("hex"),
+      async *open() {
+        yield prefix;
+        for (let i = 0; i < count; i++) yield part;
+        yield suffix;
+      },
+    };
+    const fence = { attemptId: randomUUID(), sandboxScope: sandbox.scope };
+    const request = {
+      fence,
+      binding: "a".repeat(64),
+      ordinal: 0,
+      language: "python",
+      limits: defaultLimits(),
+      input,
+      outputLimit: 65536,
+      timeoutMs: 30000,
+    };
+    const result = await sandbox.runCase(request);
+    assert.equal(result.exitCode, 0, new TextDecoder().decode(result.stderr));
+    assert.equal(
+      JSON.parse(new TextDecoder().decode(result.stdout).slice(1)).actual,
+      part.length * count,
+    );
+    await assert.rejects(
+      sandbox.runCase({ ...request, ordinal: 1, input: { ...input, hash: "0".repeat(64) } }),
+    );
+    await sandbox.teardownAttempt(fence);
   },
 );
