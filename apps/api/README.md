@@ -1,46 +1,26 @@
-# Local solo API
+# API development
 
-From repository root:
+From the repository root, `make api` and `make runner` start the existing Go API and runner. `make language` starts the Go language gateway; `make dev` uses the existing local supervisor. These commands are retained during migration.
 
-```sh
-make database
-make seed
-make api
-```
-
-`make dev` starts the API and runner together. API binds `127.0.0.1:8080`;
-`DATABASE_URL` defaults to local PostgreSQL on port 54329. Startup applies
-versioned migrations and seeds immutable problem versions. `-seed` exits after
-those operations. Git fixture revisions use new version IDs; old workspaces
-remain attached to their original version.
-
-Local identity: `X-Dev-User: alice` or `bob`, default Alice. The service refuses
-non-loopback binds and any `APP_ENV` other than `local`. Production identity is
-outside this milestone.
-
-Workspaces retain metadata only. Draft source and history live in the browser;
-Run/Submit send immutable source snapshots for judging. No draft-saving endpoints
-or server draft/history tables remain.
-
-Integration tests require a **disposable** database; they truncate product tables:
+The native Node runtimes have separate entry points:
 
 ```sh
-QUOREM_TEST_DATABASE_URL=postgres://quorem:quorem@127.0.0.1:54329/quorem_api_tests?sslmode=disable go test ./apps/api/...
+make api-hono
+make runner-hono
+make verifier-hono
+make language-hono
 ```
 
-Problem constraints use typed ranges, scalar comparisons, numeric ordering/uniqueness,
-and informational prose. Targets name signature parameters; unsupported projections,
-duplicate names, malformed shapes, and unknown properties fail validation. String
-length counts Unicode codepoints; node count excludes null tree slots. Optional
-wrapper projections remain unsupported until nullable semantics are defined.
+Configure each service before starting it. The API runtime settings are defined in [Node composition](src/runtime/node.ts) and [runtime configuration](src/runtime/composition/config.ts); auth settings are defined in [auth configuration](../auth/src/config.ts) and [platform configuration](../auth/src/platform-config.ts). Runner and verifier settings are defined in [runner configuration](../runner/src/runtime/config.ts); language settings are defined in [the language gateway](../language/src/main.ts). Managed identity uses Better Auth sessions and verified tokens. Local development identity is an explicit Node-only configuration, not the default or a public Worker fallback.
 
-Structured fixture metadata ships as new immutable problem versions and IDs. Seed
-never overwrites prior versions. Existing workspaces continue their original version
-and guarantees; legacy string constraints decode as informational prose. New versions
-bound each string to 10,000 codepoints (the earlier generic collection prose did not
-bound strings). Example explanations remain public metadata and are omitted from
-execution cases, hashes, and result ordering. Prose guarantees are informational,
-including aggregate sums and level differences.
+Migrations are explicit; startup does not apply them. With separate direct database URLs configured, run:
+
+```sh
+DATABASE_URL="$DATABASE_URL" vp exec node packages/database/src/migrate.ts product apps/api/migrations
+DATABASE_URL="$AUTH_DATABASE_URL" vp exec node packages/database/src/migrate.ts auth apps/auth/migrations
+```
+
+For a self-contained local browser stack with real fixture accounts and Docker execution, follow [the browser fixture instructions](../../docs/plans/hono-workers-migration/execution/37j-browser-smoke.md). Its reset is destructive and accepts only the dedicated loopback `127.0.0.1:55701/quorem_hono_runtime_test` database. Never point integration tests at the development database; they truncate data.
 
 ### Normalize retained result sidecars
 
