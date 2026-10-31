@@ -1689,3 +1689,17 @@ export const execution_dispatch_intents = pgTable(
       .where(sql`delivered_at IS NULL`),
   ],
 );
+
+export const deadline_prearms = pgTable(
+  "deadline_prearms",
+  {
+    id: uuid().primaryKey().notNull(),
+    shard: integer().notNull(),
+    expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+    committed_at: timestamp({ withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    check("deadline_prearms_shard_check", sql`shard >= 0 AND shard < 256`),
+    index("deadline_prearms_shard").on(table.shard, table.expires_at, table.id),
+  ],
+);
