@@ -40,7 +40,10 @@ class DryRollback<T> {
   }
 }
 
-export async function verifiedOperator(tx: Transaction, issuer: string): Promise<string> {
+export async function verifiedOperator(
+  tx: Pick<Transaction, "execute">,
+  issuer: string,
+): Promise<string> {
   const row = (
     await tx.execute<{ user_id: string }>(
       sql`SELECT b.user_id FROM access_audit seed JOIN identity_bindings b ON b.user_id=seed.user_id AND b.subject=seed.scope JOIN quorem_auth."user" a ON a.id=b.subject JOIN users u ON u.id=b.user_id WHERE seed.operation_id='bootstrap:operator' AND b.issuer=${issuer} AND a."emailVerified" AND u.role='admin' AND NOT u.disabled FOR SHARE OF seed,u,b,a`,

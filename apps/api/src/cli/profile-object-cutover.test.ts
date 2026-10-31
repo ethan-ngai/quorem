@@ -8,27 +8,24 @@ import { fileURLToPath } from "node:url";
 import { migrate } from "@quorem/database/migrations";
 import { test } from "node:test";
 import pg from "pg";
-import {
-  cutoverDatabaseIdentity,
-  profileObjectCutover,
-  profileObjectEndpoint,
-} from "./profile-object-cutover.ts";
+import { operatorDatabaseIdentity } from "./operator-database.ts";
+import { profileObjectCutover, profileObjectEndpoint } from "./profile-object-cutover.ts";
 
 void test("resume identity rejects routing overrides and requires verified remote TLS", () => {
-  const a = cutoverDatabaseIdentity("postgres://user:secret@db.example/app?sslmode=verify-full");
+  const a = operatorDatabaseIdentity("postgres://user:secret@db.example/app?sslmode=verify-full");
   assert.deepEqual(
     a,
-    cutoverDatabaseIdentity("postgres://other:secret2@db.example:5432/app?sslmode=verify-full"),
+    operatorDatabaseIdentity("postgres://other:secret2@db.example:5432/app?sslmode=verify-full"),
   );
   assert.notDeepEqual(
     a,
-    cutoverDatabaseIdentity("postgres://db.example/other?sslmode=verify-full"),
+    operatorDatabaseIdentity("postgres://db.example/other?sslmode=verify-full"),
   );
   assert.notDeepEqual(
-    cutoverDatabaseIdentity("postgres://127.0.0.1/db?sslmode=disable"),
-    cutoverDatabaseIdentity("postgres://127.0.0.1/db?sslmode=verify-full"),
+    operatorDatabaseIdentity("postgres://127.0.0.1/db?sslmode=disable"),
+    operatorDatabaseIdentity("postgres://127.0.0.1/db?sslmode=verify-full"),
   );
-  assert.doesNotThrow(() => cutoverDatabaseIdentity("postgres://[::1]/db?sslmode=disable"));
+  assert.doesNotThrow(() => operatorDatabaseIdentity("postgres://[::1]/db?sslmode=disable"));
   assert.equal(profileObjectEndpoint("http://[::1]:9000").origin, "http://[::1]:9000");
   assert.throws(() => profileObjectEndpoint("http://remote.example"));
   for (const value of [
@@ -41,7 +38,7 @@ void test("resume identity rejects routing overrides and requires verified remot
     "postgres://db.example/app?sslmode=verify-full#fragment",
     "https://db.example/app?sslmode=verify-full",
   ])
-    assert.throws(() => cutoverDatabaseIdentity(value));
+    assert.throws(() => operatorDatabaseIdentity(value));
 });
 
 const url = process.env.QUOREM_PROFILE_CUTOVER_TEST_URL;
