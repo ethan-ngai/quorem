@@ -23,6 +23,16 @@ CREATE TABLE execution_completion_receipts (
  outcome text NOT NULL CHECK (outcome IN ('completed','cancelled','failed','requeued')),
  PRIMARY KEY(job_id,attempt_id,sandbox_scope)
 );
+CREATE TABLE execution_completion_field_chunks (
+ job_id uuid NOT NULL REFERENCES execution_completion_staging(job_id) ON DELETE CASCADE,
+ channel text NOT NULL CHECK (channel IN ('public','sample','private')),
+ ordinal integer NOT NULL CHECK (ordinal BETWEEN 0 AND 319),
+ field text NOT NULL CHECK (field IN ('actual','expected','stdout','stderr','diagnostics','sqlTypes')),
+ chunk_ordinal integer NOT NULL CHECK (chunk_ordinal >= 0),
+ chunk_data bytea NOT NULL CHECK (octet_length(chunk_data) <= 65536),
+ chunk_hash bytea NOT NULL CHECK (octet_length(chunk_hash) = 32),
+ PRIMARY KEY(job_id,channel,ordinal,field,chunk_ordinal)
+);
 CREATE TABLE submission_result_headers (
  submission_id uuid PRIMARY KEY REFERENCES submissions(id) ON DELETE CASCADE,
  header_data bytea NOT NULL
