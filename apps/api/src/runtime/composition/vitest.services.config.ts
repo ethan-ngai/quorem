@@ -4,7 +4,12 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       main: "../../deploy/hono/services/worker.js",
-      miniflare: { compatibilityDate: "2026-10-23", compatibilityFlags: ["nodejs_compat"] },
+      miniflare: {
+        compatibilityDate: "2026-10-23",
+        compatibilityFlags: ["nodejs_compat"],
+        durableObjects: { TEST_CASES: "CaseSandbox" },
+        bindings: { CASE_DIAGNOSTICS: "true" },
+      },
     }),
   ],
   test: { include: ["src/runtime/composition/services.workerd.test.ts"] },

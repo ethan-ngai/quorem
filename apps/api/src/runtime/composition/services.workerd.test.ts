@@ -1,4 +1,6 @@
+/// <reference types="@cloudflare/vitest-plugin/types" />
 import { expect, it } from "vitest";
+import { env as runtimeEnv } from "cloudflare:test";
 import worker from "../../../../../deploy/hono/services/worker.js";
 import { verifyCaseProbe } from "../../../../../deploy/case-proof.js";
 const secret = (value: string) => value.repeat(64);
@@ -136,6 +138,42 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       expectedNamespace: secret("1"),
     }),
   ).toEqual({ active: true, running: true, ordinal: 400, tokenHash: secret("2") });
+  const actualCases = (
+    runtimeEnv as unknown as {
+      TEST_CASES: {
+        idFromName(name: string): { toString(): string };
+        getByName(name: string): { fetch(request: Request): Promise<Response> };
+      };
+    }
+  ).TEST_CASES;
+  const actualNamespace = actualCases.idFromName("quorem-sandbox-namespace-v1").toString();
+  const actualScopeBytes = new TextEncoder().encode(
+    JSON.stringify([env.CASE_ORIGIN, actualNamespace, fingerprint]),
+  );
+  const actualScope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", actualScopeBytes)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  const actualEnv = { ...env, CASES: actualCases, QUOREM_CASE_NAMESPACE_ID: actualNamespace };
+  const actualNonce = crypto.randomUUID();
+  const actualProbe = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/real-idle`, {
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": actualNonce,
+        "x-quorem-owner-scope": actualScope,
+        "x-quorem-case-probe": "lifecycle",
+      },
+    }),
+    actualEnv,
+  );
+  expect(
+    await verifyCaseProbe(actualProbe, {
+      publicKey: keys.publicKey,
+      kind: "lifecycle",
+      scope: actualScope,
+      attempt: "real-idle",
+      nonce: actualNonce,
+      expectedNamespace: actualNamespace,
+    }),
+  ).toEqual({ active: false, running: false, ordinal: null, tokenHash: null });
   expect(forwarded?.headers.get("authorization")).toBeNull();
   expect(forwarded?.headers.get("cf-access-client-secret")).toBeNull();
   expect(
