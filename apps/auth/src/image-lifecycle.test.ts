@@ -95,3 +95,56 @@ for (const signal of ["SIGKILL", "SIGTERM"] as const) {
     }, 15000);
   });
 }
+
+describe("image supervisor loss", () => {
+  it("withholds termination proof when the supervisor dies before its child", async () => {
+    const listenerPort = await port();
+    const service = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("./image-service-main.ts", import.meta.url))],
+      {
+        env: { IMAGE_SERVICE_TOKEN: token, IMAGE_SERVICE_PORT: String(listenerPort) },
+        stdio: "ignore",
+      },
+    );
+    let sharpPid = 0,
+      supervisorPid = 0;
+    try {
+      const url = `http://127.0.0.1:${listenerPort}/`;
+      await until(() => {
+        try {
+          execFileSync("curl", ["--silent", "--max-time", "1", url], { stdio: "ignore" });
+          return true;
+        } catch {
+          return undefined;
+        }
+      });
+      const input = await sharp({
+        create: { width: 4000, height: 4000, channels: 3, background: "red" },
+      })
+        .png()
+        .toBuffer();
+      const pending = fetch(url, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "x-image-format": "png" },
+        body: input,
+      });
+      supervisorPid = await until(() => children(service.pid!)[0]);
+      sharpPid = await until(() => children(supervisorPid)[0]);
+      process.kill(sharpPid, "SIGSTOP");
+      process.kill(supervisorPid, "SIGKILL");
+      const response = await pending;
+      expect(response.status).toBe(503);
+      expect(response.headers.get("x-image-execution")).toBeNull();
+      expect(exists(sharpPid)).toBe(true);
+      await response.body?.cancel();
+    } finally {
+      if (sharpPid && exists(sharpPid)) {
+        process.kill(sharpPid, "SIGCONT");
+        process.kill(sharpPid, "SIGKILL");
+      }
+      if (supervisorPid && exists(supervisorPid)) process.kill(supervisorPid, "SIGKILL");
+      service.kill("SIGKILL");
+    }
+  }, 15000);
+});

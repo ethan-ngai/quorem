@@ -1,6 +1,11 @@
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import type { ImageFormat, ImageProcessingResult, ImageProcessor } from "../image-processing.ts";
+import {
+  ImageExecutionUncertain,
+  type ImageFormat,
+  type ImageProcessingResult,
+  type ImageProcessor,
+} from "../image-processing.ts";
 
 export function isolatedImageProcessor(timeoutMs = 10000): ImageProcessor {
   return {
@@ -22,6 +27,16 @@ export function isolatedImageProcessor(timeoutMs = 10000): ImageProcessor {
         const chunks: Buffer[] = [];
         let length = 0;
         let failed = false;
+        let terminated = false;
+        child.on("message", (message: unknown) => {
+          if (
+            message &&
+            typeof message === "object" &&
+            "kind" in message &&
+            message.kind === "image-child-terminated"
+          )
+            terminated = true;
+        });
         const stop = () => {
           failed = true;
           if (child.connected) child.send({ stop: true }, () => {});
@@ -41,6 +56,8 @@ export function isolatedImageProcessor(timeoutMs = 10000): ImageProcessor {
         child.on("close", (code) => {
           clearTimeout(timer);
           signal?.removeEventListener("abort", stop);
+          if (!terminated)
+            return reject(new ImageExecutionUncertain("Image child termination unconfirmed"));
           if (failed || code !== 0) return reject(new Error("Image execution failed"));
           try {
             const result = JSON.parse(Buffer.concat(chunks).toString()) as {

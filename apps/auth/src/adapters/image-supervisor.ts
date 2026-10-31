@@ -25,6 +25,10 @@ child.stdin!.on("error", () => {});
 child.stdout!.pipe(process.stdout);
 child.on("error", stop);
 child.on("close", (code) => {
-  if (process.connected) process.disconnect();
   process.exitCode = stopping ? 1 : (code ?? 1);
+  if (process.connected) {
+    process.send?.({ kind: "image-child-terminated" }, () => {
+      if (process.connected) process.disconnect();
+    });
+  }
 });

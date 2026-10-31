@@ -6,7 +6,7 @@ import {
 import { createServer as createHttpsServer } from "node:https";
 import { timingSafeEqual } from "node:crypto";
 import { isolatedImageProcessor } from "./adapters/isolated-image.ts";
-import type { ImageFormat } from "./image-processing.ts";
+import { ImageExecutionUncertain, type ImageFormat } from "./image-processing.ts";
 
 export function createImageService(options: {
   token: string;
@@ -69,15 +69,24 @@ export function createImageService(options: {
           format as ImageFormat,
           signal.signal,
         );
-      } finally {
+      } catch (error) {
+        if (error instanceof ImageExecutionUncertain) throw error;
         active--;
+        throw error;
       }
+      active--;
       const headers = { "x-image-execution": "terminated", "cache-control": "no-store" };
       if (result.kind === "processed")
         res.writeHead(200, { ...headers, "content-type": "image/webp" }).end(result.bytes);
       else res.writeHead(result.kind === "unsupported" ? 415 : 422, headers).end();
-    } catch {
-      if (!res.destroyed) res.writeHead(503, { "x-image-execution": "terminated" }).end();
+    } catch (error) {
+      if (!res.destroyed)
+        res
+          .writeHead(
+            503,
+            error instanceof ImageExecutionUncertain ? {} : { "x-image-execution": "terminated" },
+          )
+          .end();
     }
   };
   const server = options.tls
