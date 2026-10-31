@@ -22,7 +22,9 @@ it.skipIf(!url)(
     });
     const user = `grant-${crypto.randomUUID()}`,
       issuer = `issuer-${crypto.randomUUID()}`,
-      id = crypto.randomUUID();
+      id = crypto.randomUUID(),
+      oldHash = crypto.randomUUID(),
+      newHash = crypto.randomUUID();
     const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
       withNodeConnection(pool, { lifetimeMs: 5000 }, f);
     try {
@@ -33,8 +35,8 @@ it.skipIf(!url)(
         user,
       ]);
       await pool.query(
-        "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties) VALUES($1,$2,'old-hash',clock_timestamp()+interval '1 hour',30,'waiting',ARRAY['easy'])",
-        [id, user],
+        "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour',30,'waiting',ARRAY['easy'])",
+        [id, user, oldHash],
       );
       const readers: GrantReaders = {
         sessions: { check: async () => ({}) },
@@ -50,10 +52,10 @@ it.skipIf(!url)(
         sessionId: "session",
         expiresAt,
       };
-      const invite = { kind: "invite" as const, resourceId: id, hash: "old-hash", expiresAt };
+      const invite = { kind: "invite" as const, resourceId: id, hash: oldHash, expiresAt };
       expect((await reauthorizeGrant(managed, readers))?.userId).toBe(user);
       expect(await reauthorizeGrant(invite, readers)).toBeUndefined();
-      await pool.query("UPDATE matches SET invite_hash='new-hash' WHERE id=$1", [id]);
+      await pool.query("UPDATE matches SET invite_hash=$2 WHERE id=$1", [id, newHash]);
       await expect(reauthorizeGrant(invite, readers)).rejects.toMatchObject({
         kind: "unauthorized",
       });
@@ -61,9 +63,9 @@ it.skipIf(!url)(
       await expect(reauthorizeGrant(managed, readers)).rejects.toMatchObject({
         kind: "unauthorized",
       });
-      await expect(
-        reauthorizeGrant({ ...invite, hash: "new-hash" }, readers),
-      ).rejects.toMatchObject({ kind: "unauthorized" });
+      await expect(reauthorizeGrant({ ...invite, hash: newHash }, readers)).rejects.toMatchObject({
+        kind: "unauthorized",
+      });
     } finally {
       await pool.end();
     }
