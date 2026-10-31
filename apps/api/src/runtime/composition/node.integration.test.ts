@@ -63,6 +63,23 @@ it.skipIf(!url)(
       });
       expect(auth.status).toBe(200);
       const bearer = ((await auth.json()) as { token: string }).token;
+      const sessionResponse = await fetch(`${base}/v1/session`, {
+        headers: { authorization: `Bearer ${bearer}` },
+      });
+      expect(sessionResponse.status).toBe(200);
+      expect(await sessionResponse.json()).toMatchObject({
+        kind: "account",
+        mode: "managed",
+        user: { displayName: user },
+      });
+      const capabilities = await fetch(`${base}/v1/capabilities`, {
+        headers: { authorization: `Bearer ${bearer}` },
+      });
+      expect(capabilities.status).toBe(200);
+      expect(await capabilities.json()).toMatchObject({
+        interviewConcurrency: 1,
+        authorCustomQuestions: false,
+      });
       const catalog = await fetch(`${base}/v1/problems`);
       expect(catalog.status).toBe(200);
       expect(catalog.headers.get("x-request-id")).toBeTruthy();
