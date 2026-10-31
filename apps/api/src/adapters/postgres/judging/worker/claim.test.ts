@@ -346,6 +346,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       staging.chunk(live!, {
         channel: "public",
         ordinal: 0,
+        // @ts-expect-error Exercise the untrusted wire boundary.
         field: "expected",
         chunkOrdinal: 0,
         bytes: new TextEncoder().encode("987655"),
