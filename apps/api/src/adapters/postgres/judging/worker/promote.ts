@@ -202,6 +202,9 @@ export function postgresCompletionPromotion(run: Run) {
           sql`DELETE FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid`,
         );
         await tx.execute(
+          sql`DELETE FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid`,
+        );
+        await tx.execute(
           sql`UPDATE execution_jobs SET finished=true,lease_until=NULL WHERE id=${job.jobId}::uuid`,
         );
         if (initial.match) await reconcileMatch(tx, initial.match);

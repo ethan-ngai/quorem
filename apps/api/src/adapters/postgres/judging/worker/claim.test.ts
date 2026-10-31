@@ -176,6 +176,21 @@ describe.skipIf(!url)("runner claim fences", () => {
     };
     await staging.begin(live!, header);
     await staging.begin(live!, header);
+    const chunk = {
+      channel: "public" as const,
+      ordinal: 0,
+      field: "actual" as const,
+      chunkOrdinal: 0,
+      bytes: new TextEncoder().encode("123"),
+    };
+    await staging.chunk(live!, chunk);
+    await staging.chunk(live!, chunk);
+    await expect(
+      staging.chunk(live!, { ...chunk, bytes: new TextEncoder().encode("456") }),
+    ).rejects.toThrow("conflict");
+    await expect(staging.chunk(live!, { ...chunk, channel: "private" })).rejects.toThrow("channel");
+    await expect(staging.eof(live!, live!)).rejects.toThrow("Unsealed");
+    await pool.query("DELETE FROM execution_completion_field_chunks WHERE job_id=$1", [job]);
     await expect(staging.eof(live!, live!)).rejects.toThrow("Incomplete");
     const resultFrame = {
       channel: "public" as const,

@@ -8,6 +8,7 @@ export type {
   Completion,
   CompletionHeader,
   CompletionFrame,
+  CompletionFieldChunk,
   ExecutionSpec,
   Checkpoint,
   CheckpointCase,

@@ -75,6 +75,14 @@ export interface CompletionFrame {
   readonly ordinal: number;
   readonly raw: string;
 }
+/** A raw JSON field is transported independently in bounded byte chunks. */
+export interface CompletionFieldChunk {
+  readonly channel: "public" | "sample" | "private";
+  readonly ordinal: number;
+  readonly field: "actual" | "expected" | "stdout" | "stderr" | "diagnostics" | "sqlTypes";
+  readonly chunkOrdinal: number;
+  readonly bytes: Uint8Array;
+}
 /** Case payloads are raw JSON so precision and private values survive transport. */
 export interface ExecutionSpec {
   readonly problemJson: string;
