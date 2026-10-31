@@ -133,21 +133,24 @@ jobs:
           WRANGLER_SEND_METRICS: "false"
           CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_primitives_test?sslmode=disable
         run: |
-          vp -C apps/api exec wrangler dev --local --config ../../packages/database/wrangler.test.jsonc --ip 127.0.0.1 --port 58736 > /tmp/quorem-db-worker.log 2>&1 &
+          vp -C apps/api exec wrangler dev --local --config ../../packages/database/wrangler.test.jsonc --ip 127.0.0.1 --port 18136 > /tmp/quorem-db-worker.log 2>&1 &
           worker_pid=$!
           trap 'kill -TERM "$worker_pid" 2>/dev/null || true; wait "$worker_pid" || true' EXIT
           for attempt in $(seq 1 100); do
-            if curl -fsS http://127.0.0.1:58736/ > /dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:18136/ > /dev/null; then break; fi
             if ! kill -0 "$worker_pid" 2>/dev/null; then cat /tmp/quorem-db-worker.log; exit 1; fi
             sleep 0.1
           done
           vp -C packages/database run test:workers
       - name: Isolated auth fixture
-        run: docker exec "${{ job.services.postgres.id }}" createdb -U quorem quorem_hono_auth_native_test
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U quorem quorem_hono_auth_native_test
+          docker exec "${{ job.services.postgres.id }}" createdb -U quorem quorem_hono_profile_test
       - run: vp -C apps/auth run typecheck
       - run: vp -C apps/auth test
         env:
           AUTH_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_auth_native_test?sslmode=disable
+          PROFILE_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_profile_test?sslmode=disable
       - run: vp -C apps/web test
       - run: vp node --test scripts/marketing-dev.test.mjs
       - run: vp run build

@@ -1,0 +1,9 @@
+# 33: Language gateway
+
+Issue #375. The existing TypeScript gateway retains opt-in hosted Python and the browser-first defaults. It uses the existing API `/v1/session` as the managed identity and entitlement authority; it does not verify JWTs independently. The WebSocket selects only the `quorem` protocol, validates the configured origin, never sends bearer credentials to the engine, and distinguishes an authorization denial (403) from an unavailable authority (503). Live sessions recheck managed access every 15 seconds.
+
+Node hosts isolated Docker engines with the existing network, filesystem, CPU, memory, PID and user restrictions. Session capacity and pending upgrades are bounded, owner takeover waits for cleanup, and idle timeout defaults to five minutes. Shutdown waits for removal and process exit; failed cleanup keeps the owner reserved. Request nesting, allowed methods and paths, stdio framing, output UTF-8/JSON, partial EOF and input/output backpressure are bounded. Hosted languages other than Python are rejected, matching the Go gateway; other editor language assistance remains browser-local.
+
+Validation uses the actual Node gateway and local `quorem-language:local` Docker image. Language tests cover Python completion/hover/signatures/diagnostics, owner takeover, cleanup, abrupt disconnect, shutdown, session/idle caps, managed entitlement/revocation/outage and bounded framing. Process fixtures cover malformed engine EOF and bearer non-forwarding. Browser `languageIntegration.test.ts` exercises the CodeMirror client and real engine. Both suites use the same fixture owner and must run sequentially. No provider credentials are required.
+
+The deployment entry point, image, CI and Go retirement remain centrally owned; the existing Go gateway has not been removed. Managed fixtures use a local implementation of the API session response, not a deployed identity service. Hosted identity and production deployment remain integration gates.

@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@jsquash/jpeg": "1.6.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
+  }
+}
