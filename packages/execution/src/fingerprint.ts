@@ -101,7 +101,7 @@ function goCall(raw: string): string {
     throw new Error("invalid method");
   if (c.args !== undefined && c.args !== null && !Array.isArray(c.args))
     throw new Error("invalid args");
-  return `{\"methodName\":${stringifyLosslessJson(c.methodName ?? "")},\"args\":${fields.has("args") ? rawJSON(fields.get("args")!) : "null"}${fields.has("expected") ? `,\"expected\":${rawJSON(fields.get("expected")!)}` : ""}}`;
+  return `{"methodName":${stringifyLosslessJson(c.methodName ?? "")},"args":${fields.has("args") ? rawJSON(fields.get("args")!) : "null"}${fields.has("expected") ? `,"expected":${rawJSON(fields.get("expected")!)}` : ""}}`;
 }
 function goCase(raw: string): string {
   const c = object(parseLosslessJson(raw)),
@@ -112,7 +112,7 @@ function goCase(raw: string): string {
     throw new Error("invalid calls");
   const calls =
     Array.isArray(c.calls) && c.calls.length ? elements(fields.get("calls")!).map(goCall) : [];
-  return `{${calls.length ? `\"calls\":[${calls.join(",")}],` : ""}\"args\":${fields.has("args") ? rawJSON(fields.get("args")!) : "null"}${fields.has("expected") ? `,\"expected\":${rawJSON(fields.get("expected")!)}` : ""}}`;
+  return `{${calls.length ? `"calls":[${calls.join(",")}],` : ""}"args":${fields.has("args") ? rawJSON(fields.get("args")!) : "null"}${fields.has("expected") ? `,"expected":${rawJSON(fields.get("expected")!)}` : ""}}`;
 }
 /** Canonical bytes match json.Marshal(judging.Command) after its JSON decoder. */
 export function canonicalWorkspaceCommand(raw: string): string {
@@ -135,7 +135,7 @@ export function canonicalWorkspaceCommand(raw: string): string {
     Array.isArray(c.customCases) && c.customCases.length
       ? elements(fields.get("customCases")!).map(goCase)
       : [];
-  return `{${normalized ? `\"level\":${normalized},` : ""}\"workspaceId\":${stringifyLosslessJson(workspaceId)},\"kind\":${stringifyLosslessJson(kind)},\"source\":${stringifyLosslessJson(source)}${cases.length ? `,\"customCases\":[${cases.join(",")}]` : ""}}`;
+  return `{${normalized ? `"level":${normalized},` : ""}"workspaceId":${stringifyLosslessJson(workspaceId)},"kind":${stringifyLosslessJson(kind)},"source":${stringifyLosslessJson(source)}${cases.length ? `,"customCases":[${cases.join(",")}]` : ""}}`;
 }
 export async function workspaceCommandFingerprint(raw: string): Promise<string> {
   const data = await crypto.subtle.digest(

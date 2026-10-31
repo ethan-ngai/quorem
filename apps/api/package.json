@@ -18,6 +18,7 @@
     "@aws-sdk/client-sqs": "3.1150.0",
     "@hono/node-server": "2.1.5",
     "@quorem/database": "workspace:*",
+    "@quorem/execution": "workspace:*",
     "@quorem/questions": "workspace:*",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.14",
