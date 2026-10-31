@@ -1,4 +1,6 @@
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { expect, it } from "vitest";
+import { sql } from "drizzle-orm";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { storageProjection } from "../../problems/storage.ts";
 import {
@@ -7,15 +9,10 @@ import {
 } from "../runner-inputs/legacy-backfill.ts";
 import { interviewSnapshotStream } from "./stream.ts";
 const url = process.env.QUOREM_INTERVIEW_INPUTS_TEST_URL;
+if (url) assertRunnerFixture(url, ["/quorem_hono_interview_inputs_test"]);
 it.skipIf(!url)(
   "normalizes active legacy inputs losslessly and retries without changing fixture identity",
   async () => {
-    const db = new URL(url!);
-    expect([db.hostname, db.port, db.pathname]).toEqual([
-      "127.0.0.1",
-      "55571",
-      "/quorem_hono_interview_inputs_test",
-    ]);
     const pool = createNodePool({
       connectionString: url!,
       max: 4,
@@ -274,7 +271,7 @@ it.skipIf(!url)(
 );
 
 it.skipIf(!url)("restores staged legacy cases with cumulative refs and manual unlock", async () => {
-  const { fixtureCaseRefs } = await import("../../judging/inputs/bind.ts");
+  const { fixtureRows } = await import("../../judging/inputs/bind.ts");
   const { interviewQuestionCommands } = await import("./commands.ts");
   const pool = createNodePool({
     connectionString: url!,
@@ -396,13 +393,16 @@ it.skipIf(!url)("restores staged legacy cases with cumulative refs and manual un
       scope.transaction(
         { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
         async (tx) => ({
-          examples: await fixtureCaseRefs(tx, { session: id, fixture: fid }, "example", 2),
-          hidden: await fixtureCaseRefs(tx, { session: id, fixture: fid }, "hidden", 2),
+          rows: (
+            await tx.execute<{ stage: number; channel: string }>(
+              sql`SELECT stage,channel FROM (${fixtureRows({ session: id, fixture: fid }, 2)}) c ORDER BY stage,ordinal`,
+            )
+          ).rows,
         }),
       ),
     );
-    expect(refs.examples.map((r) => r.stage)).toEqual([1, 2]);
-    expect(refs.hidden.map((r) => r.stage)).toEqual([1, 2]);
+    expect(refs.rows.filter((r) => r.channel === "example").map((r) => r.stage)).toEqual([1, 2]);
+    expect(refs.rows.filter((r) => r.channel === "hidden").map((r) => r.stage)).toEqual([1, 2]);
     const read = interviewSnapshotStream(run),
       before = JSON.parse(await new Response(await read(viewer, id)).text());
     expect(before.question.problem.odyssey.levels).toHaveLength(1);

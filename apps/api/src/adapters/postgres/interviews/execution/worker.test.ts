@@ -14,11 +14,14 @@ import { postgresInterviewAdmission } from "./repository.ts";
 const url = (env as unknown as { INTERVIEW_EXECUTION_URL: string }).INTERVIEW_EXECUTION_URL;
 it("admits and replays through workerd and real PostgreSQL", async () => {
   const db = new URL(url);
-  expect([db.hostname, db.port, db.pathname]).toEqual([
-    "127.0.0.1",
-    "55470",
-    "/quorem_hono_interview_execution_test",
-  ]);
+  expect(["postgres:", "postgresql:"]).toContain(db.protocol);
+  expect(["127.0.0.1", "localhost", "[::1]"]).toContain(db.hostname);
+  expect(db.pathname).toBe("/quorem_hono_interview_execution_test");
+  expect(
+    [...db.searchParams.keys()].some((key) =>
+      ["host", "hostaddr", "service"].includes(key.toLowerCase()),
+    ),
+  ).toBe(false);
   const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 3000, lifetimeMs: 10000 }, fn);
   const user = `worker-exec-${crypto.randomUUID()}`;

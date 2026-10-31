@@ -8,14 +8,15 @@ import { join } from "node:path";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import {
-  checkpointProvenance,
-  encodeCheckpointFrame,
-  decodeCheckpointFrame,
+  manifestCheckpointProvenance,
+  encodeManifestCheckpointFrame,
+  decodeManifestCheckpointFrame,
   compressCheckpointFrame,
   decompressCheckpointFrame,
   type JudgeFrame,
 } from "@quorem/execution";
 import { postgresExecutionCommands } from "./repository.ts";
+import { localVerifier, sealFixture } from "./manifest-fixture.ts";
 import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
 import { executeAndStage } from "../../../../../../runner/src/engine/execute.ts";
 import {
@@ -36,11 +37,8 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
   });
   const run = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
     withNodeConnection(pool, { lifetimeMs: 10000 }, fn);
-  const port = postgresExecutionCommands(run, {
-    resumable: true,
-    losslessCases: true,
-    losslessResults: true,
-  });
+  let port: ReturnType<typeof postgresExecutionCommands>;
+  let verifier: Awaited<ReturnType<typeof localVerifier>>;
   const id = crypto.randomUUID(),
     user = `engine-${id}`,
     problem = crypto.randomUUID(),
@@ -50,6 +48,12 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
     jobId = crypto.randomUUID();
   beforeAll(async () => {
     stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-engine-pg-fence-")));
+    verifier = await localVerifier(run);
+    port = postgresExecutionCommands(
+      run,
+      { inputProtocol: "manifest-v1", resumable: true, losslessCases: true, losslessResults: true },
+      verifier.verification,
+    );
     await migrate(
       pool,
       "product",
@@ -95,6 +99,10 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
       [jobId, submission],
     );
+    await sealFixture(run, version, jobId, [
+      { args: [], expected: 7 },
+      { args: [], expected: 7 },
+    ]);
   }, 30000);
   afterAll(async () => {
     await pool.query("DELETE FROM execution_jobs WHERE id=$1", [jobId]);
@@ -103,6 +111,7 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
     await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=$1", [user]);
+    await verifier.close();
     await pool.end();
     await rm(stateRoot, { recursive: true, force: true });
   });
@@ -131,10 +140,13 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
         [jobId],
       )
     ).rows[0].frame as Uint8Array;
-    const decoded = decodeCheckpointFrame(
+    const decoded = decodeManifestCheckpointFrame(
       new TextDecoder().decode(await decompressCheckpointFrame(stored)),
     );
-    const forged = encodeCheckpointFrame({ ...decoded.frame, actual: "9" }, decoded.provenance);
+    const forged = encodeManifestCheckpointFrame(
+      { ...decoded.frame, actual: "9" },
+      decoded.provenance,
+    );
     await pool.query(
       "UPDATE execution_checkpoint_cases SET frame=$2 WHERE job_id=$1 AND ordinal=0",
       [jobId, await compressCheckpointFrame(new TextEncoder().encode(forged))],
@@ -148,12 +160,14 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
     const next = await port.claimAfterTeardown(true, sandbox.scope, null);
     expect(next?.jobId).toBe(jobId);
     expect(next!.attemptId).not.toBe(first!.attemptId);
-    const spec = await port.load(next!),
+    const manifest = await port.inputManifest(next!),
+      ref = await port.inputCaseRef(next!, 1),
       frame: JudgeFrame = { status: "executed", actual: "7", stdout: "", stderr: "", line: 0 },
       metadata = { compilationNanos: 0n };
-    const wrong = await checkpointProvenance(
+    const wrong = await manifestCheckpointProvenance(
       next!,
-      { ...spec, source: spec.source + " " },
+      { ...manifest, source: { ...manifest.source, hash: "0".repeat(64) } },
+      ref,
       1,
       next!,
       metadata,
@@ -162,24 +176,35 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
     await expect(
       port.saveCheckpoint(next!, {
         ordinal: 1,
-        frame: encodeCheckpointFrame(frame, wrong),
+        frame: encodeManifestCheckpointFrame(frame, wrong),
         ...metadata,
       }),
     ).rejects.toThrow("provenance");
-    const oldAttempt = await checkpointProvenance(next!, spec, 1, first!, metadata, frame);
+    const oldAttempt = await manifestCheckpointProvenance(
+      next!,
+      manifest,
+      ref,
+      1,
+      first!,
+      metadata,
+      frame,
+    );
     await expect(
       port.saveCheckpoint(next!, {
         ordinal: 1,
-        frame: encodeCheckpointFrame(frame, oldAttempt),
+        frame: encodeManifestCheckpointFrame(frame, oldAttempt),
         ...metadata,
       }),
     ).rejects.toThrow("fence");
-    await expect(port.load({ ...next!, sourceRef: "forged" })).rejects.toThrow();
-    await expect(port.load({ ...next!, runtimeRevision: "python-forged" })).rejects.toThrow();
-    await expect(port.load({ ...next!, sandboxScope: "other" })).rejects.toThrow();
-    const caseChanged = await checkpointProvenance(
+    await expect(port.inputManifest({ ...next!, sourceRef: "forged" })).rejects.toThrow();
+    await expect(
+      port.inputManifest({ ...next!, runtimeRevision: "python-forged" }),
+    ).rejects.toThrow();
+    await expect(port.inputManifest({ ...next!, sandboxScope: "other" })).rejects.toThrow();
+    const caseChanged = await manifestCheckpointProvenance(
       next!,
-      { ...spec, cases: [spec.cases[0], '{"args":[],"expected":8}'] },
+      manifest,
+      { ...ref, hash: "0".repeat(64) },
       1,
       next!,
       metadata,
@@ -188,7 +213,7 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
     await expect(
       port.saveCheckpoint(next!, {
         ordinal: 1,
-        frame: encodeCheckpointFrame(frame, caseChanged),
+        frame: encodeManifestCheckpointFrame(frame, caseChanged),
         ...metadata,
       }),
     ).rejects.toThrow("provenance");
@@ -201,13 +226,20 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       },
     };
     const header = await executeAndStage(next!, port, observed);
-    expect(header.verdict).toBe("accepted");
+    expect(header.engineFailure).toBe(false);
     expect(runs).toBe(1);
     await finishAfterTeardown(port, sandbox, next!);
     const row = (await pool.query("SELECT state,result FROM submissions WHERE id=$1", [submission]))
       .rows[0];
     expect(row.state).toBe("completed");
-    expect(row.result.publicCases).toHaveLength(2);
+    expect(row.result.verdict).toBe("accepted");
+    expect(
+      (
+        await pool.query("SELECT 1 FROM submission_public_result_cases WHERE submission_id=$1", [
+          submission,
+        ])
+      ).rowCount,
+    ).toBe(2);
   }, 90000);
   it("reuses a database-persisted compiled artifact only after bound-prefix validation", async () => {
     const submissionId = crypto.randomUUID(),
@@ -239,6 +271,10 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
         "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'typescript','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1')",
         [executionId, submissionId],
       );
+      await sealFixture(run, version, executionId, [
+        { args: [], expected: 7 },
+        { args: [], expected: 7 },
+      ]);
       const sandbox = await dockerSandbox({
           socket: socket!,
           stateRoot,
@@ -283,11 +319,13 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       const observed = {
         ...sandbox,
         runCase: async (...args: Parameters<typeof sandbox.runCase>) => {
-          operation = JSON.parse(new TextDecoder().decode(args[0].input)).operation;
+          const chunks: Uint8Array[] = [];
+          for await (const chunk of args[0].input.open()) chunks.push(chunk);
+          operation = JSON.parse(Buffer.concat(chunks).toString("utf8")).operation;
           return sandbox.runCase(...args);
         },
       };
-      expect((await executeAndStage(next!, port, observed)).verdict).toBe("accepted");
+      expect((await executeAndStage(next!, port, observed)).engineFailure).toBe(false);
       expect(operation).toBe("execute");
       await finishAfterTeardown(port, sandbox, next!);
     } finally {

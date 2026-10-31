@@ -1,3 +1,4 @@
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { describe, expect, it } from "vitest";
 import { parseLosslessJson } from "@quorem/questions";
 import { interviewQuestionOperationFingerprint } from "../../../../modules/interviews/question/fingerprint.ts";
@@ -14,6 +15,11 @@ import { questionAuthoring } from "../../problems/authoring/repository.ts";
 import { languageRuntime } from "@quorem/execution";
 import { interviewQuestionCommands } from "./commands.ts";
 const url = process.env.QUOREM_INTERVIEW_QUESTIONS_TEST_URL;
+if (url)
+  assertRunnerFixture(url, [
+    "/quorem_hono_interview_questions_test",
+    "/quorem_hono_29c_commands_test",
+  ]);
 const actor = (userId: string): LocalPrincipal => ({
   kind: "local",
   userId,
@@ -25,12 +31,6 @@ const actor = (userId: string): LocalPrincipal => ({
 });
 describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
   it("fences question, document, disclosure and host stage transitions", async () => {
-    const db = new URL(url!);
-    expect(db.hostname).toBe("127.0.0.1");
-    expect([
-      "55466:/quorem_hono_interview_questions_test",
-      "55681:/quorem_hono_29c_commands_test",
-    ]).toContain(`${db.port}:${db.pathname}`);
     const pool = createNodePool({
       connectionString: url!,
       max: 8,

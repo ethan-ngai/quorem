@@ -1,3 +1,4 @@
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { expect, it } from "vitest";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { sourceHash } from "@quorem/execution";
@@ -12,7 +13,9 @@ import { submissionSnapshots } from "../../judging/results/repository.ts";
 import { interviewExecutionFingerprint } from "./fingerprint.ts";
 import { postgresInterviewAdmission } from "./repository.ts";
 import { saveInterviewFixture } from "./fixture.ts";
+import { localVerifier } from "../../judging/worker/manifest-fixture.ts";
 const url = process.env.QUOREM_INTERVIEW_EXECUTION_TEST_URL;
+if (url) assertRunnerFixture(url, ["/quorem_hono_interview_execution_test"]);
 const actor = (userId: string): LocalPrincipal => ({
   kind: "local",
   userId,
@@ -29,12 +32,6 @@ it("matches Go raw case fingerprint", async () => {
   ).toBe("8c6efde0b616be2f3d8e66148ab33aa17e805884a397ee46d19651566bbc1c4e");
 });
 it.skipIf(!url)("atomically admits locked source and replays after edits", async () => {
-  const db = new URL(url!);
-  expect([db.hostname, db.port, db.pathname]).toEqual([
-    "127.0.0.1",
-    "55470",
-    "/quorem_hono_interview_execution_test",
-  ]);
   const pool = createNodePool({
       connectionString: url!,
       max: 8,
@@ -161,6 +158,7 @@ it.skipIf(!url)("atomically admits locked source and replays after edits", async
 });
 
 it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage", async () => {
+  let verifier: Awaited<ReturnType<typeof localVerifier>> | undefined;
   const pool = createNodePool({
       connectionString: url!,
       max: 8,
@@ -261,13 +259,15 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       { postgresCompletionStaging } = await import("../../judging/worker/staging.ts"),
       { postgresCompletionPromotion } = await import("../../judging/worker/promote.ts");
     const claims = postgresClaims(run, {
+        inputProtocol: "manifest-v1",
         resumable: true,
         losslessCases: true,
         losslessResults: true,
       }),
       job = await claims.claimAfterTeardown(true, "stage-sandbox", null);
     expect(job?.submissionId).toBe(submission.id);
-    const staging = postgresCompletionStaging(run);
+    verifier = await localVerifier(run);
+    const staging = postgresCompletionStaging(run, verifier.verification);
     await staging.begin(job!, {
       submissionId: submission.id,
       attemptId: job!.attemptId,
@@ -401,6 +401,7 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       ).id,
     ).toBe(submission.id);
   } finally {
+    await verifier?.close();
     await pool.end();
   }
 });

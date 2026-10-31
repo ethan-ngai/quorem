@@ -13,11 +13,14 @@ const url = (env as unknown as { INTERVIEW_QUESTIONS_URL: string }).INTERVIEW_QU
 describe("workerd interview question commands", () => {
   it("uses actual PostgreSQL identity and authorized HTTP question controls", async () => {
     const parsed = new URL(url);
-    expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-      "127.0.0.1",
-      "55466",
-      "/quorem_hono_interview_questions_test",
-    ]);
+    expect(["postgres:", "postgresql:"]).toContain(parsed.protocol);
+    expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
+    expect(parsed.pathname).toBe("/quorem_hono_interview_questions_test");
+    expect(
+      [...parsed.searchParams.keys()].some((key) =>
+        ["host", "hostaddr", "service"].includes(key.toLowerCase()),
+      ),
+    ).toBe(false);
     const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
       withWorkerConnection(url, { connectionTimeoutMs: 3000, lifetimeMs: 10000 }, fn);
     const user = `worker-${crypto.randomUUID()}`;

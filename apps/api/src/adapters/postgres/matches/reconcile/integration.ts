@@ -10,14 +10,20 @@ import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
 import { postgresWorkspaceAdmission } from "../../judging/admission/repository.ts";
 import { indexRunnerFixture } from "../../judging/inputs/fixture.ts";
+import { postgresExecutionCommands } from "../../judging/worker/repository.ts";
+import { localVerifier } from "../../judging/worker/manifest-fixture.ts";
+import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
+import { executeAndStage } from "../../../../../../runner/src/engine/execute.ts";
+import { finishAfterTeardown } from "../../../../../../runner/src/queue/finish.ts";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { defaultLimits } from "@quorem/execution";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
+import type { Principal } from "../../../../modules/identity/model.ts";
 const url = process.env.QUOREM_MATCH_TEST_DATABASE_URL;
-if (
-  !url ||
-  new URL(url).port !== "55572" ||
-  new URL(url).pathname !== "/quorem_hono_manifest_reconcile_test" ||
-  !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
-)
-  throw new Error("Disposable match database required");
+if (!url) throw new Error("Disposable match database required");
+assertRunnerFixture(url, ["/quorem_hono_match_manifest_test"]);
 const pool = createNodePool({
   connectionString: url,
   max: 8,
@@ -44,7 +50,7 @@ before(async () => {
   await migrate(pool, "product", resolve("../../apps/api/migrations"));
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,'match-policy')", [problem]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'T','easy','',$3::jsonb,'[]','{}','test')",
+    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'T','easy','',$3::jsonb,'[]',$4::jsonb,'test')",
     [
       version,
       problem,
@@ -54,6 +60,7 @@ before(async () => {
         parameters: [{ name: "x", type: "int" }],
         returnType: "int",
       }),
+      JSON.stringify(defaultLimits()),
     ],
   );
   await pool.query(
@@ -74,7 +81,7 @@ before(async () => {
               returnType: "int",
             },
             constraints: [],
-            limits: {},
+            limits: defaultLimits(),
             examples: [{ args: [1], expected: 2 }],
           },
           hiddenCases: [{ args: [3], expected: 4 }],
@@ -181,6 +188,220 @@ void test("actual match admission seals its manifest before reconciliation", asy
   await call(r.id);
   const match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
   assert.equal(match.outcome, null, "unverified result cannot determine match outcome");
+});
+for (const [verdict, source] of [
+  ["accepted", "class Solution:\n def f(self,x): return x+1"],
+  ["wrong_answer", "class Solution:\n def f(self,x): return 9"],
+  ["syntax_error", "class Solution:\n def f(: pass"],
+  ["runtime_error", "class Solution:\n def f(self,x): raise ValueError()"],
+  ["time_limit", "class Solution:\n def f(self,x):\n  while True: pass"],
+] as const)
+  void test(`admitted match submit reaches verified ${verdict}`, async () => {
+    const socket = process.env.QUOREM_TEST_DOCKER_SOCKET;
+    if (!socket) throw new Error("Disposable Docker socket required for verified match regression");
+    const r = await room(),
+      key = crypto.randomUUID();
+    const fence = { receiptId: crypto.randomUUID(), jobId: crypto.randomUUID(), shard: 0 };
+    await prearmReceipts(run, "execution").create(fence.receiptId, 0);
+    const command = await parseWorkspaceCommand(
+      JSON.stringify({
+        workspaceId: r.wa,
+        kind: "submit",
+        source,
+      }),
+      key,
+    );
+    const admission = await postgresWorkspaceAdmission(run, {
+      losslessCases: true,
+      guestExecution: true,
+    })(
+      {
+        kind: "local",
+        userId: r.a,
+        displayName: "A",
+        admin: false,
+        emailVerified: true,
+        sessionId: "fixture",
+        strongUntil: 0,
+      },
+      key,
+      command,
+      fence,
+    );
+    const verifier = await localVerifier(run);
+    const stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-match-verified-")));
+    try {
+      const port = postgresExecutionCommands(
+        run,
+        {
+          inputProtocol: "manifest-v1",
+          resumable: true,
+          losslessCases: true,
+          losslessResults: true,
+        },
+        verifier.verification,
+      );
+      const sandbox = await dockerSandbox({
+        socket,
+        stateRoot,
+        namespace: "match-verified",
+        cleanupMs: 10000,
+      });
+      const job = await port.claimAfterTeardown(true, sandbox.scope, null);
+      assert.equal(job?.jobId, fence.jobId);
+      await executeAndStage(job!, port, sandbox);
+      await finishAfterTeardown(port, sandbox, job!);
+      const submission = (
+        await pool.query("SELECT state,result FROM submissions WHERE id=$1", [admission.id])
+      ).rows[0];
+      assert.equal(submission.state, "completed");
+      assert.equal(submission.result.verdict, verdict);
+      const match = (await pool.query("SELECT state,outcome FROM matches WHERE id=$1", [r.id]))
+        .rows[0];
+      if (verdict === "accepted") {
+        assert.equal(match.state, "completed");
+        assert.equal(match.outcome.reason, "first_correct");
+        assert.equal(
+          match.outcome.winnerUserId,
+          (await pool.query("SELECT participant_id::text FROM users WHERE id=$1", [r.a])).rows[0]
+            .participant_id,
+        );
+      } else {
+        assert.equal(match.outcome, null);
+        await pool.query(
+          "UPDATE matches SET deadline=clock_timestamp()-interval '1 second' WHERE id=$1",
+          [r.id],
+        );
+        await call(r.id);
+        const final = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
+        assert.equal(final.outcome.kind, "draw");
+      }
+    } finally {
+      await verifier.close();
+      await rm(stateRoot, { recursive: true, force: true });
+    }
+  });
+void test("verified early failure permits guest winner and late completion cannot overturn it", async () => {
+  const socket = process.env.QUOREM_TEST_DOCKER_SOCKET;
+  if (!socket) throw new Error("Disposable Docker socket required");
+  const r = await room(),
+    verifier = await localVerifier(run);
+  const stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-match-race-")));
+  try {
+    const admit = postgresWorkspaceAdmission(run, { losslessCases: true, guestExecution: true });
+    const start = async (guest: boolean) => {
+      const key = crypto.randomUUID(),
+        fence = { receiptId: crypto.randomUUID(), jobId: crypto.randomUUID(), shard: 0 };
+      await prearmReceipts(run, "execution").create(fence.receiptId, 0);
+      const command = await parseWorkspaceCommand(
+        JSON.stringify({
+          workspaceId: guest ? r.wb : r.wa,
+          kind: "submit",
+          source: guest
+            ? "class Solution:\n def f(self,x): return x+1"
+            : "class Solution:\n def f(self,x): return 9",
+        }),
+        key,
+      );
+      const principal: Principal = guest
+        ? {
+            kind: "guest" as const,
+            userId: r.b,
+            displayName: "B",
+            admin: false,
+            emailVerified: false,
+            sessionId: `token-${r.id}`,
+            strongUntil: 0,
+            credentialExpiresAt: 9999999999,
+            scope: { kind: "match" as const, matchId: r.id },
+          }
+        : {
+            kind: "local" as const,
+            userId: r.a,
+            displayName: "A",
+            admin: false,
+            emailVerified: true,
+            sessionId: "fixture",
+            strongUntil: 0,
+          };
+      const result = await admit(principal, key, command, fence);
+      return { fence, result };
+    };
+    const first = await start(false),
+      second = await start(true);
+    const port = postgresExecutionCommands(
+      run,
+      { inputProtocol: "manifest-v1", resumable: true, losslessCases: true, losslessResults: true },
+      verifier.verification,
+    );
+    const sandboxA = await dockerSandbox({
+      socket,
+      stateRoot,
+      namespace: "match-first",
+      cleanupMs: 10000,
+    });
+    const sandboxB = await dockerSandbox({
+      socket,
+      stateRoot,
+      namespace: "match-second",
+      cleanupMs: 10000,
+    });
+    const jobA = await port.claimAfterTeardown(true, sandboxA.scope, null);
+    assert.equal(jobA?.jobId, first.fence.jobId);
+    let release!: () => void,
+      reached!: () => void,
+      calls = 0;
+    const pause = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const secondCase = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const suspended = {
+      ...sandboxA,
+      runCase: async (...args: Parameters<typeof sandboxA.runCase>) => {
+        if (++calls === 2) {
+          reached();
+          await pause;
+        }
+        return sandboxA.runCase(...args);
+      },
+    };
+    const pending = executeAndStage(jobA!, port, suspended);
+    await secondCase;
+    const verified = (
+      await pool.query(
+        "SELECT status FROM execution_verified_cases WHERE job_id=$1 ORDER BY ordinal",
+        [jobA!.jobId],
+      )
+    ).rows;
+    assert.equal(verified[0].status, "wrong_answer");
+    const jobB = await port.claimAfterTeardown(true, sandboxB.scope, null);
+    assert.equal(jobB?.jobId, second.fence.jobId);
+    await executeAndStage(jobB!, port, sandboxB);
+    await finishAfterTeardown(port, sandboxB, jobB!);
+    let match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
+    assert.equal(match.outcome.reason, "first_correct");
+    const winner = (await pool.query("SELECT participant_id::text FROM users WHERE id=$1", [r.b]))
+      .rows[0].participant_id;
+    assert.equal(match.outcome.winnerUserId, winner);
+    const usage = (
+      await pool.query(
+        "SELECT settled_at,charged_seconds FROM guest_execution_usage WHERE submission_id=$1",
+        [second.result.id],
+      )
+    ).rows[0];
+    assert.ok(usage.settled_at);
+    assert.ok(usage.charged_seconds >= 0);
+    release();
+    await pending;
+    await finishAfterTeardown(port, sandboxA, jobA!);
+    match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
+    assert.equal(match.outcome.winnerUserId, winner);
+  } finally {
+    await verifier.close();
+    await rm(stateRoot, { recursive: true, force: true });
+  }
 });
 void test("expired invitation finishes once, releases reservations and emits safe versioned notice", async () => {
   const r = await room(false);

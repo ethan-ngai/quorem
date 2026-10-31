@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import { postgresClaims } from "./claim.ts";
+import { localVerifier, sealFixture } from "./manifest-fixture.ts";
 import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
 import type { Completion, Job } from "@quorem/execution";
@@ -22,25 +23,37 @@ describe.skipIf(!url)("guest execution metering", () => {
   });
   const run = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
     withNodeConnection(pool, { lifetimeMs: 10000 }, fn);
+  let verifier: Awaited<ReturnType<typeof localVerifier>>;
   const claims = postgresClaims(run, {
+      inputProtocol: "manifest-v1",
       resumable: true,
       losslessCases: true,
       losslessResults: true,
     }),
-    staging = postgresCompletionStaging(run),
     promote = postgresCompletionPromotion(run);
   const complete = async (job: Job, value: Completion) => {
+    const staging = postgresCompletionStaging(run, verifier.verification);
     await staging.begin(job, {
       ...value,
       engineFailure: !!value.engineFailure,
       diagnosticsPresent: false,
-      publicPresent: !!value.publicCaseResults,
+      publicPresent: !value.engineFailure,
       samplePresent: false,
       privatePresent: false,
-      publicCount: value.publicCaseResults?.length ?? 0,
+      publicCount: value.engineFailure ? 0 : 1,
       sampleCount: 0,
       privateCount: 0,
     });
+    if (!value.engineFailure) {
+      await staging.chunk(job, {
+        channel: "public",
+        ordinal: 0,
+        field: "actual",
+        chunkOrdinal: 0,
+        bytes: new TextEncoder().encode("2"),
+      });
+      await staging.seal(job, "public", 0, "executed");
+    }
     await staging.eof(job, job);
     await promote(job, job);
   };
@@ -59,6 +72,7 @@ describe.skipIf(!url)("guest execution metering", () => {
       "product",
       fileURLToPath(new URL("../../../../../migrations/", import.meta.url)),
     );
+    verifier = await localVerifier(run);
     await pool.query(
       "INSERT INTO users(id,display_name,kind) VALUES($1,'Host','account'),($2,'Guest','guest')",
       [host, guest],
@@ -103,6 +117,7 @@ describe.skipIf(!url)("guest execution metering", () => {
       "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
       [job, submission],
     );
+    await sealFixture(run, version, job, [{ args: [], expected: 2 }]);
     await pool.query(
       "INSERT INTO guest_execution_usage(submission_id,match_id,sponsor_id) VALUES($1,$2,$3)",
       [submission, match, host],
@@ -121,6 +136,7 @@ describe.skipIf(!url)("guest execution metering", () => {
     await pool.query("DELETE FROM problem_languages WHERE version_id=$1", [version]);
     await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
+    await verifier.close();
     await pool.end();
   });
   it("retains the reservation across a retry and settles cumulative attempt usage once", async () => {
