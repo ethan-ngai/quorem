@@ -79,6 +79,28 @@ export const execution_jobs = pgTable(
   ],
 );
 
+export const execution_attempt_inventory = pgTable(
+  "execution_attempt_inventory",
+  {
+    attempt_id: uuid().primaryKey().notNull(),
+    job_id: uuid().notNull(),
+    sandbox_scope: text().notNull(),
+    claimed_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+  },
+  (table) => [
+    index("execution_attempt_inventory_scope_attempt_idx").on(
+      table.sandbox_scope,
+      table.attempt_id,
+    ),
+    check(
+      "execution_attempt_inventory_sandbox_scope_check",
+      sql`octet_length(sandbox_scope) BETWEEN 1 AND 256`,
+    ),
+  ],
+);
+
 export const entitlement_grants = pgTable(
   "entitlement_grants",
   {
@@ -841,18 +863,12 @@ export const execution_checkpoints = pgTable(
       foreignColumns: [execution_jobs.id],
       name: "execution_checkpoints_job_id_fkey",
     }).onDelete("cascade"),
-    check(
-      "execution_checkpoints_next_ordinal_check",
-      sql`(next_ordinal >= 0) AND (next_ordinal <= 320)`,
-    ),
+    check("execution_checkpoints_next_ordinal_check", sql`next_ordinal >= 0`),
     check(
       "execution_checkpoints_compilation_nanos_check",
       sql`(compilation_nanos >= 0) AND (compilation_nanos <= '120000000000'::bigint)`,
     ),
-    check(
-      "execution_checkpoints_definite_failures_check",
-      sql`(definite_failures >= 0) AND (definite_failures <= 320)`,
-    ),
+    check("execution_checkpoints_definite_failures_check", sql`definite_failures >= 0`),
   ],
 );
 
@@ -1228,7 +1244,7 @@ export const execution_checkpoint_cases = pgTable(
       name: "execution_checkpoint_cases_job_id_fkey",
     }).onDelete("cascade"),
     primaryKey({ columns: [table.job_id, table.ordinal], name: "execution_checkpoint_cases_pkey" }),
-    check("execution_checkpoint_cases_ordinal_check", sql`(ordinal >= 0) AND (ordinal <= 319)`),
+    check("execution_checkpoint_cases_ordinal_check", sql`ordinal >= 0 AND ordinal < 2147483647`),
   ],
 );
 
@@ -1866,7 +1882,7 @@ export const execution_completion_frames = pgTable(
       "execution_completion_frames_channel_check",
       sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text])`,
     ),
-    check("execution_completion_frames_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check("execution_completion_frames_ordinal_check", sql`ordinal >= 0 AND ordinal < 2147483647`),
     check("execution_completion_frames_frame_hash_check", sql`octet_length(frame_hash) = 32`),
   ],
 );
@@ -1906,7 +1922,99 @@ export const submission_public_result_cases = pgTable(
       "submission_public_result_cases_channel_check",
       sql`channel = ANY (ARRAY['public'::text, 'sample'::text])`,
     ),
-    check("submission_public_result_cases_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check(
+      "submission_public_result_cases_ordinal_check",
+      sql`ordinal >= 0 AND ordinal < 2147483647`,
+    ),
+  ],
+);
+export const submission_public_case_statuses = pgTable(
+  "submission_public_case_statuses",
+  {
+    submission_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    case_index: integer().notNull(),
+    status_json: bytea().notNull(),
+    status_hash: bytea().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.submission_id, t.channel, t.ordinal],
+      name: "submission_public_case_statuses_pkey",
+    }),
+    foreignKey({
+      columns: [t.submission_id, t.channel, t.ordinal],
+      foreignColumns: [
+        submission_public_result_cases.submission_id,
+        submission_public_result_cases.channel,
+        submission_public_result_cases.ordinal,
+      ],
+      name: "submission_public_case_statuses_submission_id_channel_ord_fkey",
+    }).onDelete("cascade"),
+    check("submission_public_case_statuses_case_index_check", sql`case_index >= 0`),
+    check(
+      "submission_public_case_statuses_status_hash_check",
+      sql`status_hash=sha256(status_json)`,
+    ),
+    check(
+      "submission_public_case_statuses_status_json_check",
+      sql`json_typeof(convert_from(status_json,'UTF8')::json)='string'`,
+    ),
+  ],
+);
+export const interview_private_status_headers = pgTable(
+  "interview_private_status_headers",
+  {
+    submission_id: uuid().primaryKey(),
+    status_count: integer().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "interview_private_status_headers_submission_id_fkey",
+      columns: [t.submission_id],
+      foreignColumns: [interview_execution.submission_id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "interview_private_status_headers_result_fkey",
+      columns: [t.submission_id],
+      foreignColumns: [submission_result_headers.submission_id],
+    }).onDelete("cascade"),
+    check("interview_private_status_headers_status_count_check", sql`status_count >= 0`),
+  ],
+);
+export const interview_private_case_statuses = pgTable(
+  "interview_private_case_statuses",
+  {
+    submission_id: uuid().notNull(),
+    ordinal: integer().notNull(),
+    case_id: text().notNull(),
+    status_json: bytea().notNull(),
+    status_hash: bytea().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "interview_private_case_statuses_submission_id_fkey",
+      columns: [t.submission_id],
+      foreignColumns: [interview_private_status_headers.submission_id],
+    }).onDelete("cascade"),
+    primaryKey({
+      name: "interview_private_case_statuses_pkey",
+      columns: [t.submission_id, t.ordinal],
+    }),
+    unique("interview_private_case_statuses_submission_id_case_id_key").on(
+      t.submission_id,
+      t.case_id,
+    ),
+    check("interview_private_case_statuses_ordinal_check", sql`ordinal >= 0`),
+    check(
+      "interview_private_case_statuses_status_json_check",
+      sql`json_typeof(convert_from(status_json,'UTF8')::json)='string'`,
+    ),
+    check(
+      "interview_private_case_statuses_status_hash_check",
+      sql`status_hash=sha256(status_json)`,
+    ),
   ],
 );
 export const execution_completion_receipts = pgTable(
@@ -1958,7 +2066,10 @@ export const execution_completion_field_chunks = pgTable(
       "execution_completion_field_chunks_channel_check",
       sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text, 'header'::text])`,
     ),
-    check("execution_completion_field_chunks_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check(
+      "execution_completion_field_chunks_ordinal_check",
+      sql`ordinal >= 0 AND ordinal < 2147483647`,
+    ),
     check(
       "execution_completion_field_chunks_field_check",
       sql`field = ANY (ARRAY['actual'::text, 'expected'::text, 'stdout'::text, 'stderr'::text, 'diagnostics'::text, 'sqlTypes'::text])`,
@@ -2022,3 +2133,7 @@ export const submission_result_header_fields = pgTable(
     ),
   ],
 );
+
+export * from "./runner-inputs.ts";
+
+export * from "./verification.ts";

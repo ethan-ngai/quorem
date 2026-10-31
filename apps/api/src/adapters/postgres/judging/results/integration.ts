@@ -152,14 +152,14 @@ before(async () => {
     [interview],
   );
   const fixture = JSON.stringify({
-    problem: { odyssey: { levels: [{}, {}] } },
+    problem: { id: version, odyssey: { levels: [{}, {}] } },
     odysseyHiddenCases: [
       [{ args: [1], expected: "PRIVATE-FIRST" }],
       [{ args: [2], expected: "PRIVATE-FUTURE" }],
     ],
   });
   const lossless = Buffer.from(
-    '{"problem":{"odyssey":{"levels":[{},{}]}},"odysseyHiddenCases":[[{"args":[9007199254740993],"expected":"PRIVATE-FIRST\\u0000"}],[{"args":[2],"expected":"PRIVATE-FUTURE"}]]}',
+    `{"problem":{"id":"${version}","odyssey":{"levels":[{},{}]}},"odysseyHiddenCases":[[{"args":[9007199254740993],"expected":"PRIVATE-FIRST\\u0000"}],[{"args":[2],"expected":"PRIVATE-FUTURE"}]]}`,
   );
   const row = await pool.query(
     "WITH f AS (SELECT jsonb_set($2::jsonb,'{_lossless_sha256}',to_jsonb(encode(sha256($3::bytea),'hex'))) AS value) INSERT INTO interview_question_snapshots(session_id,id,fixture,lossless_fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value,$3 FROM f RETURNING id",
@@ -194,11 +194,11 @@ before(async () => {
     client.release();
   }
   const { backfillSubmissionResult } = await import("./backfill.ts");
-  const { backfillSnapshotPublicExamples } =
-    await import("../../interviews/question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } =
+    await import("../../interviews/runner-inputs/legacy-backfill.ts");
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillSnapshotPublicExamples(tx, interview, row.rows[0].id),
+      backfillHistoricalRunnerInput(tx, interview, row.rows[0].id),
     ),
   );
   for (const id of [done, interviewSubmission])
@@ -358,7 +358,7 @@ void test("completion races with cancellation under the shared judge lock", asyn
     [id, workspace],
   );
   await pool.query(
-    "INSERT INTO execution_jobs(id,submission_id,attempt_id,lease_until) VALUES($1,$2,$3,clock_timestamp()+interval '1 minute')",
+    "INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until) VALUES($1,$2,$3,'cancellation-fixture',clock_timestamp()+interval '1 minute')",
     [job, id, attempt],
   );
   const client = await pool.connect();
@@ -417,7 +417,7 @@ void test("a cancellation preceding completion remains authoritative", async () 
     [id, workspace],
   );
   await pool.query(
-    "INSERT INTO execution_jobs(id,submission_id,attempt_id,lease_until) VALUES($1,$2,$3,clock_timestamp()+interval '1 minute')",
+    "INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until) VALUES($1,$2,$3,'cancellation-fixture',clock_timestamp()+interval '1 minute')",
     [job, id, attempt],
   );
   await repo.cancel(alice, id, "race-cancel-first");
@@ -855,8 +855,14 @@ void test("legacy repair samples source only after acquiring the execution lock"
 void test("actual 27 interview promotion feeds authorized streamed results", async () => {
   const { postgresCompletionStaging } = await import("../worker/staging.ts");
   const { postgresCompletionPromotion } = await import("../worker/promote.ts");
-  const { backfillSnapshotPublicExamples } =
-    await import("../../interviews/question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } =
+    await import("../../interviews/runner-inputs/legacy-backfill.ts");
+  const { indexRunnerFixture } = await import("../inputs/fixture.ts");
+  const { bindJobInputs } = await import("../inputs/bind.ts");
+  const { postgresInputReader } = await import("../inputs/read.ts");
+  const { postgresVerificationSource } = await import("../worker/verification-source.ts");
+  const { nodeResultVerifier } =
+    await import("../../../../../../runner/src/verification/verifier.ts");
   const session = crypto.randomUUID(),
     questionEpoch = crypto.randomUUID(),
     documentEpoch = crypto.randomUUID(),
@@ -865,6 +871,7 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     attemptId = crypto.randomUUID();
   const fixture = JSON.stringify({
     problem: {
+      id: version,
       signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
       constraints: [],
       limits: {
@@ -917,8 +924,25 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   }
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillSnapshotPublicExamples(tx, session, fixtureId),
+      backfillHistoricalRunnerInput(tx, session, fixtureId),
     ),
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      const owner = { session, fixture: fixtureId };
+      await indexRunnerFixture(tx, owner, fixture);
+      await bindJobInputs(tx, {
+        jobId,
+        owner,
+        level: 1,
+        primary: "hidden",
+        custom: [],
+        caseCount: 1,
+        sampleCount: 0,
+        privateDetails: true,
+        submitCasesAreSamples: false,
+      });
+    }),
   );
   const job = {
     jobId,
@@ -928,8 +952,8 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     language: "python",
     runtimeRevision: "python-3.12-v1",
     harnessRevision: "quorem-harness-v2",
-    sourceRef: "",
-    suiteRef: "",
+    sourceRef: submission,
+    suiteRef: version,
     problemVersionId: version,
     limits: {
       wallTimeMs: 2000,
@@ -940,7 +964,24 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
       maxNestingDepth: 100,
     },
   };
-  const staging = postgresCompletionStaging(run);
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const source = postgresVerificationSource(run);
+  const verifier = nodeResultVerifier(
+    {
+      inputs: postgresInputReader(run),
+      frozenCase: (id) => source.frozenCase(id),
+      fieldPage: (id, field, offset) => source.fieldPage(id, field, offset),
+      async putField(id, field, chunks) {
+        let ordinal = 0;
+        for await (const chunk of chunks) await source.putChunk(id, field, ordinal++, chunk);
+      },
+    },
+    keys.privateKey,
+  );
+  const staging = postgresCompletionStaging(run, {
+    verifier: { verify: verifier },
+    verificationPublicKey: keys.publicKey,
+  });
   await staging.begin(job, {
     submissionId: submission,
     attemptId,
@@ -982,6 +1023,159 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     )
   ).rows[0];
   assert.deepEqual(cleanup, { stages: 0, frames: 0, chunks: 0, receipts: 1 });
+  const stored = await pool.query(
+    "SELECT ordinal,case_id,convert_from(status_json,'UTF8') status FROM interview_private_case_statuses WHERE submission_id=$1",
+    [submission],
+  );
+  assert.deepEqual(
+    stored.rows.map((v) => ({
+      ordinal: v.ordinal,
+      caseId: v.case_id,
+      status: JSON.parse(v.status),
+    })),
+    [{ ordinal: 0, caseId: "hidden:0", status: "wrong_answer" }],
+  );
+  await pool.query("UPDATE interviews SET question=$2::jsonb WHERE id=$1", [session, fixture]);
+  await pool.query(
+    "INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) VALUES($1,$2,0,convert_to('[]','UTF8')) ON CONFLICT DO NOTHING",
+    [session, questionEpoch],
+  );
+  const { interviewSnapshotStream } = await import("../../interviews/question/stream.ts");
+  const snapshot = interviewSnapshotStream(run);
+  const fresh = JSON.parse(await new Response(await snapshot(host, session)).text());
+  assert.equal(fresh.question.privateCaseDetails[0].status, "wrong_answer");
+  const hiddenSnapshot = JSON.parse(await new Response(await snapshot(alice, session)).text());
+  assert.equal(hiddenSnapshot.question.privateCaseDetails, undefined);
+  const { backfillOnePrivateStatus } =
+    await import("../../interviews/question/private-status-backfill.ts");
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const legacy = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result,result_payload) VALUES(${legacy}::uuid,'results-alice',${session}::uuid,'submit','','legacy-private','completed','[]','{}',${new TextEncoder().encode(JSON.stringify({ hiddenCases: [{ index: 0, status: "legacy\u0000failure" }] }))})`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results) VALUES(${legacy}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${questionEpoch}::uuid,${fixtureId}::bytea,1,'[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES(${crypto.randomUUID()}::uuid,${legacy}::uuid,'python',true)`,
+      );
+    }),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, legacy),
+    ),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillOnePrivateStatus(tx, legacy),
+    ),
+  );
+  const repaired = await pool.query(
+    "SELECT case_id,convert_from(status_json,'UTF8') status FROM interview_private_case_statuses WHERE submission_id=$1",
+    [legacy],
+  );
+  assert.deepEqual(
+    repaired.rows.map((v) => [v.case_id, JSON.parse(v.status)]),
+    [["hidden:0", "legacy\u0000failure"]],
+  );
+  const { privateStatusRef, privateStatusPage, privateStatusPlan } =
+    await import("../../interviews/question/private-status-read.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await privateStatusPlan(tx, session, questionEpoch);
+      const ref = await privateStatusRef(tx, session, questionEpoch, "hidden:0");
+      assert.ok(ref);
+      assert.equal(
+        JSON.parse(new TextDecoder().decode(await privateStatusPage(tx, ref, 0))),
+        "legacy\u0000failure",
+      );
+    }),
+  );
+  await assert.rejects(
+    pool.query(
+      "UPDATE interview_private_case_statuses SET status_json=convert_to('\"accepted\"','UTF8') WHERE submission_id=$1",
+      [legacy],
+    ),
+    /immutable/,
+  );
+  const unavailable = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result) VALUES(${unavailable}::uuid,'results-alice',${session}::uuid,'submit','','missing-private','completed','[]','{}')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results) VALUES(${unavailable}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${questionEpoch}::uuid,${fixtureId}::bytea,1,'[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES(${crypto.randomUUID()}::uuid,${unavailable}::uuid,'python',true)`,
+      );
+    }),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, unavailable),
+    ),
+  );
+  await assert.rejects(
+    operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePrivateStatus(tx, unavailable),
+      ),
+    ),
+    /source unavailable/,
+  );
+  await assert.rejects(
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        privateStatusPlan(tx, session, questionEpoch),
+      ),
+    ),
+    /require backfill/,
+  );
+  await pool.query("UPDATE submissions SET result=NULL,result_payload=NULL WHERE id=$1", [
+    unavailable,
+  ]);
+  const invalid = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result,result_payload) VALUES(${invalid}::uuid,'results-alice',${session}::uuid,'submit','','invalid-private','completed','[]','{}',${new TextEncoder().encode(JSON.stringify({ hiddenCases: [{ index: 9, status: "wrong_answer" }] }))})`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results) VALUES(${invalid}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${questionEpoch}::uuid,${fixtureId}::bytea,1,'[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES(${crypto.randomUUID()}::uuid,${invalid}::uuid,'python',true)`,
+      );
+    }),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, invalid),
+    ),
+  );
+  await assert.rejects(
+    operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePrivateStatus(tx, invalid),
+      ),
+    ),
+    /mapping/,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int n FROM interview_private_status_headers WHERE submission_id=$1",
+        [invalid],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await pool.query("UPDATE submissions SET result=NULL,result_payload=NULL WHERE id=$1", [invalid]);
   const staff = await repo.interview(host, session, submission);
   assert.match(staff, /PRIVATE\\u0000OUTPUT/);
   assert.match(staff, /"expected":2/);
@@ -993,4 +1187,314 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   const revealed = await repo.interview(alice, session, submission);
   assert.match(revealed, /PRIVATE\\u0000OUTPUT/);
   assert.match(revealed, /"expected":2/);
+  const visibleSnapshot = JSON.parse(await new Response(await snapshot(alice, session)).text());
+  assert.equal(visibleSnapshot.question.revealedCases[0].status, "legacy\u0000failure");
+  const prior = await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      privateStatusPlan(tx, session, questionEpoch),
+    ),
+  );
+  await pool.query("UPDATE submissions SET result=NULL,result_payload=NULL WHERE id=$1", [legacy]);
+  await pool.query("DELETE FROM submission_result_headers WHERE submission_id=$1", [legacy]);
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int n FROM interview_private_case_statuses WHERE submission_id=$1",
+        [legacy],
+      )
+    ).rows[0].n,
+    0,
+  );
+  const afterRetention = await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      privateStatusPlan(tx, session, questionEpoch),
+    ),
+  );
+  assert.notEqual(afterRetention.digest, prior.digest);
+  const remaining = JSON.parse(await new Response(await snapshot(alice, session)).text());
+  assert.equal(remaining.question.revealedCases[0].status, "wrong_answer");
+  await pool.query("UPDATE submissions SET result=NULL WHERE id=$1", [submission]);
+  const retained = (
+    await pool.query(
+      "SELECT (SELECT count(*)::int FROM interview_private_result_cases WHERE submission_id=$1) AS private,(SELECT count(*)::int FROM submission_result_headers WHERE submission_id=$1) AS headers,(SELECT count(*)::int FROM submission_public_result_cases WHERE submission_id=$1) AS public",
+      [submission],
+    )
+  ).rows[0];
+  assert.deepEqual(retained, { private: 0, headers: 0, public: 0 });
+  assert.doesNotMatch(await repo.interview(alice, session, submission), /PRIVATE|"expected":2/);
+});
+void test("streams a synthetic legacy-sized 408-case result without a Worker case plan", async () => {
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','paged','running','[]')",
+    [id, workspace],
+  );
+  await pool.query(
+    "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+    [
+      id,
+      Buffer.from(
+        '{"verdict":"accepted","publicCasesPresent":true,"publicCaseCount":408,"channel":"public"}',
+      ),
+    ],
+  );
+  await pool.query(
+    "INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT $1,'public',n,convert_to(json_build_object('index',n,'status','accepted')::text,'UTF8') FROM generate_series(0,407) n",
+    [id],
+  );
+  await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
+  const value = JSON.parse(await repo.read(alice, id));
+  assert.equal(value.publicCases.length, 408);
+  assert.equal(value.publicCases[407].index, 407);
+});
+void test("classic interview fallback shares verified examples without hiding them", async () => {
+  const { postgresCompletionStaging } = await import("../worker/staging.ts");
+  const { postgresCompletionPromotion } = await import("../worker/promote.ts");
+  const { indexRunnerFixture } = await import("../inputs/fixture.ts");
+  const { bindJobInputs } = await import("../inputs/bind.ts");
+  const { postgresInputReader } = await import("../inputs/read.ts");
+  const { postgresVerificationSource } = await import("../worker/verification-source.ts");
+  const { nodeResultVerifier } =
+    await import("../../../../../../runner/src/verification/verifier.ts");
+  const session = crypto.randomUUID(),
+    epoch = crypto.randomUUID(),
+    documentEpoch = crypto.randomUUID(),
+    submission = crypto.randomUUID(),
+    jobId = crypto.randomUUID(),
+    attemptId = crypto.randomUUID();
+  const limits = {
+    wallTimeMs: 2000,
+    memoryBytes: 268435456,
+    outputBytes: 65536,
+    maxProcesses: 16,
+    maxCollectionElements: 10000,
+    maxNestingDepth: 100,
+  };
+  const fixture = JSON.stringify({
+    problem: {
+      id: version,
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      constraints: [],
+      limits,
+      examples: [{ args: [], expected: 2 }],
+    },
+    hiddenCases: [],
+  });
+  await pool.query(
+    "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES($1,'results-host','fallback','{}','python','',$2,$3,$4,$4,$5,$5)",
+    [session, documentEpoch, epoch, crypto.randomUUID(), crypto.randomUUID()],
+  );
+  await pool.query(
+    "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,'results-host','interviewer'),($1,'results-alice','interviewee')",
+    [session],
+  );
+  const fixtureId = (
+    await pool.query(
+      "WITH f AS (SELECT $2::jsonb AS value) INSERT INTO interview_question_snapshots(session_id,id,fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value FROM f RETURNING id",
+      [session, fixture],
+    )
+  ).rows[0].id;
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,'results-alice',${session}::uuid,'submit','','hash','running','[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level) VALUES(${submission}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${epoch}::uuid,${fixtureId}::bytea,1)`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until,attempts) VALUES(${jobId}::uuid,${submission}::uuid,${attemptId}::uuid,'fallback-test',clock_timestamp()+interval '1 minute',1)`,
+      );
+    }),
+  );
+  const { backfillHistoricalRunnerInput } =
+    await import("../../interviews/runner-inputs/legacy-backfill.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await backfillHistoricalRunnerInput(tx, session, fixtureId);
+      const owner = { session, fixture: fixtureId };
+      await indexRunnerFixture(tx, owner, fixture);
+      await bindJobInputs(tx, {
+        jobId,
+        owner,
+        level: 1,
+        primary: "example",
+        custom: [],
+        caseCount: 1,
+        sampleCount: 1,
+        privateDetails: true,
+        submitCasesAreSamples: true,
+      });
+    }),
+  );
+  const job = {
+    jobId,
+    submissionId: submission,
+    attemptId,
+    sandboxScope: "fallback-test",
+    language: "python",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    sourceRef: submission,
+    suiteRef: version,
+    problemVersionId: version,
+    limits,
+  };
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]),
+    source = postgresVerificationSource(run);
+  const verify = nodeResultVerifier(
+    {
+      inputs: postgresInputReader(run),
+      frozenCase: (id) => source.frozenCase(id),
+      fieldPage: (id, field, offset) => source.fieldPage(id, field, offset),
+      async putField(id, field, chunks) {
+        let ordinal = 0;
+        for await (const chunk of chunks) await source.putChunk(id, field, ordinal++, chunk);
+      },
+    },
+    keys.privateKey,
+  );
+  const stage = postgresCompletionStaging(run, {
+    verifier: { verify },
+    verificationPublicKey: keys.publicKey,
+  });
+  await stage.begin(job, {
+    submissionId: submission,
+    attemptId,
+    engineFailure: false,
+    diagnosticsPresent: false,
+    publicPresent: false,
+    samplePresent: false,
+    privatePresent: true,
+    publicCount: 0,
+    sampleCount: 0,
+    privateCount: 1,
+  });
+  await stage.chunk(job, {
+    channel: "private",
+    ordinal: 0,
+    field: "actual",
+    chunkOrdinal: 0,
+    bytes: new TextEncoder().encode("2"),
+  });
+  await stage.seal(job, "private", 0, "executed");
+  await stage.eof(job, job);
+  await postgresCompletionPromotion(run)(job, job);
+  const result = JSON.parse(await repo.interview(alice, session, submission));
+  assert.equal(result.verdict, "accepted");
+  assert.equal(result.publicCases[0].expected, 2);
+  assert.equal(result.privateCaseResults[0].caseId, "example:0");
+  assert.equal(result.privateCaseResults[0].case.expected, 2);
+  // Exercise the promoted sample through the current Odyssey snapshot transport.
+  const { interviewSnapshotStream } = await import("../../interviews/question/stream.ts");
+  const question = {
+    problem: {
+      id: version,
+      title: "Feedback",
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      odyssey: { levels: [{ title: "One", statementMarkdown: "One", methods: [] }] },
+    },
+  };
+  await pool.query("UPDATE interviews SET question=$2::jsonb WHERE id=$1", [
+    session,
+    JSON.stringify(question),
+  ]);
+  await pool.query(
+    "INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) VALUES($1,$2,0,convert_to('[]','UTF8')),($1,$2,1,convert_to('[]','UTF8'))",
+    [session, epoch],
+  );
+  const snapshot = interviewSnapshotStream(run);
+  for (const actor of [host, alice]) {
+    const value = JSON.parse(await new Response(await snapshot(actor, session)).text());
+    assert.deepEqual(value.question.progress.caseStatuses, [{ index: 0, status: "accepted" }]);
+  }
+});
+void test("status backfill scans retained case pages and preserves case index and NUL", async () => {
+  const { backfillOnePublicStatus } = await import("./status-backfill.ts");
+  const { evaluatedStatusPlan, nextEvaluatedStatus, evaluatedStatusPage } =
+    await import("./evaluated-status.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,odyssey_level) VALUES($1,'results-alice',$2,'run','','status-backfill','running','[]',1)",
+    [id, workspace],
+  );
+  await pool.query(
+    "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+    [id, Buffer.from('{"publicCasesPresent":true,"publicCaseCount":1,"channel":"public"}')],
+  );
+  await pool.query(
+    `INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT $1,'public',0,convert_to('{"index":7,"status":"wrong\\u0000answer","actual":"'||repeat('x',2097152)||'"}','UTF8')`,
+    [id],
+  );
+  await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
+  const read = () =>
+    run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 5000, lockTimeoutMs: 1000, isolation: "repeatable read" },
+        async (tx) => {
+          const criteria = {
+            kind: "workspace" as const,
+            workspaceId: workspace,
+            owner: "results-alice",
+          };
+          const plan = await evaluatedStatusPlan(tx, criteria),
+            row = await nextEvaluatedStatus(tx, criteria, -1);
+          if (!row) return [];
+          assert.equal(plan.count, 1);
+          return [
+            {
+              index: row.index,
+              status: JSON.parse(new TextDecoder().decode(await evaluatedStatusPage(tx, row, 0))),
+            },
+          ];
+        },
+      ),
+    );
+  await assert.rejects(read(), /require backfill/);
+  assert.equal(
+    await operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePublicStatus(tx, id),
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    await operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePublicStatus(tx, id),
+      ),
+    ),
+    false,
+  );
+  const statuses = await read();
+  assert.deepEqual(statuses, [{ index: 7, status: "wrong\u0000answer" }]);
+  const plan = () =>
+    run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 5000, lockTimeoutMs: 1000, isolation: "repeatable read" },
+        (tx) =>
+          evaluatedStatusPlan(tx, {
+            kind: "workspace",
+            workspaceId: workspace,
+            owner: "results-alice",
+          }),
+      ),
+    );
+  const before = await plan();
+  await pool.query("UPDATE submissions SET result=result WHERE id=$1", [id]);
+  const after = await plan();
+  assert.equal(after.count, before.count);
+  assert.notEqual(after.digest, before.digest);
+  await assert.rejects(
+    pool.query("UPDATE submission_public_case_statuses SET status_json=$2 WHERE submission_id=$1", [
+      id,
+      Buffer.from('"accepted"'),
+    ]),
+    /immutable/,
+  );
+  await assert.rejects(
+    pool.query("DELETE FROM submission_public_case_statuses WHERE submission_id=$1", [id]),
+    /immutable/,
+  );
 });

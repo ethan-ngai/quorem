@@ -14,6 +14,8 @@ type yieldingEngine struct {
 	attempts int
 }
 
+func (e *yieldingEngine) SandboxScope(context.Context) (string, error) { return "test-scope", nil }
+
 func (e *yieldingEngine) Execute(ctx context.Context, j execution.Job) (execution.Completion, error) {
 	e.attempts++
 	checkpoint, err := e.service.LoadCheckpoint(ctx, j)

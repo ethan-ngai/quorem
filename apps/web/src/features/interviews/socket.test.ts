@@ -22,7 +22,7 @@ class Socket {
     Socket.instances.push(this);
   }
   send(body: string) {
-    this.sent.push(body);
+    if (JSON.parse(body).type !== "receipt") this.sent.push(body);
   }
   close() {
     this.readyState = 3;
@@ -33,7 +33,9 @@ class Socket {
     this.onopen?.();
   }
   frame(value: unknown) {
-    this.onmessage?.({ data: JSON.stringify(value) });
+    this.onmessage?.({
+      data: JSON.stringify({ receipt: "12345678-1234-4123-8123-123456789012", payload: value }),
+    });
   }
 }
 beforeEach(() => {

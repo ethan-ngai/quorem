@@ -8,7 +8,7 @@ import {
   scanLegacyCase,
   writeLegacyCase,
 } from "../../judging/results/legacy-case.ts";
-import { LegacyJsonReader } from "../../judging/results/legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 import { spoolLegacySource } from "../../judging/results/legacy-sql.ts";
 async function saveCase(
   tx: Transaction,
@@ -76,7 +76,7 @@ export async function backfillPrivateResultCases(tx: Transaction, id: string): P
       if (current) throw new LegacyCaseConflict("Conflicting legacy case");
       return;
     }
-    const input = new LegacyJsonReader(chunks()[Symbol.asyncIterator]());
+    const input = new StreamingJsonReader(chunks()[Symbol.asyncIterator]());
     if ((await input.peek()) !== "[") {
       let token = "";
       for await (const part of input.valueChunks()) {

@@ -40,3 +40,13 @@ test('rejects provider packages and dynamic or require indirection', () => {
   ` });
   expect(errors).toHaveLength(14);
 });
+
+test('permits CodeMirror only in the document changes owner', () => {
+  const errors = violations({
+    'modules/interviews/document/changes.ts': "import { ChangeSet } from '@codemirror/state'; import '@codemirror/view';",
+    'modules/interviews/document/other.ts': "import '@codemirror/state';",
+  });
+  expect(errors).toHaveLength(2);
+  expect(errors.join('\n')).toContain('@codemirror/view');
+  expect(errors.join('\n')).toContain('other.ts: @codemirror/state');
+});

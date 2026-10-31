@@ -1,3 +1,4 @@
+import { assertRunnerFixture } from "./test-db.ts";
 import { execFileSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
@@ -9,14 +10,18 @@ import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
 import { validateFieldChunks } from "./field-validation.ts";
 import { submissionSnapshots } from "../results/repository.ts";
+import {
+  manifestCheckpointProvenance,
+  decodeJudgeFrame,
+  encodeManifestCheckpointFrame,
+} from "@quorem/execution";
+import { postgresInputReader } from "../inputs/read.ts";
+import { localVerifier, sealFixture } from "./manifest-fixture.ts";
 const url = process.env.QUOREM_RUNNER_TEST_DATABASE_URL;
-const parsed = new URL(url ?? "postgres://127.0.0.1:55464/quorem_hono_runner_test");
-if (
-  parsed.port !== "55464" ||
-  parsed.pathname !== "/quorem_hono_runner_test" ||
-  !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)
-)
-  throw new Error("Disposable runner database required");
+assertRunnerFixture(url ?? "postgres://127.0.0.1/quorem_hono_runner_test", [
+  "/quorem_hono_runner_test",
+  "/quorem_hono_engine_test",
+]);
 describe.skipIf(!url)("runner claim fences", () => {
   const pool = createNodePool({
     connectionString: url!,
@@ -27,7 +32,9 @@ describe.skipIf(!url)("runner claim fences", () => {
   });
   const run = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
     withNodeConnection(pool, { lifetimeMs: 10000 }, fn);
+  let verifier: Awaited<ReturnType<typeof localVerifier>>;
   const claims = postgresClaims(run, {
+    inputProtocol: "manifest-v1",
     resumable: true,
     losslessCases: true,
     losslessResults: true,
@@ -45,6 +52,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       "product",
       fileURLToPath(new URL("../../../../../migrations/", import.meta.url)),
     );
+    verifier = await localVerifier(run);
     await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Fixture')", [user]);
     await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
     const limits = {
@@ -75,6 +83,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
       [job, submission],
     );
+    await sealFixture(run, version, job, [{ args: [], expected: 2 }]);
   });
   afterAll(async () => {
     await pool.query("DELETE FROM execution_jobs WHERE submission_id=$1", [submission]);
@@ -84,6 +93,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=$1", [user]);
+    await verifier.close();
     await pool.end();
   });
   it("claims once, rejects wrong scope and requires the exact expired attempt proof", async () => {
@@ -111,6 +121,15 @@ describe.skipIf(!url)("runner claim fences", () => {
     ).toBeNull();
     const second = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(second?.attemptId).not.toBe(first.attemptId);
+    const inventory = await pool.query(
+      "SELECT attempt_id::text, sandbox_scope FROM execution_attempt_inventory WHERE job_id=$1 ORDER BY attempt_id",
+      [job],
+    );
+    expect(inventory.rows).toHaveLength(2);
+    expect(new Set(inventory.rows.map((row) => row.attempt_id))).toEqual(
+      new Set([first.attemptId, second!.attemptId]),
+    );
+    expect(inventory.rows.every((row) => row.sandbox_scope === "scope-a")).toBe(true);
     expect(await claims.lease(first, true)).toBe(false);
     expect(await claims.lease(second!, false)).toBe(true);
   });
@@ -150,7 +169,21 @@ describe.skipIf(!url)("runner claim fences", () => {
       proof = await claims.nextExpiredAttempt(true, "scope-a");
     const live = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(live).not.toBeNull();
-    const frame = '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}';
+    const rawFrame = '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}';
+    const judgeFrame = decodeJudgeFrame(rawFrame),
+      reader = postgresInputReader(run),
+      manifest = await reader.inputManifest(live!),
+      ref = await reader.inputCaseRef(live!, 0);
+    const provenance = await manifestCheckpointProvenance(
+      live!,
+      manifest,
+      ref,
+      0,
+      live!,
+      { compilationNanos: 42n },
+      judgeFrame,
+    );
+    const frame = encodeManifestCheckpointFrame(judgeFrame, provenance);
     await checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n });
     await expect(
       checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n }),
@@ -164,7 +197,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       replayed.push(new TextDecoder().decode(value));
     });
     expect(replayed).toEqual([frame]);
-    const staging = postgresCompletionStaging(run);
+    const staging = postgresCompletionStaging(run, verifier.verification);
     const header = {
       submissionId: submission,
       attemptId: live!.attemptId,
@@ -257,6 +290,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       .rows[0];
     expect(row.state).toBe("queued");
     const legacy = postgresClaims(run, {
+      inputProtocol: "manifest-v1",
       resumable: false,
       losslessCases: true,
       losslessResults: true,
@@ -273,7 +307,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     const proof = await claims.nextExpiredAttempt(true, "scope-a");
     const live = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(live).not.toBeNull();
-    const staging = postgresCompletionStaging(run),
+    const staging = postgresCompletionStaging(run, verifier.verification),
       promote = postgresCompletionPromotion(run);
     const result = {
       submissionId: submission,
@@ -317,13 +351,16 @@ describe.skipIf(!url)("runner claim fences", () => {
       chunkOrdinal: 0,
       bytes: new TextEncoder().encode("123"),
     });
-    await staging.chunk(live!, {
-      channel: "public",
-      ordinal: 0,
-      field: "expected",
-      chunkOrdinal: 0,
-      bytes: new TextEncoder().encode("987655"),
-    });
+    await expect(
+      staging.chunk(live!, {
+        channel: "public",
+        ordinal: 0,
+        // @ts-expect-error Exercise runtime rejection of an unsupported legacy field.
+        field: "expected",
+        chunkOrdinal: 0,
+        bytes: new TextEncoder().encode("987655"),
+      }),
+    ).rejects.toThrow("Invalid completion chunk");
     await staging.seal(live!, "public", 0, "executed");
     await staging.eof(live!, live!);
     await promote(live!, live!);
@@ -334,7 +371,8 @@ describe.skipIf(!url)("runner claim fences", () => {
       )
     ).rows[0];
     expect(row.state).toBe("completed");
-    expect(row.result.publicCases).toEqual([{ index: 0, status: "wrong_answer" }]);
+    expect(row.result.verdict).toBe("wrong_answer");
+    expect(JSON.parse(row.payload)).toMatchObject({ index: 0, status: "wrong_answer" });
     expect(row.payload).toContain("\\u0000");
     expect(row.payload).toContain('"expected":2');
     expect(row.payload).not.toContain("987655");
@@ -402,6 +440,7 @@ describe.skipIf(!url)("runner claim fences", () => {
         "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
         [j, s],
       );
+      await sealFixture(run, version, j, [{ args: [], expected: 2 }]);
       const live = await claims.claimAfterTeardown(true, "scope-a", null);
       expect(live).not.toBeNull();
       const snapshot = submissionSnapshots(run),
@@ -420,7 +459,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       expect(
         (await pool.query("SELECT finished FROM execution_jobs WHERE id=$1", [j])).rows[0].finished,
       ).toBe(false);
-      const staging = postgresCompletionStaging(run);
+      const staging = postgresCompletionStaging(run, verifier.verification);
       await staging.begin(live!, {
         submissionId: s,
         attemptId: live!.attemptId,
@@ -491,9 +530,10 @@ describe.skipIf(!url)("runner claim fences", () => {
         "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
         [jobId, submissionId],
       );
+      await sealFixture(run, version, jobId, [{ args: [], expected: 2 }]);
       const live = await claims.claimAfterTeardown(true, "scope-a", null);
       expect(live?.jobId).toBe(jobId);
-      await postgresCompletionStaging(run).begin(live!, {
+      await postgresCompletionStaging(run, verifier.verification).begin(live!, {
         submissionId,
         attemptId: live!.attemptId,
         engineFailure: false,
@@ -521,7 +561,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       await pool.query("DELETE FROM submissions WHERE id=$1", [submissionId]);
     }
   });
-  it("accepts and reclaims a real Go judge attempt with the same fences", async () => {
+  it("rejects a Go judge without manifest capability before a supported claim", async () => {
     const s = crypto.randomUUID(),
       j = crypto.randomUUID();
     try {
@@ -533,11 +573,10 @@ describe.skipIf(!url)("runner claim fences", () => {
         "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
         [j, s],
       );
+      await sealFixture(run, version, j, [{ args: [], expected: 2 }]);
       const root = fileURLToPath(new URL("../../../../..", import.meta.url));
-      const raw = execFileSync(
-        "go",
-        ["run", "./src/adapters/postgres/judging/worker/testdata/goclaim"],
-        {
+      expect(() =>
+        execFileSync("go", ["run", "./src/adapters/postgres/judging/worker/testdata/goclaim"], {
           cwd: root,
           env: {
             ...process.env,
@@ -545,30 +584,11 @@ describe.skipIf(!url)("runner claim fences", () => {
             QUOREM_LOSSLESS_RESULT_WRITES: "true",
           },
           encoding: "utf8",
-        },
-      );
-      const go = JSON.parse(raw) as {
-        jobId: string;
-        submissionId: string;
-        attemptId: string;
-        language: string;
-        runtimeRevision: string;
-        harnessRevision: string;
-      };
-      expect(go.jobId).toBe(j);
-      expect(go.submissionId).toBe(s);
-      expect(go.language).toBe("python");
-      expect(go.runtimeRevision).toBe("python-3.12-v1");
-      expect(go.harnessRevision).toBe("quorem-harness-v2");
-      await pool.query(
-        "UPDATE execution_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1",
-        [j],
-      );
-      const proof = await claims.nextExpiredAttempt(true, "scope-go");
-      expect(proof).toEqual({ attemptId: go.attemptId, sandboxScope: "scope-go" });
-      const next = await claims.claimAfterTeardown(true, "scope-go", proof);
+          stdio: "pipe",
+        }),
+      ).toThrow("runner input protocol required");
+      const next = await claims.claimAfterTeardown(true, "scope-go", null);
       expect(next?.jobId).toBe(j);
-      expect(next?.attemptId).not.toBe(go.attemptId);
     } finally {
       await pool.query("DELETE FROM execution_jobs WHERE id=$1", [j]);
       await pool.query("DELETE FROM submissions WHERE id=$1", [s]);

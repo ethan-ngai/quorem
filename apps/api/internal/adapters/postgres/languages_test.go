@@ -31,7 +31,7 @@ func TestLanguageWorkspaceAdmissionSnapshots(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		job, e := s.Claim(ctx)
+		job, e := claimTestJob(ctx, s, false)
 		if e != nil {
 			t.Fatal(e)
 		}

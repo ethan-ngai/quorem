@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import type { S3ClientConfig } from "@aws-sdk/client-s3";
 import type { ProfileStorage } from "../profile-storage.ts";
+import { photoObjectPath } from "../profile-object-key.ts";
 
 export function s3ProfileStorage(bucket: string, config: S3ClientConfig): ProfileStorage {
   const client = new S3Client({
@@ -16,17 +17,13 @@ export function s3ProfileStorage(bucket: string, config: S3ClientConfig): Profil
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
   });
-  const objectKey = (key: string) => {
-    if (!/^[a-f0-9-]{36}$/.test(key)) throw new Error("Invalid photo key");
-    return `avatars/${key}.webp`;
-  };
   return {
     async put(key, image) {
       try {
         await client.send(
           new PutObjectCommand({
             Bucket: bucket,
-            Key: objectKey(key),
+            Key: photoObjectPath(key),
             Body: image,
             ContentType: "image/webp",
           }),
@@ -38,7 +35,7 @@ export function s3ProfileStorage(bucket: string, config: S3ClientConfig): Profil
     async get(key) {
       try {
         const result = await client.send(
-          new GetObjectCommand({ Bucket: bucket, Key: objectKey(key) }),
+          new GetObjectCommand({ Bucket: bucket, Key: photoObjectPath(key) }),
         );
         if (!result.Body) return undefined;
         const reader = result.Body.transformToWebStream().getReader();
@@ -70,7 +67,7 @@ export function s3ProfileStorage(bucket: string, config: S3ClientConfig): Profil
     },
     async remove(key) {
       try {
-        await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey(key) }));
+        await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: photoObjectPath(key) }));
       } catch {
         throw new Error("Photo storage unavailable");
       }

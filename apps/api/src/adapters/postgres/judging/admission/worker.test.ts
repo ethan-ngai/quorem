@@ -4,6 +4,7 @@ import { withWorkerConnection } from "@quorem/database/core";
 import { sql } from "drizzle-orm";
 import { consumePrearm, prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { insertExecutionIntent } from "../../events/dispatch.ts";
+import { indexRunnerFixture } from "../inputs/fixture.ts";
 it("recovers a delayed commit, dispatches before ack, and cannot consume deadline receipts", async () => {
   const e = env as unknown as {
     ADMISSION_DATABASE_URL: string;
@@ -127,6 +128,24 @@ it("admits an actual workspace job using workerd PostgreSQL and a prearmed Durab
         );
         await tx.execute(
           sql`INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES(${version}::uuid,0,'[1]'::jsonb,'2'::jsonb)`,
+        );
+        await indexRunnerFixture(
+          tx,
+          { version },
+          JSON.stringify({
+            problem: {
+              signature: {
+                className: "Solution",
+                methodName: "f",
+                parameters: [{ name: "x", type: "int" }],
+                returnType: "int",
+              },
+              constraints: [],
+              limits: {},
+              examples: [{ args: [1], expected: 2 }],
+            },
+            hiddenCases: [],
+          }),
         );
         await tx.execute(
           sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,

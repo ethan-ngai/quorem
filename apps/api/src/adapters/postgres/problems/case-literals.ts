@@ -2,72 +2,18 @@
 import {
   JsonNumber,
   normalizeQuestionDraft,
+  scanJsonSpans,
+  type JsonSpan,
   parseLosslessJson,
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
 type Obj = { [key: string]: JsonValue };
-type Node = { start: number; end: number; fields?: Map<string, Node>; items?: Node[] };
+type Node = JsonSpan;
 const object = (v: JsonValue | undefined): Obj | undefined =>
   v && typeof v === "object" && !Array.isArray(v) && !(v instanceof JsonNumber) ? v : undefined;
 const array = (v: JsonValue | undefined): JsonValue[] => (Array.isArray(v) ? v : []);
 
-/** Scan already validated JSON without decoding raw case values. */
-function scan(raw: string): Node {
-  let i = 0;
-  const space = () => {
-    while (/[\t\n\r ]/.test(raw[i] ?? "") && i < raw.length) i++;
-  };
-  function string(): string {
-    const start = i++;
-    while (i < raw.length) {
-      if (raw[i] === "\\") {
-        i += 2;
-        continue;
-      }
-      if (raw[i++] === '"') return JSON.parse(raw.slice(start, i)) as string;
-    }
-    throw new Error("Invalid JSON string");
-  }
-  function value(): Node {
-    space();
-    const start = i,
-      node: Node = { start, end: 0 };
-    if (raw[i] === "{") {
-      i++;
-      node.fields = new Map();
-      space();
-      while (raw[i] !== "}") {
-        space();
-        const key = string();
-        space();
-        if (raw[i++] !== ":") throw new Error("Invalid JSON");
-        node.fields.set(key, value());
-        space();
-        if (raw[i] !== ",") break;
-        i++;
-      }
-      if (raw[i++] !== "}") throw new Error("Invalid JSON");
-    } else if (raw[i] === "[") {
-      i++;
-      node.items = [];
-      space();
-      while (raw[i] !== "]") {
-        node.items.push(value());
-        space();
-        if (raw[i] !== ",") break;
-        i++;
-      }
-      if (raw[i++] !== "]") throw new Error("Invalid JSON");
-    } else if (raw[i] === '"') string();
-    else {
-      while (i < raw.length && !/[\t\n\r ,\]}]/.test(raw[i]!)) i++;
-    }
-    node.end = i;
-    return node;
-  }
-  return value();
-}
 function compact(raw: string): string {
   let quoted = false,
     escaped = false,
@@ -85,9 +31,8 @@ function compact(raw: string): string {
   }
   return out;
 }
-/** Replace raw case values with opaque markers, restored after structural encoding. */
-export function markRawCases(raw: string, content: Obj): Map<string, string> {
-  const root = scan(raw),
+function markerContext(raw: string) {
+  const root = scanJsonSpans(raw),
     marks = new Map<string, string>(),
     nonce = crypto.randomUUID();
   let counter = 0;
@@ -107,10 +52,15 @@ export function markRawCases(raw: string, content: Obj): Map<string, string> {
     const calls = fields(node, "calls")?.items;
     array(c.calls).forEach((call, index) => caseValue(call, calls?.[index]));
   }
-  const sourceProblem = fields(root, "problem"),
-    p = object(content.problem);
   const cases = (values: JsonValue | undefined, nodes: Node[] | undefined) =>
     array(values).forEach((value, index) => caseValue(value, nodes?.[index]));
+  return { root, marks, fields, cases, mark };
+}
+/** Replace raw case values with opaque markers, restored after structural encoding. */
+export function markRawCases(raw: string, content: Obj): Map<string, string> {
+  const { root, marks, fields, cases } = markerContext(raw),
+    p = object(content.problem),
+    sourceProblem = fields(root, "problem");
   cases(content.hiddenCases, fields(root, "hiddenCases")?.items);
   const suites = fields(root, "odysseyHiddenCases")?.items;
   array(content.odysseyHiddenCases).forEach((suite, index) => cases(suite, suites?.[index]?.items));
@@ -118,6 +68,27 @@ export function markRawCases(raw: string, content: Obj): Map<string, string> {
   const odyssey = object(p?.odyssey),
     levels = fields(fields(sourceProblem, "odyssey"), "levels")?.items;
   array(odyssey?.levels).forEach((level, index) =>
+    cases(object(level)?.examples, fields(levels?.[index], "examples")?.items),
+  );
+  return marks;
+}
+/** Interview custom cases have distinct public/private request paths. */
+export function markRawInterviewCases(
+  raw: string,
+  question: Obj,
+  wrapped: boolean,
+): Map<string, string> {
+  const { root, marks, fields, cases } = markerContext(raw),
+    questionNode = wrapped ? fields(root, "question") : root,
+    customNode = fields(questionNode, "custom"),
+    custom = object(question.custom);
+  if (!custom || !customNode) return marks;
+  cases(custom.publicCases, fields(customNode, "publicCases")?.items);
+  cases(custom.privateCases, fields(customNode, "privateCases")?.items);
+  const suites = fields(customNode, "odysseyHiddenCases")?.items;
+  array(custom.odysseyHiddenCases).forEach((suite, index) => cases(suite, suites?.[index]?.items));
+  const levels = fields(fields(customNode, "odyssey"), "levels")?.items;
+  array(object(custom.odyssey)?.levels).forEach((level, index) =>
     cases(object(level)?.examples, fields(levels?.[index], "examples")?.items),
   );
   return marks;
@@ -172,4 +143,29 @@ export function preserveCaseLiterals(source: string, published: string): Uint8Ar
     (marker) => marks.get(marker) ?? marker,
   );
   return restored === canonical ? null : new TextEncoder().encode(restored);
+}
+
+/** Preserve raw ChangeSet spelling for Go operation fingerprint replay. */
+export function markRawDocumentChanges(
+  raw: string,
+  updates: { changes: unknown }[],
+): Map<string, string> {
+  const { root, marks, fields, mark } = markerContext(raw);
+  const nodes = fields(root, "updates")?.items;
+  updates.forEach((update, index) => {
+    const changes = fields(nodes?.[index], "changes");
+    if (changes) {
+      if (new TextEncoder().encode(raw.slice(changes.start, changes.end)).length > 131072)
+        throw new Error("Change set too large");
+      update.changes = mark(changes);
+    }
+  });
+  return marks;
+}
+
+/** Preserve custom execution case literals for Go operation identity. */
+export function markRawExecutionCases(raw: string, command: Obj): Map<string, string> {
+  const { root, marks, fields, cases } = markerContext(raw);
+  cases(command.customCases, fields(root, "customCases")?.items);
+  return marks;
 }

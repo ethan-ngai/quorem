@@ -11,6 +11,7 @@ import {
   type RuntimeResolver,
 } from "@quorem/questions";
 import { object, storageProjection } from "./storage.ts";
+import { indexRunnerFixture } from "../judging/inputs/fixture.ts";
 type Obj = { [key: string]: JsonValue };
 const list = (value: JsonValue | undefined): JsonValue[] => (Array.isArray(value) ? value : []);
 const str = (value: JsonValue | undefined): string => {
@@ -135,6 +136,7 @@ export async function persistQuestionVersion(
     );
   }
   await registerArtifacts(tx, c, versionId);
+  await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
   await tx.execute(
     sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid AND (current_version_id IS NULL OR (SELECT version FROM problem_versions WHERE id=current_version_id)<${version})`,
   );
@@ -175,6 +177,7 @@ export async function resumeQuestionVersion(
   if (!current || current.slug !== p.slug || String(current.version) !== p.version)
     throw new Error("Version identity mismatch");
   await registerArtifacts(tx, c, versionId);
+  await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
   await tx.execute(
     sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid AND NOT sealed`,
   );

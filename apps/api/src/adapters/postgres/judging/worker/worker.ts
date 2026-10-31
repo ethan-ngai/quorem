@@ -1,21 +1,28 @@
+import { assertRunnerFixture } from "./test-db.ts";
 /** @file worker.ts @description Native Worker queue fencing against disposable PostgreSQL. @module judging */
 /// <reference types="@cloudflare/vitest-plugin/types" />
 import { env } from "cloudflare:test";
 import { expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
+import {
+  encodeJob,
+  manifestCheckpointProvenance,
+  decodeJudgeFrame,
+  encodeManifestCheckpointFrame,
+} from "@quorem/execution";
+import { indexRunnerFixture } from "../inputs/fixture.ts";
+import { bindJobInputs } from "../inputs/bind.ts";
 import { postgresExecutionCommands } from "./repository.ts";
+import { httpResultVerifier } from "./verification-client.ts";
+import { postgresVerificationPrepare } from "./verification-prepare.ts";
+import { postgresVerificationCommit } from "./verification-commit.ts";
 import { createRunnerCommandHandler } from "./http.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 
 it("claims and fences a real attempt through workerd", async () => {
   const url = (env as unknown as { RUNNER_TEST_URL: string }).RUNNER_TEST_URL;
-  const parsed = new URL(url);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-    "127.0.0.1",
-    "55464",
-    "/quorem_hono_runner_test",
-  ]);
+  assertRunnerFixture(url, ["/quorem_hono_runner_test", "/quorem_hono_engine_test"]);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000 }, f);
   const user = crypto.randomUUID(),
@@ -45,15 +52,70 @@ it("claims and fences a real attempt through workerd", async () => {
       );
     }),
   );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      const raw = JSON.stringify({
+        problem: {
+          signature: {
+            className: "Solution",
+            methodName: "f",
+            parameters: [],
+            returnType: "int",
+            description: "x".repeat(150000),
+          },
+          examples: [{ args: [], expected: 2 }],
+        },
+        hiddenCases: [],
+      });
+      await indexRunnerFixture(tx, { version }, raw);
+      await bindJobInputs(tx, {
+        jobId: job,
+        owner: { version },
+        level: 0,
+        primary: "example",
+        custom: [],
+        caseCount: 1,
+        sampleCount: 0,
+        privateDetails: false,
+        submitCasesAreSamples: false,
+      });
+    }),
+  );
   try {
-    const commands = postgresExecutionCommands(run, {
-      resumable: true,
-      losslessCases: true,
-      losslessResults: true,
+    const bindings = env as unknown as { VERIFIER_ORIGIN: string; VERIFIER_PUBLIC_KEY: string };
+    const publicKey = await crypto.subtle.importKey(
+      "spki",
+      Uint8Array.from(atob(bindings.VERIFIER_PUBLIC_KEY), (c) => c.charCodeAt(0)),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    const verifier = httpResultVerifier({
+      origin: bindings.VERIFIER_ORIGIN,
+      credential: new Uint8Array(32).fill(7),
+      timeoutMs: 5000,
     });
+    const commands = (signal: AbortSignal) =>
+      postgresExecutionCommands(
+        <T>(f: (scope: ConnectionScope) => Promise<T>) =>
+          withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000, signal }, f),
+        {
+          inputProtocol: "manifest-v1",
+          resumable: true,
+          losslessCases: true,
+          losslessResults: true,
+        },
+        { verificationPublicKey: publicKey, verifier },
+      );
     const secret = "fixture-only-worker-private-credential-12345";
     const handler = await createRunnerCommandHandler([
-      { secret, scope: "worker-scope", resumable: true, repository: commands },
+      {
+        inputProtocol: "manifest-v1",
+        secret,
+        scope: "worker-scope",
+        resumable: true,
+        repository: commands,
+      },
     ]);
     let dropPromotionAck = false,
       promotionCalls = 0;
@@ -86,13 +148,97 @@ it("claims and fences a real attempt through workerd", async () => {
       timeoutMs: 5000,
       fetch: fetcher,
     });
-    const claimed = await claims.claimAfterTeardown(true, "worker-scope", null);
+    expect((await claims.queueState()).queued).toBeGreaterThanOrEqual(1);
+    expect(await claims.confirmQueueEmpty()).toBe(false);
+    expect(await claims.nextRunnableDeadline("worker-scope")).toBe(0);
+    let claimed = await claims.claimAfterTeardown(true, "worker-scope", null);
     expect(claimed?.jobId).toBe(job);
     expect(await claims.lease(claimed!, true)).toBe(true);
+    const manifest = await claims.inputManifest(claimed!);
+    expect(manifest.metadata.size).toBeGreaterThan(150000);
+    const firstPage = await claims.inputPage(claimed!, "metadata", 0, 0);
+    const secondPage = await claims.inputPage(claimed!, "metadata", 0, 65536);
+    expect(firstPage.bytes.length).toBe(65536);
+    expect(secondPage.bytes.length).toBe(65536);
+    expect(firstPage.hash).toBe(manifest.metadata.hash);
+    const ref = await claims.inputCaseRef(claimed!, 0);
+    const casePage = await claims.inputPage(claimed!, "case", 0, 0);
+    expect(casePage.channel).toBe("public");
+    expect(casePage.hash).toBe(ref.hash);
+    expect(manifest.suiteHash).toMatch(/^[0-9a-f]{64}$/);
+    await expect(
+      claims.inputPage({ ...claimed!, attemptId: crypto.randomUUID() }, "case", 0, 0),
+    ).rejects.toThrow();
+    const leaseBefore = await run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },
+        async (tx) =>
+          (
+            await tx.execute<{ value: string }>(
+              sql`SELECT lease_until::text AS value FROM execution_jobs WHERE id=${job}::uuid`,
+            )
+          ).rows[0].value,
+      ),
+    );
+    let releaseLock!: () => void, reportLocked!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const ready = new Promise<void>((resolve) => {
+      reportLocked = resolve;
+    });
+    const lock = run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(sql`SELECT id FROM execution_jobs WHERE id=${job}::uuid FOR UPDATE`);
+        reportLocked();
+        await hold;
+      }),
+    );
+    await ready;
+    const abort = new AbortController();
+    const pending = handler(
+      new Request("https://fixture/internal/runner/lease", {
+        method: "POST",
+        headers: { authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ job: encodeJob(claimed!), heartbeat: true }),
+        signal: abort.signal,
+      }),
+    );
+    setTimeout(() => abort.abort(), 30);
+    try {
+      expect((await pending).status).toBe(503);
+    } finally {
+      releaseLock();
+      await lock;
+    }
+    const leaseAfter = await run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },
+        async (tx) =>
+          (
+            await tx.execute<{ value: string }>(
+              sql`SELECT lease_until::text AS value FROM execution_jobs WHERE id=${job}::uuid`,
+            )
+          ).rows[0].value,
+      ),
+    );
+    expect(leaseAfter).toBe(leaseBefore);
     await expect(claims.lease({ ...claimed!, sandboxScope: "other" }, false)).rejects.toThrow(
       "scope",
     );
-    const savedFrame = '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}';
+    const judgeFrame = decodeJudgeFrame(
+      '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}',
+    );
+    const provenance = await manifestCheckpointProvenance(
+      claimed!,
+      manifest,
+      ref,
+      0,
+      claimed!,
+      { compilationNanos: 42n },
+      judgeFrame,
+    );
+    const savedFrame = encodeManifestCheckpointFrame(judgeFrame, provenance);
     await claims.saveCheckpoint(claimed!, { ordinal: 0, frame: savedFrame, compilationNanos: 42n });
     const replayed: string[] = [];
     await claims.replayCheckpoint(claimed!, 1, async (_ordinal, frame) => {
@@ -113,9 +259,9 @@ it("claims and fences a real attempt through workerd", async () => {
     });
     await claims.finishCompletionStream(claimed!, claimed!);
     dropPromotionAck = true;
-    await expect(claims.promoteCompletion(claimed!, claimed!)).rejects.toThrow(
-      "lost acknowledgement",
-    );
+    await expect(claims.promoteCompletion(claimed!, claimed!)).rejects.toMatchObject({
+      outcome: "unknown",
+    });
     expect(promotionCalls).toBe(1);
     await claims.promoteCompletion(claimed!, claimed!);
     expect(promotionCalls).toBe(2);
@@ -138,8 +284,19 @@ it("claims and fences a real attempt through workerd", async () => {
         );
       }),
     );
-    const next = await claims.claimAfterTeardown(true, "worker-scope", null);
-    expect(next).not.toBeNull();
+    const nextAttempt = crypto.randomUUID();
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(sql`SELECT set_config('quorem.sandbox_scope','worker-scope',true)`);
+        await tx.execute(sql`SELECT set_config('quorem.checkpoint_claim','v1',true)`);
+        await tx.execute(sql`SELECT set_config('quorem.runner_input_protocol','manifest-v1',true)`);
+        await tx.execute(
+          sql`UPDATE execution_jobs SET attempt_id=${nextAttempt}::uuid,lease_until=clock_timestamp()+interval '1 minute' WHERE id=${job}::uuid`,
+        );
+        await tx.execute(sql`UPDATE submissions SET state='running' WHERE id=${submission}::uuid`);
+      }),
+    );
+    const next = { ...claimed!, attemptId: nextAttempt };
     await claims.beginCompletion(next!, {
       submissionId: submission,
       attemptId: next!.attemptId,
@@ -155,7 +312,7 @@ it("claims and fences a real attempt through workerd", async () => {
     });
     const chunk = async (
       channel: "header" | "public",
-      field: "diagnostics" | "actual" | "expected",
+      field: "diagnostics" | "actual",
       value: string,
     ) =>
       claims.writeCompletionChunk(next!, {
@@ -178,7 +335,15 @@ it("claims and fences a real attempt through workerd", async () => {
       });
     await claims.sealCompletionDiagnostics(next!);
     await chunk("public", "actual", "123");
-    await chunk("public", "expected", "987655");
+    await expect(
+      claims.writeCompletionChunk(next!, {
+        channel: "public",
+        ordinal: 0,
+        field: "expected",
+        chunkOrdinal: 0,
+        bytes: new TextEncoder().encode("987655"),
+      } as never),
+    ).rejects.toThrow();
     for (let offset = 0, part = 0; offset < diagnosticBytes.length; offset += 65536, part++)
       await claims.writeCompletionChunk(next!, {
         channel: "public",
@@ -187,6 +352,47 @@ it("claims and fences a real attempt through workerd", async () => {
         chunkOrdinal: part,
         bytes: diagnosticBytes.subarray(offset, offset + 65536),
       });
+    const challenge = await postgresVerificationPrepare(run)(next!, "public", 0, "accepted");
+    await expect(
+      httpResultVerifier({
+        origin: bindings.VERIFIER_ORIGIN,
+        credential: new Uint8Array(32).fill(8),
+        timeoutMs: 5000,
+      }).verify(challenge),
+    ).rejects.toThrow("Verifier unavailable");
+    await expect(
+      httpResultVerifier({
+        origin: bindings.VERIFIER_ORIGIN,
+        credential: new Uint8Array(32).fill(7),
+        timeoutMs: 1000,
+        fetch: async () => new Response(null, { status: 503 }),
+      }).verify(challenge),
+    ).rejects.toThrow();
+    const signed = await verifier.verify(challenge);
+    expect(signed.receipt.status).toBe("wrong_answer");
+    await expect(
+      postgresVerificationCommit(run, publicKey)(
+        { ...signed.receipt, status: "accepted" },
+        signed.signature,
+      ),
+    ).rejects.toThrow();
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(
+          sql`UPDATE submissions SET cancel_requested=true WHERE id=${submission}::uuid`,
+        );
+      }),
+    );
+    await expect(
+      postgresVerificationCommit(run, publicKey)(signed.receipt, signed.signature),
+    ).rejects.toThrow();
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(
+          sql`UPDATE submissions SET cancel_requested=false WHERE id=${submission}::uuid`,
+        );
+      }),
+    );
     await claims.sealCompletionFrame(next!, "public", 0, "accepted");
     await claims.finishCompletionStream(next!, next!);
     await claims.promoteCompletion(next!, next!);

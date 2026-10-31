@@ -168,7 +168,7 @@ func TestMatchSchedulerReconcilesRunningSubmission(t *testing.T) {
 		t.Fatal("scheduler did not read")
 	}
 	close(fence.resume)
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != submission.ID {
 		t.Fatal(job, err)
 	}
@@ -193,7 +193,7 @@ func TestMatchPendingGenerationPreservesConcurrentChange(t *testing.T) {
 	ctx := context.Background()
 	id, _ := createPair(t, s)
 	submission := admitMatch(t, s, id, "alice", "submit")
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != submission.ID {
 		t.Fatal(job, err)
 	}

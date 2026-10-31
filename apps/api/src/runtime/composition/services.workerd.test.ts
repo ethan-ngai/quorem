@@ -1,0 +1,310 @@
+/// <reference types="@cloudflare/vitest-plugin/types" />
+import { expect, it } from "vitest";
+import { env as runtimeEnv } from "cloudflare:test";
+import worker from "../../../../../deploy/hono/services/worker.js";
+import { verifyCaseProbe } from "../../../../../deploy/case-proof.js";
+const secret = (value: string) => value.repeat(64);
+it("enforces scoped hosts and attests large valid case ordinals in workerd", async () => {
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", keys.privateKey));
+  const spki = new Uint8Array(await crypto.subtle.exportKey("spki", keys.publicKey));
+  let forwarded: Request | undefined;
+  const env = {
+    DRAIN_ORIGIN: "https://runner-stage.example.test",
+    VERIFIER_ORIGIN: "https://verify-stage.example.test",
+    CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_RUNNER_COMMAND_SECRET: secret("a"),
+    QUOREM_RUNNER_DRAIN_SECRET: secret("b"),
+    QUOREM_CASE_SECRET: secret("c"),
+    QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
+    QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
+    RUNNER_API_ACCESS_CLIENT_ID: "runner-id",
+    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
+    VERIFIER_API_ACCESS_CLIENT_ID: "verifier-id",
+    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
+    QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
+    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
+    QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: `-----BEGIN PUBLIC KEY-----\n${btoa(String.fromCharCode(...spki))}\n-----END PUBLIC KEY-----`,
+    QUOREM_CASE_NAMESPACE_ID: secret("1"),
+    CASE_DIAGNOSTICS: "true",
+    QUOREM_VERIFICATION_SIGNING_KEY_PEM: "private key",
+    CASE_OWNER_PRIVATE_KEY: btoa(String.fromCharCode(...pkcs8)),
+    CASES: {
+      idFromName: () => secret("1"),
+      getByName: () => ({
+        fetch: async (request: Request) => {
+          forwarded = request;
+          return request.method === "DELETE"
+            ? new Response(null, { status: 204 })
+            : request.method === "GET"
+              ? Response.json({ active: true, running: true, ordinal: 400, tokenHash: secret("2") })
+              : new Response("ok");
+        },
+      }),
+    },
+  };
+  const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", spki)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+  const scoped = new TextEncoder().encode(
+    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint]),
+  );
+  const scope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", scoped)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  const body = "case bytes",
+    bytes = new TextEncoder().encode(body);
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+  const nonce = crypto.randomUUID();
+  const request = new Request(`${env.CASE_ORIGIN}/internal/case/attempt-1`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+      "cf-access-client-secret": "must-strip",
+      "x-quorem-owner-nonce": nonce,
+      "x-quorem-owner-scope": scope,
+      "x-quorem-case-binding": secret("1"),
+      "x-quorem-body-sha256": digest,
+      "x-quorem-case-ordinal": "400",
+    },
+    body,
+  });
+  const response = await worker.fetch(request, env);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("x-quorem-owner-signature")).toBeTruthy();
+  const signature = Uint8Array.from(atob(response.headers.get("x-quorem-owner-signature")!), (c) =>
+    c.charCodeAt(0),
+  );
+  const attested = JSON.stringify([
+    scope,
+    secret("1"),
+    "POST",
+    "attempt-1",
+    "",
+    200,
+    nonce,
+    secret("1"),
+    digest,
+    "400",
+    "",
+    "",
+    "",
+  ]);
+  expect(
+    await crypto.subtle.verify(
+      "Ed25519",
+      keys.publicKey,
+      signature,
+      new TextEncoder().encode(attested),
+    ),
+  ).toBe(true);
+  const namespaceNonce = crypto.randomUUID();
+  const namespaceResponse = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/namespace`, {
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": namespaceNonce,
+      },
+    }),
+    env,
+  );
+  expect(
+    await verifyCaseProbe(namespaceResponse, {
+      publicKey: keys.publicKey,
+      kind: "namespace",
+      scope: "",
+      attempt: "namespace",
+      nonce: namespaceNonce,
+    }),
+  ).toEqual({ namespace: secret("1") });
+  const probeNonce = crypto.randomUUID();
+  const probe = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/attempt-1`, {
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": probeNonce,
+        "x-quorem-owner-scope": scope,
+        "x-quorem-case-probe": "lifecycle",
+      },
+    }),
+    env,
+  );
+  expect(
+    await verifyCaseProbe(probe, {
+      publicKey: keys.publicKey,
+      kind: "lifecycle",
+      scope,
+      attempt: "attempt-1",
+      nonce: probeNonce,
+      expectedNamespace: secret("1"),
+    }),
+  ).toEqual({ active: true, running: true, ordinal: 400, tokenHash: secret("2") });
+  const actualCases = (
+    runtimeEnv as unknown as {
+      TEST_CASES: {
+        idFromName(name: string): { toString(): string };
+        getByName(name: string): { fetch(request: Request): Promise<Response> };
+      };
+    }
+  ).TEST_CASES;
+  const actualNamespace = actualCases.idFromName("quorem-sandbox-namespace-v1").toString();
+  const actualScopeBytes = new TextEncoder().encode(
+    JSON.stringify([env.CASE_ORIGIN, actualNamespace, fingerprint]),
+  );
+  const actualScope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", actualScopeBytes)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  const actualEnv = { ...env, CASES: actualCases, QUOREM_CASE_NAMESPACE_ID: actualNamespace };
+  const actualNonce = crypto.randomUUID();
+  const actualProbe = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/real-idle`, {
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": actualNonce,
+        "x-quorem-owner-scope": actualScope,
+        "x-quorem-case-probe": "lifecycle",
+      },
+    }),
+    actualEnv,
+  );
+  expect(
+    await verifyCaseProbe(actualProbe, {
+      publicKey: keys.publicKey,
+      kind: "lifecycle",
+      scope: actualScope,
+      attempt: "real-idle",
+      nonce: actualNonce,
+      expectedNamespace: actualNamespace,
+    }),
+  ).toEqual({ active: false, running: false, ordinal: null, tokenHash: null });
+  const deleteNonce = crypto.randomUUID();
+  const deleted = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/real-idle`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": deleteNonce,
+        "x-quorem-owner-scope": scope,
+      },
+    }),
+    env,
+  );
+  expect(deleted.status).toBe(204);
+  const deleteSignature = Uint8Array.from(
+    atob(deleted.headers.get("x-quorem-owner-signature")!),
+    (c) => c.charCodeAt(0),
+  );
+  expect(
+    await crypto.subtle.verify(
+      "Ed25519",
+      keys.publicKey,
+      deleteSignature,
+      new TextEncoder().encode(
+        JSON.stringify([
+          scope,
+          secret("1"),
+          "DELETE",
+          "real-idle",
+          "",
+          204,
+          deleteNonce,
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]),
+      ),
+    ),
+  ).toBe(true);
+  expect(forwarded?.headers.get("authorization")).toBeNull();
+  expect(forwarded?.headers.get("cf-access-client-secret")).toBeNull();
+  forwarded = undefined;
+  const remove = (ownerScope: string) =>
+    new Request(`${env.CASE_ORIGIN}/internal/case/attempt-1`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": crypto.randomUUID(),
+        "x-quorem-owner-scope": ownerScope,
+      },
+    });
+  expect(
+    (await worker.fetch(remove(scope), { ...env, QUOREM_CASE_NAMESPACE_ID: secret("0") })).status,
+  ).toBe(503);
+  expect((await worker.fetch(remove(`remote:${secret("3")}`), env)).status).toBe(503);
+  expect(forwarded).toBeUndefined();
+  expect(
+    (
+      await worker.fetch(
+        new Request("https://alternate.example.test/internal/drain", {
+          method: "POST",
+          headers: { authorization: `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}` },
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(404);
+});
+
+it("routes optional media with purpose bearer in workerd", async () => {
+  let forwarded: Request | undefined;
+  const env = {
+    DRAIN_ORIGIN: "https://runner-stage.example.test",
+    VERIFIER_ORIGIN: "https://verify-stage.example.test",
+    CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_RUNNER_COMMAND_SECRET: secret("a"),
+    QUOREM_RUNNER_DRAIN_SECRET: secret("b"),
+    QUOREM_CASE_SECRET: secret("c"),
+    QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
+    QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
+    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
+    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
+    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
+    RUNNER_API_ACCESS_CLIENT_ID: "runner",
+    VERIFIER_API_ACCESS_CLIENT_ID: "verifier",
+    QUOREM_CASE_ACCESS_CLIENT_ID: "case",
+    QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: "key",
+    QUOREM_VERIFICATION_SIGNING_KEY_PEM: "key",
+    CASE_OWNER_PRIVATE_KEY: "key",
+    IMAGE_SERVICE_ENABLED: "true",
+    IMAGE_ORIGIN: "https://image-stage.example.test",
+    IMAGE_SERVICE_TOKEN: secret("i"),
+    IMAGES: {
+      getByName: () => ({
+        fetch: async (request: Request) => {
+          forwarded = request;
+          return new Response("image", { headers: { "x-image-execution": "terminated" } });
+        },
+      }),
+    },
+  };
+  const request = (token: string) =>
+    new Request(env.IMAGE_ORIGIN, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "cf-access-client-secret": "discard" },
+    });
+  const response = await worker.fetch(request(env.IMAGE_SERVICE_TOKEN), env);
+  expect(response.headers.get("x-image-execution")).toBe("terminated");
+  expect(forwarded?.headers.get("cf-access-client-secret")).toBeNull();
+  expect((await worker.fetch(request(secret("z")), env)).status).toBe(404);
+});
+
+it("persists runner pause in Durable Object storage", async () => {
+  const binding = (
+    runtimeEnv as unknown as {
+      TEST_RUNNERS: {
+        idFromName(name: string): unknown;
+        get(id: unknown): { fetch(url: string, init: RequestInit): Promise<Response> };
+      };
+    }
+  ).TEST_RUNNERS;
+  const runner = binding.get(binding.idFromName(crypto.randomUUID()));
+  expect((await runner.fetch("https://service/internal/pause", { method: "POST" })).status).toBe(
+    204,
+  );
+  expect((await runner.fetch("https://service/internal/drain", { method: "POST" })).status).toBe(
+    503,
+  );
+});

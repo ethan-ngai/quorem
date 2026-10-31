@@ -9,7 +9,7 @@ import {
   legacyScore,
   validateLegacyHeader,
 } from "./legacy-header.ts";
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 import { spoolLegacySource } from "./legacy-sql.ts";
 import { publicResult } from "./projection.ts";
 import { backfillPrivateResultCases } from "../../interviews/question/private-results.ts";
@@ -17,8 +17,8 @@ const decoder = () => new TextDecoder("utf-8", { fatal: true });
 /** Locks one terminal submission until every normalized row and its header commit together. */
 export async function backfillSubmissionResult(tx: Transaction, id: string): Promise<boolean> {
   const row = (
-    await tx.execute<{ kind: string; length: number | null }>(
-      sql`SELECT kind,octet_length(COALESCE(result_payload,convert_to(result::text,'UTF8')))::int AS length FROM submissions WHERE id=${id}::uuid AND state IN ('completed','failed','cancelled') FOR UPDATE`,
+    await tx.execute<{ kind: string; length: number | null; digest: Uint8Array | null }>(
+      sql`SELECT kind,octet_length(COALESCE(result_payload,convert_to(result::text,'UTF8')))::int AS length,sha256(COALESCE(result_payload,convert_to(result::text,'UTF8'))) AS digest FROM submissions WHERE id=${id}::uuid AND state IN ('completed','failed','cancelled') AND result IS NOT NULL FOR UPDATE`,
     )
   ).rows[0];
   if (!row || row.length === null) return false;
@@ -35,7 +35,7 @@ export async function backfillSubmissionResult(tx: Transaction, id: string): Pro
     const tail = decode.decode();
     if (tail) yield tail;
   }
-  const input = new LegacyJsonReader(bytes(row.length)[Symbol.asyncIterator]());
+  const input = new StreamingJsonReader(bytes(row.length)[Symbol.asyncIterator]());
   const fields: { [key: string]: JsonValue } = {};
   let present = false,
     count = 0,
@@ -103,6 +103,10 @@ export async function backfillSubmissionResult(tx: Transaction, id: string): Pro
     }),
   );
   await backfillPrivateResultCases(tx, id);
+  const stable = await tx.execute<{ ok: boolean }>(
+    sql`SELECT result IS NOT NULL AND sha256(COALESCE(result_payload,convert_to(result::text,'UTF8'))) IS NOT DISTINCT FROM ${row.digest} AS ok FROM submissions WHERE id=${id}::uuid`,
+  );
+  if (!stable.rows[0]?.ok) throw new Error("Legacy result changed");
   const inserted = await tx.execute(
     sql`INSERT INTO submission_result_headers(submission_id,header_data) VALUES(${id}::uuid,${header}) ON CONFLICT DO NOTHING RETURNING submission_id`,
   );
@@ -121,7 +125,7 @@ export async function backfillSubmissionResult(tx: Transaction, id: string): Pro
 /** Operator-only batch; each submission commits independently within the caller's bounded connection lifetime. */
 export async function backfillSubmissionBatch(
   run: <T>(
-    fn: (scope: import("@quorem/database/core").ConnectionScope) => Promise<T>,
+    fn: (scope: Pick<import("@quorem/database/core").ConnectionScope, "transaction">) => Promise<T>,
   ) => Promise<T>,
   limit = 16,
 ): Promise<{ attempted: number; completed: number }> {

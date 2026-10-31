@@ -15,6 +15,7 @@ class Socket {
   ) {
     Socket.instances.push(this);
   }
+  send = vi.fn();
   close() {
     this.onclose?.();
   }
@@ -94,7 +95,9 @@ it("closes stalled handshakes, fences old frames, and clears the deadline on ope
   expect(onOpen).not.toHaveBeenCalled();
   expect(onMessage).not.toHaveBeenCalled();
   current.onopen?.();
-  current.onmessage?.({ data: "current" } as MessageEvent);
+  current.onmessage?.({
+    data: JSON.stringify({ receipt: "12345678-1234-4123-8123-123456789012", payload: "current" }),
+  } as MessageEvent);
   expect(onOpen).toHaveBeenCalledOnce();
   expect(onMessage).toHaveBeenCalledOnce();
   await vi.advanceTimersByTimeAsync(10_000);
@@ -118,7 +121,12 @@ it("replaces a silent established socket even when its close handshake never fin
   silent.onopen?.();
   silent.close = vi.fn();
   await vi.advanceTimersByTimeAsync(20_000);
-  silent.onmessage?.({ data: "heartbeat" } as MessageEvent);
+  silent.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "heartbeat" },
+    }),
+  } as MessageEvent);
   await vi.advanceTimersByTimeAsync(24_999);
   expect(disconnected).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(601);

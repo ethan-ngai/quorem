@@ -216,45 +216,53 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
 
 export async function withNodeConnection<T>(pool: Pool, options: ScopeOptions, callback: (scope: ConnectionScope) => Promise<T>): Promise<T> {
   positive(options.lifetimeMs, 'lifetimeMs');
-  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(options.lifetimeMs)]) : AbortSignal.timeout(options.lifetimeMs);
-  if (signal.aborted) throw new DatabaseFailure('aborted');
-  let cancelled = false;
-  let abort: (() => void) | undefined;
-  const pending = pool.connect().then((client) => { if (cancelled) client.release(true); return client; });
-  const stopped = new Promise<never>((_, reject) => {
-    abort = () => { cancelled = true; reject(new DatabaseFailure('aborted')); };
-    signal?.addEventListener('abort', abort, { once: true });
-  });
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), options.lifetimeMs);
   try {
-    const client = await Promise.race([pending, stopped]);
-    if (signal?.aborted) { client.release(true); throw new DatabaseFailure('aborted'); }
-    if (abort) signal?.removeEventListener('abort', abort);
-    return await runScope(client, (destroy) => client.release(destroy), signal, callback);
-  } finally { if (abort) signal?.removeEventListener('abort', abort); }
+    const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
+    if (signal.aborted) throw new DatabaseFailure('aborted');
+    let cancelled = false;
+    let abort: (() => void) | undefined;
+    const pending = pool.connect().then((client) => { if (cancelled) client.release(true); return client; });
+    const stopped = new Promise<never>((_, reject) => {
+      abort = () => { cancelled = true; reject(new DatabaseFailure('aborted')); };
+      signal.addEventListener('abort', abort, { once: true });
+    });
+    try {
+      const client = await Promise.race([pending, stopped]);
+      if (signal.aborted) { client.release(true); throw new DatabaseFailure('aborted'); }
+      if (abort) signal.removeEventListener('abort', abort);
+      return await runScope(client, (destroy) => client.release(destroy), signal, callback);
+    } finally { if (abort) signal.removeEventListener('abort', abort); }
+  } finally { clearTimeout(timer); }
 }
 
 export async function withWorkerConnection<T>(connectionString: string, options: ConnectionOptions, callback: (scope: ConnectionScope) => Promise<T>): Promise<T> {
   positive(options.connectionTimeoutMs, 'connectionTimeoutMs');
   positive(options.lifetimeMs, 'lifetimeMs');
-  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(options.lifetimeMs)]) : AbortSignal.timeout(options.lifetimeMs);
-  if (signal.aborted) throw new DatabaseFailure('aborted');
-  const client = new Client({ connectionString, connectionTimeoutMillis: options.connectionTimeoutMs });
-  let cancelled = false;
-  let abort: (() => void) | undefined;
-  const pending = client.connect().then(() => { if (cancelled) void client.end().catch(() => {}); });
-  const stopped = new Promise<never>((_, reject) => {
-    abort = () => { cancelled = true; void client.end().catch(() => {}); reject(new DatabaseFailure('aborted')); };
-    signal.addEventListener('abort', abort, { once: true });
-  });
-  let connected = false;
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), options.lifetimeMs);
   try {
-    await Promise.race([pending, stopped]);
-    connected = true;
-    if (signal.aborted) { await client.end(); throw new DatabaseFailure('aborted'); }
-    if (abort) signal.removeEventListener('abort', abort);
-    return await runScope(client, () => client.end(), signal, callback);
-  } catch (error) {
-    if (!connected && !cancelled) await client.end().catch(() => {});
-    throw error;
-  } finally { if (abort) signal.removeEventListener('abort', abort); }
+    const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
+    if (signal.aborted) throw new DatabaseFailure('aborted');
+    const client = new Client({ connectionString, connectionTimeoutMillis: options.connectionTimeoutMs });
+    let cancelled = false;
+    let abort: (() => void) | undefined;
+    const pending = client.connect().then(() => { if (cancelled) void client.end().catch(() => {}); });
+    const stopped = new Promise<never>((_, reject) => {
+      abort = () => { cancelled = true; void client.end().catch(() => {}); reject(new DatabaseFailure('aborted')); };
+      signal.addEventListener('abort', abort, { once: true });
+    });
+    let connected = false;
+    try {
+      await Promise.race([pending, stopped]);
+      connected = true;
+      if (signal.aborted) { await client.end(); throw new DatabaseFailure('aborted'); }
+      if (abort) signal.removeEventListener('abort', abort);
+      return await runScope(client, () => client.end(), signal, callback);
+    } catch (error) {
+      if (!connected && !cancelled) await client.end().catch(() => {});
+      throw error;
+    } finally { if (abort) signal.removeEventListener('abort', abort); }
+  } finally { clearTimeout(timer); }
 }

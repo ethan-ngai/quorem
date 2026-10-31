@@ -76,7 +76,7 @@ func TestMatchLanguagesPreserveWorkspaceOwnershipAndQueueSnapshots(t *testing.T)
 	if _, err = s.SwitchMatchLanguage(ctx, "alice", id, ID(), "ocaml"); errorCode(err) != "user_busy" {
 		t.Fatal("changed language while running", err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.RuntimeRevision != "typescript-5.9.3-node-22.21.1-v1" {
 		t.Fatal("queue did not pin selected language", job, err)
 	}

@@ -3,10 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "runner": "node src/runtime/runner.ts",
+    "verifier": "node src/runtime/verifier.ts"
   },
   "dependencies": {
-    "@quorem/execution": "workspace:*"
+    "@quorem/execution": "workspace:*",
+    "@quorem/questions": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

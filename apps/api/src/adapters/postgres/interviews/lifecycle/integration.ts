@@ -6,14 +6,16 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import { migrate } from "@quorem/database/migrations";
 import { sql } from "drizzle-orm";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
-import { operationFingerprint } from "./operations.ts";
 import { interviewLifecycle } from "./repository.ts";
 const url = process.env.QUOREM_INTERVIEW_TEST_DATABASE_URL;
 if (
   !url ||
-  !["55462:/quorem_hono_interview_test", "55465:/quorem_hono_result_stream_test"].includes(
-    `${new URL(url).port}:${new URL(url).pathname}`,
-  ) ||
+  ![
+    "55681:/quorem_hono_29c_lifecycle_test",
+    "55462:/quorem_hono_interview_test",
+    "55465:/quorem_hono_result_stream_test",
+    "55489:/quorem_hono_stream_lifecycle_test",
+  ].includes(`${new URL(url).port}:${new URL(url).pathname}`) ||
   !["localhost", "127.0.0.1"].includes(new URL(url).hostname)
 )
   throw new Error("Disposable interview database required");
@@ -41,44 +43,43 @@ const host = actor("interview-host"),
   member = actor("interview-member"),
   other = actor("interview-other");
 const repo = interviewLifecycle(run, {
-  // SQL-backed fixture collaborators isolate lifecycle behavior until 23a is composed.
-  question: async (_tx, _actor, c) => ({
-    safe: JSON.stringify({
-      problem: { title: "Public" },
-      hiddenCases: [{ expected: "PRIVATE FIXTURE" }],
-    }),
-    lossless: null,
-    source: "PRIVATE SOURCE",
-    language: "python",
-    fingerprint: await operationFingerprint("create", c.title),
-  }),
-  snapshot: async (tx, who, id) => {
-    const row = (
-      await tx.execute<{
-        id: string;
-        title: string;
-        state: string;
-        role: string;
-        version: string;
-        invite: string;
-        interviewer: string;
-      }>(
-        sql`SELECT i.id::text,i.title,i.state,m.role,i.version::text,i.invite_token AS invite,i.interviewer_invite_token AS interviewer FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${who.userId} AND m.removed_at IS NULL WHERE i.id=${id}::uuid AND i.deleted_at IS NULL`,
-      )
-    ).rows[0];
-    if (!row) throw new Error("Missing member");
-    return JSON.stringify({
-      id: row.id,
-      title: row.title,
-      state: row.state,
-      role: row.role,
-      version: row.version,
-      ...(row.role === "interviewer"
-        ? { invites: { interviewee: row.invite, interviewer: row.interviewer } }
-        : {}),
-    });
+  question: async (tx, actor, command) => {
+    const { preparePublishedInterviewQuestion } = await import("../question/prepare.ts");
+    return preparePublishedInterviewQuestion(tx, actor, command);
+  },
+  snapshot: async (who, id) => {
+    const value = await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        const row = (
+          await tx.execute<{
+            id: string;
+            title: string;
+            state: string;
+            role: string;
+            version: string;
+            invite: string;
+            interviewer: string;
+          }>(
+            sql`SELECT i.id::text,i.title,i.state,m.role,i.version::text,i.invite_token AS invite,i.interviewer_invite_token AS interviewer FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${who.userId} AND m.removed_at IS NULL WHERE i.id=${id}::uuid AND i.deleted_at IS NULL`,
+          )
+        ).rows[0];
+        if (!row) throw new Error("Missing member");
+        return JSON.stringify({
+          id: row.id,
+          title: row.title,
+          state: row.state,
+          role: row.role,
+          version: row.version,
+          ...(row.role === "interviewer"
+            ? { invites: { interviewee: row.invite, interviewer: row.interviewer } }
+            : {}),
+        });
+      }),
+    );
+    return new Response(value).body!;
   },
 });
+let fixtureVersion = "";
 let id = "",
   invite = "",
   interviewer = "";
@@ -92,23 +93,67 @@ before(async () => {
     "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,'interview-host','interviews.host','manual','test','test','test')",
     [crypto.randomUUID()],
   );
+  await pool.query(
+    "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,'interview-host','questions.custom','manual','fixture','test','test')",
+    [crypto.randomUUID()],
+  );
+  const { readFileSync } = await import("node:fs");
+  const { questionAuthoring } = await import("../../problems/authoring/repository.ts");
+  const runtime = (language: string) =>
+    (
+      ({
+        python: { revision: "python-3.12-v1", harness: "quorem-harness-v2" },
+        java: { revision: "java-21.0.9-v1", harness: "quorem-java-v1" },
+        typescript: {
+          revision: "typescript-5.9.3-node-22.21.1-v1",
+          harness: "quorem-typescript-v1",
+        },
+        ocaml: { revision: "ocaml-4.13.1-v1", harness: "quorem-ocaml-v1" },
+        postgresql: { revision: "postgresql-17.6-v1", harness: "quorem-postgresql-v2" },
+      }) as Record<string, { revision: string; harness: string }>
+    )[language];
+  const content = JSON.parse(
+    readFileSync(resolve("../../fixtures/problems/run-widths.json"), "utf8"),
+  );
+  content.problem.slug = `lifecycle-${crypto.randomUUID()}`;
+  const author = questionAuthoring(run, runtime),
+    actor = { userId: host.userId, admin: false };
+  const draft = JSON.parse(await author.create(actor, JSON.stringify(content), undefined));
+  fixtureVersion = JSON.parse(
+    await author.publish(actor, draft.id, draft.revision, "private"),
+  ).publishedVersionId;
 });
 after(async () => {
   await pool.end();
 });
 void test("creation serializes host capacity and preserves retry identity", async () => {
-  const input = { title: "Room", question: { problemVersionId: "fixture", language: "python" } };
+  const input = {
+    title: "Room",
+    question: { problemVersionId: fixtureVersion, language: "python" },
+  };
   const results = await Promise.allSettled(
     Array.from({ length: 3 }, (_, i) => repo.create(host, `create-${i}`, input)),
   );
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
   const index = results.findIndex((r) => r.status === "fulfilled"),
-    created = JSON.parse((results[index] as PromiseFulfilledResult<string>).value);
-  id = created.id;
+    ack = JSON.parse((results[index] as PromiseFulfilledResult<string>).value);
+  id = ack.id;
+  const created = JSON.parse(await new Response(await repo.read(host, id)).text());
   invite = created.invites.interviewee;
   interviewer = created.invites.interviewer;
   assert.equal(JSON.parse(await repo.create(host, `create-${index}`, input)).id, id);
-  assert.equal((await repo.list(host)).length, 1);
+  const list = await repo.list(host);
+  assert.equal(list.length, 1);
+  assert.deepEqual(Object.keys(JSON.parse(list[0])).sort(), [
+    "hostId",
+    "id",
+    "memberCount",
+    "problemTitle",
+    "role",
+    "state",
+    "title",
+  ]);
+  assert.doesNotMatch(list[0], /PRIVATE|source|invite/i);
   await assert.rejects(repo.create(member, "missing-capability", input));
 });
 void test("invite projection is public-safe and joins honor role, locking and removal", async () => {
@@ -116,15 +161,18 @@ void test("invite projection is public-safe and joins honor role, locking and re
   assert.deepEqual(Object.keys(preview).sort(), ["role", "sessionId", "state", "title"]);
   assert.doesNotMatch(JSON.stringify(preview), /PRIVATE|source|token/);
   assert.equal(
-    JSON.parse((await repo.join(member, invite, undefined, "")).snapshot).role,
+    (await repo.join(member, invite, undefined, ""),
+    JSON.parse(await new Response(await repo.read(member, id)).text()).role),
     "interviewee",
   );
   assert.equal(
-    JSON.parse((await repo.join(member, interviewer, undefined, "")).snapshot).role,
+    (await repo.join(member, interviewer, undefined, ""),
+    JSON.parse(await new Response(await repo.read(member, id)).text()).role),
     "interviewer",
   );
   assert.equal(
-    JSON.parse((await repo.join(member, invite, undefined, "")).snapshot).role,
+    (await repo.join(member, invite, undefined, ""),
+    JSON.parse(await new Response(await repo.read(member, id)).text()).role),
     "interviewer",
   );
   await assert.rejects(repo.setMember(host, id, "bad-role", host.userId, "interviewee"));
@@ -136,11 +184,8 @@ void test("invite projection is public-safe and joins honor role, locking and re
 void test("guest reuse, revocation and stale cookies preserve scope", async () => {
   const joined = await repo.join(undefined, invite, undefined, "Guest");
   assert.ok(joined.credential);
-  const guestId = JSON.parse(joined.snapshot).id;
-  assert.equal(
-    JSON.parse((await repo.join(undefined, invite, joined.credential, "Guest")).snapshot).id,
-    guestId,
-  );
+  const guestId = joined.id;
+  assert.equal((await repo.join(undefined, invite, joined.credential, "Guest")).id, guestId);
   const owner = (
     await pool.query("SELECT owner_id FROM interview_guest_sessions WHERE session_id=$1", [id])
   ).rows[0].owner_id as string;
@@ -153,8 +198,16 @@ void test("grant revocation freezes joins but still permits close/delete and pre
   );
   await assert.rejects(repo.preview(invite));
   await assert.rejects(repo.join(other, invite, undefined, ""));
-  assert.equal(JSON.parse(await repo.close(host, id, "close")).state, "closed");
-  assert.equal(JSON.parse(await repo.close(host, id, "close")).state, "closed");
+  assert.equal(
+    (await repo.close(host, id, "close"),
+    JSON.parse(await new Response(await repo.read(host, id)).text()).state),
+    "closed",
+  );
+  assert.equal(
+    (await repo.close(host, id, "close"),
+    JSON.parse(await new Response(await repo.read(host, id)).text()).state),
+    "closed",
+  );
   await repo.delete(host, id);
   await repo.delete(host, id);
   assert.equal(
@@ -173,10 +226,14 @@ void test("grant revocation freezes joins but still permits close/delete and pre
 void test("admission locking serializes close and concurrent joins", async () => {
   await pool.query("UPDATE entitlement_grants SET revoked_at=NULL WHERE user_id='interview-host'");
   const created = JSON.parse(
-    await repo.create(host, "race-create", { title: "Race", question: {} }),
+    await repo.create(host, "race-create", {
+      title: "Race",
+      question: { problemVersionId: fixtureVersion, language: "python" },
+    }),
   );
   const room = created.id as string,
-    token = created.invites.interviewee as string;
+    token = JSON.parse(await new Response(await repo.read(host, room)).text()).invites
+      .interviewee as string;
   await repo.setAdmission(host, room, "lock", true);
   await assert.rejects(
     repo.join(other, token, undefined, ""),
@@ -198,8 +255,9 @@ void test("admission locking serializes close and concurrent joins", async () =>
 });
 void test("public snapshots read only unlocked examples and authorized revealed case bytes", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
-  const { backfillInterviewPublicExamples } = await import("../question/public-examples.ts");
-  const { interviewSnapshot } = await import("../question/snapshot.ts");
+  const { backfillActiveRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
+  const { interviewSnapshotStream } = await import("../question/stream.ts");
+  const interviewSnapshot = interviewSnapshotStream(run);
   const id = crypto.randomUUID(),
     epoch = crypto.randomUUID(),
     problem = crypto.randomUUID(),
@@ -215,17 +273,11 @@ void test("public snapshots read only unlocked examples and authorized revealed 
     "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,'interview-host','interviewer'),($1,$2,'interviewee')",
     [id, candidate],
   );
-  await assert.rejects(
-    run((scope) =>
-      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        interviewSnapshot(tx, member, id),
-      ),
-    ),
-  );
+  await assert.rejects(interviewSnapshot(member, id));
   assert.equal(
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillInterviewPublicExamples(tx, id, crypto.randomUUID()),
+        backfillActiveRunnerInput(tx, id, crypto.randomUUID()),
       ),
     ),
     false,
@@ -233,17 +285,12 @@ void test("public snapshots read only unlocked examples and authorized revealed 
   assert.equal(
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillInterviewPublicExamples(tx, id, epoch),
+        backfillActiveRunnerInput(tx, id, epoch),
       ),
     ),
     true,
   );
-  const read = (who: LocalPrincipal) =>
-    run((scope) =>
-      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        interviewSnapshot(tx, who, id),
-      ),
-    );
+  const read = async (who: LocalPrincipal) => new Response(await interviewSnapshot(who, id)).text();
   const candidateValue = await read(member);
   assert.match(candidateValue, /9007199254740993/);
   assert.match(candidateValue, /public\\u0000/);
@@ -280,12 +327,20 @@ void test("public snapshots read only unlocked examples and authorized revealed 
       }),
     ),
   );
-  const restricted = await run((scope) =>
-    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
-      await tx.execute(sql`SET LOCAL ROLE quorem_interview_public_test`);
-      return interviewSnapshot(tx, member, id);
-    }),
-  );
+  const restrictedRun = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
+    run((scope) =>
+      f({
+        ...scope,
+        transaction: (options, action) =>
+          scope.transaction(options, async (tx) => {
+            await tx.execute(sql`SET LOCAL ROLE quorem_interview_public_test`);
+            return action(tx);
+          }),
+      }),
+    );
+  const restricted = await new Response(
+    await interviewSnapshotStream(restrictedRun)(member, id),
+  ).text();
   assert.match(restricted, /PRIVATE-ONE\\u0000/);
   assert.doesNotMatch(restricted, /PRIVATE-TWO|SECRET REFERENCE/);
   const writer = await pool.connect();
@@ -313,7 +368,7 @@ void test("public snapshots read only unlocked examples and authorized revealed 
   await assert.rejects(read(member));
 });
 void test("backfill CAS rejects a changed question epoch after waiting for the lock", async () => {
-  const { backfillInterviewPublicExamples } = await import("../question/public-examples.ts");
+  const { backfillActiveRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
   const row = (
     await pool.query(
       "SELECT id::text,question_epoch::text FROM interviews WHERE title='Projection'",
@@ -325,7 +380,7 @@ void test("backfill CAS rejects a changed question epoch after waiting for the l
     await client.query("SELECT id FROM interviews WHERE id=$1 FOR UPDATE", [row.id]);
     const pending = run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillInterviewPublicExamples(tx, row.id, row.question_epoch),
+        backfillActiveRunnerInput(tx, row.id, row.question_epoch),
       ),
     );
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -343,7 +398,8 @@ void test("published question creation composes canonical authoring, storage and
   const { readFileSync } = await import("node:fs");
   const { questionAuthoring } = await import("../../problems/authoring/repository.ts");
   const { preparePublishedInterviewQuestion } = await import("../question/prepare.ts");
-  const { interviewSnapshot } = await import("../question/snapshot.ts");
+  const { interviewSnapshotStream } = await import("../question/stream.ts");
+  const interviewSnapshot = interviewSnapshotStream(run);
   const runtime = (language: string) =>
     (
       ({
@@ -378,7 +434,8 @@ void test("published question creation composes canonical authoring, storage and
     title: "Published",
     question: { problemVersionId: published.publishedVersionId, language: "python" },
   };
-  const created = JSON.parse(await actual.create(host, "published-create", command));
+  const ack = JSON.parse(await actual.create(host, "published-create", command));
+  const created = JSON.parse(await new Response(await actual.read(host, ack.id)).text());
   assert.equal(created.title, "Published");
   assert.equal(created.role, "interviewer");
   assert.ok(created.question.problem.signature);
@@ -391,7 +448,8 @@ void test("published question creation composes canonical authoring, storage and
 });
 void test("custom question creates and replays a canonical private library version", async () => {
   const { preparePublishedInterviewQuestion } = await import("../question/prepare.ts");
-  const { interviewSnapshot } = await import("../question/snapshot.ts");
+  const { interviewSnapshotStream } = await import("../question/stream.ts");
+  const interviewSnapshot = interviewSnapshotStream(run);
   const actual = interviewLifecycle(run, {
     question: preparePublishedInterviewQuestion,
     snapshot: interviewSnapshot,
@@ -414,7 +472,8 @@ void test("custom question creates and replays a canonical private library versi
       },
     },
   };
-  const created = JSON.parse(await actual.create(host, "custom-create", command));
+  const ack = JSON.parse(await actual.create(host, "custom-create", command));
+  const created = JSON.parse(await new Response(await actual.read(host, ack.id)).text());
   assert.equal(created.title, "Custom");
   assert.equal(created.question.problem.slug, "interview-private");
   assert.equal(created.question.privateCaseDetails[0].case.expected, "b");
@@ -440,7 +499,8 @@ void test("custom question creates and replays a canonical private library versi
 });
 void test("real HTTP guest join shares origin, budget, cookie and bearer precedence", async () => {
   const { preparePublishedInterviewQuestion } = await import("../question/prepare.ts");
-  const { interviewSnapshot } = await import("../question/snapshot.ts");
+  const { interviewSnapshotStream } = await import("../question/stream.ts");
+  const interviewSnapshot = interviewSnapshotStream(run);
   const { interviewLifecycleRoutes } =
     await import("../../../../modules/interviews/lifecycle/routes.ts");
   const { createApp } = await import("../../../../app.ts");
@@ -452,10 +512,13 @@ void test("real HTTP guest join shares origin, budget, cookie and bearer precede
   });
   const created = JSON.parse(
     (await pool.query("SELECT id,invite_token FROM interviews WHERE title='Published'")).rows.length
-      ? await actual.read(
-          host,
-          (await pool.query("SELECT id::text FROM interviews WHERE title='Published'")).rows[0].id,
-        )
+      ? await new Response(
+          await actual.read(
+            host,
+            (await pool.query("SELECT id::text FROM interviews WHERE title='Published'")).rows[0]
+              .id,
+          ),
+        ).text()
       : "{}",
   );
   const token = created.invites.interviewee.replace("/interview-invite/", "");
@@ -516,12 +579,11 @@ void test("real HTTP guest join shares origin, budget, cookie and bearer precede
 });
 void test("immutable fixture backfill gates complete staged public sidecars", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
-  const { backfillSnapshotPublicExamples, readSnapshotPublicExamples } =
-    await import("../question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
+  const { readSnapshotPublicExamples } = await import("../question/public-examples.ts");
   const session = (await pool.query("SELECT id::text FROM interviews WHERE title='Projection'"))
     .rows[0].id as string;
-  const raw =
-    '{"problem":{"examples":[],"odyssey":{"levels":[{"examples":[{"args":[9007199254740993],"expected":"x\\u0000"}]},{"examples":[{"args":[],"expected":"future"}]}]}},"odysseyHiddenCases":[[],[]],"hiddenCases":[]}';
+  const raw = `{"problem":{"id":"${crypto.randomUUID()}","examples":[],"odyssey":{"levels":[{"examples":[{"args":[9007199254740993],"expected":"x\\u0000"}]},{"examples":[{"args":[],"expected":"future"}]}]}},"odysseyHiddenCases":[[],[]],"hiddenCases":[]}`;
   const safe = storageProjection(raw);
   assert.ok(safe.lossless);
   const row = (
@@ -541,7 +603,7 @@ void test("immutable fixture backfill gates complete staged public sidecars", as
   assert.equal(
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillSnapshotPublicExamples(tx, session, fixtureId),
+        backfillHistoricalRunnerInput(tx, session, fixtureId),
       ),
     ),
     true,
@@ -558,7 +620,8 @@ void test("immutable fixture backfill gates complete staged public sidecars", as
 void test("custom Odyssey construction persists each stage and limits candidate stage output", async () => {
   const { readFileSync } = await import("node:fs");
   const { preparePublishedInterviewQuestion } = await import("../question/prepare.ts");
-  const { interviewSnapshot } = await import("../question/snapshot.ts");
+  const { interviewSnapshotStream } = await import("../question/stream.ts");
+  const interviewSnapshot = interviewSnapshotStream(run);
   const content = JSON.parse(
     readFileSync(resolve("../../fixtures/odyssey/balance-ledger.json"), "utf8"),
   );
@@ -579,14 +642,16 @@ void test("custom Odyssey construction persists each stage and limits candidate 
     question: preparePublishedInterviewQuestion,
     snapshot: interviewSnapshot,
   });
-  const created = JSON.parse(await actual.create(host, "custom-staged", command));
+  const ack = JSON.parse(await actual.create(host, "custom-staged", command));
+  const created = JSON.parse(await new Response(await actual.read(host, ack.id)).text());
   assert.equal(created.question.progress.totalLevels, content.problem.odyssey.levels.length);
   assert.equal(created.question.progress.levels.length, 1);
   assert.ok(created.question.privateCaseDetails.length > 0);
 });
 void test("HTTP custom creation preserves lossless numeric test cases", async () => {
   const { preparePublishedInterviewQuestion } = await import("../question/prepare.ts");
-  const { interviewSnapshot } = await import("../question/snapshot.ts");
+  const { interviewSnapshotStream } = await import("../question/stream.ts");
+  const interviewSnapshot = interviewSnapshotStream(run);
   const { interviewLifecycleRoutes } =
     await import("../../../../modules/interviews/lifecycle/routes.ts");
   const { createApp } = await import("../../../../app.ts");
@@ -614,19 +679,20 @@ void test("HTTP custom creation preserves lossless numeric test cases", async ()
   const text = await response.text();
   assert.equal(response.status, 201, text);
   assert.equal(response.headers.get("cache-control"), "no-store");
-  assert.match(text, /9007199254740993/);
+  const ack = JSON.parse(text);
+  assert.match(await (await app.request(`/v1/interviews/${ack.id}`)).text(), /9007199254740993/);
 });
 void test("privileged backfill runs in bounded batches", async () => {
-  const { backfillInterviewBatch } = await import("../question/backfill.ts");
-  const first = await backfillInterviewBatch(run, 1);
+  const { backfillRunnerInputsBatch } = await import("../runner-inputs/legacy-backfill.ts");
+  const first = await backfillRunnerInputsBatch(run, 1);
   assert.ok(first.attempted <= 1);
   assert.ok(first.completed <= first.attempted);
   assert.deepEqual(Object.keys(first).sort(), ["attempted", "completed"]);
-  await assert.rejects(backfillInterviewBatch(run, 65));
+  await assert.rejects(backfillRunnerInputsBatch(run, 65));
 });
 void test("historical result reader fetches only revealed case and result bytes under restricted role", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
-  const { backfillSnapshotPublicExamples } = await import("../question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
   const { backfillPrivateResultCases, savePrivateResultCase } =
     await import("../question/private-results.ts");
   const { submissionSnapshots } = await import("../../judging/results/repository.ts");
@@ -642,8 +708,7 @@ void test("historical result reader fetches only revealed case and result bytes 
   ]);
   const submission = crypto.randomUUID(),
     document = crypto.randomUUID();
-  const raw =
-    '{"problem":{"examples":[]},"hiddenCases":[{"args":[9007199254740993],"expected":"PRIVATE-A\\u0000"},{"args":[2],"expected":"PRIVATE-B"}]}';
+  const raw = `{"problem":{"id":"${crypto.randomUUID()}","examples":[]},"hiddenCases":[{"args":[9007199254740993],"expected":"PRIVATE-A\\u0000"},{"args":[2],"expected":"PRIVATE-B"}]}`;
   const fixture = storageProjection(raw);
   const q = (
     await pool.query(
@@ -693,7 +758,7 @@ void test("historical result reader fetches only revealed case and result bytes 
   );
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillSnapshotPublicExamples(tx, session.id, q),
+      backfillHistoricalRunnerInput(tx, session.id, q),
     ),
   );
   await run((scope) =>

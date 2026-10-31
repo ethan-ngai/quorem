@@ -26,7 +26,7 @@ func TestExecutionCheckpointYieldFenceAndCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestExecutionCheckpointYieldFenceAndCompletion(t *testing.T) {
 	if _, err = s.Admit(ctx, "alice", ID(), judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "source"}, ID()); errorCode(err) != "user_busy" {
 		t.Fatal("yield released owner slot", err)
 	}
-	if skipped, err := s.Claim(ctx); err != nil || skipped.JobID != "" {
+	if skipped, err := claimTestJob(ctx, s, false); err != nil || skipped.JobID != "" {
 		t.Fatal("non-resumable judge claimed checkpoint", skipped, err)
 	}
 	if _, present, err := s.NextRunnableExecutionDeadline(ctx, false, ""); err != nil || present {
@@ -84,7 +84,7 @@ func TestExecutionCheckpointYieldFenceAndCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := s.Claim(ctx)
+	other, err := claimTestJob(ctx, s, false)
 	if err != nil || other.SubmissionID != bobSubmission.ID {
 		t.Fatal("ordinary job starved", other, err)
 	}
@@ -94,7 +94,7 @@ func TestExecutionCheckpointYieldFenceAndCompletion(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, `UPDATE execution_jobs SET attempt_id=gen_random_uuid() WHERE id=$1`, job.JobID); err == nil {
 		t.Fatal("old judge claimed checkpoint")
 	}
-	next, err := s.ClaimResumable(ctx)
+	next, err := claimTestJob(ctx, s, true)
 	if err != nil || next.AttemptID == job.AttemptID {
 		t.Fatal(next, err)
 	}
@@ -133,7 +133,7 @@ func TestCheckpointCancellationFencesWritesAndScrubsPartialData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestCheckpointRetentionScrubsTerminalPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestCheckpointWriteRacingCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestLegacyTerminalWriterTransactionallyScrubsCheckpoint(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			job, err := s.Claim(ctx)
+			job, err := claimTestJob(ctx, s, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -320,7 +320,7 @@ func TestCheckpointReplayReleasesPoolForHeartbeat(t *testing.T) {
 	if _, err = s.Admit(ctx, "alice", ID(), judging.Command{WorkspaceID: w.ID, Kind: "run", Source: "source"}, ID()); err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestCheckpointReplayFencesCancellationBetweenPages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}

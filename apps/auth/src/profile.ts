@@ -5,9 +5,8 @@ import {
 } from "./image-processing.ts";
 import { profileMutationLifetimeMs, type ProfileMutationBudget } from "./profile-budget.ts";
 import type { ProfileStorage } from "./profile-storage.ts";
+import { photoPrefix, profilePhotoKey as storedKey, validPhotoKey } from "./profile-object-key.ts";
 
-export const photoPrefix = "/api/auth/profile-photos/";
-const keyPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const byteLimit = 5 * 1024 * 1024;
 export type Profile = {
   id: string;
@@ -38,11 +37,6 @@ const publicProfile = ({ id, name, email, username, image, profile_color }: Prof
   username,
   image: storedKey(image) ? image : null,
 });
-const storedKey = (image: string | null | undefined) => {
-  if (!image?.startsWith(photoPrefix)) return undefined;
-  const key = image.slice(photoPrefix.length);
-  return keyPattern.test(key) ? key : undefined;
-};
 
 async function boundedBody(request: Request, signal?: AbortSignal) {
   if (Number(request.headers.get("content-length")) > byteLimit) return undefined;
@@ -87,10 +81,11 @@ export function createProfileHandler(options: {
   session: SessionReader;
   repository: ProfileRepository;
   storage?: ProfileStorage;
-  imageProcessor: ImageProcessor;
+  imageProcessor?: ImageProcessor;
   budget: ProfileMutationBudget;
 }) {
-  if (!options.imageProcessor) throw new Error("Profile image processor is required");
+  if (options.storage && !options.imageProcessor)
+    throw new Error("Profile image processor is required");
   if (!options.budget) throw new Error("Profile mutation budget is required");
   const cleanup = async (key: string | undefined) => {
     if (!key) return;
@@ -104,7 +99,7 @@ export function createProfileHandler(options: {
     const pathname = new URL(request.url).pathname;
     if (pathname.startsWith(photoPrefix) && request.method === "GET") {
       const key = pathname.slice(photoPrefix.length);
-      if (!keyPattern.test(key) || !(await options.repository.contains(photoPrefix + key)))
+      if (!validPhotoKey(key) || !(await options.repository.contains(photoPrefix + key)))
         return json(404, { error: "Photo not found" });
       if (!options.storage) return json(503, { error: "Photo storage unavailable" });
       const image = await options.storage.get(key);
@@ -147,7 +142,8 @@ export function createProfileHandler(options: {
       await options.repository.setColor(profile.id, color as number);
       return json(200, publicProfile({ ...profile, profile_color: color as number }));
     }
-    if (!options.storage) return json(503, { error: "Photo storage unavailable" });
+    if (!options.storage || !options.imageProcessor)
+      return json(503, { error: "Photo storage unavailable" });
     const admission = await options.budget.acquire(profile.id);
     if (!admission.allowed) return json(429, { error: "Try again shortly" });
     const signal = AbortSignal.any([

@@ -26,11 +26,11 @@ func TestExecutionFencesSubmissionIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	first, err := s.Claim(ctx)
+	first, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := s.Claim(ctx)
+	second, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,6 +10,9 @@ import { createImageService } from "./image-service.ts";
 import { isolatedImageProcessor } from "./adapters/isolated-image.ts";
 import { remoteImageProcessor } from "./adapters/remote-image.ts";
 import { ImageExecutionUncertain } from "./image-processing.ts";
+import { startImageService } from "./image-service-main.ts";
+import { networkInterfaces } from "node:os";
+import { accessFetch } from "@quorem/execution/transport/access";
 
 const token = "fixture-token-".repeat(3);
 const server = createImageService({ token, local: true });
@@ -24,6 +27,82 @@ afterAll(async () => {
   await once(server, "close");
 });
 describe("isolated media executor", () => {
+  it("requires explicit private container transport for nonloopback and serves authenticated health and Sharp", async () => {
+    await expect(
+      startImageService({ IMAGE_SERVICE_HOST: "0.0.0.0", IMAGE_SERVICE_TOKEN: token }),
+    ).rejects.toThrow();
+    await expect(
+      startImageService({
+        IMAGE_SERVICE_HOST: "127.0.0.1",
+        IMAGE_SERVICE_TRANSPORT: "cloudflare-container",
+        IMAGE_SERVICE_TOKEN: token,
+      }),
+    ).rejects.toThrow();
+    const addresses = Object.values(networkInterfaces())
+      .flat()
+      .filter((entry) => entry && entry.family === "IPv4" && !entry.internal);
+    expect(addresses.length).toBeGreaterThan(0);
+    const container = createImageService({
+      token,
+      local: false,
+      transport: "cloudflare-container",
+    });
+    container.listen(0, "0.0.0.0");
+    await once(container, "listening");
+    const base = `http://${addresses[0]!.address}:${(container.address() as { port: number }).port}`;
+    try {
+      expect((await fetch(`${base}/health`)).status).toBe(401);
+      expect(
+        (await fetch(`${base}/health`, { headers: { authorization: `Bearer ${token}` } })).status,
+      ).toBe(200);
+      const input = await sharp({ create: { width: 2, height: 2, channels: 3, background: "red" } })
+        .png()
+        .toBuffer();
+      const response = await fetch(`${base}/`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "x-image-format": "png" },
+        body: input,
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-image-execution")).toBe("terminated");
+      expect((await sharp(Buffer.from(await response.arrayBuffer())).metadata()).format).toBe(
+        "webp",
+      );
+    } finally {
+      container.close();
+      await once(container, "close");
+    }
+  });
+  it("attaches purpose-scoped Access headers only to the configured HTTPS image origin", async () => {
+    let calls = 0;
+    const send: typeof fetch = async (input, init) => {
+      calls++;
+      expect(input instanceof Request ? input.url : input.toString()).toBe(
+        "https://media.example/",
+      );
+      const headers = new Headers(init?.headers);
+      expect(headers.get("authorization")).toBe(`Bearer ${token}`);
+      expect(headers.get("cf-access-client-id")).toBe("fixture-id");
+      expect(headers.get("cf-access-client-secret")).toBe("fixture-secret");
+      expect(init?.redirect).toBe("error");
+      return new Response(new Uint8Array([1]), { headers: { "x-image-execution": "terminated" } });
+    };
+    const client = accessFetch(
+      "https://media.example/",
+      { id: "fixture-id", secret: "fixture-secret" },
+      send,
+    )!;
+    expect(
+      (
+        await remoteImageProcessor("https://media.example/", token, client).process(
+          new Uint8Array([1]),
+          "png",
+        )
+      ).kind,
+    ).toBe("processed");
+    await expect(client("https://other.example/")).rejects.toThrow();
+    expect(calls).toBe(1);
+  });
   it("runs real Sharp via child and private HTTP; rotates and strips metadata", async () => {
     const input = await sharp({ create: { width: 20, height: 40, channels: 3, background: "red" } })
       .jpeg()

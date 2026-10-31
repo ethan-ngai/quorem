@@ -95,7 +95,7 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != sub.ID {
 		t.Fatal(job, err)
 	}
@@ -108,7 +108,7 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 	if _, err = s.PassInterviewStage(ctx, "alice", v.ID, ID(), v.QuestionEpoch, 1); err != nil {
 		t.Fatal(err)
 	}
-	job, err = s.ClaimResumable(ctx)
+	job, err = claimTestJob(ctx, s, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestInterviewRetainsEvaluatedFeedbackAcrossAdvanceAndPending(t *testing.T) 
 		t.Fatal("revealed verdict", revealed, err)
 	}
 
-	runJob, err := s.Claim(ctx)
+	runJob, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}

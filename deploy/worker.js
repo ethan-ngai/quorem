@@ -1,3 +1,4 @@
+import { caseRequest } from "./case-service.js";
 /** Same-origin elastic ingress; PostgreSQL owns product state and judge leases. */
 import {
   POOL_REVISION_PATH,
@@ -46,25 +47,6 @@ async function wake(request, env) {
   } catch {
     return new Response("Execution wake unavailable", { status: 503 });
   }
-}
-
-async function caseRequest(request, env, attempt) {
-  if (
-    typeof env.JUDGE_CONTROL_TOKEN !== "string" ||
-    env.JUDGE_CONTROL_TOKEN.length < 32 ||
-    request.headers.get("Authorization") !== `Bearer ${env.JUDGE_CONTROL_TOKEN}` ||
-    (!(request.method === "GET" && (attempt === "ready" || env.CASE_DIAGNOSTICS === "true")) &&
-      !["POST", "DELETE"].includes(request.method))
-  )
-    return new Response(null, { status: 404 });
-  if (!env.CASES) return new Response(null, { status: 503 });
-  if (request.method === "GET" && attempt === "ready") return new Response(null, { status: 204 });
-  const headers = new Headers(request.headers);
-  headers.delete("Authorization");
-  const forwarded = new Request(request, { headers });
-  return env.CASES.getByName(attempt, { locationHint: env.APP_LOCATION_HINT || "enam" }).fetch(
-    forwarded,
-  );
 }
 
 const ingress = {

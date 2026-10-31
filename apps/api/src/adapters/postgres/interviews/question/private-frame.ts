@@ -10,7 +10,7 @@ export async function savePrivateResultFrame(
   sandboxScope: string,
   ordinal: number,
 ): Promise<void> {
-  if (!Number.isSafeInteger(ordinal) || ordinal < 0 || ordinal > 319)
+  if (!Number.isSafeInteger(ordinal) || ordinal < 0 || ordinal > 2147483646)
     throw new RangeError("Invalid private result ordinal");
   const source = sql`SELECT f.frame_data FROM execution_completion_frames f JOIN execution_completion_staging c ON c.job_id=f.job_id JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id WHERE f.job_id=${jobId}::uuid AND f.channel='private' AND f.ordinal=${ordinal} AND c.attempt_id=${attemptId}::uuid AND c.sandbox_scope=${sandboxScope} AND c.eof AND j.submission_id=${submissionId}::uuid AND j.attempt_id=${attemptId}::uuid AND j.sandbox_scope=${sandboxScope} AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running'`;
   const result = await tx.execute<{ ok: boolean }>(

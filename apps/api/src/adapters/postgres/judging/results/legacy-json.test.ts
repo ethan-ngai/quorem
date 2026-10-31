@@ -1,14 +1,15 @@
+/// <reference types="node" />
 /** @file legacy-json.test.ts @description Incremental lexical boundary tests. @module judging */
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 void test("scans escaped nested values across input chunks", async () => {
   async function* source() {
     yield '{"x":[{"v":"a\\';
     yield '"b"},';
     yield "9007199254740993]}";
   }
-  const reader = new LegacyJsonReader(source());
+  const reader = new StreamingJsonReader(source());
   await reader.expect("{");
   assert.equal(await reader.value(), '"x"');
   await reader.expect(":");
@@ -28,7 +29,7 @@ void test("rejects a truncated nested value", async () => {
     yield '{"x":"';
     yield "unfinished";
   }
-  const reader = new LegacyJsonReader(source());
+  const reader = new StreamingJsonReader(source());
   await assert.rejects(reader.value(), /Truncated/);
 });
 void test("tracks source byte ranges across multibyte UTF-8", async () => {
@@ -36,7 +37,7 @@ void test("tracks source byte ranges across multibyte UTF-8", async () => {
     yield '[ "🐈';
     yield '\\u0000", 9]';
   }
-  const reader = new LegacyJsonReader(source());
+  const reader = new StreamingJsonReader(source());
   await reader.expect("[");
   await reader.peek();
   const start = reader.byteOffset;

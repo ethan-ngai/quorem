@@ -86,6 +86,7 @@ export function rawFields(json: string): Map<string, string> {
       if (c === "," && depth === 0) break;
       i++;
     }
+    if (result.has(key)) throw new Error("duplicate JSON field");
     result.set(key, json.slice(from, i).trimEnd());
     ws();
     if (json[i] === ",") {

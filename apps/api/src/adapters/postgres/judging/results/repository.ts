@@ -15,7 +15,7 @@ import { encode, object, publicResult } from "./projection.ts";
 import { jsonStream } from "../../../../modules/judging/results/stream.ts";
 import { resultCase } from "./projection.ts";
 import { projectedObject } from "./projected-stream.ts";
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 import { interviewAccess } from "./interview.ts";
 type Run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) => Promise<T>;
 type Row = {
@@ -178,9 +178,7 @@ async function streamSnapshot(
       }
       let count = 0,
         channel = "public",
-        present = false,
-        publicVersions: string[] = [],
-        privateVersions: string[] = [];
+        present = false;
       if (header) {
         const raw = object(
           parseLosslessJson(new TextDecoder("utf-8", { fatal: true }).decode(header.data)),
@@ -215,7 +213,7 @@ async function streamSnapshot(
           )
             throw new Error("Invalid hidden case count");
           hiddenCount = Number(raw.hiddenCaseCount.lexeme);
-          if (!Number.isSafeInteger(hiddenCount) || hiddenCount > 320)
+          if (!Number.isSafeInteger(hiddenCount) || hiddenCount > 2147483647)
             throw new Error("Invalid hidden case count");
         }
         count = Number(raw.publicCaseCount.lexeme);
@@ -223,7 +221,7 @@ async function streamSnapshot(
         channel = raw.channel;
         if (
           !Number.isSafeInteger(count) ||
-          count > 320 ||
+          count > 2147483647 ||
           (!present && count) ||
           channel !== (row.kind === "run" ? "public" : "sample")
         )
@@ -233,16 +231,16 @@ async function streamSnapshot(
             n: number;
             first: number | null;
             last: number | null;
-            versions: string[];
           }>(
-            sql`SELECT count(*)::int AS n,min(ordinal) AS first,max(ordinal) AS last,array_agg(xmin::text ORDER BY ordinal) AS versions FROM submission_public_result_cases WHERE submission_id=${id}::uuid AND channel=${channel}`,
+            sql`SELECT count(*)::int AS n,min(ordinal) AS first,max(ordinal) AS last FROM submission_public_result_cases WHERE submission_id=${id}::uuid AND channel=${channel}`,
           )
         ).rows[0];
         if (ready.n !== count || (count > 0 && (ready.first !== 0 || ready.last !== count - 1)))
           throw new Error("Submission result requires backfill");
-        publicVersions = ready.versions ?? [];
       }
-      let privatePlan: { ordinal: number; id: string; version: string; example?: boolean }[] = [];
+      let privatePlan:
+        | { epoch: string; candidates: number; fallback: boolean; exampleVersion?: string }
+        | undefined;
       let fixture: Uint8Array | undefined,
         privateCount = 0;
       if (interviewId && access && row.kind === "submit") {
@@ -252,62 +250,58 @@ async function streamSnapshot(
             fixture: Uint8Array;
             stages: number;
             level: number;
-            ids: string[];
             examples: number;
             resultCount: number;
-          }>(
-            sql`SELECT e.question_epoch::text AS epoch,e.fixture_id AS fixture,e.level,q.total_stages AS stages,q.private_ids AS ids,q.example_count AS examples,e.result_count AS "resultCount" FROM interview_execution_public e JOIN interview_snapshot_public q ON q.session_id=e.session_id AND q.fixture_id=e.fixture_id WHERE e.submission_id=${id}::uuid AND e.session_id=${interviewId}::uuid`,
-          )
+            idsMatch: boolean;
+            resultCountActual: number;
+            resultFirst: number | null;
+            resultLast: number | null;
+            eligible: number;
+          }>(sql`
+          SELECT e.question_epoch::text AS epoch,e.fixture_id AS fixture,e.level,q.total_stages AS stages,q.example_count AS examples,e.result_count AS "resultCount",
+            q.private_ids IS NOT DISTINCT FROM ARRAY(SELECT c.case_id FROM interview_question_private_cases c WHERE c.session_id=e.session_id AND c.question_epoch=e.question_epoch ORDER BY c.ordinal) AS "idsMatch",
+            (SELECT count(*)::int FROM interview_private_result_cases r WHERE r.submission_id=e.submission_id) AS "resultCountActual",
+            (SELECT min(r.ordinal) FROM interview_private_result_cases r WHERE r.submission_id=e.submission_id) AS "resultFirst",
+            (SELECT max(r.ordinal) FROM interview_private_result_cases r WHERE r.submission_id=e.submission_id) AS "resultLast",
+            (SELECT count(*)::int FROM interview_question_private_cases c WHERE c.session_id=e.session_id AND c.question_epoch=e.question_epoch AND (q.total_stages=0 OR CASE WHEN c.case_id ~ '^level:[0-9]+:case:[0-9]+$' THEN split_part(c.case_id,':',2)::numeric<=e.level ELSE false END)) AS eligible
+          FROM interview_execution_public e JOIN interview_snapshot_public q ON q.session_id=e.session_id AND q.fixture_id=e.fixture_id WHERE e.submission_id=${id}::uuid AND e.session_id=${interviewId}::uuid`)
         ).rows[0];
         if (!execution) throw missing();
         fixture = execution.fixture;
         privateCount = execution.resultCount;
         if (access.role === "interviewer" || execution.epoch === access.epoch) {
-          const metadata = (
-            await tx.execute<{ ids: string[]; ordinals: number[]; versions: string[] }>(
-              sql`SELECT ARRAY(SELECT case_id FROM interview_question_private_cases WHERE session_id=${interviewId}::uuid AND question_epoch=${execution.epoch}::uuid ORDER BY ordinal) AS ids,ARRAY(SELECT ordinal FROM interview_private_result_cases WHERE submission_id=${id}::uuid ORDER BY ordinal) AS ordinals,ARRAY(SELECT xmin::text FROM interview_private_result_cases WHERE submission_id=${id}::uuid ORDER BY ordinal) AS versions`,
-            )
-          ).rows[0];
           if (
-            metadata.ids.length !== execution.ids.length ||
-            metadata.ids.some((v, i) => v !== execution.ids[i]) ||
-            metadata.ordinals.length !== execution.resultCount ||
-            metadata.ordinals.some((v, i) => v !== i)
+            !execution.idsMatch ||
+            execution.resultCountActual !== execution.resultCount ||
+            (execution.resultCount > 0 &&
+              (execution.resultFirst !== 0 || execution.resultLast !== execution.resultCount - 1))
           )
             throw new Error("Interview private results require backfill");
-          privateVersions = metadata.versions;
-          const eligible = execution.stages
-            ? execution.ids.filter((v) => {
-                const m = /^level:(\d+):case:\d+$/.exec(v);
-                return !!m && Number(m[1]) <= execution.level;
-              })
-            : execution.ids;
-          const fallback = !execution.stages && !eligible.length;
-          const candidates = fallback ? execution.examples : eligible.length;
+          const fallback = !execution.stages && !execution.eligible;
+          const candidates = fallback ? execution.examples : execution.eligible;
           if (execution.resultCount || (row.state === "completed" && hiddenCount === candidates)) {
+            let exampleVersion: string | undefined;
             if (fallback) {
               const levels = (
-                await tx.execute<{ levels: number[]; version: string }>(
-                  sql`SELECT ARRAY(SELECT level FROM interview_snapshot_public_examples WHERE session_id=${interviewId}::uuid AND fixture_id=${execution.fixture} ORDER BY level) AS levels,(SELECT xmin::text FROM interview_snapshot_public_examples WHERE session_id=${interviewId}::uuid AND fixture_id=${execution.fixture} AND level=0) AS version`,
+                await tx.execute<{
+                  n: number;
+                  first: number | null;
+                  last: number | null;
+                  version: string;
+                }>(
+                  sql`SELECT count(*)::int AS n,min(level) AS first,max(level) AS last,max(xmin::text) FILTER (WHERE level=0) AS version FROM interview_snapshot_public_examples WHERE session_id=${interviewId}::uuid AND fixture_id=${execution.fixture}`,
                 )
               ).rows[0];
               if (
-                levels.levels.length !== execution.stages + 1 ||
-                levels.levels.some((v, i) => v !== i)
+                levels.n !== execution.stages + 1 ||
+                levels.first !== 0 ||
+                levels.last !== execution.stages ||
+                !levels.version
               )
                 throw new Error("Interview public results require backfill");
-              privatePlan = Array.from({ length: candidates }, (_, ordinal) => ({
-                ordinal,
-                id: `example:${ordinal}`,
-                example: true,
-                version: levels.version,
-              }));
-            } else {
-              const selected = await tx.execute<{ ordinal: number; id: string; version: string }>(
-                sql`SELECT c.ordinal,c.case_id AS id,c.xmin::text AS version FROM interview_question_private_cases c JOIN interview_members m ON m.session_id=c.session_id AND m.user_id=${who.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE c.session_id=${interviewId}::uuid AND c.question_epoch=${execution.epoch}::uuid AND c.ordinal<${candidates} AND (m.role='interviewer' OR v.case_id IS NOT NULL) ORDER BY c.ordinal`,
-              );
-              privatePlan = selected.rows;
+              exampleVersion = levels.version;
             }
+            privatePlan = { epoch: execution.epoch, candidates, fallback, exampleVersion };
           }
         }
       }
@@ -323,8 +317,6 @@ async function streamSnapshot(
         privateCount,
         hidden,
         hiddenCount,
-        publicVersions,
-        privateVersions,
         headerVersion: header?.version,
         headerFields,
       };
@@ -334,7 +326,16 @@ async function streamSnapshot(
     kind: "public" | "case" | "private" | "example" | "header",
     ordinal: number,
     caseId = "",
+    caseVersion?: string,
   ): AsyncGenerator<string> {
+    let rowVersion: string | undefined =
+      kind === "header"
+        ? prepared.headerFields[caseId]
+        : kind === "example"
+          ? prepared.privatePlan?.exampleVersion
+          : kind === "case"
+            ? caseVersion
+            : undefined;
     const decoder = new TextDecoder("utf-8", { fatal: true });
     for (let offset = 1; ; offset += 65536) {
       const part = await run((scope) =>
@@ -360,22 +361,23 @@ async function streamSnapshot(
           }
           const query =
             kind === "header"
-              ? sql`SELECT substring(field_data FROM ${offset} FOR 65536) AS data FROM submission_result_header_fields WHERE submission_id=${id}::uuid AND field=${caseId} AND xmin::text=${prepared.headerFields[caseId]}`
+              ? sql`SELECT substring(field_data FROM ${offset} FOR 65536) AS data,xmin::text AS version FROM submission_result_header_fields WHERE submission_id=${id}::uuid AND field=${caseId} AND xmin::text=${rowVersion}`
               : kind === "public"
-                ? sql`SELECT substring(result_data FROM ${offset} FOR 65536) AS data FROM submission_public_result_cases WHERE submission_id=${id}::uuid AND channel=${prepared.channel} AND ordinal=${ordinal} AND xmin::text=${prepared.publicVersions[ordinal]}`
+                ? sql`SELECT substring(result_data FROM ${offset} FOR 65536) AS data,xmin::text AS version FROM submission_public_result_cases WHERE submission_id=${id}::uuid AND channel=${prepared.channel} AND ordinal=${ordinal} ${rowVersion === undefined ? sql`` : sql`AND xmin::text=${rowVersion}`}`
                 : kind === "example"
-                  ? sql`SELECT substring(x.examples FROM ${offset} FOR 65536) AS data FROM interview_snapshot_public_examples x JOIN interview_members m ON m.session_id=x.session_id AND m.user_id=${who.userId} AND m.removed_at IS NULL WHERE x.session_id=${interviewId}::uuid AND x.fixture_id=${prepared.fixture} AND x.level=0 AND x.xmin::text=${prepared.privatePlan[ordinal]?.version}`
+                  ? sql`SELECT substring(x.examples FROM ${offset} FOR 65536) AS data,x.xmin::text AS version FROM interview_snapshot_public_examples x JOIN interview_members m ON m.session_id=x.session_id AND m.user_id=${who.userId} AND m.removed_at IS NULL WHERE x.session_id=${interviewId}::uuid AND x.fixture_id=${prepared.fixture} AND x.level=0 AND x.xmin::text=${rowVersion}`
                   : kind === "private"
-                    ? sql`SELECT substring(r.result_data FROM ${offset} FOR 65536) AS data FROM interview_private_result_cases r JOIN interview_execution_public e ON e.submission_id=r.submission_id JOIN interviews i ON i.id=e.session_id JOIN interview_members m ON m.session_id=i.id AND m.user_id=${who.userId} AND m.removed_at IS NULL LEFT JOIN interview_question_private_cases c ON c.session_id=e.session_id AND c.question_epoch=e.question_epoch AND c.ordinal=r.ordinal LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE r.submission_id=${id}::uuid AND e.session_id=${interviewId}::uuid AND r.ordinal=${ordinal} AND r.xmin::text=${prepared.privateVersions[ordinal]} AND (m.role='interviewer' OR (i.question_epoch=e.question_epoch AND (${caseId.startsWith("example:")} OR v.case_id IS NOT NULL)))`
-                    : sql`SELECT substring(c.case_data FROM ${offset} FOR 65536) AS data FROM interview_question_private_cases c JOIN interview_execution_public e ON e.session_id=c.session_id AND e.question_epoch=c.question_epoch JOIN interviews i ON i.id=e.session_id JOIN interview_members m ON m.session_id=i.id AND m.user_id=${who.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE e.submission_id=${id}::uuid AND e.session_id=${interviewId}::uuid AND c.ordinal=${ordinal} AND c.case_id=${caseId} AND c.xmin::text=${prepared.privatePlan.find((v) => v.ordinal === ordinal)?.version} AND (m.role='interviewer' OR (i.question_epoch=e.question_epoch AND v.case_id IS NOT NULL))`;
-          const row = (await tx.execute<{ data: Uint8Array }>(query)).rows[0];
+                    ? sql`SELECT substring(r.result_data FROM ${offset} FOR 65536) AS data,r.xmin::text AS version FROM interview_private_result_cases r JOIN interview_execution_public e ON e.submission_id=r.submission_id JOIN interviews i ON i.id=e.session_id JOIN interview_members m ON m.session_id=i.id AND m.user_id=${who.userId} AND m.removed_at IS NULL LEFT JOIN interview_question_private_cases c ON c.session_id=e.session_id AND c.question_epoch=e.question_epoch AND c.ordinal=r.ordinal LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE r.submission_id=${id}::uuid AND e.session_id=${interviewId}::uuid AND r.ordinal=${ordinal} ${rowVersion === undefined ? sql`` : sql`AND r.xmin::text=${rowVersion}`} AND (m.role='interviewer' OR (i.question_epoch=e.question_epoch AND (${caseId.startsWith("example:")} OR v.case_id IS NOT NULL)))`
+                    : sql`SELECT substring(c.case_data FROM ${offset} FOR 65536) AS data,c.xmin::text AS version FROM interview_question_private_cases c JOIN interview_execution_public e ON e.session_id=c.session_id AND e.question_epoch=c.question_epoch JOIN interviews i ON i.id=e.session_id JOIN interview_members m ON m.session_id=i.id AND m.user_id=${who.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE e.submission_id=${id}::uuid AND e.session_id=${interviewId}::uuid AND c.ordinal=${ordinal} AND c.case_id=${caseId} AND c.xmin::text=${rowVersion} AND (m.role='interviewer' OR (i.question_epoch=e.question_epoch AND v.case_id IS NOT NULL))`;
+          const row = (await tx.execute<{ data: Uint8Array; version: string }>(query)).rows[0];
           if (!row) throw new Error("Result changed during streaming");
-          return row.data;
+          return row;
         }),
       );
-      const text = decoder.decode(part, { stream: true });
+      rowVersion ??= part.version;
+      const text = decoder.decode(part.data, { stream: true });
       if (text) yield text;
-      if (part.byteLength < 65536) break;
+      if (part.data.byteLength < 65536) break;
     }
     const tail = decoder.decode();
     if (tail) yield tail;
@@ -403,12 +405,60 @@ async function streamSnapshot(
       }
       yield "]";
     }
-    if (interviewId && prepared.privatePlan.length) {
-      yield ',"privateCaseResults":[';
-      for (const [index, entry] of prepared.privatePlan.entries()) {
-        yield (index ? "," : "") + '{"caseId":' + JSON.stringify(entry.id) + ',"case":';
-        const input = new LegacyJsonReader(
-          bytes(entry.example ? "example" : "case", entry.ordinal, entry.id)[
+    if (interviewId && prepared.privatePlan) {
+      const plan = prepared.privatePlan,
+        interview = interviewId;
+      async function* entries(): AsyncGenerator<{
+        ordinal: number;
+        id: string;
+        version?: string;
+        example?: boolean;
+      }> {
+        if (plan.fallback) {
+          for (let ordinal = 0; ordinal < plan.candidates; ordinal++)
+            yield { ordinal, id: `example:${ordinal}`, example: true };
+          return;
+        }
+        let cursor = 0;
+        while (cursor < plan.candidates) {
+          const entry = await run((scope) =>
+            scope.transaction(options, async (tx) => {
+              await identity(tx, who);
+              const current = await load(tx, id);
+              const access = await interviewAccess(tx, who, interview);
+              if (
+                current.interview !== interviewId ||
+                access.role !== prepared.access?.role ||
+                (access.role !== "interviewer" && access.epoch !== prepared.access?.epoch)
+              )
+                throw missing();
+              if (
+                prepared.headerVersion &&
+                !(
+                  await tx.execute(
+                    sql`SELECT 1 FROM submission_result_headers WHERE submission_id=${id}::uuid AND xmin::text=${prepared.headerVersion}`,
+                  )
+                ).rows.length
+              )
+                throw new Error("Result changed during streaming");
+              return (
+                await tx.execute<{ ordinal: number; id: string; version: string }>(
+                  sql`SELECT c.ordinal,c.case_id AS id,c.xmin::text AS version FROM interview_question_private_cases c JOIN interview_members m ON m.session_id=c.session_id AND m.user_id=${who.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE c.session_id=${interviewId}::uuid AND c.question_epoch=${plan.epoch}::uuid AND c.ordinal>=${cursor} AND c.ordinal<${plan.candidates} AND (m.role='interviewer' OR v.case_id IS NOT NULL) ORDER BY c.ordinal LIMIT 1`,
+                )
+              ).rows[0];
+            }),
+          );
+          if (!entry) break;
+          cursor = entry.ordinal + 1;
+          yield entry;
+        }
+      }
+      let index = 0;
+      for await (const entry of entries()) {
+        if (index === 0) yield ',"privateCaseResults":[';
+        yield (index++ ? "," : "") + '{"caseId":' + JSON.stringify(entry.id) + ',"case":';
+        const input = new StreamingJsonReader(
+          bytes(entry.example ? "example" : "case", entry.ordinal, entry.id, entry.version)[
             Symbol.asyncIterator
           ](),
         );
@@ -434,7 +484,7 @@ async function streamSnapshot(
           if (first) throw new Error("Invalid private result");
         } else {
           if (prepared.headerFields.hiddenCases && entry.ordinal < prepared.hiddenCount) {
-            const input = new LegacyJsonReader(
+            const input = new StreamingJsonReader(
               bytes("header", 0, "hiddenCases")[Symbol.asyncIterator](),
             );
             await input.expect("[");
@@ -460,7 +510,7 @@ async function streamSnapshot(
           }
         }
       }
-      yield "]";
+      if (index) yield "]";
     }
     yield "}";
   }

@@ -1,3 +1,4 @@
+import { photoPrefix } from "./profile-object-key.ts";
 import { ImageExecutionUncertain } from "./image-processing.ts";
 import { withNodeConnection } from "@quorem/database/core";
 import { drizzleProfileBudget } from "./adapters/drizzle-profile-budget.ts";
@@ -6,7 +7,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { sharpImageProcessor } from "./adapters/sharp-image";
-import { createProfileHandler, photoPrefix, type Profile } from "./profile";
+import { createProfileHandler, type Profile } from "./profile";
 import { migrateAuth } from "./migrations";
 function testBudget() {
   let count = 0;
@@ -188,9 +189,9 @@ describe("profile photos", () => {
     expect(released).toBe(false);
   });
   it("requires an image processor at composition", () => {
-    expect(() => createProfileHandler({} as Parameters<typeof createProfileHandler>[0])).toThrow(
-      "Profile image processor is required",
-    );
+    expect(() =>
+      createProfileHandler({ storage: {} } as Parameters<typeof createProfileHandler>[0]),
+    ).toThrow("Profile image processor is required");
   });
   it("identifies the cookie owner for matching speculative profile reads", async () => {
     const response = await fixture().handler(

@@ -1,4 +1,4 @@
-.PHONY: install dev database seed provision access profile-reads validate-leetcode-structure reset api runner web language auth check build
+.PHONY: install dev database seed provision access profile-reads backfill-results validate-leetcode-structure reset api runner web language auth check build
 
 QUOREM_ENV ?= development
 APP_ENV ?= local
@@ -23,6 +23,9 @@ access:
 
 profile-reads:
 	node --experimental-strip-types apps/api/src/cli/profile-reads.ts
+
+backfill-results:
+	node --experimental-strip-types apps/api/src/cli/backfill-results.ts $(ARGS)
 
 validate-leetcode-structure:
 	python3 scripts/validate-leetcode-structure.py $(ARGS)

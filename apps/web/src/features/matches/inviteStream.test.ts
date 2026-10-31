@@ -17,6 +17,7 @@ class Socket {
   ) {
     Socket.instances.push(this);
   }
+  send = vi.fn();
   close() {
     this.onclose?.();
   }
@@ -41,18 +42,38 @@ it("ignores heartbeat for preview reads and reconnects a silently dead stream", 
   const first = Socket.instances[0]!;
   expect(first.protocols).toEqual(["quorem"]);
   first.onopen?.();
-  first.onmessage?.({ data: '{"type":"changed"}' } as MessageEvent);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
   expect(refresh).toHaveBeenCalledTimes(1);
-  first.onmessage?.({ data: '{"type":"heartbeat"}' } as MessageEvent);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "heartbeat" },
+    }),
+  } as MessageEvent);
   expect(refresh).toHaveBeenCalledTimes(1);
   await vi.advanceTimersByTimeAsync(45_601);
   expect(refresh).toHaveBeenCalledTimes(2);
   expect(Socket.instances).toHaveLength(2);
   const second = Socket.instances[1]!;
   second.onopen?.();
-  first.onmessage?.({ data: '{"type":"changed"}' } as MessageEvent);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
   expect(refresh).toHaveBeenCalledTimes(2);
-  second.onmessage?.({ data: '{"type":"changed"}' } as MessageEvent);
+  second.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
   expect(refresh).toHaveBeenCalledTimes(3);
   stream.stop();
 });
