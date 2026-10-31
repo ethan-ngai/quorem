@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   defaultLimits,
+  decodeCheckpointFrame,
   languageRuntime,
   type Checkpoint,
   type CheckpointCase,
@@ -219,6 +220,13 @@ void test(
       ).header.verdict,
       "time_limit",
     );
+    const large = "x".repeat(1024 * 1024);
+    const largeResult = await run(
+      "class Solution:\n def f(self,x): return len(x)",
+      { signature: { ...sig, parameters: [{ name: "x", type: "str" }] } },
+      [JSON.stringify({ args: [large], expected: large.length })],
+    );
+    assert.equal(largeResult.header.verdict, "accepted");
     const nul = await run(
       'class Solution:\n def f(self): return "a\\x00b"',
       { signature: { ...sig, returnType: "str" } },
@@ -343,3 +351,51 @@ void test("a forged sandbox result cannot create a checkpoint", async () => {
   );
   assert.equal(fixture.frames.length, 0);
 });
+void test(
+  "SQL contestant cannot read PostgreSQL server files",
+  { skip: !socket, timeout: 60000 },
+  async (t) => {
+    const stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-sql-security-")));
+    t.after(() => rm(stateRoot, { recursive: true, force: true }));
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "sql-security",
+      cleanupMs: 10000,
+    });
+    const runtime = languageRuntime("postgresql")!;
+    const problem = {
+      sql: {
+        dialect: "postgresql",
+        outputOrder: "ordered",
+        output: [{ name: "n", type: "integer" }],
+      },
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+    };
+    const spec: ExecutionSpec = {
+      problemJson: JSON.stringify(problem),
+      source: "SELECT pg_read_file('/etc/passwd') AS n",
+      kind: "run",
+      cases: ['{"args":[{"tables":[]}],"expected":{"rows":[[1]]}}'],
+      submitSamples: [],
+      submitCasesAreSamples: false,
+      privateDetails: false,
+    };
+    const fixture = repository(spec),
+      job: Job = {
+        jobId: randomUUID(),
+        submissionId: randomUUID(),
+        attemptId: randomUUID(),
+        sandboxScope: sandbox.scope,
+        language: "postgresql",
+        problemVersionId: randomUUID(),
+        runtimeRevision: runtime.revision,
+        harnessRevision: runtime.harness,
+        sourceRef: "source",
+        suiteRef: "suite",
+        limits: defaultLimits(),
+      };
+    assert.notEqual((await executeAndStage(job, fixture.port, sandbox)).verdict, "accepted");
+    assert.notEqual(decodeCheckpointFrame(fixture.frames[0]).frame.status, "executed");
+  },
+);
