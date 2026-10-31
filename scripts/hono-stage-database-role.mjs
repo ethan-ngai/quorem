@@ -81,7 +81,7 @@ export async function provisionStageRole(operator, runtime, role, password) {
       await operator.query(`SELECT n.nspname AS schema, c.relname AS name, c.relkind AS kind
       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname IN ('public','quorem_auth') AND c.relkind IN ('r','p','v','m','S')
-        AND c.relname NOT IN ('schema_migrations','execution_attempt_inventory')`);
+        AND c.relname NOT IN ('schema_migrations','execution_attempt_inventory','stage_genesis')`);
     for (const item of objects.rows) {
       const target = `${escapeIdentifier(item.schema)}.${escapeIdentifier(item.name)}`;
       const privilege =
@@ -101,6 +101,7 @@ export async function provisionStageRole(operator, runtime, role, password) {
       NOT EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname IN ('public','quorem_auth') AND pg_has_role(r.oid,n.nspowner,'USAGE')) AND NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('public','quorem_auth') AND pg_has_role(r.oid,p.proowner,'USAGE')) AS no_schema_function_ownership,
       NOT has_table_privilege(r.oid,'public.schema_migrations','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER') AND NOT has_table_privilege(r.oid,'quorem_auth.schema_migrations','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER') AS ledgers_safe,
       NOT has_any_column_privilege(r.oid,'public.execution_attempt_inventory','SELECT,INSERT,UPDATE,REFERENCES') AND NOT has_table_privilege(r.oid,'public.execution_attempt_inventory','DELETE,TRUNCATE,TRIGGER') AS inventory_safe,
+      NOT has_any_column_privilege(r.oid,'public.stage_genesis','SELECT,INSERT,UPDATE,REFERENCES') AND NOT has_table_privilege(r.oid,'public.stage_genesis','DELETE,TRUNCATE,TRIGGER') AS genesis_safe,
       NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','quorem_auth') AND pg_has_role(r.oid,c.relowner,'USAGE')) AS no_ownership,
       EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='execution_jobs' AND t.tgname='execution_attempt_inventory_record' AND t.tgenabled='O' AND p.oid='public.record_execution_attempt()'::regprocedure AND p.prosecdef AND p.proowner=c.relowner AND NOT pg_has_role(r.oid,p.proowner,'USAGE')) AS trigger_safe,
       EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='execution_attempt_inventory' AND t.tgname='execution_attempt_inventory_immutable' AND t.tgenabled='O' AND p.oid='public.guard_execution_attempt_inventory()'::regprocedure AND NOT pg_has_role(r.oid,c.relowner,'USAGE')) AS inventory_guard_safe,

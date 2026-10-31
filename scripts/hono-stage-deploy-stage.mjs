@@ -26,6 +26,7 @@ import { uploadWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { releaseQueue, setQueue } from "./hono-stage-deploy-queue.mjs";
 import { verifyNoAlternateIngress } from "./hono-stage-deploy-subdomains.mjs";
 import { runStageWorkload } from "./hono-stage-workload.mjs";
+import { provisionStageGenesis } from "./hono-stage-genesis.mjs";
 
 const commonNames = [
   "PATH",
@@ -191,6 +192,7 @@ const defaults = {
   remote: remoteProof,
   actor: createStagedActor,
   workload: runStageWorkload,
+  genesis: provisionStageGenesis,
   queue: releaseQueue,
   subdomains: verifyNoAlternateIngress,
   detach: (env) => setQueue(env, false),
@@ -201,6 +203,7 @@ export async function deployStage(original, operations = defaults) {
   operations = { ...defaults, ...operations };
   validateStageRequest(original);
   if (original.HONO_STAGE_ACTION !== "stage") throw new Error("Explicit stage action required");
+  if (!original.HONO_STAGE_DATABASE_IDENTITY) throw new Error("Stage database identity required");
   const publicInput = JSON.parse(original.HONO_STAGE_PUBLIC_JSON),
     services = JSON.parse(original.TF_VAR_service_secrets),
     supplied = JSON.parse(original.HONO_WORKER_SECRETS_JSON),
@@ -389,7 +392,19 @@ export async function deployStage(original, operations = defaults) {
     });
     controlsAttempted = true;
     operations.phase?.("activate-release-controls");
-    const controlReceipt = await controlClient.activate();
+    let genesis;
+    const controlReceipt = await controlClient.activate({
+      beforeActivation: async (observation) => {
+        operations.phase?.("persist-stage-genesis");
+        genesis = await operations.genesis(env, {
+          namespace: verified.namespace,
+          scope: verified.scope,
+          bindings: controlVars.SERVICES_BINDINGS,
+          observation,
+        });
+        if (!genesis) throw new Error("Stage genesis was not persisted");
+      },
+    });
     operations.phase?.("hosted-sandbox-proof");
     await Promise.resolve(operations.remote(caseEnv));
     actor = await operations.actor({
@@ -429,6 +444,7 @@ export async function deployStage(original, operations = defaults) {
       database: "fresh",
       freshResources,
       controls: controlReceipt,
+      genesis,
       namespace: verified.namespace,
       images,
       acceptance,

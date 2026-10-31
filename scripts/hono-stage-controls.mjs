@@ -350,7 +350,7 @@ export async function stageControls(options, send = fetch) {
     )
       throw new Error("Unexpected case state");
   };
-  const activate = async () => {
+  const activate = async ({ beforeActivation } = {}) => {
     const initial = await request("runner", "state");
     checkRunner(initial, "paused", 0);
     const prepared = await request("runner", "prepare", {
@@ -369,9 +369,11 @@ export async function stageControls(options, send = fetch) {
       throw new Error("Invalid preparation receipt");
     checkRunner(await request("runner", "state"), "prepared", 1);
     await request("case", "initialize", { namespace, scope, operation: ops.genesis, release });
+    const proofStart = proofs.length;
     let [runner, cases] = await state();
     checkRunner(runner, "prepared", 1);
     checkCase(cases, false);
+    await beforeActivation?.({ runner, cases, proofs: proofs.slice(proofStart) });
     await request("case", "activate", {
       bindings,
       expectedGeneration: 0,

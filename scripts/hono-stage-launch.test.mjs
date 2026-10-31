@@ -29,6 +29,8 @@ const env = () => ({
     "postgres://fixture:fixture@127.0.0.1:54329/quorem_hono_remote_validation_test?sslmode=disable",
 });
 const output = (secrets) => ({
+  project_id: { value: "fixture-existing-project" },
+  branch_id: { value: "br-stage-fixture" },
   stage_secrets: { value: secrets },
   database_url: {
     value:

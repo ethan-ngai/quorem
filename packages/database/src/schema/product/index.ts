@@ -31,6 +31,39 @@ export const schema_migrations = pgTable("schema_migrations", {
   baseline_artifact: text(),
 });
 
+export const stage_genesis = pgTable(
+  "stage_genesis",
+  {
+    singleton: boolean().primaryKey().default(true).notNull(),
+    database_identity: text().notNull(),
+    namespace: text().notNull(),
+    scope: text().notNull(),
+    initial_operation: uuid().notNull(),
+    initial_release: text().notNull(),
+    initial_bindings: text().notNull(),
+    owner_key_sha256: text().notNull(),
+    genesis_envelope: jsonb().notNull(),
+    migration_062_sha256: text().notNull(),
+  },
+  () => [
+    check("stage_genesis_singleton_check", sql`singleton`),
+    check(
+      "stage_genesis_database_identity_check",
+      sql`octet_length(database_identity) BETWEEN 1 AND 512`,
+    ),
+    check("stage_genesis_namespace_check", sql`namespace ~ '^[a-f0-9]{64}$'`),
+    check("stage_genesis_scope_check", sql`scope ~ '^remote:[a-f0-9]{64}$'`),
+    check(
+      "stage_genesis_operation_check",
+      sql`initial_operation::text ~ '^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'`,
+    ),
+    check("stage_genesis_release_check", sql`initial_release ~ '^[a-f0-9]{40}$'`),
+    check("stage_genesis_bindings_check", sql`initial_bindings ~ '^[a-f0-9]{64}$'`),
+    check("stage_genesis_owner_key_check", sql`owner_key_sha256 ~ '^[a-f0-9]{64}$'`),
+    check("stage_genesis_migration_check", sql`migration_062_sha256 ~ '^[a-f0-9]{64}$'`),
+  ],
+);
+
 export const access_audit = pgTable(
   "access_audit",
   {
