@@ -23,7 +23,7 @@ import type {
   AuthorActor,
   QuestionAuthoring,
 } from "../../../../modules/problems/authoring/ports.ts";
-import { object, storageProjection } from "./storage.ts";
+import { object, storageProjection } from "../storage.ts";
 
 type Obj = { [key: string]: JsonValue };
 export type AuthoringScope = <T>(action: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
