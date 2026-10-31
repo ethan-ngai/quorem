@@ -348,6 +348,12 @@ export async function startBrowserFixture(database: string, socket: string) {
       });
       if (!session.ok) throw new Error("Fixture session unavailable");
     }
+    if (
+      [runner, verifier, vite].some(
+        (child) => !child?.pid || child.exitCode !== null || child.signalCode !== null,
+      )
+    )
+      throw new Error("Fixture service exited unexpectedly");
     const failure = new Promise<never>((_, reject) => {
       for (const child of [runner, verifier, vite])
         child?.once("exit", () => {
