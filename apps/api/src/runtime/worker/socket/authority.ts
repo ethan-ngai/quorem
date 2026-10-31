@@ -76,6 +76,7 @@ export function postgresSocketAuthority(deps: {
   sessions: SessionAuthority;
   matches: Lifecycle;
   submissions: SubmissionSnapshots;
+  afterInterviewCommand?: () => Promise<void>;
 }): SocketAuthority {
   const { run, verifier, sessions, matches, submissions } = deps;
   const bindings: IdentityBindings = {
@@ -185,11 +186,33 @@ export function postgresSocketAuthority(deps: {
         },
         ...(record.mode === "interview"
           ? {
-              commands: interviewCommands(record.resourceId, {
-                documents: interviewDocumentCommands(run),
-                presence,
-                monitoring: interviewMonitoring(run),
-              }),
+              commands: (() => {
+                const commands = interviewCommands(record.resourceId, {
+                  documents: interviewDocumentCommands(run),
+                  presence,
+                  monitoring: interviewMonitoring(run),
+                });
+                return {
+                  async execute(
+                    actor: Principal,
+                    command: Parameters<typeof commands.execute>[1],
+                    signal: AbortSignal,
+                  ) {
+                    const result = await commands.execute(actor, command, signal);
+                    if (
+                      deps.afterInterviewCommand &&
+                      ["push", "presence", "rule-event"].includes(command.type)
+                    ) {
+                      try {
+                        await deps.afterInterviewCommand();
+                      } catch {
+                        /* Durable outbox repair remains armed. */
+                      }
+                    }
+                    return result;
+                  },
+                };
+              })(),
             }
           : {}),
         ...(record.mode === "match"
