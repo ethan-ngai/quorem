@@ -2,6 +2,26 @@
 
 Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implementation authorized; production/main promotion remains separately gated.
 
+## Current checkpoint — 2026-10-31
+
+Integration `b0597032`: [#437](https://github.com/ethan-ngai/quorem/pull/437), [#438](https://github.com/ethan-ngai/quorem/pull/438), [#439](https://github.com/ethan-ngai/quorem/pull/439), [#440](https://github.com/ethan-ngai/quorem/pull/440) merged after exact-head CI. Final source run [41231739308](https://github.com/ethan-ngai/quorem/actions/runs/41231739308) passed both jobs.
+
+- Node consumes SQS/Cloudflare wakes through the shared drain owner; HTTP runners no longer depend on a separate poller.
+- Native SQL practice Run/Submit and a selected two-account SQL match pass through Docker and independent verification; required CI, no skips. Browser interaction remains unverified.
+- Drain transport validation and Terraform Access have canonical owners; duplicate ingress resources removed.
+- Recovery controls, migration provenance/checksums, generation roles and failure fencing integrated. Full maintenance/resume orchestration remains unfinished.
+- Disposable HTTP databases and scoped session-lifetime assertions replace invalid test isolation assumptions. Native Make targets and setup docs available.
+
+Remaining release work, in order:
+
+1. Configure isolated staging database, GitHub environments, DNS/Access and restricted Terraform state; authorize hosted invocation separately.
+2. Execute hosted Workers/Hyperdrive/Queues/isolation/teardown and workload gates.
+3. Finish and rehearse maintenance/resume/update under #432.
+4. Verify old-writer drain, audited retained-data normalization, avatar copy and rollback.
+5. Authorize production cutover; retire Go and replace remaining default development/deployment consumers afterward.
+
+No cloud apply/deploy or dev/main promotion occurred. User `scripts/dev.py` edit preserved. Older sections below record evidence at their implementation checkpoints.
+
 ## Baseline 00
 
 - Checkout `dev` at `57fd5db`; fetched `origin/main` at `2be21ba`. Exact tracked trees match (`git diff --exit-code dev origin/main`); main is ahead only by release merge commits. User correction: migration belongs on `feat/hono-migration`; local/remote `dev` restored to `57fd5db`. The migration documentation commit `d2c86b5` is preserved on the dedicated branch.
@@ -98,7 +118,7 @@ Socket integration decision: WebSockets carry bounded invalidations and document
 
 ## Current integration checkpoint
 
-`feat/hono-migration` at `d327e4c1` includes [#415](https://github.com/ethan-ngai/quorem/pull/415), merged after exact-head CI [41226036650](https://github.com/ethan-ngai/quorem/actions/runs/41226036650) passed. Packets 20–37 listed above as local/review are now integrated through that PR; their individual reports record evidence at implementation time. Recovery work remains separate on `feat/hono-recovery-control`. Root owns integration; dev/main remain untouched.
+`feat/hono-migration` at `d327e4c1` includes [#415](https://github.com/ethan-ngai/quorem/pull/415), merged after exact-head CI [41226036650](https://github.com/ethan-ngai/quorem/actions/runs/41226036650) passed. Packets 20–37 listed above as local/review are now integrated through that PR; their individual reports record evidence at implementation time. Recovery controls are integrated through #437; full maintenance/resume remains open in #432. Root owns integration; dev/main remain untouched.
 
 The current review tree includes private image hosting, Vite cache isolation, match presence repair and public interview Run promotion. API typecheck, private service contracts 6/6 and actual Sharp image processing 1/1 passed after integration. CI run `41223310928` passed exact head `d873a24c`; subsequent recovery/data changes still require exact-head CI.
 
@@ -126,7 +146,7 @@ The combined stage validator subsequently passed 62 contracts without skips, inc
 
 Finish the existing port; freeze new abstractions. Recovery validation now requires real workerd controls, migration provenance, checksummed ledgers and avatar-copy fixtures without skipped tests. Signed proof capture uses one bounded read; oversized responses cannot strand a cloned stream.
 
-Next: integrate queue-only deployment protection; pass combined checks and exact-head CI; resolve concrete API/consumer parity findings. Hosted validation requires GitHub staging environment configuration (none existed at the resumed check), provider setup and actual deployment evidence. Full maintenance/resume orchestration, production backfill/rollback and Go retirement remain open under #432. These are release gates, not reasons to add optional cache/search features.
+Queue-only deployment protection, Node delivery and SQL execution coverage are integrated; combined checks and exact-head CI passed. Remaining gates are listed above. Hosted validation requires GitHub staging environment configuration (none existed at the resumed check), provider setup and actual deployment evidence. Full maintenance/resume orchestration, production backfill/rollback and Go retirement remain open under #432. These are release gates, not reasons to add optional cache/search features.
 
 ## Node delivery completion
 
