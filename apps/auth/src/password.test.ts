@@ -14,7 +14,7 @@ describe.skipIf(!databaseURL)("local credential service with disposable PostgreS
     });
     const { database, config } = await import("./database");
     await migrateAuth(database);
-    const { auth } = await import("./auth");
+    const { auth } = await import("./node-auth");
     const { seedAccounts } = await import("./seed-accounts");
     const productURL = process.env.PRODUCT_AUTH_TEST_DATABASE_URL;
     const product = productURL ? new Pool({ connectionString: productURL }) : undefined;

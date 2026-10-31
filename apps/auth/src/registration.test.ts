@@ -32,7 +32,7 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
       SMTP_HOST: "127.0.0.1",
     });
-    const { auth, database: authDatabase } = await import("./auth");
+    const { auth, database: authDatabase } = await import("./node-auth");
     const origin = "http://localhost:5180",
       name = `mail${randomUUID().replaceAll("-", "").slice(0, 16)}`,
       email = `${name}@example.test`,

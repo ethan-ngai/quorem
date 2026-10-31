@@ -8,7 +8,7 @@ const { config, createAuth } = vi.hoisted(() => ({
   },
   createAuth: vi.fn(),
 }));
-vi.mock("./auth.ts", () => ({ config, createAuth, database: { query: vi.fn() } }));
+vi.mock("./node-auth.ts", () => ({ config, createAuth, database: { query: vi.fn() } }));
 import { seedAccounts } from "./seed-accounts";
 describe("seed environment boundary", () => {
   it("rejects production credentials even with loopback databases before creating auth or users", async () => {

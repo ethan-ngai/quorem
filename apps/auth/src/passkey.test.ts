@@ -16,7 +16,7 @@ describe.skipIf(!databaseURL)("passkey protocol with disposable PostgreSQL", () 
     });
     const { database, config } = await import("./database");
     await migrateAuth(database);
-    const { auth } = await import("./auth");
+    const { auth } = await import("./node-auth");
     const id = randomUUID(),
       other = randomUUID(),
       key = randomUUID(),

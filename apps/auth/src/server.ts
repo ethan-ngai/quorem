@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { toNodeHandler } from "better-auth/node";
-import { auth, config, database } from "./auth.ts";
+import { auth, config, database, authRepository } from "./node-auth.ts";
 import { createProfileHandler } from "./profile.ts";
 import { sharpImageProcessor } from "./adapters/sharp-image.ts";
 import { createRegistrationHandler } from "./registration.ts";
@@ -66,13 +66,9 @@ const server = createServer(async (req, res) => {
     }
     const id = decodeURIComponent(req.url.slice("/internal/session/".length));
     try {
-      const result = await database.query(
-        'SELECT (SELECT EXTRACT(EPOCH FROM strong_at)::bigint FROM session_assurance WHERE session_id=s.id) AS strong_at FROM "session" s JOIN "user" u ON u.id=s."userId" WHERE s.id=$1 AND s."expiresAt">NOW() AND u.id=$2 AND u."emailVerified"=true',
-        [id, req.headers["x-auth-subject"]],
-      );
-      if (result.rowCount === 1 && result.rows[0].strong_at)
-        res.setHeader("X-Auth-Strong-At", String(result.rows[0].strong_at));
-      res.writeHead(result.rowCount === 1 ? 204 : 401).end();
+      const result = await authRepository.sessionAuthority(id, String(req.headers["x-auth-subject"] ?? ""));
+      if (result.valid && result.strongAt) res.setHeader("X-Auth-Strong-At", String(result.strongAt));
+      res.writeHead(result.valid ? 204 : 401).end();
     } catch {
       res.writeHead(503).end();
     }

@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { seedProductUser } from "./seed-product-user.ts";
-import { createAuth, config, database } from "./auth.ts";
+import { createAuth, config, database } from "./node-auth.ts";
 
 export async function seedAccounts(password: string, productURL?: string) {
   if (config.method !== "password" || !config.localPassword)

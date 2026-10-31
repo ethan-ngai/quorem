@@ -18,7 +18,7 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
     });
     const { database, config } = await import("./database");
     await migrateAuth(database);
-    const { auth } = await import("./auth");
+    const { auth } = await import("./node-auth");
     const id = randomUUID();
     const sessionId = randomUUID();
     const sessionToken = randomUUID();

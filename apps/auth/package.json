@@ -15,7 +15,10 @@
     "better-auth": "1.7.7",
     "nodemailer": "8.0.3",
     "pg": "8.16.3",
-    "sharp": "0.35.5"
+    "sharp": "0.35.5",
+    "@quorem/database": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.14"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

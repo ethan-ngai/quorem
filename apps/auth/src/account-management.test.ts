@@ -18,7 +18,7 @@ describe.skipIf(!url || !inbox)(
         SMTP_HOST: "127.0.0.1",
         SMTP_PORT: "51025",
       });
-      const { auth, createAuth, database } = await import("./auth");
+      const { auth, createAuth, database } = await import("./node-auth");
       await migrateAuth(database);
       const username = `edit${randomUUID().replaceAll("-", "").slice(0, 14)}`,
         email = `${username}@example.test`,

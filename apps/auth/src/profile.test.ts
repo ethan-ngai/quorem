@@ -209,7 +209,7 @@ describe.skipIf(!databaseURL)("profile with real Better Auth session", () => {
     });
     const { database, config } = await import("./database");
     await migrateAuth(database);
-    const { auth } = await import("./auth");
+    const { auth } = await import("./node-auth");
     const id = randomUUID(),
       sessionId = randomUUID(),
       token = randomUUID();

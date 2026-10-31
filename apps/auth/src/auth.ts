@@ -1,31 +1,35 @@
 import { passkey } from "@better-auth/passkey";
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
+import type { configuration } from "./config.ts";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { google, apple, github, cognito } from "better-auth/social-providers";
-import { socialEmail } from "./social-email.ts";
+import type { socialEmail } from "./social-email.ts";
 import { jwt, username } from "better-auth/plugins";
-import { accountMailer } from "./account-mailer.ts";
-import { verificationMail } from "./infrastructure.ts";
-import { takeRateLimit } from "./rate-limit.ts";
 import {
   emailSchema,
   usernameSchema,
   optionalNameSchema,
   passwordSchema,
 } from "@quorem/contracts/auth";
-import { config, database } from "./database.ts";
-export { config, database } from "./database.ts";
-const verifiedPasskeyRequests = new WeakSet<object>();
-export function createAuth(allowSeed = false) {
+export function createAuth(options: {
+  config: ReturnType<typeof configuration>;
+  accountMail?: (email: string, url: string, subject: string, instruction: string) => Promise<void>;
+  emailFlow: ReturnType<typeof socialEmail>;
+  rateLimit(scope: string, subject: string, policy: {limit: number; seconds: number}): Promise<{allowed: boolean; retryAfter: number}>;
+  profile(id: string): Promise<{profile_color: number; profile_color_revision: number | string | bigint} | undefined>;
+  recordAssurance(sessionId: string): Promise<void>;
+  adapter: BetterAuthOptions["database"];
+  allowSeed?: boolean;
+}) {
+  const { config, adapter, emailFlow, allowSeed = false } = options;
+  const verifiedPasskeyRequests = new WeakSet<object>();
   if (allowSeed && (config.method !== "password" || !config.localPassword))
     throw new Error("Seeding requires local password mode");
-  const sendVerification =
-    !allowSeed && verificationMail ? accountMailer(database, verificationMail) : undefined;
-  const emailFlow = socialEmail(database, config.origin, verificationMail);
+  const sendVerification = !allowSeed ? options.accountMail : undefined;
   const service = betterAuth({
     baseURL: config.origin,
     secret: config.secret,
-    database,
+    database: adapter,
     trustedOrigins: [config.origin],
     onAPIError: { errorURL: `${config.origin}/login` },
     emailAndPassword: {
@@ -109,6 +113,9 @@ export function createAuth(allowSeed = false) {
       enabled: !allowSeed,
       window: 60,
       max: 30,
+      customStorage: {
+        consume: async (key, rule) => options.rateLimit("better-auth", key, { limit: rule.max, seconds: rule.window }),
+      },
       customRules: {
         "/sign-up/email": { window: 60, max: 5 },
         "/send-verification-email": { window: 60, max: 3 },
@@ -123,10 +130,7 @@ export function createAuth(allowSeed = false) {
           verifiedPasskeyRequests.has(ctx.request) &&
           session
         ) {
-          await database.query(
-            "INSERT INTO session_assurance(session_id) VALUES($1) ON CONFLICT(session_id) DO UPDATE SET strong_at=clock_timestamp()",
-            [session.id],
-          );
+          await options.recordAssurance(session.id);
           verifiedPasskeyRequests.delete(ctx.request);
         }
       }),
@@ -197,8 +201,7 @@ export function createAuth(allowSeed = false) {
             { limit: 1, seconds: 60 },
             { limit: 5, seconds: 3600 },
           ]) {
-            const limit = await takeRateLimit(
-              database,
+            const limit = await options.rateLimit(
               `account:requests:${ctx.path}:${policy.seconds}`,
               result.data,
               policy,
@@ -338,15 +341,12 @@ export function createAuth(allowSeed = false) {
           audience: "quorem-api",
           expirationTime: "5m",
           definePayload: async ({ user, session }) => {
-            const profile = (
-              await database.query(
-                'SELECT profile_color,profile_color_revision FROM "user" WHERE id=$1',
-                [user.id],
-              )
-            ).rows[0];
+            const profile = await options.profile(user.id);
+            const colorRevision = Number(profile?.profile_color_revision ?? 0);
+            if (!Number.isSafeInteger(colorRevision)) throw new Error("Profile revision exceeds safe integer range");
             return {
               color: profile?.profile_color ?? 0,
-              colorRevision: Number(profile?.profile_color_revision ?? 0),
+              colorRevision,
               emailVerified: user.emailVerified === true,
               image: user.image?.startsWith("/api/auth/profile-photos/") ? user.image : "",
               name:
@@ -363,4 +363,3 @@ export function createAuth(allowSeed = false) {
   service.handler = (request) => emailFlow.handle(request, handler);
   return service;
 }
-export const auth = createAuth();
