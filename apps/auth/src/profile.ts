@@ -87,10 +87,11 @@ export function createProfileHandler(options: {
   session: SessionReader;
   repository: ProfileRepository;
   storage?: ProfileStorage;
-  imageProcessor: ImageProcessor;
+  imageProcessor?: ImageProcessor;
   budget: ProfileMutationBudget;
 }) {
-  if (!options.imageProcessor) throw new Error("Profile image processor is required");
+  if (options.storage && !options.imageProcessor)
+    throw new Error("Profile image processor is required");
   if (!options.budget) throw new Error("Profile mutation budget is required");
   const cleanup = async (key: string | undefined) => {
     if (!key) return;
@@ -147,7 +148,8 @@ export function createProfileHandler(options: {
       await options.repository.setColor(profile.id, color as number);
       return json(200, publicProfile({ ...profile, profile_color: color as number }));
     }
-    if (!options.storage) return json(503, { error: "Photo storage unavailable" });
+    if (!options.storage || !options.imageProcessor)
+      return json(503, { error: "Photo storage unavailable" });
     const admission = await options.budget.acquire(profile.id);
     if (!admission.allowed) return json(429, { error: "Try again shortly" });
     const signal = AbortSignal.any([

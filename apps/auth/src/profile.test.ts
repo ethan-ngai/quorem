@@ -188,9 +188,9 @@ describe("profile photos", () => {
     expect(released).toBe(false);
   });
   it("requires an image processor at composition", () => {
-    expect(() => createProfileHandler({} as Parameters<typeof createProfileHandler>[0])).toThrow(
-      "Profile image processor is required",
-    );
+    expect(() =>
+      createProfileHandler({ storage: {} } as Parameters<typeof createProfileHandler>[0]),
+    ).toThrow("Profile image processor is required");
   });
   it("identifies the cookie owner for matching speculative profile reads", async () => {
     const response = await fixture().handler(
