@@ -26,3 +26,4 @@ export { validateQuestionSchema } from "./schema-validation.ts";
 export { normalizeQuestionDraft } from "./draft-normalize.ts";
 
 export { StreamingJsonReader, decodeUtf8Chunks, readAllowedObjectSpans } from "./streaming-json.ts";
+export type { JsonSpan } from "./streaming-json.ts";
