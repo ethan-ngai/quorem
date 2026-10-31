@@ -11,7 +11,10 @@ import {
 
 const { users, identity_bindings: bindings } = product;
 const transactionOptions = { statementTimeoutMs: 3000, lockTimeoutMs: 1000 };
-async function read(tx: Transaction, claims: Claims) {
+async function read(
+  tx: Transaction,
+  claims: Pick<Claims, "issuer" | "subject" | "sessionId" | "expiresAt">,
+) {
   const [row] = await tx
     .select({
       id: users.id,
@@ -105,4 +108,15 @@ export async function developmentIdentity(
       strongUntil: 0,
     };
   });
+}
+
+/** Read a previously verified binding without creating or updating an identity. */
+export function verifiedIdentityReader(scope: ConnectionScope) {
+  return async (
+    claims: Pick<Claims, "issuer" | "subject" | "sessionId" | "expiresAt">,
+  ): Promise<ManagedPrincipal | null> =>
+    scope.transaction(
+      { ...transactionOptions, readOnly: true },
+      async (tx) => (await read(tx, claims))?.principal ?? null,
+    );
 }
