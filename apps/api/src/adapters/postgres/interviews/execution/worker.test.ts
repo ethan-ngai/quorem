@@ -37,10 +37,18 @@ it("admits and replays through workerd and real PostgreSQL", async () => {
     snapshot: interviewSnapshot,
   });
   const room = JSON.parse(
-    await lifecycle.create(actor, "create", {
-      title: "Worker",
-      question: { problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7", language: "python" },
-    }),
+    await lifecycle.read(
+      actor,
+      JSON.parse(
+        await lifecycle.create(actor, "create", {
+          title: "Worker",
+          question: {
+            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+            language: "python",
+          },
+        }),
+      ).id,
+    ),
   );
   let sent = 0;
   const app = createApp({ allowedOrigins: [], requestId: () => "worker" }).route(

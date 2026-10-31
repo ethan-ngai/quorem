@@ -94,15 +94,20 @@ describe.skipIf(!url)("document PostgreSQL", () => {
           snapshot: interviewSnapshot,
         }),
         docs = interviewDocumentCommands(run),
-        questions = interviewQuestionCommands(run, interviewSnapshot);
+        questions = interviewQuestionCommands(run);
       const created = JSON.parse(
-        await lifecycle.create(host, "create", {
-          title: "Document",
-          question: {
-            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-            language: "python",
-          },
-        }),
+        await lifecycle.read(
+          host,
+          JSON.parse(
+            await lifecycle.create(host, "create", {
+              title: "Document",
+              question: {
+                problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                language: "python",
+              },
+            }),
+          ).id,
+        ),
       );
       const id = created.id,
         initial = await docs.read(host, id),
@@ -124,13 +129,21 @@ describe.skipIf(!url)("document PostgreSQL", () => {
         code: "stale_version",
       });
       const switched = JSON.parse(
-        await questions.language(host, id, "java", "java", initial.epoch),
+        await lifecycle.read(
+          host,
+          JSON.parse(await questions.language(host, id, "java", "java", initial.epoch)).id,
+        ),
       );
       await expect(docs.pull(host, id, initial.epoch, 0)).rejects.toMatchObject({
         code: "document_changed",
       });
       const restored = JSON.parse(
-        await questions.language(host, id, "python", "python", switched.document.epoch),
+        await lifecycle.read(
+          host,
+          JSON.parse(
+            await questions.language(host, id, "python", "python", switched.document.epoch),
+          ).id,
+        ),
       );
       expect(restored.document.source).toBe("😀" + initial.source);
       expect(restored.document.version).toBe(0);

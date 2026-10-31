@@ -22,7 +22,6 @@ import { preparePublishedInterviewQuestion } from "./prepare.ts";
 import { savePublicExamples, savePrivateCases } from "./public-examples.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-type Snapshot = (tx: Transaction, actor: Principal, id: string) => Promise<string>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 const fail = (code: string, message: string, status: ApplicationStatus = 400) =>
   new ApplicationError(code, message, status);
@@ -63,7 +62,7 @@ async function privateFixture(
     source: row.source,
   };
 }
-export function interviewQuestionCommands(run: Run, snapshot: Snapshot): InterviewQuestions {
+export function interviewQuestionCommands(run: Run): InterviewQuestions {
   const transact = <T>(fn: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, fn));
   const mutate = async (
@@ -80,7 +79,7 @@ export function interviewQuestionCommands(run: Run, snapshot: Snapshot): Intervi
     transact(async (tx) => {
       const prior = await priorOperation(tx, actor.userId, key, hash);
       const access = await lockInterview(tx, actor, id, capabilitiesInTransaction, { manage });
-      if (prior) return snapshot(tx, actor, id);
+      if (prior) return JSON.stringify({ id });
       await lockInterview(tx, actor, id, capabilitiesInTransaction, { manage, active: true });
       await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
       const changed = await apply(tx, access);
@@ -89,7 +88,7 @@ export function interviewQuestionCommands(run: Run, snapshot: Snapshot): Intervi
           sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
         );
       await saveOperation(tx, actor.userId, key, hash, id);
-      return snapshot(tx, actor, id);
+      return JSON.stringify({ id });
     });
   return {
     async select(actor, id, key, question, rawBody) {

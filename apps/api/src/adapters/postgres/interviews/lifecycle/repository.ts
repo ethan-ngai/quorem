@@ -50,7 +50,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
       const access = await lockInterview(tx, actor, id, capabilitiesInTransaction, {
         manage: true,
       });
-      if (prior) return deps.snapshot(tx, actor, id);
+      if (prior) return JSON.stringify({ id });
       if (action === "close") {
         if (access.state !== "active")
           throw new ApplicationError("invalid_transition", "Interview is closed", 409);
@@ -64,7 +64,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
       );
       await saveOperation(tx, actor.userId, key, hash, id);
-      return deps.snapshot(tx, actor, id);
+      return JSON.stringify({ id });
     });
   return {
     async create(actor, key, command) {
@@ -94,7 +94,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         const prior = await priorOperation(tx, actor.userId, key, prepared.fingerprint);
         if (prior) {
           await lockInterview(tx, actor, prior, capabilitiesInTransaction);
-          return deps.snapshot(tx, actor, prior);
+          return JSON.stringify({ id: prior });
         }
         const count = (
           await tx.execute<{ count: string }>(
@@ -130,20 +130,28 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
           sql`INSERT INTO interview_members(session_id,user_id,role) VALUES(${id}::uuid,${actor.userId},'interviewer')`,
         );
         await saveOperation(tx, actor.userId, key, prepared.fingerprint, id);
-        return deps.snapshot(tx, actor, id);
+        return JSON.stringify({ id });
       });
     },
     async list(actor) {
       return transact(async (tx) => {
         const rows = (
-          await tx.execute<{ id: string }>(
-            sql`SELECT i.id::text FROM interviews i JOIN interview_members m ON m.session_id=i.id WHERE m.user_id=${actor.userId} AND m.removed_at IS NULL AND i.deleted_at IS NULL ORDER BY i.updated_at DESC LIMIT 50`,
+          await tx.execute<{
+            id: string;
+            title: string;
+            state: string;
+            hostId: string;
+            role: string;
+            problemTitle: string;
+            memberCount: number;
+          }>(
+            sql`SELECT i.id::text,i.title,i.state,i.host_id AS "hostId",m.role,COALESCE(q.metadata->'problem'->>'title','') AS "problemTitle",(SELECT count(*)::int FROM interview_members p WHERE p.session_id=i.id AND p.removed_at IS NULL) AS "memberCount" FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${actor.userId} AND m.removed_at IS NULL JOIN interview_question_public q ON q.session_id=i.id AND q.question_epoch=i.question_epoch WHERE i.deleted_at IS NULL ORDER BY i.updated_at DESC LIMIT 50`,
           )
         ).rows;
         const result: string[] = [];
         for (const row of rows) {
           await lockInterview(tx, actor, row.id, capabilitiesInTransaction);
-          result.push(await deps.snapshot(tx, actor, row.id));
+          result.push(JSON.stringify(row));
         }
         return result;
       });
@@ -370,21 +378,8 @@ async function joinInterview(
     await tx.execute(
       sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${room.id}::uuid`,
     );
-    const who: Principal = guestCredential
-      ? {
-          kind: "guest",
-          userId: user,
-          displayName: guestDisplay,
-          admin: false,
-          emailVerified: false,
-          sessionId: await guestTokenHash(guestCredential),
-          strongUntil: 0,
-          credentialExpiresAt: 0,
-          scope: { kind: "interview", interviewId: room.id },
-        }
-      : actor!;
     return {
-      snapshot: await deps.snapshot(tx, who, room.id),
+      snapshot: JSON.stringify({ id: room.id }),
       ...(guestCredential ? { credential: guestCredential } : {}),
     };
   });

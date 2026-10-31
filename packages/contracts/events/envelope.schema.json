@@ -2434,6 +2434,48 @@
         }
       },
       "required": ["kind"]
+    },
+    "InterviewCommandAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "InterviewSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "state", "hostId", "role", "problemTitle", "memberCount"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "closed"]
+        },
+        "hostId": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/InterviewRole"
+        },
+        "problemTitle": {
+          "type": "string"
+        },
+        "memberCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   },
   "$ref": "#/$defs/EventEnvelope"

@@ -60,13 +60,21 @@ it.skipIf(!url)("atomically admits locked source and replays after edits", async
         snapshot: interviewSnapshot,
       }),
       docs = interviewDocumentCommands(run),
-      commands = interviewQuestionCommands(run, interviewSnapshot),
+      commands = interviewQuestionCommands(run),
       admit = postgresInterviewAdmission(run, { losslessCases: true, guestExecution: true });
     const room = JSON.parse(
-      await lifecycle.create(host, "create", {
-        title: "Admission",
-        question: { problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7", language: "python" },
-      }),
+      await lifecycle.read(
+        host,
+        JSON.parse(
+          await lifecycle.create(host, "create", {
+            title: "Admission",
+            question: {
+              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+              language: "python",
+            },
+          }),
+        ).id,
+      ),
     );
     const fixtureRaw = String.raw`{"problem":{"examples":[{"args":["a\u0000b"]}]}}`;
     const fixtureId = await run((scope) =>
@@ -171,13 +179,21 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
         question: preparePublishedInterviewQuestion,
         snapshot: interviewSnapshot,
       }),
-      questions = interviewQuestionCommands(run, interviewSnapshot),
+      questions = interviewQuestionCommands(run),
       admit = postgresInterviewAdmission(run, { losslessCases: true, guestExecution: true });
     const room = JSON.parse(
-      await lifecycle.create(host, "create", {
-        title: "Stages",
-        question: { problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7", language: "python" },
-      }),
+      await lifecycle.read(
+        host,
+        JSON.parse(
+          await lifecycle.create(host, "create", {
+            title: "Stages",
+            question: {
+              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+              language: "python",
+            },
+          }),
+        ).id,
+      ),
     );
     const sig = {
         className: "Solution",
@@ -204,7 +220,12 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       odysseyHiddenCases: [[one], [one]],
     };
     const selected = JSON.parse(
-      await questions.select(host, room.id, "select", { language: "python", custom: staged }),
+      await lifecycle.read(
+        host,
+        JSON.parse(
+          await questions.select(host, room.id, "select", { language: "python", custom: staged }),
+        ).id,
+      ),
     );
     const raw = JSON.stringify({
       kind: "submit",
@@ -339,7 +360,7 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       postgresCompletionPromotion(run)(job2!, job2!),
       questions.passStage(host, room.id, "pass", selected.questionEpoch, 1),
     ]);
-    expect(JSON.parse(passedRaw).question.progress.level).toBe(2);
+    expect(JSON.parse(passedRaw)).toEqual({ id: room.id });
     expect(JSON.parse(await lifecycle.read(host, room.id)).question.progress.level).toBe(2);
     const receipt3 = crypto.randomUUID();
     await pool.query(

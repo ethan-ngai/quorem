@@ -36,15 +36,23 @@ describe("workerd interview question commands", () => {
       snapshot: interviewSnapshot,
     });
     const created = JSON.parse(
-      await lifecycle.create(actor, "worker-create", {
-        title: "Worker",
-        question: { problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7", language: "python" },
-      }),
+      await lifecycle.read(
+        actor,
+        JSON.parse(
+          await lifecycle.create(actor, "worker-create", {
+            title: "Worker",
+            question: {
+              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+              language: "python",
+            },
+          }),
+        ).id,
+      ),
     );
     const app = createApp({ allowedOrigins: [], requestId: () => "worker" }).route(
       "/",
       interviewQuestionRoutes({
-        questions: interviewQuestionCommands(run, interviewSnapshot),
+        questions: interviewQuestionCommands(run),
         identify,
       }),
     );
@@ -60,7 +68,8 @@ describe("workerd interview question commands", () => {
       "worker-language",
     );
     expect(switched.status).toBe(200);
-    const result = (await switched.json()) as {
+    expect(await switched.json()).toEqual({ id: created.id });
+    const result = JSON.parse(await lifecycle.read(actor, created.id)) as {
       document: { epoch: string };
       question: { language: string };
     };
@@ -111,7 +120,8 @@ describe("workerd interview question commands", () => {
       });
     const stageResponse = await select(staged, "stage-select");
     expect(stageResponse.status).toBe(200);
-    const stage = (await stageResponse.json()) as { questionEpoch: string };
+    expect(await stageResponse.json()).toEqual({ id: created.id });
+    const stage = JSON.parse(await lifecycle.read(actor, created.id)) as { questionEpoch: string };
     const [advance, reselect] = await Promise.all([
       request(
         "pass-stage",

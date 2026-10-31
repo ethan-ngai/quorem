@@ -51,15 +51,20 @@ it.skipIf(!url)(
         }),
         a = interviewPresence(run),
         b = interviewPresence(run),
-        monitoring = interviewMonitoring(run, interviewSnapshot);
+        monitoring = interviewMonitoring(run);
       const created = JSON.parse(
-        await lifecycle.create(host, "create", {
-          title: "Presence",
-          question: {
-            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-            language: "python",
-          },
-        }),
+        await lifecycle.read(
+          host,
+          JSON.parse(
+            await lifecycle.create(host, "create", {
+              title: "Presence",
+              question: {
+                problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                language: "python",
+              },
+            }),
+          ).id,
+        ),
       );
       const id = created.id;
       await pool.query(

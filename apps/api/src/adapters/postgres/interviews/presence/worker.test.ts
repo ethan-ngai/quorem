@@ -41,10 +41,18 @@ it("uses workerd PostgreSQL leases and private monitoring", async () => {
     snapshot: interviewSnapshot,
   });
   const room = JSON.parse(
-    await lifecycle.create(hostActor, "create", {
-      title: "Worker",
-      question: { problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7", language: "python" },
-    }),
+    await lifecycle.read(
+      hostActor,
+      JSON.parse(
+        await lifecycle.create(hostActor, "create", {
+          title: "Worker",
+          question: {
+            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+            language: "python",
+          },
+        }),
+      ).id,
+    ),
   );
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
@@ -55,7 +63,7 @@ it("uses workerd PostgreSQL leases and private monitoring", async () => {
   );
   const first = interviewPresence(run),
     second = interviewPresence(run),
-    monitor = interviewMonitoring(run, interviewSnapshot);
+    monitor = interviewMonitoring(run);
   const leases = await Promise.allSettled(
     Array.from({ length: 6 }, (_, i) => (i % 2 ? first : second).acquire(candidateActor, room.id)),
   );
