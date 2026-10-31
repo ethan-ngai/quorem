@@ -24,7 +24,6 @@ export async function runStageMaintenance(env, plan, directory) {
   if (env.TF_VAR_case_namespace_id !== plan.namespace || env.TF_VAR_database_user !== plan.role)
     throw new Error("Maintenance configuration does not match deployed authority");
   const services = JSON.parse(env.TF_VAR_service_secrets),
-    worker = JSON.parse(env.HONO_WORKER_SECRETS_JSON),
     hosts = JSON.parse(env.TF_VAR_hostnames),
     caseOrigin = `https://${hosts.case}`;
   const journal = await maintenanceJournal(directory, plan);
@@ -49,14 +48,6 @@ export async function runStageMaintenance(env, plan, directory) {
       secret: services.RECOVERY_CONTROL_SECRET,
       caseOrigin,
       runnerOrigin: `https://${hosts.drain}`,
-      caseAccess: {
-        id: services.QUOREM_CASE_ACCESS_CLIENT_ID,
-        secret: services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
-      },
-      runnerAccess: {
-        id: worker.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
-        secret: worker.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
-      },
       publicKeyFile,
     });
     const sandbox = remoteSandbox({
@@ -65,13 +56,6 @@ export async function runStageMaintenance(env, plan, directory) {
       secret: services.QUOREM_CASE_SECRET,
       ownerPublicKey: services.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM,
       cleanupMs: 30000,
-      fetch: (url, init) => {
-        if (new URL(url).origin !== caseOrigin) throw new Error("Unexpected maintenance transport");
-        const headers = new Headers(init.headers);
-        headers.set("CF-Access-Client-Id", services.QUOREM_CASE_ACCESS_CLIENT_ID);
-        headers.set("CF-Access-Client-Secret", services.QUOREM_CASE_ACCESS_CLIENT_SECRET);
-        return fetch(url, { ...init, headers });
-      },
     });
     if (sandbox.scope !== plan.scope) throw new Error("Maintenance sandbox authority changed");
     await database.connect();

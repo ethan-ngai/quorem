@@ -15,8 +15,10 @@ import { stageNamespaceReady } from "./hono-stage-ready.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 
 const stageResources = [
-  "cloudflare_zero_trust_access_service_token.stage",
-  "neon_project.stage",
+  "restapi_object.stage_branch",
+  "neon_endpoint.stage",
+  "neon_role.stage",
+  "neon_database.stage",
   "terraform_data.stage_secrets",
 ];
 function providerDiagnostics(text) {
@@ -32,11 +34,12 @@ function providerDiagnostics(text) {
           /\b(?:HTTP(?:\s+status)?|status(?:\s+code)?)\s*[:=]?\s*(400|401|403|404|409|422|429|500|502|503|504)\b/gi,
         ),
       ].map((match) => Number(match[1]));
-      const codes = resources.some((name) => name.startsWith("cloudflare_"))
-        ? [...chunk.matchAll(/(?:"code"\s*:\s*|\berror\s+code\s*[:=]\s*)(\d{1,6})\b/gi)].map(
-            (match) => Number(match[1]),
-          )
-        : [];
+      const codes =
+        resources.length > 0
+          ? [...chunk.matchAll(/(?:"code"\s*:\s*|\berror\s+code\s*[:=]\s*)(\d{1,6})\b/gi)].map(
+              (match) => Number(match[1]),
+            )
+          : [];
       const flags = {
         organization: /\b(?:(?:organization|organisation|org)[ -]scoped|org_id)\b/i.test(chunk),
         project: /\bproject[ -]scoped\b/i.test(chunk),
@@ -102,6 +105,7 @@ export function bootstrapEnvironment(env, secrets) {
     throw new Error("Exact migration release required");
   if (
     !/^[a-f0-9]{32}$/.test(env.CLOUDFLARE_ACCOUNT_ID ?? "") ||
+    !/^[a-z][a-z0-9-]{3,99}$/.test(env.NEON_PROJECT_ID ?? "") ||
     !/^[a-z0-9][a-z0-9-]{2,62}$/.test(env.TF_STATE_BUCKET ?? "")
   )
     throw new Error("Invalid stage backend");
@@ -129,7 +133,8 @@ export function bootstrapEnvironment(env, secrets) {
       names.filter((name) => env[name] !== undefined).map((name) => [name, env[name]]),
     ),
     TF_IN_AUTOMATION: "true",
-    TF_VAR_account_id: env.CLOUDFLARE_ACCOUNT_ID,
+    TF_VAR_project_id: env.NEON_PROJECT_ID,
+    TF_VAR_neon_api_key: env.NEON_API_KEY,
     TF_VAR_stage_secrets: JSON.stringify(secrets),
   };
 }
@@ -167,9 +172,7 @@ export async function launchStage(
       .split("\n")
       .map((value) => value.trim())
       .filter(Boolean);
-    const allowedState =
-      /^(neon_project\.stage|terraform_data\.stage_secrets|cloudflare_zero_trust_access_service_token\.stage\["(runner_api|verifier_api|drain|verifier|case|image)"\])$/;
-    if (resources.some((value) => !allowedState.test(value)))
+    if (resources.some((value) => !stageResources.includes(value)))
       throw new Error("Unexpected bootstrap state");
     report("bootstrap-state", { resources });
     run(
@@ -180,13 +183,7 @@ export async function launchStage(
     chmodSync(plan, 0o600);
     const view = JSON.parse(run("terraform", [...prefix, "show", "-json", plan], child));
     if (!Array.isArray(view.resource_changes)) throw new Error("Bootstrap plan unavailable");
-    const allowed = new Set([
-      "neon_project.stage",
-      "terraform_data.stage_secrets",
-      ...["runner_api", "verifier_api", "drain", "verifier", "case", "image"].map(
-        (name) => `cloudflare_zero_trust_access_service_token.stage["${name}"]`,
-      ),
-    ]);
+    const allowed = new Set(stageResources);
     for (const change of [...view.resource_changes, ...(view.resource_drift ?? [])]) {
       if (
         !allowed.has(change.address) ||

@@ -16,8 +16,6 @@ const runnerKeys = [
   "QUOREM_CASE_SECRET",
   "QUOREM_CASE_NAMESPACE_ID",
   "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM",
-  "QUOREM_CASE_ACCESS_CLIENT_ID",
-  "QUOREM_CASE_ACCESS_CLIENT_SECRET",
   "QUOREM_RUNNER_SLOTS",
   "QUOREM_SANDBOX_CLEANUP_MS",
 ];
@@ -51,9 +49,6 @@ function config(env) {
     env.QUOREM_CASE_SECRET,
     env.QUOREM_VERIFICATION_SOURCE_KEY,
     env.QUOREM_VERIFICATION_SERVICE_KEY,
-    env.RUNNER_API_ACCESS_CLIENT_SECRET,
-    env.VERIFIER_API_ACCESS_CLIENT_SECRET,
-    env.QUOREM_CASE_ACCESS_CLIENT_SECRET,
     ...(imageEnabled ? [env.IMAGE_SERVICE_TOKEN] : []),
   ];
   if (
@@ -61,14 +56,7 @@ function config(env) {
     new Set(secrets).size !== secrets.length
   )
     throw new Error("Invalid private service configuration");
-  const accessIds = [
-    env.RUNNER_API_ACCESS_CLIENT_ID,
-    env.VERIFIER_API_ACCESS_CLIENT_ID,
-    env.QUOREM_CASE_ACCESS_CLIENT_ID,
-  ];
   if (
-    accessIds.some((value) => typeof value !== "string" || !value || /\s/.test(value)) ||
-    new Set(accessIds).size !== accessIds.length ||
     !env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM ||
     !env.QUOREM_VERIFICATION_SIGNING_KEY_PEM ||
     !env.CASE_OWNER_PRIVATE_KEY
@@ -128,12 +116,6 @@ class Service extends DurableObject {
     super(ctx, env);
     const runner = kind === "runner";
     const values = selected(env, runner ? runnerKeys : verifierKeys);
-    values.CLOUDFLARE_ACCESS_CLIENT_ID = runner
-      ? env.RUNNER_API_ACCESS_CLIENT_ID
-      : env.VERIFIER_API_ACCESS_CLIENT_ID;
-    values.CLOUDFLARE_ACCESS_CLIENT_SECRET = runner
-      ? env.RUNNER_API_ACCESS_CLIENT_SECRET
-      : env.VERIFIER_API_ACCESS_CLIENT_SECRET;
     Object.assign(
       values,
       runner

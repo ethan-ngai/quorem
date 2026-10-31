@@ -19,8 +19,6 @@ async function fixture() {
     env: {
       QUOREM_CASE_ORIGIN: "https://case-stage.example.com",
       QUOREM_CASE_SECRET: "s".repeat(64),
-      QUOREM_CASE_ACCESS_CLIENT_ID: "id",
-      QUOREM_CASE_ACCESS_CLIENT_SECRET: "access",
       QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: file,
     },
     signer: {

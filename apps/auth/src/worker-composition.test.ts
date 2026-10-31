@@ -14,7 +14,7 @@ const fixture = {
   AUTH_EMAIL_FROM: "fixture@example.test",
 };
 describe("Worker auth composition", () => {
-  it("requires a distinct Access pair and HTTPS when stage media is selected", () => {
+  it("requires a dedicated bearer and HTTPS for stage media", () => {
     const stage = {
       ...fixture,
       APP_ENV: "stage",
@@ -44,6 +44,15 @@ describe("Worker auth composition", () => {
       }),
     ).toThrow();
     expect(() => workerRuntime({ ...access, PROFILE_IMAGE_ACCESS_MODE: "none" })).toThrow();
+    const bearer = { ...stage, PROFILE_IMAGE_ACCESS_MODE: "none" };
+    expect(() => workerRuntime(bearer)).not.toThrow();
+    expect(() => workerRuntime({ ...bearer, PROFILE_IMAGE_SERVICE_TOKEN: "short" })).toThrow();
+    expect(() =>
+      workerRuntime({ ...bearer, PROFILE_IMAGE_SERVICE_TOKEN: bearer.BETTER_AUTH_SECRET }),
+    ).toThrow();
+    expect(() =>
+      workerRuntime({ ...bearer, PROFILE_IMAGE_SERVICE_URL: "http://image.example/" }),
+    ).toThrow();
   });
   it("fails closed for a missing or malformed selected mail key", () => {
     expect(() => workerRuntime(fixture)).toThrow(

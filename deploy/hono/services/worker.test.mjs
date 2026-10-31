@@ -16,12 +16,6 @@ const base = () => {
     QUOREM_CASE_SECRET: secret("c"),
     QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
     QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
-    RUNNER_API_ACCESS_CLIENT_ID: "runner-id",
-    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
-    VERIFIER_API_ACCESS_CLIENT_ID: "verifier-id",
-    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
-    QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
-    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
     QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: "public key",
     QUOREM_VERIFICATION_SIGNING_KEY_PEM: "private key",
     CASE_OWNER_PRIVATE_KEY: "case private key",
@@ -183,7 +177,7 @@ void test("control authority gates drains and registers authorized case attempts
       new Request(`${env.CASE_ORIGIN}/internal/case/one`, {
         method: "POST",
         headers: {
-          authorization: `Bearer ${token}`,
+          ...(token === null ? {} : { authorization: `Bearer ${token}` }),
           "x-quorem-owner-scope": scope,
           "x-quorem-owner-nonce": randomUUID(),
           "x-quorem-case-binding": secret("2"),
@@ -195,6 +189,7 @@ void test("control authority gates drains and registers authorized case attempts
       env,
     );
   assert.equal((await post(secret("z"))).status, 404);
+  assert.equal((await post(null)).status, 404);
   assert.deepEqual(events, []);
   registered = false;
   assert.equal((await post()).status, 503);
@@ -377,6 +372,11 @@ void test("private ingress pins capability host, method, bearer and strips Acces
     await call(env.DRAIN_ORIGIN, "/internal/drain", env.QUOREM_CASE_SECRET),
     await call("https://alternate.example.test", "/internal/drain", env.QUOREM_RUNNER_DRAIN_SECRET),
     await call(env.DRAIN_ORIGIN, "/internal/drain", env.QUOREM_RUNNER_DRAIN_SECRET, "GET"),
+    await worker.fetch(new Request(`${env.DRAIN_ORIGIN}/internal/drain`, { method: "POST" }), env),
+    await worker.fetch(
+      new Request(`${env.VERIFIER_ORIGIN}/internal/results/verify`, { method: "POST" }),
+      env,
+    ),
   ])
     assert.equal(result.status, 404);
   assert.equal(
@@ -415,7 +415,14 @@ void test("trusted container environment is purpose-scoped", () => {
   );
   assert.equal(verifier.QUOREM_CASE_SECRET, undefined);
   assert.equal(verifier.QUOREM_RUNNER_COMMAND_SECRET, undefined);
-  assert.notEqual(runner.CLOUDFLARE_ACCESS_CLIENT_SECRET, verifier.CLOUDFLARE_ACCESS_CLIENT_SECRET);
+  assert.equal(
+    Object.keys(runner).some((name) => name.includes("ACCESS_CLIENT")),
+    false,
+  );
+  assert.equal(
+    Object.keys(verifier).some((name) => name.includes("ACCESS_CLIENT")),
+    false,
+  );
 });
 void test("service lifecycle starts once and forwards only the intended request", async () => {
   const env = base(),

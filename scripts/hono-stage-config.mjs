@@ -45,18 +45,11 @@ export function stageConfig(input, outputs, output) {
   const hyperdriveId = outputs?.hyperdrive_id?.value;
   const queueName = outputs?.queue_name?.value;
   const stageHostname = outputs?.stage_hostname?.value;
-  const accessId = outputs?.internal_access_application_id?.value;
   const drainOrigin = outputs?.services?.origins?.value?.DRAIN_ORIGIN;
-  const drainAccessId = outputs?.services?.drain_access_application_id?.value;
   if (
     !/^[a-z][a-z0-9-]*-hono-stage$/.test(workerName) ||
     !/^[0-9a-f]{32}$/.test(hyperdriveId) ||
-    queueName !== `${workerName}-execution` ||
-    typeof accessId !== "string" ||
-    !/^[0-9a-f-]{32,36}$/.test(accessId) ||
-    typeof drainAccessId !== "string" ||
-    !/^[0-9a-f-]{32,36}$/.test(drainAccessId) ||
-    drainAccessId === accessId
+    queueName !== `${workerName}-execution`
   )
     throw new Error("Invalid isolated stage resources");
   if (
@@ -85,10 +78,10 @@ export function stageConfig(input, outputs, output) {
     if (!vars[key]) throw new Error(`Missing ${key}`);
   if (!["password", "cognito"].includes(vars.AUTH_MODE)) throw new Error("Invalid AUTH_MODE");
   if (vars.APP_ENV === "local") throw new Error("Staged Worker must not use local identity");
-  if (vars.VERIFICATION_ACCESS_MODE !== "cloudflare-access")
-    throw new Error("Staged verifier requires Access service authentication");
-  if (vars.EXECUTION_DRAIN_ACCESS_MODE !== "cloudflare-access")
-    throw new Error("Staged drain requires Access service authentication");
+  if (vars.VERIFICATION_ACCESS_MODE !== "none")
+    throw new Error("Staged verifier requires bearer-only transport");
+  if (vars.EXECUTION_DRAIN_ACCESS_MODE !== "none")
+    throw new Error("Staged drain requires bearer-only transport");
   const host = new URL(vars.AUTH_ORIGIN).hostname;
   if (
     typeof stageZone !== "string" ||
@@ -155,9 +148,7 @@ export function stageConfig(input, outputs, output) {
     throw new Error("Unexpected profile bucket");
   if (
     vars.PROFILE_MEDIA_ENABLED === "true" &&
-    (!profileBucket ||
-      !vars.PROFILE_IMAGE_SERVICE_URL ||
-      vars.PROFILE_IMAGE_ACCESS_MODE !== "cloudflare-access")
+    (!profileBucket || !vars.PROFILE_IMAGE_SERVICE_URL || vars.PROFILE_IMAGE_ACCESS_MODE !== "none")
   )
     throw new Error("Profile media requires its bucket and image service");
   if (profileBucket && !/^[a-z0-9][a-z0-9-]{1,62}$/.test(profileBucket))

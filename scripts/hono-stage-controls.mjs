@@ -28,18 +28,8 @@ async function boundedJSON(response) {
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
 }
 export async function stageControls(options, send = fetch) {
-  const {
-    namespace,
-    scope,
-    release,
-    bindings,
-    secret,
-    caseOrigin,
-    runnerOrigin,
-    caseAccess,
-    runnerAccess,
-    publicKeyFile,
-  } = options;
+  const { namespace, scope, release, bindings, secret, caseOrigin, runnerOrigin, publicKeyFile } =
+    options;
   if (
     !/^[a-f0-9]{64}$/.test(namespace) ||
     namespace === "0".repeat(64) ||
@@ -50,12 +40,9 @@ export async function stageControls(options, send = fetch) {
     secret.length < 32
   )
     throw new Error("Invalid control bindings");
-  for (const [origin, access] of [
-    [caseOrigin, caseAccess],
-    [runnerOrigin, runnerAccess],
-  ]) {
+  for (const origin of [caseOrigin, runnerOrigin]) {
     const parsed = new URL(origin);
-    if (parsed.protocol !== "https:" || parsed.origin !== origin || !access?.id || !access?.secret)
+    if (parsed.protocol !== "https:" || parsed.origin !== origin)
       throw new Error("Invalid control transport");
   }
   const pem = await readFile(publicKeyFile, "utf8");
@@ -78,7 +65,6 @@ export async function stageControls(options, send = fetch) {
   const proofs = [];
   const request = async (kind, action, payload, after) => {
     const origin = kind === "case" ? caseOrigin : runnerOrigin,
-      access = kind === "case" ? caseAccess : runnerAccess,
       nonce = randomUUID();
     const url = new URL(`${origin}/internal/control/${kind}/${action}`);
     if (action === "inventory") {
@@ -89,8 +75,6 @@ export async function stageControls(options, send = fetch) {
       method: payload ? "POST" : "GET",
       headers: {
         authorization: `Bearer ${secret}`,
-        "CF-Access-Client-Id": access.id,
-        "CF-Access-Client-Secret": access.secret,
         "x-quorem-owner-scope": scope,
         "x-quorem-owner-nonce": nonce,
         ...(payload ? { "content-type": "application/json" } : {}),

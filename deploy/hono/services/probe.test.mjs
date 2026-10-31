@@ -7,7 +7,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { signedCaseProbe } from "../../case-proof.js";
 import { probeNamespace } from "./probe.mjs";
 
-void test("namespace bootstrap pins Access, bearer, nonce, key and origin", async () => {
+void test("namespace bootstrap pins bearer, nonce, key and origin", async () => {
   const directory = await mkdtemp(join(tmpdir(), "quorem-probe-test-"));
   try {
     const keys = generateKeyPairSync("ed25519"),
@@ -17,8 +17,6 @@ void test("namespace bootstrap pins Access, bearer, nonce, key and origin", asyn
       QUOREM_CASE_ORIGIN: "https://case-stage.example.test",
       QUOREM_CASE_SECRET: "c".repeat(64),
       QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: file,
-      QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
-      QUOREM_CASE_ACCESS_CLIENT_SECRET: "case-access-secret",
     };
     const signer = {
       CASE_OWNER_PRIVATE_KEY: keys.privateKey
@@ -30,8 +28,8 @@ void test("namespace bootstrap pins Access, bearer, nonce, key and origin", asyn
       assert.equal(url.origin, env.QUOREM_CASE_ORIGIN);
       assert.equal(init.redirect, "error");
       const headers = new Headers(init.headers);
-      assert.equal(headers.get("cf-access-client-id"), env.QUOREM_CASE_ACCESS_CLIENT_ID);
-      assert.equal(headers.get("cf-access-client-secret"), env.QUOREM_CASE_ACCESS_CLIENT_SECRET);
+      assert.equal(headers.get("cf-access-client-id"), null);
+      assert.equal(headers.get("cf-access-client-secret"), null);
       assert.equal(headers.get("authorization"), `Bearer ${env.QUOREM_CASE_SECRET}`);
       return signedCaseProbe(signer, {
         kind: "namespace",
@@ -42,6 +40,13 @@ void test("namespace bootstrap pins Access, bearer, nonce, key and origin", asyn
       });
     };
     assert.deepEqual(await probeNamespace(env, send), { namespace: "1".repeat(64) });
+    await assert.rejects(probeNamespace({ ...env, QUOREM_CASE_SECRET: "" }, send));
+    await assert.rejects(
+      probeNamespace(
+        { ...env, QUOREM_CASE_ORIGIN: "https://user:secret@case-stage.example.test" },
+        send,
+      ),
+    );
     await writeFile(
       file,
       generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }),

@@ -6,7 +6,6 @@ import { checkWorkerAuth } from "./hono-stage-preflight.mjs";
 import { checkSecrets } from "./hono-stage-secrets.mjs";
 
 const hex = () => randomBytes(32).toString("hex");
-const tokenId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const hosts = {
   api: "hono-stage.quorem.app",
   drain: "runner-hono-stage.quorem.app",
@@ -58,24 +57,6 @@ export function assembleStageConfig(bootstrap, actions) {
   } catch {
     throw new Error("Invalid stage database");
   }
-  const tokens = bootstrap?.access_tokens?.value;
-  const names = ["runner_api", "verifier_api", "drain", "verifier", "case", "image"];
-  if (
-    !tokens ||
-    names.some(
-      (name) =>
-        !tokenId.test(tokens[name]?.id ?? "") ||
-        !tokens[name]?.client_id ||
-        !tokens[name]?.client_secret ||
-        /\s/.test(tokens[name].client_id + tokens[name].client_secret),
-    )
-  )
-    throw new Error("Invalid bootstrap Access tokens");
-  if (
-    new Set(names.map((name) => tokens[name].id)).size !== names.length ||
-    new Set(names.map((name) => tokens[name].client_secret)).size !== names.length
-  )
-    throw new Error("Distinct Access tokens required");
   const account = required("CLOUDFLARE_ACCOUNT_ID"),
     zone = required("CLOUDFLARE_ZONE_ID"),
     sha = required("GITHUB_SHA"),
@@ -137,14 +118,10 @@ export function assembleStageConfig(bootstrap, actions) {
         "VERIFICATION_PUBLIC_KEY",
       ].includes(key),
   );
-  const privateValues = [
-    ...randomKeys.map((key) => persisted[key]),
-    ...names.map((name) => tokens[name].client_secret),
-  ];
+  const privateValues = randomKeys.map((key) => persisted[key]);
   if (
     randomKeys.some((key) => !/^[a-f0-9]{64}$/.test(persisted[key])) ||
     new Set(privateValues).size !== privateValues.length ||
-    new Set(names.map((name) => tokens[name].client_id)).size !== names.length ||
     !/^[a-f0-9]{32}$/.test(zone)
   )
     throw new Error("Invalid or duplicate staged credentials");
@@ -181,24 +158,12 @@ export function assembleStageConfig(bootstrap, actions) {
     QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: persisted.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM,
     CASE_OWNER_PRIVATE_KEY: persisted.CASE_OWNER_PRIVATE_KEY,
     QUOREM_VERIFICATION_SIGNING_KEY_PEM: persisted.QUOREM_VERIFICATION_SIGNING_KEY_PEM,
-    RUNNER_API_ACCESS_CLIENT_ID: tokens.runner_api.client_id,
-    RUNNER_API_ACCESS_CLIENT_SECRET: tokens.runner_api.client_secret,
-    VERIFIER_API_ACCESS_CLIENT_ID: tokens.verifier_api.client_id,
-    VERIFIER_API_ACCESS_CLIENT_SECRET: tokens.verifier_api.client_secret,
-    QUOREM_CASE_ACCESS_CLIENT_ID: tokens.case.client_id,
-    QUOREM_CASE_ACCESS_CLIENT_SECRET: tokens.case.client_secret,
   };
   const secrets = {
     MATCH_INVITE_KEY: persisted.MATCH_INVITE_KEY,
     BETTER_AUTH_SECRET: persisted.BETTER_AUTH_SECRET,
     AUTH_INTERNAL_SECRET: persisted.AUTH_INTERNAL_SECRET,
-    VERIFICATION_ACCESS_CLIENT_ID: tokens.verifier.client_id,
-    VERIFICATION_ACCESS_CLIENT_SECRET: tokens.verifier.client_secret,
-    EXECUTION_DRAIN_ACCESS_CLIENT_ID: tokens.drain.client_id,
-    EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: tokens.drain.client_secret,
     PROFILE_IMAGE_SERVICE_TOKEN: imageToken,
-    PROFILE_IMAGE_ACCESS_CLIENT_ID: tokens.image.client_id,
-    PROFILE_IMAGE_ACCESS_CLIENT_SECRET: tokens.image.client_secret,
   };
   const vars = {
     APP_ENV: "stage",
@@ -215,12 +180,12 @@ export function assembleStageConfig(bootstrap, actions) {
     TRUST_CLOUDFLARE_PEER: "true",
     PROFILE_MEDIA_ENABLED: "true",
     PROFILE_IMAGE_SERVICE_URL: `https://${hosts.image}`,
-    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
+    PROFILE_IMAGE_ACCESS_MODE: "none",
     VERIFICATION_SERVICE_ORIGIN: `https://${hosts.verifier}`,
-    VERIFICATION_ACCESS_MODE: "cloudflare-access",
+    VERIFICATION_ACCESS_MODE: "none",
     VERIFICATION_PUBLIC_KEY: persisted.VERIFICATION_PUBLIC_KEY,
     EXECUTION_DRAIN_URL: `https://${hosts.drain}/internal/drain`,
-    EXECUTION_DRAIN_ACCESS_MODE: "cloudflare-access",
+    EXECUTION_DRAIN_ACCESS_MODE: "none",
   };
   const env = Object.fromEntries(
     [
@@ -255,12 +220,6 @@ export function assembleStageConfig(bootstrap, actions) {
     TF_VAR_cloudflare_api_token: cfToken,
     TF_VAR_worker_name: "quorem-hono-stage",
     TF_VAR_stage_hostname: hosts.api,
-    TF_VAR_access_service_token_ids: JSON.stringify([tokens.runner_api.id, tokens.verifier_api.id]),
-    TF_VAR_access_token_ids: JSON.stringify({
-      drain: tokens.drain.id,
-      verifier: tokens.verifier.id,
-      case: tokens.case.id,
-    }),
     TF_VAR_database_host: url.hostname,
     TF_VAR_database_port: url.port || "5432",
     TF_VAR_database_name: "quorem_hono_stage",
@@ -274,7 +233,6 @@ export function assembleStageConfig(bootstrap, actions) {
     }),
     TF_VAR_profile_media_enabled: "true",
     TF_VAR_image_hostname: hosts.image,
-    TF_VAR_image_access_service_token_id: tokens.image.id,
     TF_VAR_command_origin: `https://${hosts.api}`,
     TF_VAR_source_origin: `https://${hosts.api}`,
     TF_VAR_case_namespace_id: "0".repeat(64),
@@ -296,8 +254,6 @@ export function assembleStageConfig(bootstrap, actions) {
     VERIFICATION_SOURCE_CREDENTIAL: services.QUOREM_VERIFICATION_SOURCE_KEY,
     VERIFICATION_SERVICE_CREDENTIAL: services.QUOREM_VERIFICATION_SERVICE_KEY,
     EXECUTION_DRAIN_SECRET: services.QUOREM_RUNNER_DRAIN_SECRET,
-    CLOUDFLARE_ACCESS_CLIENT_ID: services.RUNNER_API_ACCESS_CLIENT_ID,
-    CLOUDFLARE_ACCESS_CLIENT_SECRET: services.RUNNER_API_ACCESS_CLIENT_SECRET,
   });
   return env;
 }

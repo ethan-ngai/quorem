@@ -248,3 +248,4 @@ jobs:
             terraform -chdir=infra/terraform/$stack validate
             terraform -chdir=infra/terraform/$stack test
           done
+          node --test infra/terraform/hono-bootstrap/tests/rest-identity.test.mjs
