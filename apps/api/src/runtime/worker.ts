@@ -1,6 +1,7 @@
 /** @file worker.ts @description Worker HTTP, socket and durable recovery composition. @module api */
 // @ts-expect-error Workerd supplies this module.
 import { DurableObject } from "cloudflare:workers";
+import { accessFetch } from "@quorem/execution/transport/access";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { workerRuntime, type AuthWorkerEnv } from "@quorem/auth/worker";
 import { authPeerRequest, cloudflarePeer } from "@quorem/auth/peer";
@@ -27,6 +28,9 @@ import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch } from "../modules/events/dispatch/dispatch.ts";
 import type { Notice, NoticeStream } from "../modules/events/dispatch/ports.ts";
+import { ApplicationError } from "../application/error.ts";
+import { mapIdentityError } from "../modules/identity/routes.ts";
+import { socketHandshake } from "./worker/socket/handshake.ts";
 import { browserSocketObject } from "./worker/socket/durable.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { composeHttp } from "./composition/http.ts";
@@ -73,12 +77,13 @@ const runFor =
       { connectionTimeoutMs: 5000, lifetimeMs: 30000, signal },
       fn,
     );
-function socketStub(env: Env, stream: NoticeStream) {
-  return env.SOCKETS.get(env.SOCKETS.idFromName(`socket:${stream}`));
+function socketStub(env: Env, stream: NoticeStream, id: string) {
+  return env.SOCKETS.get(env.SOCKETS.idFromName(`socket:${stream}:${id}`));
 }
 function notices(env: Env) {
   return {
-    publish: (stream: NoticeStream, notice: Notice) => socketStub(env, stream).publish(notice),
+    publish: (stream: NoticeStream, notice: Notice) =>
+      socketStub(env, stream, notice.aggregateId).publish(notice),
   };
 }
 function wake(env: Env) {
@@ -153,7 +158,7 @@ function makeHttp(env: Env, request: Request) {
   result.app.route("/", security.auth.app);
   return { ...result, run, security };
 }
-export const BrowserSockets = browserSocketObject<Env>((env) => {
+function socketAuthority(env: Env) {
   const run = runFor(env),
     security = makeSecurity(env),
     allowed = origins(env);
@@ -172,18 +177,33 @@ export const BrowserSockets = browserSocketObject<Env>((env) => {
     guestExecution: flag(env.GUEST_EXECUTION),
     localStrongBypass: false,
   });
+  return postgresSocketAuthority({
+    run,
+    verifier: security.verifier,
+    sessions: security.sessions,
+    matches: composed.matches,
+    submissions: composed.submissions,
+    afterInterviewCommand: async () => {
+      await dispatchBatch(postgresDispatch(run), notices(env), wake(env), "interview");
+    },
+  });
+}
+export const BrowserSockets = browserSocketObject<Env>((env) => {
+  const base = socketAuthority(env);
   return {
-    origins: allowed,
-    authority: postgresSocketAuthority({
-      run,
-      verifier: security.verifier,
-      sessions: security.sessions,
-      matches: composed.matches,
-      submissions: composed.submissions,
-      afterInterviewCommand: async () => {
-        await dispatchBatch(postgresDispatch(run), notices(env), wake(env), "interview");
+    origins: origins(env),
+    authority: {
+      ...base,
+      async issue(request) {
+        const record = await base.issue(request);
+        record.resourceId = record.resourceId.toLowerCase();
+        if (request.headers.get("x-quorem-socket-scope") !== record.resourceId) {
+          await base.release(record);
+          throw new IdentityError("unauthorized");
+        }
+        return record;
       },
-    }),
+    },
   };
 });
 export class DeadlineCoordinator extends DurableObject {
@@ -226,28 +246,69 @@ export class ExecutionRecovery extends DurableObject {
     return this.actor.alarm();
   }
 }
-function streamOf(path: string): NoticeStream | undefined {
-  if (path === "/v1/memberships/events") return "membership";
-  const match = /^\/v1\/(interviews|matches|match-invites|submissions)\/[^/]+\/events$/.exec(path);
-  return match
-    ? (
-        {
-          interviews: "interview",
-          matches: "match",
-          "match-invites": "match",
-          submissions: "submission",
-        } as const
-      )[match[1] as "interviews" | "matches" | "match-invites" | "submissions"]
-    : undefined;
+type SocketTarget = {
+  stream: NoticeStream;
+  mode: "direct" | "membership" | "invite" | "invalid";
+  id?: string;
+};
+function socketTarget(path: string): SocketTarget | undefined {
+  if (path === "/v1/memberships/events") return { stream: "membership", mode: "membership" };
+  const match = /^\/v1\/(interviews|matches|match-invites|submissions)\/([^/]+)\/events$/.exec(
+    path,
+  );
+  if (!match) return;
+  const stream = (
+    {
+      interviews: "interview",
+      matches: "match",
+      "match-invites": "match",
+      submissions: "submission",
+    } as const
+  )[match[1] as "interviews" | "matches" | "match-invites" | "submissions"];
+  let id: string;
+  try {
+    id = decodeURIComponent(match[2]);
+  } catch {
+    return { stream, mode: "invalid" };
+  }
+  if (match[1] === "match-invites") return { stream, mode: "invite" };
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    return { stream, mode: "invalid" };
+  return { stream, mode: "direct", id: id.toLowerCase() };
 }
+async function routeSocket(env: Env, request: Request, target: SocketTarget): Promise<Response> {
+  const rejected = socketHandshake(request, origins(env));
+  if (rejected) return new Response(null, { status: rejected });
+  if (target.mode === "invalid") return new Response(null, { status: 404 });
+  let id = target.id;
+  if (target.mode !== "direct") {
+    try {
+      id = (await socketAuthority(env).issue(request)).resourceId;
+    } catch (error) {
+      const mapped = mapIdentityError(error);
+      const status =
+        mapped instanceof ApplicationError &&
+        [400, 401, 403, 404, 409, 410, 422, 429].includes(mapped.status)
+          ? mapped.status
+          : 503;
+      return new Response(null, { status, headers: { "cache-control": "no-store" } });
+    }
+  }
+  if (!id) return new Response(null, { status: 404 });
+  const headers = new Headers(request.headers);
+  headers.delete("x-quorem-socket-scope");
+  headers.set("x-quorem-socket-scope", id);
+  return socketStub(env, target.stream, id).fetch(new Request(request, { headers }));
+}
+
 let budget: ReturnType<typeof requestBudget> | undefined;
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       const path = new URL(request.url).pathname,
-        stream = streamOf(path);
-      if (stream && request.headers.get("upgrade")?.toLowerCase() === "websocket")
-        return await socketStub(env, stream).fetch(request);
+        target = socketTarget(path);
+      if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket")
+        return await routeSocket(env, request, target);
       budget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
       if (path === "/health")
         return await budget(request, async () => health(request, origins(env)));
@@ -295,11 +356,35 @@ export default {
       ].includes(credential)
     )
       throw new Error("Distinct drain credential required");
+    const drainURL = required(env.EXECUTION_DRAIN_URL);
+    const mode = required(env.EXECUTION_DRAIN_ACCESS_MODE);
+    const id = env.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
+      secret = env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET;
+    let send: typeof fetch | undefined;
+    if (mode === "none") {
+      if (id !== undefined || secret !== undefined)
+        throw new Error("Unexpected drain Access credentials");
+    } else if (mode === "cloudflare-access") {
+      const url = new URL(drainURL);
+      if (url.protocol !== "https:") throw new Error("Drain Access requires HTTPS");
+      const pair = { id: required(id), secret: required(secret) };
+      if (
+        [
+          credential,
+          config.verificationSourceCredential,
+          config.verificationServiceCredential,
+          ...config.runnerPeers.map((peer) => peer.secret),
+        ].includes(pair.secret)
+      )
+        throw new Error("Distinct drain Access credential required");
+      send = accessFetch(url.origin, pair);
+    } else throw new Error("Invalid drain Access mode");
     await consumeWakeBatch(batch.messages, {
       publisher: wake(env),
-      drainURL: required(env.EXECUTION_DRAIN_URL),
+      drainURL,
       credential,
       local: env.APP_ENV === "local",
+      fetch: send,
     });
   },
   async scheduled(_event: unknown, env: Env): Promise<void> {

@@ -15,6 +15,7 @@ it("acknowledges native queue messages only after the drain and durable continua
   const config = {
     ...(env as unknown as Env),
     EXECUTION_DRAIN_URL: "http://127.0.0.1:9999/internal/drain",
+    EXECUTION_DRAIN_ACCESS_MODE: "none",
     EXECUTION_DRAIN_SECRET: "fixture-drain-credential-32-characters",
     RUNNER_PEERS: JSON.stringify([
       { secret: "fixture-runner-credential-32-characters", scope: "fixture", resumable: true },
@@ -47,6 +48,43 @@ it("acknowledges native queue messages only after the drain and durable continua
     const retried = await getQueueResult(pending, createExecutionContext());
     expect(retried.explicitAcks).toEqual([]);
     expect(retried.retryMessages.map((message) => message.msgId)).toEqual(["pending"]);
+    let seen: RequestInit | undefined;
+    globalThis.fetch = async (_input, init) => {
+      seen = init;
+      return new Response('{"queued":0,"running":0}', { status: 200 });
+    };
+    const protectedConfig = {
+      ...config,
+      EXECUTION_DRAIN_URL: "https://drain.example/internal/drain",
+      EXECUTION_DRAIN_ACCESS_MODE: "cloudflare-access",
+      EXECUTION_DRAIN_ACCESS_CLIENT_ID: "fixture-access-id",
+      EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "fixture-access-secret",
+    };
+    const protectedBatch = batch(
+      "protected",
+      JSON.stringify({ jobId: "protected", phase: "continuation" }),
+    );
+    await worker.queue(protectedBatch, protectedConfig);
+    expect((await getQueueResult(protectedBatch, createExecutionContext())).explicitAcks).toEqual([
+      "protected",
+    ]);
+    const sentHeaders = new Headers(seen?.headers);
+    expect(sentHeaders.get("cf-access-client-id")).toBe("fixture-access-id");
+    expect(sentHeaders.get("cf-access-client-secret")).toBe("fixture-access-secret");
+    expect(sentHeaders.get("authorization")).toBe(`Bearer ${config.EXECUTION_DRAIN_SECRET}`);
+    expect(seen?.redirect).toBe("error");
+    await expect(
+      worker.queue(batch("bad", JSON.stringify({ jobId: "bad", phase: "continuation" })), {
+        ...protectedConfig,
+        EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: undefined,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      worker.queue(batch("bad2", JSON.stringify({ jobId: "bad2", phase: "continuation" })), {
+        ...protectedConfig,
+        EXECUTION_DRAIN_ACCESS_MODE: "none",
+      }),
+    ).rejects.toThrow();
   } finally {
     globalThis.fetch = original;
   }
