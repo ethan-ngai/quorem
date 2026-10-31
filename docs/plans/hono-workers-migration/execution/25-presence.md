@@ -7,7 +7,7 @@ Monitoring defaults to enabled, permits policy changes only by the host, accepts
 Validation on disposable PostgreSQL `127.0.0.1:55469/quorem_hono_interview_presence_test`:
 
 - `QUOREM_INTERVIEW_PRESENCE_TEST_URL=... vp -C apps/api exec vitest run --config src/adapters/postgres/interviews/presence/vitest.config.ts`: 1 passed. Covers concurrent replica quotas and renewals, expiration/reconnect, stale-lease fencing, role removal, policy and event privacy, bounded history, and presence plus heartbeat while a document room lock is held. Also checks the existing locked access path still waits.
-- Same URL, `vp -C apps/api exec vitest run --config src/adapters/postgres/interviews/presence/vitest.workers.config.ts`: 1 passed against real PostgreSQL in workerd, including multi-instance quota and HTTP privacy.
+- Same URL, `vp -C apps/api exec vitest run --config src/adapters/postgres/interviews/presence/vitest.workers.config.ts`: 1 passed against real PostgreSQL in workerd, including multi-instance quota, heartbeat and advisory updates under a held document lock, and paste/focus HTTP privacy.
 - `vp -C apps/api run typecheck`, `vp -C apps/api run check:boundaries`, and targeted `vp check --no-fmt`: passed.
 
 Runtime socket lanes, scheduling and production route mounting remain integration work; the tests exercise independent repository operations, not a deployed gateway or network fault recovery. Concurrent authorization changes are rechecked at statement boundaries; an already committed advisory lease expires or fails renewal after revocation.

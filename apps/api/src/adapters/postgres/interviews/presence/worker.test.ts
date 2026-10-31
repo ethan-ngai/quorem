@@ -64,6 +64,39 @@ it("uses workerd PostgreSQL leases and private monitoring", async () => {
   await first.release(candidateActor, room.id, active[0]);
   const again = await second.acquire(candidateActor, room.id);
   expect(await first.renew(candidateActor, room.id, again)).toBe(true);
+  let unlock!: () => void, locked!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    unlock = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const slow = run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(sql`SELECT id FROM interviews WHERE id=${room.id}::uuid FOR NO KEY UPDATE`);
+      locked();
+      await gate;
+    }),
+  );
+  await ready;
+  try {
+    expect(await second.renew(candidateActor, room.id, again)).toBe(true);
+    expect(
+      (
+        await first.update(candidateActor, room.id, {
+          clientID: "while-locked",
+          epoch: room.document.epoch,
+          version: 0,
+          anchor: 0,
+          head: 0,
+        })
+      ).some((p) => p.clientID === "while-locked"),
+    ).toBe(true);
+  } finally {
+    unlock();
+    await slow;
+  }
+
   const app = createApp({ allowedOrigins: [], requestId: () => "worker" })
     .route("/", interviewPresenceRoutes({ presence: first, identify: () => identity(candidate) }))
     .route(
@@ -93,6 +126,19 @@ it("uses workerd PostgreSQL leases and private monitoring", async () => {
   expect((await rule()).status).toBe(200);
   expect(JSON.parse(await lifecycle.read(hostActor, room.id)).ruleEvents).toHaveLength(1);
   expect(JSON.parse(await lifecycle.read(candidateActor, room.id)).ruleEvents).toBeUndefined();
+  const focus = await app.request(`${base}/rule-events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": "focus" },
+    body: '{"kind":"focus"}',
+  });
+  expect(focus.status).toBe(200);
+  expect(
+    JSON.parse(await lifecycle.read(hostActor, room.id))
+      .ruleEvents.map((e: { kind: string }) => e.kind)
+      .sort(),
+  ).toEqual(["focus", "paste"]);
+  expect(JSON.parse(await lifecycle.read(candidateActor, room.id)).ruleEvents).toBeUndefined();
+
   const bad = await app.request(`${base}/rule-events`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": "bad" },
