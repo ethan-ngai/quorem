@@ -865,6 +865,7 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     attemptId = crypto.randomUUID();
   const fixture = JSON.stringify({
     problem: {
+      id: version,
       signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
       constraints: [],
       limits: {
@@ -928,8 +929,8 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     language: "python",
     runtimeRevision: "python-3.12-v1",
     harnessRevision: "quorem-harness-v2",
-    sourceRef: "",
-    suiteRef: "",
+    sourceRef: submission,
+    suiteRef: version,
     problemVersionId: version,
     limits: {
       wallTimeMs: 2000,

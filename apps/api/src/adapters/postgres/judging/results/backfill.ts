@@ -9,7 +9,7 @@ import {
   legacyScore,
   validateLegacyHeader,
 } from "./legacy-header.ts";
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 import { spoolLegacySource } from "./legacy-sql.ts";
 import { publicResult } from "./projection.ts";
 import { backfillPrivateResultCases } from "../../interviews/question/private-results.ts";
@@ -35,7 +35,7 @@ export async function backfillSubmissionResult(tx: Transaction, id: string): Pro
     const tail = decode.decode();
     if (tail) yield tail;
   }
-  const input = new LegacyJsonReader(bytes(row.length)[Symbol.asyncIterator]());
+  const input = new StreamingJsonReader(bytes(row.length)[Symbol.asyncIterator]());
   const fields: { [key: string]: JsonValue } = {};
   let present = false,
     count = 0,
