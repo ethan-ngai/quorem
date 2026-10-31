@@ -1,11 +1,14 @@
-import { database } from "./database.ts";
+import { createNodeRuntime } from "./node-auth.ts";
 import { seedAccounts } from "./seed-accounts.ts";
-try {
-  console.log(
-    JSON.stringify(
-      await seedAccounts(process.env.AUTH_SEED_PASSWORD ?? "", process.env.DATABASE_URL),
-    ),
-  );
-} finally {
-  await database.end();
+
+export async function seed(env: NodeJS.ProcessEnv = process.env) {
+  const runtime = await createNodeRuntime(env);
+  try {
+    console.log(
+      JSON.stringify(await seedAccounts(runtime, env.AUTH_SEED_PASSWORD ?? "", env.DATABASE_URL)),
+    );
+  } finally {
+    await runtime.database.end();
+  }
 }
+if (import.meta.main) await seed();

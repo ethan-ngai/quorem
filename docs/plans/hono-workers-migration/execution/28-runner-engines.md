@@ -1,0 +1,18 @@
+# 28: runner engines
+
+Issue #388. Local implementation and fixtures; activation remains gated on provider validation and the runner loop (29).
+
+The Node engine uses the existing five language harnesses and canonical lossless comparison. It binds each case invocation and checkpoint to immutable source, suite, case, runtime, original attempt, scope and artifact metadata. Retained unbound checkpoints fail closed: drain old runners and checkpoints before activation. The 27 owner validates the same provenance before accepting or replaying checkpoints. Completion fields are staged through 27 in bounded chunks; this slice does not promote or create an independent result authority.
+
+Docker uses the actual daemon identity and a private durable state directory as its scope. The shared per-attempt lock spans daemon creation and cleanup; teardown durably writes a tombstone before checking/removing containers. A crashed lock is never reclaimed by a timer. Every process using a daemon must use the same protected persistent fencing authority; a path on separate hosts is not evidence of shared state. The state directory is private to the trusted runner, is never mounted into a case, and must survive restarts. Hosting must supply and validate that authority and define safe operator recovery after an interrupted lock (35). Directory identity and daemon changes fail scope checks; a lost or unreachable authority does not prove teardown.
+
+The remote adapter pins both the service signing key and the actual Durable Object namespace sentinel. Ingress signs a fresh nonce, method, attempt, token, status, namespace, invocation binding, body digest and resource parameters. A POST signature is not completion: terminal framing and EOF are also required. DELETE requires an attested successful owner response; 404, missing proof, owner changes and uncertain cleanup fail closed. Existing unconfigured remote deployments cannot supply this proof. Provision the signing key, pin its public key and the namespace sentinel, and validate actual deployed service/container teardown before activation (35). No cloud resources were modified.
+
+Local verification:
+
+- Real Docker: five language harnesses and compiled artifact reuse; Python wrong answer, syntax, timeout, NUL and Odyssey; network/socket/environment isolation, abort and daemon cleanup. Cross-process delayed create versus teardown and process-loss lock durability pass against the real daemon.
+- Disposable PostgreSQL: actual 27 claim, checkpoint, interrupted execution, new-attempt resume, 28 execution and 27 promotion for Python and compiled TypeScript (2 tests). Changed source, case, runtime, attempt/scope, checkpoint bytes, artifact and cumulative compilation metadata fail closed.
+- Signed remote adapter tests cover body/identity binding, terminal EOF, truncated stream, missing or switched owner and ambiguous 404. Actual ingress signing and existing case lifecycle/router tests pass (40 tests). Native local workerd fixture verified POST/DELETE signatures and rejected a changed body; hosted service remains unverified.
+- Execution contracts: 12 tests plus direct Node import. Runner and API TypeScript checks pass. Docker/remote/engine suite: 10 tests.
+
+This evidence does not establish hosted capacity, cross-host shared fencing, cloud namespace/key provisioning, provider failure recovery, or all large-record and SQL security cases. No service credentials or production data were used. The fixture uses the isolated `quorem_hono_engine_test` database and local Docker daemon. A case receipt is an in-process trusted adapter boundary, not an attestation from contestant code.

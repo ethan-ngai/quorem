@@ -1,6 +1,6 @@
-/** @file legacy-json.ts @description Incremental reader for privileged legacy result normalization. @module judging */
+/** @file streaming-json.ts @description Incremental JSON value boundaries and byte offsets. @module questions */
 /** One token is buffered at a time; callers split arrays into individual values. */
-export class LegacyJsonReader {
+export class StreamingJsonReader {
   private buffer = "";
   private index = 0;
   private done = false;
@@ -35,13 +35,13 @@ export class LegacyJsonReader {
     return "";
   }
   async expect(expected: string): Promise<void> {
-    if ((await this.peek()) !== expected) throw new Error("Invalid legacy result JSON");
+    if ((await this.peek()) !== expected) throw new Error("Invalid JSON stream");
     this.index++;
     this.offset++;
   }
   async *valueChunks(): AsyncGenerator<string> {
     const first = await this.peek();
-    if (!first) throw new Error("Truncated result JSON");
+    if (!first) throw new Error("Truncated JSON stream");
     const composite = first === "{" || first === "[",
       quoted = first === '"';
     let depth = 0,
@@ -102,11 +102,68 @@ export class LegacyJsonReader {
       if (part) yield this.consumed(part);
     }
     if (!composite && !quoted && started) return;
-    throw new Error("Truncated result JSON");
+    throw new Error("Truncated JSON stream");
   }
   async value(capture = true): Promise<string> {
     const parts: string[] = [];
     for await (const part of this.valueChunks()) if (capture) parts.push(part);
     return parts.join("");
   }
+}
+
+/** Decode each chunk without accepting malformed or incomplete UTF-8. */
+export async function* decodeUtf8Chunks(chunks: AsyncIterable<Uint8Array>): AsyncGenerator<string> {
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  for await (const chunk of chunks) {
+    const decoded = decoder.decode(chunk, { stream: true });
+    if (decoded) yield decoded;
+  }
+  const tail = decoder.decode();
+  if (tail) yield tail;
+}
+export interface JsonSpan {
+  readonly start: number;
+  readonly length: number;
+}
+/**
+ * Scan a previously grammar-validated object without retaining values. Unknown and duplicate
+ * keys fail closed; the whitelist bounds key buffering without limiting value size.
+ */
+export async function readAllowedObjectSpans(
+  input: StreamingJsonReader,
+  allowed: ReadonlySet<string>,
+): Promise<Map<string, JsonSpan>> {
+  const result = new Map<string, JsonSpan>();
+  const keyLimit = Math.max(0, ...Array.from(allowed, (key) => key.length)) * 6 + 2;
+  await input.expect("{");
+  if ((await input.peek()) !== "}")
+    for (;;) {
+      let encoded = "";
+      for await (const fragment of input.valueChunks()) {
+        encoded += fragment;
+        if (encoded.length > keyLimit) throw new Error("Invalid JSON object key");
+      }
+      let key: unknown;
+      try {
+        key = JSON.parse(encoded);
+      } catch {
+        throw new Error("Invalid JSON object key");
+      }
+      if (typeof key !== "string" || !allowed.has(key) || result.has(key))
+        throw new Error("Invalid JSON object key");
+      await input.expect(":");
+      await input.peek();
+      const start = input.byteOffset;
+      for await (const _ of input.valueChunks()) {
+        /* retain only byte ranges */
+      }
+      result.set(key, { start, length: input.byteOffset - start });
+      const separator = await input.peek();
+      if (separator === "}") break;
+      await input.expect(",");
+      if ((await input.peek()) === "}") throw new Error("Invalid JSON object separator");
+    }
+  await input.expect("}");
+  if (await input.peek()) throw new Error("Trailing JSON input");
+  return result;
 }

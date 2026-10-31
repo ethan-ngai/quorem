@@ -7,13 +7,19 @@ import {
   type CompletionFieldChunk,
   type CompletionHeader,
   type ExecutionRepository,
+  type ExecutionQueueControl,
+  type ExecutionInputReader,
+  type InputKind,
 } from "@quorem/execution";
 
 export interface RunnerPeer {
+  readonly inputProtocol: "manifest-v1";
   readonly secret: string;
   readonly scope: string;
   readonly resumable: boolean;
-  readonly repository: ExecutionRepository;
+  readonly repository: (
+    signal: AbortSignal,
+  ) => ExecutionRepository & ExecutionQueueControl & ExecutionInputReader;
 }
 const encoder = new TextEncoder();
 async function sha(value: string): Promise<Uint8Array> {
@@ -67,7 +73,13 @@ function str(value: unknown): string {
 export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
   if (
     !peers.length ||
-    peers.some((p) => encoder.encode(p.secret).length < 32 || /\s/.test(p.secret) || !p.scope)
+    peers.some(
+      (p) =>
+        encoder.encode(p.secret).length < 32 ||
+        /\s/.test(p.secret) ||
+        !p.scope ||
+        p.inputProtocol !== "manifest-v1",
+    )
   )
     throw new Error("Invalid runner peer configuration");
   const keys = await Promise.all(
@@ -98,6 +110,7 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
       let peer: (typeof keys)[number] | undefined;
       for (const candidate of keys) if (equal(candidate.hash, supplied)) peer = candidate;
       if (!peer) return new Response(null, { status: 401 });
+      const repository = peer.repository(request.signal);
       const operation = address.pathname.split("/").pop();
       if (operation === "chunk") {
         const metadata = record(JSON.parse(str(request.headers.get("x-runner-command"))));
@@ -105,7 +118,7 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           bytes = await readBounded(request, 65536);
         const channel = str(metadata.channel),
           field = str(metadata.field);
-        await peer.repository.writeCompletionChunk(job, {
+        await repository.writeCompletionChunk(job, {
           channel,
           field,
           ordinal: metadata.ordinal,
@@ -119,7 +132,7 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
         const raw = new TextDecoder("utf-8", { fatal: true }).decode(
           await readBounded(request, 8 * 1024 * 1024 + 65536),
         );
-        await peer.repository.saveCheckpoint(job, decodeCheckpointCase(raw));
+        await repository.saveCheckpoint(job, decodeCheckpointCase(raw));
         return Response.json({ ok: true });
       }
       const body = record(
@@ -133,30 +146,48 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           ? null
           : { attemptId: str(body.attemptId), sandboxScope: peer!.scope };
       switch (operation) {
+        case "manifest":
+          return Response.json(await repository.inputManifest(job()));
+        case "input": {
+          const page = await repository.inputPage(
+            job(),
+            str(body.kind) as InputKind,
+            Number(body.ordinal),
+            Number(body.offset),
+          );
+          return new Response(new Uint8Array(page.bytes), {
+            headers: {
+              "content-type": "application/octet-stream",
+              "x-input-hash": page.hash,
+              "x-input-size": String(page.size),
+              "x-input-channel": page.channel ?? "none",
+            },
+          });
+        }
+        case "state":
+          return Response.json(await repository.queueState());
+        case "empty":
+          return Response.json(await repository.confirmQueueEmpty());
+        case "deadline":
+          return Response.json(await repository.nextRunnableDeadline(peer.scope));
         case "expired":
-          return Response.json(
-            await peer.repository.nextExpiredAttempt(peer.resumable, peer.scope),
-          );
+          return Response.json(await repository.nextExpiredAttempt(peer.resumable, peer.scope));
         case "claim": {
-          const value = await peer.repository.claimAfterTeardown(
-            peer.resumable,
-            peer.scope,
-            fence(),
-          );
+          const value = await repository.claimAfterTeardown(peer.resumable, peer.scope, fence());
           return Response.json(value ? encodeJob(value) : null);
         }
         case "lease":
-          return Response.json(await peer.repository.lease(job(), body.heartbeat === true));
+          return Response.json(await repository.lease(job(), body.heartbeat === true));
         case "load":
-          return Response.json(await peer.repository.load(job()));
+          return Response.json(await repository.load(job()));
         case "begin":
-          await peer.repository.beginCompletion(
+          await repository.beginCompletion(
             job(),
             record(body.header) as unknown as CompletionHeader,
           );
           break;
         case "seal":
-          await peer.repository.sealCompletionFrame(
+          await repository.sealCompletionFrame(
             job(),
             str(body.channel) as "public" | "sample" | "private",
             Number(body.ordinal),
@@ -164,16 +195,16 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           );
           break;
         case "diagnostics":
-          await peer.repository.sealCompletionDiagnostics(job());
+          await repository.sealCompletionDiagnostics(job());
           break;
         case "eof":
-          await peer.repository.finishCompletionStream(job(), fence()!);
+          await repository.finishCompletionStream(job(), fence()!);
           break;
         case "promote":
-          await peer.repository.promoteCompletion(job(), fence()!);
+          await repository.promoteCompletion(job(), fence()!);
           break;
         case "checkpoint": {
-          const c = await peer.repository.loadCheckpoint(job());
+          const c = await repository.loadCheckpoint(job());
           return Response.json({ ...c, compilationNanos: c.compilationNanos.toString() });
         }
         case "replay": {
@@ -181,7 +212,7 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           const writer = stream.writable.getWriter();
           const abort = new AbortController();
           request.signal.addEventListener("abort", () => abort.abort(), { once: true });
-          void peer.repository
+          void repository
             .replayCheckpoint(
               job(),
               Number(body.count),
@@ -205,7 +236,7 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           });
         }
         case "yield":
-          await peer.repository.yield(job(), fence()!);
+          await repository.yield(job(), fence()!);
           break;
         default:
           return new Response(null, { status: 404 });

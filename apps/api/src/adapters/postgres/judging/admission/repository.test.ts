@@ -17,7 +17,8 @@ const url = process.env.QUOREM_ADMISSION_TEST_DATABASE_URL;
 describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
   const parsed = new URL(url ?? "postgres://127.0.0.1:55458/quorem_hono_admission_test");
   if (
-    parsed.port !== "55458" ||
+    !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+    parsed.searchParams.has("host") ||
     parsed.pathname !== "/quorem_hono_admission_test" ||
     !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)
   )

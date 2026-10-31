@@ -9,7 +9,8 @@ import {
   legacyScore,
   validateLegacyHeader,
 } from "./legacy-header.ts";
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
+import { spoolLegacySource } from "./legacy-sql.ts";
 import { publicResult } from "./projection.ts";
 import { backfillPrivateResultCases } from "../../interviews/question/private-results.ts";
 const decoder = () => new TextDecoder("utf-8", { fatal: true });
@@ -22,12 +23,11 @@ export async function backfillSubmissionResult(tx: Transaction, id: string): Pro
   ).rows[0];
   if (!row || row.length === null) return false;
   await tx.execute(sql`SELECT set_config('quorem.result_backfill','v1',true)`);
-  async function* bytes(privateResult: boolean, length: number): AsyncGenerator<string> {
+  await spoolLegacySource(tx, id, "public");
+  async function* bytes(length: number): AsyncGenerator<string> {
     const decode = decoder();
     for (let offset = 1; offset <= length; offset += 65536) {
-      const q = privateResult
-        ? sql`SELECT substring(COALESCE(private_results_payload,convert_to(private_results::text,'UTF8')) FROM ${offset} FOR 65536) AS data FROM interview_execution WHERE submission_id=${id}::uuid`
-        : sql`SELECT substring(COALESCE(result_payload,convert_to(result::text,'UTF8')) FROM ${offset} FOR 65536) AS data FROM submissions WHERE id=${id}::uuid`;
+      const q = sql`SELECT substring(raw FROM ${offset} FOR 65536) AS data FROM quorem_legacy_source WHERE id=${id}::uuid AND kind='public'`;
       const part = (await tx.execute<{ data: Uint8Array }>(q)).rows[0];
       if (!part) throw new Error("Legacy result changed");
       yield decode.decode(part.data, { stream: true });
@@ -35,7 +35,7 @@ export async function backfillSubmissionResult(tx: Transaction, id: string): Pro
     const tail = decode.decode();
     if (tail) yield tail;
   }
-  const input = new LegacyJsonReader(bytes(false, row.length)[Symbol.asyncIterator]());
+  const input = new StreamingJsonReader(bytes(row.length)[Symbol.asyncIterator]());
   const fields: { [key: string]: JsonValue } = {};
   let present = false,
     count = 0,
@@ -118,7 +118,7 @@ export async function backfillSubmissionResult(tx: Transaction, id: string): Pro
   return true;
 }
 
-/** Operator-only bounded batch; each submission commits independently. */
+/** Operator-only batch; each submission commits independently within the caller's bounded connection lifetime. */
 export async function backfillSubmissionBatch(
   run: <T>(
     fn: (scope: import("@quorem/database/core").ConnectionScope) => Promise<T>,
@@ -127,7 +127,7 @@ export async function backfillSubmissionBatch(
 ): Promise<{ attempted: number; completed: number }> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 64)
     throw new RangeError("Invalid backfill limit");
-  const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
+  const options = { statementTimeoutMs: 30000, lockTimeoutMs: 1000 };
   const rows = await run((scope) =>
     scope.transaction(
       { ...options, readOnly: true },

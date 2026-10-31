@@ -20,6 +20,7 @@ describe.skipIf(!url)("auth schema migrations", () => {
         { name: "002_profile_color.sql" },
         { name: "003_account_user_index.sql" },
         { name: "004_social_email_expiry.sql" },
+        { name: "005_mail_intents.sql" },
       ]);
       await database.query("DELETE FROM quorem_auth.schema_migrations WHERE name='001_schema.sql'");
       await expect(migrateAuth(database)).rejects.toThrow("not a contiguous prefix");

@@ -9,9 +9,20 @@ import {
   type CompletionFieldChunk,
   type CompletionHeader,
   type ExecutionRepository,
+  type ExecutionQueueControl,
+  type ExecutionInputReader,
   type ExecutionSpec,
   type Job,
 } from "@quorem/execution";
+
+/** A failed mutation may have committed; callers must resolve its receipt, not blindly replay. */
+export class RunnerCommandError extends Error {
+  readonly outcome: "unknown" | "unavailable";
+  constructor(outcome: "unknown" | "unavailable") {
+    super(outcome === "unknown" ? "Runner command outcome unknown" : "Runner command unavailable");
+    this.outcome = outcome;
+  }
+}
 
 /** Scope is fixed by server-side credential configuration and cannot be selected per request. */
 export function privateRunnerCommands(options: {
@@ -21,8 +32,13 @@ export function privateRunnerCommands(options: {
   resumable: boolean;
   timeoutMs: number;
   fetch?: typeof fetch;
-}): ExecutionRepository {
-  const origin = new URL(options.origin);
+}): ExecutionRepository & ExecutionQueueControl & ExecutionInputReader {
+  let origin: URL;
+  try {
+    origin = new URL(options.origin);
+  } catch {
+    throw new Error("Invalid private runner configuration");
+  }
   if (
     origin.username ||
     origin.password ||
@@ -48,28 +64,48 @@ export function privateRunnerCommands(options: {
     raw?: Uint8Array,
     extra?: Record<string, string>,
   ): Promise<Response> {
-    const result = await fetcher(new URL(`/internal/runner/${op}`, origin), {
-      method: "POST",
-      redirect: "manual",
-      headers: { authorization: `Bearer ${options.secret}`, ...extra },
-      body: raw ? new Uint8Array(raw) : JSON.stringify(data),
-      signal: AbortSignal.any([
-        AbortSignal.timeout(options.timeoutMs),
-        ...(signal ? [signal] : []),
-      ]),
-    });
-    if (!result.ok) {
-      await result.body?.cancel();
-      throw new Error("Runner command unavailable");
+    const outcome = [
+      "expired",
+      "load",
+      "checkpoint",
+      "replay",
+      "state",
+      "empty",
+      "deadline",
+    ].includes(op)
+      ? "unavailable"
+      : "unknown";
+    try {
+      const result = await fetcher(new URL(`/internal/runner/${op}`, origin), {
+        method: "POST",
+        redirect: "manual",
+        headers: { authorization: `Bearer ${options.secret}`, ...extra },
+        body: raw ? new Uint8Array(raw) : JSON.stringify(data),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(options.timeoutMs),
+          ...(signal ? [signal] : []),
+        ]),
+      });
+      if (!result.ok) {
+        await result.body?.cancel();
+        throw new RunnerCommandError(outcome);
+      }
+      return result;
+    } catch {
+      throw new RunnerCommandError(outcome);
     }
-    return result;
   }
   async function json(
     op: string,
     data: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<unknown> {
-    return (await call(op, data, signal)).json();
+    try {
+      return await (await call(op, data, signal)).json();
+    } catch (error) {
+      if (error instanceof RunnerCommandError) throw error;
+      throw new RunnerCommandError(op === "claim" || op === "lease" ? "unknown" : "unavailable");
+    }
   }
   async function ack(
     op: string,
@@ -78,7 +114,12 @@ export function privateRunnerCommands(options: {
     raw?: Uint8Array,
     extra?: Record<string, string>,
   ): Promise<void> {
-    await (await call(op, data, signal, raw, extra)).json();
+    try {
+      await (await call(op, data, signal, raw, extra)).json();
+    } catch (error) {
+      if (error instanceof RunnerCommandError) throw error;
+      throw new RunnerCommandError("unknown");
+    }
   }
   const j = (job: Job) => {
     if (job.sandboxScope !== options.scope) throw new Error("Runner scope mismatch");
@@ -90,6 +131,116 @@ export function privateRunnerCommands(options: {
     return fence?.attemptId ?? null;
   };
   return {
+    async inputManifest(job, signal) {
+      const value = (await json(
+        "manifest",
+        { job: j(job) },
+        signal,
+      )) as import("@quorem/execution").InputManifest;
+      const validRef = (ref: { hash: string; size: number }) =>
+        ref &&
+        /^[a-f0-9]{64}$/.test(ref.hash) &&
+        Number.isSafeInteger(ref.size) &&
+        ref.size >= 0 &&
+        ref.size <= 1073741823;
+      if (
+        !value ||
+        (value.kind !== "run" && value.kind !== "submit") ||
+        (value.level !== null && (!Number.isSafeInteger(value.level) || value.level < 1)) ||
+        !Number.isInteger(value.caseCount) ||
+        value.caseCount < 0 ||
+        value.caseCount > 320 ||
+        !Number.isInteger(value.sampleCount) ||
+        value.sampleCount < 0 ||
+        value.sampleCount > 320 ||
+        typeof value.privateDetails !== "boolean" ||
+        typeof value.submitCasesAreSamples !== "boolean" ||
+        (value.submitCasesAreSamples &&
+          (!value.privateDetails || value.caseCount !== value.sampleCount)) ||
+        value.caseCount + (value.submitCasesAreSamples ? 0 : value.sampleCount) > 320 ||
+        !validRef(value.source) ||
+        !validRef(value.metadata)
+      )
+        throw new RunnerCommandError("unavailable");
+      return value;
+    },
+    async inputPage(job, kind, ordinal, offset, signal) {
+      if (
+        !["source", "metadata", "case"].includes(kind) ||
+        !Number.isSafeInteger(ordinal) ||
+        (kind === "case" ? ordinal < 0 || ordinal > 319 : ordinal !== 0) ||
+        !Number.isSafeInteger(offset) ||
+        offset < 0 ||
+        offset > 1073741823
+      )
+        throw new Error("Invalid input page");
+      const response = await call("input", { job: j(job), kind, ordinal, offset }, signal);
+      const hash = response.headers.get("x-input-hash") ?? "",
+        rawSize = response.headers.get("x-input-size") ?? "",
+        size = Number(rawSize),
+        rawChannel = response.headers.get("x-input-channel");
+      const channel = rawChannel === "none" ? null : rawChannel;
+      if (
+        !/^[a-f0-9]{64}$/.test(hash) ||
+        !/^(0|[1-9][0-9]*)$/.test(rawSize) ||
+        !Number.isSafeInteger(size) ||
+        size > 1073741823 ||
+        offset > size ||
+        (kind === "case"
+          ? !["public", "sample", "private"].includes(channel ?? "")
+          : channel !== null) ||
+        !response.body
+      ) {
+        await response.body?.cancel();
+        throw new RunnerCommandError("unavailable");
+      }
+      const reader = response.body.getReader(),
+        bytes = new Uint8Array(Math.min(65536, size - offset));
+      let count = 0;
+      try {
+        for (;;) {
+          const part = await reader.read();
+          if (part.done) break;
+          if (count + part.value.length > bytes.length) throw new Error("Input page too large");
+          bytes.set(part.value, count);
+          count += part.value.length;
+        }
+        if (count !== bytes.length) throw new Error("Incomplete input page");
+      } catch {
+        await reader.cancel();
+        throw new RunnerCommandError("unavailable");
+      } finally {
+        reader.releaseLock();
+      }
+      return { hash, size, channel: channel as "public" | "sample" | "private" | null, bytes };
+    },
+    async queueState(signal) {
+      const value = (await json("state", {}, signal)) as { queued: number; running: number };
+      if (
+        !value ||
+        !Number.isSafeInteger(value.queued) ||
+        value.queued < 0 ||
+        !Number.isSafeInteger(value.running) ||
+        value.running < 0
+      )
+        throw new RunnerCommandError("unavailable");
+      return value;
+    },
+    async confirmQueueEmpty(signal) {
+      const value = await json("empty", {}, signal);
+      if (typeof value !== "boolean") throw new RunnerCommandError("unavailable");
+      return value;
+    },
+    async nextRunnableDeadline(scope, signal) {
+      proof(scope, null);
+      const value = await json("deadline", {}, signal);
+      if (
+        value !== null &&
+        (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
+      )
+        throw new RunnerCommandError("unavailable");
+      return value;
+    },
     async nextExpiredAttempt(resumable, scope, signal) {
       if (resumable !== options.resumable) throw new Error("Capability mismatch");
       proof(scope, null);
@@ -108,12 +259,17 @@ export function privateRunnerCommands(options: {
     async claimAfterTeardown(resumable, scope, confirmed, signal) {
       if (resumable !== options.resumable) throw new Error("Capability mismatch");
       const data = await json("claim", { attemptId: proof(scope, confirmed) }, signal);
-      if (data !== null && typeof data !== "string") throw new Error("Invalid claim response");
-      return data === null ? null : decodeJob(data, scope);
+      if (data === null) return null;
+      if (typeof data !== "string") throw new RunnerCommandError("unknown");
+      try {
+        return decodeJob(data, scope);
+      } catch {
+        throw new RunnerCommandError("unknown");
+      }
     },
     async lease(job, heartbeat, signal) {
       const value = await json("lease", { job: j(job), heartbeat }, signal);
-      if (typeof value !== "boolean") throw new Error("Invalid lease response");
+      if (typeof value !== "boolean") throw new RunnerCommandError("unknown");
       return value;
     },
     async load(job, signal) {
@@ -196,7 +352,7 @@ export function privateRunnerCommands(options: {
           const v = new DataView(header.buffer),
             index = v.getUint32(0),
             length = v.getUint32(4);
-          if (index !== ordinal || length > 2 * 1024 * 1024)
+          if (index !== ordinal || length > 2 * 1024 * 1024 + 4096)
             throw new Error("Invalid checkpoint stream");
           const frame = await read(length);
           if (frame === null) throw new Error("Truncated checkpoint stream");

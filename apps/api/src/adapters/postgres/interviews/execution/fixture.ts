@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { storageProjection } from "../../problems/storage.ts";
+import { indexRunnerFixture } from "../../judging/inputs/fixture.ts";
 import { saveSnapshotPublicExamples } from "../question/public-examples.ts";
 export async function saveInterviewFixture(
   tx: Transaction,
@@ -15,5 +16,6 @@ export async function saveInterviewFixture(
   const fixture = rows.rows[0]?.id;
   if (!fixture) throw new Error("Interview fixture hash collision");
   await saveSnapshotPublicExamples(tx, id, fixture, raw);
+  await indexRunnerFixture(tx, { session: id, fixture }, raw);
   return fixture;
 }

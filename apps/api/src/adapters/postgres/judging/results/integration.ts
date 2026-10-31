@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
 import { resolve } from "node:path";
+import { sql } from "drizzle-orm";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import type { LocalPrincipal, GuestPrincipal } from "../../../../modules/identity/model.ts";
@@ -9,9 +10,11 @@ import { submissionSnapshots } from "./repository.ts";
 const url = process.env.QUOREM_RESULTS_TEST_DATABASE_URL;
 if (
   !url ||
-  !["55459:/quorem_hono_results_test", "55465:/quorem_hono_result_stream_test"].includes(
-    `${new URL(url).port}:${new URL(url).pathname}`,
+  !["/quorem_hono_results_test", "/quorem_hono_result_stream_test"].includes(
+    new URL(url).pathname,
   ) ||
+  !["postgres:", "postgresql:"].includes(new URL(url).protocol) ||
+  new URL(url).searchParams.has("host") ||
   !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
 )
   throw new Error("Disposable results database required");
@@ -26,6 +29,9 @@ const pool = createNodePool({
 });
 const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
     withNodeConnection(pool, { lifetimeMs: 8000 }, fn),
+  // Backfill locks one legacy result per offline operation, not an HTTP page.
+  operatorRun = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+    withNodeConnection(pool, { lifetimeMs: 120000 }, fn),
   actual = submissionSnapshots(run),
   repo = {
     ...actual,
@@ -570,11 +576,44 @@ void test("normalizes large legacy case and diagnostic fields through bounded so
     `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','large-legacy','completed','[]','{}',convert_to('{"publicCases":[{"index":0,"status":"passed","actual":"'||repeat('x',16777216)||'","diagnostics":[{"message":"hi\\u0000","line":2,"ignored":"PRIVATE"}]}],"diagnostics":[{"message":"'||repeat('y',16777216)||'"}]}','UTF8'))`,
     [id, workspace],
   );
-  await run((scope) =>
-    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillSubmissionResult(tx, id),
+  await assert.rejects(
+    withNodeConnection(pool, { lifetimeMs: 20 }, (scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillSubmissionResult(tx, id),
+      ),
     ),
   );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int AS n FROM submission_result_headers WHERE submission_id=$1",
+        [id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await operatorRun(async (scope) => {
+    await scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, async (tx) => {
+      await backfillSubmissionResult(tx, id);
+      const spool = (
+        await tx.execute<{ uncompressed: boolean; size: number }>(
+          sql`SELECT pg_column_compression(raw) IS NULL AS uncompressed, pg_column_size(raw) AS size FROM quorem_legacy_source WHERE id=${id}::uuid AND kind='public'`,
+        )
+      ).rows[0];
+      assert.equal(spool.uncompressed, true);
+      assert.ok(spool.size > 32 * 1024 * 1024);
+    });
+    await scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, async (tx) => {
+      assert.equal(
+        (
+          await tx.execute<{ dropped: boolean }>(
+            sql`SELECT to_regclass('pg_temp.quorem_legacy_source') IS NULL AS dropped`,
+          )
+        ).rows[0].dropped,
+        true,
+      );
+    });
+  });
   const reader = (await actual.read(alice, id)).getReader();
   let total = 0,
     max = 0;
@@ -661,7 +700,7 @@ void test("legacy variable header strings stay bounded without an invented limit
     `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','large-header','completed','[]','{}',convert_to('{"verdict":"'||repeat('v',16777216)||'","hiddenCases":[{"index":0,"status":"'||repeat('s',16777216)||'"}]}','UTF8'))`,
     [id, workspace],
   );
-  await run((scope) =>
+  await operatorRun((scope) =>
     scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
       backfillSubmissionResult(tx, id),
     ),
@@ -826,6 +865,7 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     attemptId = crypto.randomUUID();
   const fixture = JSON.stringify({
     problem: {
+      id: version,
       signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
       constraints: [],
       limits: {
@@ -889,8 +929,8 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     language: "python",
     runtimeRevision: "python-3.12-v1",
     harnessRevision: "quorem-harness-v2",
-    sourceRef: "",
-    suiteRef: "",
+    sourceRef: submission,
+    suiteRef: version,
     problemVersionId: version,
     limits: {
       wallTimeMs: 2000,

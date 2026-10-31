@@ -186,6 +186,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1150.0
         version: 3.1150.0
+      '@codemirror/state':
+        specifier: ^6.5.2
+        version: 6.7.6
       '@hono/node-server':
         specifier: 2.1.5
         version: 2.1.5(hono@4.13.14)
@@ -241,9 +244,18 @@ importers:
       '@quorem/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@quorem/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       better-auth:
         specifier: 1.7.7
         version: 1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(@cloudflare/workers-types@5.20261021.1)(@types/pg@8.15.6)(kysely@0.29.6)(pg@8.16.3))(pg@8.16.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3)
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@cloudflare/workers-types@5.20261021.1)(@types/pg@8.15.6)(kysely@0.29.6)(pg@8.16.3)
+      hono:
+        specifier: 4.13.14
+        version: 4.13.14
       nodemailer:
         specifier: 8.0.3
         version: 8.0.3
@@ -334,6 +346,22 @@ importers:
       wrangler:
         specifier: ^4.151.3
         version: 4.151.3(@cloudflare/workers-types@5.20261021.1)(@types/node@24.19.2)
+
+  apps/runner:
+    dependencies:
+      '@quorem/execution':
+        specifier: workspace:*
+        version: link:../../packages/execution
+      '@quorem/questions':
+        specifier: workspace:*
+        version: link:../../packages/questions
+    devDependencies:
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
   apps/web:
     dependencies:

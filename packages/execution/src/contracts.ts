@@ -119,6 +119,11 @@ export interface SandboxControl {
 export interface ExecutionEngine {
   execute(job: Job, signal?: AbortSignal): Promise<Completion>;
 }
+export interface ExecutionQueueControl {
+  queueState(signal?: AbortSignal): Promise<{ queued: number; running: number }>;
+  confirmQueueEmpty(signal?: AbortSignal): Promise<boolean>;
+  nextRunnableDeadline(scope: string, signal?: AbortSignal): Promise<number | null>;
+}
 export interface ExecutionRepository {
   nextExpiredAttempt(
     resumable: boolean,
@@ -171,4 +176,34 @@ export function assertCompletion(job: Job, completion: Completion): void {
 export function assertClaimFence(scope: string, confirmed: AttemptFence | null): void {
   if (!scope || (confirmed !== null && (!confirmed.attemptId || confirmed.sandboxScope !== scope)))
     throw new Error("claim fence mismatch");
+}
+/** Fixed-size identity and counts; values are fetched in bounded pages. */
+export interface InputBlobRef {
+  readonly hash: string;
+  readonly size: number;
+}
+export interface InputManifest {
+  readonly kind: "run" | "submit";
+  readonly level: number | null;
+  readonly caseCount: number;
+  readonly sampleCount: number;
+  readonly privateDetails: boolean;
+  readonly submitCasesAreSamples: boolean;
+  readonly source: InputBlobRef;
+  readonly metadata: InputBlobRef;
+}
+export type InputKind = "source" | "metadata" | "case";
+export interface InputPage extends InputBlobRef {
+  readonly bytes: Uint8Array;
+  readonly channel: "public" | "sample" | "private" | null;
+}
+export interface ExecutionInputReader {
+  inputManifest(job: Job, signal?: AbortSignal): Promise<InputManifest>;
+  inputPage(
+    job: Job,
+    kind: InputKind,
+    ordinal: number,
+    offset: number,
+    signal?: AbortSignal,
+  ): Promise<InputPage>;
 }

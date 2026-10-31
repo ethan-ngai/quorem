@@ -15,9 +15,9 @@ import { encode, object, publicResult } from "./projection.ts";
 import { jsonStream } from "../../../../modules/judging/results/stream.ts";
 import { resultCase } from "./projection.ts";
 import { projectedObject } from "./projected-stream.ts";
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 import { interviewAccess } from "./interview.ts";
-type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
+type Run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) => Promise<T>;
 type Row = {
   id: string;
   workspace: string | null;
@@ -407,7 +407,7 @@ async function streamSnapshot(
       yield ',"privateCaseResults":[';
       for (const [index, entry] of prepared.privatePlan.entries()) {
         yield (index ? "," : "") + '{"caseId":' + JSON.stringify(entry.id) + ',"case":';
-        const input = new LegacyJsonReader(
+        const input = new StreamingJsonReader(
           bytes(entry.example ? "example" : "case", entry.ordinal, entry.id)[
             Symbol.asyncIterator
           ](),
@@ -434,7 +434,7 @@ async function streamSnapshot(
           if (first) throw new Error("Invalid private result");
         } else {
           if (prepared.headerFields.hiddenCases && entry.ordinal < prepared.hiddenCount) {
-            const input = new LegacyJsonReader(
+            const input = new StreamingJsonReader(
               bytes("header", 0, "hiddenCases")[Symbol.asyncIterator](),
             );
             await input.expect("[");

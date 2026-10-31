@@ -2,11 +2,15 @@
 import { JsonNumber } from "@quorem/questions";
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
-import { LegacyJsonReader } from "./legacy-json.ts";
-import { legacyRaw as slice, legacyKind as type, legacyInteger as integer } from "./legacy-sql.ts";
+import { StreamingJsonReader } from "@quorem/questions";
+import {
+  legacyRaw as slice,
+  legacyKind as type,
+  legacyInteger as integer,
+  legacySource,
+} from "./legacy-sql.ts";
 import { legacyFields, legacySpan, type Fields } from "./legacy-case.ts";
-const source = (id: string) =>
-  sql`SELECT COALESCE(result_payload,convert_to(result::text,'UTF8')) AS raw FROM submissions WHERE id=${id}::uuid`;
+const source = (id: string) => legacySource(id, "public");
 async function insertField(
   tx: Transaction,
   id: string,
@@ -24,7 +28,7 @@ export async function legacyHeaderString(
   tx: Transaction,
   id: string,
   field: "verdict" | "infrastructureError",
-  input: LegacyJsonReader,
+  input: StreamingJsonReader,
 ): Promise<void> {
   const value = await legacySpan(input);
   await insertField(tx, id, field, slice(value), sql`${type(slice(value))}='string'`);
@@ -48,7 +52,7 @@ export async function legacyHeaderArray(
   tx: Transaction,
   id: string,
   field: "diagnostics" | "hiddenCases",
-  input: LegacyJsonReader,
+  input: StreamingJsonReader,
 ): Promise<number> {
   await tx.execute(
     sql`CREATE TEMP TABLE IF NOT EXISTS quorem_legacy_header_spans(ordinal integer,a integer,al integer,b integer,bl integer,c integer,cl integer) ON COMMIT DROP`,
@@ -95,7 +99,7 @@ export async function validateLegacyHeader(tx: Transaction, id: string): Promise
 export async function legacyScore(
   tx: Transaction,
   id: string,
-  input: LegacyJsonReader,
+  input: StreamingJsonReader,
 ): Promise<{ passed: JsonNumber; total: JsonNumber }> {
   await input.peek();
   const start = input.byteOffset;

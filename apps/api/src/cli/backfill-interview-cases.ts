@@ -62,7 +62,7 @@ export async function backfillInterviewCases(
     idleTimeoutMs: 5000,
     onIdleError: () => {},
   });
-  const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+  const run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) =>
     withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
   try {
     const fingerprint = createHash("sha256")

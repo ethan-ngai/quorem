@@ -3,12 +3,17 @@ import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
   compressCheckpointFrame,
   decompressCheckpointFrame,
+  decodeCheckpointFrame,
+  assertCheckpointProvenance,
   decodeJudgeFrame,
+  encodeJudgeFrame,
+  validateCompiledArtifact,
   encodeCheckpointCase,
   assertAttemptFence,
   type Checkpoint,
   type CheckpointCase,
   type Job,
+  type ExecutionRepository,
 } from "@quorem/execution";
 import {
   compareCodingCase,
@@ -23,6 +28,7 @@ import {
   type Signature,
 } from "@quorem/questions";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
+import { postgresExecutionLoad } from "./load.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -44,7 +50,7 @@ async function matchFailure(
   if (!row || !row.case || row.case === "null") return null;
   try {
     const problem = JSON.parse(row.problem) as QuestionProblem,
-      frame = decodeJudgeFrame(item.frame);
+      frame = decodeCheckpointFrame(item.frame).frame;
     if (
       ![
         "executed",
@@ -119,9 +125,13 @@ async function lockAndLive(tx: Transaction, job: Job): Promise<{ cancelled: bool
   return row?.live ? { cancelled: row.cancelled } : null;
 }
 export function postgresCheckpoints(run: Run) {
-  return {
+  const api: Pick<
+    ExecutionRepository,
+    "loadCheckpoint" | "replayCheckpoint" | "saveCheckpoint" | "yield"
+  > = {
     async loadCheckpoint(job: Job): Promise<Checkpoint> {
-      return run((scope) =>
+      await postgresExecutionLoad(run, true)(job);
+      const checkpoint = await run((scope) =>
         scope.transaction({ ...options, readOnly: true }, async (tx) => {
           const row = (
             await tx.execute<{
@@ -144,6 +154,11 @@ export function postgresCheckpoints(run: Run) {
           };
         }),
       );
+      if (checkpoint.nextOrdinal > 0)
+        await api.replayCheckpoint(job, checkpoint.nextOrdinal, async () => {});
+      else if (checkpoint.artifact || checkpoint.fatal || checkpoint.compilationNanos !== 0n)
+        throw new Error("Unbound checkpoint metadata");
+      return checkpoint;
     },
     async replayCheckpoint(
       job: Job,
@@ -153,6 +168,7 @@ export function postgresCheckpoints(run: Run) {
     ): Promise<void> {
       if (!Number.isInteger(expected) || expected < 0 || expected > 320)
         throw new Error("Invalid checkpoint prefix");
+      const spec = await postgresExecutionLoad(run, true)(job);
       for (let next = 0; next < expected;) {
         signal?.throwIfAborted();
         const page = await run((scope) =>
@@ -160,8 +176,14 @@ export function postgresCheckpoints(run: Run) {
             { ...options, readOnly: true },
             async (tx) =>
               (
-                await tx.execute<{ ordinal: number; frame: Uint8Array }>(
-                  sql`SELECT cc.ordinal,cc.frame FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN execution_checkpoints c ON c.job_id=j.id JOIN execution_checkpoint_cases cc ON cc.job_id=j.id WHERE j.id=${job.jobId}::uuid AND j.submission_id=${job.submissionId}::uuid AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' AND NOT s.cancel_requested AND c.next_ordinal=${expected} AND cc.ordinal>=${next} ORDER BY cc.ordinal LIMIT 4`,
+                await tx.execute<{
+                  ordinal: number;
+                  frame: Uint8Array;
+                  artifact: string | null;
+                  fatal: Uint8Array | null;
+                  nanos: string;
+                }>(
+                  sql`SELECT cc.ordinal,cc.frame,c.artifact::text AS artifact,c.fatal,c.compilation_nanos::text AS nanos FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN execution_checkpoints c ON c.job_id=j.id JOIN execution_checkpoint_cases cc ON cc.job_id=j.id WHERE j.id=${job.jobId}::uuid AND j.submission_id=${job.submissionId}::uuid AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' AND NOT s.cancel_requested AND c.next_ordinal=${expected} AND cc.ordinal>=${next} ORDER BY cc.ordinal LIMIT 4`,
                 )
               ).rows,
           ),
@@ -171,13 +193,35 @@ export function postgresCheckpoints(run: Run) {
           signal?.throwIfAborted();
           if (item.ordinal !== next || next >= expected)
             throw new Error("Invalid checkpoint prefix");
-          await consume(next, await decompressCheckpointFrame(item.frame));
+          const raw = await decompressCheckpointFrame(item.frame),
+            envelope = decodeCheckpointFrame(new TextDecoder("utf-8", { fatal: true }).decode(raw));
+          await assertCheckpointProvenance(
+            job,
+            spec,
+            next,
+            envelope.provenance,
+            false,
+            envelope.frame,
+            next === expected - 1
+              ? {
+                  artifact: item.artifact ?? undefined,
+                  fatal: item.fatal
+                    ? new TextDecoder("utf-8", { fatal: true }).decode(item.fatal)
+                    : undefined,
+                  compilationNanos: BigInt(item.nanos),
+                }
+              : undefined,
+          );
+          await consume(next, raw);
           next++;
         }
       }
     },
     async saveCheckpoint(job: Job, item: CheckpointCase): Promise<void> {
       encodeCheckpointCase(item);
+      const envelope = decodeCheckpointFrame(item.frame),
+        spec = await postgresExecutionLoad(run, true)(job);
+      if (envelope.frame.artifact !== undefined) throw new Error("Invalid checkpoint frame");
       const compressed = await compressCheckpointFrame(new TextEncoder().encode(item.frame));
       await run((scope) =>
         scope.transaction(options, async (tx) => {
@@ -190,11 +234,53 @@ export function postgresCheckpoints(run: Run) {
             sql`INSERT INTO execution_checkpoints(job_id) VALUES(${job.jobId}::uuid) ON CONFLICT DO NOTHING`,
           );
           const row = (
-            await tx.execute<{ next: number }>(
-              sql`SELECT next_ordinal AS next FROM execution_checkpoints WHERE job_id=${job.jobId}::uuid FOR UPDATE`,
+            await tx.execute<{
+              next: number;
+              artifact: string | null;
+              fatal: Uint8Array | null;
+              nanos: string;
+              sameArtifact: boolean;
+            }>(
+              sql`SELECT next_ordinal AS next,artifact::text AS artifact,fatal,compilation_nanos::text AS nanos,(artifact IS NOT DISTINCT FROM ${item.artifact ?? null}::jsonb) AS "sameArtifact" FROM execution_checkpoints WHERE job_id=${job.jobId}::uuid FOR UPDATE`,
             )
           ).rows[0];
           if (row.next !== item.ordinal) throw new Error("Checkpoint ordinal mismatch");
+          if (item.compilationNanos < BigInt(row.nanos))
+            throw new Error("Checkpoint compilation time regressed");
+          if (item.artifact) {
+            validateCompiledArtifact(item.artifact, job.language);
+            if (row.artifact && !row.sameArtifact) throw new Error("Checkpoint artifact conflict");
+          }
+          const previousFatal = row.fatal
+            ? decodeJudgeFrame(new TextDecoder("utf-8", { fatal: true }).decode(row.fatal))
+            : undefined;
+          const nextFatal = item.fatal ? decodeJudgeFrame(item.fatal) : undefined;
+          if (
+            nextFatal &&
+            (nextFatal.status !== "syntax_error" ||
+              nextFatal.artifact !== undefined ||
+              job.language === "postgresql" ||
+              envelope.frame.status !== "syntax_error")
+          )
+            throw new Error("Invalid checkpoint fatal");
+          if (
+            previousFatal &&
+            (!nextFatal || encodeJudgeFrame(previousFatal) !== encodeJudgeFrame(nextFatal))
+          )
+            throw new Error("Checkpoint fatal conflict");
+          await assertCheckpointProvenance(
+            job,
+            spec,
+            item.ordinal,
+            envelope.provenance,
+            true,
+            envelope.frame,
+            {
+              artifact: item.artifact ?? row.artifact ?? undefined,
+              fatal: item.fatal,
+              compilationNanos: item.compilationNanos,
+            },
+          );
           if (match) await reconcileMatch(tx, match);
           await tx.execute(
             sql`INSERT INTO execution_checkpoint_cases(job_id,ordinal,frame) VALUES(${job.jobId}::uuid,${item.ordinal},${compressed})`,
@@ -239,4 +325,5 @@ export function postgresCheckpoints(run: Run) {
       );
     },
   };
+  return api;
 }

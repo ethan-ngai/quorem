@@ -16,7 +16,8 @@ const judge = process.env.QUOREM_ADMISSION_GO_JUDGE === "true";
 describe.skipIf(!url || !judge)("admission, Go judge and result routes", () => {
   const parsed = new URL(url ?? "postgres://127.0.0.1:55458/quorem_hono_admission_test");
   if (
-    parsed.port !== "55458" ||
+    !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+    parsed.searchParams.has("host") ||
     parsed.pathname !== "/quorem_hono_admission_test" ||
     !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)
   )

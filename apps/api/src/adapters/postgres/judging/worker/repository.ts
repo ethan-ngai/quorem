@@ -1,9 +1,14 @@
 import type { ConnectionScope } from "@quorem/database/core";
-import type { ExecutionRepository } from "@quorem/execution";
+import type {
+  ExecutionQueueControl,
+  ExecutionRepository,
+  ExecutionInputReader,
+} from "@quorem/execution";
 import { postgresClaims, type RunnerCapabilities } from "./claim.ts";
 import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
 import { postgresCheckpoints } from "./checkpoints.ts";
+import { postgresInputReader } from "../inputs/read.ts";
 import { postgresExecutionLoad } from "./load.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -11,7 +16,7 @@ type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export function postgresExecutionCommands(
   run: Run,
   capabilities: RunnerCapabilities,
-): ExecutionRepository {
+): ExecutionRepository & ExecutionQueueControl & ExecutionInputReader {
   const cap = Object.freeze({ ...capabilities }),
     claims = postgresClaims(run, cap),
     checkpoints = postgresCheckpoints(run),
@@ -21,6 +26,7 @@ export function postgresExecutionCommands(
   };
   return {
     ...claims,
+    ...postgresInputReader(run),
     load: postgresExecutionLoad(run, cap.losslessCases && cap.losslessResults),
     beginCompletion: (job, header) => staging.begin(job, header),
     writeCompletionChunk: (job, chunk) => staging.chunk(job, chunk),

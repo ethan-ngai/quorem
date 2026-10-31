@@ -1,3 +1,4 @@
+import { assertRunnerFixture } from "./test-db.ts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -5,13 +6,10 @@ import { migrate } from "@quorem/database/migrations";
 import { postgresClaims } from "./claim.ts";
 import { postgresExecutionLoad } from "./load.ts";
 const url = process.env.QUOREM_RUNNER_TEST_DATABASE_URL;
-const parsed = new URL(url ?? "postgres://127.0.0.1:55464/quorem_hono_runner_test");
-if (
-  parsed.port !== "55464" ||
-  parsed.pathname !== "/quorem_hono_runner_test" ||
-  !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)
-)
-  throw new Error("Disposable runner database required");
+assertRunnerFixture(url ?? "postgres://127.0.0.1/quorem_hono_runner_test", [
+  "/quorem_hono_runner_test",
+  "/quorem_hono_engine_test",
+]);
 describe.skipIf(!url)("lossless execution fixture", () => {
   const pool = createNodePool({
     connectionString: url!,

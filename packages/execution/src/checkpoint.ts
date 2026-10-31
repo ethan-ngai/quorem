@@ -2,8 +2,9 @@
 import { parseLosslessJson } from "@quorem/questions";
 import type { Checkpoint, CheckpointCase } from "./contracts.ts";
 import { decodeObject, intField, rawFields } from "./wire.ts";
+import { decodeCheckpointFrame } from "./checkpoint-provenance.ts";
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
-function validate(value: CheckpointCase): void {
+function validate(value: CheckpointCase, bound = true): void {
   if (
     !Number.isInteger(value.ordinal) ||
     value.ordinal < 0 ||
@@ -13,7 +14,7 @@ function validate(value: CheckpointCase): void {
   )
     throw new Error("invalid checkpoint");
   for (const [part, max] of [
-    [value.frame, 2 << 20],
+    [value.frame, (2 << 20) + 4096],
     [value.artifact, 4 << 20],
     [value.fatal, 2 << 20],
   ] as const) {
@@ -24,6 +25,12 @@ function validate(value: CheckpointCase): void {
     } catch {
       throw new Error("invalid checkpoint");
     }
+  }
+  if (bound) {
+    if (decodeCheckpointFrame(value.frame).provenance.ordinal !== value.ordinal)
+      throw new Error("checkpoint ordinal mismatch");
+    const raw = rawFields(value.frame).get("frame");
+    if (!raw || byteLength(raw) > 2 << 20) throw new Error("checkpoint frame exceeded");
   }
 }
 /** Encode a private Go checkpoint struct without parsing opaque JSON fields into numbers. */
@@ -54,13 +61,16 @@ export function decodeCheckpointCase(json: string): CheckpointCase {
 export function encodeCheckpoint(value: Checkpoint): string {
   if (!Number.isInteger(value.nextOrdinal) || value.nextOrdinal < 0 || value.nextOrdinal > 320)
     throw new Error("invalid checkpoint");
-  validate({
-    ordinal: 0,
-    frame: "null",
-    artifact: value.artifact,
-    compilationNanos: value.compilationNanos,
-    fatal: value.fatal,
-  });
+  validate(
+    {
+      ordinal: 0,
+      frame: "null",
+      artifact: value.artifact,
+      compilationNanos: value.compilationNanos,
+      fatal: value.fatal,
+    },
+    false,
+  );
   return `{"NextOrdinal":${value.nextOrdinal},"Artifact":${value.artifact ?? "null"},"CompilationNanos":${value.compilationNanos},"Fatal":${value.fatal ?? "null"}}`;
 }
 /** Decode checkpoint metadata while retaining opaque JSON values. */
