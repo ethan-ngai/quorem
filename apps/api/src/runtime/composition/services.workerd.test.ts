@@ -1,9 +1,11 @@
 import { expect, it } from "vitest";
 import worker from "../../../../../deploy/hono/services/worker.js";
+import { verifyCaseProbe } from "../../../../../deploy/case-proof.js";
 const secret = (value: string) => value.repeat(64);
 it("enforces scoped hosts and attests large valid case ordinals in workerd", async () => {
   const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", keys.privateKey));
+  const spki = new Uint8Array(await crypto.subtle.exportKey("spki", keys.publicKey));
   let forwarded: Request | undefined;
   const env = {
     DRAIN_ORIGIN: "https://runner-stage.example.test",
@@ -21,7 +23,9 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
     VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
     QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
     QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
-    QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: "public key",
+    QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: `-----BEGIN PUBLIC KEY-----\n${btoa(String.fromCharCode(...spki))}\n-----END PUBLIC KEY-----`,
+    QUOREM_CASE_NAMESPACE_ID: secret("1"),
+    CASE_DIAGNOSTICS: "true",
     QUOREM_VERIFICATION_SIGNING_KEY_PEM: "private key",
     CASE_OWNER_PRIVATE_KEY: btoa(String.fromCharCode(...pkcs8)),
     CASES: {
@@ -29,7 +33,9 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       getByName: () => ({
         fetch: async (request: Request) => {
           forwarded = request;
-          return new Response("ok");
+          return request.method === "GET"
+            ? Response.json({ active: true, running: true, ordinal: 400, tokenHash: secret("2") })
+            : new Response("ok");
         },
       }),
     },
@@ -82,6 +88,54 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       new TextEncoder().encode(attested),
     ),
   ).toBe(true);
+  const namespaceNonce = crypto.randomUUID();
+  const namespaceResponse = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/namespace`, {
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": namespaceNonce,
+      },
+    }),
+    env,
+  );
+  expect(
+    await verifyCaseProbe(namespaceResponse, {
+      publicKey: keys.publicKey,
+      kind: "namespace",
+      scope: "",
+      attempt: "namespace",
+      nonce: namespaceNonce,
+    }),
+  ).toEqual({ namespace: secret("1") });
+  const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", spki)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+  const scoped = new TextEncoder().encode(
+    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint]),
+  );
+  const scope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", scoped)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+  const probeNonce = crypto.randomUUID();
+  const probe = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/attempt-1`, {
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": probeNonce,
+        "x-quorem-owner-scope": scope,
+        "x-quorem-case-probe": "lifecycle",
+      },
+    }),
+    env,
+  );
+  expect(
+    await verifyCaseProbe(probe, {
+      publicKey: keys.publicKey,
+      kind: "lifecycle",
+      scope,
+      attempt: "attempt-1",
+      nonce: probeNonce,
+      expectedNamespace: secret("1"),
+    }),
+  ).toEqual({ active: true, running: true, ordinal: 400, tokenHash: secret("2") });
   expect(forwarded?.headers.get("authorization")).toBeNull();
   expect(forwarded?.headers.get("cf-access-client-secret")).toBeNull();
   expect(

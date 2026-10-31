@@ -1,3 +1,4 @@
+import { signedCaseProbe } from "./case-proof.js";
 export async function caseRequest(request, env, attempt, credential = env.JUDGE_CONTROL_TOKEN) {
   if (
     typeof credential !== "string" ||
@@ -88,6 +89,38 @@ export async function caseRequest(request, env, attempt, credential = env.JUDGE_
   const response = await env.CASES.getByName(attempt, {
     locationHint: env.APP_LOCATION_HINT || "enam",
   }).fetch(forwarded);
+  if (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle") {
+    if (!bound || env.CASE_DIAGNOSTICS !== "true" || response.status !== 200) {
+      await response.body?.cancel();
+      return new Response(null, { status: 404 });
+    }
+    try {
+      const raw = await response.text();
+      if (raw.length > 1024) throw new Error("Invalid probe");
+      const value = JSON.parse(raw);
+      if (
+        !value ||
+        Object.keys(value).sort().join() !== "active,ordinal,running,tokenHash" ||
+        typeof value.active !== "boolean" ||
+        typeof value.running !== "boolean" ||
+        (value.active
+          ? !Number.isSafeInteger(value.ordinal) ||
+            !/^[a-f0-9]{64}$/.test(value.tokenHash) ||
+            !value.running
+          : value.ordinal !== null || value.tokenHash !== null)
+      )
+        throw new Error("Invalid probe");
+      return await signedCaseProbe(env, {
+        kind: "lifecycle",
+        scope,
+        attempt,
+        nonce,
+        value,
+      });
+    } catch {
+      return new Response(null, { status: 503 });
+    }
+  }
   if (!bound) return response;
   if (
     !(
