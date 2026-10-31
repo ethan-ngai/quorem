@@ -97,6 +97,7 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
       ]),
       VERIFICATION_SOURCE_CREDENTIAL: source,
       VERIFICATION_SERVICE_CREDENTIAL: service,
+      VERIFICATION_ACCESS_MODE: "none",
       VERIFICATION_SERVICE_ORIGIN: `http://127.0.0.1:${verifierPort}`,
       VERIFICATION_PUBLIC_KEY: publicKey,
     };
@@ -151,6 +152,7 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
         "RUNNER_PEERS",
         "VERIFICATION_SOURCE_CREDENTIAL",
         "VERIFICATION_SERVICE_CREDENTIAL",
+        "VERIFICATION_ACCESS_MODE",
         "VERIFICATION_SERVICE_ORIGIN",
         "VERIFICATION_PUBLIC_KEY",
       ] as const)

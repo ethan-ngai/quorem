@@ -32,6 +32,7 @@ const allowed = new Set([
   "TRUST_CLOUDFLARE_PEER",
   "SOCKET_HEARTBEAT_MS",
   "VERIFICATION_SERVICE_ORIGIN",
+  "VERIFICATION_ACCESS_MODE",
   "VERIFICATION_PUBLIC_KEY",
   "EXECUTION_DRAIN_URL",
   "EXECUTION_DRAIN_ACCESS_MODE",
@@ -69,15 +70,20 @@ export function stageConfig(input, outputs, output) {
     "APP_ENV",
     "ALLOWED_ORIGINS",
     "AUTH_ORIGIN",
+    "AUTH_MODE",
     "HTTP_MAX_REQUESTS",
     "DEADLINE_SHARDS",
     "VERIFICATION_SERVICE_ORIGIN",
+    "VERIFICATION_ACCESS_MODE",
     "VERIFICATION_PUBLIC_KEY",
     "EXECUTION_DRAIN_URL",
     "EXECUTION_DRAIN_ACCESS_MODE",
   ])
     if (!vars[key]) throw new Error(`Missing ${key}`);
+  if (!["password", "cognito"].includes(vars.AUTH_MODE)) throw new Error("Invalid AUTH_MODE");
   if (vars.APP_ENV === "local") throw new Error("Staged Worker must not use local identity");
+  if (vars.VERIFICATION_ACCESS_MODE !== "cloudflare-access")
+    throw new Error("Staged verifier requires Access service authentication");
   if (vars.EXECUTION_DRAIN_ACCESS_MODE !== "cloudflare-access")
     throw new Error("Staged drain requires Access service authentication");
   const host = new URL(vars.AUTH_ORIGIN).hostname;

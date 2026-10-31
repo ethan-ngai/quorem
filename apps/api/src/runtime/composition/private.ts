@@ -1,4 +1,5 @@
 /** @file private.ts @description Private runner and verification transport composition. @module runtime */
+import { accessFetch, type AccessCredentials } from "@quorem/execution/transport/access";
 import type { ConnectionScope } from "@quorem/database/core";
 import { postgresExecutionCommands } from "../../adapters/postgres/judging/worker/repository.ts";
 import { createRunnerCommandHandler } from "../../adapters/postgres/judging/worker/http.ts";
@@ -11,6 +12,7 @@ export interface PrivateConfig {
   verificationServiceCredential: string;
   verificationServiceOrigin: string;
   verificationPublicKey: string;
+  verificationAccess?: AccessCredentials;
 }
 function hex(value: string): Uint8Array {
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("Invalid private credential");
@@ -44,6 +46,7 @@ export async function composePrivate(run: Run, config: PrivateConfig) {
     origin: config.verificationServiceOrigin,
     credential: service,
     timeoutMs: 30000,
+    fetch: accessFetch(config.verificationServiceOrigin, config.verificationAccess),
   });
   const runner = await createRunnerCommandHandler(
     config.runnerPeers.map((peer) => ({
