@@ -1,6 +1,6 @@
 /** Stage-only PostgreSQL writer fence. The caller must first prove admission and runner quiescence. */
 const rolePattern = /^quorem_stage_runtime_[a-f0-9]{12,32}$/;
-const lockKey = "quorem-stage-recovery-role-fence-v1";
+export const stageRecoveryLockKey = "quorem-stage-recovery-role-fence-v1";
 
 async function inspect(client, role) {
   const result = await client.query(
@@ -53,8 +53,7 @@ async function assertNoOtherLogins(client, role, trustedAdministrators) {
   )
     throw new Error("Other database logins retain CONNECT");
 }
-/** Revocation is deliberately not undone on failure; no prepared transaction is discarded. */
-export async function fenceStageRuntime(client, role, { trustedAdministrators = [] } = {}) {
+function validateFenceInputs(role, trustedAdministrators) {
   if (!rolePattern.test(role ?? "")) throw new Error("Invalid staged runtime role");
   if (
     !Array.isArray(trustedAdministrators) ||
@@ -64,9 +63,25 @@ export async function fenceStageRuntime(client, role, { trustedAdministrators = 
     new Set(trustedAdministrators).size !== trustedAdministrators.length
   )
     throw new Error("Invalid trusted administrators");
+}
+/** Verify the same role, ownership and session boundary without changing it. */
+export async function assertStageRuntimeFenced(client, role, { trustedAdministrators = [] } = {}) {
+  validateFenceInputs(role, trustedAdministrators);
+  const state = await inspect(client, role);
+  assertSafe(state, role);
+  await assertNoOtherLogins(client, role, trustedAdministrators);
+  if (state.login) throw new Error("Runtime login remains enabled");
+  const remaining = await client.query(
+    `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND backend_type='client backend' AND pid<>pg_backend_pid()`,
+  );
+  if (remaining.rows[0]?.n !== 0) throw new Error("Stage sessions remain");
+}
+/** Revocation is deliberately not undone on failure; no prepared transaction is discarded. */
+export async function fenceStageRuntime(client, role, { trustedAdministrators = [] } = {}) {
+  validateFenceInputs(role, trustedAdministrators);
   const lock = await client.query(
     "SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS acquired",
-    [lockKey],
+    [stageRecoveryLockKey],
   );
   if (lock.rows[0]?.acquired !== true) throw new Error("Stage recovery is already running");
   try {
@@ -94,16 +109,9 @@ export async function fenceStageRuntime(client, role, { trustedAdministrators = 
       await client.query("ROLLBACK");
       throw error;
     }
-    const state = await inspect(client, role);
-    assertSafe(state, role);
-    await assertNoOtherLogins(client, role, trustedAdministrators);
-    if (state.login) throw new Error("Runtime login remains enabled");
-    const remaining = await client.query(
-      `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND backend_type='client backend' AND pid<>pg_backend_pid()`,
-    );
-    if (remaining.rows[0]?.n !== 0) throw new Error("Stage sessions remain");
+    await assertStageRuntimeFenced(client, role, { trustedAdministrators });
     return { role, disabled: true };
   } finally {
-    await client.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [lockKey]);
+    await client.query("SELECT pg_advisory_unlock(hashtextextended($1,0))", [stageRecoveryLockKey]);
   }
 }
