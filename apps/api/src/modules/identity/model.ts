@@ -27,7 +27,9 @@ interface PrincipalFields {
 }
 export type ManagedPrincipal = PrincipalFields & { kind: "managed"; credentialExpiresAt: number };
 export type LocalPrincipal = PrincipalFields & { kind: "local"; credentialExpiresAt?: never };
-export type Principal = ManagedPrincipal | LocalPrincipal;
+export type GuestScope = { kind: "match"; matchId: string } | { kind: "interview"; interviewId: string };
+export type GuestPrincipal = PrincipalFields & { kind: "guest"; scope: GuestScope; admin: false; emailVerified: false; strongUntil: 0; credentialExpiresAt: number };
+export type Principal = ManagedPrincipal | LocalPrincipal | GuestPrincipal;
 export interface IdentityBindings {
   lookup(claims: Claims): Promise<{ principal: ManagedPrincipal; current: boolean } | null>;
   resolve(claims: Claims): Promise<ManagedPrincipal>;
