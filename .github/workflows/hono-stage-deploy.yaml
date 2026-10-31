@@ -1,16 +1,15 @@
 name: Hono staged deployment
 on:
+  push:
+    branches: [feat/hono-migration]
+    paths: [deploy/hono/stage-request.json]
   workflow_dispatch:
     inputs:
       action:
-        description: Plan or activate the fresh isolated stage
+        description: Plan bootstrap or provision and activate a fresh isolated stage
         type: choice
         options: [plan, stage]
         default: plan
-        required: true
-      case_namespace:
-        description: Expected signed namespace, or 64 zeros only for first bootstrap
-        type: string
         required: true
       release_sha:
         description: Exact migration-branch workflow revision
@@ -23,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   validate:
-    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.release_sha == github.sha
+    if: github.ref == 'refs/heads/feat/hono-migration' && (github.event_name == 'push' || inputs.release_sha == github.sha)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -70,67 +69,16 @@ jobs:
       - run: node scripts/hono-recovery-validation.mjs
       - name: Terraform checks
         run: |
-          for stack in hono-stage hono-services; do
+          for stack in hono-bootstrap hono-stage hono-services; do
             terraform -chdir=infra/terraform/$stack fmt -check -recursive
             terraform -chdir=infra/terraform/$stack init -backend=false -input=false
             terraform -chdir=infra/terraform/$stack validate
             terraform -chdir=infra/terraform/$stack test
           done
-  plan:
+  bootstrap:
     needs: validate
-    if: inputs.action == 'plan'
     runs-on: ubuntu-latest
-    environment: hono-stage-plan
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ github.sha }}
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
-        with:
-          terraform_version: 1.13.5
-          terraform_wrapper: false
-      - name: Plan isolated staged resources
-        env:
-          HONO_STAGE_ACTION: plan
-          HONO_RELEASE_SHA: ${{ inputs.release_sha }}
-          HONO_SERVICES_WORKER_NAME: ${{ vars.HONO_SERVICES_WORKER_NAME }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          TF_STATE_BUCKET: ${{ vars.HONO_STAGE_STATE_BUCKET }}
-          TF_IN_AUTOMATION: "true"
-          TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_worker_name: ${{ vars.HONO_STAGE_WORKER_NAME }}
-          TF_VAR_stage_hostname: ${{ vars.HONO_STAGE_HOSTNAME }}
-          TF_VAR_access_service_token_ids: ${{ vars.HONO_API_ACCESS_TOKEN_IDS }}
-          TF_VAR_database_host: ${{ vars.HONO_STAGE_DATABASE_HOST }}
-          TF_VAR_database_port: ${{ vars.HONO_STAGE_DATABASE_PORT }}
-          TF_VAR_database_name: quorem_hono_stage
-          TF_VAR_database_password: ${{ secrets.HONO_STAGE_DATABASE_PASSWORD }}
-          TF_VAR_database_connection_limit: ${{ vars.HONO_STAGE_DATABASE_CONNECTION_LIMIT }}
-          TF_VAR_enable_queue_consumer: "false"
-          TF_VAR_hostnames: ${{ vars.HONO_SERVICE_HOSTNAMES }}
-          TF_VAR_profile_media_enabled: ${{ vars.HONO_PROFILE_MEDIA_ENABLED || 'false' }}
-          TF_VAR_image_hostname: ${{ vars.HONO_IMAGE_HOSTNAME }}
-          TF_VAR_image_access_service_token_id: ${{ vars.HONO_IMAGE_ACCESS_TOKEN_ID }}
-          TF_VAR_image_service_image: ${{ vars.HONO_IMAGE_SERVICE_IMAGE }}
-          TF_VAR_access_token_ids: ${{ vars.HONO_SERVICE_ACCESS_TOKEN_IDS }}
-          TF_VAR_runner_image: ${{ vars.HONO_RUNNER_IMAGE }}
-          TF_VAR_verifier_image: ${{ vars.HONO_VERIFIER_IMAGE }}
-          TF_VAR_case_images: ${{ vars.HONO_CASE_IMAGES }}
-          TF_VAR_command_origin: ${{ vars.HONO_STAGE_API_ORIGIN }}
-          TF_VAR_source_origin: ${{ vars.HONO_STAGE_API_ORIGIN }}
-          TF_VAR_case_namespace_id: ${{ inputs.case_namespace }}
-          TF_VAR_case_diagnostics: "true"
-          TF_VAR_service_secrets: ${{ secrets.HONO_STAGE_SERVICE_SECRETS }}
-        run: node scripts/hono-stage-deploy.mjs
-  stage:
-    needs: validate
-    if: inputs.action == 'stage'
-    runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: hono-stage
     services:
       postgres:
@@ -157,47 +105,17 @@ jobs:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
-      - name: Activate fresh isolated stage
+      - name: Provision and validate isolated Hono stage
         env:
-          HONO_STAGE_ACTION: stage
-          HONO_RELEASE_SHA: ${{ inputs.release_sha }}
-          HONO_SERVICES_WORKER_NAME: ${{ vars.HONO_SERVICES_WORKER_NAME }}
+          HONO_BOOTSTRAP_ACTION: ${{ inputs.action || 'stage' }}
+          HONO_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          TF_STATE_BUCKET: ${{ vars.HONO_STAGE_STATE_BUCKET }}
-          TF_IN_AUTOMATION: "true"
-          TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_worker_name: ${{ vars.HONO_STAGE_WORKER_NAME }}
-          TF_VAR_stage_hostname: ${{ vars.HONO_STAGE_HOSTNAME }}
-          TF_VAR_access_service_token_ids: ${{ vars.HONO_API_ACCESS_TOKEN_IDS }}
-          TF_VAR_database_host: ${{ vars.HONO_STAGE_DATABASE_HOST }}
-          TF_VAR_database_port: ${{ vars.HONO_STAGE_DATABASE_PORT }}
-          TF_VAR_database_name: quorem_hono_stage
-          TF_VAR_database_password: ${{ secrets.HONO_STAGE_DATABASE_PASSWORD }}
-          TF_VAR_database_connection_limit: ${{ vars.HONO_STAGE_DATABASE_CONNECTION_LIMIT }}
-          TF_VAR_enable_queue_consumer: "false"
-          TF_VAR_hostnames: ${{ vars.HONO_SERVICE_HOSTNAMES }}
-          TF_VAR_profile_media_enabled: ${{ vars.HONO_PROFILE_MEDIA_ENABLED || 'false' }}
-          TF_VAR_image_hostname: ${{ vars.HONO_IMAGE_HOSTNAME }}
-          TF_VAR_image_access_service_token_id: ${{ vars.HONO_IMAGE_ACCESS_TOKEN_ID }}
-          TF_VAR_image_service_image: ${{ vars.HONO_IMAGE_SERVICE_IMAGE }}
-          TF_VAR_access_token_ids: ${{ vars.HONO_SERVICE_ACCESS_TOKEN_IDS }}
-          TF_VAR_runner_image: ${{ vars.HONO_RUNNER_IMAGE }}
-          TF_VAR_verifier_image: ${{ vars.HONO_VERIFIER_IMAGE }}
-          TF_VAR_case_images: ${{ vars.HONO_CASE_IMAGES }}
-          TF_VAR_command_origin: ${{ vars.HONO_STAGE_API_ORIGIN }}
-          TF_VAR_source_origin: ${{ vars.HONO_STAGE_API_ORIGIN }}
-          TF_VAR_case_namespace_id: ${{ inputs.case_namespace }}
-          TF_VAR_case_diagnostics: "true"
-          TF_VAR_service_secrets: ${{ secrets.HONO_STAGE_SERVICE_SECRETS }}
-          HONO_STAGE_PUBLIC_JSON: ${{ vars.HONO_STAGE_PUBLIC_JSON }}
-          HONO_WORKER_SECRETS_JSON: ${{ secrets.HONO_WORKER_SECRETS_JSON }}
-          HONO_STAGE_DATABASE_URL: ${{ secrets.HONO_STAGE_DATABASE_URL }}
-          HONO_STAGE_BROWSER_ORIGIN: ${{ vars.HONO_STAGE_BROWSER_ORIGIN }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
           QUOREM_REMOTE_VALIDATION_DATABASE_URL: postgres://fixture:fixture@127.0.0.1:54329/quorem_hono_remote_validation_test?sslmode=disable
           WRANGLER_SEND_METRICS: "false"
-        run: node scripts/hono-stage-deploy-stage.mjs
+        run: vp exec node scripts/hono-stage-launch.mjs

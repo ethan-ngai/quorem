@@ -294,8 +294,10 @@ export async function deployStage(original, operations = defaults) {
     original.TF_VAR_release_generation !== "1"
   )
     throw new Error("First activation requires generation one");
+  operations.phase?.("check-stage-freshness");
   const freshResources = await operations.freshness(original);
   operations.roleConfig(original);
+  operations.phase?.("check-stage-database");
   await operations.fresh(original);
   const env = {
     ...original,
@@ -330,9 +332,12 @@ export async function deployStage(original, operations = defaults) {
     if (env.TF_VAR_case_namespace_id !== "0".repeat(64))
       await operations.probe(caseEnv, env.TF_VAR_case_namespace_id);
     await Promise.resolve(operations.terraform(env, "hono-stage", "init"));
+    operations.phase?.("migrate-stage-database");
     await Promise.resolve(operations.migrate(original));
     roleAttempted = true;
+    operations.phase?.("provision-runtime-role");
     await operations.databaseRole(original);
+    operations.phase?.("provision-api-resources");
     await Promise.resolve(operations.terraform(env, "hono-stage", "apply"));
     const images = await Promise.resolve(operations.images(original));
     env.TF_VAR_runner_image = images.runner;
@@ -350,11 +355,13 @@ export async function deployStage(original, operations = defaults) {
       TF_VAR_case_images: env.TF_VAR_case_images,
     });
     validateStageRequest(env);
+    operations.phase?.("provision-private-services");
     await Promise.resolve(operations.terraform(env, "hono-services", "apply"));
     const verified = await operations.probe(caseEnv, env.TF_VAR_case_namespace_id);
     env.TF_VAR_case_namespace_id = verified.namespace;
     caseEnv.TF_VAR_case_namespace_id = verified.namespace;
     caseEnv.QUOREM_CASE_NAMESPACE_ID = verified.namespace;
+    operations.phase?.("provision-private-services");
     await Promise.resolve(operations.terraform(env, "hono-services", "apply"));
     const workerSecrets = {
       ...supplied,
@@ -383,7 +390,9 @@ export async function deployStage(original, operations = defaults) {
     const config = stageConfig(publicInput, outputs, configFile);
     await writeFile(configFile, JSON.stringify(config), { mode: 0o600 });
     checkStagePreflight(publicInput, outputs, workerSecrets);
+    operations.phase?.("deploy-api-worker");
     await Promise.resolve(operations.deploy(configFile, env));
+    operations.phase?.("upload-api-secrets");
     await Promise.resolve(operations.upload(publicInput, outputs, workerSecrets, env));
     await operations.subdomains(env);
     controlClient = await operations.controls({
@@ -405,7 +414,9 @@ export async function deployStage(original, operations = defaults) {
       publicKeyFile: keyFile,
     });
     controlsAttempted = true;
+    operations.phase?.("activate-release-controls");
     const controlReceipt = await controlClient.activate();
+    operations.phase?.("hosted-sandbox-proof");
     await Promise.resolve(operations.remote(caseEnv));
     actor = await operations.actor({
       databaseURL: env.HONO_STAGE_DATABASE_URL,
@@ -413,6 +424,7 @@ export async function deployStage(original, operations = defaults) {
       authSecret: workerSecrets.BETTER_AUTH_SECRET,
       mode: "stage",
     });
+    operations.phase?.("hosted-application-acceptance");
     const acceptance = await operations.queue(
       {
         ...env,

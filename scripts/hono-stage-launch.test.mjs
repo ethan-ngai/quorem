@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { createStageSecrets } from "./hono-stage-bootstrap-config.mjs";
-import { bootstrapEnvironment, launchStage, validateStageIntent } from "./hono-stage-launch.mjs";
+import {
+  bootstrapEnvironment,
+  launchStage as actualLaunchStage,
+  validateStageIntent,
+} from "./hono-stage-launch.mjs";
+
+const launchStage = (env, options) => actualLaunchStage(env, { state: async () => {}, ...options });
 
 const env = () => ({
   GITHUB_REF: "refs/heads/feat/hono-migration",
@@ -175,4 +181,24 @@ void test("plan returns only allowed addresses and never publishes or applies", 
     resources: [{ address: "neon_project.stage", actions: ["create"] }],
   });
   assert.equal(JSON.stringify(result).includes(saved.RECOVERY_CONTROL_SECRET), false);
+});
+
+void test("state privacy failure prevents all provisioning", async () => {
+  const calls = [];
+  await assert.rejects(
+    launchStage(env(), {
+      action: "stage",
+      state: async () => {
+        throw new Error("State unavailable");
+      },
+      run: () => {
+        calls.push("provider");
+      },
+      freshness: async () => {
+        calls.push("freshness");
+      },
+    }),
+    /State unavailable/,
+  );
+  assert.deepEqual(calls, []);
 });
