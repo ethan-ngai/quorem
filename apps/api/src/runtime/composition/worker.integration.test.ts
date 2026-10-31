@@ -11,14 +11,10 @@ import { sql } from "drizzle-orm";
 import { withWorkerConnection } from "@quorem/database/core";
 import { newGuestToken, guestTokenHash } from "../../modules/identity/guest/credentials.ts";
 import worker, { type Env } from "../worker.ts";
+import { assertRuntimeTestDatabase } from "./test-database.ts";
 it("runs native auth, catalog, workspace and durable socket through composition", async () => {
   const db = (env as unknown as { DB: { connectionString: string } }).DB.connectionString;
-  const parsed = new URL((env as unknown as { DATABASE_CHECK: string }).DATABASE_CHECK);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-    "127.0.0.1",
-    "55575",
-    "/quorem_hono_runtime_test",
-  ]);
+  assertRuntimeTestDatabase((env as unknown as { DATABASE_CHECK: string }).DATABASE_CHECK);
   const user = `worker-${crypto.randomUUID()}`,
     session = crypto.randomUUID(),
     token = crypto.randomUUID(),
