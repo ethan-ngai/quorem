@@ -400,7 +400,8 @@ function bridge(owner: string, client: WebSocket): Session {
       child.stdin?.on("error", () => void stopSafely());
       child.stderr?.on("data", () => {});
       child.on("error", () => void stopSafely(1011, "Language engine unavailable"));
-      child.on("exit", () => void stopSafely());
+      // Validate stdio EOF before reporting normal process termination.
+      child.on("close", () => void stopSafely());
       client.resume();
     })
     .catch(() => void stopSafely(1011, "Language engine unavailable"));
