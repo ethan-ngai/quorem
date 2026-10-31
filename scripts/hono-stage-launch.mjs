@@ -14,6 +14,7 @@ import { requirePrivateStageState } from "./hono-stage-state.mjs";
 import { stageNamespaceReady } from "./hono-stage-ready.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 import { StageInitializationFailure } from "./hono-stage-initialization.mjs";
+import { StageRoleFailure } from "./hono-stage-database-role.mjs";
 
 const stageResources = [
   "data.neon_branches.existing",
@@ -337,8 +338,14 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     });
     process.stdout.write(`${JSON.stringify(receipt)}\n`);
   } catch (error) {
+    const role =
+      error instanceof StageRoleFailure
+        ? error
+        : error.cause instanceof StageRoleFailure
+          ? error.cause
+          : undefined;
     process.stderr.write(
-      `${error instanceof StageCommandFailure ? JSON.stringify({ error: "stage-command", category: error.category, resources: error.resources, diagnostics: error.diagnostics }) : error instanceof StageInitializationFailure ? JSON.stringify({ error: "stage-initialization", reason: error.reason }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
+      `${role ? JSON.stringify({ error: "stage-runtime-role", phase: role.phase, code: role.code, flags: role.flags }) : error instanceof StageCommandFailure ? JSON.stringify({ error: "stage-command", category: error.category, resources: error.resources, diagnostics: error.diagnostics }) : error instanceof StageInitializationFailure ? JSON.stringify({ error: "stage-initialization", reason: error.reason }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
     );
     process.exitCode = 1;
   }

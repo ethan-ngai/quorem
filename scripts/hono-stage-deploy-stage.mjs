@@ -498,6 +498,7 @@ export async function deployStage(original, operations = defaults) {
     if (detachFailed || pauseFailed || fenceFailed)
       throw new Error(
         `Stage failure; ${controlsAttempted || queueAttached ? (detachFailed ? "queue detachment unconfirmed" : "queue detached") : "controls not activated"}; ${controlsAttempted || queueAttached ? (pauseFailed ? "control pause unconfirmed" : "controls paused") : "no control pause attempted"}; ${roleAttempted ? (fenceFailed ? "runtime writer fence unconfirmed" : "runtime writer fence confirmed") : "runtime writer fence not attempted"}`,
+        { cause: failure },
       );
     if (cleanupFailed)
       throw new Error(
