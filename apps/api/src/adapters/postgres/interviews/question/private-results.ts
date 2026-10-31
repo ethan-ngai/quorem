@@ -3,7 +3,28 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { parseLosslessJson, stringifyLosslessJson } from "@quorem/questions";
 import { resultCase } from "../../judging/results/projection.ts";
-/** Called in the completion transaction before publishing the submission result. */
+async function saveCase(tx: Transaction, id: string, ordinal: number, item: unknown): Promise<void> {
+  if (!Number.isSafeInteger(ordinal) || ordinal < 0 || ordinal > 2147483647)
+    throw new RangeError("Invalid private result ordinal");
+  const data = new TextEncoder().encode(stringifyLosslessJson(resultCase(item, false)));
+  const result = await tx.execute(
+    sql`INSERT INTO interview_private_result_cases(submission_id,ordinal,result_data) VALUES(${id}::uuid,${ordinal},${data}) ON CONFLICT(submission_id,ordinal) DO NOTHING RETURNING ordinal`,
+  );
+  if (!result.rows.length) {
+    const existing = await tx.execute<{ matches: boolean }>(sql`SELECT result_data=${data} AS matches FROM interview_private_result_cases WHERE submission_id=${id}::uuid AND ordinal=${ordinal}`);
+    if (!existing.rows[0]?.matches) throw new Error("Private result conflict");
+  }
+}
+/** Write one lossless case inside the transaction that publishes completion. */
+export async function savePrivateResultCase(
+  tx: Transaction,
+  id: string,
+  ordinal: number,
+  raw: string,
+): Promise<void> {
+  await saveCase(tx, id, ordinal, parseLosslessJson(raw));
+}
+/** Legacy backfill helper; callers must supply a bounded historical payload. */
 export async function savePrivateResultCases(
   tx: Transaction,
   id: string,
@@ -11,13 +32,7 @@ export async function savePrivateResultCases(
 ): Promise<void> {
   const value = parseLosslessJson(raw);
   if (!Array.isArray(value)) throw new Error("Invalid private results");
-  for (const [ordinal, item] of value.entries()) {
-    const data = new TextEncoder().encode(stringifyLosslessJson(resultCase(item, false)));
-    const result = await tx.execute(
-      sql`INSERT INTO interview_private_result_cases(submission_id,ordinal,result_data) VALUES(${id}::uuid,${ordinal},${data}) ON CONFLICT(submission_id,ordinal) DO UPDATE SET result_data=EXCLUDED.result_data WHERE interview_private_result_cases.result_data=EXCLUDED.result_data RETURNING ordinal`,
-    );
-    if (!result.rows.length) throw new Error("Private result conflict");
-  }
+  for (const [ordinal, item] of value.entries()) await saveCase(tx, id, ordinal, item);
 }
 /** Privileged, bounded to one submission; the lock serializes with result completion. */
 export async function backfillPrivateResultCases(tx: Transaction, id: string): Promise<boolean> {
