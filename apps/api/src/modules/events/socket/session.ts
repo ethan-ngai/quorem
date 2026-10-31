@@ -36,6 +36,7 @@ export class SocketSession {
   };
   private active = new Set<string>();
   private pendingWrites = 0;
+  private receipt?: { id: string; resolve: () => void; reject: () => void };
   private writing: Promise<void> = Promise.resolve();
   private refreshing = false;
   private dirty = false;
@@ -127,7 +128,7 @@ export class SocketSession {
     if (this.closed) return Promise.resolve();
     let frame: string;
     try {
-      frame = JSON.stringify(value);
+      frame = JSON.stringify({ receipt: crypto.randomUUID(), payload: value });
     } catch {
       this.close(1011, "Invalid response");
       return Promise.resolve();
@@ -148,8 +149,12 @@ export class SocketSession {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 5000);
         try {
+          const id = (JSON.parse(frame) as { receipt: string }).receipt;
+          const acknowledged = new Promise<void>((resolve, reject) => {
+            this.receipt = { id, resolve, reject: () => reject(new Error("receipt cancelled")) };
+          });
           await Promise.race([
-            this.deps.transport.send(frame, controller.signal),
+            Promise.all([this.deps.transport.send(frame, controller.signal), acknowledged]),
             new Promise<never>((_, reject) =>
               controller.signal.addEventListener("abort", () => reject(new Error("send timeout")), {
                 once: true,
@@ -158,6 +163,7 @@ export class SocketSession {
           ]);
         } finally {
           clearTimeout(timer);
+          this.receipt = undefined;
         }
       })
       .catch((error) => {
@@ -210,6 +216,8 @@ export class SocketSession {
     if (this.closed) return;
     this.closed = true;
     this.abort.abort();
+    this.receipt?.reject();
+    this.receipt = undefined;
     this.stop?.();
     this.stop = undefined;
     for (const lane of Object.values(this.lanes)) lane.queue.length = 0;
@@ -294,6 +302,29 @@ export class SocketSession {
   }
   receive(text: string): void {
     if (this.closed) return;
+    if (text.length <= 128) {
+      try {
+        const frame: unknown = JSON.parse(text);
+        if (
+          frame &&
+          typeof frame === "object" &&
+          !Array.isArray(frame) &&
+          (frame as { type?: unknown }).type === "receipt"
+        ) {
+          const id = (frame as { id?: unknown }).id;
+          if (typeof id !== "string" || id !== this.receipt?.id) {
+            this.close(1008, "Invalid receipt");
+            return;
+          }
+          const pending = this.receipt;
+          this.receipt = undefined;
+          pending.resolve();
+          return;
+        }
+      } catch {
+        /* Normal command parser reports invalid JSON. */
+      }
+    }
     if (this.deps.mode !== "interview" || !this.deps.commands) {
       this.close(1008, "Commands unavailable");
       return;

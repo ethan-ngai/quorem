@@ -49,7 +49,9 @@ describe("browser socket protocol", () => {
       mode: "match",
       transport: {
         send: async (frame) => {
-          sent.push(JSON.parse(frame));
+          const { receipt, payload } = JSON.parse(frame);
+          sent.push(payload);
+          queueMicrotask(() => s.receive(JSON.stringify({ type: "receipt", id: receipt })));
         },
         ping: async () => {},
         close: () => {},
@@ -96,7 +98,9 @@ describe("browser socket protocol", () => {
       mode: "interview",
       transport: {
         send: async (frame) => {
-          sent.push(JSON.parse(frame));
+          const { receipt, payload } = JSON.parse(frame);
+          sent.push(payload);
+          queueMicrotask(() => s.receive(JSON.stringify({ type: "receipt", id: receipt })));
         },
         ping: async () => {
           pings.push("ping");
@@ -139,7 +143,9 @@ describe("browser socket protocol", () => {
       mode: "match",
       transport: {
         send: async (frame) => {
-          sent.push(JSON.parse(frame));
+          const { receipt, payload } = JSON.parse(frame);
+          sent.push(payload);
+          queueMicrotask(() => s.receive(JSON.stringify({ type: "receipt", id: receipt })));
         },
         ping: async () => {},
         close: (code) => closed.push(code),
@@ -202,7 +208,10 @@ describe("browser socket protocol", () => {
       const s = new SocketSession({
         mode: "interview",
         transport: {
-          send: async () => {},
+          send: async (frame) => {
+            const { receipt } = JSON.parse(frame);
+            queueMicrotask(() => s.receive(JSON.stringify({ type: "receipt", id: receipt })));
+          },
           ping: async () => {},
           close: (code) => closed.push(code),
         },
@@ -228,5 +237,60 @@ describe("browser socket protocol", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+  it("holds one unacknowledged frame, coalesces notices and times out", async () => {
+    vi.useFakeTimers();
+    try {
+      const sent: { receipt: string; payload: unknown }[] = [],
+        closed: number[] = [];
+      let notify!: (notice: Notice) => void;
+      const socket = new SocketSession({
+        mode: "interview",
+        transport: {
+          send: async (frame) => {
+            sent.push(JSON.parse(frame));
+          },
+          ping: async () => {},
+          close: (code) => closed.push(code),
+        },
+        security: {
+          verify: async () => ({ principal: actor, binding: "grant" }),
+          authorize: async () => "member",
+        },
+        subscription: {
+          subscribe: async (f) => {
+            notify = f;
+            return () => {};
+          },
+        },
+      });
+      const start = socket.start();
+      await vi.advanceTimersByTimeAsync(0);
+      for (let n = 0; n < 100; n++) notify(notice(String(n)));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sent).toHaveLength(1);
+      socket.receive(JSON.stringify({ type: "receipt", id: sent[0].receipt }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sent).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(5001);
+      await start;
+      expect(closed).toEqual([1013]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("rejects a guessed receipt", async () => {
+    const closed: number[] = [];
+    const socket = new SocketSession({
+      mode: "invite",
+      transport: { send: async () => {}, ping: async () => {}, close: (code) => closed.push(code) },
+      security: { verify: async () => ({ binding: "grant" }), authorize: async () => "invite" },
+      subscription: { subscribe: async () => () => {} },
+    });
+    void socket.start();
+    await turn();
+    socket.receive(JSON.stringify({ type: "receipt", id: crypto.randomUUID() }));
+    await turn();
+    expect(closed).toEqual([1008]);
   });
 });

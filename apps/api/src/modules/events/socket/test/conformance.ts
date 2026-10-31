@@ -50,7 +50,9 @@ export async function matchConformance(run: Run): Promise<void> {
     closed: number[] = [];
   const transport = {
     send: async (frame: string) => {
-      sent.push(JSON.parse(frame));
+      const { receipt, payload } = JSON.parse(frame);
+      sent.push(payload);
+      queueMicrotask(() => socket.receive(JSON.stringify({ type: "receipt", id: receipt })));
     },
     ping: async () => {},
     close: (code: number) => {
@@ -98,7 +100,12 @@ export async function matchConformance(run: Run): Promise<void> {
   const memberSocket = new SocketSession({
     mode: "match",
     transport: {
-      send: async () => {},
+      send: async (frame) => {
+        const { receipt } = JSON.parse(frame);
+        queueMicrotask(() =>
+          memberSocket.receive(JSON.stringify({ type: "receipt", id: receipt })),
+        );
+      },
       ping: async () => {},
       close: (code) => memberClosed.push(code),
     },
@@ -137,7 +144,9 @@ export async function matchConformance(run: Run): Promise<void> {
     mode: "invite",
     transport: {
       send: async (frame) => {
-        inviteFrames.push(JSON.parse(frame));
+        const { receipt, payload } = JSON.parse(frame);
+        inviteFrames.push(payload);
+        queueMicrotask(() => invite.receive(JSON.stringify({ type: "receipt", id: receipt })));
       },
       ping: async () => {},
       close: (code) => {
@@ -166,7 +175,10 @@ export async function matchConformance(run: Run): Promise<void> {
   const expiry = new SocketSession({
     mode: "invite",
     transport: {
-      send: async () => {},
+      send: async (frame) => {
+        const { receipt } = JSON.parse(frame);
+        queueMicrotask(() => expiry.receive(JSON.stringify({ type: "receipt", id: receipt })));
+      },
       ping: async () => {},
       close: (code) => {
         expired.push(code);
