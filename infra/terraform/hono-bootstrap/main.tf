@@ -60,12 +60,23 @@ provider "restapi" {
   headers              = { "Content-Type" = "application/json", "Authorization" = "Bearer ${var.neon_api_key}" }
 }
 
+data "neon_branches" "existing" { project_id = var.project_id }
+
+locals { primary_branches = [for branch in data.neon_branches.existing.branches : branch.id if branch.primary] }
+
 # Schema-only creates an independent root; the stage database below starts empty.
 resource "restapi_object" "stage_branch" {
   path                      = "/projects/${var.project_id}/branches"
-  data                      = jsonencode({ branch = { name = "quorem-hono-stage", init_source = "schema-only" } })
+  data                      = jsonencode({ branch = { name = "quorem-hono-stage", init_source = "schema-only", parent_id = length(local.primary_branches) == 1 ? local.primary_branches[0] : null } })
   ignore_all_server_changes = true
-  lifecycle { prevent_destroy = true }
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [data]
+    precondition {
+      condition     = length(local.primary_branches) == 1
+      error_message = "Exactly one primary Neon branch is required."
+    }
+  }
 }
 resource "neon_endpoint" "stage" {
   project_id               = var.project_id

@@ -81,6 +81,7 @@ void test("intent requires an explicit stage request and exact dispatch revision
 
 void test("plan refuses destructive, drift and unrelated resources before apply", async () => {
   for (const changes of [
+    [change("data.neon_branches.existing", ["create"])],
     [change("neon_database.stage", ["delete", "create"])],
     [change("neon_database.other", ["create"])],
     [change("terraform_data.stage_secrets", ["update"])],
@@ -162,7 +163,11 @@ void test("plan returns only allowed addresses and never publishes or applies", 
     saved = createStageSecrets();
   const result = await launchStage(env(), {
     action: "plan",
-    run: terraform([change("neon_database.stage", ["create"])], saved, calls),
+    run: terraform(
+      [change("data.neon_branches.existing", ["read"]), change("neon_database.stage", ["create"])],
+      saved,
+      calls,
+    ),
     images: () => {
       throw new Error("unexpected publish");
     },
@@ -173,7 +178,10 @@ void test("plan returns only allowed addresses and never publishes or applies", 
   assert.deepEqual(calls, ["init", "state", "plan", "show"]);
   assert.deepEqual(result, {
     status: "planned",
-    resources: [{ address: "neon_database.stage", actions: ["create"] }],
+    resources: [
+      { address: "data.neon_branches.existing", actions: ["read"] },
+      { address: "neon_database.stage", actions: ["create"] },
+    ],
   });
   assert.equal(JSON.stringify(result).includes(saved.RECOVERY_CONTROL_SECRET), false);
 });
@@ -257,4 +265,16 @@ with neon_database.stage,
   assert.deepEqual(error.diagnostics[1].codes, [404]);
   assert.deepEqual(error.diagnostics[1].resources, ["neon_database.stage"]);
   assert.equal(error.diagnostics[1].flags.project, true);
+});
+void test("REST diagnostic preserves only quoted status, symbolic code and fixed reason flags", () => {
+  const error = new StageCommandFailure({
+    stderr: `Error: Unexpected response code '400': {"code":"INVALID_REQUEST","message":"schema-only parent_id is required; opaque-secret-value https://private.example/secret"}
+with restapi_object.stage_branch,`,
+  });
+  assert.deepEqual(error.diagnostics[0].statuses, [400]);
+  assert.deepEqual(error.diagnostics[0].types, ["INVALID_REQUEST"]);
+  assert.equal(error.diagnostics[0].flags.schemaOnly, true);
+  assert.equal(error.diagnostics[0].flags.parent, true);
+  for (const value of ["opaque-secret-value", "private.example", "message"])
+    assert.equal(JSON.stringify(error).includes(value), false);
 });
