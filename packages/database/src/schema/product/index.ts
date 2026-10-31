@@ -1907,3 +1907,27 @@ export const submission_public_result_cases = pgTable(
     check("submission_public_result_cases_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
   ],
 );
+export const execution_completion_receipts = pgTable(
+  "execution_completion_receipts",
+  {
+    job_id: uuid().notNull(),
+    attempt_id: uuid().notNull(),
+    sandbox_scope: text().notNull(),
+    outcome: text().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.attempt_id, table.sandbox_scope],
+      name: "execution_completion_receipts_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_jobs.id],
+      name: "execution_completion_receipts_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_receipts_outcome_check",
+      sql`outcome = ANY (ARRAY['completed'::text, 'cancelled'::text, 'failed'::text, 'requeued'::text])`,
+    ),
+  ],
+);
