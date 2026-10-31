@@ -1,6 +1,7 @@
 /** @file durable.ts @description Hibernating browser socket transport. @module runtime */
 // @ts-expect-error Provided by the Worker runtime, not Node's TypeScript libraries.
 import { DurableObject } from "cloudflare:workers";
+import { socketHandshake } from "./handshake.ts";
 import { ApplicationError } from "../../../application/error.ts";
 import { mapIdentityError } from "../../../modules/identity/routes.ts";
 import { IdentityError } from "../../../modules/identity/model.ts";
@@ -164,15 +165,8 @@ export function browserSocketObject<Env>(
       if (await this.state.storage.delete(key(id))) await this.authority.release(record);
     }
     async fetch(request: Request): Promise<Response> {
-      if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
-        return new Response(null, { status: 426 });
-      const origin = request.headers.get("origin");
-      if (!origin || !this.origins.includes(origin)) return new Response(null, { status: 403 });
-      const protocols = (request.headers.get("sec-websocket-protocol") ?? "")
-        .split(",")
-        .map((v) => v.trim());
-      if (protocols.filter((v) => v === "quorem").length !== 1)
-        return new Response(null, { status: 400 });
+      const rejection = socketHandshake(request, this.origins);
+      if (rejection) return new Response(null, { status: rejection });
       if (
         this.state.getWebSockets().length >= 1024 ||
         (await this.state.storage.list({ prefix: "socket:", limit: 1024 })).size >= 1024

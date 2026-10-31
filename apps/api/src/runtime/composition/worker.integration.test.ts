@@ -1,8 +1,15 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
-import { env, SELF, runDurableObjectAlarm, evictDurableObject } from "cloudflare:test";
+import {
+  env,
+  SELF,
+  runDurableObjectAlarm,
+  evictDurableObject,
+  runInDurableObject,
+} from "cloudflare:test";
 import { expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection } from "@quorem/database/core";
+import { newGuestToken, guestTokenHash } from "../../modules/identity/guest/credentials.ts";
 import worker, { type Env } from "../worker.ts";
 it("runs native auth, catalog, workspace and durable socket through composition", async () => {
   const db = (env as unknown as { DB: { connectionString: string } }).DB.connectionString;
@@ -133,6 +140,63 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   });
   interviewSocket.accept();
   await interviewInitial;
+  const directNamespace = (
+    env as unknown as {
+      SOCKETS: {
+        idFromName(name: string): unknown;
+        get(id: unknown): { fetch(request: Request): Promise<Response> };
+      };
+    }
+  ).SOCKETS;
+  const forgedScope = await directNamespace
+    .get(directNamespace.idFromName(`socket:interview:${room}`))
+    .fetch(
+      new Request(`http://127.0.0.1:8765/v1/interviews/${room}/events`, {
+        headers: {
+          upgrade: "websocket",
+          origin: "http://127.0.0.1:5173",
+          "sec-websocket-protocol": `quorem,bearer.${bearer}`,
+          "x-quorem-socket-scope": crypto.randomUUID(),
+        },
+      }),
+    );
+  expect(forgedScope.status).toBe(401);
+  const peerUpgrade = await SELF.fetch(
+    `http://127.0.0.1:8765/v1/interviews/${room.toUpperCase()}/events`,
+    {
+      headers: {
+        upgrade: "websocket",
+        origin: "http://127.0.0.1:5173",
+        "sec-websocket-protocol": `quorem,bearer.${bearer}`,
+        "x-quorem-socket-scope": crypto.randomUUID(),
+      },
+    },
+  );
+  expect(peerUpgrade.status).toBe(101);
+  const peer = peerUpgrade.webSocket!;
+  let initialPeer!: () => void,
+    updatePeer!: () => void,
+    changes = 0;
+  const peerReady = new Promise<void>((resolve) => {
+    initialPeer = resolve;
+  });
+  const peerChanged = new Promise<void>((resolve) => {
+    updatePeer = resolve;
+  });
+  peer.addEventListener("message", (event: MessageEvent) => {
+    const frame = JSON.parse(String(event.data)) as {
+      receipt?: string;
+      payload?: { type?: string };
+    };
+    if (frame.receipt) peer.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
+    if (frame.payload?.type === "changed") {
+      changes++;
+      if (changes === 1) initialPeer();
+      else updatePeer();
+    }
+  });
+  peer.accept();
+  await peerReady;
   const updated = await SELF.fetch(`http://127.0.0.1:8765/v1/interviews/${room}/document`, {
     headers: { authorization: `Bearer ${bearer}` },
   });
@@ -157,6 +221,13 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       ),
     ]),
   ).toBeTruthy();
+  await Promise.race([
+    peerChanged,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("peer notice timeout")), 8000),
+    ),
+  ]);
+  peer.close();
   {
     const namespaces = (
       env as unknown as {
@@ -166,7 +237,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
         };
       }
     ).SOCKETS;
-    const interviewStub = namespaces.get(namespaces.idFromName("socket:interview"));
+    const interviewStub = namespaces.get(namespaces.idFromName(`socket:interview:${room}`));
     await new Promise((resolve) => setTimeout(resolve, 200));
     await Promise.race([
       evictDurableObject(interviewStub),
@@ -181,6 +252,67 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     await resumed;
   }
   interviewSocket.close();
+
+  const invite = newGuestToken(),
+    inviteHash = await guestTokenHash(invite),
+    matchId = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+      tx.execute(
+        sql`INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties) SELECT ${matchId}::uuid,b.user_id,${inviteHash},clock_timestamp()+interval '1 hour',30,'waiting',ARRAY['easy'] FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=${user}`,
+      ),
+    ),
+  );
+  const inviteURL = `http://127.0.0.1:8765/v1/match-invites/${invite}/events`;
+  const forbidden = await SELF.fetch(inviteURL, {
+    headers: {
+      upgrade: "websocket",
+      origin: "https://evil.test",
+      "sec-websocket-protocol": "quorem",
+    },
+  });
+  expect(forbidden.status).toBe(403);
+  const inviteUpgrade = await SELF.fetch(inviteURL, {
+    headers: {
+      upgrade: "websocket",
+      origin: "http://127.0.0.1:5173",
+      "sec-websocket-protocol": "quorem",
+      "x-quorem-socket-scope": crypto.randomUUID(),
+    },
+  });
+  expect(inviteUpgrade.status).toBe(101);
+  const inviteSocket = inviteUpgrade.webSocket!;
+  const firstInvite = new Promise<void>((resolve) =>
+    inviteSocket.addEventListener(
+      "message",
+      (event: MessageEvent) => {
+        const frame = JSON.parse(String(event.data)) as { receipt?: string };
+        if (frame.receipt)
+          inviteSocket.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
+        resolve();
+      },
+      { once: true },
+    ),
+  );
+  inviteSocket.accept();
+  await firstInvite;
+  const inviteNamespace = (
+    env as unknown as {
+      SOCKETS: {
+        idFromName(name: string): unknown;
+        get(id: unknown): Parameters<typeof runInDurableObject>[0];
+      };
+    }
+  ).SOCKETS;
+  const inviteStub = inviteNamespace.get(inviteNamespace.idFromName(`socket:match:${matchId}`));
+  const attachments = await runInDurableObject(inviteStub, (_instance, state) =>
+    state
+      .getWebSockets()
+      .map((socket: { deserializeAttachment(): unknown }) => socket.deserializeAttachment()),
+  );
+  expect(attachments).toHaveLength(1);
+  expect(JSON.stringify(attachments)).not.toContain(invite);
+  inviteSocket.close();
 
   const admitted = await SELF.fetch("http://127.0.0.1:8765/v1/submissions", {
     method: "POST",
@@ -259,7 +391,18 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       };
     }
   ).SOCKETS;
-  const socketStub = namespace.get(namespace.idFromName("socket:membership"));
+  const participant = await run((scope) =>
+    scope.transaction(
+      { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
+      async (tx) =>
+        (
+          await tx.execute<{ participant: string }>(
+            sql`SELECT u.participant_id::text AS participant FROM users u JOIN identity_bindings b ON b.user_id=u.id WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=${user}`,
+          )
+        ).rows[0].participant,
+    ),
+  );
+  const socketStub = namespace.get(namespace.idFromName(`socket:membership:${participant}`));
   await new Promise((resolve) => setTimeout(resolve, 200));
   await Promise.race([
     evictDurableObject(socketStub),
