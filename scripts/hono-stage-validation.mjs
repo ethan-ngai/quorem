@@ -11,10 +11,21 @@ await withDisposablePostgres(
       [
         "--test",
         "--test-concurrency=1",
-        ...globSync("scripts/hono-stage*.test.mjs").sort(),
+        ...globSync("scripts/hono-stage*.test.mjs")
+          .filter((file) => file !== "scripts/hono-stage-recovery-inventory.test.mjs")
+          .sort(),
         "scripts/hono-remote-validation.test.mjs",
       ],
       { env: { ...process.env, QUOREM_STAGE_RECOVERY_TEST_DATABASE_URL: url } },
     );
+  },
+);
+
+await withDisposablePostgres(
+  { prefix: "quorem-stage-inventory", port: 55599, database: "quorem_hono_inventory_test" },
+  async ({ url, run }) => {
+    await run(process.execPath, ["--test", "scripts/hono-stage-recovery-inventory.test.mjs"], {
+      env: { ...process.env, QUOREM_ATTEMPT_INVENTORY_TEST_URL: url },
+    });
   },
 );
