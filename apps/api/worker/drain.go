@@ -262,7 +262,12 @@ func (s *Service) drain(parent context.Context, engine execution.ExecutionEngine
 			continue
 		}
 		query, finish = context.WithTimeout(ctx, 5*time.Second)
-		delay, present, err := s.nextExecutionDeadline(query, deadlines)
+		scope, err := sandboxScope(query, engine)
+		if err != nil {
+			finish()
+			return state, false, err
+		}
+		delay, present, err := s.nextExecutionDeadline(query, deadlines, scope)
 		finish()
 		if err != nil {
 			if parent.Err() != nil {

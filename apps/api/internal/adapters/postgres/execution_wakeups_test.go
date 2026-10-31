@@ -162,7 +162,7 @@ func TestRunnableDeadlineMatchesClaimCapabilities(t *testing.T) {
 								}
 							}
 							want := (!checkpoint || resumable) && flags[0] == "true" && flags[1] == "true"
-							_, present, e := s.NextRunnableExecutionDeadline(ctx, resumable)
+							_, present, e := s.NextRunnableExecutionDeadline(ctx, resumable, "")
 							if e != nil || present != want {
 								t.Fatalf("%s checkpoint=%t cancelled=%t resumable=%t flags=%v deadline=%t want=%t err=%v", origin, checkpoint, cancelled, resumable, flags, present, want, e)
 							}
@@ -219,7 +219,7 @@ func TestRunnableDeadlineSkipsUnsupportedEarlierJob(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("QUOREM_LOSSLESS_CASES", "false")
-	delay, present, err := s.NextRunnableExecutionDeadline(ctx, false)
+	delay, present, err := s.NextRunnableExecutionDeadline(ctx, false, "")
 	if err != nil || !present || delay < 3*time.Second || delay > 5*time.Second {
 		t.Fatalf("ordinary deadline: %s %t %v", delay, present, err)
 	}
@@ -228,7 +228,7 @@ func TestRunnableDeadlineSkipsUnsupportedEarlierJob(t *testing.T) {
 		t.Fatalf("claimed before ordinary deadline: %+v %v", job, err)
 	}
 	t.Setenv("QUOREM_LOSSLESS_CASES", "true")
-	delay, present, err = s.NextRunnableExecutionDeadline(ctx, false)
+	delay, present, err = s.NextRunnableExecutionDeadline(ctx, false, "")
 	if err != nil || !present || delay != 0 {
 		t.Fatalf("lossless deadline: %s %t %v", delay, present, err)
 	}
