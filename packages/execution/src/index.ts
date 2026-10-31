@@ -37,3 +37,5 @@ export { encodeJudgeFrame, decodeJudgeFrame } from "./judge-frame.ts";
 export type { JudgeFrame } from "./judge-frame.ts";
 export { compressCheckpointFrame, decompressCheckpointFrame } from "./checkpoint-compression.ts";
 export { validateCompiledArtifact } from "./artifact.ts";
+
+export { canonicalWorkspaceCommand, workspaceCommandFingerprint } from "./fingerprint.ts";

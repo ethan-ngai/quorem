@@ -1,0 +1,453 @@
+/** @file integration.ts @description Isolated result and cancellation conformance. @module judging */
+import assert from "node:assert/strict";
+import { before, after, test } from "node:test";
+import { resolve } from "node:path";
+import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
+import { migrate } from "@quorem/database/migrations";
+import type { LocalPrincipal, GuestPrincipal } from "../../../../modules/identity/model.ts";
+import { submissionSnapshots } from "./repository.ts";
+const url = process.env.QUOREM_RESULTS_TEST_DATABASE_URL;
+if (
+  !url ||
+  new URL(url).port !== "55459" ||
+  new URL(url).pathname !== "/quorem_hono_results_test" ||
+  !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
+)
+  throw new Error("Disposable results database required");
+const pool = createNodePool({
+  connectionString: url,
+  max: 8,
+  connectionTimeoutMs: 1000,
+  idleTimeoutMs: 1000,
+  onIdleError: (e) => {
+    throw e;
+  },
+});
+const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+    withNodeConnection(pool, { lifetimeMs: 8000 }, fn),
+  repo = submissionSnapshots(run);
+const principal = (userId: string): LocalPrincipal => ({
+  kind: "local",
+  userId,
+  displayName: userId,
+  admin: false,
+  emailVerified: true,
+  sessionId: "local",
+  strongUntil: 0,
+});
+const alice = principal("results-alice"),
+  bob = principal("results-bob"),
+  host = principal("results-host");
+const problem = crypto.randomUUID(),
+  version = crypto.randomUUID(),
+  workspace = crypto.randomUUID(),
+  queued = crypto.randomUUID(),
+  running = crypto.randomUUID(),
+  done = crypto.randomUUID(),
+  interview = crypto.randomUUID(),
+  epoch = crypto.randomUUID(),
+  document = crypto.randomUUID(),
+  interviewSubmission = crypto.randomUUID(),
+  match = crypto.randomUUID(),
+  matchWorkspace = crypto.randomUUID(),
+  guestSubmission = crypto.randomUUID();
+const guest: GuestPrincipal = {
+  kind: "guest",
+  userId: "results-guest",
+  displayName: "Guest",
+  admin: false,
+  emailVerified: false,
+  strongUntil: 0,
+  credentialExpiresAt: 9999999999,
+  sessionId: "guest-token-hash",
+  scope: { kind: "match", matchId: match },
+};
+const result =
+  '{"verdict":"wrong_answer","score":{"passed":0,"total":2},"publicCases":[{"index":0,"status":"wrong_answer","actual":[9007199254740993,"A\\u0000B"],"expected":9007199254740995,"attemptId":"LEAK"}],"hiddenCases":[{"index":0,"status":"wrong_answer","expected":"PRIVATE","actual":"SECRET"}],"diagnostics":[{"message":"safe","jobId":"LEAK"}],"jobId":"LEAK"}';
+before(async () => {
+  await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
+  await migrate(pool, "product", resolve("../../apps/api/migrations"));
+  await pool.query(
+    "INSERT INTO users(id,display_name,kind) VALUES ('results-alice','Alice','account'),('results-bob','Bob','account'),('results-host','Host','account'),('results-guest','Guest','guest'),('results-iguest','Interview guest','guest')",
+  );
+  await pool.query("INSERT INTO problems(id,slug) VALUES($1,'results-problem')", [problem]);
+  await pool.query(
+    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Test','easy','','{}','[]','{}','test')",
+    [version, problem],
+  );
+  await pool.query(
+    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','runtime','harness','')",
+    [version],
+  );
+  await pool.query(
+    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'results-alice',$2,'python')",
+    [workspace, version],
+  );
+  for (const [id, state] of [
+    [queued, "queued"],
+    [done, "completed"],
+  ] as const) {
+    await pool.query(
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','hash',$3,'[]',CASE WHEN $3='completed' THEN '{\"verdict\":\"wrong_answer\"}'::jsonb ELSE NULL END,CASE WHEN $3='completed' THEN $4::bytea ELSE NULL END)",
+      [id, workspace, state, Buffer.from(result)],
+    );
+    await pool.query("INSERT INTO execution_jobs(id,submission_id,finished) VALUES($1,$2,$3)", [
+      crypto.randomUUID(),
+      id,
+      state === "completed",
+    ]);
+  }
+  await pool.query(
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties) VALUES($1,'results-host','results-match',clock_timestamp()+interval '1 hour',30,'waiting',ARRAY['easy'])",
+    [match],
+  );
+  await pool.query(
+    "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,'results-guest',1)",
+    [match],
+  );
+  await pool.query(
+    "INSERT INTO guest_sessions(token_hash,owner_id,match_id,expires_at) VALUES('guest-token-hash','results-guest',$1,clock_timestamp()+interval '1 hour')",
+    [match],
+  );
+  await pool.query(
+    "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,'results-guest',$2,'python','match',$3)",
+    [matchWorkspace, version, match],
+  );
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,match_id,kind,source,source_hash,state,cases) VALUES($1,'results-guest',$2,$3,'run','','guest-hash','queued','[]')",
+    [guestSubmission, matchWorkspace, match],
+  );
+  await pool.query("INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", [
+    crypto.randomUUID(),
+    guestSubmission,
+  ]);
+  await pool.query(
+    "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES($1,'results-host','Interview','{}','python','',$2,$3,'ri','ri','rj','rj')",
+    [interview, document, epoch],
+  );
+  await pool.query(
+    "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,'results-host','interviewer'),($1,'results-alice','interviewee')",
+    [interview],
+  );
+  await pool.query(
+    "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,'results-iguest','interviewee')",
+    [interview],
+  );
+  await pool.query(
+    "INSERT INTO interview_guest_sessions(token_hash,owner_id,session_id,expires_at) VALUES('interview-guest-hash','results-iguest',$1,clock_timestamp()+interval '1 hour')",
+    [interview],
+  );
+  const fixture = JSON.stringify({
+    problem: { odyssey: { levels: [{}, {}] } },
+    odysseyHiddenCases: [
+      [{ args: [1], expected: "PRIVATE-FIRST" }],
+      [{ args: [2], expected: "PRIVATE-FUTURE" }],
+    ],
+  });
+  const lossless = Buffer.from(
+    '{"problem":{"odyssey":{"levels":[{},{}]}},"odysseyHiddenCases":[[{"args":[9007199254740993],"expected":"PRIVATE-FIRST\\u0000"}],[{"args":[2],"expected":"PRIVATE-FUTURE"}]]}',
+  );
+  const row = await pool.query(
+    "WITH f AS (SELECT jsonb_set($2::jsonb,'{_lossless_sha256}',to_jsonb(encode(sha256($3::bytea),'hex'))) AS value) INSERT INTO interview_question_snapshots(session_id,id,fixture,lossless_fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value,$3 FROM f RETURNING id",
+    [interview, fixture, lossless],
+  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'submit','','hash','completed','[]','{\"verdict\":\"wrong_answer\"}',$3)",
+      [interviewSubmission, interview, Buffer.from(result)],
+    );
+    await client.query(
+      "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results,private_results_payload) VALUES($1,$2,1,$3,$4,$5,1,$6::jsonb,$7)",
+      [
+        interviewSubmission,
+        interview,
+        document,
+        epoch,
+        row.rows[0].id,
+        JSON.stringify([{ index: 0, status: "wrong_answer" }]),
+        Buffer.from(
+          '[{"index":0,"status":"wrong_answer","actual":[9007199254740995,"PRIVATE-OUTPUT\\u0000"],"expected":"PRIVATE-FIRST"}]',
+        ),
+      ],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+});
+after(async () => {
+  await pool.end();
+});
+void test("owner projection preserves NUL and exact numbers with no hidden payload or internal IDs", async () => {
+  const raw = await repo.read(alice, done);
+  assert.match(raw, /9007199254740993/);
+  assert.match(raw, /9007199254740995/);
+  assert.match(raw, /A\\u0000B/);
+  assert.doesNotMatch(raw, /PRIVATE|SECRET|LEAK|jobId|attemptId/);
+  assert.deepEqual(JSON.parse(raw).hiddenCases, [{ index: 0, status: "wrong_answer" }]);
+  await assert.rejects(repo.read(bob, done));
+});
+void test("queued cancellation is monotonic, idempotent, and conflicts on key reuse", async () => {
+  const first = await repo.cancel(alice, queued, "operation-one");
+  assert.equal(JSON.parse(first).state, "cancelled");
+  assert.deepEqual(
+    JSON.parse(await repo.cancel(alice, queued, "operation-one")),
+    JSON.parse(first),
+  );
+  await assert.rejects(
+    repo.cancel(alice, done, "operation-one"),
+    (e: unknown) => e instanceof Error && "code" in e && e.code === "idempotency_conflict",
+  );
+  assert.deepEqual(
+    (
+      await pool.query("SELECT finished,attempt_id FROM execution_jobs WHERE submission_id=$1", [
+        queued,
+      ])
+    ).rows[0],
+    { finished: true, attempt_id: null },
+  );
+  await assert.rejects(repo.cancel(alice, done, "terminal"));
+});
+void test("running cancellation requests remain running until the judge settles", async () => {
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','hash','running','[]')",
+    [running, workspace],
+  );
+  await pool.query("INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", [
+    crypto.randomUUID(),
+    running,
+  ]);
+  const first = await repo.cancel(alice, running, "operation-two");
+  assert.equal(JSON.parse(first).state, "running");
+  assert.equal(
+    (await pool.query("SELECT cancel_requested FROM submissions WHERE id=$1", [running])).rows[0]
+      .cancel_requested,
+    true,
+  );
+  await pool.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [running]);
+  assert.equal(JSON.parse(await repo.cancel(alice, running, "operation-two")).state, "running");
+  assert.equal(JSON.parse(await repo.cancel(alice, running, "new-key")).state, "cancelled");
+});
+void test("generic and interview reads enforce role, reveal and epoch", async () => {
+  const generic = await repo.read(alice, interviewSubmission);
+  assert.doesNotMatch(generic, /hiddenCases|diagnostics|PRIVATE/);
+  const candidate = await repo.interview(alice, interview, interviewSubmission);
+  assert.doesNotMatch(candidate, /PRIVATE|hiddenCases|diagnostics/);
+  const interviewer = await repo.interview(host, interview, interviewSubmission);
+  assert.match(interviewer, /PRIVATE-FIRST/);
+  assert.match(interviewer, /9007199254740993/);
+  assert.match(interviewer, /9007199254740995/);
+  assert.match(interviewer, /PRIVATE-OUTPUT\\u0000/);
+  assert.match(interviewer, /PRIVATE-FIRST\\u0000/);
+  assert.doesNotMatch(interviewer, /PRIVATE-FUTURE/);
+  await assert.rejects(repo.interview(bob, interview, interviewSubmission));
+  await pool.query(
+    "INSERT INTO interview_case_visibility(session_id,question_epoch,case_id) VALUES($1,$2,'level:1:case:0')",
+    [interview, epoch],
+  );
+  assert.match(await repo.interview(alice, interview, interviewSubmission), /PRIVATE-FIRST/);
+  await pool.query("UPDATE interviews SET question_epoch=$2 WHERE id=$1", [
+    interview,
+    crypto.randomUUID(),
+  ]);
+  assert.doesNotMatch(await repo.interview(alice, interview, interviewSubmission), /PRIVATE-FIRST/);
+});
+void test("guest credentials and scope are live on reads and cancellation", async () => {
+  assert.equal(JSON.parse(await repo.read(guest, guestSubmission)).state, "queued");
+  await pool.query("UPDATE submissions SET kind='submit' WHERE id=$1", [guestSubmission]);
+  await assert.rejects(repo.cancel(guest, guestSubmission, "match-submit"));
+  await pool.query("UPDATE submissions SET kind='run' WHERE id=$1", [guestSubmission]);
+  await assert.rejects(
+    repo.read(
+      { ...guest, scope: { kind: "match" as const, matchId: crypto.randomUUID() } },
+      guestSubmission,
+    ),
+  );
+  await pool.query(
+    "UPDATE guest_sessions SET revoked_at=clock_timestamp() WHERE token_hash='guest-token-hash'",
+  );
+  await assert.rejects(repo.read(guest, guestSubmission));
+  await assert.rejects(repo.cancel(guest, guestSubmission, "guest-key"));
+});
+void test("real HTTP preserves result privacy, idempotency and shared errors", async () => {
+  const { createApp } = await import("../../../../app.ts");
+  const { submissionRoutes } = await import("../../../../modules/judging/results/routes.ts");
+  const { serve } = await import("@hono/node-server");
+  const app = createApp({ allowedOrigins: [], requestId: () => "results-request" }).route(
+    "/",
+    submissionRoutes({
+      snapshots: repo,
+      identify: async (request) =>
+        request.headers.get("authorization") === "missing" ? undefined : alice,
+    }),
+  );
+  const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 0 });
+  try {
+    if (!server.listening) await new Promise<void>((done) => server.once("listening", done));
+    const addr = server.address();
+    if (!addr || typeof addr === "string") throw new Error("listener unavailable");
+    const base = `http://127.0.0.1:${addr.port}`;
+    const ok: Response = await fetch(`${base}/v1/submissions/${done}`);
+    assert.equal(ok.status, 200);
+    assert.equal(ok.headers.get("cache-control"), "no-store");
+    assert.doesNotMatch(await ok.text(), /PRIVATE|SECRET|LEAK/);
+    assert.equal(
+      (await fetch(`${base}/v1/submissions/${done}`, { headers: { authorization: "missing" } }))
+        .status,
+      401,
+    );
+    assert.equal(
+      (await fetch(`${base}/v1/submissions/${done}/cancel`, { method: "POST" })).status,
+      400,
+    );
+    assert.equal(
+      (
+        await fetch(`${base}/v1/submissions/${done}/cancel`, {
+          method: "POST",
+          headers: { "Idempotency-Key": "k" },
+          body: '{"unexpected":true}',
+        })
+      ).status,
+      400,
+    );
+  } finally {
+    await new Promise<void>((done, fail) =>
+      server.close((error) => (error ? fail(error) : done())),
+    );
+  }
+});
+void test("completion races with cancellation under the shared judge lock", async () => {
+  const id = crypto.randomUUID(),
+    job = crypto.randomUUID(),
+    attempt = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','hash','running','[]')",
+    [id, workspace],
+  );
+  await pool.query(
+    "INSERT INTO execution_jobs(id,submission_id,attempt_id,lease_until) VALUES($1,$2,$3,clock_timestamp()+interval '1 minute')",
+    [job, id, attempt],
+  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(740020)");
+    const cancel = repo.cancel(alice, id, "race");
+    await client.query(
+      "UPDATE submissions SET state='completed',result='{\"verdict\":\"accepted\"}' WHERE id=$1",
+      [id],
+    );
+    await client.query("UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE id=$1", [
+      job,
+    ]);
+    await client.query("COMMIT");
+    await assert.rejects(
+      cancel,
+      (e: unknown) => e instanceof Error && "code" in e && e.code === "invalid_transition",
+    );
+    const stale = await pool.query(
+      "SELECT 1 FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running'",
+      [job, attempt],
+    );
+    assert.equal(stale.rowCount, 0);
+  } finally {
+    client.release();
+  }
+});
+
+void test("interview guest reads require live membership and correct scope", async () => {
+  const actor: GuestPrincipal = {
+    kind: "guest",
+    userId: "results-iguest",
+    displayName: "Guest",
+    admin: false,
+    emailVerified: false,
+    strongUntil: 0,
+    credentialExpiresAt: 9999999999,
+    sessionId: "interview-guest-hash",
+    scope: { kind: "interview", interviewId: interview },
+  };
+  const value = await repo.interview(actor, interview, interviewSubmission);
+  assert.doesNotMatch(value, /PRIVATE|hiddenCases|diagnostics/);
+  await pool.query(
+    "UPDATE interview_members SET removed_at=clock_timestamp() WHERE session_id=$1 AND user_id='results-iguest'",
+    [interview],
+  );
+  await assert.rejects(repo.interview(actor, interview, interviewSubmission));
+});
+void test("a cancellation preceding completion remains authoritative", async () => {
+  const id = crypto.randomUUID(),
+    job = crypto.randomUUID(),
+    attempt = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','hash','running','[]')",
+    [id, workspace],
+  );
+  await pool.query(
+    "INSERT INTO execution_jobs(id,submission_id,attempt_id,lease_until) VALUES($1,$2,$3,clock_timestamp()+interval '1 minute')",
+    [job, id, attempt],
+  );
+  await repo.cancel(alice, id, "race-cancel-first");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(740020)");
+    const live = await client.query(
+      "SELECT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' FOR UPDATE OF j,s",
+      [job, attempt],
+    );
+    assert.equal(live.rows[0].cancel_requested, true);
+    await client.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [id]);
+    await client.query("UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE id=$1", [
+      job,
+    ]);
+    await client.query("COMMIT");
+  } finally {
+    client.release();
+  }
+  assert.equal(JSON.parse(await repo.read(alice, id)).state, "cancelled");
+});
+void test("database failures become a safe unavailable transport response", async () => {
+  const { createApp } = await import("../../../../app.ts");
+  const { submissionRoutes } = await import("../../../../modules/judging/results/routes.ts");
+  const unavailable = submissionSnapshots(async () => {
+    throw new Error("DATABASE SECRET");
+  });
+  const app = createApp({ allowedOrigins: [], requestId: () => "outage" }).route(
+    "/",
+    submissionRoutes({ snapshots: unavailable, identify: async () => alice }),
+  );
+  const response = await app.request(`/v1/submissions/${done}`);
+  assert.equal(response.status, 503);
+  assert.doesNotMatch(await response.text(), /DATABASE SECRET/);
+});
+void test("concurrent retries produce one persisted cancellation response", async () => {
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','hash','queued','[]')",
+    [id, workspace],
+  );
+  await pool.query("INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", [
+    crypto.randomUUID(),
+    id,
+  ]);
+  const responses = await Promise.all(
+    Array.from({ length: 6 }, () => repo.cancel(alice, id, "parallel-key")),
+  );
+  assert.equal(new Set(responses.map((v) => JSON.stringify(JSON.parse(v)))).size, 1);
+  assert.equal(
+    Number(
+      (
+        await pool.query(
+          "SELECT count(*) FROM cancellation_idempotency WHERE owner_id='results-alice' AND key='parallel-key'",
+        )
+      ).rows[0].count,
+    ),
+    1,
+  );
+});

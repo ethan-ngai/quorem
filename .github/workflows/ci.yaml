@@ -76,7 +76,7 @@ jobs:
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
-          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test; do
+          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test; do
             docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
           done
           # Match server-major archive tools; only disposable fixtures enter /tmp.
@@ -116,6 +116,12 @@ jobs:
           vp -C packages/database run migrate product ../../apps/api/migrations
           vp -C apps/api exec vitest run --config src/adapters/postgres/events/scheduling/vitest.config.ts
           vp -C apps/api exec vitest run --config src/adapters/postgres/events/scheduling/vitest.workers.config.ts
+      - name: Execution admission and recovery contracts
+        env:
+          QUOREM_ADMISSION_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_admission_test?sslmode=disable
+        run: |
+          vp -C apps/api exec vitest run --config src/adapters/postgres/judging/admission/vitest.config.ts
+          vp -C apps/api exec vitest run --config src/adapters/postgres/judging/admission/vitest.workers.config.ts
       - name: Workerd PostgreSQL connection lifecycle
         env:
           WRANGLER_SEND_METRICS: "false"

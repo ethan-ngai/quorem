@@ -192,6 +192,9 @@ importers:
       '@quorem/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@quorem/execution':
+        specifier: workspace:*
+        version: link:../../packages/execution
       '@quorem/questions':
         specifier: workspace:*
         version: link:../../packages/questions
