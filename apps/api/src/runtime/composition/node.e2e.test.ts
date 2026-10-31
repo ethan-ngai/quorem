@@ -88,6 +88,7 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
       QUOREM_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
       MATCH_INVITE_KEY: "ab".repeat(32),
       EXECUTION_WAKE_PROVIDER: "sqs",
+      EXECUTION_NODE_QUEUE_MODE: "disabled",
       SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/000000000000/test",
       SQS_LOCAL_ENDPOINT: `http://127.0.0.1:${queuePort}`,
       PORT: "0",
