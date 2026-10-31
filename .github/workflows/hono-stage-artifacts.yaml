@@ -6,6 +6,18 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: fixture
+          POSTGRES_PASSWORD: fixture
+          POSTGRES_DB: quorem_hono_runtime_test
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U fixture -d quorem_hono_runtime_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
@@ -17,6 +29,14 @@ jobs:
         with:
           terraform_version: 1.13.5
       - run: vp install --frozen-lockfile
+      - name: Build runtime validation sandbox image
+        run: docker build -f apps/runner/Dockerfile -t quorem-python:local .
+      - name: Composed runtime release validation
+        env:
+          QUOREM_RUNTIME_TEST_URL: postgres://fixture:fixture@127.0.0.1:54329/quorem_hono_runtime_test?sslmode=disable
+          QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
+          WRANGLER_SEND_METRICS: "false"
+        run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
       - run: node --test scripts/hono-stage-config.test.mjs scripts/hono-stage-gate.test.mjs scripts/hono-stage-secrets.test.mjs
       - run: node scripts/hono-stage-gate.mjs
       - run: terraform -chdir=infra/terraform/hono-stage fmt -check -recursive
