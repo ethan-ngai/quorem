@@ -34,6 +34,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
           HONO_BOOTSTRAP_ACTION: ${{ inputs.action || 'stage' }}
+          HONO_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: node scripts/hono-stage-provider-check.mjs
   validate:
     if: github.ref == 'refs/heads/feat/hono-migration' && (github.event_name == 'push' || inputs.release_sha == github.sha)
