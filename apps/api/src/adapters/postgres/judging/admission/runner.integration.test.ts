@@ -1,12 +1,14 @@
 /** @file runner.integration.test.ts @description Admitted work through the actual TypeScript runner. @module judging */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
+import { createServer as createNetServer } from "node:net";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { claimNext } from "../../../../../../runner/src/queue/claim.ts";
 import { fileURLToPath } from "node:url";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -219,6 +221,249 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
     await pool.end();
     await rm(stateRoot, { recursive: true, force: true });
   });
+  it("runs an admitted job through separate runner and verifier executables", async () => {
+    const work = await realpath(await mkdtemp(join(tmpdir(), "quorem-executable-e2e-")));
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot: work,
+      namespace: "executable-e2e",
+      cleanupMs: 10000,
+    });
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+    const keyFile = join(work, "verifier.pem");
+    await writeFile(keyFile, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
+    const publicCrypto = await crypto.subtle.importKey(
+      "spki",
+      publicKey.export({ type: "spki", format: "der" }),
+      "Ed25519",
+      false,
+      ["verify"],
+    );
+    const sourceKey = new Uint8Array(32).fill(21),
+      serviceKey = new Uint8Array(32).fill(22);
+    const commandSecret = "fixture-command-secret-123456789012345",
+      drainSecret = "fixture-drain-secret-12345678901234567";
+    const source = createVerificationSourceHandler(run, sourceKey);
+    let commands: Awaited<ReturnType<typeof createRunnerCommandHandler>> | undefined;
+    const api = createServer(async (req, res) => {
+      try {
+        const parts: Uint8Array[] = [];
+        for await (const part of req) parts.push(part as Buffer);
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(req.headers))
+          if (typeof value === "string") headers.set(name, value);
+        const request = new Request(`http://127.0.0.1${req.url}`, {
+          method: req.method,
+          headers,
+          body: new Uint8Array(Buffer.concat(parts)),
+        });
+        const response = req.url?.startsWith("/internal/verification/")
+          ? await source(request)
+          : commands
+            ? await commands(request)
+            : new Response(null, { status: 503 });
+        res.writeHead(response.status, Object.fromEntries(response.headers));
+        res.end(Buffer.from(await response.arrayBuffer()));
+      } catch {
+        res.writeHead(500).end();
+      }
+    });
+    api.listen(0, "127.0.0.1");
+    await once(api, "listening");
+    const addr = api.address();
+    if (!addr || typeof addr === "string") throw new Error("API address");
+    const apiOrigin = `http://127.0.0.1:${addr.port}`;
+    const freePort = async () => {
+      const server = createNetServer();
+      server.listen(0, "127.0.0.1");
+      await once(server, "listening");
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("port");
+      const result = address.port;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      return result;
+    };
+    const verifierPort = await freePort(),
+      runnerPort = await freePort();
+    const waitHealth = async (origin: string, child: ChildProcess) => {
+      for (let i = 0; i < 100; i++) {
+        if (child.exitCode !== null) throw new Error("Service exited");
+        try {
+          if ((await fetch(`${origin}/health`)).ok) return;
+        } catch {}
+        await sleep(50);
+      }
+      throw new Error("Service unavailable");
+    };
+    const stop = async (child: ChildProcess | undefined) => {
+      if (!child || child.exitCode !== null) return;
+      const ended = once(child, "exit");
+      child.kill("SIGTERM");
+      const timer = setTimeout(() => child.kill("SIGKILL"), 15000);
+      try {
+        const [code] = await ended;
+        expect(code).toBe(0);
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    let verifierProcess: ChildProcess | undefined, runnerProcess: ChildProcess | undefined;
+    try {
+      verifierProcess = spawn(
+        process.execPath,
+        [
+          fileURLToPath(
+            new URL("../../../../../../runner/src/runtime/verifier.ts", import.meta.url),
+          ),
+        ],
+        {
+          stdio: "ignore",
+          env: {
+            ...process.env,
+            QUOREM_VERIFIER_LISTEN: `127.0.0.1:${verifierPort}`,
+            QUOREM_VERIFICATION_SOURCE_ORIGIN: apiOrigin,
+            QUOREM_VERIFICATION_SOURCE_KEY: Buffer.from(sourceKey).toString("hex"),
+            QUOREM_VERIFICATION_SERVICE_KEY: Buffer.from(serviceKey).toString("hex"),
+            QUOREM_VERIFICATION_SIGNING_KEY_FILE: keyFile,
+          },
+        },
+      );
+      const verifierOrigin = `http://127.0.0.1:${verifierPort}`;
+      await waitHealth(verifierOrigin, verifierProcess);
+      const externalVerifier = httpResultVerifier({
+        origin: verifierOrigin,
+        credential: serviceKey,
+        timeoutMs: 10000,
+      });
+      commands = await createRunnerCommandHandler([
+        {
+          secret: commandSecret,
+          scope: sandbox.scope,
+          resumable: true,
+          inputProtocol: "manifest-v1",
+          repository: () =>
+            postgresExecutionCommands(
+              run,
+              {
+                inputProtocol: "manifest-v1",
+                resumable: true,
+                losslessCases: true,
+                losslessResults: true,
+              },
+              { verifier: externalVerifier, verificationPublicKey: publicCrypto },
+            ),
+        },
+      ]);
+      runnerProcess = spawn(
+        process.execPath,
+        [fileURLToPath(new URL("../../../../../../runner/src/runtime/runner.ts", import.meta.url))],
+        {
+          stdio: "ignore",
+          env: {
+            ...process.env,
+            QUOREM_RUNNER_MODE: "http",
+            QUOREM_RUNNER_LISTEN: `127.0.0.1:${runnerPort}`,
+            QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
+            QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
+            QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
+            QUOREM_DOCKER_SOCKET: socket!,
+            QUOREM_DOCKER_FENCE_ROOT: work,
+            QUOREM_DOCKER_NAMESPACE: "executable-e2e",
+          },
+        },
+      );
+      const runnerOrigin = `http://127.0.0.1:${runnerPort}`;
+      await waitHealth(runnerOrigin, runnerProcess);
+      const admitted = await app.request("https://fixture.test/v1/submissions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": "runner-executable-e2e" },
+        body: JSON.stringify({
+          workspaceId: workspace,
+          kind: "submit",
+          source: "class Solution:\n def f(self,x): return x+1",
+        }),
+      });
+      expect(admitted.status).toBe(202);
+      const id = (await admitted.json()).id as string;
+      const drain = await fetch(`${runnerOrigin}/internal/drain`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${drainSecret}` },
+        signal: AbortSignal.timeout(60000),
+      });
+      expect(drain.status).toBe(200);
+      const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
+      expect(result.status).toBe(200);
+      expect((await result.json()).verdict).toBe("accepted");
+      const slow = await app.request("https://fixture.test/v1/submissions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "runner-executable-shutdown",
+        },
+        body: JSON.stringify({
+          workspaceId: workspace,
+          kind: "run",
+          source: "import time\nclass Solution:\n def f(self,x):\n  time.sleep(30)\n  return x",
+        }),
+      });
+      expect(slow.status).toBe(202);
+      const slowId = (await slow.json()).id as string;
+      const pending = fetch(`${runnerOrigin}/internal/drain`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${drainSecret}` },
+      }).then(
+        () => undefined,
+        () => undefined,
+      );
+      const label = createHash("sha256").update(sandbox.scope).digest("hex");
+      const containers = (all = false) =>
+        execFileSync(
+          "docker",
+          [
+            "--config",
+            "/nonexistent",
+            "--host",
+            `unix://${socket!}`,
+            "ps",
+            all ? "-aq" : "-q",
+            "--filter",
+            `label=quorem.scope=${label}`,
+          ],
+          { encoding: "utf8" },
+        ).trim();
+      let active = false;
+      for (let i = 0; i < 200; i++) {
+        if (containers()) {
+          active = true;
+          break;
+        }
+        await sleep(25);
+      }
+      expect(active).toBe(true);
+      await stop(runnerProcess);
+      runnerProcess = undefined;
+      await pending;
+      expect(containers(true)).toBe("");
+      const row = (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0];
+      expect(["queued", "running"]).toContain(row.state);
+      await pool.query(
+        "DELETE FROM execution_dispatch_intents WHERE job_id IN (SELECT id FROM execution_jobs WHERE submission_id=$1)",
+        [slowId],
+      );
+      await pool.query("DELETE FROM execution_attempt_usage WHERE submission_id=$1", [slowId]);
+      await pool.query("DELETE FROM execution_jobs WHERE submission_id=$1", [slowId]);
+      await pool.query(
+        "DELETE FROM execution_idempotency WHERE owner_id=$1 AND key='runner-executable-shutdown'",
+        [owner],
+      );
+      await pool.query("DELETE FROM submissions WHERE id=$1", [slowId]);
+    } finally {
+      await stop(runnerProcess);
+      await stop(verifierProcess);
+      await new Promise<void>((resolve) => api.close(() => resolve()));
+      await rm(work, { recursive: true, force: true });
+    }
+  }, 90000);
   it("runs a real admitted Python job through private commands and Docker", async () => {
     const response = await app.request("https://fixture.test/v1/submissions", {
       method: "POST",

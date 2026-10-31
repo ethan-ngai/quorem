@@ -1,6 +1,7 @@
 /** @file drain.ts @description Bounded wake-driven execution drains. @module runner */
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ExecutionRepository, SandboxControl } from "@quorem/execution";
+import { UnconfirmedTeardown } from "../sandbox/types.ts";
 import { claimNext } from "../queue/claim.ts";
 import {
   runAttempt,
@@ -67,6 +68,7 @@ export function drainer(options: {
         graceUntil = performance.now() + graceMs;
       const claimUntil = performance.now() + claimWindowMs;
       let failure: unknown,
+        teardownFailure: UnconfirmedTeardown | undefined,
         running = 0,
         wake = 0,
         contentionMs = 200,
@@ -94,6 +96,7 @@ export function drainer(options: {
                 await runAttempt({ repository, sandbox, cancellations, engine, job, signal: live });
               }
             } catch (error) {
+              if (error instanceof UnconfirmedTeardown) teardownFailure = error;
               if (!live.aborted) failure = error;
             } finally {
               running--;
@@ -105,72 +108,79 @@ export function drainer(options: {
         }
       };
       try {
-        watch = await queue.subscribe(live);
-        const notifications = (async () => {
+        return await (async () => {
           try {
+            watch = await queue.subscribe(live);
+            const notifications = (async () => {
+              try {
+                while (!live.aborted) {
+                  if ((await watch!.next(live)) === "closed")
+                    throw new Error("Execution notification unavailable");
+                  wake++;
+                }
+              } catch (error) {
+                if (!live.aborted) failure = error;
+              }
+            })();
+            start();
             while (!live.aborted) {
-              if ((await watch!.next(live)) === "closed")
-                throw new Error("Execution notification unavailable");
-              wake++;
+              if (failure) throw failure;
+              if (epoch !== lastEpoch) {
+                lastEpoch = epoch;
+                graceUntil = performance.now() + graceMs;
+                wake++;
+              }
+              const beforeWake = wake;
+              const state = await queue.state(live);
+              if (
+                !running &&
+                state.queued === 0 &&
+                state.running === 0 &&
+                performance.now() >= graceUntil
+              ) {
+                const before = epoch;
+                if ((await queue.confirmEmpty(live)) && before === epoch && beforeWake === wake)
+                  return { ...state, complete: true };
+                wake++;
+              }
+              if (!running && performance.now() >= claimUntil) return { ...state, complete: false };
+              const deadline = await queue.nextDeadline(live);
+              const untilGrace =
+                graceUntil > performance.now() ? graceUntil - performance.now() : Infinity;
+              const now = performance.now();
+              const deadlineDelay =
+                deadline === null
+                  ? Infinity
+                  : deadline <= 0
+                    ? Math.max(0, retryAt - now)
+                    : Math.max(200, deadline);
+              const delay = Math.max(1, Math.min(200, deadlineDelay, untilGrace));
+              await sleep(delay, undefined, { signal: live });
+              if (wake !== beforeWake) {
+                contentionMs = 200;
+                retryAt = 0;
+                start();
+              } else if (deadline !== null && deadlineDelay <= delay) {
+                retryAt = performance.now() + contentionMs;
+                contentionMs = Math.min(5000, contentionMs * 2);
+                start();
+              }
             }
-          } catch (error) {
-            if (!live.aborted) failure = error;
+            await notifications;
+            throw signal.reason ?? new Error("Drain stopped");
+          } finally {
+            stop.abort();
+            try {
+              await watch?.close();
+            } finally {
+              await Promise.all(workers);
+              active = false;
+            }
           }
         })();
-        start();
-        while (!live.aborted) {
-          if (failure) throw failure;
-          if (epoch !== lastEpoch) {
-            lastEpoch = epoch;
-            graceUntil = performance.now() + graceMs;
-            wake++;
-          }
-          const beforeWake = wake;
-          const state = await queue.state(live);
-          if (
-            !running &&
-            state.queued === 0 &&
-            state.running === 0 &&
-            performance.now() >= graceUntil
-          ) {
-            const before = epoch;
-            if ((await queue.confirmEmpty(live)) && before === epoch && beforeWake === wake)
-              return { ...state, complete: true };
-            wake++;
-          }
-          if (!running && performance.now() >= claimUntil) return { ...state, complete: false };
-          const deadline = await queue.nextDeadline(live);
-          const untilGrace =
-            graceUntil > performance.now() ? graceUntil - performance.now() : Infinity;
-          const now = performance.now();
-          const deadlineDelay =
-            deadline === null
-              ? Infinity
-              : deadline <= 0
-                ? Math.max(0, retryAt - now)
-                : Math.max(200, deadline);
-          const delay = Math.max(1, Math.min(200, deadlineDelay, untilGrace));
-          await sleep(delay, undefined, { signal: live });
-          if (wake !== beforeWake) {
-            contentionMs = 200;
-            retryAt = 0;
-            start();
-          } else if (deadline !== null && deadlineDelay <= delay) {
-            retryAt = performance.now() + contentionMs;
-            contentionMs = Math.min(5000, contentionMs * 2);
-            start();
-          }
-        }
-        await notifications;
-        throw signal.reason ?? new Error("Drain stopped");
-      } finally {
-        stop.abort();
-        try {
-          await watch?.close();
-        } finally {
-          await Promise.all(workers);
-          active = false;
-        }
+      } catch (error) {
+        if (teardownFailure) throw teardownFailure;
+        throw error;
       }
     },
   };

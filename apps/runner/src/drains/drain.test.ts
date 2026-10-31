@@ -110,3 +110,36 @@ void test("HTTP authenticates and overlaps require continuation", async () => {
   assert.equal((await first).status, 200);
   assert.equal(refreshed, 2);
 });
+void test("shutdown reports unconfirmed teardown while leaving the attempt fenced", async () => {
+  const { UnconfirmedTeardown } = await import("../sandbox/types.ts");
+  const f = fixture();
+  f.add();
+  let started!: () => void;
+  const executing = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  f.sandbox.teardownAttempt = async () => {
+    throw new UnconfirmedTeardown();
+  };
+  const d = drainer({
+    ...f,
+    slots: 1,
+    resumable: true,
+    graceMs: 10,
+    claimWindowMs: 1000,
+    engine: {
+      execute: async (_job, signal) => {
+        started();
+        await new Promise<void>((_resolve, reject) =>
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true }),
+        );
+        return "complete";
+      },
+    },
+  });
+  const stop = new AbortController(),
+    pending = d.drain(stop.signal);
+  await executing;
+  stop.abort();
+  await assert.rejects(pending, UnconfirmedTeardown);
+});
