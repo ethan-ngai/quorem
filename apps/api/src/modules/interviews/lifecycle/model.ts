@@ -11,6 +11,8 @@ export interface InterviewCreate {
   title: string;
   question: unknown;
   monitoring?: unknown;
+  /** Transport-owned raw JSON for operation identity. */
+  rawBody?: string;
 }
 export interface JoinResult {
   snapshot: string;

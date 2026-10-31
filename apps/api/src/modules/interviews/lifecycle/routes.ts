@@ -16,31 +16,37 @@ interface Dependencies {
   trustedPeer(): string | undefined;
   budget: GuestRequestBudget;
 }
-async function body(request: Request, limit: number): Promise<Record<string, unknown>> {
+async function body(
+  request: Request,
+  limit: number,
+  capture?: (raw: string) => void,
+): Promise<Record<string, unknown>> {
   if (Number(request.headers.get("content-length") ?? 0) > limit)
     throw new ApplicationError("payload_too_large", "Invalid request body", 413);
   const reader = request.body?.getReader(),
-    decoder = new TextDecoder();
+    decoder = new TextDecoder("utf-8", { fatal: true });
   let text = "",
     size = 0;
-  if (reader)
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > limit) {
-        await reader.cancel();
-        throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-  text += decoder.decode();
   try {
+    if (reader)
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > limit) {
+          await reader.cancel();
+          throw new ApplicationError("payload_too_large", "Invalid request body", 413);
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+    text += decoder.decode();
     const value = parseLosslessJson(text || "{}");
     if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof JsonNumber)
       throw new Error();
+    capture?.(text || "{}");
     return value;
-  } catch {
+  } catch (error) {
+    if (error instanceof ApplicationError) throw error;
     throw new ApplicationError("invalid_input", "Invalid request body", 400);
   }
 }
@@ -81,16 +87,22 @@ export function interviewLifecycleRoutes(deps: Dependencies): Hono {
     json(c, `[${(await deps.lifecycle.list(await actor(c.req.raw))).join(",")}]`),
   );
   app.post("/v1/interviews", async (c) => {
+    let rawBody = "";
     const who = await actor(c.req.raw),
       operation = key(c.req.raw),
-      value = await body(c.req.raw, 256 * 1024);
+      value = await body(c.req.raw, 256 * 1024, (raw) => {
+        rawBody = raw;
+      });
     if (
       Object.keys(value).some((k) => !["title", "question", "monitoring"].includes(k)) ||
       typeof value.title !== "string" ||
       !value.question
     )
       throw new ApplicationError("invalid_input", "Invalid interview command", 400);
-    const result = await deps.lifecycle.create(who, operation, value as unknown as InterviewCreate);
+    const result = await deps.lifecycle.create(who, operation, {
+      ...value,
+      rawBody,
+    } as unknown as InterviewCreate);
     return c.body(result, 201, { "Content-Type": "application/json; charset=utf-8" });
   });
   app.get("/v1/interviews/:id", async (c) =>

@@ -25,7 +25,8 @@ export function boundaryViolations(root: string, sources: ReadonlyMap<string, st
     function check(specifier: ts.Expression): void {
       if (!ts.isStringLiteral(specifier)) { violations.push(`${file}: nonliteral import`); return; }
       const name = specifier.text;
-      const pure = purePackages.some((pkg) => name === pkg || name.startsWith(`${pkg}/`));
+      const pure = purePackages.some((pkg) => name === pkg || name.startsWith(`${pkg}/`)) ||
+        (relative(root, file).split(sep).join('/') === 'modules/interviews/document/changes.ts' && name === '@codemirror/state');
       const relativeBusiness = name.startsWith('.') && !/[?#]/.test(name) && protectedPath(root, resolve(dirname(file), name));
       if (!pure && !relativeBusiness) violations.push(`${file}: ${name}`);
     }

@@ -1,4 +1,4 @@
-.PHONY: install dev database seed reset api runner web language auth check build
+.PHONY: install dev database seed provision access profile-reads validate-leetcode-structure reset api runner web language auth check build
 
 QUOREM_ENV ?= development
 APP_ENV ?= local
@@ -13,7 +13,19 @@ database:
 	docker compose up -d --wait
 
 seed: database
-	go run ./apps/api/cmd/api -seed
+	node --experimental-strip-types apps/api/src/cli/seed-local.ts
+
+provision:
+	node --experimental-strip-types apps/api/src/cli/provision.ts $(ARGS)
+
+access:
+	node --experimental-strip-types apps/api/src/cli/access.ts $(ARGS)
+
+profile-reads:
+	node --experimental-strip-types apps/api/src/cli/profile-reads.ts
+
+validate-leetcode-structure:
+	python3 scripts/validate-leetcode-structure.py $(ARGS)
 
 reset:
 	@test "$${QUOREM_ENV}" = development && test "$${APP_ENV}" = local && test "$${DATABASE_URL}" = "postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable" || { echo "reset requires the local development database"; exit 1; }

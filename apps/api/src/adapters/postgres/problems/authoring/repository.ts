@@ -25,6 +25,7 @@ import type {
 import { object, storageProjection } from "../storage.ts";
 import { persistQuestionVersion } from "../publication.ts";
 import { readAuthoringQuestion } from "../private-content.ts";
+import { preserveCaseLiterals } from "../case-literals.ts";
 
 type Obj = { [key: string]: JsonValue };
 export type AuthoringScope = <T>(action: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -147,6 +148,7 @@ async function publish(
   revisionValue: string,
   visibility: "" | "private" | "global",
   runtime: RuntimeResolver,
+  operatorSeedSource?: string,
 ): Promise<string> {
   const d = await readDraft(tx, actor, admin, id, true);
   if (d.revision !== revisionValue || d.publishedVersionId) throw conflict();
@@ -226,7 +228,11 @@ async function publish(
     privateOwner,
     runtime,
   );
-  const updated = store(stringifyLosslessJson(c));
+  const publishedContent = stringifyLosslessJson(c);
+  const updated = store(publishedContent);
+  if (operatorSeedSource !== undefined)
+    updated.lossless =
+      preserveCaseLiterals(operatorSeedSource, publishedContent) ?? updated.lossless;
   const [saved] = (
     await tx.execute<DraftRow>(
       sql`UPDATE question_drafts SET owner_id=${privateOwner},published_version_id=${versionId}::uuid,content=${updated.safe}::jsonb,lossless_content=${updated.lossless},revision=revision+1,updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id::text=${id} RETURNING ${draftColumns}`,
@@ -250,9 +256,10 @@ async function cloneVersion(
   throw new ApplicationError("not_found", "Problem not found", 404);
 }
 /** Open one bounded transaction per authoring operation; publication never leaves a partial version. */
-export function questionAuthoring(
+function createQuestionAuthoring(
   run: AuthoringScope,
   runtime: RuntimeResolver,
+  operatorSeedSource?: string,
 ): QuestionAuthoring {
   const transact = <T>(action: (tx: Transaction) => Promise<T>, readOnly = false) =>
     run((scope) => scope.transaction({ ...opts, readOnly }, action));
@@ -324,7 +331,7 @@ export function questionAuthoring(
           const { admin } = await author(tx, actor, true);
           revision(rev);
           await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
-          return publish(tx, actor, admin, id, rev, visibility, runtime);
+          return publish(tx, actor, admin, id, rev, visibility, runtime, operatorSeedSource);
         });
       } catch (error) {
         if (classifyDatabaseError(error) === "unique") throw bad("LeetCode ID is already in use");
@@ -332,4 +339,41 @@ export function questionAuthoring(
       }
     },
   };
+}
+
+export function questionAuthoring(
+  run: AuthoringScope,
+  runtime: RuntimeResolver,
+): QuestionAuthoring {
+  return createQuestionAuthoring(run, runtime);
+}
+/** Only trusted operator provisioning supplies original seed case spelling. */
+export function operatorQuestionAuthoring(
+  run: AuthoringScope,
+  runtime: RuntimeResolver,
+  source: string,
+): QuestionAuthoring {
+  return createQuestionAuthoring(run, runtime, source);
+}
+
+/** Trusted provisioning may restore equivalent source spellings on an existing seeded draft. */
+export async function preservePublishedOperatorSeed(
+  run: AuthoringScope,
+  actor: AuthorActor,
+  id: string,
+  source: string,
+): Promise<void> {
+  await run((scope) =>
+    scope.transaction(opts, async (tx) => {
+      const { admin } = await author(tx, actor, true);
+      if (!admin || !actor.globalAllowed) throw forbidden();
+      const draft = await readDraft(tx, actor, admin, id, true);
+      if (!draft.publishedVersionId) throw conflict();
+      const preserved = preserveCaseLiterals(source, draft.content);
+      if (preserved)
+        await tx.execute(
+          sql`UPDATE question_drafts SET lossless_content=${preserved} WHERE id=${id}::uuid`,
+        );
+    }),
+  );
 }
