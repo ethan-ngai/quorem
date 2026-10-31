@@ -85,6 +85,19 @@ export function matchLifecycleRoutes(deps: {
       await deps.lifecycle.mutate(who, c.req.param("id"), operation, "ready", input.ready),
     );
   });
+  app.post("/v1/matches/:id/rule-events", async (c) => {
+    const who = await actor(c.req.raw),
+      operation = key(c.req.raw),
+      input = await body(c.req.raw, 1024);
+    if (
+      Object.keys(input).some((k) => k !== "kind") ||
+      (input.kind !== "clipboard" && input.kind !== "focus")
+    )
+      throw new ApplicationError("invalid_input", "Invalid rule event", 400);
+    return c.json(
+      await deps.lifecycle.mutate(who, c.req.param("id"), operation, "rule-events", input.kind),
+    );
+  });
   for (const action of ["start", "leave", "forfeit"] as const)
     app.post(`/v1/matches/:id/${action}`, async (c) => {
       const who = await actor(c.req.raw),

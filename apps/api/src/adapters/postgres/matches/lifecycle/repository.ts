@@ -303,9 +303,15 @@ export function matchLifecycle(
       const body = action === "settings" ? normalizeSettings(input) : input;
       if (action === "ready" && typeof body !== "boolean")
         throw new ApplicationError("invalid_input", "Ready is required", 400);
+      if (action === "rule-events" && body !== "clipboard" && body !== "focus")
+        throw new ApplicationError("invalid_input", "Invalid rule event", 400);
       if (!uuid.test(id)) throw missing();
       const payload =
-        action === "settings" ? settingsBody(body as Settings) : action === "ready" ? body : {};
+        action === "settings"
+          ? settingsBody(body as Settings)
+          : action === "ready" || action === "rule-events"
+            ? body
+            : {};
       const perform = (receipt?: { id: string; shard: number }) =>
         command(
           who,
@@ -320,6 +326,7 @@ export function matchLifecycle(
               m = await lockMatch(tx, id);
             }
             const closed = m.outcome !== null;
+            let suppressEvent = false;
             if (action === "settings") {
               const s = body as Settings;
               if (s.accessMode === "guests_allowed" && !deps.guestCreation)
@@ -393,6 +400,25 @@ export function matchLifecycle(
               ).rows[0];
               if (c.total < 2 || c.total !== c.ready) throw transition("All players must be ready");
               await start(tx, id, m);
+            } else if (action === "rule-events") {
+              if (m.state !== "active") throw transition("Match is not active");
+              const kind = body as "clipboard" | "focus";
+              const [participant] = (
+                await tx.execute<{ forfeited: boolean; allowed: boolean }>(
+                  sql`SELECT forfeited,(last_rule_event_at IS NULL OR last_rule_event_at<=clock_timestamp()-interval '2 seconds') AS allowed FROM match_participants WHERE match_id=${id}::uuid AND owner_id=${who.userId}`,
+                )
+              ).rows;
+              if (participant.forfeited) throw transition("Participant forfeited");
+              if (m.settings.rules[kind] !== "announce" || !participant.allowed)
+                suppressEvent = true;
+              else {
+                await tx.execute(
+                  sql`WITH stamp AS (UPDATE match_participants SET last_rule_event_at=clock_timestamp() WHERE match_id=${id}::uuid AND owner_id=${who.userId} RETURNING last_rule_event_at) INSERT INTO match_rule_events(id,match_id,owner_id,kind,occurred_at) SELECT ${crypto.randomUUID()}::uuid,${id}::uuid,${who.userId},${kind},last_rule_event_at FROM stamp`,
+                );
+                await tx.execute(
+                  sql`DELETE FROM match_rule_events WHERE match_id=${id}::uuid AND id NOT IN (SELECT id FROM match_rule_events WHERE match_id=${id}::uuid ORDER BY occurred_at DESC,id DESC LIMIT 20)`,
+                );
+              }
             } else if (action === "leave") {
               if (!closed) {
                 if (m.started)
@@ -434,7 +460,8 @@ export function matchLifecycle(
               }
             }
             m = await lockMatch(tx, id);
-            if (!closed) await matchEvent(tx, id, m.outcome ? "match.completed" : "match.updated");
+            if (!closed && !suppressEvent)
+              await matchEvent(tx, id, m.outcome ? "match.completed" : "match.updated");
             const result = await matchSnapshot(tx, id, who.userId);
             if (action === "leave" && who.userId !== m.host && !m.started && !m.outcome) {
               await tx.execute(

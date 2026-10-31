@@ -130,7 +130,7 @@ export interface Lifecycle {
     who: Principal,
     id: string,
     key: string,
-    action: "settings" | "ready" | "start" | "leave" | "forfeit",
-    body: Settings | boolean | null,
+    action: "settings" | "ready" | "start" | "leave" | "forfeit" | "rule-events",
+    body: Settings | boolean | "clipboard" | "focus" | null,
   ): Promise<unknown>;
 }
