@@ -8,21 +8,53 @@ on:
       action:
         description: Plan bootstrap or provision and activate a fresh isolated stage
         type: choice
-        options: [plan, stage]
+        options: [plan, stage, diagnose]
         default: plan
         required: true
       release_sha:
         description: Exact migration-branch workflow revision
         type: string
         required: true
+      target_release:
+        description: Failed staged release to inspect (diagnose only)
+        type: string
+        required: false
 permissions:
   contents: read
 concurrency:
   group: hono-stage-deployment
   cancel-in-progress: false
 jobs:
+  diagnose:
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action == 'diagnose' && inputs.release_sha == github.sha
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: hono-stage
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - name: Read staged role metadata
+        env:
+          HONO_RELEASE_SHA: ${{ inputs.release_sha }}
+          HONO_DIAGNOSE_RELEASE_SHA: ${{ inputs.target_release }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: vp exec node scripts/hono-stage-role-diagnostics.mjs
   preflight:
-    if: github.ref == 'refs/heads/feat/hono-migration'
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'diagnose'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -37,7 +69,7 @@ jobs:
           HONO_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: node scripts/hono-stage-provider-check.mjs
   validate:
-    if: github.ref == 'refs/heads/feat/hono-migration' && (github.event_name == 'push' || inputs.release_sha == github.sha)
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'diagnose' && (github.event_name == 'push' || inputs.release_sha == github.sha)
     runs-on: ubuntu-latest
     services:
       postgres:
