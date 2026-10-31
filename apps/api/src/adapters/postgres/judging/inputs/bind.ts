@@ -23,10 +23,10 @@ export async function fixtureCaseRefs(
   const rows =
     "version" in owner
       ? await tx.execute<{ stage: number; ordinal: number; hash: Uint8Array }>(
-          sql`SELECT c.stage,c.ordinal,c.blob_hash AS hash FROM runner_version_input_cases c JOIN runner_version_inputs i ON i.version_id=c.version_id WHERE i.sealed AND c.version_id=${owner.version}::uuid AND c.channel=${channel} AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level}) ORDER BY c.stage,c.ordinal`,
+          sql`SELECT c.stage,c.ordinal,c.blob_hash AS hash FROM runner_version_input_cases c JOIN runner_version_inputs i ON i.version_id=c.version_id WHERE i.sealed AND c.version_id=${owner.version}::uuid AND c.channel=${channel} AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level}) ORDER BY c.stage,c.ordinal LIMIT 321`,
         )
       : await tx.execute<{ stage: number; ordinal: number; hash: Uint8Array }>(
-          sql`SELECT c.stage,c.ordinal,c.blob_hash AS hash FROM runner_snapshot_input_cases c JOIN runner_snapshot_inputs i USING(session_id,fixture_id) WHERE i.sealed AND c.session_id=${owner.session}::uuid AND c.fixture_id=${owner.fixture}::bytea AND c.channel=${channel} AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level}) ORDER BY c.stage,c.ordinal`,
+          sql`SELECT c.stage,c.ordinal,c.blob_hash AS hash FROM runner_snapshot_input_cases c JOIN runner_snapshot_inputs i USING(session_id,fixture_id) WHERE i.sealed AND c.session_id=${owner.session}::uuid AND c.fixture_id=${owner.fixture}::bytea AND c.channel=${channel} AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level}) ORDER BY c.stage,c.ordinal LIMIT 321`,
         );
   if (rows.rows.length > 320) throw new Error("Runner fixture exceeds admitted case count");
   return rows.rows;
