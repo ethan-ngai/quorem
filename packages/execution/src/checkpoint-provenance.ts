@@ -72,6 +72,16 @@ function canonicalMetadata(value: JsonValue): JsonValue {
     );
   return value;
 }
+/** Hash bounded checkpoint metadata after stable key ordering, independent of JSONB rendering. */
+export async function checkpointMetadataHash(value: string | undefined): Promise<string> {
+  return hash(
+    value === undefined ? "" : stringifyLosslessJson(canonicalMetadata(parseLosslessJson(value))),
+  );
+}
+/** Hash the validated bounded frame using the canonical wire encoder. */
+export async function checkpointFrameHash(frame: JudgeFrame): Promise<string> {
+  return hash(encodeJudgeFrame(frame));
+}
 async function bindingFor(
   job: Job,
   spec: ExecutionSpec,
@@ -149,8 +159,6 @@ export async function checkpointProvenance(
     throw new Error("Invalid checkpoint provenance");
   if (metadata.compilationNanos < 0n || metadata.compilationNanos > 120000000000n)
     throw new Error("Invalid checkpoint metadata");
-  const normalized = (value: string | undefined) =>
-    value === undefined ? "" : stringifyLosslessJson(canonicalMetadata(parseLosslessJson(value)));
   const [sourceHash, problemHash, caseHash, suiteHash, frameHash, artifactHash, fatalHash] =
     await Promise.all([
       hashSource(spec.source),
@@ -164,9 +172,9 @@ export async function checkpointProvenance(
           spec.privateDetails,
         ]),
       ),
-      hash(encodeJudgeFrame(frame)),
-      hash(normalized(metadata.artifact)),
-      hash(normalized(metadata.fatal)),
+      checkpointFrameHash(frame),
+      checkpointMetadataHash(metadata.artifact),
+      checkpointMetadataHash(metadata.fatal),
     ]);
   const value = {
     schemaVersion: 1,
