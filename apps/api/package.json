@@ -13,15 +13,18 @@
     "test:identity:node": "node src/adapters/identity/strip-smoke.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "3.1150.0",
     "@hono/node-server": "2.1.5",
     "@quorem/database": "workspace:*",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.14",
-    "jose": "6.2.12"
+    "jose": "6.2.12",
+    "pg": "8.16.3"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.11",
     "@types/node": "24.19.2",
+    "@types/pg": "8.15.6",
     "typescript": "6.0.3",
     "vitest": "5.0.3",
     "wrangler": "4.156.0"

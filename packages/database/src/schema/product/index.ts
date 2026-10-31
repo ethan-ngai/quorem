@@ -213,6 +213,8 @@ export const interview_outbox = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     published_at: timestamp({ withTimezone: true, mode: "string" }),
+    dispatch_token: uuid(),
+    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
     index("interview_outbox_pending")
@@ -295,6 +297,8 @@ export const match_outbox = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     published_at: timestamp({ withTimezone: true, mode: "string" }),
+    dispatch_token: uuid(),
+    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
     index("match_outbox_retention")
@@ -561,6 +565,8 @@ export const submission_outbox = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     published_at: timestamp({ withTimezone: true, mode: "string" }),
+    dispatch_token: uuid(),
+    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
     index("submission_outbox_pending")
@@ -599,6 +605,8 @@ export const membership_outbox = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     published_at: timestamp({ withTimezone: true, mode: "string" }),
+    dispatch_token: uuid(),
+    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
     index("membership_outbox_retention")
@@ -1655,5 +1663,26 @@ export const match_participants = pgTable(
       sql`presence = ANY (ARRAY['online'::text, 'offline'::text])`,
     ),
     check("match_participants_seat_check", sql`(seat >= 1) AND (seat <= 8)`),
+  ],
+);
+
+export const execution_dispatch_intents = pgTable(
+  "execution_dispatch_intents",
+  {
+    id: uuid().primaryKey().notNull(),
+    job_id: uuid()
+      .notNull()
+      .references(() => execution_jobs.id, { onDelete: "cascade" }),
+    available_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+    delivered_at: timestamp({ withTimezone: true, mode: "string" }),
+    dispatch_token: uuid(),
+    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    index("execution_dispatch_pending")
+      .on(table.available_at, table.id)
+      .where(sql`delivered_at IS NULL`),
   ],
 );
