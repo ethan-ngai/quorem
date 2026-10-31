@@ -48,15 +48,9 @@ void test("stage binds actual runtime classes, queue and scheduled recovery with
     producers: [{ binding: "EXECUTION_QUEUE", queue: "quorem-hono-stage-execution" }],
   });
   assert.deepEqual(config.triggers.crons, ["* * * * *"]);
-  assert.deepEqual(
-    config.routes.map((route) => route.pattern),
-    [
-      "stage.example/v1/*",
-      "stage.example/api/auth/*",
-      "stage.example/health",
-      "stage.example/internal/*",
-    ],
-  );
+  assert.deepEqual(config.routes, [
+    { pattern: "stage.example", zone_name: "example", custom_domain: true },
+  ]);
   assert.equal(config.vars.EXECUTION_WAKE_PROVIDER, "cloudflare-binding");
   assert.equal(config.vars.GUEST_CREATION, "false");
   assert.equal(config.vars.GUEST_ADMISSION, "true");

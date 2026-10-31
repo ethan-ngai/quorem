@@ -42,8 +42,6 @@ const commonNames = [
 const stackNames = {
   "hono-stage": [
     "account_id",
-    "zone_id",
-    "dns_target",
     "worker_name",
     "stage_hostname",
     "access_service_token_ids",
@@ -62,7 +60,6 @@ const stackNames = {
     "cloudflare_api_token",
     "worker_name",
     "hostnames",
-    "dns_target",
     "profile_media_enabled",
     "image_hostname",
     "image_access_service_token_id",

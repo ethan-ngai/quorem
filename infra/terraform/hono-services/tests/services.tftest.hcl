@@ -10,7 +10,6 @@ variables {
   cloudflare_api_token = "fixture-token"
   worker_name          = "quorem-hono-services-stage"
   hostnames            = { drain = "runner-stage.example.com", verifier = "verifier-stage.example.com", case = "case-stage.example.com" }
-  dns_target           = "stage-origin.example.com"
   access_token_ids     = { drain = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", verifier = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", case = "cccccccc-cccc-cccc-cccc-cccccccccccc" }
   runner_image         = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   verifier_image       = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/verifier@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -53,8 +52,12 @@ run "isolated_stage" {
     error_message = "Each private capability needs a scoped Access application."
   }
   assert {
-    condition     = length(restapi_object.trusted) == 2 && length(restapi_object.trusted_rollout) == 2 && length(cloudflare_workers_route.service) == 3
-    error_message = "Terraform must own the two trusted containers and three isolated routes."
+    condition     = alltrue([for key, host in local.service_hosts : cloudflare_workers_custom_domain.service[key].hostname == host && cloudflare_workers_custom_domain.service[key].service == cloudflare_worker.services.name && cloudflare_workers_custom_domain.service[key].zone_id == var.zone_id])
+    error_message = "Every private hostname must target the staged Worker custom domain."
+  }
+  assert {
+    condition     = length(restapi_object.trusted) == 2 && length(restapi_object.trusted_rollout) == 2 && length(cloudflare_workers_custom_domain.service) == 3
+    error_message = "Terraform must own the two trusted containers and three isolated custom domains."
   }
 }
 run "reject_live_name" {
@@ -105,7 +108,7 @@ run "fresh_image" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && length(cloudflare_worker_version.services.migrations.new_sqlite_classes) == 6 && length(cloudflare_workers_route.service) == 4 && cloudflare_zero_trust_access_application.service["image"].domain == "image-stage.example.com"
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && length(cloudflare_worker_version.services.migrations.new_sqlite_classes) == 6 && length(cloudflare_workers_custom_domain.service) == 4 && cloudflare_zero_trust_access_application.service["image"].domain == "image-stage.example.com"
     error_message = "Fresh image stage must isolate all four services."
   }
 }
@@ -155,7 +158,7 @@ run "disabled_after_v2" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["CaseControl", "RunnerReleaseControl"]) && length(cloudflare_workers_route.service) == 3
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["CaseControl", "RunnerReleaseControl"]) && length(cloudflare_workers_custom_domain.service) == 3
     error_message = "Disabling media must not recreate or delete DO classes."
   }
 }
