@@ -73,7 +73,7 @@ export interface CompletionHeader {
 export interface CompletionFieldChunk {
   readonly channel: "public" | "sample" | "private" | "header";
   readonly ordinal: number;
-  readonly field: "actual" | "expected" | "stdout" | "stderr" | "diagnostics" | "sqlTypes";
+  readonly field: "actual" | "stdout" | "stderr" | "diagnostics" | "sqlTypes";
   readonly chunkOrdinal: number;
   readonly bytes: Uint8Array;
 }

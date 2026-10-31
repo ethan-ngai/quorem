@@ -91,12 +91,26 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
           if (!existing.same) throw new Error("Verification evidence conflict");
           return;
         }
+        const hasStderr =
+          job.language === "postgresql" &&
+          receipt.status === "invalid_output" &&
+          (
+            await tx.execute(
+              sql`SELECT 1 FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${row.result_channel} AND ordinal=${row.result_ordinal} AND field='stderr' LIMIT 1`,
+            )
+          ).rows.length > 0;
+        const diagnostic = receipt.typeMismatch
+          ? "Output column types do not match the SQL schema."
+          : job.language === "postgresql" && receipt.status === "invalid_output" && !hasStderr
+            ? "The query returned an invalid or unsupported result."
+            : null;
+        const diagnosticJson = diagnostic === null ? null : JSON.stringify({ message: diagnostic });
         const prefix = encode.encode(
           `{"index":${row.result_ordinal},"status":${JSON.stringify(receipt.status)}`,
         );
         const suffix = encode.encode("}");
         const frame = await tx.execute(
-          sql`WITH raw_original AS (SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${row.result_channel} AND ordinal=${row.result_ordinal} AND field IN ('stdout','stderr','diagnostics','sqlTypes') GROUP BY field), original AS (SELECT field,CASE WHEN field='diagnostics' AND ${receipt.typeMismatch} THEN convert_to(left(rtrim(convert_from(data,'UTF8'),chr(9)||chr(10)||chr(13)||' '),-1) || CASE WHEN json_array_length(convert_from(data,'UTF8')::json)>0 THEN ',' ELSE '' END || '{"message":"Output column types do not match the SQL schema."}]','UTF8') ELSE data END AS data FROM raw_original UNION ALL SELECT 'diagnostics',convert_to('[{"message":"Output column types do not match the SQL schema."}]','UTF8') WHERE ${receipt.typeMismatch} AND NOT EXISTS(SELECT 1 FROM raw_original WHERE field='diagnostics')), verified AS (SELECT field,string_agg(data,''::bytea ORDER BY ordinal) AS data FROM execution_verification_output_chunks WHERE challenge_id=${receipt.challenge}::uuid GROUP BY field), all_fields AS (SELECT * FROM original UNION ALL SELECT * FROM verified), assembled AS (SELECT ${prefix}::bytea || COALESCE(string_agg(convert_to(','||to_json(field)::text||':','UTF8')||data,''::bytea ORDER BY field),''::bytea) || ${suffix}::bytea AS data FROM all_fields) INSERT INTO execution_completion_frames(job_id,channel,ordinal,status,frame_data,frame_hash) SELECT ${job.jobId}::uuid,${row.result_channel},${row.result_ordinal},${receipt.status},data,sha256(data) FROM assembled ON CONFLICT DO NOTHING RETURNING ordinal`,
+          sql`WITH raw_original AS (SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${row.result_channel} AND ordinal=${row.result_ordinal} AND field IN ('stdout','stderr','diagnostics','sqlTypes') GROUP BY field), original AS (SELECT field,CASE WHEN field='diagnostics' AND ${diagnosticJson}::text IS NOT NULL THEN convert_to(left(rtrim(convert_from(data,'UTF8'),chr(9)||chr(10)||chr(13)||' '),-1) || CASE WHEN json_array_length(convert_from(data,'UTF8')::json)>0 THEN ',' ELSE '' END || ${diagnosticJson}::text || ']','UTF8') ELSE data END AS data FROM raw_original UNION ALL SELECT 'diagnostics',convert_to('['||${diagnosticJson}::text||']','UTF8') WHERE ${diagnosticJson}::text IS NOT NULL AND NOT EXISTS(SELECT 1 FROM raw_original WHERE field='diagnostics')), verified AS (SELECT field,string_agg(data,''::bytea ORDER BY ordinal) AS data FROM execution_verification_output_chunks WHERE challenge_id=${receipt.challenge}::uuid GROUP BY field), all_fields AS (SELECT * FROM original UNION ALL SELECT * FROM verified), assembled AS (SELECT ${prefix}::bytea || COALESCE(string_agg(convert_to(','||to_json(field)::text||':','UTF8')||data,''::bytea ORDER BY field),''::bytea) || ${suffix}::bytea AS data FROM all_fields) INSERT INTO execution_completion_frames(job_id,channel,ordinal,status,frame_data,frame_hash) SELECT ${job.jobId}::uuid,${row.result_channel},${row.result_ordinal},${receipt.status},data,sha256(data) FROM assembled ON CONFLICT DO NOTHING RETURNING ordinal`,
         );
         if (!frame.rows.length) throw new Error("Completion frame conflict");
         await tx.execute(

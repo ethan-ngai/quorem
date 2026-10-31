@@ -513,6 +513,7 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
       for (const [name, source, expected] of [
         ["unordered", "SELECT id FROM items ORDER BY id DESC", "accepted"],
         ["type", "SELECT id::bigint AS id FROM items ORDER BY id DESC", "wrong_answer"],
+        ["invalid", "SELECT 1 AS id FROM generate_series(1,10001)", "invalid_output"],
       ] as const) {
         await pool.query(
           "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
@@ -533,6 +534,10 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         if (name === "type")
           expect(value.publicCases[0].diagnostics).toContainEqual({
             message: "Output column types do not match the SQL schema.",
+          });
+        if (name === "invalid")
+          expect(value.publicCases[0].diagnostics).toContainEqual({
+            message: "The query returned an invalid or unsupported result.",
           });
       }
     } finally {

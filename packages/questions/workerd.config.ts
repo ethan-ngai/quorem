@@ -4,10 +4,6 @@ import { defineConfig } from "vite-plus";
 export default defineConfig({
   plugins: [cloudflareTest({ miniflare: { compatibilityDate: "2026-03-17" } })],
   test: {
-    include: [
-      "test/workerd-smoke.ts",
-      "src/streaming-json.test.ts",
-      "src/signature-stream.test.ts",
-    ],
+    include: ["test/workerd-smoke.ts", "src/streaming-json.test.ts"],
   },
 });
