@@ -9,7 +9,8 @@ Validation from repository root:
 ```sh
 vp -C packages/questions run typecheck
 vp -C packages/questions run test
+vp env exec node packages/questions/test/node-import.mjs
 vp check --no-fmt packages/questions
 ```
 
-Four starter outputs match `fixtures/migration/public/go-oracle.json`; tests also cover documentation escaping, staged no-argument OCaml, type grammar, presets, signatures, constraints and draft limits. Tests access only public synthetic vectors. These checks use the root installed toolchain and local workspace links; the integration owner must update the root lockfile for the new package and its dependencies. SQL/case numeric precision, full authoring golden parity, runtime behavior and integration remain unverified.
+Node 24.21.0 directly imports the TypeScript entry point without Vite. Four starter outputs match `fixtures/migration/public/go-oracle.json`; tests also cover documentation escaping, staged no-argument OCaml, type grammar, presets, signatures, constraints and draft limits. Tests access only public synthetic vectors. These checks use the root installed toolchain and local workspace links; the integration owner must update the root lockfile for the new package and its dependencies. SQL/case numeric precision, full authoring golden parity, runtime behavior and integration remain unverified.

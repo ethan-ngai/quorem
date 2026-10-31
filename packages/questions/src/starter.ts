@@ -1,5 +1,5 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
-import type { Signature } from "./model";
+import type { Signature } from "./model.ts";
 
 export type StarterLanguage = "python" | "java" | "typescript" | "ocaml" | "postgresql";
 

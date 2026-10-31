@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vp test run",
+    "test": "vp test run && node test/node-import.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

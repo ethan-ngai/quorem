@@ -1,6 +1,6 @@
 /** @file constraints.ts @description Structured constraint metadata validation. @module questions */
-import type { Constraint, ConstraintTarget, Signature } from "./model";
-import { validQuestionType, validateInputConfig } from "./signature";
+import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
+import { validQuestionType, validateInputConfig } from "./signature.ts";
 
 function targetType(sig: Signature, target: ConstraintTarget): "scalar" | "sequence" | "string" {
   const type = sig.parameters

@@ -7,9 +7,9 @@ export type {
   ConstraintTarget,
   InputPresetConfig,
   ExecutionLimits,
-} from "./model";
-export { validQuestionType, validateInputConfig, validateSignature } from "./signature";
-export { validateConstraints } from "./constraints";
-export { generateStarter } from "./starter";
-export type { StarterLanguage } from "./starter";
-export { validateQuestionDraft } from "./draft";
+} from "./model.ts";
+export { validQuestionType, validateInputConfig, validateSignature } from "./signature.ts";
+export { validateConstraints } from "./constraints.ts";
+export { generateStarter } from "./starter.ts";
+export type { StarterLanguage } from "./starter.ts";
+export { validateQuestionDraft } from "./draft.ts";

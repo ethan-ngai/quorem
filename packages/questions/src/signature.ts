@@ -1,5 +1,5 @@
 /** @file signature.ts @description Signature and input preset rules. @module questions */
-import type { InputPresetConfig, Signature } from "./model";
+import type { InputPresetConfig, Signature } from "./model.ts";
 
 /** Check the recursive public value type grammar. */
 export function validQuestionType(type: string, depth = 0): boolean {

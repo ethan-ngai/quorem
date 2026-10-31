@@ -1,5 +1,5 @@
 /** @file draft.ts @description Bounded authoring draft rules. @module questions */
-import type { QuestionContent } from "./model";
+import type { QuestionContent } from "./model.ts";
 
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 const invalidUnicode = (value: string) =>
