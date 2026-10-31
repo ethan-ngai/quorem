@@ -49,7 +49,15 @@ try {
     [
       "--test",
       "--test-concurrency=1",
-      ...globSync("scripts/hono-stage*.test.mjs").sort(),
+      ...globSync("scripts/hono-stage*.test.mjs")
+        .filter(
+          (path) =>
+            ![
+              "scripts/hono-stage-database-role.test.mjs",
+              "scripts/hono-stage-recovery-inventory.test.mjs",
+            ].includes(path),
+        )
+        .sort(),
       "scripts/hono-remote-validation.test.mjs",
     ],
     {
@@ -61,6 +69,33 @@ try {
       },
     },
   );
+  execFileSync(
+    "docker",
+    ["exec", container, "createdb", "-U", "fixture", "quorem_hono_inventory_test"],
+    { stdio: "inherit" },
+  );
+  execFileSync(process.execPath, ["--test", "scripts/hono-stage-recovery-inventory.test.mjs"], {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      QUOREM_ATTEMPT_INVENTORY_TEST_URL:
+        "postgres://fixture:fixture@127.0.0.1:55598/quorem_hono_inventory_test?sslmode=disable",
+    },
+  });
+  const roleDB = "postgres://fixture:fixture@127.0.0.1:55598/quorem_hono_stage?sslmode=disable";
+  for (const [owner, dir] of [
+    ["product", "apps/api/migrations"],
+    ["auth", "apps/auth/migrations"],
+  ]) {
+    execFileSync("vp", ["exec", "node", "packages/database/src/migrate.ts", owner, dir], {
+      stdio: "inherit",
+      env: { ...process.env, DATABASE_URL: roleDB },
+    });
+  }
+  execFileSync(process.execPath, ["--test", "scripts/hono-stage-database-role.test.mjs"], {
+    stdio: "inherit",
+    env: { ...process.env, QUOREM_STAGE_ROLE_TEST_URL: roleDB },
+  });
 } catch (error) {
   failure = error;
 }

@@ -1,3 +1,4 @@
+import { provisionStageDatabaseRole, stageRoleCredentials } from "./hono-stage-database-role.mjs";
 /** First staged activation; existing database updates require a separate cutover contract. */
 import { spawnSync } from "node:child_process";
 import { createPrivateKey, createPublicKey } from "node:crypto";
@@ -165,8 +166,10 @@ function remoteProof(env) {
   command("vp", ["exec", "node", "scripts/hono-remote-validation.mjs"], child);
 }
 const defaults = {
+  roleConfig: stageRoleCredentials,
   fresh: requireFreshStageDatabase,
   migrate,
+  databaseRole: provisionStageDatabaseRole,
   images: publishImages,
   terraform,
   outputs: terraformOutputs,
@@ -264,6 +267,7 @@ export async function deployStage(original, operations = defaults) {
   } catch {
     throw new Error("Invalid staged signing keys");
   }
+  operations.roleConfig(original);
   await operations.fresh(original);
   const env = {
     ...original,
@@ -292,8 +296,9 @@ export async function deployStage(original, operations = defaults) {
     if (env.TF_VAR_case_namespace_id !== "0".repeat(64))
       await operations.probe(caseEnv, env.TF_VAR_case_namespace_id);
     await Promise.resolve(operations.terraform(env, "hono-stage", "init"));
-    await Promise.resolve(operations.terraform(env, "hono-stage", "apply"));
     await Promise.resolve(operations.migrate(original));
+    await operations.databaseRole(original);
+    await Promise.resolve(operations.terraform(env, "hono-stage", "apply"));
     const images = await Promise.resolve(operations.images(original));
     env.TF_VAR_runner_image = images.runner;
     env.TF_VAR_verifier_image = images.verifier;

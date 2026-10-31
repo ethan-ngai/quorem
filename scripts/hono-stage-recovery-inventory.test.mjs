@@ -12,7 +12,7 @@ void test(
   async () => {
     const target = new URL(url);
     assert.equal(target.hostname, "127.0.0.1");
-    assert.equal(target.port, "55599");
+    assert.ok(["55598", "55599"].includes(target.port));
     assert.equal(target.pathname, "/quorem_hono_inventory_test");
     const db = new Client({ connectionString: url });
     await db.connect();
