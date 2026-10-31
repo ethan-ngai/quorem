@@ -7,6 +7,7 @@ async function get(path) {
   return response.json();
 }
 assert.equal((await get('/')).present, 0);
+assert.deepEqual(await get('/full'), {assigned:null,closed:true});
 assert.equal((await get('/rollback')).count, 0);
 assert.equal((await get('/timeout')).kind, 'query_cancelled');
 for (const path of ['/error', '/abort']) {

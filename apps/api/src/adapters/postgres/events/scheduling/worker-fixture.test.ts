@@ -12,7 +12,12 @@ export class DeadlineCoordinator extends DurableObject {
   ) {
     super(state, env);
     const url = new URL(env.SCHEDULING_DATABASE_URL);
-    if (url.port !== "55453" || url.pathname !== "/quorem_hono_scheduling_test")
+    if (
+      !["postgres:", "postgresql:"].includes(url.protocol) ||
+      !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ||
+      url.searchParams.has("host") ||
+      url.pathname !== "/quorem_hono_scheduling_test"
+    )
       throw new Error("Disposable database required");
     const run = <T>(fn: Parameters<typeof withWorkerConnection<T>>[2]) =>
       withWorkerConnection(

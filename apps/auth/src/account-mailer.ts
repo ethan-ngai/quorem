@@ -1,34 +1,23 @@
-import { APIError } from "better-auth/api";
-import type { Pool } from "pg";
-import type { VerificationSender } from "./email-delivery.ts";
-import { takeRateLimit } from "./rate-limit.ts";
+/** @file account-mailer.ts @description Account verification mail gateway. @module auth */
+import { APIError } from 'better-auth/api';
+import type { VerificationSender } from './email-delivery.ts';
+import { MailRateLimited } from './mail-repository.ts';
+import { MailRejected, MailUncertain, type MailIntentService } from './mail-intent.ts';
 
-/** Shared delivery budgets also cover verification emails triggered by clicking links. */
-export function accountMailer(database: Pool, deliver: VerificationSender) {
-  return async (email: string, url: string, subject: string, instruction: string) => {
-    const client = await database.connect();
+export function accountMailer(mail: MailIntentService) {
+  return async (email: string, url: string, subject: string, instruction: string): Promise<void> => {
     try {
-      await client.query("BEGIN");
-      for (const [scope, key, policy] of [
-        ["email:account:cooldown", email.toLowerCase(), { limit: 1, seconds: 60 }],
-        ["email:account:hour", email.toLowerCase(), { limit: 5, seconds: 3600 }],
-        ["email:account:global", "global", { limit: 100, seconds: 3600 }],
-      ] as const) {
-        const limit = await takeRateLimit(client, scope, key, policy);
-        if (!limit.allowed)
-          throw new APIError(
-            "TOO_MANY_REQUESTS",
-            { message: `Try again in ${limit.retryAfter} seconds.` },
-            { "Retry-After": String(limit.retryAfter) },
-          );
-      }
-      await deliver(email, url, { subject, instruction });
-      await client.query("COMMIT");
+      const result = await mail.create('account', { email: email.toLowerCase(), url, subject, instruction });
+      if (result === 'rejected') throw new MailRejected('Mail rejected');
+      if (result === 'uncertain') throw new MailUncertain('Mail acceptance uncertain');
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (error instanceof MailRateLimited) throw new APIError('TOO_MANY_REQUESTS', { message: `Try again in ${error.retryAfter} seconds.` }, { 'Retry-After': String(error.retryAfter) });
       throw error;
-    } finally {
-      client.release();
     }
   };
+}
+
+export function accountVerificationSender(mail: MailIntentService): VerificationSender {
+  const send = accountMailer(mail);
+  return (email, url, message) => send(email, url, message?.subject ?? 'Verify your Quorem email', message?.instruction ?? 'Verify your email to continue setting up your Quorem account:');
 }

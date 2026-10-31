@@ -207,9 +207,9 @@ describe.skipIf(!databaseURL)("profile with real Better Auth session", () => {
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal",
     });
-    const { database, config } = await import("./database");
+    const runtime = await (await import("./node-auth")).createNodeRuntime(process.env);
+    const { database, config, auth } = runtime;
     await migrateAuth(database);
-    const { auth } = await import("./auth");
     const id = randomUUID(),
       sessionId = randomUUID(),
       token = randomUUID();

@@ -9,7 +9,12 @@ import {
 } from "../../../../modules/events/scheduling/scheduling.ts";
 const url = process.env.QUOREM_SCHEDULING_TEST_DATABASE_URL!;
 const parsed = new URL(url);
-if (parsed.port !== "55453" || parsed.pathname !== "/quorem_hono_scheduling_test")
+if (
+  !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+  !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) ||
+  parsed.searchParams.has("host") ||
+  parsed.pathname !== "/quorem_hono_scheduling_test"
+)
   throw new Error("Disposable database required");
 const pool = createNodePool({
   connectionString: url,
@@ -64,6 +69,37 @@ describe("deadline scheduling with PostgreSQL", () => {
     expect((await pool.query("SELECT state FROM matches WHERE id=$1", [match])).rows[0].state).toBe(
       "waiting",
     );
+  });
+  it("keeps deadline and execution receipt ownership separate", async () => {
+    const execution = prearmReceipts(run, "execution"),
+      deadline = prearmReceipts(run, "deadline");
+    const a = crypto.randomUUID(),
+      b = crypto.randomUUID(),
+      shard = 39;
+    try {
+      await execution.create(a, shard);
+      await deadline.create(b, shard);
+      await run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+          consumePrearm(tx, a, shard, "execution"),
+        ),
+      );
+      await deadline.acknowledge(a);
+      expect(await execution.settle(a)).toBe("committed");
+      expect(await deadline.settle(a)).toBe("abandoned");
+      expect(await execution.list(shard)).toContain(a);
+      expect(await execution.list(shard)).not.toContain(b);
+      expect(await deadline.list(shard)).toContain(b);
+      await expect(
+        run((scope) =>
+          scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+            consumePrearm(tx, b, shard, "execution"),
+          ),
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await pool.query("DELETE FROM deadline_prearms WHERE id=ANY($1::uuid[])", [[a, b]]);
+    }
   });
   it("locks receipt through commit; expiry cleanup cannot erase a delayed commit", async () => {
     const id = crypto.randomUUID();

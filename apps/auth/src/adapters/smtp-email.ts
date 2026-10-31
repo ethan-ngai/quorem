@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import type { EmailDelivery } from "../email-delivery.ts";
+import { MailRejected, type EmailDelivery } from "../email-delivery.ts";
 export type SMTPConfiguration = {
   host: string;
   port: number;
@@ -28,7 +28,9 @@ export function smtpEmail(config: SMTPConfiguration): EmailDelivery & { verify()
     async send(message) {
       try {
         await transport.sendMail({ from, ...message });
-      } catch {
+      } catch (error) {
+        if (typeof error === "object" && error !== null && "responseCode" in error && typeof error.responseCode === "number" && error.responseCode >= 400 && error.responseCode < 600)
+          throw new MailRejected("Email delivery rejected");
         throw new Error("Email delivery unavailable");
       }
     },
