@@ -9,7 +9,7 @@ import {
 } from "@quorem/execution";
 import { savePrivateResultFrame } from "../../interviews/question/private-frame.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
-import { advanceOdyssey, validateSubmit } from "./complete.ts";
+import { advanceOdyssey } from "./complete.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -50,19 +50,14 @@ export function postgresCompletionPromotion(run: Run) {
             cases: number;
             interview: boolean;
             attempts: number;
+            samples: number;
+            fallback: boolean;
           }>(
-            sql`SELECT NOT j.finished AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND j.lease_until>clock_timestamp() AND s.state='running' AS live,s.cancel_requested AS cancelled,s.kind,jsonb_array_length(s.cases)::int AS cases,s.interview_id IS NOT NULL AS interview,j.attempts FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
+            sql`SELECT NOT j.finished AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND j.lease_until>clock_timestamp() AND s.state='running' AS live,s.cancel_requested AS cancelled,s.kind,i.case_count AS cases,i.sample_count AS samples,i.submit_cases_are_samples AS fallback,s.interview_id IS NOT NULL AS interview,j.attempts FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN runner_job_inputs i ON i.job_id=j.id AND i.sealed WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
           )
         ).rows[0];
         if (!state?.live || !staged.eof) throw new Error("Stale or incomplete completion");
         const header = JSON.parse(decoder.decode(staged.header)) as CompletionHeader;
-        if (
-          !state.cancelled &&
-          !header.engineFailure &&
-          (await tx.execute(sql`SELECT 1 FROM runner_job_inputs WHERE job_id=${job.jobId}::uuid`))
-            .rows.length
-        )
-          throw new Error("Manifest result verification unavailable");
         if (initial.match) await reconcileMatch(tx, initial.match);
         if (!state.cancelled && header.engineFailure && state.attempts < 3) {
           await tx.execute(
@@ -84,77 +79,89 @@ export function postgresCompletionPromotion(run: Run) {
           : header.engineFailure
             ? "failed"
             : "completed";
-        if (terminal === "completed" && state.kind === "submit") {
-          validateSubmit({ ...header, engineFailure: undefined }, state.cases);
+        const channel = state.kind === "submit" ? "sample" : "public";
+        const count =
+          state.fallback && state.kind === "submit"
+            ? state.cases
+            : channel === "sample"
+              ? header.sampleCount
+              : header.publicCount;
+        const present =
+          state.fallback && state.kind === "submit"
+            ? state.cases > 0
+            : channel === "sample"
+              ? header.samplePresent
+              : header.publicPresent;
+        let verdict: string | undefined;
+        let passed = 0;
+        if (terminal === "completed") {
+          const sampleCount = state.fallback ? 0 : state.samples;
           if (
-            header.publicPresent ||
-            (header.privatePresent && !state.interview) ||
-            (header.privateCount && (!state.interview || header.privateCount !== state.cases))
+            (state.kind === "run" &&
+              (header.publicCount !== state.cases || header.privateCount || header.sampleCount)) ||
+            (state.kind === "submit" &&
+              (header.publicCount ||
+                header.privateCount !== state.cases ||
+                header.sampleCount !== sampleCount)) ||
+            (state.kind !== "run" && state.kind !== "submit") ||
+            (state.kind === "submit" && state.cases < 1)
           )
             throw new Error("Invalid completion channels");
-          if (header.sampleCount) {
-            const samples = (
-              await tx.execute<{ count: number }>(
-                sql`SELECT CASE WHEN COALESCE(q.fixture->'problem'->'odyssey',v.odyssey) IS NULL THEN COALESCE(jsonb_array_length(q.fixture->'problem'->'examples'),(SELECT count(*)::int FROM problem_examples WHERE version_id=v.id)) ELSE COALESCE((SELECT sum(jsonb_array_length(level->'examples')) FROM jsonb_array_elements(COALESCE(q.fixture->'problem'->'odyssey',v.odyssey)->'levels') WITH ORDINALITY st(level,n) WHERE n<=COALESCE(ie.level,s.odyssey_level)),0) END::int AS count FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=${job.submissionId}::uuid`,
-              )
-            ).rows[0]?.count;
-            if (samples !== header.sampleCount) throw new Error("Incomplete sample results");
-          }
-        }
-        if (
-          terminal === "completed" &&
-          state.kind === "run" &&
-          (header.samplePresent || header.privatePresent)
-        )
-          throw new Error("Invalid completion channels");
-        const channel = state.kind === "submit" ? "sample" : "public";
-        const count = channel === "sample" ? header.sampleCount : header.publicCount;
-        const present = channel === "sample" ? header.samplePresent : header.publicPresent;
-        const summary: { index: number; status: string }[] = [];
-        if (terminal === "completed") {
-          for (let ordinal = 0; ordinal < count; ordinal++) {
-            const row = (
-              await tx.execute<{ status: string }>(
-                sql`SELECT status FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${ordinal}`,
-              )
-            ).rows[0];
-            if (!row) throw new Error("Incomplete completion");
-            summary.push({ index: ordinal, status: row.status });
-          }
+          const coverage = (
+            await tx.execute<{
+              total: number;
+              verified: number;
+              matched: number;
+              passed: number;
+              unresolved: number;
+              failure: string | null;
+            }>(sql`
+            SELECT count(c.ordinal)::int AS total,count(v.ordinal)::int AS verified,
+              count(v.ordinal) FILTER (WHERE f.status=v.status)::int AS matched,
+              count(v.ordinal) FILTER (WHERE c.ordinal<i.case_count AND v.status='accepted')::int AS passed,
+              count(v.ordinal) FILTER (WHERE c.ordinal<i.case_count AND v.status='executed')::int AS unresolved,
+              (SELECT x.status FROM execution_verified_cases x WHERE x.job_id=i.job_id AND x.attempt_id=${job.attemptId}::uuid AND x.sandbox_scope=${job.sandboxScope} AND x.ordinal<i.case_count AND x.status NOT IN ('accepted','executed') ORDER BY x.ordinal LIMIT 1) AS failure
+            FROM runner_job_inputs i JOIN runner_job_input_cases c ON c.job_id=i.job_id
+            LEFT JOIN execution_verified_cases v ON v.job_id=c.job_id AND v.ordinal=c.ordinal AND v.attempt_id=${job.attemptId}::uuid AND v.sandbox_scope=${job.sandboxScope}
+            LEFT JOIN execution_completion_frames f ON f.job_id=c.job_id AND f.channel=CASE WHEN c.ordinal>=i.case_count THEN 'sample' WHEN ${state.kind}='run' THEN 'public' ELSE 'private' END AND f.ordinal=CASE WHEN c.ordinal>=i.case_count THEN c.ordinal-i.case_count ELSE c.ordinal END
+            WHERE i.job_id=${job.jobId}::uuid AND i.sealed GROUP BY i.job_id,i.case_count`)
+          ).rows[0];
+          const total = state.cases + sampleCount;
           if (
-            state.kind === "run" &&
-            header.verdict === "accepted" &&
-            summary.some((item) => item.status !== "accepted")
+            !coverage ||
+            coverage.total !== total ||
+            coverage.verified !== total ||
+            coverage.matched !== total
           )
-            throw new Error("Verdict conflicts with case results");
+            throw new Error("Manifest result verification unavailable");
+          if (state.kind === "submit" && coverage.unresolved)
+            throw new Error("Unresolved private result");
+          passed = coverage.passed;
+          verdict = coverage.failure ?? (coverage.unresolved ? undefined : "accepted");
           await tx.execute(
-            sql`INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT ${job.submissionId}::uuid,channel,ordinal,frame_data FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${channel}`,
+            sql`INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT ${job.submissionId}::uuid,${channel},ordinal,frame_data FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${state.fallback && state.kind === "submit" ? "private" : channel}`,
           );
-          const privateSummary: { index: number; status: string }[] = [];
-          for (let i = 0; i < header.privateCount; i++) {
-            const row = (
-              await tx.execute<{ status: string }>(
-                sql`SELECT status FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private' AND ordinal=${i}`,
-              )
-            ).rows[0];
-            if (!row) throw new Error("Incomplete private results");
-            privateSummary.push({ index: i, status: row.status });
-            await savePrivateResultFrame(
-              tx,
-              job.submissionId,
-              job.jobId,
-              job.attemptId,
-              job.sandboxScope,
-              i,
+          if (state.interview) {
+            for (let ordinal = 0; ordinal < state.cases; ordinal++)
+              await savePrivateResultFrame(
+                tx,
+                job.submissionId,
+                job.jobId,
+                job.attemptId,
+                job.sandboxScope,
+                ordinal,
+              );
+            await tx.execute(
+              sql`UPDATE interview_execution SET private_results=COALESCE((SELECT jsonb_agg(jsonb_build_object('index',ordinal,'status',status) ORDER BY ordinal) FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private'),'[]'::jsonb),private_results_payload=NULL WHERE submission_id=${job.submissionId}::uuid`,
             );
           }
-          if (header.privatePresent)
-            await tx.execute(
-              sql`UPDATE interview_execution SET private_results=${JSON.stringify(privateSummary)}::jsonb,private_results_payload=NULL WHERE submission_id=${job.submissionId}::uuid`,
-            );
-          if (state.kind === "submit" && header.verdict === "accepted")
+          if (state.kind === "submit" && verdict === "accepted")
             await advanceOdyssey(tx, job.submissionId);
         }
+        const score =
+          terminal === "completed" && state.kind === "submit"
+            ? { passed, total: state.cases }
+            : undefined;
         const resultHeader =
           terminal === "failed"
             ? {
@@ -166,9 +173,10 @@ export function postgresCompletionPromotion(run: Run) {
             : terminal === "cancelled"
               ? { publicCasesPresent: false, publicCaseCount: 0, channel }
               : {
-                  verdict: header.verdict,
-                  score: state.kind === "submit" ? header.score : undefined,
-                  hiddenCases: state.kind === "submit" ? header.hiddenCases : undefined,
+                  verdict,
+                  score,
+                  hiddenCasesPresent: state.kind === "submit",
+                  hiddenCaseCount: state.kind === "submit" ? state.cases : undefined,
                   diagnosticsPresent: state.kind === "run" && header.diagnosticsPresent,
                   publicCasesPresent: present,
                   publicCaseCount: count,
@@ -179,12 +187,7 @@ export function postgresCompletionPromotion(run: Run) {
             ? { infrastructureError: "Judge unavailable" }
             : terminal === "cancelled"
               ? {}
-              : {
-                  verdict: header.verdict,
-                  score: state.kind === "submit" ? header.score : undefined,
-                  hiddenCases: state.kind === "submit" ? header.hiddenCases : undefined,
-                  publicCases: present ? summary : undefined,
-                };
+              : { verdict, score };
         await tx.execute(sql`SELECT set_config('quorem.lossless_result_write','v1',true)`);
         await tx.execute(
           sql`INSERT INTO submission_result_headers(submission_id,header_data) VALUES(${job.submissionId}::uuid,${encoder.encode(JSON.stringify(resultHeader))})`,
@@ -193,6 +196,18 @@ export function postgresCompletionPromotion(run: Run) {
           await tx.execute(
             sql`INSERT INTO submission_result_header_fields(submission_id,field,field_data) SELECT ${job.submissionId}::uuid,field,field_data FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid AND field='diagnostics'`,
           );
+        if (terminal === "completed" && state.kind === "submit")
+          await tx.execute(
+            sql`INSERT INTO submission_result_header_fields(submission_id,field,field_data) SELECT ${job.submissionId}::uuid,'hiddenCases',convert_to('['||COALESCE(string_agg(json_build_object('index',ordinal,'status',CASE WHEN status='accepted' THEN 'accepted' WHEN status='time_limit' THEN 'time_limit' ELSE 'wrong_answer' END)::text,',' ORDER BY ordinal),'')||']','UTF8') FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private'`,
+          );
+        if (
+          !(
+            await tx.execute<{ live: boolean }>(
+              sql`SELECT lease_until>clock_timestamp() AS live FROM execution_jobs WHERE id=${job.jobId}::uuid`,
+            )
+          ).rows[0]?.live
+        )
+          throw new Error("Stale completion");
         await tx.execute(
           sql`UPDATE submissions SET state=${terminal},result=${JSON.stringify(safe)}::jsonb,result_payload=NULL,updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
         );

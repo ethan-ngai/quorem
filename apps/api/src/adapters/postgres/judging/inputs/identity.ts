@@ -16,7 +16,7 @@ export async function manifestCaseIdentity(
   jobId: string,
   ordinal: number,
 ): Promise<ManifestCaseIdentity> {
-  if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal > 319)
+  if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal > 2147483646)
     throw new Error("Invalid input ordinal");
   const row = (
     await tx.execute<{
@@ -52,7 +52,7 @@ export async function manifestCasePage(
   if (
     !Number.isInteger(ordinal) ||
     ordinal < 0 ||
-    ordinal > 319 ||
+    ordinal > 2147483646 ||
     !Number.isSafeInteger(offset) ||
     offset < 0 ||
     offset > 1073741823

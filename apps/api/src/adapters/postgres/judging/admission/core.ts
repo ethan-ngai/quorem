@@ -6,10 +6,9 @@ import { ApplicationError } from "../../../../application/error.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { insertExecutionIntent } from "../../events/dispatch.ts";
 import {
-  fixtureCaseRefs,
+  fixtureRows,
   storeCustomInput,
   type FixtureOwner,
-  type SelectedInputRef,
   type bindJobInputs,
 } from "../inputs/bind.ts";
 
@@ -127,30 +126,27 @@ export async function prepareExecutionInputs(
         );
   if (!sealed.rows.length)
     throw new ApplicationError("temporarily_unavailable", "Execution fixture unavailable", 503);
-  const examples =
-    custom && kind === "run" ? [] : await fixtureCaseRefs(tx, owner, "example", level);
-  const hidden = kind === "submit" ? await fixtureCaseRefs(tx, owner, "hidden", level) : [];
-  const fallback = interview && kind === "submit" && !odyssey && hidden.length === 0;
-  let refs: SelectedInputRef[];
-  if (custom) {
-    refs = [];
-    for (const raw of custom)
-      refs.push({ channel: "public", hash: await storeCustomInput(tx, raw) });
-  } else
-    refs = (kind === "run" || fallback ? examples : hidden).map((ref) => ({
-      channel: kind === "submit" && !fallback ? "private" : "public",
-      hash: ref.hash,
-    }));
-  if (interview && refs.length === 0)
+  const counts = (
+    await tx.execute<{ examples: string; hidden: string }>(
+      sql`SELECT count(*) FILTER (WHERE channel='example')::text AS examples,count(*) FILTER (WHERE channel='hidden')::text AS hidden FROM (${fixtureRows(owner, level)}) f`,
+    )
+  ).rows[0];
+  const examples = Number(counts.examples),
+    hidden = Number(counts.hidden);
+  const fallback = interview && kind === "submit" && !odyssey && hidden === 0;
+  const primary = custom ? "custom" : kind === "run" || fallback ? "example" : "hidden";
+  const customHashes: Uint8Array[] = [];
+  if (custom) for (const raw of custom) customHashes.push(await storeCustomInput(tx, raw));
+  const caseCount =
+    primary === "custom" ? customHashes.length : primary === "example" ? examples : hidden;
+  if (interview && caseCount === 0)
     throw new ApplicationError("invalid_input", "No tests configured", 400);
-  const samples = kind === "submit" ? examples : [];
   return {
-    cases: [
-      ...refs,
-      ...(fallback ? [] : samples.map((ref) => ({ channel: "sample" as const, hash: ref.hash }))),
-    ],
-    caseCount: refs.length,
-    sampleCount: samples.length,
+    level,
+    primary,
+    custom: customHashes,
+    caseCount,
+    sampleCount: kind === "submit" ? examples : 0,
     privateDetails: interview,
     submitCasesAreSamples: fallback,
   };

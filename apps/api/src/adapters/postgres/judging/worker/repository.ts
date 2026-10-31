@@ -10,17 +10,25 @@ import { postgresCompletionPromotion } from "./promote.ts";
 import { postgresCheckpoints } from "./checkpoints.ts";
 import { postgresInputReader } from "../inputs/read.ts";
 import { postgresExecutionLoad } from "./load.ts";
+import type { ResultVerifier } from "./verification-client.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 /** Private command owner; runner callers never receive a database handle. */
 export function postgresExecutionCommands(
   run: Run,
   capabilities: RunnerCapabilities,
+  verification: { verifier: ResultVerifier; verificationPublicKey: CryptoKey },
 ): ExecutionRepository & ExecutionQueueControl & ExecutionInputReader {
+  if (
+    !verification?.verifier ||
+    verification.verificationPublicKey?.algorithm.name !== "Ed25519" ||
+    verification.verificationPublicKey.type !== "public"
+  )
+    throw new Error("Result verifier required");
   const cap = Object.freeze({ ...capabilities }),
     claims = postgresClaims(run, cap),
     checkpoints = postgresCheckpoints(run),
-    staging = postgresCompletionStaging(run);
+    staging = postgresCompletionStaging(run, verification);
   const resumable = () => {
     if (!cap.resumable) throw new Error("Checkpoint capability unavailable");
   };

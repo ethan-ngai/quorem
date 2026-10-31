@@ -6,11 +6,11 @@ import {
   type CompletionHeader,
   type Job,
   assertAttemptFence,
-  encodeCompletion,
 } from "@quorem/execution";
-import { postgresExecutionLoad } from "./load.ts";
 import { validateFieldChunks } from "./field-validation.ts";
-import { deriveResult } from "./provenance.ts";
+import type { ResultVerifier } from "./verification-client.ts";
+import { postgresVerificationPrepare } from "./verification-prepare.ts";
+import { postgresVerificationCommit } from "./verification-commit.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const encoder = new TextEncoder();
@@ -19,7 +19,7 @@ async function digest(data: Uint8Array): Promise<Uint8Array> {
 }
 function counts(header: CompletionHeader): void {
   for (const count of [header.publicCount, header.sampleCount, header.privateCount])
-    if (!Number.isInteger(count) || count < 0 || count > 320)
+    if (!Number.isInteger(count) || count < 0 || count > 2147483647)
       throw new Error("Invalid result count");
   if (
     typeof header.engineFailure !== "boolean" ||
@@ -32,7 +32,7 @@ function counts(header: CompletionHeader): void {
     (!header.privatePresent && header.privateCount !== 0)
   )
     throw new Error("Invalid result presence");
-  if (header.hiddenCases && header.hiddenCases.length > 320)
+  if (header.hiddenCases && header.hiddenCases.length > 2147483647)
     throw new Error("Invalid hidden case count");
 }
 async function locked(tx: Transaction, job: Job): Promise<boolean> {
@@ -46,7 +46,10 @@ async function locked(tx: Transaction, job: Job): Promise<boolean> {
     )
   ).rows[0]?.live;
 }
-export function postgresCompletionStaging(run: Run) {
+export function postgresCompletionStaging(
+  run: Run,
+  verification?: { verifier: ResultVerifier; verificationPublicKey: CryptoKey },
+) {
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, f));
   return {
@@ -79,52 +82,18 @@ export function postgresCompletionStaging(run: Run) {
         !["public", "sample", "private"].includes(channel) ||
         !Number.isInteger(ordinal) ||
         ordinal < 0 ||
-        ordinal >= 320
+        ordinal > 2147483646
       )
         throw new Error("Invalid result frame");
-      const spec = await postgresExecutionLoad(run, true)(job);
-      const problem = JSON.parse(spec.problemJson) as { limits?: { outputBytes?: number } };
-      const outputLimit = problem.limits?.outputBytes;
-      if (!Number.isSafeInteger(outputLimit) || outputLimit! < 1)
-        throw new Error("Invalid persisted output limit");
-      await transact(async (tx) => {
-        if (!(await locked(tx, job))) throw new Error("Stale completion");
-        const stage = (
-          await tx.execute<{ eof: boolean }>(
-            sql`SELECT eof FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
-          )
-        ).rows[0];
-        if (!stage || stage.eof) throw new Error("Completion stream closed");
-        await validateFieldChunks(tx, job.jobId, channel, ordinal, outputLimit!);
-        const selected = await tx.execute<{ field: string; raw: string | null }>(
-          sql`WITH grouped AS (SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${ordinal} AND field IN ('actual','sqlTypes') GROUP BY field) SELECT field,CASE WHEN octet_length(data)<=${outputLimit! * 6 + 1024} THEN convert_from(data,'UTF8') ELSE NULL END AS raw FROM grouped`,
-        );
-        const values = new Map(selected.rows.map((row) => [row.field, row.raw]));
-        if (selected.rows.some((row) => row.raw === null))
-          throw new Error("Result field exceeds sandbox frame bound");
-        const typesRaw = values.get("sqlTypes");
-        const types: unknown = typesRaw === undefined ? [] : JSON.parse(typesRaw!);
-        if (!Array.isArray(types) || types.some((type) => typeof type !== "string"))
-          throw new Error("Invalid SQL types");
-        const derived = deriveResult(
-          spec,
-          channel,
-          ordinal,
-          status,
-          values.get("actual") ?? undefined,
-          types as string[],
-        );
-        const prefix = encoder.encode(
-          `{"index":${ordinal},"status":${JSON.stringify(derived.status)}`,
-        );
-        const suffix = encoder.encode(
-          `${derived.actual === undefined ? "" : `,"actual":${derived.actual}`}${derived.expected === undefined ? "" : `,"expected":${derived.expected}`}}`,
-        );
-        const result = await tx.execute(
-          sql`WITH grouped AS (SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${ordinal} AND field IN ('stdout','stderr','diagnostics','sqlTypes') GROUP BY field), assembled AS (SELECT ${prefix}::bytea || COALESCE(string_agg(convert_to(','||to_json(field)::text||':','UTF8')||data,''::bytea ORDER BY field),''::bytea) || ${suffix}::bytea AS data FROM grouped) INSERT INTO execution_completion_frames(job_id,channel,ordinal,status,frame_data,frame_hash) SELECT ${job.jobId}::uuid,${channel},${ordinal},${derived.status},data,sha256(data) FROM assembled ON CONFLICT(job_id,channel,ordinal) DO UPDATE SET frame_data=EXCLUDED.frame_data WHERE execution_completion_frames.status=EXCLUDED.status AND execution_completion_frames.frame_hash=EXCLUDED.frame_hash AND execution_completion_frames.frame_data=EXCLUDED.frame_data RETURNING ordinal`,
-        );
-        if (!result.rows.length) throw new Error("Completion frame conflict");
-      });
+      if (!verification) throw new Error("Result verifier unavailable");
+      const challenge = await postgresVerificationPrepare(run)(job, channel, ordinal, status);
+      const signed = await verification.verifier.verify(challenge);
+      if (signed.receipt.challenge !== challenge)
+        throw new Error("Verification challenge mismatch");
+      await postgresVerificationCommit(run, verification.verificationPublicKey)(
+        signed.receipt,
+        signed.signature,
+      );
     },
     async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
       if (
@@ -134,7 +103,7 @@ export function postgresCompletionStaging(run: Run) {
         ) ||
         !Number.isInteger(item.ordinal) ||
         item.ordinal < 0 ||
-        item.ordinal >= 320 ||
+        item.ordinal > 2147483646 ||
         !Number.isSafeInteger(item.chunkOrdinal) ||
         item.chunkOrdinal < 0 ||
         item.bytes.length < 1 ||
@@ -153,7 +122,7 @@ export function postgresCompletionStaging(run: Run) {
         if (
           (item.channel === "public" && stage.kind !== "run") ||
           (item.channel === "sample" && stage.kind !== "submit") ||
-          (item.channel === "private" && (stage.kind !== "submit" || !stage.interview))
+          (item.channel === "private" && stage.kind !== "submit")
         )
           throw new Error("Invalid completion channel");
         const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
@@ -180,7 +149,7 @@ export function postgresCompletionStaging(run: Run) {
               ).rows.length > 0
             : (
                 await tx.execute(
-                  sql`SELECT 1 FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal}`,
+                  sql`SELECT 1 FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal} UNION ALL SELECT 1 FROM execution_verification_challenges WHERE job_id=${job.jobId}::uuid AND result_channel=${item.channel} AND result_ordinal=${item.ordinal}`,
                 )
               ).rows.length > 0;
         if (sealed) {
@@ -209,19 +178,10 @@ export function postgresCompletionStaging(run: Run) {
       if (header.submissionId !== job.submissionId || header.attemptId !== job.attemptId)
         throw new Error("Completion fence mismatch");
       counts(header);
-      const canonical = JSON.parse(
-        encodeCompletion({
-          submissionId: header.submissionId,
-          attemptId: header.attemptId,
-          verdict: header.verdict,
-          score: header.score,
-          hiddenCases: header.hiddenCases,
-          engineFailure: header.engineFailure ? "failed" : undefined,
-        }),
-      ) as Record<string, unknown>;
       const bytes = encoder.encode(
           JSON.stringify({
-            ...canonical,
+            submissionId: header.submissionId,
+            attemptId: header.attemptId,
             engineFailure: header.engineFailure,
             diagnosticsPresent: header.diagnosticsPresent,
             publicPresent: header.publicPresent,
@@ -236,8 +196,8 @@ export function postgresCompletionStaging(run: Run) {
       await transact(async (tx) => {
         if (!(await locked(tx, job))) throw new Error("Stale completion");
         const context = (
-          await tx.execute<{ kind: string; cases: number; interview: boolean; samples: number }>(
-            sql`SELECT s.kind,jsonb_array_length(s.cases)::int AS cases,s.interview_id IS NOT NULL AS interview,CASE WHEN COALESCE(q.fixture->'problem'->'odyssey',v.odyssey) IS NULL THEN COALESCE(jsonb_array_length(q.fixture->'problem'->'examples'),(SELECT count(*)::int FROM problem_examples WHERE version_id=v.id)) ELSE COALESCE((SELECT sum(jsonb_array_length(level->'examples')) FROM jsonb_array_elements(COALESCE(q.fixture->'problem'->'odyssey',v.odyssey)->'levels') WITH ORDINALITY st(level,n) WHERE n<=COALESCE(ie.level,s.odyssey_level)),0) END::int AS samples FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=${job.submissionId}::uuid`,
+          await tx.execute<{ kind: string; cases: number; samples: number; fallback: boolean }>(
+            sql`SELECT s.kind,i.case_count AS cases,i.sample_count AS samples,i.submit_cases_are_samples AS fallback FROM submissions s JOIN execution_jobs j ON j.submission_id=s.id JOIN runner_job_inputs i ON i.job_id=j.id AND i.sealed WHERE s.id=${job.submissionId}::uuid AND j.id=${job.jobId}::uuid`,
           )
         ).rows[0];
         if (
@@ -248,10 +208,9 @@ export function postgresCompletionStaging(run: Run) {
               (header.publicCount !== 0 && header.publicCount !== context.cases))) ||
           (context.kind === "submit" &&
             (header.publicPresent ||
-              (header.privatePresent && !context.interview) ||
-              (header.sampleCount !== 0 && header.sampleCount !== context.samples) ||
-              (header.privateCount !== 0 &&
-                (!context.interview || header.privateCount !== context.cases))))
+              (header.sampleCount !== 0 &&
+                (context.fallback || header.sampleCount !== context.samples)) ||
+              (header.privateCount !== 0 && header.privateCount !== context.cases)))
         )
           throw new Error("Invalid completion provenance");
         const existing = (

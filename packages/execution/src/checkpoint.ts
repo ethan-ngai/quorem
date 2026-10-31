@@ -2,13 +2,13 @@
 import { parseLosslessJson } from "@quorem/questions";
 import type { Checkpoint, CheckpointCase } from "./contracts.ts";
 import { decodeObject, intField, rawFields } from "./wire.ts";
-import { decodeCheckpointFrame } from "./checkpoint-provenance.ts";
+import { decodeManifestCheckpointFrame } from "./manifest-checkpoint.ts";
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
 function validate(value: CheckpointCase, bound = true): void {
   if (
     !Number.isInteger(value.ordinal) ||
     value.ordinal < 0 ||
-    value.ordinal >= 320 ||
+    value.ordinal > 2147483646 ||
     value.compilationNanos < 0n ||
     value.compilationNanos > 120000000000n
   )
@@ -27,7 +27,7 @@ function validate(value: CheckpointCase, bound = true): void {
     }
   }
   if (bound) {
-    if (decodeCheckpointFrame(value.frame).provenance.ordinal !== value.ordinal)
+    if (decodeManifestCheckpointFrame(value.frame).provenance.ordinal !== value.ordinal)
       throw new Error("checkpoint ordinal mismatch");
     const raw = rawFields(value.frame).get("frame");
     if (!raw || byteLength(raw) > 2 << 20) throw new Error("checkpoint frame exceeded");
@@ -47,7 +47,7 @@ export function decodeCheckpointCase(json: string): CheckpointCase {
     fatal = fields.get("Fatal");
   if (frame === undefined) throw new Error("invalid checkpoint");
   const value: CheckpointCase = {
-    ordinal: Number(intField(obj, "Ordinal", 0n, 319n)),
+    ordinal: Number(intField(obj, "Ordinal", 0n, 2147483646n)),
     frame,
     artifact: artifact === "null" ? undefined : artifact,
     compilationNanos: intField(obj, "CompilationNanos", 0n, 120000000000n),
@@ -59,7 +59,11 @@ export function decodeCheckpointCase(json: string): CheckpointCase {
 
 /** Encode checkpoint metadata using the existing Go struct field names. */
 export function encodeCheckpoint(value: Checkpoint): string {
-  if (!Number.isInteger(value.nextOrdinal) || value.nextOrdinal < 0 || value.nextOrdinal > 320)
+  if (
+    !Number.isInteger(value.nextOrdinal) ||
+    value.nextOrdinal < 0 ||
+    value.nextOrdinal > 2147483647
+  )
     throw new Error("invalid checkpoint");
   validate(
     {
@@ -80,7 +84,7 @@ export function decodeCheckpoint(json: string): Checkpoint {
     artifact = fields.get("Artifact"),
     fatal = fields.get("Fatal");
   const value: Checkpoint = {
-    nextOrdinal: Number(intField(obj, "NextOrdinal", 0n, 320n)),
+    nextOrdinal: Number(intField(obj, "NextOrdinal", 0n, 2147483647n)),
     artifact: artifact === "null" ? undefined : artifact,
     compilationNanos: intField(obj, "CompilationNanos", 0n, 120000000000n),
     fatal: fatal === "null" ? undefined : fatal,

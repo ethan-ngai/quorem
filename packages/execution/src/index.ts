@@ -64,3 +64,5 @@ export {
   assertManifestCheckpoint,
 } from "./manifest-checkpoint.ts";
 export type { ManifestCheckpointProvenance } from "./manifest-checkpoint.ts";
+export { verificationReceiptBytes, verifyResultReceipt } from "./verification-receipt.ts";
+export type { VerificationReceipt } from "./verification-receipt.ts";

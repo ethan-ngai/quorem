@@ -34,3 +34,6 @@ export {
   readAllowedObjectSpans,
 } from "./streaming-json.ts";
 export type { JsonSpan as StreamingJsonSpan } from "./streaming-json.ts";
+
+export { signaturePolicy } from "./signature-stream.ts";
+export type { JsonRangeSource } from "./signature-stream.ts";

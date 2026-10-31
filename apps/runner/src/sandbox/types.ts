@@ -34,7 +34,7 @@ export function validateCaseRequest(request: CaseRequest, scope: string): void {
     !/^[A-Za-z0-9-]{1,128}$/.test(request.fence.attemptId) ||
     !Number.isInteger(request.ordinal) ||
     request.ordinal < -1 ||
-    request.ordinal >= 320 ||
+    request.ordinal > 2147483646 ||
     !Number.isSafeInteger(request.input.size) ||
     request.input.size < 0 ||
     !/^[a-f0-9]{64}$/.test(request.input.hash) ||

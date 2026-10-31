@@ -1,12 +1,12 @@
 /** @file engine.ts @description Connect checkpoint boundaries to the runner lease. @module runner */
-import type { ExecutionRepository, Job } from "@quorem/execution";
+import type { ExecutionRepository, ExecutionInputReader, Job } from "@quorem/execution";
 import type { IsolatedSandbox } from "../sandbox/types.ts";
 import { executeAndStage, ExecutionYield } from "../engine/execute.ts";
 import type { AttemptEngine, AttemptOutcome } from "./attempt.ts";
 
 /** Yield only between persisted cases; teardown and release remain the caller's responsibility. */
 export function checkpointedEngine(
-  repository: ExecutionRepository,
+  repository: ExecutionRepository & ExecutionInputReader,
   sandbox: IsolatedSandbox,
   sliceMs = 50000,
 ): AttemptEngine {
