@@ -14,6 +14,8 @@ export class FrameDecoder {
 
   /** Decode complete messages, retaining a partial frame. @returns Complete JSON strings. */
   push(chunk: Buffer): string[] {
+    if (this.pending.length + chunk.length > maximumFrameBytes + 4100)
+      throw new Error("Language output exceeds limit");
     this.pending = Buffer.concat([this.pending, chunk]);
     const messages: string[] = [];
     while (this.pending.length) {
@@ -24,6 +26,8 @@ export class FrameDecoder {
       }
       if (boundary > 4096) throw new Error("Invalid language frame header");
       const header = this.pending.subarray(0, boundary).toString("ascii");
+      if (header.split("\r\n").some((line) => !line.includes(":")))
+        throw new Error("Invalid language frame header");
       const lengths = [...header.matchAll(/^Content-Length:\s*(\d+)\s*$/gim)];
       if (lengths.length !== 1) throw new Error("Invalid language frame length");
       const length = Number(lengths[0][1]);
@@ -32,9 +36,17 @@ export class FrameDecoder {
       }
       const end = boundary + 4 + length;
       if (this.pending.length < end) break;
-      messages.push(this.pending.subarray(boundary + 4, end).toString("utf8"));
+      const message = new TextDecoder("utf-8", { fatal: true }).decode(
+        this.pending.subarray(boundary + 4, end),
+      );
+      JSON.parse(message);
+      messages.push(message);
       this.pending = this.pending.subarray(end);
     }
     return messages;
+  }
+
+  finish(): void {
+    if (this.pending.length) throw new Error("Truncated language frame");
   }
 }

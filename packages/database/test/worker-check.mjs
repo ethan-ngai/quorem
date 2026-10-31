@@ -1,6 +1,6 @@
 /** @file worker-check.mjs @description Assert workerd scope cleanup. @module database */
 import assert from 'node:assert/strict';
-const base = 'http://127.0.0.1:58736';
+const base = process.env.QUOREM_DATABASE_WORKER_TEST_URL ?? 'http://127.0.0.1:18136';
 async function get(path) {
   const response = await fetch(base + path);
   assert.equal(response.status, 200, await response.clone().text());

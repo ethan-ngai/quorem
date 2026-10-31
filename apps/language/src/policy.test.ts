@@ -76,3 +76,11 @@ void test("configured worktree origin remains exact and loopback-only", () => {
     null,
   );
 });
+
+void test("deeply nested request values are rejected", () => {
+  let value: unknown = {};
+  for (let i = 0; i < 102; i++) value = [value];
+  assert.throws(() =>
+    validateMessage(JSON.stringify({ jsonrpc: "2.0", method: "initialize", params: value })),
+  );
+});

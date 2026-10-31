@@ -1,47 +1,28 @@
+import { withNodeConnection } from "@quorem/database/core";
+import { drizzleProfileBudget } from "./adapters/drizzle-profile-budget.ts";
+import { drizzleProfileRepository } from "./adapters/drizzle-profile-repository.ts";
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { toNodeHandler } from "better-auth/node";
 import { createNodeRuntime } from "./node-auth.ts";
 import { createProfileHandler } from "./profile.ts";
-import { sharpImageProcessor } from "./adapters/sharp-image.ts";
+import { isolatedImageProcessor } from "./adapters/isolated-image.ts";
 import { hostedSignIn } from "./hosted-sign-in.ts";
 import { publicAuthConfiguration } from "./public-config.ts";
 export async function startServer(env: NodeJS.ProcessEnv = process.env) {
   const { auth, config, database, authRepository, registrationHandler, profileStorage } =
     await createNodeRuntime(env);
   const handler = toNodeHandler(auth);
+  const run = <T>(callback: Parameters<typeof withNodeConnection<T>>[2]) =>
+    withNodeConnection(database, { lifetimeMs: 15000 }, callback);
   const profileHandler = createProfileHandler({
+    budget: drizzleProfileBudget(run),
     origin: config.origin,
     session: (headers) => auth.api.getSession({ headers }),
     storage: profileStorage,
-    imageProcessor: sharpImageProcessor,
-    repository: {
-      async read(id) {
-        const result = await database.query(
-          'SELECT id,name,email,username,image,profile_color FROM "user" WHERE id=$1',
-          [id],
-        );
-        return result.rows[0];
-      },
-      async setColor(id, color) {
-        await database.query(
-          'UPDATE "user" SET profile_color=$2,profile_color_revision=GREATEST(profile_color_revision+1, floor(extract(epoch from clock_timestamp()) * 1000)::bigint),"updatedAt"=NOW() WHERE id=$1',
-          [id, color],
-        );
-      },
-      async replace(id, previous, next) {
-        const result = await database.query(
-          'UPDATE "user" SET image=$3,"updatedAt"=NOW() WHERE id=$1 AND image IS NOT DISTINCT FROM $2 RETURNING id',
-          [id, previous, next],
-        );
-        return result.rowCount === 1;
-      },
-      async contains(image) {
-        const result = await database.query('SELECT 1 FROM "user" WHERE image=$1 LIMIT 1', [image]);
-        return result.rowCount === 1;
-      },
-    },
+    imageProcessor: isolatedImageProcessor(),
+    repository: drizzleProfileRepository(run),
   });
   const server = createServer(async (req, res) => {
     if (req.url === "/api/auth/quorem-config" && req.method === "GET") {
@@ -86,7 +67,16 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env) {
           if (value !== undefined)
             headers.set(name, Array.isArray(value) ? value.join(", ") : value);
         }
-        const requestOptions: RequestInit & { duplex?: "half" } = { method: req.method, headers };
+        const disconnected = new AbortController();
+        req.once("aborted", () => disconnected.abort());
+        res.once("close", () => {
+          if (!res.writableFinished) disconnected.abort();
+        });
+        const requestOptions: RequestInit & { duplex?: "half" } = {
+          method: req.method,
+          headers,
+          signal: disconnected.signal,
+        };
         if (!["GET", "HEAD"].includes(req.method ?? "GET")) {
           requestOptions.body = Readable.toWeb(req) as ReadableStream<Uint8Array>;
           requestOptions.duplex = "half";

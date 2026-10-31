@@ -1,9 +1,32 @@
+import { ImageExecutionUncertain } from "./image-processing.ts";
+import { withNodeConnection } from "@quorem/database/core";
+import { drizzleProfileBudget } from "./adapters/drizzle-profile-budget.ts";
+import { drizzleProfileRepository } from "./adapters/drizzle-profile-repository.ts";
 import { createHmac, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { sharpImageProcessor } from "./adapters/sharp-image";
 import { createProfileHandler, photoPrefix, type Profile } from "./profile";
 import { migrateAuth } from "./migrations";
+function testBudget() {
+  let count = 0;
+  return {
+    async acquire() {
+      if (count >= 10) return { allowed: false as const, retryAfterSeconds: 1 };
+      count++;
+      return {
+        allowed: true as const,
+        lease: {
+          id: crypto.randomUUID(),
+          ownerHash: "fixture",
+          generation: crypto.randomUUID(),
+          deadlineUnixMs: Date.now() + 15000,
+        },
+      };
+    },
+    async release() {},
+  };
+}
 const origin = "http://127.0.0.1:5174";
 const png = () =>
   sharp({ create: { width: 32, height: 16, channels: 3, background: "red" } })
@@ -20,6 +43,7 @@ function fixture(image: string | null = null) {
   const objects = new Map<string, Uint8Array>();
   let failUpdate = false;
   const handler = createProfileHandler({
+    budget: testBudget(),
     origin,
     imageProcessor: sharpImageProcessor,
     session: async (headers) =>
@@ -71,6 +95,98 @@ function fixture(image: string | null = null) {
   };
 }
 describe("profile photos", () => {
+  it("holds admission until uncancellable processing settles after abort", async () => {
+    let finish!: (result: { kind: "invalid" }) => void;
+    let started!: () => void;
+    const processingStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const processing = new Promise<{ kind: "invalid" }>((resolve) => {
+      finish = resolve;
+    });
+    let released = 0;
+    let stored = 0;
+    const controller = new AbortController();
+    const handler = createProfileHandler({
+      origin,
+      budget: {
+        ...testBudget(),
+        release: async () => {
+          released++;
+        },
+      },
+      session: async () => ({ user: { id: "alice" } }),
+      repository: {
+        read: async () => ({ id: "alice", name: "A", email: "a@example.test" }),
+        replace: async () => true,
+        contains: async () => false,
+        setColor: async () => {},
+      },
+      storage: {
+        put: async () => {
+          stored++;
+        },
+        get: async () => undefined,
+        remove: async () => {},
+      },
+      imageProcessor: {
+        process: async () => {
+          started();
+          return processing;
+        },
+      },
+    });
+    const result = handler(
+      new Request(origin + "/api/auth/profile-photo", {
+        method: "PUT",
+        headers: { Origin: origin, "Content-Type": "image/png" },
+        body: "fixture",
+        signal: controller.signal,
+      }),
+    );
+    await processingStarted;
+    controller.abort();
+    expect(released).toBe(0);
+    finish({ kind: "invalid" });
+    await expect(result).rejects.toThrow();
+    expect(released).toBe(1);
+    expect(stored).toBe(0);
+  });
+  it("retains its lease when remote execution outcome is unknown", async () => {
+    let released = false;
+    const handler = createProfileHandler({
+      origin,
+      budget: {
+        ...testBudget(),
+        release: async () => {
+          released = true;
+        },
+      },
+      session: async () => ({ user: { id: "alice" } }),
+      repository: {
+        read: async () => ({ id: "alice", name: "A", email: "a@example.test" }),
+        replace: async () => true,
+        contains: async () => false,
+        setColor: async () => {},
+      },
+      storage: { put: async () => {}, get: async () => undefined, remove: async () => {} },
+      imageProcessor: {
+        process: async () => {
+          throw new ImageExecutionUncertain("unreachable");
+        },
+      },
+    });
+    await expect(
+      handler(
+        new Request(origin + "/api/auth/profile-photo", {
+          method: "PUT",
+          headers: { Origin: origin, "Content-Type": "image/png" },
+          body: "fixture",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(ImageExecutionUncertain);
+    expect(released).toBe(false);
+  });
   it("requires an image processor at composition", () => {
     expect(() => createProfileHandler({} as Parameters<typeof createProfileHandler>[0])).toThrow(
       "Profile image processor is required",
@@ -85,6 +201,7 @@ describe("profile photos", () => {
   it("validates and saves account colors with origin and session checks", async () => {
     let color = 4;
     const handler = createProfileHandler({
+      budget: testBudget(),
       origin,
       imageProcessor: sharpImageProcessor,
       session: async (headers) => (headers.get("cookie") ? { user: { id: "alice" } } : null),
@@ -225,33 +342,14 @@ describe.skipIf(!databaseURL)("profile with real Better Auth session", () => {
       const signature = createHmac("sha256", config.secret).update(token).digest("base64");
       const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`;
       const objects = new Map<string, Uint8Array>();
+      const run = <T>(callback: Parameters<typeof withNodeConnection<T>>[2]) =>
+        withNodeConnection(database, { lifetimeMs: 15000 }, callback);
       const handler = createProfileHandler({
+        budget: drizzleProfileBudget(run),
         origin,
         imageProcessor: sharpImageProcessor,
         session: (headers) => auth.api.getSession({ headers }),
-        repository: {
-          setColor: async (subject, color) => {
-            await database.query('UPDATE "user" SET profile_color=$2 WHERE id=$1', [
-              subject,
-              color,
-            ]);
-          },
-          read: async (subject) =>
-            (
-              await database.query('SELECT id,name,email,username,image FROM "user" WHERE id=$1', [
-                subject,
-              ])
-            ).rows[0],
-          replace: async (subject, previous, next) =>
-            (
-              await database.query(
-                'UPDATE "user" SET image=$3 WHERE id=$1 AND image IS NOT DISTINCT FROM $2 RETURNING id',
-                [subject, previous, next],
-              )
-            ).rowCount === 1,
-          contains: async (image) =>
-            (await database.query('SELECT 1 FROM "user" WHERE image=$1', [image])).rowCount === 1,
-        },
+        repository: drizzleProfileRepository(run),
         storage: {
           put: async (key, bytes) => {
             objects.set(key, bytes);

@@ -62,9 +62,10 @@ export function validateMessage(text: string): Record<string, unknown> {
   return message;
 }
 
-function inspectUris(value: unknown): void {
+function inspectUris(value: unknown, depth = 0): void {
+  if (depth > 100) throw new Error("Language message nesting exceeds limit");
   if (Array.isArray(value)) {
-    for (const child of value) inspectUris(child);
+    for (const child of value) inspectUris(child, depth + 1);
   } else if (value && typeof value === "object") {
     for (const [key, child] of Object.entries(value)) {
       if (
@@ -77,7 +78,7 @@ function inspectUris(value: unknown): void {
       if (key === "rootPath" && child !== null && child !== "/workspace") {
         throw new Error("Invalid workspace root");
       }
-      inspectUris(child);
+      inspectUris(child, depth + 1);
     }
   }
 }
