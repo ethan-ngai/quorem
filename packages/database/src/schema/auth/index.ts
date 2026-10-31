@@ -21,6 +21,11 @@ export const quorem_auth = pgSchema("quorem_auth");
 
 export const schema_migrationsInQuorem_auth = quorem_auth.table("schema_migrations", {
   name: text().primaryKey().notNull(),
+  checksum: text(),
+  baseline_operation: text(),
+  baseline_operator: text(),
+  baseline_reason: text(),
+  baseline_artifact: text(),
 });
 
 export const jwksInQuorem_auth = quorem_auth.table("jwks", {

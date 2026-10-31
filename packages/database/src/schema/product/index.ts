@@ -24,6 +24,11 @@ import { bytea } from "../../core/bytea.ts";
 
 export const schema_migrations = pgTable("schema_migrations", {
   name: text().primaryKey().notNull(),
+  checksum: text(),
+  baseline_operation: text(),
+  baseline_operator: text(),
+  baseline_reason: text(),
+  baseline_artifact: text(),
 });
 
 export const access_audit = pgTable(
