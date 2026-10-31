@@ -1,7 +1,7 @@
 /** @file seo.ts @description Shared search and social metadata for static HTML and client navigation. @module site */
-export const siteTitle = "Quorem — Coding Practice, Matches & Interviews";
+export const siteTitle = "Quorem - Compete Beyond the Algorithm";
 export const siteDescription =
-  "Practice coding and SQL, challenge friends in private matches, and run collaborative technical interviews. Go beyond single-step problems with Odyssey.";
+  "Challenge friends in private coding matches. Go head-to-head in Showdown or compete with a group in Free-for-all. First correct submission wins.";
 export const socialImage = "/social-preview.jpg";
 export const socialImageAlt =
   "Quorem dark hero: pixel logo and wordmark beside a Python coding workspace. Compete beyond the algorithm.";
@@ -21,54 +21,62 @@ export const appPaths = [
 
 const pages: Record<string, { title: string; description: string }> = {
   "/": { title: siteTitle, description: siteDescription },
-  "/app": { title: "Quorem Workspace", description: siteDescription },
+  "/app": {
+    title: "Workspace - Quorem",
+    description: "Write, run and test your code in your Quorem workspace.",
+  },
   "/practice": {
-    title: "Coding & SQL Practice — Quorem",
+    title: "Practice - Quorem",
     description:
-      "Solve coding and SQL problems in Quorem's browser editor. Test your solutions, explore editorials, and tackle multi-stage Odyssey challenges.",
+      "Sharpen your skills between matches. Solve coding problems, test your solutions and tackle multi-stage Odyssey challenges.",
+  },
+  "/practice/workspace": {
+    title: "Practice Workspace - Quorem",
+    description:
+      "Work through the problem, write your solution and run test cases in Quorem's coding editor.",
   },
   "/privacy": {
-    title: "Privacy Policy — Quorem",
+    title: "Privacy Policy - Quorem",
     description:
-      "Learn how Quorem handles account data, code submissions, cookies, and privacy requests.",
+      "Learn how Quorem handles account data, code submissions, cookies and privacy requests.",
   },
   "/terms": {
-    title: "Terms of Service — Quorem",
+    title: "Terms of Service - Quorem",
     description:
-      "Read the terms for using Quorem's coding practice, private matches, and technical interview workspaces.",
+      "Read the terms for using Quorem, including account responsibilities, fair play and acceptable use.",
   },
   "/login": {
-    title: "Sign In — Quorem",
+    title: "Sign In - Quorem",
     description:
-      "Sign in to Quorem to practice coding, challenge friends, and manage technical interviews.",
+      "Sign in to join matches, create a lobby and keep your coding practice in one place.",
   },
   "/interviews": {
-    title: "Technical Interviews — Quorem",
-    description:
-      "Create and manage collaborative coding interviews with shared editing, test cases, and interviewer-controlled Odyssey stages.",
+    title: "Interviews - Quorem",
+    description: "Create sessions, invite participants and manage collaborative coding workspaces.",
   },
   "/admin": {
-    title: "Question Library — Quorem",
-    description: "Create and manage your Quorem coding, SQL, and Odyssey questions.",
+    title: "Question Editor - Quorem",
+    description:
+      "Create and edit coding questions, define test cases and build multi-stage Odyssey challenges.",
   },
   "/match": {
-    title: "Private Coding Match — Quorem",
+    title: "Coding Match - Quorem",
     description:
-      "Compete with friends in a private Quorem coding match. Solve the same problem in Showdown or Free-for-all.",
+      "Compete in Showdown or Free-for-all. Write your solution, test it and race to the first correct submission.",
   },
   "/invite": {
-    title: "Join a Coding Match — Quorem",
+    title: "Join a Coding Match - Quorem",
     description:
-      "You've been invited to a private coding match on Quorem. Open your invitation to join the challenge.",
+      "Accept your match invitation, join the lobby and get ready to compete in Showdown or Free-for-all.",
   },
   "/interview": {
-    title: "Coding Interview — Quorem",
+    title: "Coding Interview - Quorem",
     description:
-      "Collaborate in a Quorem technical interview with a shared code editor, test cases, and staged challenges.",
+      "Collaborate in a shared code editor, run test cases and work through staged coding challenges.",
   },
   "/interview-invite": {
-    title: "Join a Coding Interview — Quorem",
-    description: "Open your Quorem interview invitation to join a collaborative coding workspace.",
+    title: "Join a Coding Interview - Quorem",
+    description: "Open your invitation to join a shared coding workspace.",
   },
 };
 
@@ -77,15 +85,12 @@ export function pageSeo(pathname: string) {
   const path = pathname.replace(/\/+$/, "") || "/";
   const section = `/${path.split("/")[1]}`;
   const page =
-    pages[path] ??
-    (path.startsWith("/practice/")
-      ? { title: "Coding Workspace — Quorem", description: pages["/practice"]!.description }
-      : pages[section]);
+    pages[path] ?? (path.startsWith("/practice/") ? pages["/practice/workspace"] : pages[section]);
   const indexable = publicPaths.includes(path);
   return {
     ...(page ?? {
-      title: "Page not found — Quorem",
-      description: "Find your next coding challenge on Quorem.",
+      title: "Page not found - Quorem",
+      description: "This page could not be found. Return to practice or start a match on Quorem.",
     }),
     path,
     indexable,
