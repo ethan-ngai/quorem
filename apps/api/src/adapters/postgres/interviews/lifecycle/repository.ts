@@ -18,6 +18,12 @@ import { lockInterview, unavailable } from "./access.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { operationFingerprint, priorOperation, saveOperation } from "./operations.ts";
 import { savePublicExamples, savePrivateCases } from "../question/public-examples.ts";
+import { writePublishedInterviewQuestion } from "../question/prepare.ts";
+import {
+  copySnapshotExamples,
+  savePublishedInterviewSidecars,
+} from "../question/published-sidecars.ts";
+import { createActiveRunnerFixture } from "../runner-inputs/active.ts";
 type Run = <T>(action: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export interface PreparedQuestion {
   safe: string;
@@ -25,6 +31,8 @@ export interface PreparedQuestion {
   source: string;
   language: string;
   fingerprint: string;
+  versionId?: string;
+  published?: boolean;
   persist?(tx: Transaction): Promise<void>;
 }
 export interface Dependencies {
@@ -121,11 +129,31 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         await tx.execute(
           sql`INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token,monitoring,lossless_question) VALUES(${id}::uuid,${actor.userId},${title},${prepared.safe}::jsonb,${prepared.language},${prepared.source},${crypto.randomUUID()}::uuid,${candidateHash},${candidate},${questionEpoch}::uuid,${interviewerHash},${interviewer},${monitoring}::jsonb,${prepared.lossless})`,
         );
-        const rawFixture = prepared.lossless
-          ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
-          : prepared.safe;
-        await savePublicExamples(tx, id, questionEpoch, rawFixture);
-        await savePrivateCases(tx, id, questionEpoch, rawFixture);
+        if (prepared.published && prepared.versionId) {
+          await writePublishedInterviewQuestion(
+            tx,
+            id,
+            prepared.versionId,
+            prepared.language,
+            (command.question as Record<string, unknown>).hints,
+          );
+          await savePublishedInterviewSidecars(tx, id, questionEpoch, prepared.versionId);
+        } else {
+          const rawFixture = prepared.lossless
+            ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
+            : prepared.safe;
+          await savePublicExamples(tx, id, questionEpoch, rawFixture);
+          await savePrivateCases(tx, id, questionEpoch, rawFixture);
+          await tx.execute(sql`UPDATE interviews SET lossless_question=NULL WHERE id=${id}::uuid`);
+        }
+        if (!prepared.versionId) throw new Error("Indexed question version required");
+        const fixtureId = await createActiveRunnerFixture(
+          tx,
+          id,
+          questionEpoch,
+          prepared.versionId,
+        );
+        await copySnapshotExamples(tx, id, questionEpoch, fixtureId);
         await tx.execute(
           sql`INSERT INTO interview_members(session_id,user_id,role) VALUES(${id}::uuid,${actor.userId},'interviewer')`,
         );

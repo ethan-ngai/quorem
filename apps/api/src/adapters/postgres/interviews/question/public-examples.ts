@@ -88,6 +88,12 @@ export async function backfillInterviewPublicExamples(
   id: string,
   expectedEpoch: string,
 ): Promise<boolean> {
+  const indexed = (
+    await tx.execute(
+      sql`SELECT 1 FROM interview_active_runner_inputs WHERE session_id=${id}::uuid AND question_epoch=${expectedEpoch}::uuid`,
+    )
+  ).rows.length;
+  if (indexed) throw new Error("Indexed interview examples require indexed repair");
   const row = (
     await tx.execute<{ epoch: string; raw: Uint8Array }>(
       sql`SELECT question_epoch::text AS epoch,COALESCE(lossless_question,convert_to(question::text,'UTF8')) AS raw FROM interviews WHERE id=${id}::uuid FOR UPDATE`,
@@ -105,6 +111,12 @@ export async function backfillSnapshotPublicExamples(
   id: string,
   fixtureId: Uint8Array,
 ): Promise<boolean> {
+  const indexed = (
+    await tx.execute(
+      sql`SELECT 1 FROM runner_snapshot_inputs WHERE session_id=${id}::uuid AND fixture_id=${fixtureId} AND sealed`,
+    )
+  ).rows.length;
+  if (indexed) throw new Error("Indexed snapshot examples require indexed repair");
   const row = (
     await tx.execute<{ raw: Uint8Array }>(
       sql`SELECT COALESCE(lossless_fixture,convert_to(fixture::text,'UTF8')) AS raw FROM interview_question_snapshots WHERE session_id=${id}::uuid AND id=${fixtureId} FOR SHARE`,

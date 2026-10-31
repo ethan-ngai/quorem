@@ -146,6 +146,7 @@ export async function prepareCustomInterviewQuestion(
     source: string(selected.starterSource),
     language,
     fingerprint,
+    versionId: id,
     persist: async (inner) => {
       await inner.execute(
         sql`INSERT INTO problems(id,slug,owner_id) VALUES(${parent}::uuid,${`private-${id}`},${actor.userId})`,

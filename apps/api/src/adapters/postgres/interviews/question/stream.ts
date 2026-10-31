@@ -6,7 +6,7 @@ import type { Principal } from "../../../../modules/identity/model.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { readInterviewAccess } from "../lifecycle/access.ts";
 import { prepareInterviewSnapshot } from "./snapshot.ts";
-import { LegacyJsonReader } from "../../judging/results/legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 import { projectedObject } from "../../judging/results/projected-stream.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -79,7 +79,7 @@ export function interviewSnapshotStream(run: Run) {
                 yield decoder.decode(chunk, { stream: true });
               yield decoder.decode();
             }
-            const input = new LegacyJsonReader(decoded());
+            const input = new StreamingJsonReader(decoded()[Symbol.asyncIterator]());
             for await (const part of projectedObject(
               input,
               new Set(["args", "expected", "calls"]),
