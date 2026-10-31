@@ -19,12 +19,16 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 | 02 | Integrated | [#341](https://github.com/ethan-ngai/quorem/pull/341); real auth runtime probes; full WebAuthn/social/image/mail gates remain |
 | 03 | Integrated | [#344](https://github.com/ethan-ngai/quorem/pull/344); deterministic public/private Go vectors and owner-package hashes/frames |
 | 04 | Integrated | [#345](https://github.com/ethan-ngai/quorem/pull/345), integration commit `344ca41`; Node/workerd/type/boundary tests and CI passed |
-| 05 | Review | [#350](https://github.com/ethan-ngai/quorem/pull/350); local PG catalog, repeat/upgrade/restore fixtures and counter checks passed |
-| 06 | Review | [#351](https://github.com/ethan-ngai/quorem/issues/351); connection/transaction primitives; owned-client disconnect audit underway |
-| 07 | Review | [#348](https://github.com/ethan-ngai/quorem/pull/348); model/metadata/starters, Node smoke; full publication belongs to 08 |
-| 08 | Review | [#349](https://github.com/ethan-ngai/quorem/issues/349); lossless codecs, publication, Node/workerd Go differential vectors; not activated |
-| 10a | Running | [#353](https://github.com/ethan-ngai/quorem/issues/353); managed identity/access slice; guest lifecycle follows separately |
-| 12a | Review | [#352](https://github.com/ethan-ngai/quorem/issues/352); portable image port and explicit sharp adapter; hosted capability remains separate |
+| 05 | Integrated | [#350](https://github.com/ethan-ngai/quorem/pull/350); PG catalog, repeat/upgrade/restore fixtures and counter checks passed |
+| 06 | Integrated | [#355](https://github.com/ethan-ngai/quorem/pull/355); bounded connection/transaction primitives and borrowed-client disconnect tests; native Vitest socket-close investigation remains open |
+| 07 | Integrated | [#348](https://github.com/ethan-ngai/quorem/pull/348); model/metadata/starters, direct Node smoke |
+| 08 | Integrated | [#357](https://github.com/ethan-ngai/quorem/pull/357); lossless codecs, publication, Node/workerd Go differential vectors; not activated |
+| 09 | Review | [#362](https://github.com/ethan-ngai/quorem/pull/362); private execution contracts and bounded codecs; Node/workerd tests passed |
+| 10a | Integrated | [#358](https://github.com/ethan-ngai/quorem/pull/358); managed identity/access slice; guest lifecycle and actual route composition remain |
+| 11 | Running | [#359](https://github.com/ethan-ngai/quorem/issues/359); scoped Better Auth/Drizzle factory and signed passkey tests; final Node/Worker composition under review |
+| 12a | Integrated | [#354](https://github.com/ethan-ngai/quorem/pull/354); portable image port and explicit sharp adapter; Worker upload processor/budget and hosted capability remain |
+| 12b | Review | [#361](https://github.com/ethan-ngai/quorem/issues/361); encrypted durable mail intents, fenced compensation and lock-expiry tests; composition under review |
+| 13 | Running | [#360](https://github.com/ethan-ngai/quorem/issues/360); restricted-role catalog projections; actual Worker-to-PG and contract validation underway |
 | Other packets | Pending | Follow prerequisite graph and empirical gates; no broad backend parity claim |
 
 

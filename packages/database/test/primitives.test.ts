@@ -8,7 +8,7 @@ import type { Transaction } from '../src/core/index.ts';
 import { classifyDatabaseError, createNodePool, withNodeConnection, withWorkerConnection } from '../src/core/index.ts';
 
 const url = process.env.QUOREM_TEST_DATABASE_URL;
-if (!url || new URL(url).pathname !== '/quorem_hono_primitives_test' || new URL(url).port !== '55436' || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('QUOREM_TEST_DATABASE_URL must name the disposable quorem_hono_primitives_test database');
+if (!url || new URL(url).pathname !== '/quorem_hono_primitives_test' || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('QUOREM_TEST_DATABASE_URL must name the disposable quorem_hono_primitives_test database');
 const pool = createNodePool({ connectionString: url, max: 1, connectionTimeoutMs: 250, idleTimeoutMs: 1000, onIdleError: (error) => { throw error; } });
 const options = { statementTimeoutMs: 1000, lockTimeoutMs: 100 };
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {

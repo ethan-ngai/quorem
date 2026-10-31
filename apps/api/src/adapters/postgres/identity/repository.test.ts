@@ -10,7 +10,7 @@ const url = process.env.QUOREM_IDENTITY_TEST_DATABASE_URL;
 describe.skipIf(!url)("identity and access on disposable PostgreSQL", () => {
   it("binds provider subjects, projects profiles and reads live roles and grants", async () => {
     const parsed = new URL(url!);
-    expect(parsed.port).toBe("55437");
+    expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
     expect(parsed.pathname).toBe("/quorem_hono_identity_test");
     const pool = createNodePool({
       connectionString: url!,
