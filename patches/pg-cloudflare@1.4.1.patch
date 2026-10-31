@@ -1,0 +1,105 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index aeeba2b..eeb70d6 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -9,6 +9,8 @@ export declare class CloudflareSocket extends EventEmitter {
+     destroyed: boolean;
+     private _upgrading;
+     private _upgraded;
++    private _ending;
++    private _closed;
+     private _cfSocket;
+     private _cfWriter;
+     private _cfReader;
+diff --git a/dist/index.js b/dist/index.js
+index eb6bbf2..fcd4494 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -13,6 +13,8 @@ class CloudflareSocket extends events_1.EventEmitter {
+         this.destroyed = false;
+         this._upgrading = false;
+         this._upgraded = false;
++        this._ending = false;
++        this._closed = false;
+         this._cfSocket = null;
+         this._cfWriter = null;
+         this._cfReader = null;
+@@ -61,7 +63,15 @@ class CloudflareSocket extends events_1.EventEmitter {
+         // eslint-disable-next-line no-constant-condition
+         while (true) {
+             log('awaiting receive from CF socket');
+-            const { done, value } = await this._cfReader.read();
++            let result;
++            try {
++                result = await this._cfReader.read();
++            }
++            catch (e) {
++                if (this._ending || this._closed) break;
++                throw e;
++            }
++            const { done, value } = result;
+             log('CF socket received:', done, value);
+             if (done) {
+                 log('done');
+@@ -96,6 +106,7 @@ class CloudflareSocket extends events_1.EventEmitter {
+     }
+     end(data = Buffer.alloc(0), encoding = 'utf8', callback = () => { }) {
+         log('ending CF socket');
++        this._ending = true;
+         this.write(data, encoding, (err) => {
+             const socket = this._cfSocket;
+             const closePromise = socket?.close();
+@@ -140,6 +151,7 @@ class CloudflareSocket extends events_1.EventEmitter {
+                 log('CF socket closed');
+                 if (this._cfSocket === socket) {
+                     this._cfSocket = null;
++                    this._closed = true;
+                     this.emit('close');
+                 }
+             }
+diff --git a/src/index.ts b/src/index.ts
+index 527b433..6822ee7 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -10,6 +10,8 @@ export class CloudflareSocket extends EventEmitter {
+
+   private _upgrading = false
+   private _upgraded = false
++  private _ending = false
++  private _closed = false
+   private _cfSocket: Socket | null = null
+   private _cfWriter: WritableStreamDefaultWriter | null = null
+   private _cfReader: ReadableStreamDefaultReader | null = null
+@@ -65,7 +67,15 @@ export class CloudflareSocket extends EventEmitter {
+     // eslint-disable-next-line no-constant-condition
+     while (true) {
+       log('awaiting receive from CF socket')
+-      const { done, value } = await this._cfReader!.read()
++      let result: ReadableStreamReadResult<Uint8Array>
++      try {
++        result = await this._cfReader!.read()
++      } catch (e) {
++        // Closing cancels the pending read; a closed peer has already emitted close.
++        if (this._ending || this._closed) break
++        throw e
++      }
++      const { done, value } = result
+       log('CF socket received:', done, value)
+       if (done) {
+         log('done')
+@@ -110,6 +120,7 @@ export class CloudflareSocket extends EventEmitter {
+
+   end(data = Buffer.alloc(0), encoding: BufferEncoding = 'utf8', callback: (...args: unknown[]) => void = () => {}) {
+     log('ending CF socket')
++    this._ending = true
+     this.write(data, encoding, (err) => {
+       const socket = this._cfSocket
+       const closePromise = socket?.close()
+@@ -156,6 +167,7 @@ export class CloudflareSocket extends EventEmitter {
+           log('CF socket closed')
+           if (this._cfSocket === socket) {
+             this._cfSocket = null
++            this._closed = true
+             this.emit('close')
+           }
+         } else {
