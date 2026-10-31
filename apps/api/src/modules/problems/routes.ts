@@ -1,7 +1,6 @@
 /** @file routes.ts @description Portable catalog HTTP transport. @module problems */
 import { Hono, type Context } from "hono";
-import { ApplicationError } from "../../application/error.ts";
-import { IdentityError } from "../identity/model.ts";
+import { identifyRequest } from "../identity/routes.ts";
 import type { Principal } from "../identity/model.ts";
 import type { ProblemQueries } from "./ports.ts";
 import { parseCatalogFilter, readProblem, validateEditorialId } from "./queries.ts";
@@ -14,16 +13,8 @@ export interface ProblemRouteDependencies {
 export function problemRoutes(deps: ProblemRouteDependencies) {
   const app = new Hono();
   const actor = async (request: Request) => {
-    try {
-      const principal = await deps.identify(request);
-      return principal ? { userId: principal.userId } : undefined;
-    } catch (error) {
-      if (error instanceof IdentityError)
-        throw error.kind === "unauthorized"
-          ? new ApplicationError("unauthenticated", "Invalid credentials", 401)
-          : new ApplicationError("temporarily_unavailable", "Service unavailable", 503);
-      throw error;
-    }
+    const principal = await identifyRequest(deps.identify, request);
+    return principal ? { userId: principal.userId } : undefined;
   };
   const json = (c: Context, body: string) =>
     c.body(body, 200, { "Content-Type": "application/json; charset=utf-8" });

@@ -160,15 +160,7 @@
           "type": "null"
         },
         {
-          "type": "integer",
-          "minimum": -2147483648,
-          "maximum": 2147483647
-        },
-        {
-          "type": "number",
-          "not": {
-            "type": "integer"
-          }
+          "type": "number"
         },
         {
           "type": "boolean"
