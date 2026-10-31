@@ -115,6 +115,12 @@ export function postgresCompletionPromotion(run: Run) {
             if (!row) throw new Error("Incomplete completion");
             summary.push({ index: ordinal, status: row.status });
           }
+          if (
+            state.kind === "run" &&
+            header.verdict === "accepted" &&
+            summary.some((item) => item.status !== "accepted")
+          )
+            throw new Error("Verdict conflicts with case results");
           await tx.execute(
             sql`INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT ${job.submissionId}::uuid,channel,ordinal,frame_data FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${channel}`,
           );

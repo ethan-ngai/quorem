@@ -5,6 +5,7 @@ import {
   decompressCheckpointFrame,
   decodeJudgeFrame,
   encodeCheckpointCase,
+  assertAttemptFence,
   type Checkpoint,
   type CheckpointCase,
   type Job,
@@ -206,7 +207,8 @@ export function postgresCheckpoints(run: Run) {
         }),
       );
     },
-    async yield(job: Job): Promise<void> {
+    async yield(job: Job, proof: { attemptId: string; sandboxScope: string }): Promise<void> {
+      assertAttemptFence(job, proof);
       await run((scope) =>
         scope.transaction(options, async (tx) => {
           await tx.execute(sql`SELECT pg_advisory_xact_lock(740020)`);

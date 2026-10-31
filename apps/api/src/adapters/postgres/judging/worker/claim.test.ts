@@ -236,7 +236,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     await expect(staging.eof(live!, { ...live!, sandboxScope: "other" })).rejects.toThrow("fence");
     await staging.eof(live!, live!);
     await staging.eof(live!, live!);
-    await checkpoints.yield(live!);
+    await checkpoints.yield(live!, live!);
     const row = (await pool.query("SELECT state FROM submissions WHERE id=$1", [submission]))
       .rows[0];
     expect(row.state).toBe("queued");
@@ -262,7 +262,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     const result = {
       submissionId: submission,
       attemptId: live!.attemptId,
-      verdict: "accepted" as const,
+      verdict: "wrong_answer" as const,
       engineFailure: false,
       diagnosticsPresent: true,
       publicPresent: true,

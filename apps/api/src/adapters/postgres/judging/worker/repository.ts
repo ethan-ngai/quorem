@@ -41,9 +41,9 @@ export function postgresExecutionCommands(
       resumable();
       return checkpoints.saveCheckpoint(job, item);
     },
-    async yield(job) {
+    async yield(job, proof) {
       resumable();
-      return checkpoints.yield(job);
+      return checkpoints.yield(job, proof);
     },
   };
 }
