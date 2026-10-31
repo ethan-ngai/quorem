@@ -10,11 +10,14 @@
     "start": "node --experimental-strip-types src/runtime/node.ts",
     "test:identity": "vp exec vitest run --config src/adapters/identity/vitest.config.ts",
     "test:identity:workers": "vp exec vitest run --config src/adapters/identity/vitest.workers.config.ts",
-    "test:identity:node": "node src/adapters/identity/strip-smoke.ts"
+    "test:identity:node": "node src/adapters/identity/strip-smoke.ts",
+    "test:catalog": "vp exec vitest run --config src/adapters/postgres/problems/queries/vitest.config.ts",
+    "test:catalog:workers": "vp exec vitest run --config src/adapters/postgres/problems/queries/vitest.workers.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
     "@quorem/database": "workspace:*",
+    "@quorem/questions": "workspace:*",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.14",
     "jose": "6.2.12"
