@@ -133,3 +133,48 @@ void test(
     }
   },
 );
+void test("derives comparison policy from a large signature without retaining documentation", async () => {
+  const { metadataSpans } = await import("./metadata-spans.ts");
+  const { signaturePolicy } = await import("@quorem/questions");
+  const raw = JSON.stringify({
+    signature: {
+      className: "Solution",
+      methodName: "f",
+      parameters: [],
+      returnType: "list<int>",
+      outputOrder: "unordered",
+      description: "x".repeat(500000),
+    },
+    odyssey: {
+      levels: [
+        {
+          title: "one",
+          statementMarkdown: "x".repeat(500000),
+          methods: [
+            {
+              className: "Solution",
+              methodName: "go",
+              parameters: [],
+              returnType: "str",
+              description: "y".repeat(500000),
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const spool = await fixture(raw, "metadata");
+  try {
+    const spans = await metadataSpans(spool, 1);
+    assert.deepEqual(await signaturePolicy(spool, spans.signature), {
+      returnType: "list<int>",
+      outputOrder: "unordered",
+    });
+    assert.deepEqual(await signaturePolicy(spool, spans.methods[0].span, true), {
+      returnType: "str",
+      outputOrder: "ordered",
+    });
+  } finally {
+    await spool.dispose();
+  }
+});
