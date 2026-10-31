@@ -1,10 +1,12 @@
 /** Provision the isolated release login after migrations and before Hyperdrive. */
-import { createHash, createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { stageDatabaseURL } from "./hono-stage-deploy-database.mjs";
 const { Client, escapeIdentifier, escapeLiteral } = createRequire(
   new URL("../packages/database/package.json", import.meta.url),
 )("pg");
+const validPassword = (value) =>
+  typeof value === "string" && value.length >= 32 && /^[\x21-\x7e]+$/.test(value);
 
 /** A release may never reuse a previously fenced generation's login. */
 export function deriveStageRole(release, rawGeneration = "1") {
@@ -31,31 +33,13 @@ export function stageRoleCredentials(env) {
     (env.TF_VAR_database_user !== undefined && env.TF_VAR_database_user !== role) ||
     decodeURIComponent(operator.username) === role ||
     decodeURIComponent(operator.password) === password ||
-    typeof password !== "string" ||
-    password.length < 32 ||
-    !/^[\x21-\x7e]+$/.test(password)
+    !validPassword(password)
   )
     throw new Error("Invalid isolated stage runtime credential");
   const runtime = new URL(operator);
   runtime.username = role;
   runtime.password = password;
   return { role, operator: operator.href, runtime: runtime.href, password };
-}
-
-/** PostgreSQL SCRAM verifier; ASCII input avoids differing SASLprep normalization. */
-export function stageScramVerifier(password, salt = randomBytes(16)) {
-  if (
-    typeof password !== "string" ||
-    password.length < 32 ||
-    !/^[\x21-\x7e]+$/.test(password) ||
-    salt.length !== 16
-  )
-    throw new Error("Invalid runtime credential");
-  const salted = pbkdf2Sync(password, salt, 4096, 32, "sha256");
-  const client = createHmac("sha256", salted).update("Client Key").digest();
-  const stored = createHash("sha256").update(client).digest("base64");
-  const server = createHmac("sha256", salted).update("Server Key").digest("base64");
-  return `SCRAM-SHA-256$4096:${salt.toString("base64")}$${stored}:${server}`;
 }
 
 // Both provisioning and rehearsal execute this exact transaction body.
@@ -68,8 +52,11 @@ async function configureStageRole(operator, role, password, setPhase) {
   if (owner.database !== "quorem_hono_stage" || owner.name === role)
     throw new Error("Invalid migration operator");
   setPhase("create_role");
+  if (!validPassword(password)) throw new Error("Invalid runtime credential");
+  // Neon forwards role DDL at commit and rejects prehashed password values.
+  await operator.query("SET LOCAL password_encryption='scram-sha-256'");
   await operator.query(
-    `CREATE ROLE ${name} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD ${escapeLiteral(stageScramVerifier(password))}`,
+    `CREATE ROLE ${name} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD ${escapeLiteral(password)}`,
   );
   setPhase("database_grants");
   await operator.query("REVOKE CONNECT ON DATABASE quorem_hono_stage FROM PUBLIC");
@@ -173,6 +160,16 @@ export class StageRoleFailure extends Error {
       : "unknown";
     this.code = safeCode(error);
     this.flags = safeFlags(error?.boundaryFlags);
+    this.reason = [error?.message, error?.detail]
+      .filter((value) => typeof value === "string")
+      .join(" ")
+      .replace(/(?:https?|postgres(?:ql)?):\/\/\S+/gi, "[redacted]")
+      .replace(/[A-Za-z0-9_+/=.:-]{20,}/g, "[redacted]")
+      .replace(/\S*(?:secret|token|password|credential)\S*/gi, "[redacted]")
+      .replace(/\S+@\S+/g, "[redacted]")
+      .replace(/\p{Cc}/gu, " ")
+      .replace(/\s+/g, " ")
+      .slice(0, 500);
   }
 }
 

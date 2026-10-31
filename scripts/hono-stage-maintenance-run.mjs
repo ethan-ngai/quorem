@@ -8,7 +8,7 @@ import { remoteSandbox } from "../apps/runner/src/sandbox/remote.ts";
 import { stageControls } from "./hono-stage-controls.mjs";
 import { stageDatabaseURL } from "./hono-stage-deploy-database.mjs";
 import { validateStageRequest, terraformInitArgs } from "./hono-stage-deploy.mjs";
-import { runStageCommand } from "./hono-stage-launch.mjs";
+import { runStageCommand } from "./hono-stage-command.mjs";
 import { setQueue } from "./hono-stage-deploy-queue.mjs";
 import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
 import { readStageAttemptPage } from "./hono-stage-recovery-database.mjs";

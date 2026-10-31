@@ -3,13 +3,9 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { createStageSecrets } from "./hono-stage-bootstrap-config.mjs";
-import {
-  bootstrapEnvironment,
-  launchStage as actualLaunchStage,
-  runStageCommand,
-  StageCommandFailure,
-} from "./hono-stage-launch.mjs";
+import { bootstrapEnvironment, launchStage as actualLaunchStage } from "./hono-stage-launch.mjs";
 
+import { runStageCommand, StageCommandFailure } from "./hono-stage-command.mjs";
 import { validateStageIntent } from "./hono-stage-intent.mjs";
 
 const launchStage = (env, options) => actualLaunchStage(env, { state: async () => {}, ...options });
