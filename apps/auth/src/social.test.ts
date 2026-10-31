@@ -15,11 +15,10 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       GITHUB_CLIENT_ID: "fixture",
       GITHUB_CLIENT_SECRET: "fixture",
       SMTP_HOST: "127.0.0.1",
-      SMTP_PORT: "51025",
+      SMTP_PORT: process.env.AUTH_TEST_SMTP_PORT ?? "51025",
     });
-    const { database } = await import("./database");
+    const { database, auth } = await (await import("./node-auth")).createNodeRuntime(process.env);
     await migrateAuth(database);
-    const { auth } = await import("./auth");
     let requestNumber = 0;
     const prefix = randomUUID();
     let profile = { id: prefix, email: `${prefix}@example.test`, login: "Fixture" };
@@ -146,7 +145,10 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       // Mail sender fixture exercises the same handler without external delivery.
       const { socialEmail } = await import("./social-email");
       let link = "";
-      const flow = socialEmail(database, origin, async (_email, url) => {
+      const { drizzleAuthRepository } = await import("./adapters/drizzle-auth-repository.ts");
+      const { withNodeConnection } = await import("@quorem/database/core");
+      const repository = drizzleAuthRepository(callback => withNodeConnection(database, { lifetimeMs: 15000 }, callback));
+      const flow = socialEmail(repository, origin, async (_email, url) => {
         link = url;
       });
       const emailCall = (path: string, body: object, cookies = proof) =>

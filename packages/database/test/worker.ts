@@ -7,6 +7,19 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const connection = <T>(action: Parameters<typeof withWorkerConnection<T>>[2], signal?: AbortSignal) => withWorkerConnection(env.DB.connectionString, { connectionTimeoutMs: 1000, lifetimeMs: 3000, signal }, action);
     const url = new URL(request.url);
+    if (url.pathname === '/full') {
+      return Response.json(await connection(async scope => {
+        let escaped: (() => unknown) | undefined;
+        const result=await scope.withDatabase(async db => {
+          escaped=()=>db.select();
+          const row=await db.execute(sql`select txid_current_if_assigned() as assigned`);
+          return {assigned:row.rows[0].assigned};
+        });
+        let closed=false;
+        try { escaped!(); } catch { closed=true; }
+        return {...result,closed};
+      }));
+    }
     if (url.pathname === '/activity') {
       const pid = Number(url.searchParams.get('pid'));
       const present = await connection((scope) => scope.transaction(deadlines, async (tx) => (await tx.execute(sql`select count(*)::int as n from pg_stat_activity where pid = ${pid}`)).rows[0].n));
