@@ -1,9 +1,14 @@
 /** @file private-results.ts @description Fenced per-case private result storage. @module interviews */
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
-import { parseLosslessJson, stringifyLosslessJson } from "@quorem/questions";
+import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "@quorem/questions";
 import { resultCase } from "../../judging/results/projection.ts";
-async function saveCase(tx: Transaction, id: string, ordinal: number, item: unknown): Promise<void> {
+async function saveCase(
+  tx: Transaction,
+  id: string,
+  ordinal: number,
+  item: JsonValue,
+): Promise<void> {
   if (!Number.isSafeInteger(ordinal) || ordinal < 0 || ordinal > 2147483647)
     throw new RangeError("Invalid private result ordinal");
   const data = new TextEncoder().encode(stringifyLosslessJson(resultCase(item, false)));
@@ -11,7 +16,9 @@ async function saveCase(tx: Transaction, id: string, ordinal: number, item: unkn
     sql`INSERT INTO interview_private_result_cases(submission_id,ordinal,result_data) VALUES(${id}::uuid,${ordinal},${data}) ON CONFLICT(submission_id,ordinal) DO NOTHING RETURNING ordinal`,
   );
   if (!result.rows.length) {
-    const existing = await tx.execute<{ matches: boolean }>(sql`SELECT result_data=${data} AS matches FROM interview_private_result_cases WHERE submission_id=${id}::uuid AND ordinal=${ordinal}`);
+    const existing = await tx.execute<{ matches: boolean }>(
+      sql`SELECT result_data=${data} AS matches FROM interview_private_result_cases WHERE submission_id=${id}::uuid AND ordinal=${ordinal}`,
+    );
     if (!existing.rows[0]?.matches) throw new Error("Private result conflict");
   }
 }
