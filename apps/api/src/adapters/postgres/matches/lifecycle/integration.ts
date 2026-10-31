@@ -5,6 +5,19 @@ import { resolve } from "node:path";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
+import { persistQuestionVersion } from "../../problems/publication.ts";
+import { sql } from "drizzle-orm";
+import { readFileSync } from "node:fs";
+import { postgresExecutionCommands } from "../../judging/worker/repository.ts";
+import { localVerifier } from "../../judging/worker/manifest-fixture.ts";
+import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
+import { executeAndStage } from "../../../../../../runner/src/engine/execute.ts";
+import { finishAfterTeardown } from "../../../../../../runner/src/queue/finish.ts";
+import { languageRuntime } from "@quorem/execution";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { normalizeSettings } from "../../../../modules/matches/lifecycle/model.ts";
 import { drainDeadlines } from "../../../../modules/events/scheduling/scheduling.ts";
 import { nodeCoordinator } from "../../../scheduling/shells.ts";
@@ -13,13 +26,8 @@ import { postgresDeadlines } from "../../events/scheduling/deadlines.ts";
 import { reconcileScheduledMatch } from "../reconcile/repository.ts";
 import { matchLifecycle } from "./repository.ts";
 const url = process.env.QUOREM_MATCH_LIFECYCLE_TEST_DATABASE_URL;
-if (
-  !url ||
-  new URL(url).port !== "55467" ||
-  new URL(url).pathname !== "/quorem_hono_lifecycle_test" ||
-  !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
-)
-  throw new Error("Disposable match database required");
+if (!url) throw new Error("Disposable match database required");
+assertRunnerFixture(url, ["/quorem_hono_lifecycle_test"]);
 const pool = createNodePool({
   connectionString: url,
   max: 8,
@@ -94,25 +102,50 @@ before(async () => {
   await pool.query(
     "INSERT INTO users(id,display_name,kind) VALUES ('match-host','Host','account'),('match-rival','Rival','account'),('match-outsider','Outsider','account')",
   );
-  await pool.query("INSERT INTO problems(id,slug) VALUES($1,'lifecycle')", [problem]);
-  await pool.query(
-    'INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,\'T\',\'easy\',\'\',\'{"className":"Solution","methodName":"f","parameters":[{"name":"x","type":"int"}],"returnType":"int"}\',\'[]\',\'{}\',\'test\')',
-    [version, problem],
+  const fixture = JSON.parse(
+    readFileSync(
+      new URL("../../../../../../../fixtures/problems/run-widths.json", import.meta.url),
+      "utf8",
+    ),
   );
-  await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [problem, version]);
-  await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
-    [version],
+  Object.assign(fixture.problem, {
+    id: version,
+    slug: "lifecycle",
+    version: "1",
+    title: "Lifecycle",
+    statementMarkdown: "Return x plus one.",
+    constraints: [],
+    signature: {
+      className: "Solution",
+      methodName: "f",
+      parameters: [{ name: "x", type: "int" }],
+      returnType: "int",
+    },
+    examples: [{ args: [1], expected: 2, explanation: "Increment." }],
+  });
+  fixture.hiddenCases = [{ args: [3], expected: 4 }];
+  fixture.implementations = fixture.implementations.filter(
+    (item: { language: string }) => item.language === "python",
   );
-  await pool.query(
-    "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]','2')",
-    [version],
+  fixture.implementations[0].starterSource = "class Solution:\n def f(self,x): pass\n";
+  fixture.implementations[0].referenceSource = "class Solution:\n def f(self,x): return x+1\n";
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,'lifecycle')`);
+      await persistQuestionVersion(
+        tx,
+        JSON.stringify(fixture),
+        problem,
+        version,
+        1,
+        null,
+        (language) => {
+          const runtime = languageRuntime(language);
+          return runtime ? { revision: runtime.revision, harness: runtime.harness } : undefined;
+        },
+      );
+    }),
   );
-  await pool.query(
-    "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,'[3]','4')",
-    [version],
-  );
-  await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [version]);
 });
 after(async () => {
   coordinator.close();
@@ -248,7 +281,11 @@ void test("deadline keeps unresolved work no-contest after late completion", asy
   await prearmReceipts(run, "execution").create(receiptId, 0);
   await coordinator.prearm(0);
   const command = await parseWorkspaceCommand(
-    JSON.stringify({ workspaceId: workspace, kind: "submit", source: "def f(x): return x" }),
+    JSON.stringify({
+      workspaceId: workspace,
+      kind: "submit",
+      source: "class Solution:\n def f(self,x): return x+1",
+    }),
     "real-admit",
   );
   const admitted = await postgresWorkspaceAdmission(run, {
@@ -268,10 +305,35 @@ void test("deadline keeps unresolved work no-contest after late completion", asy
     outcome: { kind: string; reason: string };
   };
   assert.equal(first.outcome.kind, "no_contest");
-  await pool.query(
-    'UPDATE submissions SET state=\'completed\',result=\'{"verdict":"accepted","score":{"passed":1,"total":1}}\' WHERE id=$1',
-    [submission],
-  );
+  const socket = process.env.QUOREM_TEST_DOCKER_SOCKET;
+  if (!socket) throw new Error("Disposable Docker socket required");
+  const verifier = await localVerifier(run);
+  const root = await realpath(await mkdtemp(join(tmpdir(), "quorem-lifecycle-verified-")));
+  try {
+    const sandbox = await dockerSandbox({
+      socket,
+      stateRoot: root,
+      namespace: "lifecycle-late",
+      cleanupMs: 10000,
+    });
+    const port = postgresExecutionCommands(
+      run,
+      { inputProtocol: "manifest-v1", resumable: true, losslessCases: true, losslessResults: true },
+      verifier.verification,
+    );
+    const job = await port.claimAfterTeardown(true, sandbox.scope, null);
+    assert.equal(job?.jobId, jobId);
+    await executeAndStage(job!, port, sandbox);
+    await finishAfterTeardown(port, sandbox, job!);
+    const completed = (
+      await pool.query("SELECT state,result FROM submissions WHERE id=$1", [submission])
+    ).rows[0];
+    assert.equal(completed.state, "completed");
+    assert.equal(completed.result.verdict, "accepted");
+  } finally {
+    await verifier.close();
+    await rm(root, { recursive: true, force: true });
+  }
   const late = (await repo.read(host, created.id)) as { outcome: { kind: string; reason: string } };
   assert.deepEqual(late.outcome, first.outcome);
   assert.equal(
@@ -498,6 +560,56 @@ void test("real admission rechecks deadline after waiting for the aggregate lock
   );
   await repo.read(host, created.id);
 });
+void test("deadline reconciliation and forfeit race settle exactly once", async () => {
+  const room = (await repo.create(host, "deadline-forfeit-room", settings)) as { id: string };
+  await pool.query(
+    "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,'match-rival',2)",
+    [room.id],
+  );
+  await pool.query("INSERT INTO match_reservations(owner_id,match_id) VALUES('match-rival',$1)", [
+    room.id,
+  ]);
+  await repo.mutate(host, room.id, "race-h", "ready", true);
+  await repo.mutate(rival, room.id, "race-r", "ready", true);
+  await pool.query(
+    "UPDATE matches SET deadline=clock_timestamp()-interval '4 minutes',finalizing_at=clock_timestamp()-interval '3 minutes' WHERE id=$1",
+    [room.id],
+  );
+  const outcomes = await Promise.allSettled([
+    repo.mutate(host, room.id, "forfeit-race", "forfeit", null),
+    repo.read(rival, room.id),
+  ]);
+  assert.equal(outcomes.filter((v) => v.status === "rejected").length, 0);
+  const state = (await pool.query("SELECT state,outcome FROM matches WHERE id=$1", [room.id]))
+    .rows[0];
+  assert.equal(state.state, "completed");
+  assert.ok(["draw", "win"].includes(state.outcome.kind));
+  if (state.outcome.kind === "win") {
+    assert.equal(state.outcome.reason, "forfeit");
+    assert.equal(
+      state.outcome.winnerUserId,
+      (await pool.query("SELECT participant_id::text AS id FROM users WHERE id='match-rival'"))
+        .rows[0].id,
+    );
+  } else assert.equal(state.outcome.reason, "deadline_score");
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int AS n FROM match_outbox WHERE match_id=$1 AND event_type='match.completed'",
+        [room.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await pool.query("SELECT count(*)::int AS n FROM match_reservations WHERE match_id=$1", [
+        room.id,
+      ])
+    ).rows[0].n,
+    0,
+  );
+});
 void test("concurrent free-for-all starts create one workspace per participant", async () => {
   const ffa = normalizeSettings({ difficulty: "easy", mode: "free-for-all" }),
     id = ((await repo.create(host, "ffa-room", ffa)) as { id: string }).id;
@@ -680,6 +792,33 @@ void test("rule announcements use canonical membership, replay, suppression and 
     retained.ruleEvents.every((event) => event.kind === "clipboard" && event.action === "announce"),
   );
   await assert.rejects(repo.mutate(outsider, room.id, "outsider-rule", "rule-events", "focus"));
+  const other = (await repo.create(outsider, "rule-guest-room", settings)) as { id: string };
+  const guestId = `rule-guest-${crypto.randomUUID()}`,
+    guestToken = `rule-token-${crypto.randomUUID()}`;
+  await pool.query("INSERT INTO users(id,display_name,kind) VALUES($1,'Guest','guest')", [guestId]);
+  await pool.query("INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,2)", [
+    other.id,
+    guestId,
+  ]);
+  await pool.query(
+    "INSERT INTO guest_sessions(token_hash,owner_id,match_id,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')",
+    [guestToken, guestId, other.id],
+  );
+  const guest = {
+    kind: "guest" as const,
+    userId: guestId,
+    displayName: "Guest",
+    admin: false as const,
+    emailVerified: false as const,
+    sessionId: guestToken,
+    strongUntil: 0 as const,
+    credentialExpiresAt: 9999999999,
+    scope: { kind: "match" as const, matchId: other.id },
+  };
+  await assert.rejects(
+    repo.mutate(guest, room.id, "foreign-guest-rule", "rule-events", "clipboard"),
+  );
+  await repo.mutate(outsider, other.id, "rule-guest-close", "leave", null);
   await pool.query(
     "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id=$2",
     [room.id, actor.userId],
