@@ -9,6 +9,7 @@ import {
 } from "@quorem/questions";
 import { fixtureSourceHash } from "./source.ts";
 import type { FixtureOwner } from "./bind.ts";
+import { storeInputBlob } from "./blob.ts";
 
 type Obj = { [key: string]: JsonValue };
 type Parent = FixtureOwner;
@@ -57,13 +58,7 @@ export function encodeFixtureCase(value: JsonValue): Uint8Array {
   return new TextEncoder().encode(stringifyLosslessJson(wireCase(value)));
 }
 export async function storeFixtureBlob(tx: Transaction, bytes: Uint8Array): Promise<Uint8Array> {
-  const row = (
-    await tx.execute<{ hash: Uint8Array }>(
-      sql`WITH input AS (SELECT ${bytes}::bytea AS data), inserted AS (INSERT INTO runner_input_blobs(hash,data) SELECT sha256(data),data FROM input ON CONFLICT(hash) DO NOTHING RETURNING hash) SELECT hash FROM inserted UNION ALL SELECT b.hash FROM runner_input_blobs b,input i WHERE b.hash=sha256(i.data) AND b.data=i.data LIMIT 1`,
-    )
-  ).rows[0];
-  if (!row) throw new Error("Runner input hash collision");
-  return row.hash;
+  return storeInputBlob(tx, sql`${bytes}`);
 }
 /** Caller holds the publication or snapshot transaction; previously sealed indexes are immutable. */
 export async function indexRunnerFixture(
@@ -160,6 +155,9 @@ export async function indexRunnerFixture(
     );
     await tx.execute(
       sql`WITH input(channel,stage,ordinal,data) AS (VALUES ${rows}) INSERT INTO runner_input_blobs(hash,data) SELECT DISTINCT sha256(data),data FROM input ON CONFLICT(hash) DO NOTHING`,
+    );
+    await tx.execute(
+      sql`WITH input(channel,stage,ordinal,data) AS (VALUES ${rows}) SELECT b.hash FROM runner_input_blobs b JOIN input i ON b.hash=sha256(i.data) AND b.data=i.data ORDER BY b.hash FOR KEY SHARE OF b`,
     );
     const mismatch = (
       await tx.execute<{ found: boolean }>(

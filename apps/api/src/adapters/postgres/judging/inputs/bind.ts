@@ -1,6 +1,7 @@
 /** @file bind.ts @description Atomic, sealed input bindings for an admitted job. @module judging */
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
+import { storeInputBlob } from "./blob.ts";
 
 export type FixtureOwner = { version: string } | { session: string; fixture: Uint8Array };
 /** A sealed fixture is selected in PostgreSQL, never materialized as a Worker array. */
@@ -13,14 +14,7 @@ export function fixtureRows(owner: FixtureOwner, level: number) {
 }
 /** Store one already validated custom-case JSON value without changing its lexical bytes. */
 export async function storeCustomInput(tx: Transaction, raw: string): Promise<Uint8Array> {
-  const bytes = new TextEncoder().encode(raw);
-  const row = (
-    await tx.execute<{ hash: Uint8Array }>(
-      sql`WITH input AS (SELECT ${bytes}::bytea AS data), inserted AS (INSERT INTO runner_input_blobs(hash,data) SELECT sha256(data),data FROM input ON CONFLICT(hash) DO NOTHING RETURNING hash) SELECT hash FROM inserted UNION ALL SELECT b.hash FROM runner_input_blobs b,input i WHERE b.hash=sha256(i.data) AND b.data=i.data LIMIT 1`,
-    )
-  ).rows[0];
-  if (!row) throw new Error("Runner input hash collision");
-  return row.hash;
+  return storeInputBlob(tx, sql`${new TextEncoder().encode(raw)}`);
 }
 /** Call after job and, for interviews, interview_execution are inserted, inside admission's transaction. */
 export async function bindJobInputs(
@@ -45,12 +39,10 @@ export async function bindJobInputs(
     input.caseCount + (input.submitCasesAreSamples ? 0 : input.sampleCount) > 2147483647
   )
     throw new Error("Invalid job input count");
-  const source = (
-    await tx.execute<{ hash: Uint8Array }>(
-      sql`WITH input AS (SELECT convert_to(s.source,'UTF8') AS data FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${input.jobId}::uuid), inserted AS (INSERT INTO runner_input_blobs(hash,data) SELECT sha256(data),data FROM input ON CONFLICT(hash) DO NOTHING RETURNING hash) SELECT hash FROM inserted UNION ALL SELECT b.hash FROM runner_input_blobs b,input i WHERE b.hash=sha256(i.data) AND b.data=i.data LIMIT 1`,
-    )
-  ).rows[0];
-  if (!source) throw new Error("Runner source unavailable");
+  const source = await storeInputBlob(
+    tx,
+    sql`(SELECT convert_to(s.source,'UTF8') FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${input.jobId}::uuid)`,
+  );
   const metadata =
     "version" in input.owner
       ? (
@@ -68,7 +60,7 @@ export async function bindJobInputs(
   const session = "session" in input.owner ? input.owner.session : null;
   const fixture = "fixture" in input.owner ? input.owner.fixture : null;
   await tx.execute(
-    sql`INSERT INTO runner_job_inputs(job_id,version_id,session_id,fixture_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples) SELECT j.id,${version}::uuid,${session}::uuid,${fixture}::bytea,${metadata.hash},${source.hash},j.runtime_revision,j.harness_revision,${input.caseCount},${input.sampleCount},${input.privateDetails},${input.submitCasesAreSamples} FROM execution_jobs j WHERE j.id=${input.jobId}::uuid`,
+    sql`INSERT INTO runner_job_inputs(job_id,version_id,session_id,fixture_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples) SELECT j.id,${version}::uuid,${session}::uuid,${fixture}::bytea,${metadata.hash},${source},j.runtime_revision,j.harness_revision,${input.caseCount},${input.sampleCount},${input.privateDetails},${input.submitCasesAreSamples} FROM execution_jobs j WHERE j.id=${input.jobId}::uuid`,
   );
   const primary =
     input.primary === "custom"

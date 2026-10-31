@@ -4,6 +4,8 @@ import { postgresDeadlines } from "./deadlines.ts";
 import { prearmReceipts, consumePrearm } from "./prearm.ts";
 import { retainBatch } from "./retention.ts";
 import { seedCatalog } from "../../../../cli/seed.ts";
+import { bindJobInputs, storeCustomInput } from "../../judging/inputs/bind.ts";
+import { submissionSnapshots } from "../../judging/results/repository.ts";
 import {
   drainDeadlines,
   activateDeadline,
@@ -246,6 +248,296 @@ describe("deadline scheduling with PostgreSQL", () => {
       [ids.get("guest")],
     );
     expect(remaining.rows[0]).toEqual({ headers: 0, cases: 0, statuses: 0 });
+  });
+  it("expires sealed job inputs and keeps shared fixtures, uncertain leases and authorized metadata", async () => {
+    await seedCatalog(pool, true);
+    const version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+      prefix = `input-retention-${crypto.randomUUID()}`;
+    const entries = [
+      { name: "expired", state: "completed", finished: true, lease: false, kind: "guest", days: 8 },
+      { name: "live", state: "running", finished: false, lease: false, kind: "guest", days: 8 },
+      { name: "queued", state: "queued", finished: false, lease: false, kind: "guest", days: 8 },
+      {
+        name: "uncertain",
+        state: "completed",
+        finished: true,
+        lease: true,
+        kind: "guest",
+        days: 8,
+      },
+      {
+        name: "account-recent",
+        state: "completed",
+        finished: true,
+        lease: false,
+        kind: "account",
+        days: 8,
+      },
+      {
+        name: "account-old",
+        state: "completed",
+        finished: true,
+        lease: false,
+        kind: "account",
+        days: 31,
+      },
+    ] as const;
+    const rows = new Map<
+      string,
+      { user: string; submission: string; job: string; source: string; custom: Uint8Array }
+    >();
+    for (const item of entries) {
+      const user = `${prefix}-${item.name}`,
+        workspace = crypto.randomUUID(),
+        submission = crypto.randomUUID(),
+        job = crypto.randomUUID(),
+        source = `${prefix}-source-${item.name}`;
+      await pool.query("INSERT INTO users(id,display_name,kind) VALUES($1,$1,$2)", [
+        user,
+        item.kind,
+      ]);
+      await pool.query(
+        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        [workspace, user, version],
+      );
+      await pool.query(
+        "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,admitted_at) VALUES($1,$2,$3,'run',$4,'hash','running','[]','{}',clock_timestamp()-($5::text||' days')::interval)",
+        [submission, user, workspace, source, item.days],
+      );
+      await pool.query("INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", [
+        job,
+        submission,
+      ]);
+      const custom = await run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+          const hash = await storeCustomInput(tx, `${prefix}-custom-${item.name}`);
+          const shared = await storeCustomInput(tx, `${prefix}-shared`);
+          await bindJobInputs(tx, {
+            jobId: job,
+            owner: { version },
+            level: 0,
+            primary: "custom",
+            custom: [hash, shared],
+            caseCount: 2,
+            sampleCount: 0,
+            privateDetails: false,
+            submitCasesAreSamples: false,
+          });
+          return hash;
+        }),
+      );
+      if (item.name === "expired") {
+        const attempt = crypto.randomUUID();
+        await pool.query(
+          "INSERT INTO execution_completion_receipts(job_id,attempt_id,sandbox_scope,outcome) VALUES($1,$2,'fixture','completed')",
+          [job, attempt],
+        );
+        await pool.query(
+          "INSERT INTO execution_verified_cases(job_id,ordinal,attempt_id,sandbox_scope,challenge_id,binding,frame_hash,type_mismatch,status) VALUES($1,0,$2,'fixture',$3,decode(repeat('00',32),'hex'),decode(repeat('11',32),'hex'),false,'accepted')",
+          [job, attempt, crypto.randomUUID()],
+        );
+      }
+      if (item.state !== "running")
+        await pool.query("UPDATE submissions SET state=$2 WHERE id=$1", [submission, item.state]);
+      if (item.finished)
+        await pool.query(
+          `UPDATE execution_jobs SET finished=true,lease_until=${item.lease ? "clock_timestamp()+interval '1 hour'" : "NULL"} WHERE id=$1`,
+          [job],
+        );
+      rows.set(item.name, { user, submission, job, source, custom });
+    }
+    const expired = rows.get("expired")!,
+      live = rows.get("live")!,
+      uncertain = rows.get("uncertain")!,
+      queued = rows.get("queued")!,
+      accountRecent = rows.get("account-recent")!,
+      accountOld = rows.get("account-old")!;
+    const versionMetadata = (
+      await pool.query("SELECT metadata_hash FROM runner_version_inputs WHERE version_id=$1", [
+        version,
+      ])
+    ).rows[0].metadata_hash;
+    const session = crypto.randomUUID(),
+      fixture = (await pool.query("SELECT sha256(convert_to('{}'::jsonb::text,'UTF8')) AS id"))
+        .rows[0].id;
+    await pool.query(
+      "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES($1,$2,'Fixture','{}','python','',$3,$4,$5,'token',$6,'token')",
+      [
+        session,
+        expired.user,
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+      ],
+    );
+    await pool.query(
+      "INSERT INTO interview_question_snapshots(session_id,id,fixture) VALUES($1,$2,'{}')",
+      [session, fixture],
+    );
+    await pool.query(
+      "INSERT INTO runner_snapshot_inputs(session_id,fixture_id,metadata_hash,fixture_hash) VALUES($1,$2,$3,$4)",
+      [session, fixture, versionMetadata, fixture],
+    );
+    await pool.query(
+      "INSERT INTO runner_snapshot_input_cases(session_id,fixture_id,channel,stage,ordinal,blob_hash) VALUES($1,$2,'example',0,0,$3)",
+      [session, fixture, expired.custom],
+    );
+    await pool.query(
+      "UPDATE runner_snapshot_inputs SET sealed=true WHERE session_id=$1 AND fixture_id=$2",
+      [session, fixture],
+    );
+    await retainBatch(run);
+    const jobs = await pool.query("SELECT id FROM execution_jobs WHERE id=ANY($1::uuid[])", [
+      [expired.job, live.job, uncertain.job, queued.job, accountRecent.job, accountOld.job],
+    ]);
+    expect(jobs.rows.map((r) => r.id).sort((a, b) => a.localeCompare(b))).toEqual(
+      [live.job, uncertain.job, queued.job, accountRecent.job].sort((a, b) => a.localeCompare(b)),
+    );
+    const blobs = await pool.query(
+      "SELECT encode(hash,'hex') AS hash FROM runner_input_blobs WHERE hash=ANY($1::bytea[])",
+      [
+        [
+          Buffer.from(expired.custom),
+          Buffer.from(live.custom),
+          Buffer.from(uncertain.custom),
+          Buffer.from(accountOld.custom),
+          versionMetadata,
+        ],
+      ],
+    );
+    const hashes = blobs.rows.map((r) => r.hash);
+    expect(hashes).not.toContain(Buffer.from(accountOld.custom).toString("hex"));
+    for (const hash of [expired.custom, live.custom, uncertain.custom, versionMetadata])
+      expect(hashes).toContain(Buffer.from(hash).toString("hex"));
+    expect(
+      (
+        await pool.query(
+          "SELECT 1 FROM runner_input_blobs WHERE hash=sha256(convert_to($1,'UTF8'))",
+          [expired.source],
+        )
+      ).rowCount,
+    ).toBe(0);
+    expect(
+      (
+        await pool.query(
+          "SELECT 1 FROM runner_input_blobs WHERE hash=sha256(convert_to($1,'UTF8'))",
+          [`${prefix}-shared`],
+        )
+      ).rowCount,
+    ).toBe(1);
+    const stream = await submissionSnapshots(run).read(
+      {
+        kind: "local",
+        userId: expired.user,
+        displayName: expired.user,
+        admin: false,
+        emailVerified: true,
+        sessionId: "local",
+        strongUntil: 0,
+      },
+      expired.submission,
+    );
+    const result = JSON.parse(await new Response(stream).text());
+    expect(result).toMatchObject({ id: expired.submission, state: "completed" });
+    expect(result.result).toBeUndefined();
+  });
+  it("does not collect a blob concurrently bound by a publishing transaction", async () => {
+    await seedCatalog(pool, true);
+    const version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+      user = `gc-race-${crypto.randomUUID()}`,
+      workspace = crypto.randomUUID(),
+      submission = crypto.randomUUID(),
+      job = crypto.randomUUID(),
+      source = `race-source-${crypto.randomUUID()}`;
+    await pool.query("INSERT INTO users(id,display_name) VALUES($1,$1)", [user]);
+    await pool.query(
+      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+      [workspace, user, version],
+    );
+    await pool.query(
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run',$4,'hash','running','[]')",
+      [submission, user, workspace, source],
+    );
+    await pool.query("INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", [
+      job,
+      submission,
+    ]);
+    await pool.query(
+      "INSERT INTO runner_input_blobs(hash,data) VALUES(sha256(convert_to($1,'UTF8')),convert_to($1,'UTF8'))",
+      [source],
+    );
+    let ready!: () => void, release!: () => void;
+    const locked = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const proceed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const publisher = run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+        await bindJobInputs(tx, {
+          jobId: job,
+          owner: { version },
+          level: 0,
+          primary: "custom",
+          custom: [],
+          caseCount: 0,
+          sampleCount: 0,
+          privateDetails: false,
+          submitCasesAreSamples: false,
+        });
+        ready();
+        await proceed;
+      }),
+    );
+    try {
+      await locked;
+      await retainBatch(run);
+    } finally {
+      release();
+    }
+    await publisher;
+    await retainBatch(run);
+    expect(
+      (
+        await pool.query(
+          "SELECT 1 FROM runner_job_inputs j JOIN runner_input_blobs b ON b.hash=j.source_hash WHERE j.job_id=$1 AND j.sealed",
+          [job],
+        )
+      ).rowCount,
+    ).toBe(1);
+    const later = `gc-first-${crypto.randomUUID()}`;
+    await pool.query(
+      "INSERT INTO runner_input_blobs(hash,data) VALUES(sha256(convert_to($1,'UTF8')),convert_to($1,'UTF8'))",
+      [later],
+    );
+    const collector = await pool.connect();
+    try {
+      await collector.query("BEGIN");
+      await collector.query(
+        "DELETE FROM runner_input_blobs WHERE hash=sha256(convert_to($1,'UTF8'))",
+        [later],
+      );
+      const writer = run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) =>
+          storeCustomInput(tx, later),
+        ),
+      );
+      await collector.query("COMMIT");
+      await writer;
+    } finally {
+      await collector.query("ROLLBACK").catch(() => {});
+      collector.release();
+    }
+    expect(
+      (
+        await pool.query(
+          "SELECT 1 FROM runner_input_blobs WHERE hash=sha256(convert_to($1,'UTF8')) AND data=convert_to($1,'UTF8')",
+          [later],
+        )
+      ).rowCount,
+    ).toBe(1);
   });
   it("deletes only expired published notices in bounded batches", async () => {
     const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
