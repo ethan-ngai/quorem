@@ -27,7 +27,11 @@ export function createAuthApp(options: {
       path === "/api/auth/profile-photo" ||
       path.startsWith("/api/auth/profile-photos/")
     )
-      return (await options.profile?.(request)) ?? new Response(null, { status: 404 });
+      try {
+        return (await options.profile?.(request)) ?? new Response(null, { status: 404 });
+      } catch {
+        return new Response(null, { status: 503, headers: { "Cache-Control": "no-store" } });
+      }
     return options.auth.handler(request);
   });
   return app;

@@ -1,3 +1,8 @@
+import { createProfileHandler } from "./profile.ts";
+import { drizzleProfileBudget } from "./adapters/drizzle-profile-budget.ts";
+import { drizzleProfileRepository } from "./adapters/drizzle-profile-repository.ts";
+import type { ProfileStorage } from "./profile-storage.ts";
+import type { ImageProcessor } from "./image-processing.ts";
 import type { ConnectionScope } from "@quorem/database/core";
 import type { configuration } from "./config.ts";
 import type { VerificationSender } from "./email-delivery.ts";
@@ -17,6 +22,7 @@ export function composeAuth(options: {
   run: RunScope;
   transport?: VerificationSender;
   mailKey?: Uint8Array;
+  media?: { storage: ProfileStorage; processor: ImageProcessor };
 }) {
   const { config, run, transport, mailKey } = options;
   if (
@@ -49,11 +55,21 @@ export function composeAuth(options: {
     config.registration && mail
       ? createRegistrationHandler({ repository: mailRepository, mail, origin: config.origin })
       : undefined;
+  const profile = options.media
+    ? createProfileHandler({
+        origin: config.origin,
+        session: (headers) => auth.api.getSession({ headers }),
+        repository: drizzleProfileRepository(run),
+        budget: drizzleProfileBudget(run),
+        storage: options.media.storage,
+        imageProcessor: options.media.processor,
+      })
+    : undefined;
   return {
     auth,
     makeAuth,
     repository,
     registration,
-    app: createAuthApp({ config, auth, registration }),
+    app: createAuthApp({ config, auth, registration, profile }),
   };
 }

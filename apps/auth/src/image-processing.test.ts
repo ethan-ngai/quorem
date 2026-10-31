@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { sharpImageProcessor } from "./adapters/sharp-image";
+import { isolatedImageProcessor } from "./adapters/isolated-image";
+const sharpImageProcessor = isolatedImageProcessor();
 
 const image = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: "red" } });
@@ -30,16 +31,26 @@ describe("sharp image processor", () => {
     if (resized.kind !== "processed") throw new Error("Expected processed image");
     expect(await sharp(resized.bytes).metadata()).toMatchObject({ width: 512, height: 512 });
   });
+  it("enforces the 16 megapixel boundary", async () => {
+    const accepted = await image(4000, 4000).png().toBuffer();
+    expect((await sharpImageProcessor.process(accepted, "png")).kind).toBe("processed");
+    const rejected = await image(4001, 4000).png().toBuffer();
+    expect((await sharpImageProcessor.process(rejected, "png")).kind).toBe("invalid");
+  });
   it("rejects multi-frame WebP", async () => {
     const animated = await sharp(Buffer.from([255, 0, 0, 255, 0, 255, 0, 255]), {
       raw: { width: 1, height: 2, channels: 4, pageHeight: 1 },
-    }).webp({ loop: 0, delay: [100, 100] }).toBuffer();
+    })
+      .webp({ loop: 0, delay: [100, 100] })
+      .toBuffer();
     expect((await sharp(animated).metadata()).pages).toBe(2);
     expect(await sharpImageProcessor.process(animated, "webp")).toEqual({ kind: "unsupported" });
   });
   it("distinguishes format mismatch from invalid input", async () => {
     const input = await image(32, 16).png().toBuffer();
     expect(await sharpImageProcessor.process(input, "jpeg")).toEqual({ kind: "unsupported" });
-    expect(await sharpImageProcessor.process(new Uint8Array([1, 2, 3]), "png")).toEqual({ kind: "invalid" });
+    expect(await sharpImageProcessor.process(new Uint8Array([1, 2, 3]), "png")).toEqual({
+      kind: "invalid",
+    });
   });
 });

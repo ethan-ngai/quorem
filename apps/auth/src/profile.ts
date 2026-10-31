@@ -1,4 +1,8 @@
-import type { ImageFormat, ImageProcessor } from "./image-processing.ts";
+import {
+  ImageExecutionUncertain,
+  type ImageFormat,
+  type ImageProcessor,
+} from "./image-processing.ts";
 import { profileMutationLifetimeMs, type ProfileMutationBudget } from "./profile-budget.ts";
 import type { ProfileStorage } from "./profile-storage.ts";
 
@@ -156,6 +160,7 @@ export function createProfileHandler(options: {
       ),
     ]);
     let nextKey: string | undefined;
+    let executionUncertain = false;
     try {
       signal.throwIfAborted();
       if (request.method === "PUT") {
@@ -168,7 +173,7 @@ export function createProfileHandler(options: {
         if (!format) return json(415, { error: "Choose a PNG, JPEG or WebP image" });
         const bytes = await boundedBody(request, signal);
         if (!bytes) return json(413, { error: "Choose an image smaller than 5 MiB" });
-        const image = await options.imageProcessor.process(bytes, format);
+        const image = await options.imageProcessor.process(bytes, format, signal);
         signal.throwIfAborted();
         if (image.kind === "unsupported")
           return json(415, { error: "Choose a static PNG, JPEG or WebP image" });
@@ -191,10 +196,11 @@ export function createProfileHandler(options: {
       await cleanup(storedKey(profile.image));
       return json(200, publicProfile({ ...profile, image: nextImage }));
     } catch (error) {
+      if (error instanceof ImageExecutionUncertain) executionUncertain = true;
       if (!(error instanceof ProfileWriteUncertain)) await cleanup(nextKey);
       throw error;
     } finally {
-      await options.budget.release(admission.lease);
+      if (!executionUncertain) await options.budget.release(admission.lease);
     }
   };
 }
