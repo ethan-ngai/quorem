@@ -60,17 +60,19 @@ async function inventory(account, token, path, phase, send, report) {
       !info ||
       info.page !== page ||
       info.per_page !== 100 ||
-      !Number.isSafeInteger(info.total_pages) ||
+      (info.total_pages !== undefined &&
+        (!Number.isSafeInteger(info.total_pages) || info.total_pages < 0)) ||
       !Number.isSafeInteger(info.total_count) ||
-      info.total_pages < 0 ||
       info.total_count < 0 ||
       info.count !== result.result.length ||
       result.result.length > 100 ||
-      (total !== undefined && (total !== info.total_count || pages !== info.total_pages))
+      (total !== undefined &&
+        (total !== info.total_count ||
+          pages !== (info.total_pages ?? Math.ceil(info.total_count / info.per_page))))
     )
       throw new Error("Ambiguous provider inventory");
     total = info.total_count;
-    pages = info.total_pages;
+    pages = info.total_pages ?? Math.ceil(info.total_count / info.per_page);
     entries.push(...result.result);
     if (page >= Math.max(1, pages)) {
       if (
