@@ -14,7 +14,7 @@ import {
   profileObjectEndpoint,
 } from "./profile-object-cutover.ts";
 
-test("resume identity rejects routing overrides and requires verified remote TLS", () => {
+void test("resume identity rejects routing overrides and requires verified remote TLS", () => {
   const a = cutoverDatabaseIdentity("postgres://user:secret@db.example/app?sslmode=verify-full");
   assert.deepEqual(
     a,
@@ -45,7 +45,7 @@ test("resume identity rejects routing overrides and requires verified remote TLS
 });
 
 const url = process.env.QUOREM_PROFILE_CUTOVER_TEST_URL;
-test(
+void test(
   "audited operator resumes bounded pages and never overwrites mismatched objects",
   { skip: !url },
   async () => {
