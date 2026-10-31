@@ -1,3 +1,4 @@
+import { assertRuntimeFixture } from "./fixture-guard.ts";
 import { createHmac, createHash } from "node:crypto";
 import { createServer, type RequestListener } from "node:http";
 import { once } from "node:events";
@@ -20,12 +21,7 @@ const url = process.env.QUOREM_RUNTIME_TEST_URL,
 it.skipIf(!url || !docker).each(["node", "worker"] as const)(
   "%s admits only after a durable wake and completes Docker through the signed HTTP verifier",
   async (mode) => {
-    const parsed = new URL(url!);
-    expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-      "127.0.0.1",
-      "55575",
-      "/quorem_hono_runtime_test",
-    ]);
+    assertRuntimeFixture(url!);
     let queueReady = false,
       queueCalls = 0;
     const queue = createServer((req, res) => {

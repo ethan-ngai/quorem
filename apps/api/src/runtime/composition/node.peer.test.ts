@@ -1,3 +1,4 @@
+import { assertRuntimeFixture } from "./fixture-guard.ts";
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, it } from "vitest";
@@ -7,12 +8,7 @@ const url = process.env.QUOREM_RUNTIME_TEST_URL;
 it.skipIf(!url)(
   "uses socket peers for auth limits and rejects forged forwarding claims",
   async () => {
-    const parsed = new URL(url!);
-    expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-      "127.0.0.1",
-      "55575",
-      "/quorem_hono_runtime_test",
-    ]);
+    assertRuntimeFixture(url!);
     const pool = createNodePool({
       connectionString: url!,
       max: 1,

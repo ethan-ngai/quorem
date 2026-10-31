@@ -1,3 +1,4 @@
+import { assertRuntimeFixture } from "./fixture-guard.ts";
 import { createHmac } from "node:crypto";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
@@ -10,12 +11,7 @@ const url = process.env.QUOREM_RUNTIME_TEST_URL;
 it.skipIf(!url)(
   "serves real auth, catalog, workspace and authenticated socket over Node HTTP",
   async () => {
-    const parsed = new URL(url!);
-    expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-      "127.0.0.1",
-      "55575",
-      "/quorem_hono_runtime_test",
-    ]);
+    assertRuntimeFixture(url!);
     const secret = "local-runtime-fixture-secret-32-characters";
     const env = {
       APP_ENV: "local",
