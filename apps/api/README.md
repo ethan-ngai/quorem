@@ -41,3 +41,14 @@ bound each string to 10,000 codepoints (the earlier generic collection prose did
 bound strings). Example explanations remain public metadata and are omitted from
 execution cases, hashes, and result ordering. Prose guarantees are informational,
 including aggregate sums and level differences.
+
+### Normalize retained result sidecars
+
+After applying product migrations through 060, stop and drain every legacy result writer and judge. Configure `QUOREM_OPERATOR_DATABASE_URL` with the privileged database connection and `AUTH_ORIGIN` with the issuer of the verified bootstrap administrator. Preview a bounded batch, then acknowledge the drain and repeat the same command until `complete` is `true`:
+
+```sh
+make backfill-results ARGS='--op-id result-cutover-1 --reason cutover --limit 16 --max-batches 100 --dry-run'
+make backfill-results ARGS='--op-id result-cutover-1 --reason cutover --limit 16 --max-batches 100 --legacy-drained'
+```
+
+The command normalizes retained legacy result headers and cases before repairing missing public status sidecars. Each source is locked and committed separately; a malformed or conflicting source fails the command. `--limit` is at most 64 and `--max-batches` at most 1000. Exit 2 means more work remains; rerun with the same operation ID and arguments. Dry run rolls writes back and previews one item, not the whole dataset. On interruption, the command reports observed committed counts and marks the current outcome unknown; retry with the same operation ID to reconcile. The drain flag is an operator assertion, not an automatic drain. Keep old writers stopped until activation and verify `complete` before serving normalized readers.

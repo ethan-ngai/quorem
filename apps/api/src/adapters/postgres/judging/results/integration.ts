@@ -1023,6 +1023,159 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
     )
   ).rows[0];
   assert.deepEqual(cleanup, { stages: 0, frames: 0, chunks: 0, receipts: 1 });
+  const stored = await pool.query(
+    "SELECT ordinal,case_id,convert_from(status_json,'UTF8') status FROM interview_private_case_statuses WHERE submission_id=$1",
+    [submission],
+  );
+  assert.deepEqual(
+    stored.rows.map((v) => ({
+      ordinal: v.ordinal,
+      caseId: v.case_id,
+      status: JSON.parse(v.status),
+    })),
+    [{ ordinal: 0, caseId: "hidden:0", status: "wrong_answer" }],
+  );
+  await pool.query("UPDATE interviews SET question=$2::jsonb WHERE id=$1", [session, fixture]);
+  await pool.query(
+    "INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) VALUES($1,$2,0,convert_to('[]','UTF8')) ON CONFLICT DO NOTHING",
+    [session, questionEpoch],
+  );
+  const { interviewSnapshotStream } = await import("../../interviews/question/stream.ts");
+  const snapshot = interviewSnapshotStream(run);
+  const fresh = JSON.parse(await new Response(await snapshot(host, session)).text());
+  assert.equal(fresh.question.privateCaseDetails[0].status, "wrong_answer");
+  const hiddenSnapshot = JSON.parse(await new Response(await snapshot(alice, session)).text());
+  assert.equal(hiddenSnapshot.question.privateCaseDetails, undefined);
+  const { backfillOnePrivateStatus } =
+    await import("../../interviews/question/private-status-backfill.ts");
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const legacy = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result,result_payload) VALUES(${legacy}::uuid,'results-alice',${session}::uuid,'submit','','legacy-private','completed','[]','{}',${new TextEncoder().encode(JSON.stringify({ hiddenCases: [{ index: 0, status: "legacy\u0000failure" }] }))})`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results) VALUES(${legacy}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${questionEpoch}::uuid,${fixtureId}::bytea,1,'[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES(${crypto.randomUUID()}::uuid,${legacy}::uuid,'python',true)`,
+      );
+    }),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, legacy),
+    ),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillOnePrivateStatus(tx, legacy),
+    ),
+  );
+  const repaired = await pool.query(
+    "SELECT case_id,convert_from(status_json,'UTF8') status FROM interview_private_case_statuses WHERE submission_id=$1",
+    [legacy],
+  );
+  assert.deepEqual(
+    repaired.rows.map((v) => [v.case_id, JSON.parse(v.status)]),
+    [["hidden:0", "legacy\u0000failure"]],
+  );
+  const { privateStatusRef, privateStatusPage, privateStatusPlan } =
+    await import("../../interviews/question/private-status-read.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await privateStatusPlan(tx, session, questionEpoch);
+      const ref = await privateStatusRef(tx, session, questionEpoch, "hidden:0");
+      assert.ok(ref);
+      assert.equal(
+        JSON.parse(new TextDecoder().decode(await privateStatusPage(tx, ref, 0))),
+        "legacy\u0000failure",
+      );
+    }),
+  );
+  await assert.rejects(
+    pool.query(
+      "UPDATE interview_private_case_statuses SET status_json=convert_to('\"accepted\"','UTF8') WHERE submission_id=$1",
+      [legacy],
+    ),
+    /immutable/,
+  );
+  const unavailable = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result) VALUES(${unavailable}::uuid,'results-alice',${session}::uuid,'submit','','missing-private','completed','[]','{}')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results) VALUES(${unavailable}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${questionEpoch}::uuid,${fixtureId}::bytea,1,'[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES(${crypto.randomUUID()}::uuid,${unavailable}::uuid,'python',true)`,
+      );
+    }),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, unavailable),
+    ),
+  );
+  await assert.rejects(
+    operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePrivateStatus(tx, unavailable),
+      ),
+    ),
+    /source unavailable/,
+  );
+  await assert.rejects(
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        privateStatusPlan(tx, session, questionEpoch),
+      ),
+    ),
+    /require backfill/,
+  );
+  await pool.query("UPDATE submissions SET result=NULL,result_payload=NULL WHERE id=$1", [
+    unavailable,
+  ]);
+  const invalid = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result,result_payload) VALUES(${invalid}::uuid,'results-alice',${session}::uuid,'submit','','invalid-private','completed','[]','{}',${new TextEncoder().encode(JSON.stringify({ hiddenCases: [{ index: 9, status: "wrong_answer" }] }))})`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results) VALUES(${invalid}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${questionEpoch}::uuid,${fixtureId}::bytea,1,'[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES(${crypto.randomUUID()}::uuid,${invalid}::uuid,'python',true)`,
+      );
+    }),
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, invalid),
+    ),
+  );
+  await assert.rejects(
+    operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePrivateStatus(tx, invalid),
+      ),
+    ),
+    /mapping/,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int n FROM interview_private_status_headers WHERE submission_id=$1",
+        [invalid],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await pool.query("UPDATE submissions SET result=NULL,result_payload=NULL WHERE id=$1", [invalid]);
   const staff = await repo.interview(host, session, submission);
   assert.match(staff, /PRIVATE\\u0000OUTPUT/);
   assert.match(staff, /"expected":2/);
@@ -1034,6 +1187,32 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   const revealed = await repo.interview(alice, session, submission);
   assert.match(revealed, /PRIVATE\\u0000OUTPUT/);
   assert.match(revealed, /"expected":2/);
+  const visibleSnapshot = JSON.parse(await new Response(await snapshot(alice, session)).text());
+  assert.equal(visibleSnapshot.question.revealedCases[0].status, "legacy\u0000failure");
+  const prior = await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      privateStatusPlan(tx, session, questionEpoch),
+    ),
+  );
+  await pool.query("UPDATE submissions SET result=NULL,result_payload=NULL WHERE id=$1", [legacy]);
+  await pool.query("DELETE FROM submission_result_headers WHERE submission_id=$1", [legacy]);
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int n FROM interview_private_case_statuses WHERE submission_id=$1",
+        [legacy],
+      )
+    ).rows[0].n,
+    0,
+  );
+  const afterRetention = await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      privateStatusPlan(tx, session, questionEpoch),
+    ),
+  );
+  assert.notEqual(afterRetention.digest, prior.digest);
+  const remaining = JSON.parse(await new Response(await snapshot(alice, session)).text());
+  assert.equal(remaining.question.revealedCases[0].status, "wrong_answer");
   await pool.query("UPDATE submissions SET result=NULL WHERE id=$1", [submission]);
   const retained = (
     await pool.query(

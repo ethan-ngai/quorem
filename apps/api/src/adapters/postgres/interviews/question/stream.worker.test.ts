@@ -55,6 +55,32 @@ it("streams large examples and authorized private cases in bounded pages; revoca
       );
     }),
   );
+  const submission = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${candidate},${ack.id}::uuid,'submit','','worker-feedback','running','[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level) SELECT ${submission}::uuid,i.id,i.document_version,i.document_epoch,i.question_epoch,a.fixture_id,1 FROM interviews i JOIN interview_active_runner_inputs a ON a.session_id=i.id AND a.question_epoch=i.question_epoch WHERE i.id=${ack.id}::uuid`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES(${crypto.randomUUID()}::uuid,${submission}::uuid,'python',true)`,
+      );
+      await tx.execute(
+        sql`INSERT INTO submission_result_headers(submission_id,header_data) VALUES(${submission}::uuid,convert_to('{}','UTF8'))`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_private_status_headers(submission_id,status_count) VALUES(${submission}::uuid,1)`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_private_case_statuses(submission_id,ordinal,case_id,status_json,status_hash) SELECT ${submission}::uuid,0,c.case_id,v,sha256(v) FROM interview_question_private_cases c CROSS JOIN (SELECT convert_to(to_json('worker-'||repeat('z',140000))::text,'UTF8') v) raw WHERE c.session_id=${ack.id}::uuid AND c.ordinal=0`,
+      );
+      await tx.execute(
+        sql`UPDATE submissions SET state='completed',result='{}' WHERE id=${submission}::uuid`,
+      );
+    }),
+  );
   async function collect(who: typeof h) {
     const reader = (await read(who, ack.id)).getReader(),
       chunks: Uint8Array[] = [];
@@ -85,6 +111,8 @@ it("streams large examples and authorized private cases in bounded pages; revoca
   const staff = await collect(h);
   expect(staff).toContain("s".repeat(300000));
   expect(staff).toContain("PRIVATE");
+  expect(staff).toContain("worker-" + "z".repeat(140000));
+  expect(publicText).not.toContain("worker-");
   expect(staff).not.toContain("FORBIDDEN");
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {

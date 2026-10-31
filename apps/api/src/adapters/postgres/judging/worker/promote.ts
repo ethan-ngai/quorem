@@ -1,4 +1,5 @@
 /** @file promote.ts @description Atomically publish a fenced completed result stream. @module judging */
+import { writeVerifiedPrivateStatuses } from "../../interviews/question/private-status-write.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import {
@@ -195,6 +196,14 @@ export function postgresCompletionPromotion(run: Run) {
         await tx.execute(
           sql`INSERT INTO submission_result_headers(submission_id,header_data) VALUES(${job.submissionId}::uuid,${encoder.encode(JSON.stringify(resultHeader))})`,
         );
+        if (terminal === "completed" && state.interview && state.kind === "submit")
+          await writeVerifiedPrivateStatuses(
+            tx,
+            job.submissionId,
+            job.jobId,
+            state.cases,
+            state.fallback,
+          );
         if (terminal === "completed" && state.kind === "run" && header.diagnosticsPresent)
           await tx.execute(
             sql`INSERT INTO submission_result_header_fields(submission_id,field,field_data) SELECT ${job.submissionId}::uuid,field,field_data FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid AND field='diagnostics'`,

@@ -232,6 +232,14 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
           "INSERT INTO submission_public_case_statuses(submission_id,channel,ordinal,case_index,status_json,status_hash) SELECT $1,'sample',0,7,v,sha256(v) FROM (SELECT convert_to($2,'UTF8') v) x",
           [submitted, JSON.stringify(longStatus)],
         );
+        await client.query(
+          "INSERT INTO interview_private_status_headers(submission_id,status_count) VALUES($1,1)",
+          [submitted],
+        );
+        await client.query(
+          "INSERT INTO interview_private_case_statuses(submission_id,ordinal,case_id,status_json,status_hash) SELECT $1,0,'level:1:case:0',v,sha256(v) FROM (SELECT convert_to($2,'UTF8') v) x",
+          [submitted, JSON.stringify(longStatus)],
+        );
         await client.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [
           submitted,
         ]);
@@ -246,6 +254,27 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
         const feedback = JSON.parse(await new Response(await lifecycle.read(reader, id)).text());
         expect(feedback.question.progress.caseStatuses).toEqual([{ index: 7, status: longStatus }]);
       }
+      const privateFeedback = JSON.parse(await new Response(await lifecycle.read(host, id)).text());
+      expect(privateFeedback.question.privateCaseDetails[0].status).toBe(longStatus);
+      await commands.caseVisibility(
+        interviewer,
+        id,
+        "show-staged",
+        "level:1:case:0",
+        true,
+        selected.questionEpoch,
+      );
+      const disclosed = (await lifecycle.read(viewer, id)).getReader();
+      expect((await disclosed.read()).done).toBe(false);
+      await commands.caseVisibility(
+        interviewer,
+        id,
+        "hide-staged",
+        "level:1:case:0",
+        false,
+        selected.questionEpoch,
+      );
+      await expect(disclosed.read()).rejects.toThrow();
       const streamed = (await lifecycle.read(host, id)).getReader();
       expect((await streamed.read()).done).toBe(false);
       await pool.query("UPDATE users SET disabled=true WHERE id=$1", [host.userId]);
@@ -263,6 +292,7 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
         ).text(),
       );
       expect(passed.question.progress.level).toBe(2);
+      expect(passed.question.privateCaseDetails[0].status).toBe(longStatus);
       expect(passed.document.epoch).toBe(selected.document.epoch);
       expect(passed.questionEpoch).toBe(selected.questionEpoch);
       const replay = JSON.parse(

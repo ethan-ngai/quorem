@@ -55,9 +55,17 @@ export async function backfillOnePublicStatus(
   if (!inserted.rows.length) throw new Error("Status backfill conflict");
   return true;
 }
+/** A locked row is still pending; it must not be reported as a completed cutover. */
+export async function publicStatusBackfillPending(tx: Transaction): Promise<boolean> {
+  return (
+    await tx.execute<{ pending: boolean }>(
+      sql`SELECT EXISTS(SELECT 1 FROM submissions s JOIN submission_public_result_cases c ON c.submission_id=s.id WHERE s.state IN ('completed','failed','cancelled') AND s.result IS NOT NULL AND NOT EXISTS(SELECT 1 FROM submission_public_case_statuses x WHERE x.submission_id=c.submission_id AND x.channel=c.channel AND x.ordinal=c.ordinal)) AS pending`,
+    )
+  ).rows[0].pending;
+}
 /** Each bounded operator transaction repairs one row; no network occurs under its lock. */
 export async function backfillPublicStatusBatch(
-  run: <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>,
+  run: <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) => Promise<T>,
   limit = 16,
 ): Promise<number> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 64)
