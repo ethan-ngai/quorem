@@ -254,6 +254,12 @@ describe.skipIf(!url)("runner claim fences", () => {
         [new Uint8Array([1]), submission],
       ),
     ).rejects.toThrow("immutable");
+    await expect(
+      pool.query(
+        "INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) VALUES($1,'public',1,$2)",
+        [submission, new Uint8Array([1])],
+      ),
+    ).rejects.toThrow("immutable");
     expect(
       (await pool.query("SELECT finished FROM execution_jobs WHERE id=$1", [job])).rows[0].finished,
     ).toBe(true);
