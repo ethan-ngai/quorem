@@ -3,24 +3,24 @@ import {
   decodeUtf8Chunks,
   readAllowedObjectSpans,
   StreamingJsonReader,
-  type JsonSpan,
+  type StreamingJsonSpan,
 } from "@quorem/questions";
 import type { spoolInput } from "../checkpoints/input-spool.ts";
 type Spool = Awaited<ReturnType<typeof spoolInput>>;
 const encoder = new TextEncoder();
 const fieldNames = new Set(["args", "calls", "expected"]);
 const callNames = new Set(["methodName", "args", "expected"]);
-const reader = (spool: Spool, span: JsonSpan) =>
+const reader = (spool: Spool, span: StreamingJsonSpan) =>
   new StreamingJsonReader(
     decodeUtf8Chunks(spool.stream(span.start, span.length))[Symbol.asyncIterator](),
   );
-async function kind(spool: Spool, span: JsonSpan): Promise<string> {
+async function kind(spool: Spool, span: StreamingJsonSpan): Promise<string> {
   return reader(spool, span).peek();
 }
-async function* raw(spool: Spool, span: JsonSpan): AsyncGenerator<Uint8Array> {
+async function* raw(spool: Spool, span: StreamingJsonSpan): AsyncGenerator<Uint8Array> {
   for await (const part of spool.stream(span.start, span.length)) yield part as Uint8Array;
 }
-async function* arrayOrEmpty(spool: Spool, span?: JsonSpan): AsyncGenerator<Uint8Array> {
+async function* arrayOrEmpty(spool: Spool, span?: StreamingJsonSpan): AsyncGenerator<Uint8Array> {
   if (!span || (await kind(spool, span)) === "n") {
     yield encoder.encode("[]");
     return;
@@ -34,7 +34,7 @@ export async function caseSpans(spool: Spool) {
     new StreamingJsonReader(decodeUtf8Chunks(spool.stream())[Symbol.asyncIterator]()),
     fieldNames,
   );
-  const calls: Map<string, JsonSpan>[] = [],
+  const calls: Map<string, StreamingJsonSpan>[] = [],
     callsSpan = top.get("calls");
   if (callsSpan && (await kind(spool, callsSpan)) !== "n") {
     const input = reader(spool, callsSpan);
@@ -43,7 +43,7 @@ export async function caseSpans(spool: Spool) {
       for (;;) {
         if (calls.length >= 100) throw new Error("Invalid case sequence");
         const fields = await readAllowedObjectSpans(input, callNames, false);
-        const absolute = new Map<string, JsonSpan>();
+        const absolute = new Map<string, StreamingJsonSpan>();
         for (const [name, span] of fields)
           absolute.set(name, { start: callsSpan.start + span.start, length: span.length });
         calls.push(absolute);
