@@ -1,5 +1,6 @@
 import { pgTable, pgSchema, text, timestamp, index, integer, unique, boolean, foreignKey, bigint, uniqueIndex, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+import { passkeyCounter } from "../../core/passkey-counter.ts"
 
 export const quorem_auth = pgSchema("quorem_auth");
 
@@ -94,7 +95,7 @@ export const passkeyInQuorem_auth = quorem_auth.table("passkey", {
 	publicKey: text().notNull(),
 	userId: text().notNull(),
 	credentialID: text().notNull(),
-	counter: bigint({ mode: "bigint" }).notNull(),
+	counter: passkeyCounter("counter").notNull(),
 	deviceType: text().notNull(),
 	backedUp: boolean().notNull(),
 	transports: text(),
@@ -155,5 +156,5 @@ export const userInQuorem_auth = quorem_auth.table("user", {
 }, (table) => [
 	uniqueIndex("auth_username_unique").using("btree", table.username.asc().nullsLast().op("text_ops")).where(sql`(username IS NOT NULL)`),
 	unique("user_email_key").on(table.email),
-	check("user_profile_color_check", sql`(profile_color >= 1) AND (profile_color <= 24)`),
+	check("user_profile_color_check", sql`((profile_color >= 1) AND (profile_color <= 24))`),
 ]);
