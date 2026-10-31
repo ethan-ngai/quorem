@@ -1,8 +1,9 @@
 import { IdentityError, type SessionAuthority } from '../../modules/identity/model.ts';
+import { serviceURL } from './service-url.ts';
 
 export function httpSessionAuthority(options: { baseURL: string; secret: string; fetch?: typeof fetch }): SessionAuthority {
-  const base = new URL(options.baseURL);
-  if (!options.secret || !['http:', 'https:'].includes(base.protocol)) throw new Error('Invalid session authority configuration');
+  const base = serviceURL(options.baseURL, true);
+  if (!options.secret) throw new Error('Invalid session authority configuration');
   const fetcher = options.fetch ?? fetch;
   return { async check(sessionId, subject, signal) {
     try {

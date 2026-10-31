@@ -1,9 +1,11 @@
 import { compactVerify, decodeJwt, decodeProtectedHeader, importJWK, type JWK } from 'jose';
 import { IdentityError, type Claims, type TokenVerifier } from '../../modules/identity/model.ts';
+import { serviceURL } from './service-url.ts';
 
 export function jwtVerifier(options: { issuer: string; audience: string; jwksURL: string; fetch?: typeof fetch }): TokenVerifier {
-  const url = new URL(options.jwksURL);
-  if (!['http:', 'https:'].includes(url.protocol) || !options.issuer || !options.audience) throw new Error('Invalid JWT configuration');
+  serviceURL(options.issuer, true);
+  const url = serviceURL(options.jwksURL, false);
+  if (!options.audience) throw new Error('Invalid JWT configuration');
   const fetcher = options.fetch ?? fetch;
   let keys = new Map<string, CryptoKey>();
   let fetched = 0, attempted = 0;
@@ -13,7 +15,10 @@ export function jwtVerifier(options: { issuer: string; audience: string; jwksURL
     attempted = Date.now();
     try {
       const response = await fetcher(url, { redirect: 'manual', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(3000)]) : AbortSignal.timeout(3000) });
-      if (response.status !== 200 || Number(response.headers.get('content-length')) > 65536 || !response.body) throw new Error('JWKS unavailable');
+      if (response.status !== 200 || Number(response.headers.get('content-length')) > 65536 || !response.body) {
+        await response.body?.cancel();
+        throw new Error('JWKS unavailable');
+      }
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = []; let size = 0;
       try {
