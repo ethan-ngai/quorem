@@ -18,22 +18,10 @@ type Person = { owner: string; state: string; best: number };
 type Submission = {
   owner: string;
   state: string;
-  verdict: string;
-  passed: string | null;
-  total: string | null;
-  intermediate: boolean;
-  max: number | null;
 };
 const timestamp = (expr: ReturnType<typeof sql>) =>
   sql`floor(extract(epoch FROM ${expr})*1000000)::bigint::text`;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function count(value: string | null): number | null {
-  if (value === null) return null;
-  const n = Number(value);
-  if (!/^-?\d+$/.test(value) || !Number.isSafeInteger(n))
-    throw new Error("Invalid persisted match score");
-  return n;
-}
 /** Caller owns the transaction; admission locks owner first, then this match. */
 export async function reconcileMatch(tx: Transaction, id: string): Promise<void> {
   if (!uuid.test(id)) throw new ApplicationError("not_found", "Match not found", 404);
@@ -61,23 +49,19 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
   ).rows;
   const rows = (
     await tx.execute<Submission>(
-      sql`SELECT s.owner_id AS owner,s.state,COALESCE(s.result->>'verdict','') AS verdict,s.result->'score'->>'passed' AS passed,s.result->'score'->>'total' AS total,COALESCE(s.odyssey_level < jsonb_array_length(p.odyssey->'levels'),false) AS intermediate,CASE WHEN c.definite_failures>0 AND c.definite_failures<=c.next_ordinal AND c.definite_failures<=jsonb_array_length(s.cases) THEN jsonb_array_length(s.cases)-c.definite_failures END AS max FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id LEFT JOIN execution_checkpoints c ON c.job_id=j.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
+      sql`SELECT s.owner_id AS owner,s.state FROM submissions s WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
     )
   ).rows;
-  const submissions: SubmissionProgress[] = rows.map((row) => {
-    const passed = count(row.passed),
-      total = count(row.total);
-    if ((passed === null) !== (total === null)) throw new Error("Invalid persisted match score");
-    return {
-      owner: row.owner,
-      state: row.state,
-      verdict: row.verdict,
-      score: passed === null || total === null ? null : { passed, total },
-      intermediate: row.intermediate,
-      maxPossible: row.max,
-      cannotPass: row.max !== null,
-    };
-  });
+  // Manifest hashes and legacy checkpoint counters do not establish verified outcomes.
+  const submissions: SubmissionProgress[] = rows.map((row) => ({
+    owner: row.owner,
+    state: row.state,
+    verdict: "",
+    score: null,
+    intermediate: false,
+    maxPossible: null,
+    cannotPass: false,
+  }));
   const decision = reconcile(
     BigInt(match.now),
     BigInt(match.deadline),

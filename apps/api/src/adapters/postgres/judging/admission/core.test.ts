@@ -10,7 +10,6 @@ it("rejects an unsupported runtime before touching the transaction", async () =>
       kind: "run",
       source: "x",
       sourceHash: "fixture",
-      cases: "[]",
       customRun: false,
       language: "python",
       runtimeRevision: "unavailable",
@@ -24,7 +23,6 @@ it("rejects an unsupported runtime before touching the transaction", async () =>
         admittedAt: null,
         odysseyLevel: null,
       },
-      losslessCases: false,
     }),
   ).rejects.toMatchObject({ code: "temporarily_unavailable" });
 });

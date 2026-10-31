@@ -31,7 +31,7 @@ import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.t
 import { spoolInput } from "../../../../../../runner/src/checkpoints/input-spool.ts";
 import { manifestCaseIdentity, manifestCasePage } from "../inputs/identity.ts";
 import { postgresInputReader } from "../inputs/read.ts";
-import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
+import { bindJobInputs, fixtureRows } from "../inputs/bind.ts";
 import { fixtureSourceHash } from "../inputs/source.ts";
 import { indexRunnerFixture, encodeFixtureCase, encodeFixtureMetadata } from "../inputs/fixture.ts";
 import { sql } from "drizzle-orm";
@@ -468,15 +468,12 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES(${job}::uuid,${submission}::uuid,'python','python-3.12-v1','quorem-harness-v2')`,
             );
             await indexRunnerFixture(tx, { version }, raw);
-            const hidden = await fixtureCaseRefs(tx, { version }, "hidden", 0),
-              examples = await fixtureCaseRefs(tx, { version }, "example", 0);
             await bindJobInputs(tx, {
               jobId: job,
               owner: { version },
-              cases: [
-                { channel: "private", hash: hidden[0].hash },
-                { channel: "sample", hash: examples[0].hash },
-              ],
+              level: 0,
+              primary: "hidden",
+              custom: [],
               caseCount: 1,
               sampleCount: 1,
               privateDetails: false,
@@ -531,11 +528,24 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               limits: defaultLimits(),
             };
             const manifest = await reader.inputManifest(fence);
-            const expectedSuite = createHash("sha256")
-              .update(
-                `private:${Buffer.from(hidden[0].hash).toString("hex")};sample:${Buffer.from(examples[0].hash).toString("hex")};`,
+            const refs = (
+              await tx.execute<{ ordinal: number; channel: string; blob_hash: Uint8Array }>(
+                sql`SELECT ordinal,channel,blob_hash FROM runner_job_input_cases WHERE job_id=${job}::uuid ORDER BY ordinal`,
               )
-              .digest("hex");
+            ).rows;
+            let digest = createHash("sha256").update("quorem-suite-v1").digest();
+            for (const ref of refs) {
+              const ordinal = Buffer.alloc(4);
+              ordinal.writeInt32BE(ref.ordinal);
+              digest = createHash("sha256")
+                .update(digest)
+                .update(ordinal)
+                .update(ref.channel)
+                .update(Buffer.of(0))
+                .update(ref.blob_hash)
+                .digest();
+            }
+            const expectedSuite = digest.toString("hex");
             expect(manifest.suiteHash).toBe(expectedSuite);
             expect(manifest).toMatchObject({
               kind: "submit",
@@ -820,7 +830,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       await pool.end();
     }
   });
-  it("rejects an overlarge selected index without reading more than the sentinel", async () => {
+  it("counts a large selected index in PostgreSQL", async () => {
     const pool = createNodePool({
       connectionString: url!,
       max: 2,
@@ -845,18 +855,10 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
             );
             await indexRunnerFixture(tx, { version }, raw);
-            let returned = 0;
-            const observed = {
-              execute: async (query: Parameters<typeof tx.execute>[0]) => {
-                const result = await tx.execute(query);
-                returned = result.rows.length;
-                return result;
-              },
-            } as unknown as typeof tx;
-            await expect(fixtureCaseRefs(observed, { version }, "example", 0)).rejects.toThrow(
-              "exceeds admitted case count",
+            const rows = await tx.execute<{ n: string }>(
+              sql`SELECT count(*)::text AS n FROM (${fixtureRows({ version }, 0)}) f WHERE channel='example'`,
             );
-            expect(returned).toBe(321);
+            expect(rows.rows).toEqual([{ n: "1000" }]);
             throw new Error("fixture rollback");
           }),
         ),

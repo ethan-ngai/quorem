@@ -6,11 +6,15 @@ import { resolve } from "node:path";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import { reconcileMatch, reconcileScheduledMatch } from "./repository.ts";
+import { prearmReceipts } from "../../events/scheduling/prearm.ts";
+import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
+import { postgresWorkspaceAdmission } from "../../judging/admission/repository.ts";
+import { indexRunnerFixture } from "../../judging/inputs/fixture.ts";
 const url = process.env.QUOREM_MATCH_TEST_DATABASE_URL;
 if (
   !url ||
-  new URL(url).port !== "55461" ||
-  new URL(url).pathname !== "/quorem_hono_match_test" ||
+  new URL(url).port !== "55572" ||
+  new URL(url).pathname !== "/quorem_hono_manifest_reconcile_test" ||
   !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
 )
   throw new Error("Disposable match database required");
@@ -40,12 +44,43 @@ before(async () => {
   await migrate(pool, "product", resolve("../../apps/api/migrations"));
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,'match-policy')", [problem]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'T','easy','','{}','[]','{}','test')",
-    [version, problem],
+    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'T','easy','',$3::jsonb,'[]','{}','test')",
+    [
+      version,
+      problem,
+      JSON.stringify({
+        className: "Solution",
+        methodName: "f",
+        parameters: [{ name: "x", type: "int" }],
+        returnType: "int",
+      }),
+    ],
   );
   await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','runtime','harness','')",
+    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
     [version],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      indexRunnerFixture(
+        tx,
+        { version },
+        JSON.stringify({
+          problem: {
+            signature: {
+              className: "Solution",
+              methodName: "f",
+              parameters: [{ name: "x", type: "int" }],
+              returnType: "int",
+            },
+            constraints: [],
+            limits: {},
+            examples: [{ args: [1], expected: 2 }],
+          },
+          hiddenCases: [{ args: [3], expected: 4 }],
+        }),
+      ),
+    ),
   );
 });
 after(async () => {
@@ -101,6 +136,52 @@ async function submit(
   );
   return id;
 }
+void test("actual match admission seals its manifest before reconciliation", async () => {
+  const r = await room(),
+    key = crypto.randomUUID();
+  const principal = {
+    kind: "local" as const,
+    userId: r.a,
+    displayName: "A",
+    admin: false,
+    emailVerified: true,
+    sessionId: "fixture",
+    strongUntil: 0,
+  };
+  const fence = { receiptId: crypto.randomUUID(), jobId: crypto.randomUUID(), shard: 0 };
+  await prearmReceipts(run, "execution").create(fence.receiptId, fence.shard);
+  const command = await parseWorkspaceCommand(
+    JSON.stringify({ workspaceId: r.wa, kind: "submit", source: "x" }),
+    key,
+  );
+  const result = await postgresWorkspaceAdmission(run, {
+    losslessCases: true,
+    guestExecution: true,
+  })(principal, key, command, fence);
+  const manifest = (
+    await pool.query(
+      "SELECT sealed,case_count,sample_count FROM runner_job_inputs WHERE job_id=$1",
+      [fence.jobId],
+    )
+  ).rows[0];
+  assert.deepEqual(manifest, { sealed: true, case_count: 1, sample_count: 1 });
+  assert.equal(result.state, "queued");
+  await call(r.id);
+  const participant = (
+    await pool.query(
+      "SELECT submission_state FROM match_participants WHERE match_id=$1 AND owner_id=$2",
+      [r.id, r.a],
+    )
+  ).rows[0];
+  assert.equal(participant.submission_state, "queued");
+  await pool.query("UPDATE submissions SET state='completed',result=$2::jsonb WHERE id=$1", [
+    result.id,
+    JSON.stringify({ verdict: "accepted", score: { passed: 1, total: 1 } }),
+  ]);
+  await call(r.id);
+  const match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
+  assert.equal(match.outcome, null, "unverified result cannot determine match outcome");
+});
 void test("expired invitation finishes once, releases reservations and emits safe versioned notice", async () => {
   const r = await room(false);
   await pool.query(
@@ -122,7 +203,7 @@ void test("expired invitation finishes once, releases reservations and emits saf
   assert.equal(notices[0].event_type, "match.completed");
   assert.doesNotMatch(JSON.stringify(notices), /token-|secret-source/);
 });
-void test("ordered pending work fences first correct, then completion updates progress and preserves guest reservation", async () => {
+void test("unverified ordered results do not award progress or settle guest work", async () => {
   const r = await room();
   const first = await submit(r, r.b, r.wb, 1, "running", null);
   await submit(r, r.a, r.wa, 2, "completed", {
@@ -133,27 +214,16 @@ void test("ordered pending work fences first correct, then completion updates pr
     "INSERT INTO guest_execution_usage(submission_id,match_id,sponsor_id) VALUES($1,$2,$3)",
     [first, r.id, r.a],
   );
-  await call(r.id);
-  let m = (await pool.query("SELECT state,finalizing_at,outcome FROM matches WHERE id=$1", [r.id]))
-    .rows[0];
-  assert.equal(m.state, "finalizing");
-  assert.equal(m.outcome, null);
-  await pool.query(
-    "UPDATE submissions SET state='completed',result='{" +
-      '"verdict":"wrong_answer","score":{"passed":1,"total":2}}' +
-      "'::jsonb WHERE id=$1",
-    [first],
+  await Promise.all([call(r.id), call(r.id)]);
+  const match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
+  assert.equal(match.outcome, null);
+  const participants = (
+    await pool.query("SELECT best_passed FROM match_participants WHERE match_id=$1", [r.id])
+  ).rows;
+  assert.deepEqual(
+    participants.map((p) => p.best_passed),
+    [0, 0],
   );
-  await call(r.id);
-  m = (await pool.query("SELECT state,outcome,version FROM matches WHERE id=$1", [r.id])).rows[0];
-  assert.equal(m.state, "completed");
-  assert.equal(m.outcome.reason, "first_correct");
-  assert.equal(
-    m.outcome.winnerUserId,
-    (await pool.query("SELECT participant_id::text FROM users WHERE id=$1", [r.a])).rows[0]
-      .participant_id,
-  );
-  assert.equal(m.version, "2");
   const usage = (
     await pool.query(
       "SELECT settled_at,charged_seconds FROM guest_execution_usage WHERE submission_id=$1",
@@ -162,20 +232,6 @@ void test("ordered pending work fences first correct, then completion updates pr
   ).rows[0];
   assert.equal(usage.settled_at, null);
   assert.equal(usage.charged_seconds, null);
-  assert.equal(
-    (
-      await pool.query(
-        "SELECT expires_at<=clock_timestamp()+interval '2 hours' AS shortened FROM guest_sessions WHERE owner_id=$1",
-        [r.b],
-      )
-    ).rows[0].shortened,
-    true,
-  );
-  await Promise.all([call(r.id), call(r.id)]);
-  assert.equal(
-    (await pool.query("SELECT 1 FROM match_outbox WHERE match_id=$1", [r.id])).rowCount,
-    2,
-  );
 });
 void test("deadline is sampled after a contended match lock", async () => {
   const r = await room();
@@ -248,7 +304,7 @@ void test("committed admission precedes deadline reconciliation under the match 
   ).rows[0];
   assert.equal(p.submission_state, "running");
 });
-void test("checkpoint certainty unblocks an earlier opponent without exposing checkpoint data", async () => {
+void test("legacy checkpoint counters cannot establish manifest certainty", async () => {
   const r = await room();
   const first = await submit(r, r.b, r.wb, 1, "running", null),
     job = crypto.randomUUID();
@@ -262,9 +318,8 @@ void test("checkpoint certainty unblocks an earlier opponent without exposing ch
     score: { passed: 2, total: 2 },
   });
   await call(r.id);
-  const match = (await pool.query("SELECT state,outcome FROM matches WHERE id=$1", [r.id])).rows[0];
-  assert.equal(match.state, "completed");
-  assert.equal(match.outcome.reason, "first_correct");
+  const match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
+  assert.equal(match.outcome, null);
   assert.doesNotMatch(
     JSON.stringify((await pool.query("SELECT * FROM match_outbox WHERE match_id=$1", [r.id])).rows),
     /definite_failures|secret-source/,

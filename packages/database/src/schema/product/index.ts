@@ -841,18 +841,12 @@ export const execution_checkpoints = pgTable(
       foreignColumns: [execution_jobs.id],
       name: "execution_checkpoints_job_id_fkey",
     }).onDelete("cascade"),
-    check(
-      "execution_checkpoints_next_ordinal_check",
-      sql`(next_ordinal >= 0) AND (next_ordinal <= 320)`,
-    ),
+    check("execution_checkpoints_next_ordinal_check", sql`next_ordinal >= 0`),
     check(
       "execution_checkpoints_compilation_nanos_check",
       sql`(compilation_nanos >= 0) AND (compilation_nanos <= '120000000000'::bigint)`,
     ),
-    check(
-      "execution_checkpoints_definite_failures_check",
-      sql`(definite_failures >= 0) AND (definite_failures <= 320)`,
-    ),
+    check("execution_checkpoints_definite_failures_check", sql`definite_failures >= 0`),
   ],
 );
 
@@ -1228,7 +1222,7 @@ export const execution_checkpoint_cases = pgTable(
       name: "execution_checkpoint_cases_job_id_fkey",
     }).onDelete("cascade"),
     primaryKey({ columns: [table.job_id, table.ordinal], name: "execution_checkpoint_cases_pkey" }),
-    check("execution_checkpoint_cases_ordinal_check", sql`(ordinal >= 0) AND (ordinal <= 319)`),
+    check("execution_checkpoint_cases_ordinal_check", sql`ordinal >= 0 AND ordinal < 2147483647`),
   ],
 );
 
@@ -1866,7 +1860,7 @@ export const execution_completion_frames = pgTable(
       "execution_completion_frames_channel_check",
       sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text])`,
     ),
-    check("execution_completion_frames_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check("execution_completion_frames_ordinal_check", sql`ordinal >= 0 AND ordinal < 2147483647`),
     check("execution_completion_frames_frame_hash_check", sql`octet_length(frame_hash) = 32`),
   ],
 );
@@ -1906,7 +1900,10 @@ export const submission_public_result_cases = pgTable(
       "submission_public_result_cases_channel_check",
       sql`channel = ANY (ARRAY['public'::text, 'sample'::text])`,
     ),
-    check("submission_public_result_cases_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check(
+      "submission_public_result_cases_ordinal_check",
+      sql`ordinal >= 0 AND ordinal < 2147483647`,
+    ),
   ],
 );
 export const execution_completion_receipts = pgTable(
@@ -1958,7 +1955,10 @@ export const execution_completion_field_chunks = pgTable(
       "execution_completion_field_chunks_channel_check",
       sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text, 'header'::text])`,
     ),
-    check("execution_completion_field_chunks_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check(
+      "execution_completion_field_chunks_ordinal_check",
+      sql`ordinal >= 0 AND ordinal < 2147483647`,
+    ),
     check(
       "execution_completion_field_chunks_field_check",
       sql`field = ANY (ARRAY['actual'::text, 'expected'::text, 'stdout'::text, 'stderr'::text, 'diagnostics'::text, 'sqlTypes'::text])`,
