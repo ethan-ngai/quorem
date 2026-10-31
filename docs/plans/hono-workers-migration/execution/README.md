@@ -4,13 +4,14 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 
 ## Current checkpoint — 2026-10-31
 
-Integration `b0597032`: [#437](https://github.com/ethan-ngai/quorem/pull/437), [#438](https://github.com/ethan-ngai/quorem/pull/438), [#439](https://github.com/ethan-ngai/quorem/pull/439), [#440](https://github.com/ethan-ngai/quorem/pull/440) merged after exact-head CI. Final source run [41231739308](https://github.com/ethan-ngai/quorem/actions/runs/41231739308) passed both jobs.
+Integration includes [#447](https://github.com/ethan-ngai/quorem/pull/447) (existing Neon project, no Access), [#450](https://github.com/ethan-ngai/quorem/pull/450) (scrubbed provider diagnostics), [#451](https://github.com/ethan-ngai/quorem/pull/451) (workload gate), and [#452](https://github.com/ethan-ngai/quorem/pull/452) (schema-only branch and compute in one request). The earlier full source run [41243736481](https://github.com/ethan-ngai/quorem/actions/runs/41243736481) passed; later platform checks and local tests do not establish hosted deployment.
 
 - Node consumes SQS/Cloudflare wakes through the shared drain owner; HTTP runners no longer depend on a separate poller.
 - Native SQL practice Run/Submit and a selected two-account SQL match pass through Docker and independent verification; required CI, no skips. Browser interaction remains unverified.
 - Drain transport validation has a canonical owner; duplicate ingress resources removed. Staging uses distinct application bearers and signed proofs, without Cloudflare Access.
 - Recovery controls, migration provenance/checksums, generation roles and failure fencing integrated. [Existing-stage maintenance](38g-stage-maintenance.md) now provides persisted operations, pinned pause, writer fencing and bounded known-attempt teardown. Full history proof and resume orchestration remain unfinished.
 - Disposable HTTP databases and scoped session-lifetime assertions replace invalid test isolation assumptions. Native Make targets and setup docs available.
+- [Staged workload](37m-hosted-workload.md): 20 matches, 40 authenticated sessions/sockets and 40 paced runs; signed control checks bracket the baseline. Mandatory disposable actor and real HTTP/WebSocket/runner/verifier fixtures pass locally. Hosted baseline remains pending.
 
 User deployment corrections: reuse the existing Neon project with an independent schema-only stage branch and empty dedicated database; no new Neon project or Cloudflare Access token resources. Existing scoped application credentials and signed proofs remain mandatory.
 
@@ -22,7 +23,7 @@ Remaining release work, in order:
 4. Verify old-writer drain, audited retained-data normalization, avatar copy and rollback.
 5. Authorize production cutover; retire Go and replace remaining default development/deployment consumers afterward.
 
-Isolated staging provisioning/validation was authorized. Bootstrap apply was attempted; provider resource creation failed before image publication, database migration or Worker deployment. Plan-only inspection [41239493522](https://github.com/ethan-ngai/quorem/actions/runs/41239493522) found only the private generated-secret record in bootstrap state; preserve it. New provider diagnostics [#445](https://github.com/ethan-ngai/quorem/pull/445) expose fixed error metadata only. No dev/main or production promotion occurred. User `scripts/dev.py` edit preserved. Older sections below record evidence at their implementation checkpoints.
+Isolated staging provisioning/validation was authorized. [41247560549](https://github.com/ethan-ngai/quorem/actions/runs/41247560549) passed preflight/validation, then Neon rejected schema-only creation without a read-write endpoint. #452 fixes that request and removes duplicate endpoint creation. Retry [41248206497](https://github.com/ethan-ngai/quorem/actions/runs/41248206497) targets source `519bc2df`; inspect its live result before claiming provisioning or deployment. Preserve existing bootstrap credential state. No dev/main or production promotion occurred. User `scripts/dev.py` edit preserved. Older sections below record evidence at their implementation checkpoints.
 
 ## Baseline 00
 
@@ -83,7 +84,7 @@ Isolated staging provisioning/validation was authorized. Bootstrap apply was att
 | 31 | Local committed | `14a9e506`, [#403](https://github.com/ethan-ngai/quorem/issues/403); real Node WebSocket/PG replicas, live authorization and shared protocol |
 | 32 | Local committed | `cc1a9191`, [#404](https://github.com/ethan-ngai/quorem/issues/404); actual workerd DO/PG opaque grants, quotas, revocation and receipt pressure; mandatory local managed hibernation passed in 35a; hosted behavior remains unverified |
 | 35a | Integrated | [#415](https://github.com/ethan-ngai/quorem/pull/415); composed Node/Worker runtime, per-aggregate DO routing, mandatory managed hibernation, trusted peer attribution, scheduled repair and two-instance fanout proved locally |
-| 35b | Local committed | [#418](https://github.com/ethan-ngai/quorem/pull/418); staged Terraform, Access ingress and native artifacts now included in 415 review stack; no apply/deploy |
+| 35b | Integrated | Staged Terraform/native artifacts; current private ingress uses application bearers and signed proofs, without Access; see current checkpoint |
 | 36a | Local committed | `9c374b72`, [#413](https://github.com/ethan-ngai/quorem/issues/413); executable verifier and fenced HTTP/continuous runner; actual spawned-process Docker promotion and SIGTERM teardown |
 | 36b | Local committed | `04d57ea1`, [#417](https://github.com/ethan-ngai/quorem/issues/417); real staged runner/verifier containers, trusted host daemon, signed promotion, competing startup, held-fence refusal and SIGTERM teardown; local topology only |
 | 37a | Local committed | `6e07b5a9`, [#414](https://github.com/ethan-ngai/quorem/issues/414); canonical lifecycle fixtures and real verified late completion; Node 14/14 and workerd 2/2 |
@@ -132,7 +133,7 @@ Production gates include provisioned provider isolation/teardown equivalence, da
 
 Root independently ran the combined 415 review tree after 36b, 37b, 37c/37d and profile capability integration on fresh loopback PostgreSQL `55690/quorem_hono_runtime_test`. `vp -C apps/api exec node src/runtime/composition/run-validation.mjs` passed fixture bootstrap 1/1, Node 14/14 and native workerd 3/3 with zero skipped tests; the disposable container was removed. This includes actual Node and Wrangler admission → Docker → independent signed HTTP verifier → authorized result, mandatory managed socket eviction/rehydration, peer sanitization, recovery and route inventory. Merged result-stream regressions independently passed 26/26 on the root's separate named disposable database. These results establish local behavior only.
 
-CI is exposing older standalone fixtures that predate sealed inputs; fix their canonical publication fixtures rather than reintroducing old execution paths. Hosted ingress/Access denial, provider isolation, persistent-volume failure, real workload/query budgets, browser smoke, migration drain/backfill and rollback remain release gates. No production deployment, dev/main promotion or Go retirement occurred.
+Standalone fixtures use canonical sealed publication inputs. Hosted application ingress denial, provider isolation, persistent-volume failure, real workload/query budgets, browser smoke, migration drain/backfill and rollback remain release gates. No production deployment, dev/main promotion or Go retirement occurred.
 
 ## Recovery and data cutover checkpoint
 
@@ -148,7 +149,7 @@ The combined stage validator subsequently passed 62 contracts without skips, inc
 
 Finish the existing port; freeze new abstractions. Recovery validation now requires real workerd controls, migration provenance, checksummed ledgers and avatar-copy fixtures without skipped tests. Signed proof capture uses one bounded read; oversized responses cannot strand a cloned stream.
 
-Queue-only deployment protection, Node delivery and SQL execution coverage are integrated; combined checks and exact-head CI passed. Remaining gates are listed above. Hosted validation requires GitHub staging environment configuration (none existed at the resumed check), provider setup and actual deployment evidence. Full maintenance/resume orchestration, production backfill/rollback and Go retirement remain open under #432. These are release gates, not reasons to add optional cache/search features.
+Queue-only deployment protection, Node delivery and SQL execution coverage are integrated. The protected staging environment exists and deployment retries use existing repository credentials. Actual hosted deployment evidence remains required. Existing-stage maintenance is integrated; complete history proof/resume orchestration, production backfill/rollback and Go retirement remain open under #432. No optional cache/search implementation is in scope.
 
 ## Node delivery completion
 
