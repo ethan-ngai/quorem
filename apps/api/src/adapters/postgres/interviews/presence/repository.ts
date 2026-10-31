@@ -1,5 +1,10 @@
 /** @file repository.ts @description PostgreSQL advisory cursors and socket leases. @module interviews */
 import { sql } from "drizzle-orm";
+import {
+  acquireSocketLease,
+  renewSocketLease,
+  releaseSocketLease,
+} from "../../events/socket/leases.ts";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
@@ -14,6 +19,23 @@ const opts = { statementTimeoutMs: 3000, lockTimeoutMs: 1000 };
 const invalid = () => new ApplicationError("invalid_input", "Invalid editor presence", 400);
 const quota = () => new ApplicationError("quota_exceeded", "Too many editor windows", 429);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Lock only authority rows: document writes never wait on socket leases. */
+async function leaseAccess(
+  tx: Transaction,
+  actor: import("../../../../modules/identity/model.ts").Principal,
+  id: string,
+) {
+  if (!uuid.test(id)) throw new ApplicationError("not_found", "Interview unavailable", 404);
+  await tx.execute(
+    sql`SELECT m.user_id FROM interview_members m JOIN interviews i ON i.id=m.session_id JOIN users u ON u.id=m.user_id JOIN users h ON h.id=i.host_id WHERE m.session_id=${id}::uuid AND m.user_id=${actor.userId} FOR SHARE OF m,u,h`,
+  );
+  await tx.execute(
+    sql`SELECT g.id FROM entitlement_grants g JOIN interviews i ON i.host_id=g.user_id WHERE i.id=${id}::uuid AND g.feature IN ('internal','interviews.host') AND g.revoked_at IS NULL AND g.valid_from<=clock_timestamp() AND (g.expires_at IS NULL OR g.expires_at>clock_timestamp()) FOR SHARE OF g`,
+  );
+  return readInterviewAccess(tx, actor, id, capabilitiesInTransaction, { active: true });
+}
+const activeInterview = (id: string, owner: string) =>
+  sql`EXISTS(SELECT 1 FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${owner} AND m.removed_at IS NULL JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id AND NOT h.disabled WHERE i.id=${id}::uuid AND i.state='active' AND i.deleted_at IS NULL AND EXISTS(SELECT 1 FROM entitlement_grants g WHERE g.user_id=i.host_id AND g.feature IN ('internal','interviews.host') AND g.revoked_at IS NULL AND g.valid_from<=clock_timestamp() AND (g.expires_at IS NULL OR g.expires_at>clock_timestamp())))`;
 async function peers(tx: Transaction, id: string): Promise<Presence[]> {
   const rows = (
     await tx.execute<{
@@ -96,43 +118,40 @@ export function interviewPresence(run: Run): InterviewPresence {
       }),
     acquire: (actor, id) =>
       transaction(async (tx) => {
-        await readInterviewAccess(tx, actor, id, capabilitiesInTransaction, { active: true });
-        const topic = `/interviews/${id}`,
-          subject = actor.userId;
-        await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${topic}:${subject}`},0))`,
+        await leaseAccess(tx, actor, id);
+        return acquireSocketLease(
+          tx,
+          `/interviews/${id}`,
+          actor.userId,
+          () => leaseAccess(tx, actor, id),
+          activeInterview(id, actor.userId),
         );
-        await tx.execute(
-          sql`DELETE FROM realtime_presence_leases WHERE id IN(SELECT id FROM realtime_presence_leases WHERE expires_at<=clock_timestamp() ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT 256)`,
-        );
-        const row = (
-          await tx.execute<{ count: string }>(
-            sql`SELECT count(*)::text AS count FROM realtime_presence_leases WHERE topic=${topic} AND subject=${subject} AND expires_at>clock_timestamp()`,
-          )
-        ).rows[0];
-        if (Number(row.count) >= 4) throw quota();
-        await readInterviewAccess(tx, actor, id, capabilitiesInTransaction, { active: true });
-        const lease = crypto.randomUUID();
-        await tx.execute(
-          sql`INSERT INTO realtime_presence_leases(id,topic,subject,expires_at) VALUES(${lease}::uuid,${topic},${subject},clock_timestamp()+interval '30 seconds')`,
-        );
-        return lease;
       }),
     renew: (actor, id, lease) =>
-      transaction(async (tx) => {
-        if (!uuid.test(lease)) return false;
-        await readInterviewAccess(tx, actor, id, capabilitiesInTransaction, { active: true });
-        const rows = await tx.execute(
-          sql`UPDATE realtime_presence_leases SET expires_at=clock_timestamp()+interval '30 seconds' WHERE id=${lease}::uuid AND topic=${`/interviews/${id}`} AND subject=${actor.userId} AND expires_at>clock_timestamp() RETURNING id`,
-        );
-        return rows.rows.length === 1;
-      }),
+      transaction((tx) =>
+        renewSocketLease(
+          tx,
+          `/interviews/${id}`,
+          actor.userId,
+          lease,
+          () => leaseAccess(tx, actor, id),
+          activeInterview(id, actor.userId),
+        ),
+      ),
     release: (actor, id, lease) =>
-      transaction(async (tx) => {
-        if (!uuid.test(lease)) return;
-        await tx.execute(
-          sql`DELETE FROM realtime_presence_leases WHERE id=${lease}::uuid AND topic=${`/interviews/${id}`} AND subject=${actor.userId}`,
-        );
-      }),
+      transaction((tx) => releaseSocketLease(tx, `/interviews/${id}`, actor.userId, lease)),
   };
+}
+
+/** Release only the exact previously acquired window lease, including after revocation. */
+export async function releaseInterviewLease(
+  run: Run,
+  id: string,
+  owner: string,
+  lease: string,
+): Promise<void> {
+  if (!uuid.test(id)) return;
+  await run((scope) =>
+    scope.transaction(opts, (tx) => releaseSocketLease(tx, `/interviews/${id}`, owner, lease)),
+  );
 }

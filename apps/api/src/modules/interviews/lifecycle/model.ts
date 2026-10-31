@@ -15,13 +15,13 @@ export interface InterviewCreate {
   rawBody?: string;
 }
 export interface JoinResult {
-  snapshot: string;
+  id: string;
   credential?: string;
 }
 export interface InterviewLifecycle {
   create(actor: Principal, key: string, command: InterviewCreate): Promise<string>;
   list(actor: Principal): Promise<string[]>;
-  read(actor: Principal, id: string): Promise<string>;
+  read(actor: Principal, id: string): Promise<ReadableStream<Uint8Array>>;
   preview(token: string): Promise<InvitePreview>;
   join(
     actor: Principal | undefined,

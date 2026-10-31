@@ -106,7 +106,9 @@ export function interviewLifecycleRoutes(deps: Dependencies): Hono {
     return c.body(result, 201, { "Content-Type": "application/json; charset=utf-8" });
   });
   app.get("/v1/interviews/:id", async (c) =>
-    json(c, await deps.lifecycle.read(await actor(c.req.raw), id(c.req.param("id")))),
+    c.body(await deps.lifecycle.read(await actor(c.req.raw), id(c.req.param("id"))), 200, {
+      "Content-Type": "application/json; charset=utf-8",
+    }),
   );
   app.get("/v1/interview-invites/:token", async (c) => {
     await budget();
@@ -148,7 +150,7 @@ export function interviewLifecycleRoutes(deps: Dependencies): Hono {
     if (result.credential)
       c.header("Set-Cookie", guestSetCookie("interview", result.credential, origin, 86400));
     c.header("Referrer-Policy", "no-referrer");
-    return json(c, result.snapshot);
+    return c.json({ id: result.id });
   });
   app.post("/v1/interviews/:id/members", async (c) => {
     const who = await actor(c.req.raw),

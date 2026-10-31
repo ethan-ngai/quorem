@@ -1544,6 +1544,21 @@ export interface components {
             /** @enum {string} */
             kind: "paste" | "focus";
         };
+        InterviewCommandAck: {
+            /** Format: uuid */
+            id: string;
+        };
+        InterviewSummary: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @enum {string} */
+            state: "active" | "closed";
+            hostId: string;
+            role: components["schemas"]["InterviewRole"];
+            problemTitle: string;
+            memberCount: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -2737,7 +2752,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"][];
+                    "application/json": components["schemas"]["InterviewSummary"][];
                 };
             };
             /** @description Safe application error */
@@ -2772,7 +2787,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -2873,7 +2888,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3015,7 +3030,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3053,7 +3068,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3090,7 +3105,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3239,7 +3254,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3345,7 +3360,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3386,7 +3401,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3423,7 +3438,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3460,7 +3475,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3536,7 +3551,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */
@@ -3576,7 +3591,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSnapshot"];
+                    "application/json": components["schemas"]["InterviewCommandAck"];
                 };
             };
             /** @description Safe application error */

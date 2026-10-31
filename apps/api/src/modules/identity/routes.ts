@@ -10,12 +10,20 @@ export async function identifyRequest(
   try {
     return await identify(request);
   } catch (error) {
-    if (error instanceof GuestOriginDenied)
-      throw new ApplicationError("forbidden", "Origin denied", 403);
-    if (error instanceof IdentityError)
-      throw error.kind === "unauthorized"
+    throw mapIdentityError(error);
+  }
+}
+/** Translate identity failures at transport boundaries without exposing their causes. */
+export function mapIdentityError(error: unknown): unknown {
+  let mapped: ApplicationError | undefined;
+  if (error instanceof GuestOriginDenied)
+    mapped = new ApplicationError("forbidden", "Origin denied", 403);
+  else if (error instanceof IdentityError)
+    mapped =
+      error.kind === "unauthorized"
         ? new ApplicationError("unauthenticated", "Invalid credentials", 401)
         : new ApplicationError("temporarily_unavailable", "Service unavailable", 503);
-    throw error;
-  }
+  if (!mapped) return error;
+  Object.defineProperty(mapped, "cause", { value: error });
+  return mapped;
 }

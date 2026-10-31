@@ -18,15 +18,15 @@ import { operationFingerprint, priorOperation, saveOperation } from "../lifecycl
 import { object, storageProjection } from "../../problems/storage.ts";
 import { validateInterviewQuestionShape } from "../../../../modules/interviews/question/validation.ts";
 import { fingerprintQuestionInput } from "./fingerprint-input.ts";
-import { preparePublishedInterviewQuestion } from "./prepare.ts";
+import { preparePublishedInterviewQuestion, writePublishedInterviewQuestion } from "./prepare.ts";
+import { copySnapshotExamples, savePublishedInterviewSidecars } from "./published-sidecars.ts";
+import { createActiveRunnerFixture } from "../runner-inputs/active.ts";
 import { savePublicExamples, savePrivateCases } from "./public-examples.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-type Snapshot = (tx: Transaction, actor: Principal, id: string) => Promise<string>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 const fail = (code: string, message: string, status: ApplicationStatus = 400) =>
   new ApplicationError(code, message, status);
-const arr = (v: JsonValue | undefined): JsonValue[] => (Array.isArray(v) ? v : []);
 const hintsValue = (v: unknown): HintVisibility => {
   if (
     !v ||
@@ -47,23 +47,7 @@ function sameHints(a: HintVisibility, b: HintVisibility): boolean {
     y = allowed(b);
   return x.topics === y.topics && x.complexity === y.complexity;
 }
-async function privateFixture(
-  tx: Transaction,
-  id: string,
-): Promise<{ fixture: { [key: string]: JsonValue }; language: string; source: string }> {
-  const row = (
-    await tx.execute<{ raw: string; language: string; source: string }>(
-      sql`SELECT convert_from(COALESCE(lossless_question,convert_to(question::text,'UTF8')),'UTF8') AS raw,language,source FROM interviews WHERE id=${id}::uuid`,
-    )
-  ).rows[0];
-  if (!row) throw fail("not_found", "Interview unavailable", 404);
-  return {
-    fixture: object(parseLosslessJson(row.raw)),
-    language: row.language,
-    source: row.source,
-  };
-}
-export function interviewQuestionCommands(run: Run, snapshot: Snapshot): InterviewQuestions {
+export function interviewQuestionCommands(run: Run): InterviewQuestions {
   const transact = <T>(fn: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, fn));
   const mutate = async (
@@ -80,7 +64,7 @@ export function interviewQuestionCommands(run: Run, snapshot: Snapshot): Intervi
     transact(async (tx) => {
       const prior = await priorOperation(tx, actor.userId, key, hash);
       const access = await lockInterview(tx, actor, id, capabilitiesInTransaction, { manage });
-      if (prior) return snapshot(tx, actor, id);
+      if (prior) return JSON.stringify({ id });
       await lockInterview(tx, actor, id, capabilitiesInTransaction, { manage, active: true });
       await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
       const changed = await apply(tx, access);
@@ -89,7 +73,7 @@ export function interviewQuestionCommands(run: Run, snapshot: Snapshot): Intervi
           sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
         );
       await saveOperation(tx, actor.userId, key, hash, id);
-      return snapshot(tx, actor, id);
+      return JSON.stringify({ id });
     });
   return {
     async select(actor, id, key, question, rawBody) {
@@ -117,19 +101,37 @@ export function interviewQuestionCommands(run: Run, snapshot: Snapshot): Intervi
           question,
         });
         if (prepared.persist) await prepared.persist(tx);
-        const raw = prepared.lossless
-          ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
-          : prepared.safe;
-        const fixture = object(parseLosslessJson(raw));
-        if (requested === undefined) delete fixture.hints;
-        else fixture.hints = requested as { [key: string]: JsonValue };
-        const stored = storageProjection(stringifyLosslessJson(fixture)),
-          epoch = crypto.randomUUID();
-        await tx.execute(
-          sql`UPDATE interviews SET question=${stored.safe}::jsonb,lossless_question=${stored.lossless},language=${prepared.language},source=${prepared.source},document_version=0,document_epoch=${crypto.randomUUID()}::uuid,question_epoch=${epoch}::uuid WHERE id=${id}::uuid`,
-        );
-        await savePublicExamples(tx, id, epoch, stringifyLosslessJson(fixture));
-        await savePrivateCases(tx, id, epoch, stringifyLosslessJson(fixture));
+        const epoch = crypto.randomUUID();
+        if (prepared.published && prepared.versionId) {
+          await tx.execute(
+            sql`UPDATE interviews SET document_version=0,document_epoch=${crypto.randomUUID()}::uuid,question_epoch=${epoch}::uuid WHERE id=${id}::uuid`,
+          );
+          await writePublishedInterviewQuestion(
+            tx,
+            id,
+            prepared.versionId,
+            prepared.language,
+            requested,
+          );
+          await savePublishedInterviewSidecars(tx, id, epoch, prepared.versionId);
+        } else {
+          const raw = prepared.lossless
+            ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
+            : prepared.safe;
+          const fixture = object(parseLosslessJson(raw));
+          if (requested === undefined) delete fixture.hints;
+          else fixture.hints = requested as { [key: string]: JsonValue };
+          const stored = storageProjection(stringifyLosslessJson(fixture));
+          await tx.execute(
+            sql`UPDATE interviews SET question=${stored.safe}::jsonb,lossless_question=${stored.lossless},language=${prepared.language},source=${prepared.source},document_version=0,document_epoch=${crypto.randomUUID()}::uuid,question_epoch=${epoch}::uuid WHERE id=${id}::uuid`,
+          );
+          await savePublicExamples(tx, id, epoch, stringifyLosslessJson(fixture));
+          await savePrivateCases(tx, id, epoch, stringifyLosslessJson(fixture));
+          await tx.execute(sql`UPDATE interviews SET lossless_question=NULL WHERE id=${id}::uuid`);
+        }
+        if (!prepared.versionId) throw new Error("Indexed question version required");
+        const fixtureId = await createActiveRunnerFixture(tx, id, epoch, prepared.versionId);
+        await copySnapshotExamples(tx, id, epoch, fixtureId);
       });
     },
     async hints(actor, id, key, hints) {
@@ -138,12 +140,11 @@ export function interviewQuestionCommands(run: Run, snapshot: Snapshot): Intervi
       return mutate(actor, id, key, hash, true, async (tx, access) => {
         if (actor.userId !== access.host)
           throw fail("forbidden", "Only the host can change question hints", 403);
-        const { fixture } = await privateFixture(tx, id);
-        fixture.hints = clean as { [key: string]: JsonValue };
-        const stored = storageProjection(stringifyLosslessJson(fixture));
-        await tx.execute(
-          sql`UPDATE interviews SET question=${stored.safe}::jsonb,lossless_question=${stored.lossless} WHERE id=${id}::uuid`,
+        const direct = await tx.execute(
+          sql`UPDATE interviews SET question=jsonb_set(question,'{hints}',${JSON.stringify(clean)}::jsonb,true) WHERE id=${id}::uuid AND lossless_question IS NULL RETURNING id`,
         );
+        if (direct.rows.length) return;
+        throw fail("temporarily_unavailable", "Interview fixture requires normalization", 503);
       });
     },
     async language(actor, id, key, language, epoch) {
@@ -151,34 +152,29 @@ export function interviewQuestionCommands(run: Run, snapshot: Snapshot): Intervi
       return mutate(actor, id, key, hash, false, async (tx, access) => {
         if (epoch !== access.documentEpoch)
           throw fail("document_changed", "Document changed; synchronize and retry", 409);
-        const prior = await privateFixture(tx, id),
-          problem = object(prior.fixture.problem),
-          implementation = arr(problem.languages)
-            .map(object)
-            .find((v) => v.language === language);
-        if (
-          !implementation ||
-          typeof implementation.starterSource !== "string" ||
-          typeof implementation.runtimeRevision !== "string" ||
-          typeof implementation.harnessRevision !== "string"
-        )
-          throw fail("invalid_input", "Language unavailable for this question");
-        if (language === prior.language) return false;
-        await tx.execute(
-          sql`INSERT INTO interview_language_drafts(session_id,question_epoch,language,source) VALUES(${id}::uuid,${access.questionEpoch}::uuid,${prior.language},${prior.source}) ON CONFLICT(session_id,question_epoch,language) DO UPDATE SET source=EXCLUDED.source`,
-        );
-        const saved = (
-          await tx.execute<{ source: string }>(
-            sql`DELETE FROM interview_language_drafts WHERE session_id=${id}::uuid AND question_epoch=${access.questionEpoch}::uuid AND language=${language} RETURNING source`,
+        const current = (
+          await tx.execute<{ language: string; indexed: boolean }>(
+            sql`SELECT language,lossless_question IS NULL AS indexed FROM interviews WHERE id=${id}::uuid`,
           )
         ).rows[0];
-        problem.starterSource = implementation.starterSource;
-        problem.runtimeRevision = implementation.runtimeRevision;
-        prior.fixture.harnessRevision = implementation.harnessRevision;
-        const stored = storageProjection(stringifyLosslessJson(prior.fixture));
-        await tx.execute(
-          sql`UPDATE interviews SET language=${language},source=${saved?.source ?? implementation.starterSource},document_version=0,document_epoch=${crypto.randomUUID()}::uuid,question=${stored.safe}::jsonb,lossless_question=${stored.lossless} WHERE id=${id}::uuid`,
-        );
+        if (!current) throw fail("not_found", "Interview unavailable", 404);
+        if (current.indexed) {
+          const available = (
+            await tx.execute(
+              sql`SELECT 1 FROM interviews i CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(i.question->'problem'->'languages')='array' THEN i.question->'problem'->'languages' ELSE '[]'::jsonb END) l WHERE i.id=${id}::uuid AND l->>'language'=${language} AND jsonb_typeof(l->'starterSource')='string' AND jsonb_typeof(l->'runtimeRevision')='string' AND jsonb_typeof(l->'harnessRevision')='string'`,
+            )
+          ).rows.length;
+          if (!available) throw fail("invalid_input", "Language unavailable for this question");
+          if (language === current.language) return false;
+          await tx.execute(
+            sql`INSERT INTO interview_language_drafts(session_id,question_epoch,language,source) SELECT id,question_epoch,language,source FROM interviews WHERE id=${id}::uuid ON CONFLICT(session_id,question_epoch,language) DO UPDATE SET source=EXCLUDED.source`,
+          );
+          await tx.execute(
+            sql`WITH selected AS (SELECT l AS value FROM interviews i CROSS JOIN LATERAL jsonb_array_elements(i.question->'problem'->'languages') l WHERE i.id=${id}::uuid AND l->>'language'=${language} LIMIT 1), saved AS (DELETE FROM interview_language_drafts WHERE session_id=${id}::uuid AND question_epoch=${access.questionEpoch}::uuid AND language=${language} RETURNING source) UPDATE interviews i SET language=${language},source=COALESCE((SELECT source FROM saved),selected.value->>'starterSource'),document_version=0,document_epoch=${crypto.randomUUID()}::uuid,question=jsonb_set(jsonb_set(jsonb_set(i.question,'{problem,starterSource}',selected.value->'starterSource'),'{problem,runtimeRevision}',selected.value->'runtimeRevision'),'{harnessRevision}',selected.value->'harnessRevision') FROM selected WHERE i.id=${id}::uuid`,
+          );
+          return;
+        }
+        throw fail("temporarily_unavailable", "Interview fixture requires normalization", 503);
       });
     },
     async passStage(actor, id, key, epoch, level) {

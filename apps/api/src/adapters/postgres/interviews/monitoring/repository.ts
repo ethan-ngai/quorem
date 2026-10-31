@@ -12,7 +12,6 @@ import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { lockInterview } from "../lifecycle/access.ts";
 import { operationFingerprint, priorOperation, saveOperation } from "../lifecycle/operations.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-type Snapshot = (tx: Transaction, actor: Principal, id: string) => Promise<string>;
 const opts = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 const invalid = () => new ApplicationError("invalid_input", "Invalid interview event", 400);
 function normalize(policy: MonitoringPolicy): { paste?: boolean; focus?: boolean } {
@@ -29,7 +28,7 @@ function normalize(policy: MonitoringPolicy): { paste?: boolean; focus?: boolean
     ...(policy.focus == null ? {} : { focus: policy.focus }),
   };
 }
-export function interviewMonitoring(run: Run, snapshot: Snapshot): InterviewMonitoring {
+export function interviewMonitoring(run: Run): InterviewMonitoring {
   const transaction = <T>(fn: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(opts, fn));
   return {
@@ -41,7 +40,7 @@ export function interviewMonitoring(run: Run, snapshot: Snapshot): InterviewMoni
         const room = await lockInterview(tx, actor, id, capabilitiesInTransaction, {
           manage: true,
         });
-        if (prior) return snapshot(tx, actor, id);
+        if (prior) return JSON.stringify({ id });
         await lockInterview(tx, actor, id, capabilitiesInTransaction, {
           manage: true,
           active: true,
@@ -56,7 +55,7 @@ export function interviewMonitoring(run: Run, snapshot: Snapshot): InterviewMoni
           sql`UPDATE interviews SET monitoring=${JSON.stringify(policy)}::jsonb,version=version+1,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
         );
         await saveOperation(tx, actor.userId, key, hash, id);
-        return snapshot(tx, actor, id);
+        return JSON.stringify({ id });
       });
     },
     report: async (actor, id, key, kind) => {

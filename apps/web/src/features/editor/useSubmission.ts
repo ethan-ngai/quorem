@@ -176,10 +176,11 @@ export function useSubmission({
     const stream = submissionStream(
       identity,
       activeSubmissionId,
-      workspace.id,
-      (snapshot) => {
+      () => {
         setError(undefined);
-        queryClient.setQueryData(["submission", identity, activeSubmissionId], snapshot);
+        void queryClient.invalidateQueries({
+          queryKey: ["submission", identity, activeSubmissionId],
+        });
       },
       () => setError("Judge connection interrupted. Reconnecting…"),
     );

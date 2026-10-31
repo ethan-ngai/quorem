@@ -79,7 +79,25 @@ export function createReconnectingSocket(options: SocketOptions) {
       current.onmessage = (event) => {
         if (owns()) {
           renewIdle();
-          options.onMessage(event);
+          try {
+            if (typeof event.data !== "string") throw new Error("Invalid socket frame");
+            const frame: unknown = JSON.parse(event.data);
+            if (!frame || typeof frame !== "object" || Array.isArray(frame))
+              throw new Error("Invalid socket frame");
+            const envelope = frame as { receipt?: unknown; payload?: unknown };
+            if (
+              typeof envelope.receipt !== "string" ||
+              !/^[0-9a-f-]{36}$/i.test(envelope.receipt) ||
+              !("payload" in envelope)
+            )
+              throw new Error("Invalid socket receipt");
+            current.send(JSON.stringify({ type: "receipt", id: envelope.receipt }));
+            options.onMessage(
+              new MessageEvent("message", { data: JSON.stringify(envelope.payload) }),
+            );
+          } catch {
+            current.close(1002, "Invalid socket frame");
+          }
         }
       };
       current.onerror = () => {

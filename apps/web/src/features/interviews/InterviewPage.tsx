@@ -333,12 +333,13 @@ function InterviewPad({
     try {
       if (!(await controller.flush()))
         throw new UserFacingError("Reconnect before changing language.");
-      const next = await interviewRequest<InterviewSnapshot>(
+      await interviewRequest(
         `/v1/interviews/${id}/language`,
         "POST",
         { language, epoch: initial.document.epoch },
         randomUUID(),
       );
+      const next = await interviewRequest<InterviewSnapshot>(`/v1/interviews/${id}`);
       await queryClient.cancelQueries({ queryKey: ["interview", id] });
       queryClient.setQueryData(["interview", id], next);
       onOpenQuestion(next);

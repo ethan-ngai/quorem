@@ -7,7 +7,11 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
-import { jsonObject as object, restorePublicExamples, visibleProblem as visible } from "./public-projection.ts";
+import {
+  jsonObject as object,
+  restorePublicExamples,
+  visibleProblem as visible,
+} from "./public-projection.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
   CandidateCriteria,
@@ -236,7 +240,12 @@ async function readEditorials(
   ).rows;
   return JSON.stringify({ items: values });
 }
-async function readCandidates(tx: Transaction, actor: ProblemActor, criteria: CandidateCriteria) {
+/** Select only candidate identifiers under the caller's transaction. */
+export async function readCandidates(
+  tx: Transaction,
+  actor: ProblemActor,
+  criteria: CandidateCriteria,
+) {
   const selection = sql`SELECT v.id::text AS id,EXISTS(SELECT 1 FROM problem_languages l WHERE l.version_id=v.id AND l.language='postgresql') AS sql FROM problem_versions v JOIN problems p ON p.id=v.problem_id`;
   if (criteria.selectedVersionId)
     return (

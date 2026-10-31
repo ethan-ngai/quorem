@@ -2,7 +2,7 @@
 
 Question selection, hint visibility, language switching, manual host-only Odyssey advancement, and interviewer case visibility use the existing membership, operation, snapshot, and private sidecar owners. Selection atomically resets question/document state and stores public examples and private cases. Language changes fence the document epoch and preserve per-language drafts. Commands recheck current membership and hosting entitlement; retries retain Go-compatible operation fingerprints, including escaped raw case literals. HTTP routes require injected identity and are not mounted in production here.
 
-The bounded `backfill-interview-cases.ts` operator command uses the 051 backfill owner. It requires the verified bootstrap administrator, an operation ID and reason, and supports `--dry-run`; each write rechecks authority. Drain old writers and judges before activation and repeat bounded batches until complete. No production data was touched.
+The bounded `backfill-interview-cases.ts` operator command uses the bounded interview input backfill owner. It requires the verified bootstrap administrator, an operation ID and reason, and supports `--dry-run`; writes require `--legacy-drained` and recheck authority. Drain old writers and judges before activation and repeat bounded batches until complete. No production data was touched.
 
 Validation on disposable PostgreSQL `127.0.0.1:55466/quorem_hono_interview_questions_test`:
 
