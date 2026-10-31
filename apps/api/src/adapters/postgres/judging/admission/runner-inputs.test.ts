@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
-import { setActiveRunnerFixture } from "../../interviews/runner-inputs/active.ts";
+import {
+  createActiveRunnerFixture,
+  setActiveRunnerFixture,
+} from "../../interviews/runner-inputs/active.ts";
 import { saveInterviewFixture } from "../../interviews/execution/fixture.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
 import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
@@ -552,6 +555,65 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             await indexRunnerFixture(tx, { version }, raw);
             await expect(fixtureCaseRefs(tx, { version }, "example", 0)).rejects.toThrow(
               "exceeds admitted case count",
+            );
+            throw new Error("fixture rollback");
+          }),
+        ),
+      ).rejects.toThrow("fixture rollback");
+    } finally {
+      await pool.end();
+    }
+  });
+  it("pins indexed version refs to a current interview epoch without fetching fixture bytes", async () => {
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 2,
+      connectionTimeoutMs: 2000,
+      idleTimeoutMs: 1000,
+      onIdleError: () => {},
+    });
+    const version = crypto.randomUUID(),
+      problem = crypto.randomUUID(),
+      session = crypto.randomUUID(),
+      epoch = crypto.randomUUID(),
+      host = `pin-${session}`;
+    const versionRaw = JSON.stringify({
+      problem: { id: version, examples: [{ args: [1], expected: 2 }] },
+      hiddenCases: [{ args: [1], expected: 2 }],
+    });
+    const activeRaw = JSON.stringify({
+      problem: { id: version, examples: [{ args: [1], expected: 2 }] },
+      hiddenCases: [],
+    });
+    try {
+      await expect(
+        withNodeConnection(pool, { lifetimeMs: 15000 }, (scope) =>
+          scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
+            await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${host},'Fixture')`);
+            await tx.execute(
+              sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
+            );
+            await tx.execute(
+              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+            );
+            await indexRunnerFixture(tx, { version }, versionRaw);
+            await tx.execute(
+              sql`INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES(${session}::uuid,${host},'Fixture',${activeRaw}::jsonb,'python','',${epoch}::uuid,${epoch}::uuid,${session},${session},${host},${host})`,
+            );
+            const first = await createActiveRunnerFixture(tx, session, epoch, version),
+              second = await createActiveRunnerFixture(tx, session, epoch, version);
+            expect(first).toEqual(second);
+            const rows = (
+              await tx.execute<{ channel: string; n: number }>(
+                sql`SELECT channel,count(*)::int AS n FROM runner_snapshot_input_cases WHERE session_id=${session}::uuid AND fixture_id=${first} GROUP BY channel`,
+              )
+            ).rows;
+            expect(rows).toEqual([{ channel: "example", n: 1 }]);
+            await tx.execute(
+              sql`UPDATE interviews SET question_epoch=${crypto.randomUUID()}::uuid WHERE id=${session}::uuid`,
+            );
+            await expect(createActiveRunnerFixture(tx, session, epoch, version)).rejects.toThrow(
+              "Runner fixture unavailable",
             );
             throw new Error("fixture rollback");
           }),

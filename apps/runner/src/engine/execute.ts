@@ -25,6 +25,7 @@ import {
   type Signature,
 } from "@quorem/questions";
 import { CaseDeadline, CaseOutputLimit } from "../sandbox/budget.ts";
+import { bytesInput } from "../sandbox/input.ts";
 import type { IsolatedSandbox } from "../sandbox/types.ts";
 import { assertCaseFailure, assertCaseOutput } from "../sandbox/proof.ts";
 import { caseRequest, object, problemMetadata } from "./request.ts";
@@ -169,7 +170,7 @@ export async function executeAndStage(
         ordinal,
         language: job.language,
         limits: job.limits,
-        input,
+        input: bytesInput(input),
         outputLimit: compiled && !artifact ? 4 * 1024 * 1024 : job.limits.outputBytes,
         timeoutMs: Math.max(90000, remaining + job.limits.wallTimeMs + 70000),
         compileMs: Math.min(120000, remaining),

@@ -1,6 +1,9 @@
 /** @file docker.ts @description Local daemon case isolation and exact-scope teardown. @module runner */
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { checkedInput, type CaseInput } from "./input.ts";
 import type { AttemptFence } from "@quorem/execution";
 import { CaseOutputLimit, readinessBudget } from "./budget.ts";
 import { confirmCaseFailure, confirmCaseOutput } from "./proof.ts";
@@ -22,7 +25,7 @@ function invoke(
   binary: string,
   args: string[],
   options: {
-    input?: Uint8Array;
+    input?: CaseInput;
     signal?: AbortSignal;
     maxOut: number;
     maxErr: number;
@@ -61,8 +64,15 @@ function invoke(
     };
     child.stdout.on("data", collect(output, options.maxOut, true));
     child.stderr.on("data", collect(errors, options.maxErr, false));
-    child.stdin.on("error", () => {});
-    child.stdin.end(options.input);
+    let inputError: unknown;
+    const writing = options.input
+      ? pipeline(Readable.from(checkedInput(options.input)), child.stdin).catch((error) => {
+          inputError = error;
+          child.kill("SIGKILL");
+        })
+      : Promise.resolve().then(() => {
+          child.stdin.end();
+        });
     const abort = () => child.kill("SIGKILL");
     if (options.signal?.aborted) abort();
     else options.signal?.addEventListener("abort", abort, { once: true });
@@ -70,10 +80,12 @@ function invoke(
       options.signal?.removeEventListener("abort", abort);
       reject(new Error("Docker command unavailable"));
     });
-    child.once("close", (code) => {
+    child.once("close", async (code) => {
+      await writing;
       options.signal?.removeEventListener("abort", abort);
       if (options.signal?.aborted) return reject(new Error("Sandbox operation aborted"));
       if (outputError) return reject(outputError);
+      if (inputError) return reject(new Error("Sandbox input failed"));
       if (exceeded) return reject(new CaseOutputLimit());
       if (code === null) return reject(new Error("Docker command failed"));
       resolve({ code, stdout: Buffer.concat(output), stderr: Buffer.concat(errors) });
@@ -108,7 +120,7 @@ export async function dockerSandbox(config: {
     signal?: AbortSignal,
     maxOut = 65536,
     maxErr = 65536,
-    input?: Uint8Array,
+    input?: CaseInput,
     onStdout?: (data: Uint8Array) => void,
   ) => invoke(binary, [...prefix, ...args], { signal, maxOut, maxErr, input, onStdout });
   const identity = async (signal?: AbortSignal) => {

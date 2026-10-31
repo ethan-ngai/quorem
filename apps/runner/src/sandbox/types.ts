@@ -1,4 +1,5 @@
 /** @file types.ts @description Isolated case execution boundary. @module runner */
+import type { CaseInput } from "./input.ts";
 import type { AttemptFence, Job } from "@quorem/execution";
 export interface CaseRequest {
   readonly fence: AttemptFence;
@@ -6,7 +7,7 @@ export interface CaseRequest {
   readonly ordinal: number;
   readonly language: string;
   readonly limits: Job["limits"];
-  readonly input: Uint8Array;
+  readonly input: CaseInput;
   readonly outputLimit: number;
   readonly timeoutMs: number;
   readonly compileMs?: number;
@@ -34,6 +35,10 @@ export function validateCaseRequest(request: CaseRequest, scope: string): void {
     !Number.isInteger(request.ordinal) ||
     request.ordinal < -1 ||
     request.ordinal >= 320 ||
+    !Number.isSafeInteger(request.input.size) ||
+    request.input.size < 0 ||
+    !/^[a-f0-9]{64}$/.test(request.input.hash) ||
+    typeof request.input.open !== "function" ||
     !Number.isSafeInteger(request.timeoutMs) ||
     request.timeoutMs < 1 ||
     (request.compileMs !== undefined &&

@@ -1,3 +1,4 @@
+import { bytesInput } from "./input.ts";
 /// <reference types="node" />
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -66,7 +67,7 @@ void test("actual ingress signs durable namespace identity for case execution an
           ordinal: 0,
           language: "python",
           limits: defaultLimits(),
-          input: new Uint8Array([1]),
+          input: bytesInput(new Uint8Array([1])),
           outputLimit: 65536,
           timeoutMs: 1000,
         })
@@ -110,7 +111,7 @@ void test("actual ingress signs durable namespace identity for case execution an
       ordinal: 0,
       language: "python",
       limits: defaultLimits(),
-      input: new Uint8Array([1]),
+      input: bytesInput(new Uint8Array([1])),
       outputLimit: 65536,
       timeoutMs: 1000,
     }),

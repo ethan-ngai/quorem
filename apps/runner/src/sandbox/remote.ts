@@ -1,5 +1,7 @@
 /** @file remote.ts @description Scoped private case-service adapter. @module runner */
 import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
+import { Readable } from "node:stream";
+import { checkedInput } from "./input.ts";
 import { decodeCaseFrames, type AttemptFence } from "@quorem/execution";
 import { CaseOutputLimit, readinessBudget } from "./budget.ts";
 import { confirmCaseFailure, confirmCaseOutput } from "./proof.ts";
@@ -148,7 +150,7 @@ export function remoteSandbox(config: {
         signal,
       });
       const combined = AbortSignal.any([controller.signal, budget.signal]);
-      const bodyHash = createHash("sha256").update(request.input).digest("hex");
+      const bodyHash = request.input.hash;
       const caseFields = [
         request.binding,
         bodyHash,
@@ -175,9 +177,12 @@ export function remoteSandbox(config: {
             "x-quorem-body-sha256": bodyHash,
             "x-quorem-case-ordinal": String(request.ordinal),
           },
-          body: new Uint8Array(request.input),
+          body: Readable.toWeb(
+            Readable.from(checkedInput(request.input)),
+          ) as ReadableStream<Uint8Array>,
+          duplex: "half",
           signal: combined,
-        });
+        } as RequestInit & { duplex: "half" });
         if (
           response.status !== 200 ||
           !response.body ||
