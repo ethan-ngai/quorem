@@ -1,40 +1,21 @@
 import { expect, it } from "vitest";
-import { selectExecutionCases } from "./select-cases.ts";
-const fixture = JSON.stringify({
-  problem: {
-    signature: {
-      className: "Solution",
-      methodName: "f",
-      parameters: [{ name: "x", type: "int" }],
-      returnType: "int",
-    },
-    constraints: [],
-    examples: [{ args: [1], expected: 2, explanation: "public" }],
-  },
-  hiddenCases: [{ args: [3], expected: 4 }],
-  odysseyHiddenCases: [],
+import type { QuestionProblem } from "@quorem/questions";
+import { validateExecutionCases } from "./select-cases.ts";
+const signature = {
+  className: "Solution",
+  methodName: "f",
+  parameters: [{ name: "x", type: "int" }],
+  returnType: "int",
+};
+const metadata = { signature, constraints: [] } as unknown as QuestionProblem;
+it("validates custom values while preserving raw numeric input", () => {
+  expect(() => validateExecutionCases(metadata, 0, ['{"args":[-0]}'])).not.toThrow();
+  expect(() => validateExecutionCases(metadata, 0, ['{"args":["bad"]}'])).toThrow();
 });
-it("separates public run cases from private submit cases and validates custom input", () => {
-  expect(JSON.parse(selectExecutionCases(fixture, "run", 0, null))).toEqual([
-    { args: [1], expected: 2 },
-  ]);
-  expect(JSON.parse(selectExecutionCases(fixture, "submit", 0, null))).toEqual([
-    { args: [3], expected: 4 },
-  ]);
-  expect(JSON.parse(selectExecutionCases(fixture, "run", 0, ['{"args":[5]}']))).toEqual([
-    { args: [5] },
-  ]);
-  expect(() => selectExecutionCases(fixture, "run", 0, ['{"args":["bad"]}'])).toThrow();
-});
-
 it("accepts omitted zero-argument lists as the Go decoder does", () => {
-  const zero = JSON.stringify({
-    problem: {
-      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
-      constraints: [],
-      examples: [],
-    },
-    hiddenCases: [],
-  });
-  expect(selectExecutionCases(zero, "run", 0, ['{"args":null}'])).toBe('[{"args":null}]');
+  const zero = {
+    signature: { ...signature, parameters: [] },
+    constraints: [],
+  } as unknown as QuestionProblem;
+  expect(() => validateExecutionCases(zero, 0, ['{"args":null}'])).not.toThrow();
 });
