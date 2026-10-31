@@ -190,3 +190,25 @@ output "drain_access_application_id" { value = cloudflare_zero_trust_access_appl
 output "hyperdrive_id" { value = cloudflare_hyperdrive_config.database.id }
 output "queue_name" { value = cloudflare_queue.execution.queue_name }
 output "dead_letter_queue_name" { value = cloudflare_queue.dead_letter.queue_name }
+
+variable "profile_media_enabled" {
+  type    = bool
+  default = false
+}
+
+resource "cloudflare_r2_bucket" "profile" {
+  count      = var.profile_media_enabled ? 1 : 0
+  account_id = var.account_id
+  name       = "${var.worker_name}-profile"
+  lifecycle {
+    prevent_destroy = true
+    precondition {
+      condition     = length("${var.worker_name}-profile") <= 63
+      error_message = "The stage Worker name is too long for the profile bucket."
+    }
+  }
+}
+
+output "profile_bucket_name" {
+  value = try(cloudflare_r2_bucket.profile[0].name, null)
+}

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { generateKeyPairSync, randomUUID, createHash } from "node:crypto";
 import { verifyCaseProbe } from "../../case-proof.js";
 import { CaseSandbox } from "../../case-sandbox.js";
-import worker, { RunnerService, VerifierService } from "./worker.js";
+import worker, { ImageService, RunnerService, VerifierService } from "./worker.js";
 const secret = (value) => value.repeat(64);
 const base = () => ({
   DRAIN_ORIGIN: "https://runner-stage.example.test",
@@ -477,4 +477,73 @@ test("execution requires pinned namespace and scope; cleanup remains available",
   env.QUOREM_CASE_NAMESPACE_ID = secret("0");
   assert.equal((await request("DELETE")).status, 204);
   assert.equal(forwarded, 2);
+});
+
+test("image ingress and authenticated local readiness are isolated", async () => {
+  const env = {
+    ...base(),
+    IMAGE_SERVICE_ENABLED: "true",
+    IMAGE_ORIGIN: "https://image-stage.example.test",
+    IMAGE_SERVICE_TOKEN: secret("i"),
+  };
+  const seen = [];
+  env.IMAGES = target("image", seen);
+  const call = (token, path = "/", method = "POST") =>
+    worker.fetch(
+      new Request(env.IMAGE_ORIGIN + path, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "CF-Access-Client-Secret": "discard",
+          cookie: "discard",
+          "CF-Access-Jwt-Assertion": "discard",
+        },
+      }),
+      env,
+    );
+  assert.equal((await call(env.IMAGE_SERVICE_TOKEN)).status, 204);
+  assert.equal(seen[0].headers.get("CF-Access-Client-Secret"), null);
+  assert.equal(seen[0].headers.get("cookie"), null);
+  assert.equal(seen[0].headers.get("CF-Access-Jwt-Assertion"), null);
+  assert.equal((await call(secret("z"))).status, 404);
+  assert.equal((await call(env.IMAGE_SERVICE_TOKEN, "/health", "GET")).status, 404);
+  env.IMAGE_SERVICE_ENABLED = "false";
+  assert.equal((await call(env.IMAGE_SERVICE_TOKEN)).status, 404);
+  const calls = [];
+  let running = false;
+  const container = {
+    get running() {
+      return running;
+    },
+    start(options) {
+      calls.push(options);
+      running = true;
+    },
+    async setInactivityTimeout() {},
+    monitor() {
+      return new Promise(() => {});
+    },
+    getTcpPort(port) {
+      return {
+        async fetch(request, options) {
+          assert.equal(port, 8083);
+          if (typeof request === "string") {
+            assert.equal(options.headers.authorization, `Bearer ${env.IMAGE_SERVICE_TOKEN}`);
+            assert.equal(options.redirect, "error");
+            return new Response(null, { status: 200 });
+          }
+          return new Response("image", { headers: { "x-image-execution": "terminated" } });
+        },
+      };
+    },
+  };
+  const service = new ImageService({ container, waitUntil() {} }, env);
+  const response = await service.fetch(new Request(env.IMAGE_ORIGIN, { method: "POST" }));
+  assert.equal(response.headers.get("x-image-execution"), "terminated");
+  assert.deepEqual(Object.keys(calls[0].env).sort(), [
+    "IMAGE_SERVICE_HOST",
+    "IMAGE_SERVICE_PORT",
+    "IMAGE_SERVICE_TOKEN",
+    "IMAGE_SERVICE_TRANSPORT",
+  ]);
 });

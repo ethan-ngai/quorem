@@ -26,7 +26,7 @@ run "bootstrap_without_consumer" {
     error_message = "Hyperdrive must use the staged PostgreSQL origin with TLS, bounded connections and no query cache."
   }
   assert {
-    condition     = length(cloudflare_queue_consumer.execution) == 0
+    condition     = length(cloudflare_queue_consumer.execution) == 0 && length(cloudflare_r2_bucket.profile) == 0
     error_message = "The queue consumer must wait until the staged Worker is deployed."
   }
   assert {
@@ -97,5 +97,14 @@ run "bind_provisioned_hyperdrive" {
   assert {
     condition     = output.hyperdrive_id == cloudflare_hyperdrive_config.database.id && output.hyperdrive_id == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     error_message = "Generated bindings must use the provisioned Hyperdrive ID."
+  }
+}
+
+run "optional_profile_bucket" {
+  command = plan
+  variables { profile_media_enabled = true }
+  assert {
+    condition     = length(cloudflare_r2_bucket.profile) == 1 && cloudflare_r2_bucket.profile[0].name == "quorem-hono-stage-profile"
+    error_message = "Enabled media requires a fresh staged bucket."
   }
 }

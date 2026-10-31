@@ -31,6 +31,9 @@ function selected(env, keys) {
   );
 }
 function config(env) {
+  const imageEnabled = env.IMAGE_SERVICE_ENABLED === "true";
+  if (env.IMAGE_SERVICE_ENABLED && !["true", "false"].includes(env.IMAGE_SERVICE_ENABLED))
+    throw new Error("Invalid image configuration");
   const secrets = [
     env.QUOREM_RUNNER_COMMAND_SECRET,
     env.QUOREM_RUNNER_DRAIN_SECRET,
@@ -40,6 +43,7 @@ function config(env) {
     env.RUNNER_API_ACCESS_CLIENT_SECRET,
     env.VERIFIER_API_ACCESS_CLIENT_SECRET,
     env.QUOREM_CASE_ACCESS_CLIENT_SECRET,
+    ...(imageEnabled ? [env.IMAGE_SERVICE_TOKEN] : []),
   ];
   if (
     secrets.some((value) => typeof value !== "string" || value.length < 32 || /\s/.test(value)) ||
@@ -59,7 +63,12 @@ function config(env) {
     !env.CASE_OWNER_PRIVATE_KEY
   )
     throw new Error("Invalid private ingress credentials");
-  const origins = [env.DRAIN_ORIGIN, env.VERIFIER_ORIGIN, env.CASE_ORIGIN].map((value) => {
+  const origins = [
+    env.DRAIN_ORIGIN,
+    env.VERIFIER_ORIGIN,
+    env.CASE_ORIGIN,
+    ...(imageEnabled ? [env.IMAGE_ORIGIN] : []),
+  ].map((value) => {
     const url = new URL(value);
     if (
       url.protocol !== "https:" ||
@@ -95,6 +104,14 @@ function clean(request) {
   headers.delete("CF-Access-Client-Secret");
   return new Request(request, { headers });
 }
+function cleanImage(request) {
+  const headers = new Headers();
+  for (const key of ["authorization", "content-type", "x-image-format"]) {
+    const value = request.headers.get(key);
+    if (value !== null) headers.set(key, value);
+  }
+  return new Request(request, { headers });
+}
 class Service extends DurableObject {
   constructor(ctx, env, kind) {
     super(ctx, env);
@@ -117,10 +134,16 @@ class Service extends DurableObject {
           }
         : { QUOREM_VERIFIER_LISTEN: "0.0.0.0:8091", QUOREM_PRIVATE_SERVICE: "verifier" },
     );
-    this.lifecycle = new ContainerLifecycle(ctx, values, runner ? 8090 : 8091, 60000, 120000);
+    this.lifecycle = new ContainerLifecycle(
+      ctx,
+      values,
+      runner ? 8090 : 8091,
+      60000,
+      runner ? 300000 : 120000,
+    );
   }
   fetch(request) {
-    return this.lifecycle.forward(clean(request), 240000);
+    return this.lifecycle.forward(clean(request), this instanceof RunnerService ? 240000 : 135000);
   }
 }
 export class RunnerService extends Service {
@@ -133,12 +156,37 @@ export class VerifierService extends Service {
     super(ctx, env, "verifier");
   }
 }
+export class ImageService extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    const values = {
+      IMAGE_SERVICE_TRANSPORT: "cloudflare-container",
+      IMAGE_SERVICE_HOST: "0.0.0.0",
+      IMAGE_SERVICE_PORT: "8083",
+      IMAGE_SERVICE_TOKEN: env.IMAGE_SERVICE_TOKEN,
+    };
+    this.lifecycle = new ContainerLifecycle(ctx, values, 8083, 60000, 120000, undefined, {
+      authorization: `Bearer ${env.IMAGE_SERVICE_TOKEN}`,
+    });
+  }
+  fetch(request) {
+    return this.lifecycle.forward(cleanImage(request), 15000);
+  }
+}
 export default {
   async fetch(request, env) {
     try {
-      const [drain, verifier, cases] = config(env),
+      const [drain, verifier, cases, image] = config(env),
         url = new URL(request.url);
       if (url.search || url.hash) return new Response(null, { status: 404 });
+      if (
+        image &&
+        url.origin === image &&
+        url.pathname === "/" &&
+        request.method === "POST" &&
+        request.headers.get("authorization") === `Bearer ${env.IMAGE_SERVICE_TOKEN}`
+      )
+        return env.IMAGES.getByName("image").fetch(cleanImage(request));
       if (
         url.origin === cases &&
         url.pathname === "/internal/case/namespace" &&

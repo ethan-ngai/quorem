@@ -86,3 +86,121 @@ run "reject_unknown_migration" {
   }
   expect_failures = [cloudflare_worker_version.services]
 }
+
+run "fresh_image" {
+  command = plan
+  variables {
+    profile_media_enabled         = true
+    image_hostname                = "image-stage.example.com"
+    image_access_service_token_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+    image_service_image           = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    service_secrets = {
+      QUOREM_RUNNER_COMMAND_SECRET        = "runner-command-fixture"
+      QUOREM_RUNNER_DRAIN_SECRET          = "runner-drain-fixture"
+      QUOREM_CASE_SECRET                  = "case-secret-fixture"
+      QUOREM_VERIFICATION_SOURCE_KEY      = "source-key-fixture"
+      QUOREM_VERIFICATION_SERVICE_KEY     = "service-key-fixture"
+      QUOREM_CASE_OWNER_PUBLIC_KEY_PEM    = "public-key-fixture"
+      QUOREM_VERIFICATION_SIGNING_KEY_PEM = "signing-key-fixture"
+      RUNNER_API_ACCESS_CLIENT_ID         = "runner-api-id"
+      RUNNER_API_ACCESS_CLIENT_SECRET     = "runner-api-secret"
+      VERIFIER_API_ACCESS_CLIENT_ID       = "verifier-api-id"
+      VERIFIER_API_ACCESS_CLIENT_SECRET   = "verifier-api-secret"
+      QUOREM_CASE_ACCESS_CLIENT_ID        = "case-api-id"
+      QUOREM_CASE_ACCESS_CLIENT_SECRET    = "case-api-secret"
+      IMAGE_SERVICE_TOKEN                 = "image-fixture-token-0123456789abcdef"
+      CASE_OWNER_PRIVATE_KEY              = "case-owner-private"
+    }
+  }
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v2" && length(cloudflare_worker_version.services.migrations.new_sqlite_classes) == 4 && length(cloudflare_workers_route.service) == 4 && cloudflare_zero_trust_access_application.service["image"].domain == "image-stage.example.com"
+    error_message = "Fresh image stage must isolate all four services."
+  }
+}
+run "add_image_to_v1" {
+  command = plan
+  variables {
+    profile_media_enabled         = true
+    image_hostname                = "image-stage.example.com"
+    image_access_service_token_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+    image_service_image           = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    service_secrets = {
+      QUOREM_RUNNER_COMMAND_SECRET        = "runner-command-fixture"
+      QUOREM_RUNNER_DRAIN_SECRET          = "runner-drain-fixture"
+      QUOREM_CASE_SECRET                  = "case-secret-fixture"
+      QUOREM_VERIFICATION_SOURCE_KEY      = "source-key-fixture"
+      QUOREM_VERIFICATION_SERVICE_KEY     = "service-key-fixture"
+      QUOREM_CASE_OWNER_PUBLIC_KEY_PEM    = "public-key-fixture"
+      QUOREM_VERIFICATION_SIGNING_KEY_PEM = "signing-key-fixture"
+      RUNNER_API_ACCESS_CLIENT_ID         = "runner-api-id"
+      RUNNER_API_ACCESS_CLIENT_SECRET     = "runner-api-secret"
+      VERIFIER_API_ACCESS_CLIENT_ID       = "verifier-api-id"
+      VERIFIER_API_ACCESS_CLIENT_SECRET   = "verifier-api-secret"
+      QUOREM_CASE_ACCESS_CLIENT_ID        = "case-api-id"
+      QUOREM_CASE_ACCESS_CLIENT_SECRET    = "case-api-secret"
+      IMAGE_SERVICE_TOKEN                 = "image-fixture-token-0123456789abcdef"
+      CASE_OWNER_PRIVATE_KEY              = "case-owner-private"
+    }
+  }
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v1" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations.old_tag == "v1" && cloudflare_worker_version.services.migrations.new_tag == "v2" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["ImageService"])
+    error_message = "Upgrade must add only the image class."
+  }
+}
+run "repeat_v2" {
+  command = plan
+  variables {
+    profile_media_enabled         = true
+    image_hostname                = "image-stage.example.com"
+    image_access_service_token_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+    image_service_image           = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    service_secrets = {
+      QUOREM_RUNNER_COMMAND_SECRET        = "runner-command-fixture"
+      QUOREM_RUNNER_DRAIN_SECRET          = "runner-drain-fixture"
+      QUOREM_CASE_SECRET                  = "case-secret-fixture"
+      QUOREM_VERIFICATION_SOURCE_KEY      = "source-key-fixture"
+      QUOREM_VERIFICATION_SERVICE_KEY     = "service-key-fixture"
+      QUOREM_CASE_OWNER_PUBLIC_KEY_PEM    = "public-key-fixture"
+      QUOREM_VERIFICATION_SIGNING_KEY_PEM = "signing-key-fixture"
+      RUNNER_API_ACCESS_CLIENT_ID         = "runner-api-id"
+      RUNNER_API_ACCESS_CLIENT_SECRET     = "runner-api-secret"
+      VERIFIER_API_ACCESS_CLIENT_ID       = "verifier-api-id"
+      VERIFIER_API_ACCESS_CLIENT_SECRET   = "verifier-api-secret"
+      QUOREM_CASE_ACCESS_CLIENT_ID        = "case-api-id"
+      QUOREM_CASE_ACCESS_CLIENT_SECRET    = "case-api-secret"
+      IMAGE_SERVICE_TOKEN                 = "image-fixture-token-0123456789abcdef"
+      CASE_OWNER_PRIVATE_KEY              = "case-owner-private"
+    }
+  }
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v2" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations == null
+    error_message = "Repeat deploy must not recreate v2 classes."
+  }
+}
+run "disabled_after_v2" {
+  command = plan
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v2" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations == null && length(cloudflare_workers_route.service) == 3
+    error_message = "Disabling media must not recreate or delete DO classes."
+  }
+}
