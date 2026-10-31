@@ -1,0 +1,35 @@
+name: Hono staged artifact validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+      - run: vp install --frozen-lockfile
+      - run: node --test scripts/hono-stage-config.test.mjs scripts/hono-stage-gate.test.mjs scripts/hono-stage-secrets.test.mjs
+      - run: node scripts/hono-stage-gate.mjs
+      - run: terraform -chdir=infra/terraform/hono-stage fmt -check -recursive
+      - run: terraform -chdir=infra/terraform/hono-stage init -backend=false -input=false
+      - run: terraform -chdir=infra/terraform/hono-stage validate
+      - run: terraform -chdir=infra/terraform/hono-stage test
+      - run: node scripts/hono-stage-config.mjs deploy/hono/stage.fixture.json deploy/hono/terraform-outputs.fixture.json "$RUNNER_TEMP/hono-stage.json"
+      - run: vp -C apps/api exec wrangler deploy --dry-run --config "$RUNNER_TEMP/hono-stage.json" --outdir "$RUNNER_TEMP/hono-worker"
+      - run: docker build -f deploy/hono/Dockerfile.api -t quorem-hono-api:validation .
+      - run: docker build -f deploy/hono/Dockerfile.runner --target runner -t quorem-hono-runner:validation .
+      - run: docker build -f deploy/hono/Dockerfile.runner --target verifier -t quorem-hono-verifier:validation .
+      - run: docker run --rm --network none --entrypoint docker quorem-hono-runner:validation --version
+      - name: Runner and verifier process contracts
+        env:
+          QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
+        run: vp -C apps/runner exec node --test src/runtime/runtime.test.ts
