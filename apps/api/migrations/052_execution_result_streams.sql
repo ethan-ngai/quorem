@@ -16,6 +16,13 @@ CREATE TABLE execution_completion_frames (
  frame_hash bytea NOT NULL CHECK (octet_length(frame_hash)=32),
  PRIMARY KEY(job_id,channel,ordinal)
 );
+CREATE TABLE execution_completion_receipts (
+ job_id uuid NOT NULL REFERENCES execution_jobs(id) ON DELETE CASCADE,
+ attempt_id uuid NOT NULL,
+ sandbox_scope text NOT NULL,
+ outcome text NOT NULL CHECK (outcome IN ('completed','cancelled','failed','requeued')),
+ PRIMARY KEY(job_id,attempt_id,sandbox_scope)
+);
 CREATE TABLE submission_result_headers (
  submission_id uuid PRIMARY KEY REFERENCES submissions(id) ON DELETE CASCADE,
  header_data bytea NOT NULL
