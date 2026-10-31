@@ -127,9 +127,37 @@ await test(
           2,
         );
         await migrate(pool, owner, dir);
+        let retries = 0;
+        await baselineLegacy(pool, owner, dir, evidence, async () => {
+          retries++;
+        });
+        assert.equal(retries, 1);
+        await assert.rejects(
+          baselineLegacy(pool, owner, dir, evidence, async () => {
+            throw new Error("audit denied");
+          }),
+          /audit denied/,
+        );
+        for (const change of [
+          { operationId: randomUUID() },
+          { operator: "other-operator" },
+          { reason: "different reason" },
+          { artifact: { ...evidence.artifact, artifactDigest: "c".repeat(64) } },
+          { artifact: { ...evidence.artifact, commitSha: "c".repeat(40) } },
+        ])
+          await assert.rejects(
+            baselineLegacy(pool, owner, dir, { ...evidence, ...change }, async () => {}),
+            /conflicts/,
+          );
+        await assert.rejects(
+          // @ts-expect-error Verify the runtime rejects a missing authority hook.
+          baselineLegacy(pool, owner, dir, evidence),
+          /Invalid baseline evidence/,
+        );
+        await pool.query(`UPDATE ${ledger} SET checksum=NULL WHERE name='001_first.sql'`);
         await assert.rejects(
           baselineLegacy(pool, owner, dir, evidence, async () => {}),
-          /entirely name-only/,
+          /conflicts/,
         );
       }
     } finally {

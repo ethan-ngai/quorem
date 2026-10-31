@@ -23,6 +23,12 @@ export interface BaselineEvidence {
 }
 type Migration = { name: string; sql: string; checksum: string };
 type LedgerRow = { name: string; checksum: string | null };
+type BaselineRow = LedgerRow & {
+  baseline_operation: string | null;
+  baseline_operator: string | null;
+  baseline_reason: string | null;
+  baseline_artifact: string | null;
+};
 const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 async function source(directory: string, owner: MigrationOwner): Promise<Migration[]> {
   const names = (await readdir(directory)).filter((file) => file.endsWith(".sql")).sort();
@@ -142,17 +148,14 @@ export async function baselineLegacy(
   try {
     await client.query("BEGIN");
     const ledger = await prepare(client, owner);
-    const rows = (await client.query<LedgerRow>(`SELECT name,checksum FROM ${ledger} FOR UPDATE`))
-      .rows;
+    const rows = (
+      await client.query<BaselineRow>(
+        `SELECT name,checksum,baseline_operation,baseline_operator,baseline_reason,baseline_artifact FROM ${ledger} FOR UPDATE`,
+      )
+    ).rows;
     prefix(files, rows, owner);
-    if (
-      !rows.length ||
-      rows.some((row) => row.checksum !== null) ||
-      Object.keys(a.files).length !== rows.length
-    )
-      throw new Error(
-        "Baseline requires an entirely name-only history and exact artifact manifest",
-      );
+    if (!rows.length || Object.keys(a.files).length !== rows.length)
+      throw new Error("Baseline requires an exact artifact manifest");
     const byName = new Map(files.map((file) => [file.name, file]));
     for (const row of rows)
       if (
@@ -160,25 +163,44 @@ export async function baselineLegacy(
         a.files[row.name] !== byName.get(row.name)?.checksum
       )
         throw new Error(`Baseline artifact mismatch: ${row.name}`);
+    const artifact = JSON.stringify({
+      repository: a.repository,
+      workflow: a.workflow,
+      runId: a.runId,
+      commitSha: a.commitSha,
+      artifactDigest: a.artifactDigest,
+    });
+    const legacy = rows.every(
+      (row) =>
+        row.checksum === null &&
+        row.baseline_operation === null &&
+        row.baseline_operator === null &&
+        row.baseline_reason === null &&
+        row.baseline_artifact === null,
+    );
+    const retry = rows.every(
+      (row) =>
+        row.checksum === a.files[row.name] &&
+        row.baseline_operation === evidence.operationId &&
+        row.baseline_operator === evidence.operator &&
+        row.baseline_reason === evidence.reason &&
+        row.baseline_artifact === artifact,
+    );
+    if (!legacy && !retry) throw new Error("Baseline history conflicts with this operation");
     await authorizeAndAudit(client, evidence);
-    for (const row of rows)
-      await client.query(
-        `UPDATE ${ledger} SET checksum=$2,baseline_operation=$3,baseline_operator=$4,baseline_reason=$5,baseline_artifact=$6 WHERE name=$1`,
-        [
-          row.name,
-          a.files[row.name],
-          evidence.operationId,
-          evidence.operator,
-          evidence.reason,
-          JSON.stringify({
-            repository: a.repository,
-            workflow: a.workflow,
-            runId: a.runId,
-            commitSha: a.commitSha,
-            artifactDigest: a.artifactDigest,
-          }),
-        ],
-      );
+    if (legacy)
+      for (const row of rows)
+        await client.query(
+          `UPDATE ${ledger} SET checksum=$2,baseline_operation=$3,baseline_operator=$4,baseline_reason=$5,baseline_artifact=$6 WHERE name=$1`,
+          [
+            row.name,
+            a.files[row.name],
+            evidence.operationId,
+            evidence.operator,
+            evidence.reason,
+            artifact,
+          ],
+        );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
