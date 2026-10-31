@@ -14,4 +14,6 @@ Cancellable PostgreSQL scope lifetime timers are cleared on every exit. The prev
 
 The actual Worker scheduled entry point recovers an aged execution intent, arms and reconciles an overdue match through the deadline Durable Object, and publishes a committed interview outbox notice to a live socket. The composition inventory test covers all 66 ledger operations using registered HTTP routes and the shared native socket path classifier; registration does not establish behavioral parity.
 
-Remaining gates: Node multi-instance fanout and hosted throughput remain unverified. Terraform and deployment are outside this slice. Do not activate on this report alone.
+Two independent Node runtimes sharing PostgreSQL deliver a committed interview document update from one runtime to a live authorized socket on the other.
+
+Remaining gate: hosted throughput remains unverified. Terraform and deployment are outside this slice. Do not activate on this report alone.
