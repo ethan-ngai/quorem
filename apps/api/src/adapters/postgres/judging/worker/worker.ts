@@ -1,22 +1,23 @@
+import { assertRunnerFixture } from "./test-db.ts";
 /** @file worker.ts @description Native Worker queue fencing against disposable PostgreSQL. @module judging */
 /// <reference types="@cloudflare/vitest-plugin/types" />
 import { env } from "cloudflare:test";
 import { expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
-import { encodeJob } from "@quorem/execution";
+import {
+  encodeJob,
+  checkpointProvenance,
+  decodeJudgeFrame,
+  encodeCheckpointFrame,
+} from "@quorem/execution";
 import { postgresExecutionCommands } from "./repository.ts";
 import { createRunnerCommandHandler } from "./http.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 
 it("claims and fences a real attempt through workerd", async () => {
   const url = (env as unknown as { RUNNER_TEST_URL: string }).RUNNER_TEST_URL;
-  const parsed = new URL(url);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-    "127.0.0.1",
-    "55464",
-    "/quorem_hono_runner_test",
-  ]);
+  assertRunnerFixture(url, ["/quorem_hono_runner_test", "/quorem_hono_engine_test"]);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000 }, f);
   const user = crypto.randomUUID(),
@@ -148,7 +149,19 @@ it("claims and fences a real attempt through workerd", async () => {
     await expect(claims.lease({ ...claimed!, sandboxScope: "other" }, false)).rejects.toThrow(
       "scope",
     );
-    const savedFrame = '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}';
+    const judgeFrame = decodeJudgeFrame(
+      '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}',
+    );
+    const spec = await claims.load(claimed!);
+    const provenance = await checkpointProvenance(
+      claimed!,
+      spec,
+      0,
+      claimed!,
+      { compilationNanos: 42n },
+      judgeFrame,
+    );
+    const savedFrame = encodeCheckpointFrame(judgeFrame, provenance);
     await claims.saveCheckpoint(claimed!, { ordinal: 0, frame: savedFrame, compilationNanos: 42n });
     const replayed: string[] = [];
     await claims.replayCheckpoint(claimed!, 1, async (_ordinal, frame) => {

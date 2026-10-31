@@ -232,7 +232,7 @@ export function privateRunnerCommands(options: {
           const v = new DataView(header.buffer),
             index = v.getUint32(0),
             length = v.getUint32(4);
-          if (index !== ordinal || length > 2 * 1024 * 1024)
+          if (index !== ordinal || length > 2 * 1024 * 1024 + 4096)
             throw new Error("Invalid checkpoint stream");
           const frame = await read(length);
           if (frame === null) throw new Error("Truncated checkpoint stream");

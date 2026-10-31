@@ -1,3 +1,4 @@
+import { assertRunnerFixture } from "./test-db.ts";
 import { execFileSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
@@ -9,14 +10,13 @@ import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
 import { validateFieldChunks } from "./field-validation.ts";
 import { submissionSnapshots } from "../results/repository.ts";
+import { checkpointProvenance, decodeJudgeFrame, encodeCheckpointFrame } from "@quorem/execution";
+import { postgresExecutionLoad } from "./load.ts";
 const url = process.env.QUOREM_RUNNER_TEST_DATABASE_URL;
-const parsed = new URL(url ?? "postgres://127.0.0.1:55464/quorem_hono_runner_test");
-if (
-  parsed.port !== "55464" ||
-  parsed.pathname !== "/quorem_hono_runner_test" ||
-  !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)
-)
-  throw new Error("Disposable runner database required");
+assertRunnerFixture(url ?? "postgres://127.0.0.1/quorem_hono_runner_test", [
+  "/quorem_hono_runner_test",
+  "/quorem_hono_engine_test",
+]);
 describe.skipIf(!url)("runner claim fences", () => {
   const pool = createNodePool({
     connectionString: url!,
@@ -150,7 +150,18 @@ describe.skipIf(!url)("runner claim fences", () => {
       proof = await claims.nextExpiredAttempt(true, "scope-a");
     const live = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(live).not.toBeNull();
-    const frame = '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}';
+    const rawFrame = '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}';
+    const judgeFrame = decodeJudgeFrame(rawFrame),
+      spec = await postgresExecutionLoad(run, true)(live!);
+    const provenance = await checkpointProvenance(
+      live!,
+      spec,
+      0,
+      live!,
+      { compilationNanos: 42n },
+      judgeFrame,
+    );
+    const frame = encodeCheckpointFrame(judgeFrame, provenance);
     await checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n });
     await expect(
       checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n }),
