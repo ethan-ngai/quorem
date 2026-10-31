@@ -3,7 +3,7 @@ import { userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { InterviewPreview, InterviewSnapshot } from "@quorem/contracts";
+import type { InterviewPreview } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
@@ -33,7 +33,7 @@ export function InterviewInvite({ token }: { token: string }) {
     setBusy(true);
     setError(undefined);
     try {
-      const session = await interviewRequest<InterviewSnapshot>(
+      const session = await interviewRequest<{ id: string }>(
         `/v1/interview-invites/${encodeURIComponent(token)}/join`,
         "POST",
         { name: name.trim() || undefined },

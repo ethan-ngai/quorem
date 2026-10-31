@@ -15,6 +15,8 @@ export type { StarterLanguage } from "./starter.ts";
 export { validateQuestionDraft } from "./draft.ts";
 export { JsonNumber, parseLosslessJson, stringifyLosslessJson } from "./json.ts";
 export type { JsonValue } from "./json.ts";
+export { scanJsonSpans } from "./json-spans.ts";
+export type { JsonSpan } from "./json-spans.ts";
 export { normalizeQuestionValue, normalizeQuestionJson } from "./value-codec.ts";
 export { validSource } from "./source.ts";
 export { validateCodingCase, validateCodingSequence, compareCodingCase } from "./coding-case.ts";

@@ -1,12 +1,11 @@
 /** @file submissionStream.ts @description Owner-scoped submission socket and snapshot validation. @module editor */
-import type { DevelopmentIdentity, Submission } from "@quorem/contracts";
+import type { DevelopmentIdentity } from "@quorem/contracts";
 import { createReconnectingSocket } from "../realtime/reconnectingSocket";
 
 export function submissionStream(
   identity: DevelopmentIdentity,
   id: string,
-  workspaceId: string,
-  onSnapshot: (snapshot: Submission) => void,
+  onChange: () => void,
   onDisconnect: () => void = () => {},
 ) {
   return createReconnectingSocket({
@@ -21,34 +20,15 @@ export function submissionStream(
     },
     timeout: 5000,
     idleTimeout: 30000,
-    onOpen: () => {},
+    onOpen: onChange,
     onDisconnect,
     onMessage: (event) => {
       try {
         const value: unknown = JSON.parse(String(event.data));
-        if (
-          !value ||
-          typeof value !== "object" ||
-          !("id" in value) ||
-          value.id !== id ||
-          !("workspaceId" in value) ||
-          value.workspaceId !== workspaceId ||
-          !("state" in value) ||
-          typeof value.state !== "string" ||
-          !["queued", "running", "completed", "cancelled", "failed"].includes(value.state) ||
-          !("kind" in value) ||
-          (value.kind !== "run" && value.kind !== "submit") ||
-          !("sourceHash" in value) ||
-          typeof value.sourceHash !== "string" ||
-          !("admittedAt" in value) ||
-          typeof value.admittedAt !== "string" ||
-          !("updatedAt" in value) ||
-          typeof value.updatedAt !== "string"
-        )
-          return;
-        onSnapshot(value as Submission);
+        if (value && typeof value === "object" && "type" in value && value.type === "changed")
+          onChange();
       } catch {
-        /* Invalid frames never replace the last authorized snapshot. */
+        /* Invalid notices never change the cached result. */
       }
     },
   });

@@ -3,7 +3,7 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 import { interviewPresence } from "./repository.ts";
 import { interviewMonitoring } from "../monitoring/repository.ts";
 const url = process.env.QUOREM_INTERVIEW_PRESENCE_TEST_URL;
@@ -47,19 +47,26 @@ it.skipIf(!url)(
         withNodeConnection(pool, { lifetimeMs: 15000 }, f);
       const lifecycle = interviewLifecycle(run, {
           question: preparePublishedInterviewQuestion,
-          snapshot: interviewSnapshot,
+          snapshot: interviewSnapshotStream(run),
         }),
         a = interviewPresence(run),
         b = interviewPresence(run),
-        monitoring = interviewMonitoring(run, interviewSnapshot);
+        monitoring = interviewMonitoring(run);
       const created = JSON.parse(
-        await lifecycle.create(host, "create", {
-          title: "Presence",
-          question: {
-            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-            language: "python",
-          },
-        }),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await lifecycle.create(host, "create", {
+                title: "Presence",
+                question: {
+                  problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                  language: "python",
+                },
+              }),
+            ).id,
+          ),
+        ).text(),
       );
       const id = created.id;
       await pool.query(
@@ -122,11 +129,17 @@ it.skipIf(!url)(
       await monitoring.report(candidate, id, "event", "paste");
       await monitoring.report(candidate, id, "event", "paste");
       await monitoring.report(candidate, id, "recent", "paste");
-      expect(JSON.parse(await lifecycle.read(host, id)).ruleEvents).toHaveLength(1);
-      expect(JSON.parse(await lifecycle.read(candidate, id)).ruleEvents).toBeUndefined();
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(host, id)).text()).ruleEvents,
+      ).toHaveLength(1);
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(candidate, id)).text()).ruleEvents,
+      ).toBeUndefined();
       await monitoring.setPolicy(host, id, "policy", { focus: false, paste: true });
       await monitoring.report(candidate, id, "focus", "focus");
-      expect(JSON.parse(await lifecycle.read(host, id)).ruleEvents).toHaveLength(1);
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(host, id)).text()).ruleEvents,
+      ).toHaveLength(1);
       await expect(monitoring.report(host, id, "host-event", "paste")).rejects.toMatchObject({
         status: 403,
       });
@@ -138,13 +151,20 @@ it.skipIf(!url)(
         "UPDATE interview_rule_events SET occurred_at=clock_timestamp()-interval '10 seconds' WHERE session_id=$1",
         [id],
       );
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(host, id)).text()).ruleEvents,
+      ).toHaveLength(100);
       await monitoring.report(candidate, id, "trim", "paste");
-      expect(JSON.parse(await lifecycle.read(host, id)).ruleEvents).toHaveLength(100);
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(host, id)).text()).ruleEvents,
+      ).toHaveLength(100);
       await pool.query(
         "UPDATE interview_members SET role='interviewer' WHERE session_id=$1 AND user_id=$2",
         [id, candidate.userId],
       );
-      expect(JSON.parse(await lifecycle.read(candidate, id)).ruleEvents).toHaveLength(100);
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(candidate, id)).text()).ruleEvents,
+      ).toHaveLength(100);
       await expect(monitoring.report(candidate, id, "promoted", "paste")).rejects.toMatchObject({
         status: 403,
       });
@@ -152,7 +172,9 @@ it.skipIf(!url)(
         "UPDATE interview_members SET role='interviewee' WHERE session_id=$1 AND user_id=$2",
         [id, candidate.userId],
       );
-      expect(JSON.parse(await lifecycle.read(candidate, id)).ruleEvents).toBeUndefined();
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(candidate, id)).text()).ruleEvents,
+      ).toBeUndefined();
       await pool.query(
         "UPDATE interview_members SET removed_at=clock_timestamp() WHERE session_id=$1 AND user_id=$2",
         [id, candidate.userId],

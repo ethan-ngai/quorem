@@ -2,72 +2,18 @@
 import {
   JsonNumber,
   normalizeQuestionDraft,
+  scanJsonSpans,
+  type JsonSpan,
   parseLosslessJson,
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
 type Obj = { [key: string]: JsonValue };
-type Node = { start: number; end: number; fields?: Map<string, Node>; items?: Node[] };
+type Node = JsonSpan;
 const object = (v: JsonValue | undefined): Obj | undefined =>
   v && typeof v === "object" && !Array.isArray(v) && !(v instanceof JsonNumber) ? v : undefined;
 const array = (v: JsonValue | undefined): JsonValue[] => (Array.isArray(v) ? v : []);
 
-/** Scan already validated JSON without decoding raw case values. */
-function scan(raw: string): Node {
-  let i = 0;
-  const space = () => {
-    while (/[\t\n\r ]/.test(raw[i] ?? "") && i < raw.length) i++;
-  };
-  function string(): string {
-    const start = i++;
-    while (i < raw.length) {
-      if (raw[i] === "\\") {
-        i += 2;
-        continue;
-      }
-      if (raw[i++] === '"') return JSON.parse(raw.slice(start, i)) as string;
-    }
-    throw new Error("Invalid JSON string");
-  }
-  function value(): Node {
-    space();
-    const start = i,
-      node: Node = { start, end: 0 };
-    if (raw[i] === "{") {
-      i++;
-      node.fields = new Map();
-      space();
-      while (raw[i] !== "}") {
-        space();
-        const key = string();
-        space();
-        if (raw[i++] !== ":") throw new Error("Invalid JSON");
-        node.fields.set(key, value());
-        space();
-        if (raw[i] !== ",") break;
-        i++;
-      }
-      if (raw[i++] !== "}") throw new Error("Invalid JSON");
-    } else if (raw[i] === "[") {
-      i++;
-      node.items = [];
-      space();
-      while (raw[i] !== "]") {
-        node.items.push(value());
-        space();
-        if (raw[i] !== ",") break;
-        i++;
-      }
-      if (raw[i++] !== "]") throw new Error("Invalid JSON");
-    } else if (raw[i] === '"') string();
-    else {
-      while (i < raw.length && !/[\t\n\r ,\]}]/.test(raw[i]!)) i++;
-    }
-    node.end = i;
-    return node;
-  }
-  return value();
-}
 function compact(raw: string): string {
   let quoted = false,
     escaped = false,
@@ -86,7 +32,7 @@ function compact(raw: string): string {
   return out;
 }
 function markerContext(raw: string) {
-  const root = scan(raw),
+  const root = scanJsonSpans(raw),
     marks = new Map<string, string>(),
     nonce = crypto.randomUUID();
   let counter = 0;

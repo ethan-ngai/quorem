@@ -65,7 +65,7 @@ export function interviewDocumentCommands(run: Run): InterviewDocuments {
           throw invalid("Invalid document version");
         const rows = (
           await tx.execute<{ clientID: string; changes: unknown }>(
-            sql`SELECT client_id AS "clientID",changes FROM interview_updates WHERE session_id=${id}::uuid AND epoch=${epoch}::uuid AND version>${version} ORDER BY version LIMIT 256`,
+            sql`SELECT "clientID",changes FROM (SELECT client_id AS "clientID",changes,version,row_number() OVER (ORDER BY version) AS n,sum(octet_length(changes::text)+octet_length(client_id)*6+128) OVER (ORDER BY version) AS bytes FROM interview_updates WHERE session_id=${id}::uuid AND epoch=${epoch}::uuid AND version>${version}) page WHERE n<=256 AND (bytes<=245760 OR n=1) ORDER BY version`,
           )
         ).rows;
         return { epoch, version: version + rows.length, updates: rows };

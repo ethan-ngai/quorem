@@ -9,7 +9,7 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "./prepare.ts";
-import { interviewSnapshot } from "./snapshot.ts";
+import { interviewSnapshotStream } from "./stream.ts";
 import { questionAuthoring } from "../../problems/authoring/repository.ts";
 import { languageRuntime } from "@quorem/execution";
 import { interviewQuestionCommands } from "./commands.ts";
@@ -26,11 +26,11 @@ const actor = (userId: string): LocalPrincipal => ({
 describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
   it("fences question, document, disclosure and host stage transitions", async () => {
     const db = new URL(url!);
-    expect([db.hostname, db.port, db.pathname]).toEqual([
-      "127.0.0.1",
-      "55466",
-      "/quorem_hono_interview_questions_test",
-    ]);
+    expect(db.hostname).toBe("127.0.0.1");
+    expect([
+      "55466:/quorem_hono_interview_questions_test",
+      "55681:/quorem_hono_29c_commands_test",
+    ]).toContain(`${db.port}:${db.pathname}`);
     const pool = createNodePool({
       connectionString: url!,
       max: 8,
@@ -54,17 +54,24 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
         withNodeConnection(pool, { lifetimeMs: 15000 }, f);
       const lifecycle = interviewLifecycle(run, {
           question: preparePublishedInterviewQuestion,
-          snapshot: interviewSnapshot,
+          snapshot: interviewSnapshotStream(run),
         }),
-        commands = interviewQuestionCommands(run, interviewSnapshot);
+        commands = interviewQuestionCommands(run);
       const created = JSON.parse(
-        await lifecycle.create(host, "create", {
-          title: "Question controls",
-          question: {
-            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-            language: "python",
-          },
-        }),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await lifecycle.create(host, "create", {
+                title: "Question controls",
+                question: {
+                  problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                  language: "python",
+                },
+              }),
+            ).id,
+          ),
+        ).text(),
       );
       const id = created.id;
       await pool.query(
@@ -84,39 +91,75 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
       );
       expect(
         JSON.parse(
-          await commands.select(host, id, "go-replay", parseLosslessJson(escaped), escaped),
+          await new Response(
+            await lifecycle.read(
+              host,
+              JSON.parse(
+                await commands.select(host, id, "go-replay", parseLosslessJson(escaped), escaped),
+              ).id,
+            ),
+          ).text(),
         ).questionEpoch,
       ).toBe(created.questionEpoch);
-      const candidate = await lifecycle.read(viewer, id);
+      const candidate = await new Response(await lifecycle.read(viewer, id)).text();
       expect(candidate).not.toContain("privateCaseDetails");
       expect(candidate).not.toContain("referenceSource");
       const hint = JSON.parse(
-        await commands.hints(host, id, "hints", { topics: false, complexity: true }),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(await commands.hints(host, id, "hints", { topics: false, complexity: true }))
+              .id,
+          ),
+        ).text(),
       );
       expect(hint.hints).toEqual({ topics: false, complexity: true });
       await expect(
         commands.hints(interviewer, id, "bad-hints", { topics: true }),
       ).rejects.toMatchObject({ status: 403 });
       const old = hint.document.epoch;
-      const switched = JSON.parse(await commands.language(viewer, id, "java", "java", old));
+      const switched = JSON.parse(
+        await new Response(
+          await lifecycle.read(
+            viewer,
+            JSON.parse(await commands.language(viewer, id, "java", "java", old)).id,
+          ),
+        ).text(),
+      );
       expect(switched.question.language).toBe("java");
       expect(switched.document.epoch).not.toBe(old);
       await expect(commands.language(viewer, id, "stale", "python", old)).rejects.toMatchObject({
         code: "document_changed",
       });
       const saved = JSON.parse(
-        await commands.language(viewer, id, "python", "python", switched.document.epoch),
+        await new Response(
+          await lifecycle.read(
+            viewer,
+            JSON.parse(
+              await commands.language(viewer, id, "python", "python", switched.document.epoch),
+            ).id,
+          ),
+        ).text(),
       );
       expect(saved.question.language).toBe("python");
       expect(saved.document.source).toBe(created.document.source);
       const noChange = JSON.parse(
-        await commands.language(viewer, id, "same-language", "python", saved.document.epoch),
+        await new Response(
+          await lifecycle.read(
+            viewer,
+            JSON.parse(
+              await commands.language(viewer, id, "same-language", "python", saved.document.epoch),
+            ).id,
+          ),
+        ).text(),
       );
       expect(noChange.version).toBe(saved.version);
       expect(noChange.document.epoch).toBe(saved.document.epoch);
       const qid = created.questionEpoch;
       await commands.caseVisibility(interviewer, id, "show", "hidden:0", true, qid);
-      expect(await lifecycle.read(viewer, id)).toContain("revealedCases");
+      expect(await new Response(await lifecycle.read(viewer, id)).text()).toContain(
+        "revealedCases",
+      );
       const sig = {
         className: "Solution",
         methodName: "put",
@@ -142,7 +185,14 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
         odysseyHiddenCases: [[c], [c]],
       };
       const selected = JSON.parse(
-        await commands.select(host, id, "select", { language: "python", custom: staged }),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await commands.select(host, id, "select", { language: "python", custom: staged }),
+            ).id,
+          ),
+        ).text(),
       );
       expect(selected.questionEpoch).not.toBe(qid);
       expect(selected.document.epoch).not.toBe(saved.document.epoch);
@@ -151,13 +201,23 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
         commands.passStage(interviewer, id, "not-host", selected.questionEpoch, 1),
       ).rejects.toMatchObject({ status: 403 });
       const passed = JSON.parse(
-        await commands.passStage(host, id, "pass", selected.questionEpoch, 1),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(await commands.passStage(host, id, "pass", selected.questionEpoch, 1)).id,
+          ),
+        ).text(),
       );
       expect(passed.question.progress.level).toBe(2);
       expect(passed.document.epoch).toBe(selected.document.epoch);
       expect(passed.questionEpoch).toBe(selected.questionEpoch);
       const replay = JSON.parse(
-        await commands.passStage(host, id, "pass", selected.questionEpoch, 1),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(await commands.passStage(host, id, "pass", selected.questionEpoch, 1)).id,
+          ),
+        ).text(),
       );
       expect(replay.question.progress.level).toBe(2);
       await expect(
@@ -176,9 +236,9 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
       expect(racing[0].status).toBe("fulfilled");
       if (racing[1].status === "rejected")
         expect(racing[1].reason).toMatchObject({ code: "document_changed" });
-      expect(JSON.parse(await lifecycle.read(host, id)).questionEpoch).not.toBe(
-        selected.questionEpoch,
-      );
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(host, id)).text()).questionEpoch,
+      ).not.toBe(selected.questionEpoch);
       const author = questionAuthoring(run, languageRuntime);
       const source = await import("node:fs/promises");
       const privateContent = JSON.parse(
@@ -206,10 +266,17 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
       ).rejects.toMatchObject({ status: 404 });
       expect(
         JSON.parse(
-          await commands.select(host, id, "own-private", {
-            problemVersionId: privateVersion,
-            language: "python",
-          }),
+          await new Response(
+            await lifecycle.read(
+              host,
+              JSON.parse(
+                await commands.select(host, id, "own-private", {
+                  problemVersionId: privateVersion,
+                  language: "python",
+                }),
+              ).id,
+            ),
+          ).text(),
         ).question.problem.isPrivate,
       ).toBeUndefined();
       const echo = {
@@ -219,27 +286,41 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
         returnType: "str",
       };
       const nul = JSON.parse(
-        await commands.select(host, id, "nul-select", {
-          language: "python",
-          custom: {
-            title: "NUL case",
-            statementMarkdown: "Return text",
-            signature: echo,
-            publicCases: [{ args: ["public\u0000value"], expected: "public\u0000value" }],
-            privateCases: [{ args: ["secret\u0000value"], expected: "secret\u0000value" }],
-          },
-        }),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await commands.select(host, id, "nul-select", {
+                language: "python",
+                custom: {
+                  title: "NUL case",
+                  statementMarkdown: "Return text",
+                  signature: echo,
+                  publicCases: [{ args: ["public\u0000value"], expected: "public\u0000value" }],
+                  privateCases: [{ args: ["secret\u0000value"], expected: "secret\u0000value" }],
+                },
+              }),
+            ).id,
+          ),
+        ).text(),
       );
-      expect(await lifecycle.read(viewer, id)).not.toContain("secret");
+      expect(await new Response(await lifecycle.read(viewer, id)).text()).not.toContain("secret");
       await commands.hints(host, id, "nul-hints", { topics: false });
       const nulSwitch = JSON.parse(
-        await commands.language(viewer, id, "nul-language", "java", nul.document.epoch),
+        await new Response(
+          await lifecycle.read(
+            viewer,
+            JSON.parse(
+              await commands.language(viewer, id, "nul-language", "java", nul.document.epoch),
+            ).id,
+          ),
+        ).text(),
       );
       expect(JSON.stringify(nulSwitch)).not.toContain("secret");
-      const hostAfter = await lifecycle.read(host, id);
+      const hostAfter = await new Response(await lifecycle.read(host, id)).text();
       expect(hostAfter).toContain("secret\\u0000value");
       const side = await pool.query("SELECT lossless_question FROM interviews WHERE id=$1", [id]);
-      expect(side.rows[0].lossless_question).not.toBeNull();
+      expect(side.rows[0].lossless_question).toBeNull();
       await migrate(pool, "auth", resolve("../auth/migrations"));
       await pool.query(
         "INSERT INTO users(id,display_name,role) VALUES('backfill-operator','Operator','admin') ON CONFLICT(id) DO UPDATE SET role='admin',disabled=false",
@@ -283,7 +364,7 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
             ])
           ).rows[0].n,
         ).toBe(0);
-        const applied = await backfillInterviewCases(args);
+        const applied = await backfillInterviewCases([...args, "--legacy-drained"]);
         expect(applied.completed).toBeGreaterThan(0);
         expect(applied.complete).toBe(true);
         expect(
@@ -301,9 +382,9 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
             ])
           ).rows[0].n,
         ).toBe(1);
-        expect((await backfillInterviewCases(args)).attempted).toBe(0);
+        expect((await backfillInterviewCases([...args, "--legacy-drained"])).attempted).toBe(0);
         await expect(
-          backfillInterviewCases(["--op-id", op, "--reason", "changed"]),
+          backfillInterviewCases(["--op-id", op, "--reason", "changed", "--legacy-drained"]),
         ).rejects.toThrow("Operation ID already used");
       } finally {
         if (previousUrl === undefined) delete process.env.QUOREM_OPERATOR_DATABASE_URL;

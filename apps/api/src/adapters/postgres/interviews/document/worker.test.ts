@@ -6,7 +6,7 @@ import { createApp } from "../../../../app.ts";
 import { developmentIdentity } from "../../identity/repository.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 import { interviewDocumentRoutes } from "../../../../modules/interviews/document/routes.ts";
 import { interviewDocumentCommands } from "./commands.ts";
 const url = (env as unknown as { INTERVIEW_DOCUMENT_URL: string }).INTERVIEW_DOCUMENT_URL;
@@ -32,14 +32,15 @@ it("uses Worker HTTP and PostgreSQL for ordered document replay", async () => {
     who = (await identify())!;
   const lifecycle = interviewLifecycle(run, {
     question: preparePublishedInterviewQuestion,
-    snapshot: interviewSnapshot,
+    snapshot: interviewSnapshotStream(run),
   });
-  const room = JSON.parse(
+  const ack = JSON.parse(
     await lifecycle.create(who, "create", {
       title: "Worker document",
       question: { problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7", language: "python" },
     }),
   );
+  const room = JSON.parse(await new Response(await lifecycle.read(who, ack.id)).text());
   const app = createApp({ allowedOrigins: [], requestId: () => "worker" }).route(
     "/",
     interviewDocumentRoutes({ documents: interviewDocumentCommands(run), identify }),

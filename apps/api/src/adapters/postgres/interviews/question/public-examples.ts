@@ -82,83 +82,6 @@ export async function saveSnapshotPublicExamples(
     )
       throw new Error("Public example conflict");
 }
-/** Read only the authorized stage prefix; missing rows never fall back to private bytes. */
-export async function readPublicExamples(
-  tx: Transaction,
-  id: string,
-  epoch: string,
-  totalStages: number,
-  unlocked: number,
-): Promise<JsonValue[]> {
-  if (
-    !Number.isInteger(totalStages) ||
-    totalStages < 0 ||
-    !Number.isInteger(unlocked) ||
-    unlocked < 0 ||
-    unlocked > totalStages
-  )
-    throw new Error("Invalid stage range");
-  const count = (
-    await tx.execute<{ count: string }>(
-      sql`SELECT count(*)::text AS count FROM interview_public_examples WHERE session_id=${id}::uuid AND question_epoch=${epoch}::uuid AND level BETWEEN 0 AND ${totalStages}`,
-    )
-  ).rows[0];
-  if (Number(count.count) !== totalStages + 1)
-    throw new Error("Interview public examples require backfill");
-  const rows = (
-    await tx.execute<{ level: number; examples: Uint8Array }>(
-      sql`SELECT level,examples FROM interview_public_examples WHERE session_id=${id}::uuid AND question_epoch=${epoch}::uuid AND level BETWEEN 0 AND ${unlocked} ORDER BY level`,
-    )
-  ).rows;
-  if (rows.length !== unlocked + 1 || rows.some((row, index) => row.level !== index))
-    throw new Error("Interview public examples require backfill");
-  return rows.map((row) =>
-    parseLosslessJson(new TextDecoder("utf-8", { fatal: true }).decode(row.examples)),
-  );
-}
-/** Privileged operator primitive; caller supplies one observed epoch per bounded transaction. */
-export async function backfillInterviewPublicExamples(
-  tx: Transaction,
-  id: string,
-  expectedEpoch: string,
-): Promise<boolean> {
-  const row = (
-    await tx.execute<{ epoch: string; raw: Uint8Array }>(
-      sql`SELECT question_epoch::text AS epoch,COALESCE(lossless_question,convert_to(question::text,'UTF8')) AS raw FROM interviews WHERE id=${id}::uuid FOR UPDATE`,
-    )
-  ).rows[0];
-  if (!row || row.epoch !== expectedEpoch) return false;
-  const raw = new TextDecoder("utf-8", { fatal: true }).decode(row.raw);
-  await savePublicExamples(tx, id, row.epoch, raw);
-  await savePrivateCases(tx, id, row.epoch, raw);
-  return true;
-}
-/** Privileged operator primitive for one immutable historical fixture. */
-export async function backfillSnapshotPublicExamples(
-  tx: Transaction,
-  id: string,
-  fixtureId: Uint8Array,
-): Promise<boolean> {
-  const row = (
-    await tx.execute<{ raw: Uint8Array }>(
-      sql`SELECT COALESCE(lossless_fixture,convert_to(fixture::text,'UTF8')) AS raw FROM interview_question_snapshots WHERE session_id=${id}::uuid AND id=${fixtureId} FOR SHARE`,
-    )
-  ).rows[0];
-  if (!row) return false;
-  const raw = new TextDecoder("utf-8", { fatal: true }).decode(row.raw);
-  await saveSnapshotPublicExamples(tx, id, fixtureId, raw);
-  const expected = privateCases(raw).length;
-  const epochs =
-    expected === 0
-      ? []
-      : (
-          await tx.execute<{ epoch: string }>(
-            sql`SELECT DISTINCT e.question_epoch::text AS epoch FROM interview_execution e WHERE e.session_id=${id}::uuid AND e.fixture_id=${fixtureId} AND (SELECT count(*) FROM interview_question_private_cases c WHERE c.session_id=e.session_id AND c.question_epoch=e.question_epoch)<${expected} LIMIT 16`,
-          )
-        ).rows;
-  for (const { epoch } of epochs) await savePrivateCases(tx, id, epoch, raw);
-  return true;
-}
 function privateCases(raw: string): { id: string; value: JsonValue }[] {
   const root = jsonObject(parseLosslessJson(raw)),
     problem = jsonObject(root.problem),
@@ -175,6 +98,26 @@ function privateCases(raw: string): { id: string; value: JsonValue }[] {
       cases.push({ id: `hidden:${index}`, value });
   return cases;
 }
+/** Canonical public projection for bounded operator reindexing. */
+export function encodeInterviewPublicCase(value: JsonValue): Uint8Array {
+  return new TextEncoder().encode(stringifyLosslessJson(publicCases([value])[0]));
+}
+/** Canonical private projection shared by live writes and operator repair. */
+export function encodeInterviewPrivateCase(value: JsonValue): Uint8Array {
+  const source = jsonObject(value),
+    safe: Obj = {};
+  for (const key of ["args", "expected", "calls"])
+    if (source[key] !== undefined) safe[key] = source[key];
+  if (safe.calls !== undefined)
+    safe.calls = list(safe.calls).map((call) => {
+      const c = jsonObject(call),
+        out: Obj = {};
+      for (const key of ["methodName", "args", "expected"])
+        if (c[key] !== undefined) out[key] = c[key];
+      return out;
+    });
+  return new TextEncoder().encode(stringifyLosslessJson(safe));
+}
 /** Preserve canonical private case IDs and order for role- or reveal-scoped reads. */
 export async function savePrivateCases(
   tx: Transaction,
@@ -183,21 +126,8 @@ export async function savePrivateCases(
   raw: string,
 ): Promise<void> {
   const cases = privateCases(raw);
-  const encoder = new TextEncoder();
   for (const [ordinal, item] of cases.entries()) {
-    const source = jsonObject(item.value),
-      safe: Obj = {};
-    for (const key of ["args", "expected", "calls"])
-      if (source[key] !== undefined) safe[key] = source[key];
-    if (safe.calls !== undefined)
-      safe.calls = list(safe.calls).map((call) => {
-        const c = jsonObject(call),
-          out: Obj = {};
-        for (const key of ["methodName", "args", "expected"])
-          if (c[key] !== undefined) out[key] = c[key];
-        return out;
-      });
-    const bytes = encoder.encode(stringifyLosslessJson(safe));
+    const bytes = encodeInterviewPrivateCase(item.value);
     const result = await tx.execute(
       sql`INSERT INTO interview_question_private_cases(session_id,question_epoch,case_id,ordinal,case_data) VALUES(${id}::uuid,${epoch}::uuid,${item.id},${ordinal},${bytes}) ON CONFLICT(session_id,question_epoch,case_id) DO UPDATE SET case_data=EXCLUDED.case_data WHERE interview_question_private_cases.ordinal=EXCLUDED.ordinal AND interview_question_private_cases.case_data=EXCLUDED.case_data RETURNING case_id`,
     );

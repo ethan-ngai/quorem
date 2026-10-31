@@ -4,7 +4,7 @@ import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { applyDocumentChanges } from "../../../../modules/interviews/document/changes.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 import { interviewQuestionCommands } from "../question/commands.ts";
 import { interviewDocumentCommands } from "./commands.ts";
 import { interviewCommandFingerprint } from "../../../../modules/interviews/question/fingerprint.ts";
@@ -91,18 +91,25 @@ describe.skipIf(!url)("document PostgreSQL", () => {
         withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
       const lifecycle = interviewLifecycle(run, {
           question: preparePublishedInterviewQuestion,
-          snapshot: interviewSnapshot,
+          snapshot: interviewSnapshotStream(run),
         }),
         docs = interviewDocumentCommands(run),
-        questions = interviewQuestionCommands(run, interviewSnapshot);
+        questions = interviewQuestionCommands(run);
       const created = JSON.parse(
-        await lifecycle.create(host, "create", {
-          title: "Document",
-          question: {
-            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-            language: "python",
-          },
-        }),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await lifecycle.create(host, "create", {
+                title: "Document",
+                question: {
+                  problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                  language: "python",
+                },
+              }),
+            ).id,
+          ),
+        ).text(),
       );
       const id = created.id,
         initial = await docs.read(host, id),
@@ -124,13 +131,25 @@ describe.skipIf(!url)("document PostgreSQL", () => {
         code: "stale_version",
       });
       const switched = JSON.parse(
-        await questions.language(host, id, "java", "java", initial.epoch),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(await questions.language(host, id, "java", "java", initial.epoch)).id,
+          ),
+        ).text(),
       );
       await expect(docs.pull(host, id, initial.epoch, 0)).rejects.toMatchObject({
         code: "document_changed",
       });
       const restored = JSON.parse(
-        await questions.language(host, id, "python", "python", switched.document.epoch),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await questions.language(host, id, "python", "python", switched.document.epoch),
+            ).id,
+          ),
+        ).text(),
       );
       expect(restored.document.source).toBe("😀" + initial.source);
       expect(restored.document.version).toBe(0);
@@ -148,6 +167,29 @@ describe.skipIf(!url)("document PostgreSQL", () => {
       expect(
         (await docs.pull(host, id, restored.document.epoch, page.version)).updates,
       ).toHaveLength(1);
+      const large = "z".repeat(20000);
+      await docs.push(host, id, "large-first", {
+        epoch: restored.document.epoch,
+        version: 257,
+        updates: [{ clientID: "large", changes: [[restored.document.source.length, large]] }],
+      });
+      const largeUpdate = { clientID: "large", changes: [[large.length, large]] };
+      for (let i = 0; i < 2; i++)
+        await docs.push(host, id, `large-${i}`, {
+          epoch: restored.document.epoch,
+          version: 258 + i * 10,
+          updates: Array(10).fill(largeUpdate),
+        });
+      let cursor = 257,
+        total = 0;
+      while (cursor < 278) {
+        const part = await docs.pull(host, id, restored.document.epoch, cursor);
+        expect(new TextEncoder().encode(JSON.stringify(part)).length).toBeLessThanOrEqual(245760);
+        expect(part.version).toBeGreaterThan(cursor);
+        total += part.updates.length;
+        cursor = part.version;
+      }
+      expect(total).toBe(21);
       const before = await docs.read(host, id);
       await expect(
         docs.push(host, id, "atomic", {

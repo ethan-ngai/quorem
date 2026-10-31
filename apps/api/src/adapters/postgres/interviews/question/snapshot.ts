@@ -11,15 +11,33 @@ import type { Principal } from "../../../../modules/identity/model.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { jsonObject, restorePublicExamples } from "../../problems/queries/public-projection.ts";
 import { lockInterview } from "../lifecycle/access.ts";
-import { readPublicExamples } from "./public-examples.ts";
-import { privateCaseProjection } from "./private-cases.ts";
 type Obj = { [key: string]: JsonValue };
 /** Candidate reads never fetch the private question or its lossless fixture sidecar. */
-export async function interviewSnapshot(
+export async function prepareInterviewSnapshot(
   tx: Transaction,
   actor: Principal,
   id: string,
-): Promise<string> {
+): Promise<{
+  json: string;
+  epoch: string;
+  version: string;
+  role: string;
+  markers: Record<
+    string,
+    | { kind: "examples"; level: number; rowVersion: string }
+    | {
+        kind: "cases";
+        revealedOnly: boolean;
+        cases: {
+          id: string;
+          ordinal: number;
+          rowVersion: string;
+          revealed: boolean;
+          status?: string;
+        }[];
+      }
+  >;
+}> {
   const access = await lockInterview(tx, actor, id, capabilitiesInTransaction);
   const row = (
     await tx.execute<{
@@ -44,7 +62,34 @@ export async function interviewSnapshot(
   const level = row.total ? row.level : 0;
   if (row.total > 0 && (level < 1 || level > row.total))
     throw new Error("Invalid interview progress");
-  const examples = await readPublicExamples(tx, id, access.questionEpoch, row.total, level);
+  const nonce = crypto.randomUUID();
+  const markers: Record<
+    string,
+    | { kind: "examples"; level: number; rowVersion: string }
+    | {
+        kind: "cases";
+        revealedOnly: boolean;
+        cases: {
+          id: string;
+          ordinal: number;
+          rowVersion: string;
+          revealed: boolean;
+          status?: string;
+        }[];
+      }
+  > = {};
+  const exampleRows = (
+    await tx.execute<{ level: number; rowVersion: string }>(
+      sql`SELECT level,xmin::text AS "rowVersion" FROM interview_public_examples WHERE session_id=${id}::uuid AND question_epoch=${access.questionEpoch}::uuid ORDER BY level`,
+    )
+  ).rows;
+  if (exampleRows.length !== row.total + 1 || exampleRows.some((v, i) => v.level !== i))
+    throw new Error("Interview public examples require backfill");
+  const examples = exampleRows.slice(0, level + 1).map((entry) => {
+    const key = `__quorem_stream_${nonce}_example_${entry.level}__`;
+    markers[key] = { kind: "examples", level: entry.level, rowVersion: entry.rowVersion };
+    return key;
+  });
   const value = jsonObject(parseLosslessJson(row.metadata)),
     question = jsonObject(value.question),
     problem = jsonObject(question.problem);
@@ -81,15 +126,38 @@ export async function interviewSnapshot(
     if (typeof language !== "string") throw new Error("Invalid interview language");
     return language;
   });
-  const privateCases = await privateCaseProjection(
-    tx,
-    actor,
-    id,
-    access.questionEpoch,
-    access.role,
-  );
-  if (privateCases.details.length) question.privateCaseDetails = privateCases.details;
-  if (privateCases.revealed.length) question.revealedCases = privateCases.revealed;
+  const privateMeta = (
+    await tx.execute<{ expected: string[]; ids: string[] }>(
+      sql`SELECT q.private_ids AS expected,ARRAY(SELECT c.case_id FROM interview_question_private_cases c WHERE c.session_id=q.session_id AND c.question_epoch=q.question_epoch ORDER BY c.ordinal) AS ids FROM interview_question_public q WHERE q.session_id=${id}::uuid AND q.question_epoch=${access.questionEpoch}::uuid`,
+    )
+  ).rows[0];
+  if (
+    !privateMeta ||
+    privateMeta.ids.length !== privateMeta.expected.length ||
+    privateMeta.ids.some((v, i) => v !== privateMeta.expected[i])
+  )
+    throw new Error("Interview private cases require backfill");
+  const statuses = (
+    await tx.execute<{ idx: number; status: string }>(
+      sql`SELECT DISTINCT ON ((c->>'index')::int) (c->>'index')::int AS idx,c->>'status' AS status FROM interview_execution_public e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id JOIN interviews i ON i.id=e.session_id CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.private_statuses)='array' AND jsonb_array_length(e.private_statuses)>0 THEN e.private_statuses WHEN jsonb_typeof(s.result->'hiddenCases')='array' THEN s.result->'hiddenCases' ELSE '[]'::jsonb END) c WHERE e.session_id=${id}::uuid AND e.question_epoch=${access.questionEpoch}::uuid AND j.language=i.language AND s.kind='submit' AND s.state='completed' AND c->>'status' IS NOT NULL AND (${access.role}='interviewer' OR EXISTS(SELECT 1 FROM interview_question_private_cases pc JOIN interview_case_visibility cv ON cv.session_id=pc.session_id AND cv.question_epoch=pc.question_epoch AND cv.case_id=pc.case_id WHERE pc.session_id=${id}::uuid AND pc.question_epoch=${access.questionEpoch}::uuid AND pc.ordinal=(c->>'index')::int)) ORDER BY (c->>'index')::int,s.admitted_at DESC,s.id DESC`,
+    )
+  ).rows;
+  const statusByIndex = new Map(statuses.map((v) => [v.idx, v.status]));
+  const cases = (
+    await tx.execute<{ id: string; ordinal: number; rowVersion: string; revealed: boolean }>(
+      sql`SELECT c.case_id AS id,c.ordinal,c.xmin::text AS "rowVersion",(v.case_id IS NOT NULL) AS revealed FROM interview_question_private_cases c JOIN interview_members m ON m.session_id=c.session_id AND m.user_id=${actor.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE c.session_id=${id}::uuid AND c.question_epoch=${access.questionEpoch}::uuid AND (m.role='interviewer' OR v.case_id IS NOT NULL) ORDER BY c.ordinal`,
+    )
+  ).rows.map((v) => ({
+    ...v,
+    ...(statusByIndex.has(v.ordinal) ? { status: statusByIndex.get(v.ordinal) } : {}),
+  }));
+  const marker = (revealedOnly: boolean) => {
+    const key = `__quorem_stream_${nonce}_cases_${revealedOnly}__`;
+    markers[key] = { kind: "cases", revealedOnly, cases };
+    return key;
+  };
+  if (access.role === "interviewer" && cases.length) question.privateCaseDetails = marker(false);
+  if (cases.some((v) => v.revealed)) question.revealedCases = marker(true);
   if (row.total) {
     const status = (
       await tx.execute<{ value: string }>(
@@ -103,7 +171,7 @@ export async function interviewSnapshot(
   if (access.role === "interviewer") {
     const events = (
       await tx.execute<{ value: string }>(
-        sql`SELECT COALESCE(jsonb_agg(jsonb_build_object('id',e.id,'userId',e.owner_id,'name',u.display_name,'kind',e.kind,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id),'[]'::jsonb)::text AS value FROM interview_rule_events e JOIN users u ON u.id=e.owner_id WHERE e.session_id=${id}::uuid`,
+        sql`SELECT COALESCE(jsonb_agg(jsonb_build_object('id',e.id,'userId',e.owner_id,'name',u.display_name,'kind',e.kind,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id),'[]'::jsonb)::text AS value FROM (SELECT id,owner_id,kind,occurred_at FROM interview_rule_events WHERE session_id=${id}::uuid ORDER BY occurred_at DESC,id DESC LIMIT 100) e JOIN users u ON u.id=e.owner_id`,
       )
     ).rows[0];
     const entries = parseLosslessJson(events.value);
@@ -126,5 +194,11 @@ export async function interviewSnapshot(
       interviewer: `/interview-invite/${row.interviewer}`,
     };
   }
-  return stringifyLosslessJson(value);
+  return {
+    json: stringifyLosslessJson(value),
+    epoch: access.questionEpoch,
+    version: access.version,
+    role: access.role,
+    markers,
+  };
 }

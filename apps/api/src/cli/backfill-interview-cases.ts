@@ -8,7 +8,7 @@ import {
   type ConnectionScope,
   type Transaction,
 } from "@quorem/database/core";
-import { backfillInterviewBatch } from "../adapters/postgres/interviews/question/backfill.ts";
+import { backfillInterviewPrivateResultsBatch } from "../adapters/postgres/interviews/question/backfill.ts";
 class DryRollback<T> {
   readonly value: T;
   constructor(value: T) {
@@ -37,10 +37,14 @@ export async function backfillInterviewCases(
       limit: { type: "string", default: "16" },
       "max-batches": { type: "string", default: "100" },
       "dry-run": { type: "boolean", default: false },
+      "private-results": { type: "boolean", default: false },
+      "legacy-drained": { type: "boolean", default: false },
     },
   });
   if (!/^[1-9]\d*$/.test(values.limit!) || !/^[1-9]\d*$/.test(values["max-batches"]!))
     throw new Error("Invalid batch bounds");
+  if (!values["dry-run"] && !values["legacy-drained"])
+    throw new Error("Drain legacy writers and judges before backfill");
   const limit = Number(values.limit),
     maxBatches = Number(values["max-batches"]);
   if (
@@ -63,10 +67,21 @@ export async function backfillInterviewCases(
     onIdleError: () => {},
   });
   const run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) =>
-    withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
+    withNodeConnection(pool, { lifetimeMs: 300000 }, fn);
   try {
+    const action = values["private-results"]
+      ? "interviews.private-results.backfill"
+      : "interviews.runner-inputs.backfill";
     const fingerprint = createHash("sha256")
-      .update(JSON.stringify({ limit, maxBatches, reason: values.reason }))
+      .update(
+        JSON.stringify({
+          limit,
+          maxBatches,
+          reason: values.reason,
+          privateResults: values["private-results"],
+          legacyDrained: values["legacy-drained"],
+        }),
+      )
       .digest("hex");
     const actorId = await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
@@ -81,14 +96,12 @@ export async function backfillInterviewCases(
         ).rows[0];
         if (
           prior &&
-          (prior.actor !== actor ||
-            prior.action !== "interviews.backfill" ||
-            prior.scope !== fingerprint)
+          (prior.actor !== actor || prior.action !== action || prior.scope !== fingerprint)
         )
           throw new Error("Operation ID already used");
         if (!values["dry-run"] && !prior)
           await tx.execute(
-            sql`INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES(${values["op-id"]!},${actor},${actor},'interviews.backfill',${fingerprint},${values.reason!})`,
+            sql`INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES(${values["op-id"]!},${actor},${actor},${action},${fingerprint},${values.reason!})`,
           );
         return actor;
       }),
@@ -126,7 +139,11 @@ export async function backfillInterviewCases(
       completed = 0,
       complete = false;
     for (let i = 0; i < (values["dry-run"] ? 1 : maxBatches); i++) {
-      const batch = await backfillInterviewBatch(effective, limit);
+      const batch = values["private-results"]
+        ? await backfillInterviewPrivateResultsBatch(effective, limit)
+        : await (
+            await import("../adapters/postgres/interviews/runner-inputs/legacy-backfill.ts")
+          ).backfillRunnerInputsBatch(effective, limit);
       attempted += batch.attempted;
       completed += batch.completed;
       if (batch.attempted === 0) {
