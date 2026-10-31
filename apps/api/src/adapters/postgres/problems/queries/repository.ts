@@ -15,7 +15,9 @@ import type {
 } from "../../../../modules/problems/model.ts";
 import type { ProblemQueries } from "../../../../modules/problems/ports.ts";
 
-export type ReadScope = <T>(read: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
+export type ReadScope = <T>(
+  read: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>,
+) => Promise<T>;
 const options = {
   readOnly: true,
   isolation: "repeatable read" as const,
