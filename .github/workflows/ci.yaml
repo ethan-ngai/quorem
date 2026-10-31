@@ -64,6 +64,52 @@ jobs:
       - run: vp -C apps/api run check:boundaries
       - run: vp -C apps/api run test
       - run: vp -C apps/api run test:workers
+      - name: Canonical questions and identity runtime tests
+        run: |
+          vp -C packages/questions run typecheck
+          vp -C packages/questions run test
+          vp -C packages/questions run test:workerd
+          vp -C apps/api run test:identity:node
+          vp -C apps/api run test:identity:workers
+      - name: Isolated native database fixtures
+        run: |
+          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test; do
+            docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
+          done
+          # Match server-major archive tools; only disposable fixtures enter /tmp.
+          mkdir -p "$RUNNER_TEMP/quorem-pg-tools"
+          for command in pg_dump pg_restore; do
+            cat > "$RUNNER_TEMP/quorem-pg-tools/$command" <<'SH'
+          #!/bin/sh
+          exec docker run --rm --network host --user "$(id -u):$(id -g)" --volume /tmp:/tmp postgres:17.6-alpine "$(basename "$0")" "$@"
+          SH
+            chmod +x "$RUNNER_TEMP/quorem-pg-tools/$command"
+          done
+          echo "$RUNNER_TEMP/quorem-pg-tools" >> "$GITHUB_PATH"
+      - name: Native PostgreSQL schema and transaction contracts
+        env:
+          QUOREM_SCHEMA_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_schema_test?sslmode=disable
+          QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_primitives_test?sslmode=disable
+          QUOREM_IDENTITY_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_identity_test?sslmode=disable
+        run: |
+          vp -C packages/database run typecheck
+          vp -C packages/database run test
+          vp -C packages/database run test:integration
+          vp -C apps/api run test:identity
+      - name: Workerd PostgreSQL connection lifecycle
+        env:
+          WRANGLER_SEND_METRICS: "false"
+          CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_primitives_test?sslmode=disable
+        run: |
+          vp -C apps/api exec wrangler dev --local --config ../../packages/database/wrangler.test.jsonc --ip 127.0.0.1 --port 58736 > /tmp/quorem-db-worker.log 2>&1 &
+          worker_pid=$!
+          trap 'kill -TERM "$worker_pid" 2>/dev/null || true; wait "$worker_pid" || true' EXIT
+          for attempt in $(seq 1 100); do
+            if curl -fsS http://127.0.0.1:58736/ > /dev/null; then break; fi
+            if ! kill -0 "$worker_pid" 2>/dev/null; then cat /tmp/quorem-db-worker.log; exit 1; fi
+            sleep 0.1
+          done
+          vp -C packages/database run test:workers
       - run: vp -C apps/auth test
       - run: vp -C apps/web test
       - run: vp node --test scripts/marketing-dev.test.mjs
