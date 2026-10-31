@@ -181,11 +181,11 @@ export const runner_job_inputs = pgTable(
     }),
     index("runner_job_inputs_source_hash_idx").on(t.source_hash),
     check("runner_job_inputs_source_hash_check", sql`octet_length(source_hash)=32`),
-    check("runner_job_inputs_case_count_check", sql`case_count BETWEEN 0 AND 320`),
-    check("runner_job_inputs_sample_count_check", sql`sample_count BETWEEN 0 AND 320`),
+    check("runner_job_inputs_case_count_check", sql`case_count >= 0`),
+    check("runner_job_inputs_sample_count_check", sql`sample_count >= 0`),
     check(
       "runner_job_inputs_check",
-      sql`case_count + CASE WHEN submit_cases_are_samples THEN 0 ELSE sample_count END <= 320`,
+      sql`case_count::bigint + CASE WHEN submit_cases_are_samples THEN 0 ELSE sample_count END <= 2147483647`,
     ),
     check(
       "runner_job_inputs_check1",
@@ -218,7 +218,7 @@ export const runner_job_input_cases = pgTable(
       foreignColumns: [runner_input_blobs.hash],
       name: "runner_job_input_cases_blob_hash_fkey",
     }),
-    check("runner_job_input_cases_ordinal_check", sql`ordinal BETWEEN 0 AND 319`),
+    check("runner_job_input_cases_ordinal_check", sql`ordinal >= 0 AND ordinal < 2147483647`),
     check("runner_job_input_cases_channel_check", sql`channel IN ('public','sample','private')`),
     index("runner_job_input_cases_blob_hash_idx").on(t.blob_hash),
   ],

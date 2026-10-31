@@ -12,7 +12,7 @@ import {
   encodeCheckpointFrame,
 } from "@quorem/execution";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
-import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
+import { bindJobInputs } from "../inputs/bind.ts";
 import { postgresExecutionCommands } from "./repository.ts";
 import { createRunnerCommandHandler } from "./http.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
@@ -56,11 +56,12 @@ it("claims and fences a real attempt through workerd", async () => {
         hiddenCases: [],
       });
       await indexRunnerFixture(tx, { version }, raw);
-      const refs = await fixtureCaseRefs(tx, { version }, "example", 0);
       await bindJobInputs(tx, {
         jobId: job,
         owner: { version },
-        cases: [{ channel: "public", hash: refs[0].hash }],
+        level: 0,
+        primary: "example",
+        custom: [],
         caseCount: 1,
         sampleCount: 0,
         privateDetails: false,
