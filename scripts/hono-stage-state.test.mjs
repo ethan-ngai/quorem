@@ -38,7 +38,6 @@ void test("rejects public, malformed, oversized and inaccessible domain response
   for (const [path, patch] of [
     ["managed", { enabled: true }],
     ["managed", { enabled: null }],
-    ["managed", { bucketId: null }],
     ["custom", { domains: [{ domain: "x.test", enabled: true }] }],
     ["custom", { domains: [{ domain: "x.test" }] }],
     ["custom", { domains: null }],
@@ -75,4 +74,58 @@ void test("rejects public, malformed, oversized and inaccessible domain response
     }),
     /Invalid/,
   );
+});
+
+void test("accepts opaque or missing managed metadata while redacting diagnostics", async () => {
+  const events = [],
+    marker = "private-value-never-report";
+  const checked = await requirePrivateStageState(
+    env,
+    async (url) => {
+      const suffix = url.split("/").at(-1);
+      return response(suffix, suffix === "managed" ? { bucketId: marker, domain: "" } : {});
+    },
+    (phase, metadata) => events.push({ phase, metadata }),
+  );
+  assert.equal(checked.managedPublic, false);
+  assert.ok(events.some((event) => event.phase === "managed_policy" && event.metadata.disabled));
+  assert.doesNotMatch(
+    JSON.stringify(events),
+    new RegExp(
+      `${marker}|${env.CLOUDFLARE_API_TOKEN}|${env.CLOUDFLARE_ACCOUNT_ID}|${env.TF_STATE_BUCKET}`,
+    ),
+  );
+  const status = [];
+  await assert.rejects(
+    requirePrivateStageState(
+      env,
+      async () => new Response("private-response", { status: 403 }),
+      (phase, metadata) => status.push({ phase, metadata }),
+    ),
+  );
+  assert.deepEqual(
+    status.find((event) => event.phase === "managed_http"),
+    { phase: "managed_http", metadata: { status: 403 } },
+  );
+  assert.doesNotMatch(JSON.stringify(status), /private-response/);
+});
+
+void test("reports numeric Cloudflare error codes without provider messages", async () => {
+  const events = [];
+  await assert.rejects(
+    requirePrivateStageState(
+      env,
+      async () =>
+        Response.json(
+          { success: false, errors: [{ code: 10001, message: "private-provider-detail" }] },
+          { status: 403 },
+        ),
+      (phase, metadata) => events.push({ phase, metadata }),
+    ),
+  );
+  assert.deepEqual(
+    events.find((event) => event.phase === "managed_metadata").metadata.errorCodes,
+    [10001],
+  );
+  assert.doesNotMatch(JSON.stringify(events), /private-provider-detail/);
 });

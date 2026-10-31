@@ -8,6 +8,7 @@ import { assembleStageConfig, createStageSecrets } from "./hono-stage-bootstrap-
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { publishImages } from "./hono-stage-deploy-images.mjs";
 import { deployStage } from "./hono-stage-deploy-stage.mjs";
+import { checkStageProvider } from "./hono-stage-provider-check.mjs";
 import { requirePrivateStageState } from "./hono-stage-state.mjs";
 import { stageNamespaceReady } from "./hono-stage-ready.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
@@ -110,13 +111,7 @@ export async function launchStage(
 ) {
   if (!["plan", "stage"].includes(action)) throw new Error("Invalid stage action");
   const child = bootstrapEnvironment(env, createSecrets());
-  await state(env);
-  if (action === "stage")
-    await freshness({
-      ...env,
-      TF_VAR_worker_name: "quorem-hono-stage",
-      HONO_SERVICES_WORKER_NAME: "quorem-hono-services-stage",
-    });
+  await checkStageProvider(env, { state, freshness, fresh: action === "stage", report });
   const directory = mkdtempSync(join(tmpdir(), "quorem-hono-bootstrap-"));
   chmodSync(directory, 0o700);
   const plan = join(directory, "bootstrap.tfplan");

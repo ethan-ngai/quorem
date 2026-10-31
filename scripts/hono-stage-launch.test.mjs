@@ -198,7 +198,7 @@ void test("state privacy failure prevents all provisioning", async () => {
         calls.push("freshness");
       },
     }),
-    /State unavailable/,
+    /provider preflight failed/,
   );
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ["freshness"]);
 });

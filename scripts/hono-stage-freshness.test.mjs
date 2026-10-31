@@ -63,3 +63,40 @@ void test("fails closed on missing metadata, duplicate entries and provider erro
     /Invalid/,
   );
 });
+void test("reports only redacted provider status and inventory metadata", async () => {
+  const reports = [];
+  await requireFreshStageResources(
+    env,
+    list([{ id: "private-id", name: "private-name" }], []),
+    (phase, metadata) => reports.push({ phase, metadata }),
+  );
+  assert.deepEqual(reports[0], { phase: "workers", metadata: { status: 200, page: 1 } });
+  assert.deepEqual(reports[1].metadata, {
+    success: true,
+    resultArray: true,
+    resultInfo: true,
+    page: 1,
+    perPage: 100,
+    count: 1,
+    totalCount: 1,
+    totalPages: 1,
+    resultCount: 1,
+    idPresent: true,
+    ownerPresent: true,
+  });
+  assert.equal(reports[2].phase, "namespaces");
+  assert.doesNotMatch(JSON.stringify(reports), /private-id|private-name|fixture-token/);
+  reports.length = 0;
+  await assert.rejects(
+    requireFreshStageResources(
+      env,
+      async () => new Response("private-body", { status: 403 }),
+      (phase, metadata) => reports.push({ phase, metadata }),
+    ),
+    /freshness/,
+  );
+  assert.deepEqual(reports, [
+    { phase: "workers", metadata: { status: 403, page: 1 } },
+    { phase: "failure", metadata: { reason: "unavailable" } },
+  ]);
+});
