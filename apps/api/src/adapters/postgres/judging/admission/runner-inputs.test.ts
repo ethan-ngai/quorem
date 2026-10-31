@@ -19,7 +19,8 @@ import { spoolInput } from "../../../../../../runner/src/checkpoints/input-spool
 import { manifestCaseIdentity, manifestCasePage } from "../inputs/identity.ts";
 import { postgresInputReader } from "../inputs/read.ts";
 import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
-import { indexRunnerFixture } from "../inputs/fixture.ts";
+import { fixtureSourceHash } from "../inputs/source.ts";
+import { indexRunnerFixture, encodeFixtureCase, encodeFixtureMetadata } from "../inputs/fixture.ts";
 import { sql } from "drizzle-orm";
 const url = process.env.QUOREM_ENGINE_TEST_DATABASE_URL;
 if (url) {
@@ -212,6 +213,9 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const first = await saveInterviewFixture(tx, session, raw),
               second = await saveInterviewFixture(tx, session, raw);
             expect(first).toEqual(second);
+            expect(
+              Buffer.from(await fixtureSourceHash(tx, { session, fixture: first })).toString("hex"),
+            ).toBe(createHash("sha256").update(raw).digest("hex"));
             const result = (
               await tx.execute<{ sealed: boolean; n: number }>(
                 sql`SELECT i.sealed,count(c.ordinal)::int AS n FROM runner_snapshot_inputs i JOIN runner_snapshot_input_cases c USING(session_id,fixture_id) WHERE i.session_id=${session}::uuid GROUP BY i.sealed`,
@@ -415,7 +419,16 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       job = crypto.randomUUID(),
       user = `owner-${crypto.randomUUID()}`;
     const raw = JSON.stringify({
-      problem: { note: "x".repeat(150000), examples: [{ args: [1], expected: 2 }] },
+      problem: {
+        signature: {
+          className: "Solution",
+          methodName: "f",
+          parameters: [],
+          returnType: "int",
+          description: "x".repeat(150000),
+        },
+        examples: [{ args: [1], expected: 2 }],
+      },
       hiddenCases: [{ args: [3], expected: 4 }],
     });
     try {
@@ -661,11 +674,21 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       epoch = crypto.randomUUID(),
       host = `pin-${session}`;
     const versionRaw = JSON.stringify({
-      problem: { id: version, examples: [{ args: [1], expected: 2 }] },
+      problem: {
+        id: version,
+        runtimeRevision: "python-original",
+        starterSource: "original",
+        examples: [{ args: [1], expected: 2 }],
+      },
       hiddenCases: [{ args: [1], expected: 2 }],
     });
     const activeRaw = JSON.stringify({
-      problem: { id: version, examples: [{ args: [1], expected: 2 }] },
+      problem: {
+        id: version,
+        runtimeRevision: "java-selected",
+        starterSource: "selected",
+        examples: [{ args: [1], expected: 2 }],
+      },
       hiddenCases: [],
     });
     try {
@@ -686,6 +709,8 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const first = await createActiveRunnerFixture(tx, session, epoch, version),
               second = await createActiveRunnerFixture(tx, session, epoch, version);
             expect(first).toEqual(second);
+            await indexRunnerFixture(tx, { session, fixture: first }, activeRaw);
+            expect(await saveInterviewFixture(tx, session, activeRaw)).toEqual(first);
             const rows = (
               await tx.execute<{ channel: string; n: number }>(
                 sql`SELECT channel,count(*)::int AS n FROM runner_snapshot_input_cases WHERE session_id=${session}::uuid AND fixture_id=${first} GROUP BY channel`,
@@ -698,6 +723,86 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             await expect(createActiveRunnerFixture(tx, session, epoch, version)).rejects.toThrow(
               "Runner fixture unavailable",
             );
+            throw new Error("fixture rollback");
+          }),
+        ),
+      ).rejects.toThrow("fixture rollback");
+    } finally {
+      await pool.end();
+    }
+  });
+  it("derives source hashes from persisted lossless bytes or canonical PostgreSQL JSONB", async () => {
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 2,
+      connectionTimeoutMs: 2000,
+      idleTimeoutMs: 1000,
+      onIdleError: () => {},
+    });
+    const problem = crypto.randomUUID(),
+      version = crypto.randomUUID();
+    try {
+      await expect(
+        withNodeConnection(pool, { lifetimeMs: 10000 }, (scope) =>
+          scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+            await tx.execute(
+              sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
+            );
+            await tx.execute(
+              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+            );
+            const canonical = (
+              await tx.execute<{ raw: string }>(
+                sql`SELECT jsonb_build_array(v.id,v.problem_id,v.version,v.title,v.difficulty,v.statement_markdown,v.signature,v.constraints,v.limits,v.attribution,v.sql_config,v.odyssey-'levels')::text AS raw FROM problem_versions v WHERE v.id=${version}::uuid`,
+              )
+            ).rows[0].raw;
+            const hash = (value: Uint8Array | string) =>
+              createHash("sha256").update(value).digest();
+            const empty = hash(new Uint8Array());
+            const expected = hash(
+              Buffer.concat([
+                Buffer.from("quorem-version-fixture-v1"),
+                hash(canonical),
+                empty,
+                empty,
+                empty,
+                empty,
+                empty,
+                empty,
+                empty,
+              ]),
+            ).toString("hex");
+            expect(Buffer.from(await fixtureSourceHash(tx, { version })).toString("hex")).toBe(
+              expected,
+            );
+            await tx.execute(
+              sql`INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES(${version}::uuid,0,'["λ"]'::jsonb,'1'::jsonb)`,
+            );
+            expect(Buffer.from(await fixtureSourceHash(tx, { version })).toString("hex")).not.toBe(
+              expected,
+            );
+            const metadata = await encodeFixtureMetadata(tx, {
+              id: "v",
+              title: "ignored",
+              signature: { returnType: "int" },
+              examples: [],
+            });
+            expect(new TextDecoder().decode(metadata)).toBe(
+              '{"id":"v","signature":{"returnType":"int"}}',
+            );
+            const raw = String.raw` { "z": "λ\u0000", "n": 1e+30, "a": -0 } `;
+            const losslessVersion = crypto.randomUUID();
+            await tx.execute(
+              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES(${losslessVersion}::uuid,2,${problem}::uuid,'Fixture','easy','','{}','[]','{}','',${new TextEncoder().encode(raw)})`,
+            );
+            expect(
+              Buffer.from(await fixtureSourceHash(tx, { version: losslessVersion })).toString(
+                "hex",
+              ),
+            ).toBe(createHash("sha256").update(raw).digest("hex"));
+            expect(
+              new TextDecoder().decode(encodeFixtureCase({ expected: "λ\u0000", args: [] })),
+            ).toBe('{"args":[],"expected":"λ\\u0000"}');
             throw new Error("fixture rollback");
           }),
         ),

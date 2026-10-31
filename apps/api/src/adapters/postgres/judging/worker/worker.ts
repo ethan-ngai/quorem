@@ -52,7 +52,16 @@ it("claims and fences a real attempt through workerd", async () => {
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
       const raw = JSON.stringify({
-        problem: { note: "x".repeat(150000), examples: [{ args: [], expected: 2 }] },
+        problem: {
+          signature: {
+            className: "Solution",
+            methodName: "f",
+            parameters: [],
+            returnType: "int",
+            description: "x".repeat(150000),
+          },
+          examples: [{ args: [], expected: 2 }],
+        },
         hiddenCases: [],
       });
       await indexRunnerFixture(tx, { version }, raw);
