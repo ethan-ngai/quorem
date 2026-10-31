@@ -189,16 +189,17 @@ export default {
         )
           return new Response(null, { status: 404 });
         if (
-          request.method === "GET" &&
-          request.headers.get("x-quorem-case-probe") === "lifecycle"
+          request.method === "POST" ||
+          (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle")
         ) {
-          if (request.headers.has("x-case-token")) return new Response(null, { status: 404 });
+          if (request.method === "GET" && request.headers.has("x-case-token"))
+            return new Response(null, { status: 404 });
           const bound = await caseScope(env);
           if (
             bound.namespace !== env.QUOREM_CASE_NAMESPACE_ID ||
             request.headers.get("x-quorem-owner-scope") !== bound.scope
           )
-            return new Response(null, { status: 404 });
+            return new Response(null, { status: request.method === "POST" ? 503 : 404 });
         }
         if (
           request.method !== "GET" &&
