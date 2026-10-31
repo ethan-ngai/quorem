@@ -79,7 +79,7 @@ test("release gate freezes, fences, replays and survives recreation", async () =
   assert.equal((await control().fetch(request("/activate", activate))).status, 200);
   assert.deepEqual(
     await (await control().fetch(request("/gate", { generation: 1, release: sha }))).json(),
-    { generation: 1, release: sha, runner: `runner:${sha}:1` },
+    { generation: 1, release: sha, bindings, runner: `runner:${sha}:1` },
   );
   assert.equal(
     (await control().fetch(request("/pause", { operationId: randomUUID(), generation: 1 }))).status,

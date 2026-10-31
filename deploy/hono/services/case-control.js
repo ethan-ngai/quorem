@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { signedCaseProbe } from "../../case-proof.js";
+import { readControlJson } from "./control-http.js";
 
 const attemptPattern = /^[A-Za-z0-9-]{1,128}$/;
 const genesisValid = (v) =>
@@ -21,34 +22,6 @@ const same = (a, b) =>
   genesisValid(b) &&
   ["namespace", "scope", "operation", "release"].every((key) => a[key] === b[key]);
 
-async function json(request) {
-  const reader = request.body?.getReader();
-  if (!reader) throw new Error("Missing body");
-  const parts = [];
-  let length = 0;
-  try {
-    for (;;) {
-      const part = await reader.read();
-      if (part.done) break;
-      length += part.value.byteLength;
-      if (length > 2048) {
-        await reader.cancel();
-        throw new Error("Body too large");
-      }
-      parts.push(part.value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const part of parts) {
-    bytes.set(part, offset);
-    offset += part.length;
-  }
-  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
-}
-
 const operationValid = (v) => typeof v === "string" && /^[a-f0-9-]{36}$/.test(v);
 const generationValid = (v) => Number.isSafeInteger(v) && v >= 0 && v < Number.MAX_SAFE_INTEGER;
 const objectKeys = (v, keys) =>
@@ -65,7 +38,7 @@ export class CaseControl extends DurableObject {
         ["/initialize", "/activate", "/pause", "/register"].includes(path)
       ) {
         if (url.search) return new Response(null, { status: 400 });
-        const value = await json(request);
+        const value = await readControlJson(request);
         const result = await this.ctx.storage.transaction(async (tx) => {
           const state = (await tx.get("state")) ?? {
             genesis: null,

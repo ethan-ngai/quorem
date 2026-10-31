@@ -1,5 +1,6 @@
 /** Durable release authority; proof validation belongs to its trusted caller. */
 import { DurableObject } from "cloudflare:workers";
+import { readControlJson } from "./control-http.js";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const releasePattern = /^[0-9a-f]{40}$/;
@@ -22,34 +23,6 @@ function validKeys(value, keys) {
       .sort((a, b) => a.localeCompare(b))
       .join(",") === [...keys].sort((a, b) => a.localeCompare(b)).join(",")
   );
-}
-async function readJson(request) {
-  if (!request.body || Number(request.headers.get("content-length")) > maxBody)
-    throw new Error("Invalid body");
-  const reader = request.body.getReader();
-  const chunks = [];
-  let size = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > maxBody) {
-        await reader.cancel();
-        throw new Error("Invalid body");
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 }
 
 export class RunnerReleaseControl extends DurableObject {
@@ -93,7 +66,7 @@ export class RunnerReleaseControl extends DurableObject {
         return failure(404);
       let body;
       try {
-        body = await readJson(request);
+        body = await readControlJson(request, maxBody);
       } catch {
         return failure(400);
       }
@@ -114,6 +87,7 @@ export class RunnerReleaseControl extends DurableObject {
         return response(200, {
           generation: state.generation,
           release: state.release,
+          bindings: state.bindings,
           runner: `runner:${state.release}:${state.generation}`,
         });
       }
