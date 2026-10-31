@@ -11,7 +11,7 @@ const env = () => ({
   EXECUTION_DRAIN_ACCESS_CLIENT_ID: "drain-access-id",
   EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "drain-access-secret",
 });
-test("private credentials must be distinct and well formed", () => {
+void test("private credentials must be distinct and well formed", () => {
   assert.doesNotThrow(() => checkSecrets(env()));
   assert.throws(
     () => checkSecrets({ ...env(), EXECUTION_DRAIN_SECRET: "a".repeat(64) }),

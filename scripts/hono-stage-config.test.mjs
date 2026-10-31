@@ -27,7 +27,7 @@ const outputs = () => ({
   drain_hostname: { value: "runner-stage.example" },
   drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
 });
-test("stage binds actual runtime classes, queue and scheduled recovery without secrets", () => {
+void test("stage binds actual runtime classes, queue and scheduled recovery without secrets", () => {
   const config = stageConfig(input(), outputs(), "/tmp/wrangler.json");
   assert.deepEqual(
     config.durable_objects.bindings.map((b) => b.class_name),
@@ -62,7 +62,7 @@ test("stage binds actual runtime classes, queue and scheduled recovery without s
     /RUNNER_PEERS|MATCH_INVITE_KEY|PRIVATE_KEY|DRAIN_SECRET/,
   );
 });
-test("rejects live names, non-stage queue, insecure private endpoints and secrets", () => {
+void test("rejects live names, non-stage queue, insecure private endpoints and secrets", () => {
   for (const change of [
     { vars: { ...input().vars, EXECUTION_DRAIN_URL: "http://drain.example/internal/drain" } },
     { vars: { ...input().vars, MATCH_INVITE_KEY: "secret" } },
@@ -77,7 +77,7 @@ test("rejects live names, non-stage queue, insecure private endpoints and secret
     assert.throws(() => stageConfig({ ...input(), ...change }, outputs(), "/tmp/wrangler.json"));
 });
 
-test("resources must match Terraform outputs", () => {
+void test("resources must match Terraform outputs", () => {
   for (const change of [
     { worker_name: { value: "quorem-production" } },
     { queue_name: { value: "production" } },

@@ -2,7 +2,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import { accessFetch } from "./access.ts";
-void test("private ingress attaches credentials only to the pinned HTTPS origin", async () => {
+test("private ingress attaches credentials only to the pinned HTTPS origin", async () => {
   let sent = 0;
   const send: typeof fetch = async (_input, init) => {
     sent++;
