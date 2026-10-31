@@ -108,7 +108,7 @@ function markerContext(raw: string) {
   }
   const cases = (values: JsonValue | undefined, nodes: Node[] | undefined) =>
     array(values).forEach((value, index) => caseValue(value, nodes?.[index]));
-  return { root, marks, fields, cases };
+  return { root, marks, fields, cases, mark };
 }
 /** Replace raw case values with opaque markers, restored after structural encoding. */
 export function markRawCases(raw: string, content: Obj): Map<string, string> {
@@ -197,4 +197,22 @@ export function preserveCaseLiterals(source: string, published: string): Uint8Ar
     (marker) => marks.get(marker) ?? marker,
   );
   return restored === canonical ? null : new TextEncoder().encode(restored);
+}
+
+/** Preserve raw ChangeSet spelling for Go operation fingerprint replay. */
+export function markRawDocumentChanges(
+  raw: string,
+  updates: { changes: unknown }[],
+): Map<string, string> {
+  const { root, marks, fields, mark } = markerContext(raw);
+  const nodes = fields(root, "updates")?.items;
+  updates.forEach((update, index) => {
+    const changes = fields(nodes?.[index], "changes");
+    if (changes) {
+      if (new TextEncoder().encode(raw.slice(changes.start, changes.end)).length > 131072)
+        throw new Error("Change set too large");
+      update.changes = mark(changes);
+    }
+  });
+  return marks;
 }
