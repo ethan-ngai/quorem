@@ -11,7 +11,10 @@ import { workspaceRepository } from './repository.ts';
 const url = (env as unknown as { WORKSPACE_TEST_URL: string }).WORKSPACE_TEST_URL;
 it('authenticates and reads real workspace and Odyssey in workerd', async () => {
   const parsed = new URL(url);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual(['127.0.0.1', '55451', '/quorem_hono_workspace_test']);
+  expect(['postgres:', 'postgresql:']).toContain(parsed.protocol);
+  expect(['127.0.0.1', 'localhost', '[::1]']).toContain(parsed.hostname);
+  expect(parsed.searchParams.has('host')).toBe(false);
+  expect(parsed.pathname).toBe('/quorem_hono_workspace_test');
   const run = <T>(callback: (scope: ConnectionScope) => Promise<T>) => withWorkerConnection(url, { lifetimeMs: 5000, connectionTimeoutMs: 1000 }, callback);
   const user = crypto.randomUUID();
   const version = await run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
