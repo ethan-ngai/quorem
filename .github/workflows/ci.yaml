@@ -242,7 +242,7 @@ jobs:
           node --import ./deploy/test-register.mjs --test deploy/hono/services/*.test.mjs
       - name: Isolated Terraform module contracts
         run: |
-          for stack in hono-stage hono-services; do
+          for stack in hono-bootstrap hono-stage hono-services; do
             terraform -chdir=infra/terraform/$stack fmt -check -recursive
             terraform -chdir=infra/terraform/$stack init -backend=false -input=false
             terraform -chdir=infra/terraform/$stack validate

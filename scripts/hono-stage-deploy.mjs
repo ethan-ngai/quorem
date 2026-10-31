@@ -86,7 +86,7 @@ export function validateStageRequest(env, { requireImages = true } = {}) {
 }
 
 export function terraformInitArgs(env, stack) {
-  if (!["hono-stage", "hono-services"].includes(stack)) throw new Error("Invalid Terraform stack");
+  if (!["hono-stage", "hono-services", "hono-bootstrap"].includes(stack)) throw new Error("Invalid Terraform stack");
   const endpoint = `endpoints={s3="https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"}`;
   return [
     "-chdir=infra/terraform/" + stack,
