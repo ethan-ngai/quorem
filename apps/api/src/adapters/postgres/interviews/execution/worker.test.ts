@@ -16,7 +16,7 @@ it("admits and replays through workerd and real PostgreSQL", async () => {
   const db = new URL(url);
   expect([db.hostname, db.port, db.pathname]).toEqual([
     "127.0.0.1",
-    "55470",
+    "55576",
     "/quorem_hono_interview_execution_test",
   ]);
   const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>

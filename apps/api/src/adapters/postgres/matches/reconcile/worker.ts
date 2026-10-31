@@ -10,8 +10,8 @@ it("reconciles an expired invitation once with real PostgreSQL", async () => {
   const parsed = new URL(url);
   expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
     "127.0.0.1",
-    "55572",
-    "/quorem_hono_manifest_reconcile_test",
+    "55576",
+    "/quorem_hono_match_manifest_test",
   ]);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000 }, f);

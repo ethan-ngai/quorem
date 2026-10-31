@@ -32,7 +32,7 @@ it.skipIf(!url)("atomically admits locked source and replays after edits", async
   const db = new URL(url!);
   expect([db.hostname, db.port, db.pathname]).toEqual([
     "127.0.0.1",
-    "55470",
+    "55576",
     "/quorem_hono_interview_execution_test",
   ]);
   const pool = createNodePool({
@@ -234,6 +234,7 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       { postgresCompletionStaging } = await import("../../judging/worker/staging.ts"),
       { postgresCompletionPromotion } = await import("../../judging/worker/promote.ts");
     const claims = postgresClaims(run, {
+        inputProtocol: "manifest-v1",
         resumable: true,
         losslessCases: true,
         losslessResults: true,

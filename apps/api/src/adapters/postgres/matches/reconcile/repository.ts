@@ -4,6 +4,7 @@ import type { Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { SubmissionProgress } from "../../../../modules/matches/model.ts";
 import { reconcile } from "../../../../modules/matches/reconcile.ts";
+import { verifiedMatchProgress } from "../../judging/worker/verified-progress.ts";
 type MatchRow = {
   id: string;
   state: string;
@@ -18,6 +19,8 @@ type Person = { owner: string; state: string; best: number };
 type Submission = {
   owner: string;
   state: string;
+  job: string | null;
+  intermediate: boolean | null;
 };
 const timestamp = (expr: ReturnType<typeof sql>) =>
   sql`floor(extract(epoch FROM ${expr})*1000000)::bigint::text`;
@@ -49,19 +52,47 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
   ).rows;
   const rows = (
     await tx.execute<Submission>(
-      sql`SELECT s.owner_id AS owner,s.state FROM submissions s WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
+      sql`SELECT s.owner_id AS owner,s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
     )
   ).rows;
-  // Manifest hashes and legacy checkpoint counters do not establish verified outcomes.
-  const submissions: SubmissionProgress[] = rows.map((row) => ({
-    owner: row.owner,
-    state: row.state,
-    verdict: "",
-    score: null,
-    intermediate: false,
-    maxPossible: null,
-    cannotPass: false,
-  }));
+  const submissions: SubmissionProgress[] = [];
+  for (const row of rows) {
+    const evidence =
+      row.job && row.intermediate !== null
+        ? await verifiedMatchProgress(tx, row.job)
+        : { kind: "unavailable" as const };
+    const verified =
+      evidence.kind === "verified" &&
+      Number.isSafeInteger(evidence.caseCount) &&
+      evidence.caseCount > 0 &&
+      Number.isSafeInteger(evidence.definiteFailures) &&
+      evidence.definiteFailures >= 0 &&
+      evidence.definiteFailures <= evidence.caseCount
+        ? evidence
+        : null;
+    const terminal =
+      row.state === "completed" &&
+      verified?.terminal &&
+      Number.isSafeInteger(verified.terminal.passed) &&
+      verified.terminal.passed >= 0 &&
+      verified.terminal.passed + verified.definiteFailures === verified.caseCount &&
+      (verified.terminal.verdict === "accepted") === (verified.definiteFailures === 0)
+        ? verified.terminal
+        : null;
+    const max =
+      verified && verified.definiteFailures > 0
+        ? verified.caseCount - verified.definiteFailures
+        : null;
+    submissions.push({
+      owner: row.owner,
+      state: row.state,
+      verdict: terminal?.verdict ?? "",
+      score: terminal && verified ? { passed: terminal.passed, total: verified.caseCount } : null,
+      intermediate: row.intermediate ?? false,
+      maxPossible: max,
+      cannotPass: max !== null,
+    });
+  }
   const decision = reconcile(
     BigInt(match.now),
     BigInt(match.deadline),

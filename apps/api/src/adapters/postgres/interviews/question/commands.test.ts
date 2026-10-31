@@ -28,7 +28,7 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
     const db = new URL(url!);
     expect([db.hostname, db.port, db.pathname]).toEqual([
       "127.0.0.1",
-      "55466",
+      "55576",
       "/quorem_hono_interview_questions_test",
     ]);
     const pool = createNodePool({

@@ -15,7 +15,7 @@ describe("workerd interview question commands", () => {
     const parsed = new URL(url);
     expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
       "127.0.0.1",
-      "55466",
+      "55576",
       "/quorem_hono_interview_questions_test",
     ]);
     const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
