@@ -114,7 +114,8 @@ export async function startBrowserFixture(database: string, socket: string) {
     sourceKey = random(),
     verifierKey = random(),
     namespace = `browser-${randomBytes(12).toString("hex")}`;
-  const previousAws = {
+  const previousEnvironment = {
+    NODE_ENV: process.env.NODE_ENV,
     AWS_REGION: process.env.AWS_REGION,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
@@ -160,7 +161,7 @@ export async function startBrowserFixture(database: string, socket: string) {
     if (verifier) await stop(verifier);
     if (pool) await pool.end();
     await closeServer(queue);
-    for (const [key, value] of Object.entries(previousAws)) {
+    for (const [key, value] of Object.entries(previousEnvironment)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
@@ -168,6 +169,7 @@ export async function startBrowserFixture(database: string, socket: string) {
     await rm(temp, { recursive: true, force: true });
   };
   try {
+    process.env.NODE_ENV = "development";
     cleanup = await bootstrapRuntimeFixture(database);
     pool = createNodePool({
       connectionString: database,
