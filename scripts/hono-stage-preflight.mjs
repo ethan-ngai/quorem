@@ -56,6 +56,24 @@ export function checkStagePreflight(input, outputs, secrets) {
     ...(config.r2_buckets ? { PROFILE_BUCKET: {} } : {}),
   });
 }
+const hostOnly = new Set([
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_USERNAME",
+  "SMTP_PASSWORD",
+  "AUTH_EMAIL_SES_REGION",
+  "CLOUDFLARE_ACCESS_CLIENT_ID",
+  "CLOUDFLARE_ACCESS_CLIENT_SECRET",
+]);
+/** Return only validated API Worker secrets for stdin-only secret upload. */
+export function validatedWorkerSecrets(input, outputs, secrets) {
+  checkStagePreflight(input, outputs, secrets);
+  return Object.fromEntries(
+    secretNames
+      .filter((name) => !hostOnly.has(name) && secrets[name] !== undefined)
+      .map((name) => [name, secrets[name]]),
+  );
+}
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const [publicFile, outputsFile] = process.argv.slice(2);
