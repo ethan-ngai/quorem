@@ -56,6 +56,13 @@ export function postgresCompletionPromotion(run: Run) {
         ).rows[0];
         if (!state?.live || !staged.eof) throw new Error("Stale or incomplete completion");
         const header = JSON.parse(decoder.decode(staged.header)) as CompletionHeader;
+        if (
+          !state.cancelled &&
+          !header.engineFailure &&
+          (await tx.execute(sql`SELECT 1 FROM runner_job_inputs WHERE job_id=${job.jobId}::uuid`))
+            .rows.length
+        )
+          throw new Error("Manifest result verification unavailable");
         if (initial.match) await reconcileMatch(tx, initial.match);
         if (!state.cancelled && header.engineFailure && state.attempts < 3) {
           await tx.execute(
