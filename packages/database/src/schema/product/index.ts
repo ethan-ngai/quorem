@@ -1670,9 +1670,7 @@ export const execution_dispatch_intents = pgTable(
   "execution_dispatch_intents",
   {
     id: uuid().primaryKey().notNull(),
-    job_id: uuid()
-      .notNull()
-      .references(() => execution_jobs.id, { onDelete: "cascade" }),
+    job_id: uuid().notNull(),
     available_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
@@ -1681,6 +1679,11 @@ export const execution_dispatch_intents = pgTable(
     dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_jobs.id],
+      name: "execution_dispatch_intents_job_id_fkey",
+    }).onDelete("cascade"),
     index("execution_dispatch_pending")
       .on(table.available_at, table.id)
       .where(sql`delivered_at IS NULL`),
