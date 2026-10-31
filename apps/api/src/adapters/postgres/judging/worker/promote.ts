@@ -37,12 +37,11 @@ export function postgresCompletionPromotion(run: Run) {
         );
         if (receipt.rows.length) return;
         const staged = (
-          await tx.execute<{ header: Uint8Array; eof: boolean; promoted: boolean }>(
-            sql`SELECT header_data AS header,eof,promoted FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
+          await tx.execute<{ header: Uint8Array; eof: boolean }>(
+            sql`SELECT header_data AS header,eof FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
           )
         ).rows[0];
         if (!staged) throw new Error("Missing completion stream");
-        if (staged.promoted) return;
         const state = (
           await tx.execute<{
             live: boolean;
@@ -191,19 +190,10 @@ export function postgresCompletionPromotion(run: Run) {
           sql`UPDATE submissions SET state=${terminal},result=${JSON.stringify(safe)}::jsonb,result_payload=NULL,updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
         );
         await tx.execute(
-          sql`UPDATE execution_completion_staging SET promoted=true WHERE job_id=${job.jobId}::uuid`,
-        );
-        await tx.execute(
           sql`INSERT INTO execution_completion_receipts(job_id,attempt_id,sandbox_scope,outcome) VALUES(${job.jobId}::uuid,${job.attemptId}::uuid,${job.sandboxScope},${terminal})`,
         );
         await tx.execute(
-          sql`DELETE FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid`,
-        );
-        await tx.execute(
-          sql`DELETE FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid`,
-        );
-        await tx.execute(
-          sql`DELETE FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid`,
+          sql`DELETE FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid`,
         );
         await tx.execute(
           sql`UPDATE execution_jobs SET finished=true,lease_until=NULL WHERE id=${job.jobId}::uuid`,

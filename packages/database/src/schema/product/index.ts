@@ -1832,7 +1832,6 @@ export const execution_completion_staging = pgTable(
     header_data: bytea().notNull(),
     header_hash: bytea().notNull(),
     eof: boolean().default(false).notNull(),
-    promoted: boolean().default(false).notNull(),
   },
   (table) => [
     foreignKey({

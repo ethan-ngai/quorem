@@ -5,8 +5,7 @@ CREATE TABLE execution_completion_staging (
  sandbox_scope text NOT NULL,
  header_data bytea NOT NULL,
  header_hash bytea NOT NULL CHECK (octet_length(header_hash)=32),
- eof boolean NOT NULL DEFAULT false,
- promoted boolean NOT NULL DEFAULT false
+ eof boolean NOT NULL DEFAULT false
 );
 CREATE TABLE execution_completion_frames (
  job_id uuid NOT NULL REFERENCES execution_completion_staging(job_id) ON DELETE CASCADE,

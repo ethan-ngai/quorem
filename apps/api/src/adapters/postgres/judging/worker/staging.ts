@@ -255,12 +255,12 @@ export function postgresCompletionStaging(run: Run) {
         )
           throw new Error("Invalid completion provenance");
         const existing = (
-          await tx.execute<{ attempt: string; scope: string; matches: boolean; promoted: boolean }>(
-            sql`SELECT attempt_id::text AS attempt,sandbox_scope AS scope,header_hash=${hash} AND header_data=${bytes} AS matches,promoted FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid FOR UPDATE`,
+          await tx.execute<{ attempt: string; scope: string; matches: boolean }>(
+            sql`SELECT attempt_id::text AS attempt,sandbox_scope AS scope,header_hash=${hash} AND header_data=${bytes} AS matches FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid FOR UPDATE`,
           )
         ).rows[0];
         if (existing && existing.attempt === job.attemptId && existing.scope === job.sandboxScope) {
-          if (!existing.matches || existing.promoted) throw new Error("Completion header conflict");
+          if (!existing.matches) throw new Error("Completion header conflict");
           return;
         }
         if (existing)
