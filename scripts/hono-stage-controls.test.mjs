@@ -93,6 +93,7 @@ async function fixture() {
     signer: env,
     send,
     calls,
+    change: (kind, patch) => Object.assign(kind === "runner" ? runner : cases, patch),
     fail: (action) => {
       failAction = action;
     },
@@ -109,11 +110,32 @@ void test("activates and checks signed state after each step without disclosing 
     assert.equal(receipt.proofs.length, 8);
     assert.ok(receipt.proofs.every((proof) => proof.signature && proof.body && proof.nonce));
     assert.equal(JSON.stringify(receipt).includes(f.options.secret), false);
+    assert.equal((await control.requireActive(1)).proofs.length, 2);
     await control.pause();
+    await assert.rejects(control.requireActive(1), /Unexpected active release/);
     assert.ok(f.calls.includes("case:pause"));
     assert.ok(f.calls.includes("runner:pause"));
   } finally {
     await f.cleanup();
+  }
+});
+void test("active observations reject signed state from a changed release, binding or generation", async () => {
+  for (const kind of ["runner", "case"]) {
+    for (const patch of [
+      { release: "c".repeat(40) },
+      { bindings: "d".repeat(64) },
+      { generation: 2 },
+    ]) {
+      const f = await fixture();
+      try {
+        const control = await stageControls(f.options, f.send);
+        await control.activate();
+        f.change(kind, patch);
+        await assert.rejects(control.requireActive(1), /Unexpected active release/);
+      } finally {
+        await f.cleanup();
+      }
+    }
   }
 });
 

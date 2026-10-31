@@ -195,6 +195,8 @@ jobs:
         run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
       - name: Native SQL practice and selected-match execution
         run: node scripts/hono-sql-validation.mjs
+      - name: Native match and result socket workload fixture
+        run: node scripts/hono-workload-validation.mjs
       - name: Mandatory container runner release validation
         run: node scripts/hono-container-validation.mjs
       - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'

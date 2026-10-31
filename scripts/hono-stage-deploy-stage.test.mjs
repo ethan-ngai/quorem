@@ -132,6 +132,10 @@ function operations(events, fail) {
     controls: async () => ({
       activate: async () => step("controls-activate", { generation: 1 }),
       pause: async () => step("controls-pause"),
+      requireActive: async (generation) => {
+        assert.equal(generation, 1);
+        return step("controls-active", { generation });
+      },
     }),
     deploy: () => step("deploy"),
     upload: () => step("upload"),
@@ -154,13 +158,20 @@ function operations(events, fail) {
       step("queue");
       return { manual: "manual-submission", automatic: "automatic-submission" };
     },
+    workload: async (input) => {
+      assert.equal(input.QUOREM_STAGE_DATABASE_URL, "fixture");
+      assert.equal(input.HONO_STAGE_API_ORIGIN, "https://api-stage.example.com");
+      assert.equal(input.BETTER_AUTH_SECRET, "z".repeat(32));
+      return step("workload", { profile: "baseline", admissions: 40 });
+    },
   };
 }
-void test("first activation checks fresh DB before mutations and proves queue last", async () => {
+void test("first activation checks fresh DB and brackets workload with signed control checks", async () => {
   const events = [];
   const receipt = await deployStage(env(), operations(events));
   assert.equal(receipt.cutoverReady, false);
   assert.equal(receipt.acceptance.automatic, "automatic-submission");
+  assert.equal(receipt.workload.admissions, 40);
   assert.deepEqual(events, [
     "freshness",
     "role-config",
@@ -184,9 +195,20 @@ void test("first activation checks fresh DB before mutations and proves queue la
     "remote",
     "actor",
     "queue",
+    "controls-active",
+    "workload",
+    "controls-active",
     "dispose",
     "cleanup",
   ]);
+});
+void test("workload or active-control failure fences the deployed runtime", async () => {
+  for (const fail of ["workload", "controls-active"]) {
+    const events = [];
+    await assert.rejects(deployStage(env(), operations(events, fail)));
+    assert.deepEqual(events.slice(-3), ["detach", "controls-pause", "runtime-fence"]);
+    if (fail === "controls-active") assert.equal(events.includes("workload"), false);
+  }
 });
 void test("fresh failure causes no later action; queue failure disposes fixture", async () => {
   let events = [];

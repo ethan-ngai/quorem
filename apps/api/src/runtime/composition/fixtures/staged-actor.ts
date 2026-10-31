@@ -3,11 +3,12 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { readdir } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createNodePool } from "@quorem/database/core";
+import { createNodePool, withNodeConnection } from "@quorem/database/core";
+import { sql } from "drizzle-orm";
 import { seedCatalog } from "../../../cli/seed.ts";
 
-const version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7";
-const acceptedSource =
+export const version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7";
+export const acceptedSource =
   "class Solution:\n def runWidths(self, values):\n  result=[]\n  for value in values:\n   if not result or value != previous: result.append(1)\n   else: result[-1]+=1\n   previous=value\n  return result\n";
 type Mode = "stage" | "local-test";
 export function assertStageDatabase(value: string, mode: Mode): void {
@@ -37,7 +38,9 @@ export async function createStagedActor(options: {
   authOrigin: string;
   authSecret: string;
   mode: Mode;
+  signal?: AbortSignal;
 }) {
+  options.signal?.throwIfAborted();
   assertStageDatabase(options.databaseURL, options.mode);
   const origin = new URL(options.authOrigin);
   if (
@@ -58,14 +61,37 @@ export async function createStagedActor(options: {
     idleTimeoutMs: 5000,
     onIdleError: () => {},
   });
+  // The server cancels SQL before the client deadline, including seed transactions.
+  Object.assign(pool.options, {
+    statement_timeout: 5000,
+    query_timeout: 12000,
+    idle_in_transaction_session_timeout: 5000,
+  });
   const id = `stage-fixture-${randomUUID()}`;
   const session = randomUUID(),
     token = randomBytes(32).toString("base64url");
+  const deleteSession = () =>
+    withNodeConnection(pool, { lifetimeMs: 10000 }, (scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 3000 }, async (tx) => {
+        await tx.execute(
+          sql`DELETE FROM quorem_auth."session" WHERE id=${session} AND "userId"=${id}`,
+        );
+      }),
+    );
+  let insertionStarted = false;
   try {
     const expectedDatabase =
       options.mode === "stage" ? "quorem_hono_stage" : "quorem_hono_stage_fixture_test";
-    if ((await pool.query("SELECT current_database() AS name")).rows[0].name !== expectedDatabase)
-      throw new Error("Invalid stage fixture database");
+    const read = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
+      withNodeConnection(pool, { lifetimeMs: 10000, signal: options.signal }, fn);
+    const database = await read((scope) =>
+      scope.withDatabase(
+        async (db) =>
+          (await db.execute<{ name: string }>(sql`SELECT current_database() AS name`)).rows[0]
+            ?.name,
+      ),
+    );
+    if (database !== expectedDatabase) throw new Error("Invalid stage fixture database");
     for (const [directory, ledger] of [
       [new URL("../../../../migrations/", import.meta.url), "public.schema_migrations"],
       [
@@ -73,14 +99,23 @@ export async function createStagedActor(options: {
         "quorem_auth.schema_migrations",
       ],
     ] as const) {
+      options.signal?.throwIfAborted();
       const files = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
-      const rows = (await pool.query(`SELECT name FROM ${ledger} ORDER BY name`)).rows.map(
-        (row: { name: string }) => row.name,
+      const rows = await read((scope) =>
+        scope.withDatabase(async (db) =>
+          (
+            await db.execute<{ name: string }>(
+              sql`SELECT name FROM ${sql.raw(ledger)} ORDER BY name`,
+            )
+          ).rows.map((row) => row.name),
+        ),
       );
       if (!files.length || JSON.stringify(files) !== JSON.stringify(rows))
         throw new Error("Stage migrations are incomplete");
     }
-    await seedCatalog(pool, false);
+    options.signal?.throwIfAborted();
+    await seedCatalog(pool, false, options.signal);
+    options.signal?.throwIfAborted();
     const authRequire = createRequire(
       fileURLToPath(new URL("../../../../../auth/package.json", import.meta.url)),
     );
@@ -101,24 +136,19 @@ export async function createStagedActor(options: {
     const sessionCookie = (await serializeSignedCookie(name, token, options.authSecret)).split(
       ";",
     )[0];
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(
-        'INSERT INTO quorem_auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$2,true,clock_timestamp(),clock_timestamp())',
-        [id, `${id}@example.test`],
-      );
-      await client.query(
-        'INSERT INTO quorem_auth."session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,clock_timestamp()+interval \'30 minutes\',clock_timestamp(),clock_timestamp())',
-        [session, token, id],
-      );
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+    options.signal?.throwIfAborted();
+    insertionStarted = true;
+    await read((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 3000 }, async (tx) => {
+        await tx.execute(
+          sql`INSERT INTO quorem_auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${id},${id},${`${id}@example.test`},true,clock_timestamp(),clock_timestamp())`,
+        );
+        await tx.execute(
+          sql`INSERT INTO quorem_auth."session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES(${session},${token},${id},clock_timestamp()+interval '30 minutes',clock_timestamp(),clock_timestamp())`,
+        );
+      }),
+    );
+    options.signal?.throwIfAborted();
     let disposed = false;
     return {
       sessionCookie,
@@ -128,10 +158,7 @@ export async function createStagedActor(options: {
       async dispose() {
         if (disposed) return;
         try {
-          await pool.query('DELETE FROM quorem_auth."session" WHERE id=$1 AND "userId"=$2', [
-            session,
-            id,
-          ]);
+          await deleteSession();
           disposed = true;
         } finally {
           if (disposed) await pool.end();
@@ -139,7 +166,13 @@ export async function createStagedActor(options: {
       },
     };
   } catch (error) {
-    await pool.end();
+    try {
+      if (insertionStarted) await deleteSession();
+    } catch {
+      throw new Error("Actor cleanup unconfirmed", { cause: error });
+    } finally {
+      await pool.end();
+    }
     throw error;
   }
 }
