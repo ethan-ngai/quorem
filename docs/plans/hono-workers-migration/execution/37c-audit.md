@@ -1,0 +1,9 @@
+# 37c runtime parity corrections
+
+Issue #419. `GUEST_CREATION`, `GUEST_ADMISSION` and `GUEST_EXECUTION` are independent strict boolean runtime settings, defaulting to false. Creation governs new guest-enabled match settings; admission governs guest entry. Configure all three explicitly during cutover.
+
+Node startup and minute repair, and the Worker scheduled handler, run one bounded retention batch independently of dispatch and deadline recovery. Each category uses sequential short transactions, with at most 128 rows per category by default; later ticks drain remaining backlog. Guest cleanup explicitly clears lossless case and result sidecars even when the legacy cases array is already empty. Normalized result and status rows are removed through the existing database retention triggers. Queued and running work is excluded.
+
+Disposable PostgreSQL 127.0.0.1:55575 `quorem_hono_scheduling_test`: scheduling suite 8/8, covering bounded batches, guest seven-day versus account thirty-day cleanup, already-empty cases with a lossless sidecar, normalized result/status cascades, and live-work exclusion. Against `quorem_hono_runtime_test`, actual Node and native workerd composition tests each pass, including opposite creation/admission settings and runtime-invoked outbox retention. API typecheck passes. No provider credentials or production data used.
+
+Retention remains incomplete for normalized runner inputs: `runner_job_inputs.source_hash` and custom case references retain content-addressed blobs after the submission's source and legacy sidecars are scrubbed. Existing manifest/sealing and 055 guards preserve those references; no safe provenance-aware expiration or unreferenced-blob collector is implemented here. This needs a canonical retention design before activation. No existing jobs or capacity reservations were deleted.

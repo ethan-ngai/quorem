@@ -32,6 +32,8 @@ it.skipIf(!url)(
       SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/000000000000/test",
       PORT: "0",
       IDENTITY_MODE: "managed",
+      GUEST_CREATION: "false",
+      GUEST_ADMISSION: "true",
       SOCKET_HEARTBEAT_MS: "1000",
     };
     const pool = createNodePool({
@@ -52,11 +54,23 @@ it.skipIf(!url)(
       'INSERT INTO quorem_auth."session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,NOW()+interval \'1 hour\',NOW(),NOW())',
       [session, token, user],
     );
+    const expiredNotice = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO membership_outbox(id,participant_id,occurred_at,published_at) VALUES($1,$2,clock_timestamp()-interval '8 days',clock_timestamp())",
+      [expiredNotice, crypto.randomUUID()],
+    );
     const runtime = await startNodeRuntime(env);
-    const peerRuntime = await startNodeRuntime(env);
+    const peerRuntime = await startNodeRuntime({
+      ...env,
+      GUEST_CREATION: "true",
+      GUEST_ADMISSION: "false",
+    });
     try {
       if (!runtime.server.listening) await once(runtime.server, "listening");
       const base = `http://127.0.0.1:${(runtime.server.address() as AddressInfo).port}`;
+      expect(
+        (await pool.query("SELECT 1 FROM membership_outbox WHERE id=$1", [expiredNotice])).rowCount,
+      ).toBe(0);
       const signature = createHmac("sha256", secret).update(token).digest("base64");
       const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`;
       const auth = await fetch(`${base}/api/auth/token`, {
@@ -167,6 +181,20 @@ it.skipIf(!url)(
         ),
       ]);
       peer.close();
+      await pool.query(
+        "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) SELECT $1,b.user_id,'matches.host_guests','manual','fixture','fixture','fixture' FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=$2",
+        [crypto.randomUUID(), user],
+      );
+      const createMatch = (origin: string) =>
+        fetch(`${origin}/v1/matches`, {
+          method: "POST",
+          headers: { ...headers, "idempotency-key": `node-match-${crypto.randomUUID()}` },
+          body: JSON.stringify({ difficulty: "easy", accessMode: "guests_allowed" }),
+        });
+      const paused = await createMatch(base);
+      expect(paused.status, await paused.clone().text()).toBe(409);
+      const allowed = await createMatch(peerBase.replace("ws:", "http:"));
+      expect(allowed.status, await allowed.clone().text()).toBe(201);
       const socket = new WebSocket(
         `${base.replace("http:", "ws:")}/v1/memberships/events`,
         ["quorem", `bearer.${bearer}`],

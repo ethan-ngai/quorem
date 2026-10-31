@@ -236,7 +236,24 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       ),
     ),
   );
+  const expiredNotice = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+      tx.execute(
+        sql`INSERT INTO membership_outbox(id,participant_id,occurred_at,published_at) VALUES(${expiredNotice}::uuid,${crypto.randomUUID()}::uuid,clock_timestamp()-interval '8 days',clock_timestamp())`,
+      ),
+    ),
+  );
   await worker.scheduled({}, env as unknown as Env);
+  const retained = await run((scope) =>
+    scope.transaction(
+      { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
+      async (tx) =>
+        (await tx.execute(sql`SELECT 1 FROM membership_outbox WHERE id=${expiredNotice}::uuid`))
+          .rows.length,
+    ),
+  );
+  expect(retained).toBe(0);
   await Promise.race([
     scheduledNotice,
     new Promise<never>((_, reject) =>
@@ -341,6 +358,33 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   expect(attachments).toHaveLength(1);
   expect(JSON.stringify(attachments)).not.toContain(invite);
   inviteSocket.close();
+
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(sql`UPDATE matches SET state='cancelled',outcome='{}'::jsonb WHERE id=${matchId}::uuid`);
+      await tx.execute(
+        sql`INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) SELECT ${crypto.randomUUID()}::uuid,b.user_id,'matches.host_guests','manual','fixture','fixture','fixture' FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=${user}`,
+      );
+    }),
+  );
+  const matchRequest = () =>
+    new Request("http://127.0.0.1:8765/v1/matches", {
+      method: "POST",
+      headers: { ...headers, "idempotency-key": crypto.randomUUID() },
+      body: JSON.stringify({ difficulty: "easy", accessMode: "guests_allowed" }),
+    });
+  const pausedCreation = await worker.fetch(matchRequest(), {
+    ...(env as unknown as Env),
+    GUEST_CREATION: "false",
+    GUEST_ADMISSION: "true",
+  });
+  expect(pausedCreation.status, await pausedCreation.clone().text()).toBe(409);
+  const enabledCreation = await worker.fetch(matchRequest(), {
+    ...(env as unknown as Env),
+    GUEST_CREATION: "true",
+    GUEST_ADMISSION: "false",
+  });
+  expect(enabledCreation.status, await enabledCreation.clone().text()).toBe(201);
 
   const admitted = await SELF.fetch("http://127.0.0.1:8765/v1/submissions", {
     method: "POST",
