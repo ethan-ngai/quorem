@@ -22,6 +22,7 @@ const env = () => ({
   TF_STATE_BUCKET: "stage-state",
   CLOUDFLARE_API_TOKEN: "fixture-cloud-token",
   NEON_API_KEY: "fixture-neon-token",
+  NEON_PROJECT_ID: "fixture-existing-project",
   AWS_ACCESS_KEY_ID: "fixture-access",
   AWS_SECRET_ACCESS_KEY: "fixture-secret",
   QUOREM_REMOTE_VALIDATION_DATABASE_URL:
@@ -32,18 +33,6 @@ const output = (secrets) => ({
   database_url: {
     value:
       "postgres://operator:fixture-password@db.example.test/quorem_hono_stage?sslmode=verify-full",
-  },
-  access_tokens: {
-    value: Object.fromEntries(
-      ["runner_api", "verifier_api", "drain", "verifier", "case", "image"].map((name, i) => [
-        name,
-        {
-          id: `00000000-0000-4000-8000-00000000000${i}`,
-          client_id: `fixture-id-${i}`,
-          client_secret: String(i).repeat(64),
-        },
-      ]),
-    ),
   },
 });
 const images = (account) =>
@@ -92,8 +81,8 @@ void test("intent requires an explicit stage request and exact dispatch revision
 
 void test("plan refuses destructive, drift and unrelated resources before apply", async () => {
   for (const changes of [
-    [change("neon_project.stage", ["delete", "create"])],
-    [change("neon_project.other", ["create"])],
+    [change("neon_database.stage", ["delete", "create"])],
+    [change("neon_database.other", ["create"])],
     [change("terraform_data.stage_secrets", ["update"])],
   ]) {
     const calls = [];
@@ -111,7 +100,7 @@ void test("plan refuses destructive, drift and unrelated resources before apply"
   await assert.rejects(
     launchStage(env(), {
       action: "stage",
-      run: terraform([], createStageSecrets(), calls, [change("neon_project.stage", ["update"])]),
+      run: terraform([], createStageSecrets(), calls, [change("neon_database.stage", ["update"])]),
       freshness: async () => {},
     }),
     /unrelated or destructive/,
@@ -131,7 +120,10 @@ void test("stage reuses stored secrets and publishes genuine images exactly once
   const result = await launchStage(releaseEnv, {
     action: "stage",
     run: terraform(
-      [change("neon_project.stage", ["create"]), change("terraform_data.stage_secrets", ["no-op"])],
+      [
+        change("neon_database.stage", ["create"]),
+        change("terraform_data.stage_secrets", ["no-op"]),
+      ],
       expected,
       calls,
     ),
@@ -170,7 +162,7 @@ void test("plan returns only allowed addresses and never publishes or applies", 
     saved = createStageSecrets();
   const result = await launchStage(env(), {
     action: "plan",
-    run: terraform([change("neon_project.stage", ["create"])], saved, calls),
+    run: terraform([change("neon_database.stage", ["create"])], saved, calls),
     images: () => {
       throw new Error("unexpected publish");
     },
@@ -181,7 +173,7 @@ void test("plan returns only allowed addresses and never publishes or applies", 
   assert.deepEqual(calls, ["init", "state", "plan", "show"]);
   assert.deepEqual(result, {
     status: "planned",
-    resources: [{ address: "neon_project.stage", actions: ["create"] }],
+    resources: [{ address: "neon_database.stage", actions: ["create"] }],
   });
   assert.equal(JSON.stringify(result).includes(saved.RECOVERY_CONTROL_SECRET), false);
 });
@@ -212,12 +204,12 @@ void test("command diagnostics expose only fixed provider resource names", () =>
     () =>
       runStageCommand("terraform", [], {}, () => ({
         status: 1,
-        stderr: `with cloudflare_zero_trust_access_service_token.stage: HTTP403 ${secret}`,
+        stderr: `with restapi_object.stage_branch: HTTP403 ${secret}`,
       })),
     (error) => {
       assert.ok(error instanceof StageCommandFailure);
       assert.equal(error.category, "provider permission");
-      assert.deepEqual(error.resources, ["cloudflare_zero_trust_access_service_token.stage"]);
+      assert.deepEqual(error.resources, ["restapi_object.stage_branch"]);
       assert.equal(JSON.stringify(error).includes(secret), false);
       return true;
     },
@@ -230,17 +222,17 @@ void test("provider diagnostics separate errors and redact sensitive provider co
   const error = new StageCommandFailure({
     stderr: `╷
 │ Error: failed to create: HTTP status 403 {"code":10000,"message":"${secret} ${url} ${identifier}"}
-│ with cloudflare_zero_trust_access_service_token.stage,
+│ with restapi_object.stage_branch,
 ╵
 ╷
 │ Error: authentication failed: project-scoped token ${secret}
-│ with neon_project.stage,
+│ with neon_database.stage,
 ╵`,
   });
   assert.equal(error.category, "provider permission");
   assert.deepEqual(
     error.diagnostics.map(({ resources }) => resources),
-    [["cloudflare_zero_trust_access_service_token.stage"], ["neon_project.stage"]],
+    [["restapi_object.stage_branch"], ["neon_database.stage"]],
   );
   assert.deepEqual(error.diagnostics[0].statuses, [403]);
   assert.deepEqual(error.diagnostics[0].codes, [10000]);
@@ -251,18 +243,18 @@ void test("provider diagnostics separate errors and redact sensitive provider co
   const unrelated = new StageCommandFailure({ stderr: "Error: invalid permission configuration" });
   assert.equal(unrelated.category, "configuration/provider");
 });
-void test("plain Terraform diagnostics keep Neon scope failures separate from Cloudflare codes", () => {
+void test("plain Terraform diagnostics keep separate resource failures apart", () => {
   const error = new StageCommandFailure({
     stderr: `Error: create service token: status code: 403 {"code":1010}
-with cloudflare_zero_trust_access_service_token.stage["case"],
+with restapi_object.stage_branch["case"],
 
 Error: project-scoped key cannot create projects {"code":404}
-with neon_project.stage,
+with neon_database.stage,
 `,
   });
   assert.equal(error.diagnostics.length, 2);
   assert.deepEqual(error.diagnostics[0].codes, [1010]);
-  assert.deepEqual(error.diagnostics[1].codes, []);
-  assert.deepEqual(error.diagnostics[1].resources, ["neon_project.stage"]);
+  assert.deepEqual(error.diagnostics[1].codes, [404]);
+  assert.deepEqual(error.diagnostics[1].resources, ["neon_database.stage"]);
   assert.equal(error.diagnostics[1].flags.project, true);
 });

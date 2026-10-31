@@ -12,7 +12,6 @@ const outputs = {
   stage_hostname: { value: "api-stage.example.com" },
   hyperdrive_id: { value: "a".repeat(32) },
   queue_name: { value: "quorem-hono-stage-execution" },
-  internal_access_application_id: { value: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
 };
 function env() {
   const input = JSON.parse(
@@ -41,26 +40,16 @@ function env() {
     QUOREM_VERIFICATION_SIGNING_KEY_PEM: verifierKey.privateKey
       .export({ type: "pkcs8", format: "pem" })
       .toString(),
-    VERIFIER_API_ACCESS_CLIENT_ID: "verifier-api-id",
-    VERIFIER_API_ACCESS_CLIENT_SECRET: "verifier-api-secret",
     QUOREM_CASE_SECRET: "c".repeat(32),
-    QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
-    QUOREM_CASE_ACCESS_CLIENT_SECRET: "case-secret",
     QUOREM_RUNNER_COMMAND_SECRET: "r".repeat(32),
     QUOREM_VERIFICATION_SOURCE_KEY: "a".repeat(64),
     QUOREM_VERIFICATION_SERVICE_KEY: "b".repeat(64),
     QUOREM_RUNNER_DRAIN_SECRET: "d".repeat(32),
-    RUNNER_API_ACCESS_CLIENT_ID: "api-id",
-    RUNNER_API_ACCESS_CLIENT_SECRET: "api-secret",
   };
   const secrets = {
     MATCH_INVITE_KEY: "ab".repeat(32),
     BETTER_AUTH_SECRET: "z".repeat(32),
     AUTH_INTERNAL_SECRET: "fixture",
-    VERIFICATION_ACCESS_CLIENT_ID: "verifier-id",
-    VERIFICATION_ACCESS_CLIENT_SECRET: "verifier-secret",
-    EXECUTION_DRAIN_ACCESS_CLIENT_ID: "drain-id",
-    EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "drain-secret",
   };
   return {
     HONO_STAGE_ACTION: "stage",
@@ -72,12 +61,6 @@ function env() {
     TF_VAR_database_name: "quorem_hono_stage",
     TF_VAR_worker_name: "quorem-hono-stage",
     HONO_SERVICES_WORKER_NAME: "quorem-hono-services-stage",
-    TF_VAR_access_service_token_ids: JSON.stringify(["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]),
-    TF_VAR_access_token_ids: JSON.stringify({
-      drain: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-      verifier: "cccccccc-cccc-cccc-cccc-cccccccccccc",
-      case: "dddddddd-dddd-dddd-dddd-dddddddddddd",
-    }),
     TF_VAR_enable_queue_consumer: "false",
     TF_VAR_case_namespace_id: "0".repeat(64),
     TF_VAR_runner_image: image("runner"),
@@ -145,7 +128,6 @@ function operations(events, fail) {
             SERVICES_BINDINGS: "b".repeat(64),
           },
         },
-        drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
       }),
     controls: async () => ({
       activate: async () => step("controls-activate", { generation: 1 }),
@@ -288,17 +270,14 @@ void test("optional profile media requires matching Terraform outputs and isolat
     secrets = JSON.parse(input.HONO_WORKER_SECRETS_JSON);
   input.TF_VAR_profile_media_enabled = "true";
   input.TF_VAR_image_hostname = "image-stage.example.com";
-  input.TF_VAR_image_access_service_token_id = "cccccccc-cccc-cccc-cccc-cccccccccccc";
   input.TF_VAR_image_service_image = image("image");
   Object.assign(publicInput.vars, {
     PROFILE_MEDIA_ENABLED: "true",
     PROFILE_IMAGE_SERVICE_URL: "https://image-stage.example.com",
-    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
+    PROFILE_IMAGE_ACCESS_MODE: "none",
   });
   Object.assign(secrets, {
     PROFILE_IMAGE_SERVICE_TOKEN: "p".repeat(32),
-    PROFILE_IMAGE_ACCESS_CLIENT_ID: "profile-id",
-    PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "profile-secret",
   });
   service.IMAGE_SERVICE_TOKEN = secrets.PROFILE_IMAGE_SERVICE_TOKEN;
   input.HONO_STAGE_PUBLIC_JSON = JSON.stringify(publicInput);

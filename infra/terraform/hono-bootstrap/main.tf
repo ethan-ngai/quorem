@@ -2,21 +2,25 @@ terraform {
   required_version = ">= 1.13.0, < 2.0.0"
   backend "s3" {}
   required_providers {
-    neon       = { source = "kislerdm/neon", version = "0.18.0" }
-    cloudflare = { source = "cloudflare/cloudflare", version = "5.28.1" }
+    neon    = { source = "kislerdm/neon", version = "0.18.0" }
+    restapi = { source = "Mastercard/restapi", version = "~> 2.0" }
   }
 }
 
-variable "account_id" {
+variable "project_id" {
   type = string
   validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.account_id))
-    error_message = "A Cloudflare account ID is required."
+    condition     = can(regex("^[a-z0-9-]{1,60}$", var.project_id))
+    error_message = "A valid existing Neon project ID is required."
   }
 }
-variable "region" {
-  type    = string
-  default = "aws-us-east-1"
+variable "neon_api_key" {
+  type      = string
+  sensitive = true
+  validation {
+    condition     = length(var.neon_api_key) > 0
+    error_message = "A Neon API key is required."
+  }
 }
 
 # Persist the first activation's credentials; rotation is a separate audited operation.
@@ -48,52 +52,52 @@ output "stage_secrets" {
   sensitive = true
 }
 
-provider "neon" {}
-provider "cloudflare" {}
-
-# This creates a new root branch; it never references or clones the production project.
-resource "neon_project" "stage" {
-  name      = "quorem-hono-stage"
-  region_id = var.region
-  branch {
-    name          = "stage"
-    database_name = "quorem_hono_stage"
-    role_name     = "quorem_stage_owner"
-  }
-  primary_compute {
-    autoscaling_limit_min_cu = 0.25
-    autoscaling_limit_max_cu = 1
-    suspend_timeout_seconds  = 0
-  }
-  lifecycle {
-    prevent_destroy = true
-  }
+provider "neon" { api_key = var.neon_api_key }
+provider "restapi" {
+  uri                  = "https://console.neon.tech/api/v2"
+  write_returns_object = true
+  id_attribute         = "branch/id"
+  headers              = { "Content-Type" = "application/json", "Authorization" = "Bearer ${var.neon_api_key}" }
 }
 
-resource "cloudflare_zero_trust_access_service_token" "stage" {
-  for_each   = toset(["runner_api", "verifier_api", "drain", "verifier", "case", "image"])
-  account_id = var.account_id
-  name       = "quorem-hono-stage-${replace(each.key, "_", "-")}"
-  duration   = "8760h"
+# Schema-only creates an independent root; the stage database below starts empty.
+resource "restapi_object" "stage_branch" {
+  path                      = "/projects/${var.project_id}/branches"
+  data                      = jsonencode({ branch = { name = "quorem-hono-stage", init_source = "schema-only" } })
+  ignore_all_server_changes = true
+  lifecycle { prevent_destroy = true }
 }
-
+resource "neon_endpoint" "stage" {
+  project_id               = var.project_id
+  branch_id                = restapi_object.stage_branch.id
+  type                     = "read_write"
+  autoscaling_limit_min_cu = 0.25
+  autoscaling_limit_max_cu = 1
+  suspend_timeout_seconds  = 0
+  lifecycle { prevent_destroy = true }
+}
+resource "neon_role" "stage" {
+  project_id = var.project_id
+  branch_id  = restapi_object.stage_branch.id
+  name       = "quorem_stage_owner"
+  lifecycle { prevent_destroy = true }
+}
+resource "neon_database" "stage" {
+  project_id = var.project_id
+  branch_id  = restapi_object.stage_branch.id
+  name       = "quorem_hono_stage"
+  owner_name = neon_role.stage.name
+  lifecycle { prevent_destroy = true }
+}
+output "project_id" { value = var.project_id }
+output "branch_id" { value = restapi_object.stage_branch.id }
 output "database_url" {
   value = format(
     "postgresql://%s:%s@%s/%s?sslmode=verify-full",
-    replace(urlencode(neon_project.stage.database_user), "+", "%20"),
-    replace(urlencode(neon_project.stage.database_password), "+", "%20"),
-    neon_project.stage.database_host,
-    neon_project.stage.database_name,
+    replace(urlencode(neon_role.stage.name), "+", "%20"),
+    replace(urlencode(neon_role.stage.password), "+", "%20"),
+    neon_endpoint.stage.host,
+    neon_database.stage.name,
   )
-  sensitive = true
-}
-output "access_tokens" {
-  value = {
-    for purpose, token in cloudflare_zero_trust_access_service_token.stage : purpose => {
-      id            = token.id
-      client_id     = token.client_id
-      client_secret = token.client_secret
-    }
-  }
   sensitive = true
 }

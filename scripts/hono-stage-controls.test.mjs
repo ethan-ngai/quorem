@@ -24,8 +24,6 @@ async function fixture() {
     secret: "s".repeat(64),
     caseOrigin: "https://case-stage.example.com",
     runnerOrigin: "https://runner-stage.example.com",
-    caseAccess: { id: "case", secret: "case-secret" },
-    runnerAccess: { id: "runner", secret: "runner-secret" },
     publicKeyFile,
   };
   const env = {

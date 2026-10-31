@@ -44,7 +44,6 @@ const stackNames = {
     "account_id",
     "worker_name",
     "stage_hostname",
-    "access_service_token_ids",
     "database_host",
     "database_port",
     "database_name",
@@ -62,9 +61,7 @@ const stackNames = {
     "hostnames",
     "profile_media_enabled",
     "image_hostname",
-    "image_access_service_token_id",
     "image_service_image",
-    "access_token_ids",
     "runner_image",
     "verifier_image",
     "case_images",
@@ -172,8 +169,6 @@ function remoteProof(env) {
     "QUOREM_CASE_SECRET",
     "QUOREM_CASE_NAMESPACE_ID",
     "QUOREM_CASE_OWNER_PUBLIC_KEY_FILE",
-    "QUOREM_CASE_ACCESS_CLIENT_ID",
-    "QUOREM_CASE_ACCESS_CLIENT_SECRET",
   ]);
   command("vp", ["exec", "node", "scripts/hono-remote-validation.mjs"], child);
 }
@@ -220,7 +215,7 @@ export async function deployStage(original, operations = defaults) {
   if (
     profileEnabled &&
     (publicInput.vars.PROFILE_IMAGE_SERVICE_URL !== `https://${original.TF_VAR_image_hostname}` ||
-      publicInput.vars.PROFILE_IMAGE_ACCESS_MODE !== "cloudflare-access" ||
+      publicInput.vars.PROFILE_IMAGE_ACCESS_MODE !== "none" ||
       supplied.PROFILE_IMAGE_SERVICE_TOKEN !== services.IMAGE_SERVICE_TOKEN)
   )
     throw new Error("Image service configuration differs");
@@ -237,35 +232,24 @@ export async function deployStage(original, operations = defaults) {
     VERIFICATION_SOURCE_CREDENTIAL: services.QUOREM_VERIFICATION_SOURCE_KEY,
     VERIFICATION_SERVICE_CREDENTIAL: services.QUOREM_VERIFICATION_SERVICE_KEY,
     EXECUTION_DRAIN_SECRET: services.QUOREM_RUNNER_DRAIN_SECRET,
-    CLOUDFLARE_ACCESS_CLIENT_ID: services.RUNNER_API_ACCESS_CLIENT_ID,
-    CLOUDFLARE_ACCESS_CLIENT_SECRET: services.RUNNER_API_ACCESS_CLIENT_SECRET,
   };
   checkSecrets(preflightSecrets);
   const extra = [
     services.RECOVERY_CONTROL_SECRET,
     services.QUOREM_CASE_SECRET,
-    services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
-    services.VERIFIER_API_ACCESS_CLIENT_SECRET,
-    services.RUNNER_API_ACCESS_CLIENT_SECRET,
     services.QUOREM_RUNNER_COMMAND_SECRET,
     services.QUOREM_VERIFICATION_SOURCE_KEY,
     services.QUOREM_VERIFICATION_SERVICE_KEY,
     services.QUOREM_RUNNER_DRAIN_SECRET,
-    supplied.VERIFICATION_ACCESS_CLIENT_SECRET,
-    supplied.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
   ];
-  if (profileEnabled)
-    extra.push(services.IMAGE_SERVICE_TOKEN, supplied.PROFILE_IMAGE_ACCESS_CLIENT_SECRET);
+  if (profileEnabled) extra.push(services.IMAGE_SERVICE_TOKEN);
   if (
     extra.some((value) => typeof value !== "string" || !value || /\s/.test(value)) ||
     new Set(extra).size !== extra.length ||
     Object.values(supplied).includes(services.RECOVERY_CONTROL_SECRET) ||
     new TextEncoder().encode(services.QUOREM_CASE_SECRET).length < 32 ||
     new TextEncoder().encode(services.RECOVERY_CONTROL_SECRET).length < 32 ||
-    publicInput.vars.EXECUTION_DRAIN_ACCESS_MODE !== "cloudflare-access" ||
-    !supplied.EXECUTION_DRAIN_ACCESS_CLIENT_ID ||
-    !services.QUOREM_CASE_ACCESS_CLIENT_ID ||
-    !services.VERIFIER_API_ACCESS_CLIENT_ID
+    publicInput.vars.EXECUTION_DRAIN_ACCESS_MODE !== "none"
   )
     throw new Error("Invalid private service credentials");
   try {
@@ -323,8 +307,6 @@ export async function deployStage(original, operations = defaults) {
       ...env,
       QUOREM_CASE_ORIGIN: `https://${hosts.case}`,
       QUOREM_CASE_SECRET: services.QUOREM_CASE_SECRET,
-      QUOREM_CASE_ACCESS_CLIENT_ID: services.QUOREM_CASE_ACCESS_CLIENT_ID,
-      QUOREM_CASE_ACCESS_CLIENT_SECRET: services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
       QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: keyFile,
     };
     await Promise.resolve(operations.terraform(env, "hono-services", "init"));
@@ -371,8 +353,6 @@ export async function deployStage(original, operations = defaults) {
       VERIFICATION_SOURCE_CREDENTIAL: services.QUOREM_VERIFICATION_SOURCE_KEY,
       VERIFICATION_SERVICE_CREDENTIAL: services.QUOREM_VERIFICATION_SERVICE_KEY,
       EXECUTION_DRAIN_SECRET: services.QUOREM_RUNNER_DRAIN_SECRET,
-      CLOUDFLARE_ACCESS_CLIENT_ID: services.RUNNER_API_ACCESS_CLIENT_ID,
-      CLOUDFLARE_ACCESS_CLIENT_SECRET: services.RUNNER_API_ACCESS_CLIENT_SECRET,
     };
     const serviceOutput = await Promise.resolve(operations.servicesOutputs(env));
     const controlVars = serviceOutput?.origins?.value;
@@ -403,14 +383,6 @@ export async function deployStage(original, operations = defaults) {
       secret: services.RECOVERY_CONTROL_SECRET,
       caseOrigin: `https://${hosts.case}`,
       runnerOrigin: `https://${hosts.drain}`,
-      caseAccess: {
-        id: services.QUOREM_CASE_ACCESS_CLIENT_ID,
-        secret: services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
-      },
-      runnerAccess: {
-        id: supplied.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
-        secret: supplied.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
-      },
       publicKeyFile: keyFile,
     });
     controlsAttempted = true;

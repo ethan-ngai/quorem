@@ -8,9 +8,11 @@ Integration `b0597032`: [#437](https://github.com/ethan-ngai/quorem/pull/437), [
 
 - Node consumes SQS/Cloudflare wakes through the shared drain owner; HTTP runners no longer depend on a separate poller.
 - Native SQL practice Run/Submit and a selected two-account SQL match pass through Docker and independent verification; required CI, no skips. Browser interaction remains unverified.
-- Drain transport validation and Terraform Access have canonical owners; duplicate ingress resources removed.
+- Drain transport validation has a canonical owner; duplicate ingress resources removed. Staging uses distinct application bearers and signed proofs, without Cloudflare Access.
 - Recovery controls, migration provenance/checksums, generation roles and failure fencing integrated. [Existing-stage maintenance](38g-stage-maintenance.md) now provides persisted operations, pinned pause, writer fencing and bounded known-attempt teardown. Full history proof and resume orchestration remain unfinished.
 - Disposable HTTP databases and scoped session-lifetime assertions replace invalid test isolation assumptions. Native Make targets and setup docs available.
+
+User deployment corrections: reuse the existing Neon project with an independent schema-only stage branch and empty dedicated database; no new Neon project or Cloudflare Access token resources. Existing scoped application credentials and signed proofs remain mandatory.
 
 Remaining release work, in order:
 

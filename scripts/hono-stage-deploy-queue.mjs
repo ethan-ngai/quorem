@@ -24,7 +24,6 @@ export function setQueue(env, enabled, run = spawnSync) {
     "TF_VAR_account_id",
     "TF_VAR_worker_name",
     "TF_VAR_stage_hostname",
-    "TF_VAR_access_service_token_ids",
     "TF_VAR_database_host",
     "TF_VAR_database_port",
     "TF_VAR_database_name",

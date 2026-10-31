@@ -1,27 +1,13 @@
 /** Verify the staged case namespace before granting runner scope. */
 import { readFile } from "node:fs/promises";
 import { createPublicKey, randomUUID } from "node:crypto";
-import { accessFetch } from "../../../packages/execution/src/transport/access.ts";
 import { verifyCaseProbe } from "../../case-proof.js";
 
 export async function probeNamespace(env, send = fetch) {
   const origin = env.QUOREM_CASE_ORIGIN,
     bearer = env.QUOREM_CASE_SECRET;
-  const id = env.QUOREM_CASE_ACCESS_CLIENT_ID,
-    secret = env.QUOREM_CASE_ACCESS_CLIENT_SECRET;
   const file = env.QUOREM_CASE_OWNER_PUBLIC_KEY_FILE;
-  if (
-    !origin ||
-    !bearer ||
-    bearer.length < 32 ||
-    /\s/.test(bearer) ||
-    !id ||
-    !secret ||
-    /\s/.test(id + secret) ||
-    id === secret ||
-    bearer === secret ||
-    !file?.startsWith("/")
-  )
+  if (!origin || !bearer || bearer.length < 32 || /\s/.test(bearer) || !file?.startsWith("/"))
     throw new Error("Invalid case probe configuration");
   const pem = await readFile(file);
   const key = createPublicKey(pem);
@@ -33,9 +19,11 @@ export async function probeNamespace(env, send = fetch) {
     false,
     ["verify"],
   );
-  const client = accessFetch(origin, { id, secret }, send);
+  const parsed = new URL(origin);
+  if (parsed.protocol !== "https:" || parsed.origin !== origin)
+    throw new Error("Invalid case probe origin");
   const nonce = randomUUID();
-  const response = await client(new URL("/internal/case/namespace", origin), {
+  const response = await send(new URL("/internal/case/namespace", origin), {
     headers: { authorization: `Bearer ${bearer}`, "x-quorem-owner-nonce": nonce },
     signal: AbortSignal.timeout(5000),
     redirect: "error",

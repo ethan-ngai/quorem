@@ -23,27 +23,13 @@ export function validateStageRequest(env, { requireImages = true } = {}) {
     throw new Error("Invalid stage backend");
   const host = (v) =>
     typeof v === "string" && /^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\.[a-z0-9-]+)+$/.test(v);
-  let names, images, apiTokens, serviceTokens;
+  let names, images;
   try {
     names = JSON.parse(env.TF_VAR_hostnames);
-    apiTokens = JSON.parse(env.TF_VAR_access_service_token_ids);
-    serviceTokens = JSON.parse(env.TF_VAR_access_token_ids);
     images = requireImages ? JSON.parse(env.TF_VAR_case_images) : undefined;
   } catch {
     throw new Error("Invalid staged hosts or images");
   }
-  const tokenId = (v) =>
-    typeof v === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
-  if (
-    !Array.isArray(apiTokens) ||
-    !apiTokens.length ||
-    !apiTokens.every(tokenId) ||
-    !serviceTokens ||
-    !tokenId(serviceTokens.drain) ||
-    apiTokens.includes(serviceTokens.drain)
-  )
-    throw new Error("Drain and API Access tokens must be distinct");
   if (
     !host(env.TF_VAR_stage_hostname) ||
     !names ||
@@ -76,7 +62,6 @@ export function validateStageRequest(env, { requireImages = true } = {}) {
       [env.TF_VAR_stage_hostname, names.drain, names.verifier, names.case].includes(
         env.TF_VAR_image_hostname,
       ) ||
-      !/^[0-9a-f-]{36}$/.test(env.TF_VAR_image_access_service_token_id ?? "") ||
       (requireImages && !digest(env.TF_VAR_image_service_image)))
   )
     throw new Error("Invalid staged image service");
@@ -86,7 +71,8 @@ export function validateStageRequest(env, { requireImages = true } = {}) {
 }
 
 export function terraformInitArgs(env, stack) {
-  if (!["hono-stage", "hono-services", "hono-bootstrap"].includes(stack)) throw new Error("Invalid Terraform stack");
+  if (!["hono-stage", "hono-services", "hono-bootstrap"].includes(stack))
+    throw new Error("Invalid Terraform stack");
   const endpoint = `endpoints={s3="https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"}`;
   return [
     "-chdir=infra/terraform/" + stack,

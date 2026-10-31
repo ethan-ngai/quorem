@@ -23,18 +23,10 @@ const secretNames = [
   "APPLE_CLIENT_SECRET",
   "GITHUB_CLIENT_SECRET",
   "PROFILE_IMAGE_SERVICE_TOKEN",
-  "PROFILE_IMAGE_ACCESS_CLIENT_ID",
-  "PROFILE_IMAGE_ACCESS_CLIENT_SECRET",
   "RUNNER_PEERS",
   "VERIFICATION_SOURCE_CREDENTIAL",
   "VERIFICATION_SERVICE_CREDENTIAL",
   "EXECUTION_DRAIN_SECRET",
-  "CLOUDFLARE_ACCESS_CLIENT_ID",
-  "CLOUDFLARE_ACCESS_CLIENT_SECRET",
-  "VERIFICATION_ACCESS_CLIENT_ID",
-  "VERIFICATION_ACCESS_CLIENT_SECRET",
-  "EXECUTION_DRAIN_ACCESS_CLIENT_ID",
-  "EXECUTION_DRAIN_ACCESS_CLIENT_SECRET",
 ];
 export function checkStagePreflight(input, outputs, secrets) {
   const config = stageConfig(input, outputs, "/tmp/quorem-stage-preflight.json");
@@ -73,8 +65,6 @@ const hostOnly = new Set([
   "SMTP_USERNAME",
   "SMTP_PASSWORD",
   "AUTH_EMAIL_SES_REGION",
-  "CLOUDFLARE_ACCESS_CLIENT_ID",
-  "CLOUDFLARE_ACCESS_CLIENT_SECRET",
 ]);
 /** Return only validated API Worker secrets for stdin-only secret upload. */
 export function validatedWorkerSecrets(input, outputs, secrets) {

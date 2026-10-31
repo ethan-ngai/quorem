@@ -5,24 +5,11 @@ import { validateStageRequest } from "./hono-stage-deploy.mjs";
 import { checkWorkerAuth } from "./hono-stage-preflight.mjs";
 import { deployStage } from "./hono-stage-deploy-stage.mjs";
 
-const names = ["runner_api", "verifier_api", "drain", "verifier", "case", "image"];
 const bootstrap = () => ({
   stage_secrets: { value: createStageSecrets() },
   database_url: {
     value:
       "postgres://operator:fixture-password@db.example.test:5432/quorem_hono_stage?sslmode=verify-full",
-  },
-  access_tokens: {
-    value: Object.fromEntries(
-      names.map((name, i) => [
-        name,
-        {
-          id: `00000000-0000-4000-8000-00000000000${i}`,
-          client_id: `fixture-id-${i}`,
-          client_secret: String(i).repeat(64),
-        },
-      ]),
-    ),
   },
 });
 const actions = () => ({
@@ -64,14 +51,11 @@ void test("assembles distinct private credentials and validates actual stage aut
   );
   assert.notEqual(createStageSecrets().RECOVERY_CONTROL_SECRET, services.RECOVERY_CONTROL_SECRET);
 });
-void test("rejects non-isolated database, duplicate tokens and wrong release", () => {
+void test("rejects non-isolated database, mismatched signing keys and wrong release", () => {
   const db = bootstrap();
   db.database_url.value =
     "postgres://operator:fixture@db.example.test/production?sslmode=verify-full";
   assert.throws(() => assembleStageConfig(db, actions()));
-  const duplicate = bootstrap();
-  duplicate.access_tokens.value.case.id = duplicate.access_tokens.value.drain.id;
-  assert.throws(() => assembleStageConfig(duplicate, actions()));
   const invalid = bootstrap();
   invalid.stage_secrets.value.VERIFICATION_PUBLIC_KEY =
     createStageSecrets().VERIFICATION_PUBLIC_KEY;

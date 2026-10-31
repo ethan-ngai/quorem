@@ -65,13 +65,6 @@ variable "stage_hostname" {
     error_message = "Use a distinct staged hostname."
   }
 }
-variable "access_service_token_ids" {
-  type = set(string)
-  validation {
-    condition     = length(var.access_service_token_ids) > 0 && alltrue([for id in var.access_service_token_ids : can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", id))])
-    error_message = "At least one existing Access service token ID is required."
-  }
-}
 variable "enable_queue_consumer" {
   type    = bool
   default = false
@@ -98,27 +91,6 @@ resource "cloudflare_worker" "api" {
   name          = var.worker_name
   subdomain     = { enabled = false, previews_enabled = false }
   observability = { enabled = true }
-}
-
-resource "cloudflare_zero_trust_access_policy" "internal" {
-  account_id = var.account_id
-  name       = "${var.worker_name}-internal-service"
-  decision   = "non_identity"
-  include    = [for id in var.access_service_token_ids : { service_token = { token_id = id } }]
-}
-
-resource "cloudflare_zero_trust_access_application" "internal" {
-  account_id = var.account_id
-  name       = "${var.worker_name}-internal"
-  type       = "self_hosted"
-  domain     = "${var.stage_hostname}/internal/*"
-  destinations = [{
-    type = "public"
-    uri  = "${var.stage_hostname}/internal/*"
-  }]
-  policies                  = [{ id = cloudflare_zero_trust_access_policy.internal.id, precedence = 1 }]
-  app_launcher_visible      = false
-  service_auth_401_redirect = false
 }
 
 resource "cloudflare_queue" "execution" {
@@ -152,7 +124,6 @@ resource "cloudflare_queue_consumer" "execution" {
 
 output "worker_name" { value = cloudflare_worker.api.name }
 output "stage_hostname" { value = var.stage_hostname }
-output "internal_access_application_id" { value = cloudflare_zero_trust_access_application.internal.id }
 output "hyperdrive_id" { value = cloudflare_hyperdrive_config.database.id }
 output "queue_name" { value = cloudflare_queue.execution.queue_name }
 output "dead_letter_queue_name" { value = cloudflare_queue.dead_letter.queue_name }
