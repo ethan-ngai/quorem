@@ -1,7 +1,7 @@
 /** @file browser-fixture.ts @description Guarded local browser stack with real auth and execution. @module runtime */
-import { createHash, generateKeyPairSync, randomBytes } from "node:crypto";
+import { generateKeyPairSync, randomBytes } from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { createServer, type Server } from "node:http";
+import type { Server } from "node:http";
 import { once } from "node:events";
 import { mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +11,7 @@ import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { createNodeRuntime } from "@quorem/auth/node";
 import { seedAccounts } from "../../../../auth/src/seed-accounts.ts";
 import { applyAccess } from "../../cli/access.ts";
+import { localSqsFixture } from "./fixtures/local-sqs.ts";
 import { seedQuestion } from "../../cli/seed-question.ts";
 import { dockerSandbox } from "../../../../runner/src/sandbox/docker.ts";
 import { bootstrapRuntimeFixture } from "./fixture.ts";
@@ -131,32 +132,7 @@ export async function startBrowserFixture(database: string, socket: string) {
     verifier: ChildProcess | undefined,
     vite: ChildProcess | undefined;
   let pool: ReturnType<typeof createNodePool> | undefined;
-  const queue = createServer((req, res) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > 65536) req.destroy();
-      else chunks.push(Buffer.from(chunk));
-    });
-    req.on("end", () => {
-      try {
-        const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
-          MessageBody?: unknown;
-        };
-        if (req.method !== "POST" || typeof body.MessageBody !== "string")
-          throw new Error("Invalid fixture wake");
-        res.writeHead(200, { "content-type": "application/x-amz-json-1.0" }).end(
-          JSON.stringify({
-            MessageId: crypto.randomUUID(),
-            MD5OfMessageBody: createHash("md5").update(body.MessageBody).digest("hex"),
-          }),
-        );
-      } catch {
-        res.writeHead(400).end();
-      }
-    });
-  });
+  const { server: queue } = localSqsFixture();
   let closing = false;
   const finish = async () => {
     closing = true;
@@ -280,6 +256,9 @@ export async function startBrowserFixture(database: string, socket: string) {
       QUOREM_ALLOWED_ORIGINS: webOrigin,
       MATCH_INVITE_KEY: random(),
       EXECUTION_WAKE_PROVIDER: "sqs",
+      EXECUTION_DRAIN_URL: `${runnerOrigin}/internal/drain`,
+      EXECUTION_DRAIN_SECRET: drainSecret,
+      EXECUTION_DRAIN_ACCESS_MODE: "none",
       SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/000000000000/browser-fixture",
       SQS_LOCAL_ENDPOINT: `http://127.0.0.1:${queuePort}`,
       IDENTITY_MODE: "managed",

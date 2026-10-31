@@ -10,6 +10,8 @@ export default defineConfig({
       "src/runtime/composition/test-database.test.ts",
       "src/runtime/composition/recovery.test.ts",
       "src/runtime/composition/wake-consumer.test.ts",
+      "src/runtime/composition/node-wake-consumer.test.ts",
+      "src/runtime/composition/node-wake-composition.test.ts",
       "src/runtime/composition/node.integration.test.ts",
       "src/runtime/composition/node.lifecycle.test.ts",
       "src/runtime/composition/node.peer.test.ts",
