@@ -28,6 +28,7 @@ export async function fixtureCaseRefs(
       : await tx.execute<{ stage: number; ordinal: number; hash: Uint8Array }>(
           sql`SELECT c.stage,c.ordinal,c.blob_hash AS hash FROM runner_snapshot_input_cases c JOIN runner_snapshot_inputs i USING(session_id,fixture_id) WHERE i.sealed AND c.session_id=${owner.session}::uuid AND c.fixture_id=${owner.fixture}::bytea AND c.channel=${channel} AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level}) ORDER BY c.stage,c.ordinal`,
         );
+  if (rows.rows.length > 320) throw new Error("Runner fixture exceeds admitted case count");
   return rows.rows;
 }
 /** Store one already validated custom-case JSON value without changing its lexical bytes. */

@@ -525,4 +525,40 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       await pool.end();
     }
   });
+  it("rejects an overlarge selected index without reading more than the sentinel", async () => {
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 2,
+      connectionTimeoutMs: 2000,
+      idleTimeoutMs: 1000,
+      onIdleError: () => {},
+    });
+    const problem = crypto.randomUUID(),
+      version = crypto.randomUUID();
+    const raw = JSON.stringify({
+      problem: { examples: Array.from({ length: 321 }, (_, i) => ({ args: [i], expected: i })) },
+      hiddenCases: [],
+    });
+    try {
+      await expect(
+        withNodeConnection(pool, { lifetimeMs: 15000 }, (scope) =>
+          scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
+            await tx.execute(
+              sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
+            );
+            await tx.execute(
+              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+            );
+            await indexRunnerFixture(tx, { version }, raw);
+            await expect(fixtureCaseRefs(tx, { version }, "example", 0)).rejects.toThrow(
+              "exceeds admitted case count",
+            );
+            throw new Error("fixture rollback");
+          }),
+        ),
+      ).rejects.toThrow("fixture rollback");
+    } finally {
+      await pool.end();
+    }
+  });
 });
