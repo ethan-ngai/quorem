@@ -82,3 +82,44 @@ export async function evaluatedStatusPage(
   if (!result) throw new Error("Public case status changed");
   return result.bytes;
 }
+
+/** Reauthorize and fence each page without retaining a connection during backpressure. */
+export async function* evaluatedStatusBytes(
+  run: <T>(
+    fn: (scope: import("@quorem/database/core").ConnectionScope) => Promise<T>,
+  ) => Promise<T>,
+  scope: EvaluatedStatusScope,
+  plan: EvaluatedStatusPlan,
+  authorize: (tx: Transaction) => Promise<void>,
+): AsyncGenerator<Uint8Array> {
+  const encoder = new TextEncoder();
+  const read = <T>(fn: (tx: Transaction) => Promise<T>) =>
+    run((connection) =>
+      connection.transaction(
+        { statementTimeoutMs: 5000, lockTimeoutMs: 1000, isolation: "repeatable read" },
+        async (tx) => {
+          await authorize(tx);
+          const current = await evaluatedStatusPlan(tx, scope);
+          if (current.count !== plan.count || current.digest !== plan.digest)
+            throw new Error("Evaluated statuses changed");
+          return fn(tx);
+        },
+      ),
+    );
+  yield encoder.encode("[");
+  let after = -1;
+  for (let i = 0; i < plan.count; i++) {
+    const row = await read((tx) => nextEvaluatedStatus(tx, scope, after));
+    if (!row) throw new Error("Evaluated statuses changed");
+    if (i) yield encoder.encode(",");
+    yield encoder.encode(`{"index":${row.index},"status":`);
+    for (let offset = 0; offset < row.size; offset += 65536) {
+      const bytes = await read((tx) => evaluatedStatusPage(tx, row, offset));
+      if (!bytes.length) throw new Error("Evaluated status truncated");
+      yield bytes;
+    }
+    yield encoder.encode("}");
+    after = row.index;
+  }
+  yield encoder.encode("]");
+}

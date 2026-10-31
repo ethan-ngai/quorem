@@ -19,6 +19,7 @@ import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
 import { submissionSnapshots } from "../results/repository.ts";
 import { postgresExecutionCommands } from "../worker/repository.ts";
+import { workspaceRepository } from "../../workspace/repository.ts";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
 import { createVerificationSourceHandler } from "../worker/verification-http.ts";
 import { httpResultVerifier, type ResultVerifier } from "../worker/verification-client.ts";
@@ -646,6 +647,156 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
     const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
     expect((await result.json()).verdict).toBe("wrong_answer");
   }, 40000);
+  it("retains verified solo Odyssey feedback after promotion and clears it on reset", async () => {
+    const p = crypto.randomUUID(),
+      v = crypto.randomUUID(),
+      w = crypto.randomUUID();
+    const signature = {
+      className: "Solution",
+      methodName: "f",
+      parameters: [{ name: "x", type: "int" }],
+      returnType: "int",
+    };
+    const limits = {
+      wallTimeMs: 2000,
+      memoryBytes: 268435456,
+      outputBytes: 65536,
+      maxProcesses: 16,
+      maxCollectionElements: 10000,
+      maxNestingDepth: 100,
+    };
+    const sample = { args: [], calls: [{ methodName: "f", args: [1], expected: 2 }] },
+      hidden = { args: [], calls: [{ methodName: "f", args: [3], expected: 4 }] };
+    const odyssey = {
+      levels: [
+        { title: "One", statementMarkdown: "One", methods: [signature], examples: [sample] },
+      ],
+    };
+    try {
+      await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
+      await pool.query(
+        "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,1,'Odyssey','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
+        [v, p, JSON.stringify(signature), JSON.stringify(limits), JSON.stringify(odyssey)],
+      );
+      await pool.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [v, p]);
+      await pool.query(
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
+        [v],
+      );
+      await pool.query(
+        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        [w, owner, v],
+      );
+      await pool.query(
+        "INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES($1,$2,1)",
+        [w, v],
+      );
+      await run((scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+          indexRunnerFixture(
+            tx,
+            { version: v },
+            JSON.stringify({
+              problem: { id: v, signature, constraints: [], limits, odyssey },
+              odysseyHiddenCases: [[hidden]],
+            }),
+          ),
+        ),
+      );
+      await pool.query(
+        "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+        [owner],
+      );
+      const response = await app.request("https://fixture.test/v1/submissions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "runner-odyssey-feedback",
+        },
+        body: JSON.stringify({
+          workspaceId: w,
+          level: 1,
+          kind: "submit",
+          source: "class Solution:\n def f(self,x): return x+1",
+        }),
+      });
+      expect(response.status, await response.clone().text()).toBe(202);
+      const sandbox = await dockerSandbox({
+        socket: socket!,
+        stateRoot,
+        namespace: "admission-runner-odyssey",
+        cleanupMs: 10000,
+      });
+      const secret = "fixture-only-private-runner-odyssey-12345";
+      const handler = await createRunnerCommandHandler([
+        {
+          secret,
+          scope: sandbox.scope,
+          resumable: true,
+          inputProtocol: "manifest-v1",
+          repository: () =>
+            postgresExecutionCommands(
+              run,
+              {
+                inputProtocol: "manifest-v1",
+                resumable: true,
+                losslessCases: true,
+                losslessResults: true,
+              },
+              { verifier, verificationPublicKey },
+            ),
+        },
+      ]);
+      const repository = privateRunnerCommands({
+        origin: "https://fixture",
+        secret,
+        scope: sandbox.scope,
+        resumable: true,
+        timeoutMs: 5000,
+        fetch: async (input, init) => handler(new Request(input, init)),
+      });
+      const drain = drainer({
+        repository,
+        sandbox,
+        cancellations: controlPolling(25),
+        queue: queueControl(repository, sandbox.scope, 25),
+        engine: checkpointedEngine(repository, sandbox),
+        slots: 1,
+        resumable: true,
+        graceMs: 100,
+        claimWindowMs: 10000,
+      });
+      expect((await drain.drain(AbortSignal.timeout(30000))).complete).toBe(true);
+      const workspaces = workspaceRepository(run),
+        progress = JSON.parse(await new Response(await workspaces.odyssey(principal, w)).text());
+      expect(progress.caseStatuses).toEqual([{ index: 0, status: "accepted" }]);
+      const reset = JSON.parse(await workspaces.reset(principal, w));
+      expect(reset.caseStatuses).toBeUndefined();
+    } finally {
+      await pool.query(
+        "DELETE FROM execution_dispatch_intents WHERE job_id IN (SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE s.workspace_id=$1)",
+        [w],
+      );
+      await pool.query(
+        "DELETE FROM execution_idempotency WHERE owner_id=$1 AND key='runner-odyssey-feedback'",
+        [owner],
+      );
+      await pool.query(
+        "DELETE FROM execution_attempt_usage WHERE submission_id IN (SELECT id FROM submissions WHERE workspace_id=$1)",
+        [w],
+      );
+      await pool.query(
+        "DELETE FROM execution_jobs WHERE submission_id IN (SELECT id FROM submissions WHERE workspace_id=$1)",
+        [w],
+      );
+      await pool.query("DELETE FROM submissions WHERE workspace_id=$1", [w]);
+      await pool.query("DELETE FROM odyssey_progress WHERE scope_id=$1", [w]);
+      await pool.query("DELETE FROM workspaces WHERE id=$1", [w]);
+      await pool.query("UPDATE problems SET current_version_id=NULL WHERE id=$1", [p]);
+      await pool.query("DELETE FROM problem_versions WHERE id=$1", [v]);
+      await pool.query("DELETE FROM problems WHERE id=$1", [p]);
+    }
+  }, 60000);
   it("cancels an actually running Docker case and reclaims only after teardown", async () => {
     await pool.query(
       "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
