@@ -1197,6 +1197,29 @@ void test("classic interview fallback shares verified examples without hiding th
   assert.equal(result.publicCases[0].expected, 2);
   assert.equal(result.privateCaseResults[0].caseId, "example:0");
   assert.equal(result.privateCaseResults[0].case.expected, 2);
+  // Exercise the promoted sample through the current Odyssey snapshot transport.
+  const { interviewSnapshotStream } = await import("../../interviews/question/stream.ts");
+  const question = {
+    problem: {
+      id: version,
+      title: "Feedback",
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      odyssey: { levels: [{ title: "One", statementMarkdown: "One", methods: [] }] },
+    },
+  };
+  await pool.query("UPDATE interviews SET question=$2::jsonb WHERE id=$1", [
+    session,
+    JSON.stringify(question),
+  ]);
+  await pool.query(
+    "INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) VALUES($1,$2,0,convert_to('[]','UTF8')),($1,$2,1,convert_to('[]','UTF8'))",
+    [session, epoch],
+  );
+  const snapshot = interviewSnapshotStream(run);
+  for (const actor of [host, alice]) {
+    const value = JSON.parse(await new Response(await snapshot(actor, session)).text());
+    assert.deepEqual(value.question.progress.caseStatuses, [{ index: 0, status: "accepted" }]);
+  }
 });
 void test("status backfill scans retained case pages and preserves case index and NUL", async () => {
   const { backfillOnePublicStatus } = await import("./status-backfill.ts");

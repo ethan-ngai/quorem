@@ -197,6 +197,60 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
       expect(selected.questionEpoch).not.toBe(qid);
       expect(selected.document.epoch).not.toBe(saved.document.epoch);
       expect(selected.question.progress.level).toBe(1);
+      const longStatus = "wrong\u0000answer" + "x".repeat(140000);
+      const submitted = crypto.randomUUID();
+      const active = (
+        await pool.query(
+          "SELECT fixture_id FROM interview_active_runner_inputs WHERE session_id=$1 AND question_epoch=$2",
+          [id, selected.questionEpoch],
+        )
+      ).rows[0];
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          "INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'submit','','feedback','running','[]')",
+          [submitted, viewer.userId, id],
+        );
+        await client.query(
+          "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level) VALUES($1,$2,1,$3,$4,$5,1)",
+          [submitted, id, selected.document.epoch, selected.questionEpoch, active.fixture_id],
+        );
+        await client.query(
+          "INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES($1,$2,'python',true)",
+          [crypto.randomUUID(), submitted],
+        );
+        await client.query(
+          "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,convert_to('{}','UTF8'))",
+          [submitted],
+        );
+        await client.query(
+          "INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) VALUES($1,'sample',0,convert_to('{}','UTF8'))",
+          [submitted],
+        );
+        await client.query(
+          "INSERT INTO submission_public_case_statuses(submission_id,channel,ordinal,case_index,status_json,status_hash) SELECT $1,'sample',0,7,v,sha256(v) FROM (SELECT convert_to($2,'UTF8') v) x",
+          [submitted, JSON.stringify(longStatus)],
+        );
+        await client.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [
+          submitted,
+        ]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+      for (const reader of [host, viewer]) {
+        const feedback = JSON.parse(await new Response(await lifecycle.read(reader, id)).text());
+        expect(feedback.question.progress.caseStatuses).toEqual([{ index: 7, status: longStatus }]);
+      }
+      const streamed = (await lifecycle.read(host, id)).getReader();
+      expect((await streamed.read()).done).toBe(false);
+      await pool.query("UPDATE users SET disabled=true WHERE id=$1", [host.userId]);
+      await expect(streamed.read()).rejects.toThrow();
+      await pool.query("UPDATE users SET disabled=false WHERE id=$1", [host.userId]);
       await expect(
         commands.passStage(interviewer, id, "not-host", selected.questionEpoch, 1),
       ).rejects.toMatchObject({ status: 403 });
