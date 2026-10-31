@@ -87,7 +87,7 @@ it("admits and replays through workerd and real PostgreSQL", async () => {
     headers: { "Content-Type": "application/json", "Idempotency-Key": "wake-failure" },
     body: command,
   });
-  expect(failure.status).toBeGreaterThanOrEqual(500);
+  expect(failure.status).toBe(503);
   const count = await run((scope) =>
     scope.transaction(
       { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },
