@@ -193,6 +193,8 @@ jobs:
           QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
           WRANGLER_SEND_METRICS: "false"
         run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
+      - name: Mandatory container runner release validation
+        run: node scripts/hono-container-validation.mjs
       - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'
       # Integration packages share one disposable database and reset its fixtures.
       - run: go test -p 1 ./...
