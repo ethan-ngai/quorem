@@ -7,6 +7,7 @@ vi.mock("nodemailer", () => ({ default: { createTransport } }));
 import { smtpEmail } from "./smtp-email";
 import { cloudflareEmail } from "./cloudflare-email";
 import { verificationMailer } from "../mailer";
+import { MailRejected } from "../email-delivery.ts";
 const message = { to: "person@example.com", subject: "Verify", text: "A link" };
 describe("email adapters", () => {
   it("verifies SMTP authentication without sending a message or exposing provider failures", async () => {
@@ -51,6 +52,14 @@ describe("email adapters", () => {
     expect(sendMail).toHaveBeenLastCalledWith({ from: config.from, ...message });
     sendMail.mockRejectedValueOnce(new Error("provider credentials details"));
     await expect(smtpEmail(config).send(message)).rejects.toThrow("Email delivery unavailable");
+  });
+  it("distinguishes SMTP rejection from ambiguous connection loss", async () => {
+    createTransport.mockReturnValue({ sendMail });
+    const mail = smtpEmail({ host: "localhost", port: 25, from: "accounts@example.com" });
+    sendMail.mockRejectedValueOnce(Object.assign(new Error("private SMTP response"), { responseCode: 550 }));
+    await expect(mail.send(message)).rejects.toBeInstanceOf(MailRejected);
+    sendMail.mockRejectedValueOnce(Object.assign(new Error("private socket error"), { code: "ECONNRESET" }));
+    await expect(mail.send(message)).rejects.toThrow("Email delivery unavailable");
   });
   it.each(["delivered", "queued"])(
     "maps Cloudflare outbound REST %s acceptance",

@@ -1,11 +1,21 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { withNodeConnection, type Transaction } from "@quorem/database/core";
+import { createMailRepository } from "./mail-repository.ts";
+import { createMailIntentService, MailRejected } from "./mail-intent.ts";
+import type { VerificationSender } from "./email-delivery.ts";
 import { describe, expect, it } from "vitest";
 import { migrateAuth } from "./migrations";
 import { createRegistrationHandler } from "./registration";
 import { verificationMailer } from "./mailer";
 import { smtpEmail } from "./adapters/smtp-email";
 
+function registrationFixture(database: Pool, origin: string, send: VerificationSender) {
+  const run = <T>(action: (tx: Transaction) => Promise<T>) => withNodeConnection(database, { lifetimeMs: 10000 }, (scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, action));
+  const repository = createMailRepository(run);
+  const mail = createMailIntentService({ repository, key: new Uint8Array(32).fill(4), deliver: send });
+  return createRegistrationHandler({ repository, mail, origin });
+}
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL;
 async function clearLimits(database: Pool, email: string) {
   const keys = [
@@ -47,14 +57,10 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
           }),
         )
       : undefined;
-    const handler = createRegistrationHandler({
-      database,
-      origin,
-      send: async (to, url) => {
+    const handler = registrationFixture(database, origin, async (to, url) => {
         await smtp?.(to, url);
         messages.push(url);
-      },
-    });
+      });
     const call = async (path: string, body?: object, cookie = "", source = origin) =>
       (await handler(
         new Request(`${origin}/api/auth/registration/${path}`, {
@@ -182,14 +188,10 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       id = randomUUID();
     let fail = true;
     const messages: string[] = [];
-    const handler = createRegistrationHandler({
-      database,
-      origin,
-      send: async (_email, url) => {
-        if (fail) throw Error("SMTP down");
+    const handler = registrationFixture(database, origin, async (_email, url) => {
+        if (fail) throw new MailRejected("SMTP down");
         messages.push(url);
-      },
-    });
+      });
     const call = async (path: string, body: object, cookie = "") =>
       (await handler(
         new Request(`${origin}/api/auth/registration/${path}`, {
@@ -265,13 +267,7 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       await clearLimits(database, email);
       for (let attempt = 0; attempt < 6; attempt++) {
         await database.query("DELETE FROM rate_limit WHERE bucket=$1", [cooldownKey]);
-        const handler = createRegistrationHandler({
-          database,
-          origin,
-          send: async () => {
-            sent++;
-          },
-        });
+        const handler = registrationFixture(database, origin, async () => { sent++; });
         const response = (await handler(request()))!;
         expect(response.status).toBe(200);
         const result = await response.json();
