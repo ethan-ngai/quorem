@@ -92,6 +92,8 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
           return;
         }
         const hasStderr =
+          job.language === "postgresql" &&
+          receipt.status === "invalid_output" &&
           (
             await tx.execute(
               sql`SELECT 1 FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${row.result_channel} AND ordinal=${row.result_ordinal} AND field='stderr' LIMIT 1`,
