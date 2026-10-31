@@ -1681,9 +1681,9 @@ export const execution_dispatch_intents = pgTable(
   },
   (table) => [
     foreignKey({
-      name: "execution_dispatch_intents_job_id_fkey",
       columns: [table.job_id],
       foreignColumns: [execution_jobs.id],
+      name: "execution_dispatch_intents_job_id_fkey",
     }).onDelete("cascade"),
     index("execution_dispatch_pending")
       .on(table.available_at, table.id)
@@ -1695,13 +1695,15 @@ export const deadline_prearms = pgTable(
   "deadline_prearms",
   {
     id: uuid().primaryKey().notNull(),
+    purpose: text().notNull(),
     shard: integer().notNull(),
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
     committed_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table) => [
+    check("deadline_prearms_purpose_check", sql`purpose IN ('deadline','execution')`),
     check("deadline_prearms_shard_check", sql`shard >= 0 AND shard < 256`),
-    index("deadline_prearms_shard").on(table.shard, table.expires_at, table.id),
+    index("deadline_prearms_shard").on(table.purpose, table.shard, table.expires_at, table.id),
   ],
 );
 
@@ -1820,3 +1822,203 @@ export const interview_execution_public = pgView("interview_execution_public", {
   result_count: integer(),
   private_statuses: jsonb(),
 }).existing();
+
+export const execution_completion_staging = pgTable(
+  "execution_completion_staging",
+  {
+    job_id: uuid().primaryKey().notNull(),
+    attempt_id: uuid().notNull(),
+    sandbox_scope: text().notNull(),
+    header_data: bytea().notNull(),
+    header_hash: bytea().notNull(),
+    eof: boolean().default(false).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_jobs.id],
+      name: "execution_completion_staging_job_id_fkey",
+    }).onDelete("cascade"),
+    check("execution_completion_staging_header_hash_check", sql`octet_length(header_hash) = 32`),
+  ],
+);
+export const execution_completion_frames = pgTable(
+  "execution_completion_frames",
+  {
+    job_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    status: text().notNull(),
+    frame_data: bytea().notNull(),
+    frame_hash: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.channel, table.ordinal],
+      name: "execution_completion_frames_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_completion_staging.job_id],
+      name: "execution_completion_frames_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_frames_channel_check",
+      sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text])`,
+    ),
+    check("execution_completion_frames_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check("execution_completion_frames_frame_hash_check", sql`octet_length(frame_hash) = 32`),
+  ],
+);
+export const submission_result_headers = pgTable(
+  "submission_result_headers",
+  {
+    submission_id: uuid().primaryKey().notNull(),
+    header_data: bytea().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.submission_id],
+      foreignColumns: [submissions.id],
+      name: "submission_result_headers_submission_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
+export const submission_public_result_cases = pgTable(
+  "submission_public_result_cases",
+  {
+    submission_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    result_data: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.submission_id, table.channel, table.ordinal],
+      name: "submission_public_result_cases_pkey",
+    }),
+    foreignKey({
+      columns: [table.submission_id],
+      foreignColumns: [submissions.id],
+      name: "submission_public_result_cases_submission_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "submission_public_result_cases_channel_check",
+      sql`channel = ANY (ARRAY['public'::text, 'sample'::text])`,
+    ),
+    check("submission_public_result_cases_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+  ],
+);
+export const execution_completion_receipts = pgTable(
+  "execution_completion_receipts",
+  {
+    job_id: uuid().notNull(),
+    attempt_id: uuid().notNull(),
+    sandbox_scope: text().notNull(),
+    outcome: text().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.attempt_id, table.sandbox_scope],
+      name: "execution_completion_receipts_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_jobs.id],
+      name: "execution_completion_receipts_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_receipts_outcome_check",
+      sql`outcome = ANY (ARRAY['completed'::text, 'cancelled'::text, 'failed'::text, 'requeued'::text])`,
+    ),
+  ],
+);
+export const execution_completion_field_chunks = pgTable(
+  "execution_completion_field_chunks",
+  {
+    job_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    field: text().notNull(),
+    chunk_ordinal: integer().notNull(),
+    chunk_data: bytea().notNull(),
+    chunk_hash: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.channel, table.ordinal, table.field, table.chunk_ordinal],
+      name: "execution_completion_field_chunks_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_completion_staging.job_id],
+      name: "execution_completion_field_chunks_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_field_chunks_channel_check",
+      sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text, 'header'::text])`,
+    ),
+    check("execution_completion_field_chunks_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check(
+      "execution_completion_field_chunks_field_check",
+      sql`field = ANY (ARRAY['actual'::text, 'expected'::text, 'stdout'::text, 'stderr'::text, 'diagnostics'::text, 'sqlTypes'::text])`,
+    ),
+    check("execution_completion_field_chunks_chunk_ordinal_check", sql`chunk_ordinal >= 0`),
+    check(
+      "execution_completion_field_chunks_chunk_data_check",
+      sql`octet_length(chunk_data) <= 65536`,
+    ),
+    check("execution_completion_field_chunks_chunk_hash_check", sql`octet_length(chunk_hash) = 32`),
+  ],
+);
+export const execution_completion_header_fields = pgTable(
+  "execution_completion_header_fields",
+  {
+    job_id: uuid().notNull(),
+    field: text().notNull(),
+    field_data: bytea().notNull(),
+    field_hash: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.field],
+      name: "execution_completion_header_fields_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_completion_staging.job_id],
+      name: "execution_completion_header_fields_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_header_fields_field_check",
+      sql`field = ANY (ARRAY['diagnostics'::text, 'verdict'::text, 'infrastructureError'::text, 'hiddenCases'::text])`,
+    ),
+    check(
+      "execution_completion_header_fields_field_hash_check",
+      sql`octet_length(field_hash) = 32`,
+    ),
+  ],
+);
+export const submission_result_header_fields = pgTable(
+  "submission_result_header_fields",
+  {
+    submission_id: uuid().notNull(),
+    field: text().notNull(),
+    field_data: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.submission_id, table.field],
+      name: "submission_result_header_fields_pkey",
+    }),
+    foreignKey({
+      columns: [table.submission_id],
+      foreignColumns: [submissions.id],
+      name: "submission_result_header_fields_submission_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "submission_result_header_fields_field_check",
+      sql`field = ANY (ARRAY['diagnostics'::text, 'verdict'::text, 'infrastructureError'::text, 'hiddenCases'::text])`,
+    ),
+  ],
+);
