@@ -32,7 +32,7 @@ CREATE FUNCTION guard_terminal_result_rows() RETURNS trigger LANGUAGE plpgsql AS
 DECLARE current_state text; target uuid;
 BEGIN
  target := CASE WHEN TG_OP='DELETE' THEN OLD.submission_id ELSE NEW.submission_id END;
- SELECT state INTO current_state FROM submissions WHERE id=target FOR KEY SHARE;
+ SELECT state INTO current_state FROM submissions WHERE id=target FOR UPDATE;
  IF current_state IN ('completed','failed','cancelled') AND NOT
     (TG_OP='INSERT' AND current_setting('quorem.result_backfill',true)='v1') THEN
   RAISE EXCEPTION 'terminal result rows are immutable' USING ERRCODE='55000';
