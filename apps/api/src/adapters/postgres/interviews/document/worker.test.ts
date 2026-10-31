@@ -58,7 +58,7 @@ it("uses Worker HTTP and PostgreSQL for ordered document replay", async () => {
       body: JSON.stringify(batch).replace("🦊", String.raw`\ud83e\udd8a`),
     });
   const race = await Promise.all([push("worker-a"), push("worker-b")]);
-  expect(race.map((r) => r.status).sort()).toEqual([200, 409]);
+  expect(race.map((r) => r.status).sort((a, b) => a - b)).toEqual([200, 409]);
   expect((await push(race[0].status === 200 ? "worker-a" : "worker-b")).status).toBe(200);
   const response = await app.request(`${base}/updates?epoch=${batch.epoch}&version=0`);
   expect(response.status).toBe(200);

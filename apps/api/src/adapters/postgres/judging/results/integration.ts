@@ -1128,11 +1128,11 @@ void test("classic interview fallback shares verified examples without hiding th
       );
     }),
   );
-  const { backfillSnapshotPublicExamples } =
-    await import("../../interviews/question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } =
+    await import("../../interviews/runner-inputs/legacy-backfill.ts");
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
-      await backfillSnapshotPublicExamples(tx, session, fixtureId);
+      await backfillHistoricalRunnerInput(tx, session, fixtureId);
       const owner = { session, fixture: fixtureId };
       await indexRunnerFixture(tx, owner, fixture);
       await bindJobInputs(tx, {

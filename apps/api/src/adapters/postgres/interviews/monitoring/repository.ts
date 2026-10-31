@@ -2,7 +2,6 @@
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
-import type { Principal } from "../../../../modules/identity/model.ts";
 import type {
   InterviewMonitoring,
   MonitoringPolicy,
