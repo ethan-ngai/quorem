@@ -33,19 +33,35 @@ func TestMigrationsPreserveDataAndRejectUnavailableHistory(t *testing.T) {
 	if err := s.Pool.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&names); err != nil || names != len(paths) {
 		t.Fatal("expected every repository migration", names, err)
 	}
-	if _, err := s.Pool.Exec(ctx, "DELETE FROM schema_migrations WHERE name='007_schema.sql'"); err != nil {
+	var checksum string
+	if err := s.Pool.QueryRow(ctx, "SELECT checksum FROM schema_migrations WHERE name='007_schema.sql'").Scan(&checksum); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = s.Pool.Exec(ctx, "INSERT INTO schema_migrations VALUES('007_schema.sql') ON CONFLICT DO NOTHING")
+		_, _ = s.Pool.Exec(ctx, "INSERT INTO schema_migrations(name,checksum) VALUES('007_schema.sql',$1) ON CONFLICT(name) DO UPDATE SET checksum=excluded.checksum", checksum)
 	})
+	if _, err := s.Pool.Exec(ctx, "UPDATE schema_migrations SET checksum='tampered' WHERE name='007_schema.sql'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Migrate(ctx, "../../../migrations"); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatal("tampered history accepted", err)
+	}
+	if _, err := s.Pool.Exec(ctx, "UPDATE schema_migrations SET checksum=NULL WHERE name='007_schema.sql'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Migrate(ctx, "../../../migrations"); err == nil || !strings.Contains(err.Error(), "audited baseline") {
+		t.Fatal("name-only history accepted", err)
+	}
+	if _, err := s.Pool.Exec(ctx, "DELETE FROM schema_migrations WHERE name='007_schema.sql'"); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Migrate(ctx, "../../../migrations"); err == nil || !strings.Contains(err.Error(), "contiguous prefix") {
 		t.Fatal("gapped history accepted", err)
 	}
-	if _, err := s.Pool.Exec(ctx, "INSERT INTO schema_migrations VALUES('007_schema.sql')"); err != nil {
+	if _, err := s.Pool.Exec(ctx, "INSERT INTO schema_migrations(name,checksum) VALUES('007_schema.sql',$1)", checksum); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Pool.Exec(ctx, "INSERT INTO schema_migrations VALUES('085_interview_admission_lock.sql')"); err != nil {
+	if _, err := s.Pool.Exec(ctx, "INSERT INTO schema_migrations(name) VALUES('085_interview_admission_lock.sql')"); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -59,6 +75,32 @@ func TestMigrationsPreserveDataAndRejectUnavailableHistory(t *testing.T) {
 	}
 	if err := s.Migrate(ctx, t.TempDir()); err == nil {
 		t.Fatal("empty migration directory accepted")
+	}
+	if _, err := s.Pool.Exec(ctx, "DELETE FROM schema_migrations WHERE name='085_interview_admission_lock.sql'"); err != nil {
+		t.Fatal(err)
+	}
+	tampered := t.TempDir()
+	for _, path := range paths {
+		data, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if filepath.Base(path) == "007_schema.sql" {
+			data = append(data, '\n')
+		}
+		if e = os.WriteFile(filepath.Join(tampered, filepath.Base(path)), data, 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(tampered, "999_pending.sql"), []byte("CREATE TABLE public.go_checksum_pending(id int)"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Migrate(ctx, tampered); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+		t.Fatal("changed migration bytes accepted", err)
+	}
+	var pending *string
+	if err := s.Pool.QueryRow(ctx, "SELECT to_regclass('public.go_checksum_pending')::text").Scan(&pending); err != nil || pending != nil {
+		t.Fatal("pending SQL ran after checksum mismatch", pending, err)
 	}
 }
 

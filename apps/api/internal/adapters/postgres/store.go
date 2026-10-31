@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"github.com/ethan-ngai/quorem/apps/api/internal/application"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"time"
+	"unicode/utf8"
 )
 
 type Store struct {
@@ -70,17 +72,6 @@ func Open(ctx context.Context, url string) (*Store, error) {
 	return &Store{Pool: p, inviteKey: key, losslessResults: os.Getenv("QUOREM_LOSSLESS_RESULT_WRITES") == "true"}, nil
 }
 func (s *Store) Migrate(ctx context.Context, dir string) error {
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740010)"); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY)"); err != nil {
-		return err
-	}
 	paths, err := filepath.Glob(filepath.Join(dir, "*.sql"))
 	if err != nil {
 		return err
@@ -89,26 +80,53 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 	if len(paths) == 0 {
 		return fmt.Errorf("no SQL migrations found in %s", dir)
 	}
-	rows, err := tx.Query(ctx, "SELECT name FROM schema_migrations")
+	type migration struct{ name, sql, checksum string }
+	files := make([]migration, 0, len(paths))
+	for _, path := range paths {
+		data, e := os.ReadFile(path)
+		if e != nil {
+			return e
+		}
+		if !utf8.Valid(data) {
+			return fmt.Errorf("migration %s is not UTF-8", path)
+		}
+		files = append(files, migration{filepath.Base(path), string(data), fmt.Sprintf("%x", sha256.Sum256(data))})
+	}
+	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	appliedNames := make(map[string]bool)
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(740010)"); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, "CREATE TABLE IF NOT EXISTS public.schema_migrations(name text PRIMARY KEY)"); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, "ALTER TABLE public.schema_migrations ADD COLUMN IF NOT EXISTS checksum text, ADD COLUMN IF NOT EXISTS baseline_operation text, ADD COLUMN IF NOT EXISTS baseline_operator text, ADD COLUMN IF NOT EXISTS baseline_reason text, ADD COLUMN IF NOT EXISTS baseline_artifact text"); err != nil {
+		return err
+	}
+	rows, err := tx.Query(ctx, "SELECT name,checksum FROM public.schema_migrations FOR UPDATE")
+	if err != nil {
+		return err
+	}
+	appliedNames := make(map[string]*string)
 	for rows.Next() {
 		var name string
-		if err = rows.Scan(&name); err != nil {
+		var checksum *string
+		if err = rows.Scan(&name, &checksum); err != nil {
 			rows.Close()
 			return err
 		}
-		appliedNames[name] = true
+		appliedNames[name] = checksum
 	}
 	rows.Close()
 	if err = rows.Err(); err != nil {
 		return err
 	}
-	names := make(map[string]bool, len(paths))
-	for _, path := range paths {
-		names[filepath.Base(path)] = true
+	names := make(map[string]bool, len(files))
+	for _, file := range files {
+		names[file.name] = true
 	}
 	for name := range appliedNames {
 		if !names[name] {
@@ -116,25 +134,31 @@ func (s *Store) Migrate(ctx context.Context, dir string) error {
 		}
 	}
 	missing := false
-	for _, path := range paths {
-		if !appliedNames[filepath.Base(path)] {
+	for _, file := range files {
+		if _, ok := appliedNames[file.name]; !ok {
 			missing = true
 		} else if missing {
 			return fmt.Errorf("migration history is not a contiguous prefix")
 		}
 	}
-	for _, path := range paths {
-		if appliedNames[filepath.Base(path)] {
+	for _, file := range files {
+		if checksum, ok := appliedNames[file.name]; ok {
+			if checksum == nil || *checksum == "" {
+				return fmt.Errorf("product migration history requires an audited baseline")
+			}
+			if *checksum != file.checksum {
+				return fmt.Errorf("product migration checksum mismatch: %s", file.name)
+			}
+		}
+	}
+	for _, file := range files {
+		if _, ok := appliedNames[file.name]; ok {
 			continue
 		}
-		data, e := os.ReadFile(path)
-		if e != nil {
-			return e
+		if _, e := tx.Exec(ctx, file.sql); e != nil {
+			return fmt.Errorf("migration %s: %w", file.name, e)
 		}
-		if _, e = tx.Exec(ctx, string(data)); e != nil {
-			return fmt.Errorf("migration %s: %w", path, e)
-		}
-		if _, e = tx.Exec(ctx, "INSERT INTO schema_migrations(name) VALUES($1)", filepath.Base(path)); e != nil {
+		if _, e := tx.Exec(ctx, "INSERT INTO public.schema_migrations(name,checksum) VALUES($1,$2)", file.name, file.checksum); e != nil {
 			return e
 		}
 	}
