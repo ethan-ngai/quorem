@@ -46,6 +46,64 @@ it("releases a stream permit when its request aborts", async () => {
     (await budget(new Request("https://example.test/"), async () => new Response(null))).status,
   ).toBe(200);
 });
+it("closes the downstream on abort and holds the permit until cancellation settles", async () => {
+  const budget = requestBudget(1),
+    abort = new AbortController();
+  let settle!: () => void,
+    calls = 0;
+  const cancelled = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+  const response = await budget(
+    new Request("https://example.test/", { signal: abort.signal }),
+    async () =>
+      new Response(
+        new ReadableStream({
+          cancel() {
+            calls++;
+            return cancelled;
+          },
+        }),
+      ),
+  );
+  const reader = response.body!.getReader();
+  const pending = reader.read();
+  abort.abort();
+  expect(await pending).toEqual({ done: true, value: undefined });
+  expect(await reader.read()).toEqual({ done: true, value: undefined });
+  await reader.cancel();
+  expect(calls).toBe(1);
+  expect(
+    (await budget(new Request("https://example.test/"), async () => new Response(null))).status,
+  ).toBe(503);
+  settle();
+  await cancelled;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(
+    (await budget(new Request("https://example.test/"), async () => new Response(null))).status,
+  ).toBe(200);
+});
+it("handles an already aborted request and a rejected upstream cancellation", async () => {
+  const budget = requestBudget(1),
+    abort = new AbortController();
+  abort.abort();
+  const response = await budget(
+    new Request("https://example.test/", { signal: abort.signal }),
+    async () =>
+      new Response(
+        new ReadableStream({
+          cancel() {
+            return Promise.reject(new Error("cancel failed"));
+          },
+        }),
+      ),
+  );
+  expect(await response.text()).toBe("");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(
+    (await budget(new Request("https://example.test/"), async () => new Response(null))).status,
+  ).toBe(200);
+});
 it("preserves multiple Set-Cookie headers on streamed responses", async () => {
   const headers = new Headers();
   headers.append("set-cookie", "a=1; Path=/; HttpOnly");

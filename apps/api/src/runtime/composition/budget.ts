@@ -22,6 +22,8 @@ export function requestBudget(limit: number) {
       }
       const reader = response.body.getReader();
       let unlocked = false;
+      let terminated = false;
+      let cancellation: Promise<void> | undefined;
       const finish = () => {
         release();
         if (!unlocked) {
@@ -29,34 +31,43 @@ export function requestBudget(limit: number) {
           reader.releaseLock();
         }
       };
-      abort = () => {
-        void reader
-          .cancel(request.signal.reason)
-          .catch(() => {})
-          .finally(finish);
+      const cancel = (reason: unknown) => {
+        cancellation ??= reader.cancel(reason).finally(finish);
+        return cancellation;
       };
-      if (request.signal.aborted) abort();
-      else request.signal.addEventListener("abort", abort, { once: true });
       const body = new ReadableStream<Uint8Array>(
         {
+          start(controller) {
+            abort = () => {
+              if (terminated) return;
+              terminated = true;
+              controller.close();
+              void cancel(request.signal.reason).catch(() => {});
+            };
+            if (request.signal.aborted) abort();
+            else request.signal.addEventListener("abort", abort, { once: true });
+          },
           async pull(controller) {
+            if (terminated) return;
             try {
               const chunk = await reader.read();
+              if (terminated) return;
               if (chunk.done) {
+                terminated = true;
                 finish();
                 controller.close();
               } else controller.enqueue(chunk.value);
             } catch (error) {
+              if (terminated) return;
+              terminated = true;
               finish();
               controller.error(error);
             }
           },
           async cancel(reason) {
-            try {
-              await reader.cancel(reason);
-            } finally {
-              finish();
-            }
+            if (terminated) return cancellation;
+            terminated = true;
+            await cancel(reason);
           },
         },
         { highWaterMark: 0 },
