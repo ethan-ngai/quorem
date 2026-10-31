@@ -27,6 +27,9 @@ void test(
         const role = "quorem_stage_runtime_aaaaaaaaaaaa",
           password = "fixture-password-with-at-least-32-characters";
         try {
+          await client.query(
+            "CREATE ROLE fixture_connect_group NOLOGIN; CREATE ROLE fixture_other_login LOGIN IN ROLE fixture_connect_group; GRANT CONNECT ON DATABASE quorem_hono_stage TO fixture_connect_group",
+          );
           const before = await client.query(
             "SELECT datacl FROM pg_database WHERE datname=current_database()",
           );
@@ -45,6 +48,14 @@ void test(
             (await client.query("SELECT datacl FROM pg_database WHERE datname=current_database()"))
               .rows,
             before.rows,
+          );
+          assert.equal(
+            (
+              await client.query(
+                "SELECT has_database_privilege('fixture_other_login',current_database(),'CONNECT') AS connected",
+              )
+            ).rows[0].connected,
+            true,
           );
           await client.query(`CREATE ROLE ${role} NOLOGIN`);
           const rejected = await rehearseStageRole(client, role, password);

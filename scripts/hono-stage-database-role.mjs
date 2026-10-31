@@ -74,6 +74,19 @@ async function configureStageRole(operator, role, password, setPhase) {
   setPhase("database_grants");
   await operator.query("REVOKE CONNECT ON DATABASE quorem_hono_stage FROM PUBLIC");
   await operator.query(`GRANT CONNECT ON DATABASE quorem_hono_stage TO ${name}`);
+  // Managed databases may grant CONNECT to shared groups independently of PUBLIC.
+  const connected = await operator.query(
+    `SELECT DISTINCT r.rolname AS name FROM pg_database d,
+      LATERAL aclexplode(coalesce(d.datacl,acldefault('d',d.datdba))) a
+      JOIN pg_roles r ON r.oid=a.grantee
+      WHERE d.datname=current_database() AND a.privilege_type='CONNECT'
+        AND r.rolname NOT IN(current_user,$1) ORDER BY r.rolname`,
+    [role],
+  );
+  for (const row of connected.rows)
+    await operator.query(
+      `REVOKE CONNECT ON DATABASE quorem_hono_stage FROM ${escapeIdentifier(row.name)}`,
+    );
   setPhase("schema_grants");
   await operator.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
   await operator.query(`GRANT USAGE ON SCHEMA public, quorem_auth TO ${name}`);
