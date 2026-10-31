@@ -8,7 +8,12 @@ import { preparePublishedInterviewQuestion } from "./prepare.ts";
 import { interviewSnapshotStream } from "./stream.ts";
 import { createApp } from "../../../../app.ts";
 import { interviewLifecycleRoutes } from "../../../../modules/interviews/lifecycle/routes.ts";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 const url = (env as unknown as { INTERVIEW_QUESTIONS_URL: string }).INTERVIEW_QUESTIONS_URL;
+assertRunnerFixture(url, [
+  "/quorem_hono_interview_questions_test",
+  "/quorem_hono_29c_commands_test",
+]);
 it("streams large examples and authorized private cases in bounded pages; revocation aborts", async () => {
   const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 3000, lifetimeMs: 10000 }, fn);
@@ -59,7 +64,7 @@ it("streams large examples and authorized private cases in bounded pages; revoca
       expect(v.value.length).toBeLessThanOrEqual(65536);
       chunks.push(v.value);
     }
-    return await new Response(new Blob(chunks)).text();
+    return await new Response(new Blob(chunks.map((chunk) => Uint8Array.from(chunk)))).text();
   }
   const app = createApp({ allowedOrigins: [], requestId: () => "large" }).route(
     "/",

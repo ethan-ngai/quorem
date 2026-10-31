@@ -19,15 +19,11 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defaultLimits } from "@quorem/execution";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 const url = process.env.QUOREM_MATCH_TEST_DATABASE_URL;
-if (
-  !url ||
-  new URL(url).port !== "55576" ||
-  new URL(url).pathname !== "/quorem_hono_match_manifest_test" ||
-  !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
-)
-  throw new Error("Disposable match database required");
+if (!url) throw new Error("Disposable match database required");
+assertRunnerFixture(url, ["/quorem_hono_match_manifest_test"]);
 const pool = createNodePool({
   connectionString: url,
   max: 8,

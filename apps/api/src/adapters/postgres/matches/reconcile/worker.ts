@@ -5,14 +5,10 @@ import { it, expect } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { reconcileMatch, reconcileScheduledMatch } from "./repository.ts";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 const url = (env as unknown as { MATCH_TEST_URL: string }).MATCH_TEST_URL;
+assertRunnerFixture(url, ["/quorem_hono_match_manifest_test"]);
 it("reconciles an expired invitation once with real PostgreSQL", async () => {
-  const parsed = new URL(url);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-    "127.0.0.1",
-    "55576",
-    "/quorem_hono_match_manifest_test",
-  ]);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000 }, f);
   const id = crypto.randomUUID(),

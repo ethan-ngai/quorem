@@ -1034,6 +1034,15 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   const revealed = await repo.interview(alice, session, submission);
   assert.match(revealed, /PRIVATE\\u0000OUTPUT/);
   assert.match(revealed, /"expected":2/);
+  await pool.query("UPDATE submissions SET result=NULL WHERE id=$1", [submission]);
+  const retained = (
+    await pool.query(
+      "SELECT (SELECT count(*)::int FROM interview_private_result_cases WHERE submission_id=$1) AS private,(SELECT count(*)::int FROM submission_result_headers WHERE submission_id=$1) AS headers,(SELECT count(*)::int FROM submission_public_result_cases WHERE submission_id=$1) AS public",
+      [submission],
+    )
+  ).rows[0];
+  assert.deepEqual(retained, { private: 0, headers: 0, public: 0 });
+  assert.doesNotMatch(await repo.interview(alice, session, submission), /PRIVATE|"expected":2/);
 });
 void test("streams a synthetic legacy-sized 408-case result without a Worker case plan", async () => {
   const id = crypto.randomUUID();

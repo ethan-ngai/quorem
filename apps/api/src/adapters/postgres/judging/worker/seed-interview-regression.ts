@@ -9,10 +9,13 @@ import { persistQuestionVersion } from "../../problems/publication.ts";
 const url = process.env.QUOREM_INTERVIEW_REGRESSION_URL;
 if (
   !url ||
-  new URL(url).hostname !== "127.0.0.1" ||
-  new URL(url).port !== "55576" ||
+  !["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname) ||
   !["/quorem_hono_interview_questions_test", "/quorem_hono_interview_execution_test"].includes(
     new URL(url).pathname,
+  ) ||
+  !["postgres:", "postgresql:"].includes(new URL(url).protocol) ||
+  [...new URL(url).searchParams.keys()].some((key) =>
+    ["host", "hostaddr", "service"].includes(key.toLowerCase()),
   )
 )
   throw new Error("Disposable interview regression database required");

@@ -8,8 +8,11 @@ Disposable PostgreSQL 17 at `127.0.0.1:55576`, separate `quorem_hono_match_manif
 - Match native workerd: 9 passed, including pure Go-derived positive policy vectors and PostgreSQL denial of unverified results.
 - Runner Node: 11 passed with no skips. Includes real Python and TypeScript Docker execution, checkpoint-v2 tamper/fence tests, resumed compiled artifact, signed verifier, cancellation, cleanup and guest accounting. A real legacy Go runner is rejected by the manifest protocol guard.
 - Runner native workerd: 1 passed against PostgreSQL and the loopback HTTP verifier.
-- Interview question 23: Node 3 passed, workerd 1 passed on seeded disposable DB.
-- Interview execution 26: 1 passed, 2 failed at the pre-existing missing active-question mapping on this base. Integrate the actual 29c producer, then rerun 26 Node and workerd; do not seed a fake mapping. This packet is not complete until that integration passes.
-- API typecheck and `vp check --no-fmt` pass; the latter reports one pre-existing interview document sort warning.
+- Interview question 23: Node commands 3 passed, legacy input backfill 4 passed, workerd commands 1 passed and bounded streaming 1 passed on disposable DBs.
+- Interview execution 26: Node 3 passed and workerd 1 passed after integration of the actual 29c active-question producer. Accepted interview promotion uses the real local HTTP verifier.
+- Result streaming/repair 19b: Node 24 passed, including 051 private repair, rollback and lock fencing, actual signed interview promotion, subsequent retention cleanup, and a synthetic 408-case result.
+- API typecheck and `vp check --no-fmt` pass; the latter reports existing interview document sort and monitoring import warnings.
 
-Use the named disposable URLs with `vp -C apps/api exec node --test src/adapters/postgres/matches/reconcile/integration.ts`, `vp -C apps/api exec vitest run --config src/adapters/postgres/matches/reconcile/vitest.workers.config.ts`, and the worker and interview `vitest.config.ts` / `vitest.workers.config.ts` beside their tests. Match and engine Docker tests also require `QUOREM_TEST_DOCKER_SOCKET`; runner workerd uses the local `verification-test-server.ts` origin and public key. No hosted validation.
+Use the named disposable URLs with `vp -C apps/api exec node --test src/adapters/postgres/matches/reconcile/integration.ts`, `vp -C apps/api exec vitest run --config src/adapters/postgres/matches/reconcile/vitest.workers.config.ts`, and the worker and interview `vitest.config.ts` / `vitest.workers.config.ts` beside their tests. Match and engine Docker tests also require `QUOREM_TEST_DOCKER_SOCKET`; runner workerd uses `QUOREM_RUNNER_TEST_DATABASE_URL=<disposable-url> vp -C apps/api exec node src/adapters/postgres/judging/worker/run-workerd.mjs` to start its local verifier. No hosted validation.
+
+The integrated progress reader uses an indexed first-failure lookup. No hosted validation.
