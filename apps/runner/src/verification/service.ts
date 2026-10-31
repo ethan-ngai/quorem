@@ -17,6 +17,17 @@ export function createVerificationService(options: {
     options.sourceCredential.every((value, index) => value === options.serviceCredential[index])
   )
     throw new Error("Distinct verification credentials required");
+  // Validate configuration at composition time before opening the private listener.
+  nodeResultVerifier(
+    httpVerificationSource({
+      origin: options.sourceOrigin,
+      credential: options.sourceCredential,
+      challenge: "configuration",
+      timeoutMs: options.timeoutMs,
+      fetch: options.fetch,
+    }),
+    options.signingKey,
+  );
   return verificationHandler({
     credential: options.serviceCredential,
     timeoutMs: options.timeoutMs,

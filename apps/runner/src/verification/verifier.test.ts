@@ -255,3 +255,26 @@ void test("private verifier bounds stalled request bodies and verification time"
     await once(server, "close");
   }
 });
+void test("verification service rejects unusable configuration before listening", async () => {
+  const { createVerificationService } = await import("./service.ts");
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const base = {
+    sourceOrigin: "https://fixture",
+    sourceCredential: new Uint8Array(32).fill(1),
+    serviceCredential: new Uint8Array(32).fill(2),
+    signingKey: keys.privateKey,
+    timeoutMs: 1000,
+  };
+  assert.throws(
+    () => createVerificationService({ ...base, sourceOrigin: "http://public.invalid" }),
+    /Invalid verification source configuration/,
+  );
+  assert.throws(
+    () => createVerificationService({ ...base, serviceCredential: base.sourceCredential }),
+    /Distinct verification credentials/,
+  );
+  assert.throws(
+    () => createVerificationService({ ...base, signingKey: keys.publicKey }),
+    /Invalid verifier signing key/,
+  );
+});
