@@ -4,6 +4,14 @@ export class LegacyJsonReader {
   private buffer = "";
   private index = 0;
   private done = false;
+  private offset = 0;
+  get byteOffset(): number {
+    return this.offset;
+  }
+  private consumed(part: string): string {
+    this.offset += new TextEncoder().encode(part).byteLength;
+    return part;
+  }
   private readonly chunks: AsyncIterator<string>;
   constructor(chunks: AsyncIterator<string>) {
     this.chunks = chunks;
@@ -22,12 +30,14 @@ export class LegacyJsonReader {
       const char = this.buffer[this.index];
       if (!/\s/.test(char)) return char;
       this.index++;
+      this.offset++;
     }
     return "";
   }
   async expect(expected: string): Promise<void> {
     if ((await this.peek()) !== expected) throw new Error("Invalid legacy result JSON");
     this.index++;
+    this.offset++;
   }
   async *valueChunks(): AsyncGenerator<string> {
     const first = await this.peek();
@@ -56,7 +66,7 @@ export class LegacyJsonReader {
           else if (c === '"') {
             inString = false;
             if (quoted && !composite) {
-              yield this.buffer.slice(start, this.index);
+              yield this.consumed(this.buffer.slice(start, this.index));
               return;
             }
           }
@@ -76,20 +86,20 @@ export class LegacyJsonReader {
           depth--;
           this.index++;
           if (!depth) {
-            yield this.buffer.slice(start, this.index);
+            yield this.consumed(this.buffer.slice(start, this.index));
             return;
           }
           continue;
         }
         if (!composite && (c === "," || c === "]" || c === "}" || /\s/.test(c))) {
           const part = this.buffer.slice(start, this.index);
-          if (part) yield part;
+          if (part) yield this.consumed(part);
           return;
         }
         this.index++;
       }
       const part = this.buffer.slice(start, this.index);
-      if (part) yield part;
+      if (part) yield this.consumed(part);
     }
     if (!composite && !quoted && started) return;
     throw new Error("Truncated result JSON");

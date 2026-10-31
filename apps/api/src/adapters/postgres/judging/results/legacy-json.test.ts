@@ -2,7 +2,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { LegacyJsonReader } from "./legacy-json.ts";
-test("scans escaped nested values across input chunks", async () => {
+void test("scans escaped nested values across input chunks", async () => {
   async function* source() {
     yield '{"x":[{"v":"a\\';
     yield '"b"},';
@@ -23,11 +23,28 @@ test("scans escaped nested values across input chunks", async () => {
   await reader.expect("}");
   assert.equal(await reader.peek(), "");
 });
-test("rejects a truncated nested value", async () => {
+void test("rejects a truncated nested value", async () => {
   async function* source() {
     yield '{"x":"';
     yield "unfinished";
   }
   const reader = new LegacyJsonReader(source());
   await assert.rejects(reader.value(), /Truncated/);
+});
+void test("tracks source byte ranges across multibyte UTF-8", async () => {
+  async function* source() {
+    yield '[ "🐈';
+    yield '\\u0000", 9]';
+  }
+  const reader = new LegacyJsonReader(source());
+  await reader.expect("[");
+  await reader.peek();
+  const start = reader.byteOffset;
+  for await (const _ of reader.valueChunks()) {
+  }
+  assert.equal(start, 2);
+  assert.equal(reader.byteOffset - start, new TextEncoder().encode('"🐈\\u0000"').byteLength);
+  await reader.expect(",");
+  assert.equal(await reader.value(), "9");
+  await reader.expect("]");
 });

@@ -11,8 +11,9 @@ import { interviewLifecycle } from "./repository.ts";
 const url = process.env.QUOREM_INTERVIEW_TEST_DATABASE_URL;
 if (
   !url ||
-  new URL(url).port !== "55462" ||
-  new URL(url).pathname !== "/quorem_hono_interview_test" ||
+  !["55462:/quorem_hono_interview_test", "55465:/quorem_hono_result_stream_test"].includes(
+    `${new URL(url).port}:${new URL(url).pathname}`,
+  ) ||
   !["localhost", "127.0.0.1"].includes(new URL(url).hostname)
 )
   throw new Error("Disposable interview database required");
@@ -626,7 +627,8 @@ void test("privileged backfill runs in bounded batches", async () => {
 void test("historical result reader fetches only revealed case and result bytes under restricted role", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
   const { backfillSnapshotPublicExamples } = await import("../question/public-examples.ts");
-  const { backfillPrivateResultCases, savePrivateResultCase, savePrivateResultCases } = await import("../question/private-results.ts");
+  const { backfillPrivateResultCases, savePrivateResultCase } =
+    await import("../question/private-results.ts");
   const { submissionSnapshots } = await import("../../judging/results/repository.ts");
   const session = (
     await pool.query(
@@ -634,7 +636,10 @@ void test("historical result reader fetches only revealed case and result bytes 
     )
   ).rows[0] as { id: string; question_epoch: string };
   session.question_epoch = crypto.randomUUID();
-  await pool.query("UPDATE interviews SET question_epoch=$2 WHERE id=$1", [session.id, session.question_epoch]);
+  await pool.query("UPDATE interviews SET question_epoch=$2 WHERE id=$1", [
+    session.id,
+    session.question_epoch,
+  ]);
   const submission = crypto.randomUUID(),
     document = crypto.randomUUID();
   const raw =
@@ -673,8 +678,19 @@ void test("historical result reader fetches only revealed case and result bytes 
   } finally {
     client.release();
   }
-  const snapshots = submissionSnapshots(run);
+  const actualSnapshots = submissionSnapshots(run);
+  const snapshots = {
+    ...actualSnapshots,
+    interview: async (...args: Parameters<typeof actualSnapshots.interview>) =>
+      new Response(await actualSnapshots.interview(...args)).text(),
+  };
   await assert.rejects(snapshots.interview(member, session.id, submission));
+  const { backfillSubmissionResult } = await import("../../judging/results/backfill.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, submission),
+    ),
+  );
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
       backfillSnapshotPublicExamples(tx, session.id, q),
@@ -685,24 +701,33 @@ void test("historical result reader fetches only revealed case and result bytes 
       backfillPrivateResultCases(tx, submission),
     ),
   );
-  await run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-    savePrivateResultCase(tx, submission, 0, '{"index":0,"status":"wrong_answer","actual":"RESULT-A\\u0000","expected":9007199254740993}'),
-  ));
-  await assert.rejects(run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-    savePrivateResultCase(tx, submission, 0, '{"index":0,"status":"accepted"}'),
-  )));
-  await assert.rejects(run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-    savePrivateResultCases(tx, submission, '[{"index":0,"status":"accepted"}]'),
-  )));
+  const guardedWrite = (raw: string) =>
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(sql`SELECT set_config('quorem.result_backfill','v1',true)`);
+        await savePrivateResultCase(tx, submission, 0, raw);
+      }),
+    );
+  await guardedWrite(
+    '{"index":0,"status":"wrong_answer","actual":"RESULT-A\\u0000","expected":9007199254740993}',
+  );
+  await assert.rejects(guardedWrite('{"index":0,"status":"accepted"}'), /Private result conflict/);
   await pool.query("UPDATE submissions SET state='running' WHERE id=$1", [submission]);
-  assert.equal(await run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) => backfillPrivateResultCases(tx, submission))), false);
+  assert.equal(
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, submission),
+      ),
+    ),
+    false,
+  );
   await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [submission]);
   await pool.query(
     "INSERT INTO interview_case_visibility(session_id,question_epoch,case_id) VALUES($1,$2,'hidden:0')",
     [session.id, session.question_epoch],
   );
   await pool.query(
-    "GRANT SELECT ON interview_execution_public,interview_snapshot_public,interview_snapshot_public_examples,interview_private_result_cases TO quorem_interview_public_test",
+    "GRANT SELECT ON submission_result_headers,submission_result_header_fields,submission_public_result_cases,interview_execution_public,interview_snapshot_public,interview_snapshot_public_examples,interview_private_result_cases TO quorem_interview_public_test",
   );
   const restrictedRun = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
     run((scope) =>
@@ -730,11 +755,9 @@ void test("historical result reader fetches only revealed case and result bytes 
       }),
     ),
   );
-  const candidate = await submissionSnapshots(restrictedRun).interview(
-    member,
-    session.id,
-    submission,
-  );
+  const candidate = await new Response(
+    await submissionSnapshots(restrictedRun).interview(member, session.id, submission),
+  ).text();
   assert.match(candidate, /PRIVATE-A\\u0000/);
   assert.match(candidate, /RESULT-A\\u0000/);
   assert.match(candidate, /9007199254740993/);

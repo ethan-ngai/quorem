@@ -9,8 +9,9 @@ import { submissionSnapshots } from "./repository.ts";
 const url = process.env.QUOREM_RESULTS_TEST_DATABASE_URL;
 if (
   !url ||
-  new URL(url).port !== "55459" ||
-  new URL(url).pathname !== "/quorem_hono_results_test" ||
+  !["55459:/quorem_hono_results_test", "55465:/quorem_hono_result_stream_test"].includes(
+    `${new URL(url).port}:${new URL(url).pathname}`,
+  ) ||
   !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
 )
   throw new Error("Disposable results database required");
@@ -25,7 +26,14 @@ const pool = createNodePool({
 });
 const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
     withNodeConnection(pool, { lifetimeMs: 8000 }, fn),
-  repo = submissionSnapshots(run);
+  actual = submissionSnapshots(run),
+  repo = {
+    ...actual,
+    read: async (...args: Parameters<typeof actual.read>) =>
+      new Response(await actual.read(...args)).text(),
+    interview: async (...args: Parameters<typeof actual.interview>) =>
+      new Response(await actual.interview(...args)).text(),
+  };
 const principal = (userId: string): LocalPrincipal => ({
   kind: "local",
   userId,
@@ -179,6 +187,20 @@ before(async () => {
   } finally {
     client.release();
   }
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const { backfillSnapshotPublicExamples } =
+    await import("../../interviews/question/public-examples.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSnapshotPublicExamples(tx, interview, row.rows[0].id),
+    ),
+  );
+  for (const id of [done, interviewSubmission])
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillSubmissionResult(tx, id),
+      ),
+    );
 });
 after(async () => {
   await pool.end();
@@ -281,7 +303,7 @@ void test("real HTTP preserves result privacy, idempotency and shared errors", a
   const app = createApp({ allowedOrigins: [], requestId: () => "results-request" }).route(
     "/",
     submissionRoutes({
-      snapshots: repo,
+      snapshots: actual,
       identify: async (request) =>
         request.headers.get("authorization") === "missing" ? undefined : alice,
     }),
@@ -450,4 +472,209 @@ void test("concurrent retries produce one persisted cancellation response", asyn
     ),
     1,
   );
+});
+
+void test("private stream stops on revocation and cancellation releases the connection", async () => {
+  const stream = await actual.interview(host, interview, interviewSubmission);
+  const reader = stream.getReader();
+  for (let i = 0; i < 5; i++) await reader.read();
+  await pool.query(
+    "UPDATE interview_members SET removed_at=clock_timestamp() WHERE session_id=$1 AND user_id='results-host'",
+    [interview],
+  );
+  try {
+    await assert.rejects(async () => {
+      while (!(await reader.read()).done) {}
+    });
+  } finally {
+    await pool.query(
+      "UPDATE interview_members SET removed_at=NULL WHERE session_id=$1 AND user_id='results-host'",
+      [interview],
+    );
+  }
+  let transactions = 0;
+  const counted: typeof run = async (fn) => {
+    transactions++;
+    return run(fn);
+  };
+  const cancelled = (await submissionSnapshots(counted).read(alice, done)).getReader();
+  await cancelled.read();
+  const before = transactions;
+  await cancelled.cancel();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(transactions, before);
+  assert.equal(pool.waitingCount, 0);
+});
+
+void test("legacy backfill streams split UTF-8 and rejects nonterminal rows", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  const text = "x".repeat(65525) + "🐈\u0000";
+  const payload = JSON.stringify({
+    verdict: "accepted",
+    publicCases: [{ index: 0, status: "passed", actual: text }],
+    hiddenCases: [{ index: 0, status: "passed", expected: "secret" }],
+  });
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','hash','running','[]','{}',$3)",
+    [id, workspace, Buffer.from(payload)],
+  );
+  const backfill = () =>
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillSubmissionResult(tx, id),
+      ),
+    );
+  assert.equal(await backfill(), false);
+  await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [id]);
+  assert.equal(await backfill(), true);
+  assert.equal(await backfill(), true);
+  const output = await repo.read(alice, id);
+  assert.match(output, /🐈\\u0000/);
+  assert.doesNotMatch(output, /secret/);
+});
+void test("retention invalidates an in-flight result watermark", async () => {
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) SELECT $1,owner_id,workspace_id,kind,source,source_hash,'completed',cases,result,result_payload FROM submissions WHERE id=$2",
+    [id, done],
+  );
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, id),
+    ),
+  );
+  const reader = (await actual.read(alice, id)).getReader();
+  await reader.read();
+  await pool.query("UPDATE submissions SET result=NULL WHERE id=$1", [id]);
+  await assert.rejects(async () => {
+    while (!(await reader.read()).done) {}
+  }, /changed/);
+});
+void test("a database outage terminates a started stream", async () => {
+  let fail = false;
+  const flaky: typeof run = (fn) =>
+    fail ? Promise.reject(new Error("database offline")) : run(fn);
+  const reader = (await submissionSnapshots(flaky).read(alice, done)).getReader();
+  await reader.read();
+  fail = true;
+  await assert.rejects(async () => {
+    while (!(await reader.read()).done) {}
+  }, /database offline/);
+});
+void test("normalizes large legacy case and diagnostic fields through bounded source ranges", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','large-legacy','completed','[]','{}',convert_to('{"publicCases":[{"index":0,"status":"passed","actual":"'||repeat('x',16777216)||'","diagnostics":[{"message":"hi\\u0000","line":2,"ignored":"PRIVATE"}]}],"diagnostics":[{"message":"'||repeat('y',16777216)||'"}]}','UTF8'))`,
+    [id, workspace],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, id),
+    ),
+  );
+  const reader = (await actual.read(alice, id)).getReader();
+  let total = 0,
+    max = 0;
+  for (;;) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    max = Math.max(max, part.value.byteLength);
+  }
+  assert.ok(total > 32 * 1024 * 1024);
+  assert.ok(max <= 65536);
+});
+void test("legacy case validation rolls back malformed and duplicate fields", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  for (const payload of [
+    '{"publicCases":[{"index":0,"status":"passed","status":"failed"}]}',
+    '{"publicCases":[{"index":0,"status":"passed","sqlTypes":[42]}]}',
+    '{"publicCases":[{"index":0,"status":"passed","diagnostics":[{"message":1}]}]}',
+  ]) {
+    const id = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','bad','completed','[]','{}',$3)",
+      [id, workspace, Buffer.from(payload)],
+    );
+    await assert.rejects(
+      run((scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+          backfillSubmissionResult(tx, id),
+        ),
+      ),
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT count(*)::int AS n FROM submission_public_result_cases WHERE submission_id=$1",
+          [id],
+        )
+      ).rows[0].n,
+      0,
+    );
+  }
+});
+void test("empty header arrays survive normalization and missing fields fail before streaming", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','empty','completed','[]','{}',$3)",
+    [
+      id,
+      workspace,
+      Buffer.from('{"verdict":"accepted","publicCases":[],"hiddenCases":[],"diagnostics":[]}'),
+    ],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, id),
+    ),
+  );
+  const parsed = JSON.parse(await repo.read(alice, id));
+  assert.deepEqual(parsed.publicCases, []);
+  assert.deepEqual(parsed.hiddenCases, []);
+  assert.deepEqual(parsed.diagnostics, []);
+  const bad = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','bad-header','running','[]')",
+    [bad, workspace],
+  );
+  await pool.query(
+    "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+    [
+      bad,
+      Buffer.from(
+        '{"publicCasesPresent":false,"publicCaseCount":0,"channel":"public","diagnosticsPresent":true}',
+      ),
+    ],
+  );
+  await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [bad]);
+  await assert.rejects(actual.read(alice, bad), /Incomplete result header field/);
+});
+void test("legacy variable header strings stay bounded without an invented limit", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','large-header','completed','[]','{}',convert_to('{"verdict":"'||repeat('v',16777216)||'","hiddenCases":[{"index":0,"status":"'||repeat('s',16777216)||'"}]}','UTF8'))`,
+    [id, workspace],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, id),
+    ),
+  );
+  const reader = (await actual.read(alice, id)).getReader();
+  let total = 0,
+    max = 0;
+  for (;;) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    max = Math.max(max, part.value.byteLength);
+  }
+  assert.ok(total > 32 * 1024 * 1024);
+  assert.ok(max <= 65536);
 });
