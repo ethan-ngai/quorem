@@ -36,11 +36,9 @@ vi.mock("./socket", () => ({
     },
     onStatus: vi.fn(),
     request: (type: string, body: Record<string, unknown>) =>
-      type === "snapshot" || type === "submission"
-        ? interviewRequest(type)
-        : type === "push"
-          ? interviewRequest("updates", "POST", body.push, body.key as string)
-          : interviewRequest("updates", "GET"),
+      type === "push"
+        ? interviewRequest("updates", "POST", body.push, body.key as string)
+        : interviewRequest("updates", "GET"),
   }),
 }));
 vi.mock("../odyssey/methodStubs", () => ({ unlockedMethodEdit: vi.fn() }));
@@ -265,8 +263,9 @@ it("publishes advanced progress even when the previous submission cannot be read
     question: { progress: { level: 2 } },
   };
   vi.mocked(interviewRequest).mockImplementation(async (path) => {
-    if (path === "snapshot") return snapshot;
-    if (path === "submission") throw new Error("temporary result outage");
+    if (path === "/v1/interviews/room") return snapshot;
+    if (path === "/v1/interviews/room/submissions/previous-result")
+      throw new Error("temporary result outage");
     return { epoch: "one", version: 0, updates: [] };
   });
   socketEvents.changed?.("interview.session");
@@ -277,4 +276,30 @@ it("publishes advanced progress even when the previous submission cannot be read
   local.destroy();
   await vi.advanceTimersByTimeAsync(2000);
   expect(onSnapshot).toHaveBeenCalledTimes(2);
+});
+
+it("drops delayed result after a newer authorization or question notice", async () => {
+  const onSnapshot = vi.fn(),
+    local = client("", onSnapshot);
+  let resolveResult!: (value: unknown) => void;
+  const pending = new Promise((resolve) => {
+    resolveResult = resolve;
+  });
+  let reads = 0;
+  vi.mocked(interviewRequest).mockImplementation(async (path) => {
+    if (path === "/v1/interviews/room")
+      return ++reads === 1
+        ? { version: 1, latestSubmissionId: "old", questionEpoch: "first" }
+        : { version: 2, questionEpoch: "second" };
+    if (path === "/v1/interviews/room/submissions/old") return pending;
+    return { epoch: "one", version: 0, updates: [] };
+  });
+  socketEvents.changed?.("interview.session");
+  await vi.advanceTimersByTimeAsync(0);
+  socketEvents.changed?.("interview.session");
+  resolveResult({ id: "old", privateCaseResults: ["secret"] });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(onSnapshot.mock.calls.some(([, result]) => result?.id === "old")).toBe(false);
+  expect(onSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ questionEpoch: "second" }));
+  local.destroy();
 });

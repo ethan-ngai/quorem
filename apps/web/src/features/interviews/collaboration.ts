@@ -16,7 +16,7 @@ import type { EditorView } from "@codemirror/view";
 import { createDocumentSync, type CollaborationStatus } from "../collaboration/documentSync";
 import { createInterviewSocket } from "./socket";
 import { presenceExtension } from "./presence";
-import { InterviewError } from "./api";
+import { InterviewError, interviewRequest } from "./api";
 
 export type { CollaborationStatus } from "../collaboration/documentSync";
 
@@ -34,6 +34,8 @@ export function createCollaboration(
   const clientID = randomUUID();
   let view: EditorView | undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let refreshGeneration = 0;
+  let refreshAbort: AbortController | undefined;
   let odyssey: { progress: OdysseyProgress; language: EditorLanguage } | undefined;
   const sourceFilter = EditorState.changeFilter.of((transaction) => {
     let hasNUL = false;
@@ -66,6 +68,8 @@ export function createCollaboration(
     },
     onDestroy() {
       view = undefined;
+      refreshGeneration++;
+      refreshAbort?.abort();
       clearTimeout(refreshTimer);
       reports.stop();
       transport.stop();
@@ -117,15 +121,31 @@ export function createCollaboration(
     try {
       do {
         refreshAgain = false;
-        const snapshot = await transport.request<InterviewSnapshot>("snapshot");
-        // Progress/starter recovery must not wait for a result request that can fail independently.
-        if (view) onSnapshot(snapshot);
+        const generation = refreshGeneration;
+        const controller = new AbortController();
+        refreshAbort = controller;
+        const snapshot = await interviewRequest<InterviewSnapshot>(
+          `/v1/interviews/${encodeURIComponent(id)}`,
+          "GET",
+          undefined,
+          undefined,
+          controller.signal,
+        );
+        if (!view || generation !== refreshGeneration) {
+          refreshAgain = !!view;
+          continue;
+        }
+        onSnapshot(snapshot);
         const result = snapshot.latestSubmissionId
-          ? await transport.request<Submission>("submission", {
-              submissionId: snapshot.latestSubmissionId,
-            })
+          ? await interviewRequest<Submission>(
+              `/v1/interviews/${encodeURIComponent(id)}/submissions/${encodeURIComponent(snapshot.latestSubmissionId)}`,
+              "GET",
+              undefined,
+              undefined,
+              controller.signal,
+            )
           : undefined;
-        if (view && result) onSnapshot(snapshot, result);
+        if (view && result && generation === refreshGeneration) onSnapshot(snapshot, result);
       } while (refreshAgain && view);
     } catch {
       if (view) refreshTimer = setTimeout(() => void refreshSnapshot(), 1000);
@@ -135,7 +155,10 @@ export function createCollaboration(
   }
   transport.onChange((kind) => {
     if (kind !== "interview.presence") sync.schedule();
-    if (kind !== "interview.presence" && kind !== "interview.document") void refreshSnapshot();
+    if (kind !== "interview.presence" && kind !== "interview.document") {
+      refreshGeneration++;
+      void refreshSnapshot();
+    }
   });
   transport.onStatus((connected) => {
     reports.connected(connected);
