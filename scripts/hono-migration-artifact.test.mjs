@@ -53,7 +53,16 @@ async function fixture() {
     "apps/api/migrations/007_schema.sql",
     "apps/auth/migrations/001_schema.sql",
   ];
-  const files = new Map(await Promise.all(paths.map(async (path) => [path, await readFile(path)])));
+  const frozen = {
+    ".github/workflows/deploy.yaml": "apps/api/src/cli/fixtures/deployed-workflow.yaml.txt",
+    "apps/api/cmd/provision/main.go": "apps/api/src/cli/fixtures/deployed-provision.go.txt",
+    "apps/api/internal/adapters/postgres/store.go":
+      "apps/api/src/cli/fixtures/deployed-postgres-store.go.txt",
+    "apps/auth/src/migrations.ts": "apps/api/src/cli/fixtures/deployed-auth-migrations.ts.txt",
+  };
+  const files = new Map(
+    await Promise.all(paths.map(async (path) => [path, await readFile(frozen[path] ?? path)])),
+  );
   const request = async (path) => {
     if (path === `${root}/actions/runs/${runId}`) return structuredClone(run);
     if (path === `${root}/actions/runs/${runId}/attempts/2/jobs?per_page=100&page=1`)

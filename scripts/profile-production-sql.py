@@ -45,7 +45,7 @@ def main():
     if not isinstance(uri, str) or not uri.startswith(('postgres://', 'postgresql://')):
         raise RuntimeError('Neon did not return a connection URI')
     print('::add-mask::' + uri, flush=True)
-    subprocess.run(['.local/profile-reads'], env={**os.environ, 'DATABASE_URL': uri}, check=True)
+    subprocess.run(['node', '--experimental-strip-types', 'apps/api/src/cli/profile-reads.ts'], env={**os.environ, 'DATABASE_URL': uri}, check=True)
 
 
 if __name__ == '__main__':

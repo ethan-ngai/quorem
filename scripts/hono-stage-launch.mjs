@@ -245,10 +245,23 @@ export async function launchStage(
     report("bootstrap-plan", view.resource_changes.map(summary));
     report("bootstrap-drift", (view.resource_drift ?? []).map(summary));
     for (const change of [...view.resource_changes, ...(view.resource_drift ?? [])]) {
+      const observedRefresh =
+        (view.resource_drift ?? []).includes(change) &&
+        change.address === "restapi_object.stage_branch" &&
+        JSON.stringify(change.change?.actions) === '["update"]' &&
+        typeof change.change?.before?.id === "string" &&
+        change.change.before.id === change.change.after?.id &&
+        change.change.before.data === change.change.after?.data &&
+        view.resource_changes.some(
+          (planned) =>
+            planned.address === change.address &&
+            JSON.stringify(planned.change?.actions) === '["no-op"]',
+        );
       if (
         !allowed.has(change.address) ||
         !Array.isArray(change.change?.actions) ||
-        change.change.actions.some((value) => !["no-op", "create", "read"].includes(value)) ||
+        (!observedRefresh &&
+          change.change.actions.some((value) => !["no-op", "create", "read"].includes(value))) ||
         (change.address.startsWith("data.") &&
           change.change.actions.some((value) => !["no-op", "read"].includes(value)))
       )

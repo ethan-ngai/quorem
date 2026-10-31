@@ -1,72 +1,30 @@
 # Architecture
 
-## Structure
+Quorem uses a modular Hono/TypeScript backend with Drizzle and PostgreSQL. The same application runs natively in Cloudflare Workers or a portable Node process. Runtime shells select capability adapters; domain rules do not depend on a cloud provider.
 
-```text
-apps/web/              React workspace; TanStack Router/Query; Vite+
-apps/marketing/        Astro marketing; shared read-only product previews
-apps/api/              Go HTTP entrypoints and application/domain packages
-apps/auth/             Better Auth service; Cognito provider; application sessions/JWTs
-apps/language/         Local language-service orchestration and pinned engine config
-apps/runner/           Isolated judge worker entrypoint
-packages/contracts/   OpenAPI/event schemas, generated TypeScript clients
-packages/ui/          Shared CSS tokens/components when reuse exists
-fixtures/problems/    Original/licensed, versioned seed problems
-infra/terraform/      Planned provider-specific deployment modules (not yet implemented)
-docs/adr/             Confirmed decisions and migration triggers
-docs/plans/           Domain specs and implementation handoffs
-```
+| Owner | Responsibility |
+| --- | --- |
+| `apps/api/src/modules` | Identity/access, problems, workspaces, submissions, matches and interviews |
+| `apps/api/src/application` | Shared transaction, cancellation, errors and application primitives |
+| `apps/api/src/adapters` | PostgreSQL repositories, identity, delivery and event implementations |
+| `apps/api/src/runtime` | Node/Workers composition, HTTP/queue/scheduled entrypoints and sockets |
+| `apps/auth/src` | Better Auth factory, sessions, email and profile ports; embedded in Hono |
+| `apps/runner/src` | Trusted TypeScript judge, independent verifier and sandbox adapters |
+| `apps/language/src` | Portable TypeScript language gateway |
+| `packages/database` | Drizzle schema, PostgreSQL connection/transaction and migration owners |
+| `packages/questions`, `packages/execution` | Canonical codecs, publication and execution contracts |
+| `packages/contracts` | Reviewed public contracts and generated browser clients |
 
-Baseline: modular Go application with separate runner process and TypeScript auth service required by Better Auth. Avoid microservices per domain initially. Each module owns rules and repository methods; adapters implement narrow ports. Share Go packages through a root module unless independent releases justify splitting. Application modules live under `apps/api/internal/{problems,workspace,judging,matches,identity,realtime}`; adapters under `apps/api/internal/adapters`; shared execution contracts under `internal/execution` at the Go module root, imported by API and runner.
+Handlers depend on focused application ports. PostgreSQL adapters own queries, locks and atomic persistence; ORM rows do not become browser payloads. Shared behavior belongs in canonical codecs, transaction/idempotency, dispatch, streaming and socket primitives. Consumer-specific differences remain explicit.
 
-## Boundaries
+PostgreSQL is authoritative on every deployment. Admission commits immutable inputs, quota/idempotency state, jobs and durable intents atomically. Wakeups accelerate durable work; they do not authorize claims or determine results. Claims, heartbeats, cancellation, checkpoints and completion use attempt fencing. External publication follows commit and retries independently.
 
-| Domain | Owns | Required ports |
-| --- | --- | --- |
-| Identity | User/session mapping, authorization | IdentityVerifier, UserRepository |
-| Problems | Versioned statements, signatures, cases | ProblemRepository |
-| Workspace | Draft versions, editor preferences | DraftRepository |
-| Judging | Immutable submissions, job state, verdicts | JobQueue, ExecutionEngine, SubmissionRepository |
-| Matches | Participants, deadlines, completion | MatchRepository, ProblemSelector, Clock |
-| Realtime | Authorized fanout and resync | EventPublisher; separate browser transport |
+Browsers use one authorized WebSocket protocol across Node and Durable Objects. Notices trigger scoped authoritative snapshots; receipt acknowledgements, versions and reconnect repair transport loss or duplication. Interview documents retain epoch/version checks and server-controlled stage advancement. Hidden tests, private interview data and opponent source stay behind their authorization owners.
 
-Ports carry domain IDs/values and cancellation, never AWS SDK types. Avoid a generic repository/cache abstraction: define actual query and consistency needs. Cache is optional acceleration, never the initial source of truth. Events and execution jobs have different durability requirements; do not combine them into one PubSub interface.
+Node uses request/operation-bounded PostgreSQL connections. Workers uses Hyperdrive and native queue/scheduled entrypoints; Durable Objects own socket and alarm coordination. Trusted judging and verification remain outside the public API process behind explicit ports. Cloudflare case containers and local Docker are distinct adapters with independently validated isolation.
 
-## Proposed records
+Product and auth keep separate schemas and checksummed ledgers under the shared migration owner. Retained data normalization uses audited operator commands; migrations never silently replace history. Runtime roles do not own schemas, migration ledgers or recovery records.
 
-- `users`: internal ID, identity binding, display name, created timestamp.
-- `problem_versions`: immutable ID, slug/version, statement, difficulty/tags, language signature, runtime/harness revision, visibility and limits.
-- `test_cases`: version ID, public/hidden classification, encoded input/output, comparator metadata; server-only access to hidden data.
-- `workspaces`: owner, problem version/language, solo or match namespace, optional match ID; unique solo owner/problem-version/language and match owner/match/language. `drafts`: unique workspace ID, source, revision, updated timestamp. `draft_versions`: workspace/revision history. Latest accepted save wins within its workspace only.
-- `submissions`: owner, optional match ID, problem/runtime/harness versions, source snapshot, run/submit kind, state, verdict, timing, timestamps, idempotency key.
-- `execution_jobs`: submission ID, attempts, lease expiry, availability timestamp; durable local PostgreSQL queue candidate.
-- `matches`: state, version, immutable problem version, start/deadline, outcome; `match_participants`: seats and participant state.
-- Domain outboxes: event ID, aggregate identity, delivery state and domain-specific ordering.
+Provider configuration is independent per capability; see [platform adapters](../implementation/platform-adapters.md). Cache and semantic retrieval remain future extensions behind focused query/retrieval contracts. No KV cache, embedding pipeline or vector index is implemented by this migration.
 
-Use foreign keys, uniqueness, transactions, explicit query indexes, and keyset pagination. Store timestamps in UTC. Auth schema migrations belong to Better Auth service; product schema migrations belong to Go persistence owner. No pgvector migration until selection is in scope. Exact fields/codec/error shapes are specified in contracts.md; retention in operating-defaults.md.
-
-## HTTP contract overview
-
-- `GET /v1/problems/{slug}`: public statement, templates, examples, limits, immutable version ID; no hidden cases.
-- `GET /v1/workspaces/{workspaceId}`: owner-scoped workspace metadata only. Drafts/history live in browser storage; active windows stay independent. Source reaches the server only in Run/Submit snapshots.
-- `POST /v1/submissions`: authorized workspace ID, source snapshot, kind, optional public custom inputs; server derives owner/problem/language/match and enforces limits. Idempotency key; returns job ID/state. One nonterminal job per owner across instances; retry same key retrieves its existing job. Canonical fields: contracts.md.
-- `GET /v1/submissions/{id}`: owner-scoped state, safe verdict details; poll fallback.
-- Later: create/join/ready/leave match commands and authoritative match snapshot.
-
-Use documented request size/rate limits, stable error codes and request IDs. Generate frontend types from reviewed schemas. Never trust frontend verdicts, participant IDs, clocks, or source ownership. Conflicting reuse of an idempotency key returns a conflict rather than silently reusing another request.
-
-## Realtime and consistency
-
-Application commits state/jobs/outbox in one transaction; external queue publish is never treated as part of that database transaction. Dispatcher relays events and execution messages with retry/reconciliation. Workers claim the authoritative application job lease before executing an SQS-delivered job; local PostgreSQL claim adapter obeys the same contract. Completion/heartbeat/cancellation go through restricted internal application commands with fenced attempt IDs; cloud runner has no direct domain DB mutation authority. Consumers deduplicate event IDs. Envelope: `eventId`, `schemaVersion`, `aggregateId`, `aggregateVersion`, `type`, `occurredAt`, safe payload. Treat transport as duplicating/dropping/reordering; snapshot recovery and version checks repair gaps.
-
-Backend EventPublisher is provider-neutral; browser RealtimeTransport translates native WebSocket or AppSync protocol. Swapping providers also requires equivalent authentication/channel authorization; a server interface alone is insufficient. Clients may not publish authoritative verdicts or match transitions.
-
-## Scaling path
-
-Initial: one region, PostgreSQL, stateless API instances, bounded runner concurrency, indexed queries, durable jobs, backpressure. Confirmed public workload: 20 simultaneous matches/40 coding sessions and a 2 execution-request/sec burst; benchmark parameters and latency goals are in operating-defaults.md. One million registered users remains a growth target, not validated concurrency capacity.
-
-Measure DB connections/query latency, oldest queued job, runner utilization, API latency/errors, active sockets, fanout, and spend. Add connection control, cache, distributed queue, partitioning, runner pools, or additional regions based on evidence. Preserve match-local serialization, retry safety, quotas, and admission control under horizontal scale. Load-test a declared workload; do not claim 1M-user readiness from interfaces alone.
-
-## Provider portability implementation
-
-PostgreSQL remains the supported persistence engine. Capability-specific AWS/Cloudflare adapters and independent configuration are documented in [platform-adapters](../implementation/platform-adapters.md), tracked in #76. Runtime shells may differ without changing domain rules; cloud-native queue/realtime/object/email APIs are isolated from HTTP and match policy. Deployment/sandbox equivalence is a separate validation gate.
+Local development uses fixtures and requires no cloud credentials. Infrastructure is provisioned with Terraform and deployed through GitHub Actions. Native staging, production traffic cutover and production readiness are separate claims; inspect the actual deployment evidence before asserting release state.

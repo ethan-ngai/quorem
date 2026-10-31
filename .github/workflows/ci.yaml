@@ -154,28 +154,18 @@ jobs:
       - run: vp -C apps/web test
       - run: vp node --test scripts/marketing-dev.test.mjs
       - run: vp run build
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Canonical operator and mixed-seeder fixtures
+      - name: Canonical operator fixtures
         env:
           QUOREM_CLI_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_cli_test?sslmode=disable
-          QUOREM_CLI_GO_INTEROP: "true"
-        run: |
-          go build -o /tmp/quorem-cli-go-oracle ./apps/api/cmd/provision
-          vp -C apps/api exec vitest run --config src/cli/vitest.config.ts
-      - run: go test -race ./apps/language/...
-      - run: go build -o /tmp/quorem-language ./apps/language/cmd/language
+        run: vp -C apps/api exec vitest run --config src/cli/vitest.config.ts
       - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
       - name: Language lifecycle and Python capabilities
         env:
           QUOREM_DEV_IDENTITY: "true"
           QUOREM_LANGUAGE_TEST: "true"
           QUOREM_HOSTED_INTELLIGENCE: "true"
-          QUOREM_LANGUAGE_GATEWAY_BINARY: /tmp/quorem-language
         run: |
-          /tmp/quorem-language > /tmp/quorem-language.log 2>&1 &
+          (cd apps/language && exec node --experimental-strip-types src/main.ts) > /tmp/quorem-language.log 2>&1 &
           language_pid=$!
           trap 'kill -TERM "$language_pid" 2>/dev/null || true; wait "$language_pid" || true' EXIT
           for attempt in $(seq 1 100); do
@@ -199,25 +189,6 @@ jobs:
         run: node scripts/hono-workload-validation.mjs
       - name: Mandatory container runner release validation
         run: node scripts/hono-container-validation.mjs
-      - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'
-      # Integration packages share one disposable database and reset its fixtures.
-      - run: go test -p 1 ./...
-      - name: Cloudflare Durable Object contract
-        env:
-          WRANGLER_SEND_METRICS: "false"
-          QUOREM_RELAY_TEST_URL: http://127.0.0.1:8787
-          QUOREM_RELAY_TEST_TOKEN: local-contract-test-token-at-least-32-chars
-        run: |
-          vp -C apps/realtime-cloudflare exec wrangler dev --ip 127.0.0.1 --port 8787 --var "RELAY_TOKEN:$QUOREM_RELAY_TEST_TOKEN" > /tmp/quorem-relay.log 2>&1 &
-          relay_pid=$!
-          trap 'kill -TERM "$relay_pid" 2>/dev/null || true; wait "$relay_pid" || true' EXIT
-          for attempt in $(seq 1 100); do
-            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/)" = 401 ]; then break; fi
-            if ! kill -0 "$relay_pid" 2>/dev/null; then cat /tmp/quorem-relay.log; exit 1; fi
-            sleep 0.1
-          done
-          go test -race ./apps/api/internal/adapters/eventbus
-      - run: go vet ./...
 
   hono-platform-contracts:
     runs-on: ubuntu-latest

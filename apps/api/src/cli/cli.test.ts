@@ -40,22 +40,20 @@ beforeAll(async () => {
   try {
     await migrate(pool, "product", resolve("../../apps/api/migrations"));
     await migrate(pool, "auth", resolve("../../apps/auth/migrations"));
-    if (process.env.QUOREM_CLI_GO_INTEROP === "true") {
-      process.env.AUTH_ORIGIN = "https://cli-fixture.test";
-      await pool.query(
-        "INSERT INTO users(id,display_name,role) VALUES('cli-test-operator','CLI fixture','admin') ON CONFLICT(id) DO NOTHING",
-      );
-      await pool.query(
-        `INSERT INTO quorem_auth."user"(id,name,email,"emailVerified",username,"createdAt","updatedAt") VALUES('cli-test-subject','CLI fixture','operator@cli-fixture.test',true,'cli-test-operator',NOW(),NOW()) ON CONFLICT(id) DO NOTHING`,
-      );
-      await pool.query(
-        "INSERT INTO identity_bindings(issuer,subject,user_id) VALUES($1,'cli-test-subject','cli-test-operator') ON CONFLICT DO NOTHING",
-        [process.env.AUTH_ORIGIN],
-      );
-      await pool.query(
-        "INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES('bootstrap:operator','fixture','cli-test-operator','operator.bootstrap','cli-test-subject','Disposable CLI fixture') ON CONFLICT DO NOTHING",
-      );
-    }
+    process.env.AUTH_ORIGIN = "https://cli-fixture.test";
+    await pool.query(
+      "INSERT INTO users(id,display_name,role) VALUES('cli-test-operator','CLI fixture','admin') ON CONFLICT(id) DO NOTHING",
+    );
+    await pool.query(
+      `INSERT INTO quorem_auth."user"(id,name,email,"emailVerified",username,"createdAt","updatedAt") VALUES('cli-test-subject','CLI fixture','operator@cli-fixture.test',true,'cli-test-operator',NOW(),NOW()) ON CONFLICT(id) DO NOTHING`,
+    );
+    await pool.query(
+      "INSERT INTO identity_bindings(issuer,subject,user_id) VALUES($1,'cli-test-subject','cli-test-operator') ON CONFLICT DO NOTHING",
+      [process.env.AUTH_ORIGIN],
+    );
+    await pool.query(
+      "INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES('bootstrap:operator','fixture','cli-test-operator','operator.bootstrap','cli-test-subject','Disposable CLI fixture') ON CONFLICT DO NOTHING",
+    );
   } finally {
     await pool.end();
   }
@@ -367,15 +365,9 @@ describe("operator CLI contracts", () => {
   );
 });
 
-it.skipIf(!url || process.env.QUOREM_CLI_GO_INTEROP !== "true").each([
-  ["ts", "escaped"],
-  ["go", "escaped"],
-  ["ts", "sql"],
-  ["go", "sql"],
-  ["go", "sql-overflow"],
-])(
-  "serializes concurrent Go and TS seeders with %s first (%s)",
-  async (first, mode) => {
+it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
+  "serializes concurrent TS seeders (%s)",
+  async (mode) => {
     const pool = createNodePool({
       connectionString: url!,
       max: 2,
@@ -383,7 +375,7 @@ it.skipIf(!url || process.env.QUOREM_CLI_GO_INTEROP !== "true").each([
       idleTimeoutMs: 5000,
       onIdleError: () => {},
     });
-    const dir = await mkdtemp(join(tmpdir(), "quorem-cli-interop-"));
+    const dir = await mkdtemp(join(tmpdir(), "quorem-cli-concurrency-"));
     const root = resolve("../..");
     const childProcesses: import("node:child_process").ChildProcess[] = [];
     const client = await pool.connect();
@@ -457,12 +449,7 @@ it.skipIf(!url || process.env.QUOREM_CLI_GO_INTEROP !== "true").each([
           ],
           { cwd: root, env },
         );
-      const startGo = () =>
-        spawn("go", ["run", "./apps/api/cmd/provision", "--seed", "--private-question", path], {
-          cwd: root,
-          env,
-        });
-      const firstChild = first === "ts" ? startTs() : startGo();
+      const firstChild = startTs();
       childProcesses.push(firstChild);
       firstChild.stdout?.resume();
       firstChild.stderr?.resume();
@@ -477,7 +464,7 @@ it.skipIf(!url || process.env.QUOREM_CLI_GO_INTEROP !== "true").each([
         if (n >= 1) break;
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
-      const secondChild = first === "ts" ? startGo() : startTs();
+      const secondChild = startTs();
       const processes = [firstChild, secondChild];
       childProcesses.push(secondChild);
       const exits = processes.map(
@@ -502,12 +489,8 @@ it.skipIf(!url || process.env.QUOREM_CLI_GO_INTEROP !== "true").each([
       expect(waiting).toBeGreaterThanOrEqual(2);
       await client.query("SELECT pg_advisory_unlock(hashtextextended($1,740179))", [lock]);
       lock = "";
-      expect(await Promise.all(exits)).toEqual(mode === "sql-overflow" ? [1, 0] : [0, 0]);
-      const retry = spawn(
-        "go",
-        ["run", "./apps/api/cmd/provision", "--seed", "--private-question", path],
-        { cwd: root, env },
-      );
+      expect(await Promise.all(exits)).toEqual([0, 0]);
+      const retry = startTs();
       retry.stdout?.resume();
       retry.stderr?.resume();
       expect(await new Promise<number | null>((resolve) => retry.once("exit", resolve))).toBe(0);

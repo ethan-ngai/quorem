@@ -1,105 +1,20 @@
-# Development Python judge
+# Trusted TypeScript judge
+
+`make dev` configures and starts the runner and independent verifier beside the native Hono API. For separately configured processes, use `vp -C apps/runner run runner` and `vp -C apps/runner run verifier`. Configuration is owned by [runtime/config.ts](src/runtime/config.ts).
+
+The runner claims authoritative leases through authenticated internal API commands, executes through the sandbox port, and submits independently verified results. It does not mutate product PostgreSQL tables directly. Attempt IDs fence heartbeats, cancellation, checkpoints and completion. Unconfirmed teardown prevents reuse of the attempt.
+
+The Docker adapter supports local isolated Python, Java, TypeScript, OCaml and PostgreSQL cases. The remote adapter targets the separately provisioned case service with namespace/scope pins and signed teardown. Trusted runner/verifier credentials never enter untrusted case containers. Harness assets remain in their language directories.
+
+Build fixture images and run real local execution checks:
 
 ```sh
-docker build -t quorem-python:local -f apps/runner/Dockerfile .
-go run ./apps/runner/cmd/runner
+python3 scripts/build-judge-images.py --base-only
+node scripts/hono-container-validation.mjs
+node scripts/hono-sql-validation.mjs
+node scripts/hono-workload-validation.mjs
 ```
 
-`DATABASE_URL` uses local PostgreSQL on port 54329. `RUNNER_IMAGE` defaults to
-`quorem-python:local`; `RUNNER_CONCURRENCY` defaults to two (bounded 1–8).
+These owners create separate disposable PostgreSQL fixtures and require actual Docker execution. Hosted isolation and workload evidence comes from the native staged deployment workflow; local success does not establish cloud performance.
 
-The Go controller claims PostgreSQL leases, snapshots trusted fixtures, sends
-only source/signature/current input into Docker, and compares returned values
-outside the sandbox. Each case has a fresh process, Solution instance, and
-input graph. Hidden diagnostics never persist in results or logs. Submit
-executes all 20 cases and returns complete partial counts. Custom Run cases
-without an expected value report `executed`.
-
-Hosted judges use `QUOREM_CASE_SANDBOX_ORIGIN` and the private control token to
-run each case in a fresh Cloudflare container. A confirmed destruction frame or
-attempt-fenced teardown is required before releasing work. The direct launcher
-must pass isolation probes during deployment before the hosted runner claims jobs.
-
-The pinned Python 3.12.12 image runs without network, host mounts, application
-credentials, root privileges, or writable root filesystem. Per-case limits:
-2 seconds, 256 MiB, 16 tasks, 64 KiB streams/result. Total job budget: 60 seconds.
-Development containers are not public isolation certification; public execution
-requires the planned dedicated-host/gVisor validation.
-
-Input collections are bounded by the problem snapshot, up to 100,000 elements;
-custom inputs have a 2 MiB aggregate limit. Outputs remain capped at 10,000
-elements and 64 KiB. Large authored interview cases retain separate request bounds.
-
-Attempt IDs fence heartbeats/completions. Infrastructure failures retry twice;
-expired abandoned attempts are reaped before a new lease. Cancellation releases
-its owner slot only after confirmed teardown or queued nonexecution. Unconfirmed
-teardown leaves the lease active for reconciliation.
-
-Active attempts share one direct PostgreSQL cancellation-listener session per
-runner service, in addition to its normal query pool and queue-wakeup listener.
-Committed cancellation notices wake only the matching submission; each attempt
-rechecks its fenced lease before execution and on a notice. Lease heartbeats
-continue every 15 seconds. Listener loss cancels active sandboxes, and the next
-attempt establishes a fresh session before execution. The session closes five
-seconds after its last active attempt. `QUOREM_DATABASE_LISTEN_URL` may
-override the session-capable database connection for LISTEN/NOTIFY.
-
-```sh
-QUOREM_TEST_DOCKER=1 go test ./apps/runner/internal/engine
-```
-
-Tests run correct and incorrect solutions across all six fixtures, full-suite
-partial scoring, node codecs, syntax/runtime/resource failures, fresh state,
-privacy/isolation probes, forged result frames, cancellation, and orphan cleanup.
-
-Java 21, TypeScript 5.9.3 / Node 22, OCaml 4.13.1 use separate pinned base images:
-
-```sh
-docker build -f apps/runner/Dockerfile.java -t quorem-java:local .
-docker build -f apps/runner/Dockerfile.typescript -t quorem-typescript:local .
-docker build -f apps/runner/Dockerfile.ocaml -t quorem-ocaml:local .
-QUOREM_TEST_DOCKER=1 go test ./apps/runner/internal/engine -parallel 4
-```
-
-Override images with `RUNNER_JAVA_IMAGE`, `RUNNER_TYPESCRIPT_IMAGE`, `RUNNER_OCAML_IMAGE`.
-Queue jobs snapshot language, runtime and harness at admission; mismatched revisions fail closed.
-Fresh sandbox per case; compilation gets a bounded 10-second phase, execution the problem wall-time limit. A submission has a cumulative 60-second compilation budget; exhaustion yields a contestant time-limit verdict and preserves already-passed cases. Syntax errors stop redundant compilation. The worker has a 120-second infrastructure envelope.
-Compilers and solutions share memory, process, output, network, filesystem and CPU restrictions.
-Java/TypeScript expose `Solution` methods, arrays, and `ListNode` / `TreeNode` with `val` fields.
-OCaml exposes functions, lists, optional mutable records (`list_node` with `value,next`; `tree_node` with `value,left,right`).
-Node values use the same JSON linked-list and breadth-first-tree codec as Python.
-Java/TypeScript/OCaml have syntax highlighting; Python alone has remote IntelliSense.
-Docker fixtures prove local compiler/codec behavior; cloud sandbox release validation remains separate.
-
-PostgreSQL 17 SQL cases use a separate ephemeral cluster per sandbox. Rebuild the test image after changing the harness, then run all SQL sandbox tests:
-
-```sh
-docker build -f apps/runner/Dockerfile.postgres -t quorem-postgres:local .
-QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'
-```
-
-Set `QUOREM_TEST_POSTGRES_IMAGE` to test a different local image; its `/opt/quorem/harness.py` must match this checkout. `RUNNER_POSTGRES_IMAGE` overrides the runtime image. SQL setup, comparison, authoring, and Odyssey limits are documented in `docs/implementation/sql-problems.md`. Deployment validates the hosted PostgreSQL role and deadline isolation.
-
-Resumable judging is opt-in with `QUOREM_RESUMABLE_EXECUTION=true`; it defaults
-false. Apply migrations first, deploy checkpoint-aware judges with the gate off,
-then enable it only after old judges have drained. Current disabled judges skip checkpointed jobs; a database claim guard stops
-older judges from claiming them. Older judges can stall the queue during a mixed
-rollout. For rollback, stop new admissions and keep capable judges running until
-checkpointed jobs finish; then disable the gate and replace judges. Otherwise,
-checkpointed jobs remain blocked until a capable judge returns. Never delete checkpoints to unblock the queue.
-
-Each saved case has finished sandbox teardown before it is persisted. Completed
-scores and interview-private details remain hidden until final completion.
-Match finalization still ends unresolved eligible work as no-contest after two
-minutes; long suites can complete after that outcome. Hosted case startup,
-cleanup, checkpoint storage, and end-to-end capacity need separate validation.
-Checkpoints compress each frame; resumes load only metadata, and final scoring
-streams the prefix once in four-row pages, releasing the database connection
-between pages for lease heartbeats. Ordinary hidden Submit output is omitted when no
-interviewer can access it. Public and interview results remain lossless and
-require memory proportional to their final size. A local disposable-PostgreSQL
-measurement of 320 control-heavy frames used 75.3 MiB of compressed payload and
-streamed in 2.02 s
-with 109.5 MiB sampled peak Go heap; hosted capacity remains unverified. Final result payloads preserve NUL only when lossless result writes are enabled; see the staged rollout in `docs/implementation/database.md`.
-
-`QUOREM_LOSSLESS_RESULT_WRITES` defaults to `false`. Enable it only after all API readers support opaque execution-result payloads and older readers have drained. Turning it off prevents new byte-payload writes, but older API versions still cannot read payloads already written. Drain flag-enabled judges and follow the byte-payload count checks in `docs/implementation/database.md` before rolling back API readers. This switch is independent of resumable execution.
+Canonical contracts and runtime behavior live in `packages/execution`, `src/orchestration`, `src/sandbox` and `src/runtime`. Retained checkpoint/result compatibility and operator backfills are documented in [database operations](../../docs/implementation/database.md).
