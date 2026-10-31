@@ -8,20 +8,11 @@ export interface WakeMessage {
   ack(): void;
   retry(options: { delaySeconds: number }): void;
 }
-/** Acknowledgment follows confirmed drain or durable continuation publication. */
-export async function consumeWakeBatch(
-  messages: readonly WakeMessage[],
-  options: {
-    publisher: ExecutionWakePublisher;
-    drainURL: string;
-    credential: string;
-    local: boolean;
-    fetch?: typeof fetch;
-  },
-): Promise<void> {
+/** Validate the bounded private runner endpoint before any wake is consumed. */
+export function validateDrainTransport(drainURL: string, credential: string, local: boolean): URL {
   let url: URL;
   try {
-    url = new URL(options.drainURL);
+    url = new URL(drainURL);
   } catch {
     throw new Error("Invalid drain URL");
   }
@@ -33,14 +24,28 @@ export async function consumeWakeBatch(
     url.pathname !== "/internal/drain" ||
     (url.protocol !== "https:" &&
       !(
-        options.local &&
+        local &&
         url.protocol === "http:" &&
         ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
       )) ||
-    new TextEncoder().encode(options.credential).length < 32 ||
-    /\s/.test(options.credential)
+    new TextEncoder().encode(credential).length < 32 ||
+    /\s/.test(credential)
   )
     throw new Error("Invalid drain configuration");
+  return url;
+}
+/** Acknowledgment follows confirmed drain or durable continuation publication. */
+export async function consumeWakeBatch(
+  messages: readonly WakeMessage[],
+  options: {
+    publisher: ExecutionWakePublisher;
+    drainURL: string;
+    credential: string;
+    local: boolean;
+    fetch?: typeof fetch;
+  },
+): Promise<void> {
+  const url = validateDrainTransport(options.drainURL, options.credential, options.local);
   const drain = async () => {
     const response = await (options.fetch ?? fetch)(url, {
       method: "POST",
