@@ -70,11 +70,36 @@ export function privateConfig(env: Record<string, unknown>): PrivateConfig {
       ))
   )
     throw new Error("Invalid verifier origin");
+  const mode = required(env.VERIFICATION_ACCESS_MODE),
+    id = env.VERIFICATION_ACCESS_CLIENT_ID,
+    secret = env.VERIFICATION_ACCESS_CLIENT_SECRET;
+  let verificationAccess: { id: string; secret: string } | undefined;
+  if (mode === "none") {
+    if (id !== undefined || secret !== undefined)
+      throw new Error("Unexpected verifier Access credentials");
+  } else if (mode === "cloudflare-access") {
+    const pair = { id: required(id), secret: required(secret) };
+    if (
+      origin.protocol !== "https:" ||
+      pair.id === pair.secret ||
+      [pair.id, pair.secret].some((v) => /\s/.test(v) || v.length > 256) ||
+      [
+        env.VERIFICATION_SOURCE_CREDENTIAL,
+        env.VERIFICATION_SERVICE_CREDENTIAL,
+        env.EXECUTION_DRAIN_SECRET,
+        env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
+        ...runnerPeers.map((p) => p.secret),
+      ].includes(pair.secret)
+    )
+      throw new Error("Invalid verifier Access credentials");
+    verificationAccess = pair;
+  } else throw new Error("Invalid verifier Access mode");
   return {
     runnerPeers,
     verificationSourceCredential: required(env.VERIFICATION_SOURCE_CREDENTIAL),
     verificationServiceCredential: required(env.VERIFICATION_SERVICE_CREDENTIAL),
     verificationServiceOrigin,
     verificationPublicKey: required(env.VERIFICATION_PUBLIC_KEY),
+    verificationAccess,
   };
 }

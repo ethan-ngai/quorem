@@ -50,7 +50,7 @@ data "external" "subdomain" {
 }
 locals {
   origin  = "https://${var.name}.${data.external.subdomain.result.name}.workers.dev"
-  modules = ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js"]
+  modules = ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js", "case-service.js"]
   bindings = [
     { type = "durable_object_namespace", name = "CASES", class_name = "CaseSandbox" },
     { type = "secret_text", name = "JUDGE_CONTROL_TOKEN", text = var.validation_token },

@@ -297,7 +297,7 @@ resource "cloudflare_worker_version" "app" {
   worker_id          = cloudflare_worker.app.id
   compatibility_date = "2026-10-25"
   main_module        = "worker.js"
-  modules = [for name in ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js"] : {
+  modules = [for name in ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js", "case-service.js"] : {
     name           = name
     content_type   = "application/javascript+module"
     content_base64 = filebase64("${path.module}/../../../deploy/${name}")
@@ -422,7 +422,7 @@ locals {
   fast_worker_config = {
     worker = var.worker_name
     deploy = true
-    modules = [for name in ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js"] : {
+    modules = [for name in ["worker.js", "router.js", "policy.js", "container.js", "case-sandbox.js", "case-service.js"] : {
       name = name
       path = "${path.module}/../../../deploy/${name}"
     }]

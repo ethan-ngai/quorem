@@ -22,6 +22,7 @@ it("acknowledges native queue messages only after the drain and durable continua
     ]),
     VERIFICATION_SOURCE_CREDENTIAL: "11".repeat(32),
     VERIFICATION_SERVICE_CREDENTIAL: "22".repeat(32),
+    VERIFICATION_ACCESS_MODE: "none",
     VERIFICATION_SERVICE_ORIGIN: "http://127.0.0.1:9998",
     VERIFICATION_PUBLIC_KEY: "fixture",
     EXECUTION_QUEUE: {
