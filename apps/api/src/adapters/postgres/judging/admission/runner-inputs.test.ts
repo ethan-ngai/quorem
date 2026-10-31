@@ -16,6 +16,7 @@ import { postgresCompletionPromotion } from "../worker/promote.ts";
 import { postgresExecutionCommands } from "../worker/repository.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 import { spoolInput } from "../../../../../../runner/src/checkpoints/input-spool.ts";
+import { manifestCaseIdentity, manifestCasePage } from "../inputs/identity.ts";
 import { postgresInputReader } from "../inputs/read.ts";
 import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
@@ -461,6 +462,14 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               )
             ).rows[0];
             expect(bound).toEqual({ sealed: true, n: 2 });
+            const identity = await manifestCaseIdentity(tx, job, 0);
+            expect(identity).toMatchObject({ caseCount: 1, sampleCount: 1, channel: "private" });
+            expect(new TextDecoder().decode(await manifestCasePage(tx, job, 0, 0))).toBe(
+              '{"args":[3],"expected":4}',
+            );
+            await expect(manifestCaseIdentity(tx, job, 2)).rejects.toThrow(
+              "Runner input unavailable",
+            );
             const attempt = crypto.randomUUID();
             await tx.execute(
               sql`UPDATE submissions SET state='running' WHERE id=${submission}::uuid`,
