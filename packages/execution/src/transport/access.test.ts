@@ -21,11 +21,20 @@ void test("private ingress attaches credentials only to the pinned HTTPS origin"
   await wrapped("https://api.example/internal", {
     headers: { authorization: "Bearer application" },
   });
+  await wrapped(
+    new Request("https://api.example/internal", {
+      headers: { authorization: "Bearer application" },
+    }),
+  );
+  await assert.rejects(wrapped("https://api.example.evil/internal"));
+  await assert.rejects(wrapped("https://user:password@api.example/internal"));
+  await assert.rejects(wrapped("https://api.example/internal#fragment"));
   await assert.rejects(wrapped("https://other.example/internal"));
   await assert.rejects(wrapped("http://api.example/internal"));
   await assert.rejects(
     wrapped("https://api.example/internal", { headers: { "CF-Access-Client-Secret": "other" } }),
   );
-  assert.equal(sent, 1);
+  assert.equal(sent, 2);
+  assert.throws(() => accessFetch("https://api.example/prefix", { id: "x", secret: "y" }, send));
   assert.equal(accessFetch("https://api.example", undefined, send), undefined);
 });
