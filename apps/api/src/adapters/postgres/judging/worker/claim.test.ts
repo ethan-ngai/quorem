@@ -219,6 +219,22 @@ describe.skipIf(!url)("runner claim fences", () => {
         ),
       ),
     ).rejects.toThrow("exceeds");
+    await pool.query(
+      "DELETE FROM execution_completion_field_chunks WHERE job_id=$1 AND field='diagnostics'",
+      [job],
+    );
+    await staging.chunk(live!, {
+      ...chunk,
+      field: "diagnostics",
+      bytes: new TextEncoder().encode('[{"message":"secret","message":"safe"}]'),
+    });
+    await expect(
+      run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+          validateFieldChunks(tx, job, "public", 0, 65536),
+        ),
+      ),
+    ).rejects.toThrow("Duplicate");
     await expect(
       staging.chunk(live!, { ...chunk, bytes: new TextEncoder().encode("456") }),
     ).rejects.toThrow("conflict");
