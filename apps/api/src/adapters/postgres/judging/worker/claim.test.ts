@@ -121,6 +121,15 @@ describe.skipIf(!url)("runner claim fences", () => {
     ).toBeNull();
     const second = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(second?.attemptId).not.toBe(first.attemptId);
+    const inventory = await pool.query(
+      "SELECT attempt_id::text, sandbox_scope FROM execution_attempt_inventory WHERE job_id=$1 ORDER BY attempt_id",
+      [job],
+    );
+    expect(inventory.rows).toHaveLength(2);
+    expect(new Set(inventory.rows.map((row) => row.attempt_id))).toEqual(
+      new Set([first.attemptId, second!.attemptId]),
+    );
+    expect(inventory.rows.every((row) => row.sandbox_scope === "scope-a")).toBe(true);
     expect(await claims.lease(first, true)).toBe(false);
     expect(await claims.lease(second!, false)).toBe(true);
   });

@@ -79,6 +79,28 @@ export const execution_jobs = pgTable(
   ],
 );
 
+export const execution_attempt_inventory = pgTable(
+  "execution_attempt_inventory",
+  {
+    attempt_id: uuid().primaryKey().notNull(),
+    job_id: uuid().notNull(),
+    sandbox_scope: text().notNull(),
+    claimed_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+  },
+  (table) => [
+    index("execution_attempt_inventory_scope_attempt_idx").on(
+      table.sandbox_scope,
+      table.attempt_id,
+    ),
+    check(
+      "execution_attempt_inventory_sandbox_scope_check",
+      sql`octet_length(sandbox_scope) BETWEEN 1 AND 256`,
+    ),
+  ],
+);
+
 export const entitlement_grants = pgTable(
   "entitlement_grants",
   {
