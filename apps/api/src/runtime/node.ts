@@ -15,6 +15,7 @@ import { cloudflareRest } from "../adapters/delivery/cloudflare.ts";
 import { PostgresFanout } from "../adapters/events/fanout/postgres.ts";
 import { noticePublisher, socketSubscription } from "../adapters/events/fanout/publisher.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
+import { socketTarget } from "./worker/socket/target.ts";
 import { installNodeSockets } from "./node/socket/server.ts";
 import { nodeCoordinator } from "../adapters/scheduling/shells.ts";
 import { drainDeadlines } from "../modules/events/scheduling/scheduling.ts";
@@ -294,12 +295,8 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       origins: allowed,
       heartbeatMs,
       resolve: async (request) => {
-        if (
-          !/^\/v1\/(?:memberships|(?:interviews|matches|match-invites|submissions)\/[^/]+)\/events$/.test(
-            new URL(request.url).pathname,
-          )
-        )
-          return undefined;
+        const target = socketTarget(new URL(request.url).pathname);
+        if (!target || target.mode === "invalid") return undefined;
         const record = await authority.issue(request);
         let opened: Awaited<ReturnType<typeof authority.open>>;
         try {
