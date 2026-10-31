@@ -7,3 +7,5 @@ The protected `hono-stage` action intentionally fails before cloud access. It is
 Local validation: `node --test scripts/hono-stage-deploy.test.mjs` passes guard, ordering, disabled stage and output-redaction fixtures; `vp check --no-fmt scripts/hono-stage-deploy.mjs scripts/hono-stage-deploy.test.mjs` passes; workflow YAML parses. No workflow was invoked and no real Terraform plan, apply, migration or deploy was performed. Hosted TLS, private ingress, secrets, storage and isolation remain unverified.
 
 Namespace pin verification: local Terraform data-only state tested zero→A, A→A, A→B, A→zero, destroy and rollback; only zero→A and A→A succeeded. No Cloudflare provider or cloud state was used.
+
+`scripts/hono-stage-deploy-acceptance.mjs` supplies the actual stage admission → protected drain → accepted result probe for a separately seeded authenticated workspace and known source. Its unit fixtures do not represent a hosted run; its successful hosted invocation, Access-negative checks and safe fixture lifecycle remain required before queue attachment.
