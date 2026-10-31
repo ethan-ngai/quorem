@@ -1955,7 +1955,7 @@ export const execution_completion_field_chunks = pgTable(
     }).onDelete("cascade"),
     check(
       "execution_completion_field_chunks_channel_check",
-      sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text])`,
+      sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text, 'header'::text])`,
     ),
     check("execution_completion_field_chunks_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
     check(
@@ -1968,5 +1968,56 @@ export const execution_completion_field_chunks = pgTable(
       sql`octet_length(chunk_data) <= 65536`,
     ),
     check("execution_completion_field_chunks_chunk_hash_check", sql`octet_length(chunk_hash) = 32`),
+  ],
+);
+export const execution_completion_header_fields = pgTable(
+  "execution_completion_header_fields",
+  {
+    job_id: uuid().notNull(),
+    field: text().notNull(),
+    field_data: bytea().notNull(),
+    field_hash: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.field],
+      name: "execution_completion_header_fields_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_completion_staging.job_id],
+      name: "execution_completion_header_fields_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_header_fields_field_check",
+      sql`field = ANY (ARRAY['diagnostics'::text, 'verdict'::text, 'infrastructureError'::text, 'hiddenCases'::text])`,
+    ),
+    check(
+      "execution_completion_header_fields_field_hash_check",
+      sql`octet_length(field_hash) = 32`,
+    ),
+  ],
+);
+export const submission_result_header_fields = pgTable(
+  "submission_result_header_fields",
+  {
+    submission_id: uuid().notNull(),
+    field: text().notNull(),
+    field_data: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.submission_id, table.field],
+      name: "submission_result_header_fields_pkey",
+    }),
+    foreignKey({
+      columns: [table.submission_id],
+      foreignColumns: [submissions.id],
+      name: "submission_result_header_fields_submission_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "submission_result_header_fields_field_check",
+      sql`field = ANY (ARRAY['diagnostics'::text, 'verdict'::text, 'infrastructureError'::text, 'hiddenCases'::text])`,
+    ),
   ],
 );

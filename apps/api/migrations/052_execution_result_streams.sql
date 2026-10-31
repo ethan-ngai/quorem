@@ -26,13 +26,20 @@ CREATE TABLE execution_completion_receipts (
 );
 CREATE TABLE execution_completion_field_chunks (
  job_id uuid NOT NULL REFERENCES execution_completion_staging(job_id) ON DELETE CASCADE,
- channel text NOT NULL CHECK (channel IN ('public','sample','private')),
+ channel text NOT NULL CHECK (channel IN ('public','sample','private','header')),
  ordinal integer NOT NULL CHECK (ordinal BETWEEN 0 AND 319),
  field text NOT NULL CHECK (field IN ('actual','expected','stdout','stderr','diagnostics','sqlTypes')),
  chunk_ordinal integer NOT NULL CHECK (chunk_ordinal >= 0),
  chunk_data bytea NOT NULL CHECK (octet_length(chunk_data) <= 65536),
  chunk_hash bytea NOT NULL CHECK (octet_length(chunk_hash) = 32),
  PRIMARY KEY(job_id,channel,ordinal,field,chunk_ordinal)
+);
+CREATE TABLE execution_completion_header_fields (
+ job_id uuid NOT NULL REFERENCES execution_completion_staging(job_id) ON DELETE CASCADE,
+ field text NOT NULL CHECK (field IN ('diagnostics','verdict','infrastructureError','hiddenCases')),
+ field_data bytea NOT NULL,
+ field_hash bytea NOT NULL CHECK (octet_length(field_hash) = 32),
+ PRIMARY KEY(job_id,field)
 );
 CREATE TABLE submission_result_headers (
  submission_id uuid PRIMARY KEY REFERENCES submissions(id) ON DELETE CASCADE,
@@ -44,6 +51,12 @@ CREATE TABLE submission_public_result_cases (
  ordinal integer NOT NULL CHECK (ordinal BETWEEN 0 AND 319),
  result_data bytea NOT NULL,
  PRIMARY KEY(submission_id,channel,ordinal)
+);
+CREATE TABLE submission_result_header_fields (
+ submission_id uuid NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+ field text NOT NULL CHECK (field IN ('diagnostics','verdict','infrastructureError','hiddenCases')),
+ field_data bytea NOT NULL,
+ PRIMARY KEY(submission_id,field)
 );
 -- Once published, readers can page without holding a database transaction open.
 CREATE FUNCTION guard_terminal_result_rows() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -60,6 +73,7 @@ BEGIN
 END $$;
 CREATE TRIGGER submission_result_headers_immutable BEFORE INSERT OR UPDATE OR DELETE ON submission_result_headers FOR EACH ROW EXECUTE FUNCTION guard_terminal_result_rows();
 CREATE TRIGGER submission_public_result_cases_immutable BEFORE INSERT OR UPDATE OR DELETE ON submission_public_result_cases FOR EACH ROW EXECUTE FUNCTION guard_terminal_result_rows();
+CREATE TRIGGER submission_result_header_fields_immutable BEFORE INSERT OR UPDATE OR DELETE ON submission_result_header_fields FOR EACH ROW EXECUTE FUNCTION guard_terminal_result_rows();
 CREATE TRIGGER interview_private_result_cases_immutable BEFORE INSERT OR UPDATE OR DELETE ON interview_private_result_cases FOR EACH ROW EXECUTE FUNCTION guard_terminal_result_rows();
 
 CREATE FUNCTION clear_normalized_submission_results() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -67,6 +81,7 @@ BEGIN
  IF OLD.result IS NOT NULL AND NEW.result IS NULL THEN
   DELETE FROM submission_public_result_cases WHERE submission_id=NEW.id;
   DELETE FROM submission_result_headers WHERE submission_id=NEW.id;
+  DELETE FROM submission_result_header_fields WHERE submission_id=NEW.id;
   DELETE FROM interview_private_result_cases WHERE submission_id=NEW.id;
  END IF;
  RETURN NULL;
