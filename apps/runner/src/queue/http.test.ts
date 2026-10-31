@@ -52,3 +52,49 @@ void test("redirects fail closed, release bodies and never replay", async () => 
   await assert.rejects(client.claimAfterTeardown(true, "s", null), { outcome: "unknown" });
   assert.equal(count, 2);
 });
+void test("input pages enforce exact bounded response and cancel malformed bodies", async () => {
+  let cancelled = false;
+  const fetcher: typeof fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(65537));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          "x-input-hash": "a".repeat(64),
+          "x-input-size": "65536",
+          "x-input-channel": "public",
+        },
+      },
+    );
+  const client = privateRunnerCommands({
+    origin: "https://private.invalid",
+    secret,
+    scope: "s",
+    resumable: true,
+    timeoutMs: 500,
+    fetch: fetcher,
+  });
+  const { defaultLimits } = await import("@quorem/execution");
+  const job = {
+    jobId: "j",
+    submissionId: "s",
+    attemptId: "a",
+    sandboxScope: "s",
+    problemVersionId: "p",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    sourceRef: "s",
+    suiteRef: "p",
+    language: "python",
+    limits: defaultLimits(),
+  };
+  await assert.rejects(client.inputPage(job, "case", 0, 0), { outcome: "unavailable" });
+  assert.equal(cancelled, true);
+});

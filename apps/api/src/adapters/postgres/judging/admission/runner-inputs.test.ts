@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { createNodePool, withNodeConnection } from "@quorem/database/core";
+import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { saveInterviewFixture } from "../../interviews/execution/fixture.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
-import { languageRuntime } from "@quorem/execution";
+import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
+import { createRunnerCommandHandler } from "../worker/http.ts";
+import { postgresExecutionCommands } from "../worker/repository.ts";
+import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
+import { spoolInput } from "../../../../../../runner/src/checkpoints/input-spool.ts";
+import { postgresInputReader } from "../inputs/read.ts";
 import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
 import { sql } from "drizzle-orm";
@@ -351,7 +356,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       job = crypto.randomUUID(),
       user = `owner-${crypto.randomUUID()}`;
     const raw = JSON.stringify({
-      problem: { examples: [{ args: [1], expected: 2 }] },
+      problem: { note: "x".repeat(150000), examples: [{ args: [1], expected: 2 }] },
       hiddenCases: [{ args: [3], expected: 4 }],
     });
     try {
@@ -363,10 +368,10 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
             );
             await tx.execute(
-              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]',${JSON.stringify(defaultLimits())}::jsonb,'')`,
             );
             await tx.execute(
-              sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${version}::uuid,'python','','r','h','')`,
+              sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2','')`,
             );
             await tx.execute(
               sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
@@ -375,7 +380,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${user},${workspace}::uuid,'submit','abc','hash','queued','[]')`,
             );
             await tx.execute(
-              sql`INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES(${job}::uuid,${submission}::uuid,'python','r','h')`,
+              sql`INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES(${job}::uuid,${submission}::uuid,'python','python-3.12-v1','quorem-harness-v2')`,
             );
             await indexRunnerFixture(tx, { version }, raw);
             const hidden = await fixtureCaseRefs(tx, { version }, "hidden", 0),
@@ -398,6 +403,84 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               )
             ).rows[0];
             expect(bound).toEqual({ sealed: true, n: 2 });
+            const attempt = crypto.randomUUID();
+            await tx.execute(
+              sql`UPDATE submissions SET state='running' WHERE id=${submission}::uuid`,
+            );
+            await tx.execute(sql`SELECT set_config('quorem.sandbox_scope','scope',true)`);
+            await tx.execute(
+              sql`UPDATE execution_jobs SET attempt_id=${attempt}::uuid,sandbox_scope='scope',lease_until=clock_timestamp()+interval '1 minute' WHERE id=${job}::uuid`,
+            );
+            const reader = postgresInputReader(async (fn) =>
+              fn({ transaction: async (_options, action) => action(tx) } as ConnectionScope),
+            );
+            const fence: Job = {
+              jobId: job,
+              submissionId: submission,
+              attemptId: attempt,
+              sandboxScope: "scope",
+              problemVersionId: version,
+              sourceRef: submission,
+              suiteRef: version,
+              language: "python",
+              runtimeRevision: "python-3.12-v1",
+              harnessRevision: "quorem-harness-v2",
+              limits: defaultLimits(),
+            };
+            const manifest = await reader.inputManifest(fence);
+            expect(manifest).toMatchObject({
+              kind: "submit",
+              caseCount: 1,
+              sampleCount: 1,
+              privateDetails: false,
+            });
+            const source = await reader.inputPage(fence, "source", 0, 0);
+            expect(new TextDecoder().decode(source.bytes)).toBe("abc");
+            expect((await reader.inputPage(fence, "case", 0, 0)).channel).toBe("private");
+            const scoped = async <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+              fn({ transaction: async (_options, action) => action(tx) } as ConnectionScope);
+            const secret = "fixture-only-input-page-private-credential";
+            const handler = await createRunnerCommandHandler([
+              {
+                secret,
+                scope: "scope",
+                resumable: true,
+                repository: () =>
+                  postgresExecutionCommands(scoped, {
+                    resumable: true,
+                    losslessCases: true,
+                    losslessResults: true,
+                  }),
+              },
+            ]);
+            const client = privateRunnerCommands({
+              origin: "https://fixture",
+              secret,
+              scope: "scope",
+              resumable: true,
+              timeoutMs: 5000,
+              fetch: async (input, init) => handler(new Request(input, init)),
+            });
+            const overHttp = await client.inputManifest(fence);
+            expect(overHttp.metadata.size).toBeGreaterThan(150000);
+            const spool = await spoolInput({
+              reader: client,
+              job: fence,
+              kind: "metadata",
+              ordinal: 0,
+              expected: overHttp.metadata,
+            });
+            let total = 0;
+            for await (const chunk of spool.stream()) total += (chunk as Uint8Array).byteLength;
+            expect(total).toBe(overHttp.metadata.size);
+            await spool.dispose();
+            await expect(
+              reader.inputPage({ ...fence, attemptId: crypto.randomUUID() }, "case", 0, 0),
+            ).rejects.toThrow();
+            await tx.execute(
+              sql`UPDATE submissions SET cancel_requested=true WHERE id=${submission}::uuid`,
+            );
+            await expect(reader.inputPage(fence, "case", 0, 0)).rejects.toThrow();
             throw new Error("fixture rollback");
           }),
         ),

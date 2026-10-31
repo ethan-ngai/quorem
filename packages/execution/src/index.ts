@@ -15,6 +15,11 @@ export type {
   ExecutionEngine,
   ExecutionRepository,
   ExecutionQueueControl,
+  InputBlobRef,
+  InputManifest,
+  InputKind,
+  InputPage,
+  ExecutionInputReader,
 } from "./contracts.ts";
 export {
   sameAttempt,

@@ -11,6 +11,8 @@ import {
   decodeJudgeFrame,
   encodeCheckpointFrame,
 } from "@quorem/execution";
+import { indexRunnerFixture } from "../inputs/fixture.ts";
+import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
 import { postgresExecutionCommands } from "./repository.ts";
 import { createRunnerCommandHandler } from "./http.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
@@ -45,6 +47,25 @@ it("claims and fences a real attempt through workerd", async () => {
       await tx.execute(
         sql`INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES(${job}::uuid,${submission}::uuid,'python','python-3.12-v1','quorem-harness-v2')`,
       );
+    }),
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      const raw = JSON.stringify({
+        problem: { note: "x".repeat(150000), examples: [{ args: [], expected: 2 }] },
+        hiddenCases: [],
+      });
+      await indexRunnerFixture(tx, { version }, raw);
+      const refs = await fixtureCaseRefs(tx, { version }, "example", 0);
+      await bindJobInputs(tx, {
+        jobId: job,
+        owner: { version },
+        cases: [{ channel: "public", hash: refs[0].hash }],
+        caseCount: 1,
+        sampleCount: 0,
+        privateDetails: false,
+        submitCasesAreSamples: false,
+      });
     }),
   );
   try {
@@ -95,6 +116,17 @@ it("claims and fences a real attempt through workerd", async () => {
     const claimed = await claims.claimAfterTeardown(true, "worker-scope", null);
     expect(claimed?.jobId).toBe(job);
     expect(await claims.lease(claimed!, true)).toBe(true);
+    const manifest = await claims.inputManifest(claimed!);
+    expect(manifest.metadata.size).toBeGreaterThan(150000);
+    const firstPage = await claims.inputPage(claimed!, "metadata", 0, 0);
+    const secondPage = await claims.inputPage(claimed!, "metadata", 0, 65536);
+    expect(firstPage.bytes.length).toBe(65536);
+    expect(secondPage.bytes.length).toBe(65536);
+    expect(firstPage.hash).toBe(manifest.metadata.hash);
+    expect((await claims.inputPage(claimed!, "case", 0, 0)).channel).toBe("public");
+    await expect(
+      claims.inputPage({ ...claimed!, attemptId: crypto.randomUUID() }, "case", 0, 0),
+    ).rejects.toThrow();
     const leaseBefore = await run((scope) =>
       scope.transaction(
         { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },

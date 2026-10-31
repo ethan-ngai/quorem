@@ -8,13 +8,17 @@ import {
   type CompletionHeader,
   type ExecutionRepository,
   type ExecutionQueueControl,
+  type ExecutionInputReader,
+  type InputKind,
 } from "@quorem/execution";
 
 export interface RunnerPeer {
   readonly secret: string;
   readonly scope: string;
   readonly resumable: boolean;
-  readonly repository: (signal: AbortSignal) => ExecutionRepository & ExecutionQueueControl;
+  readonly repository: (
+    signal: AbortSignal,
+  ) => ExecutionRepository & ExecutionQueueControl & ExecutionInputReader;
 }
 const encoder = new TextEncoder();
 async function sha(value: string): Promise<Uint8Array> {
@@ -135,6 +139,24 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           ? null
           : { attemptId: str(body.attemptId), sandboxScope: peer!.scope };
       switch (operation) {
+        case "manifest":
+          return Response.json(await repository.inputManifest(job()));
+        case "input": {
+          const page = await repository.inputPage(
+            job(),
+            str(body.kind) as InputKind,
+            Number(body.ordinal),
+            Number(body.offset),
+          );
+          return new Response(new Uint8Array(page.bytes), {
+            headers: {
+              "content-type": "application/octet-stream",
+              "x-input-hash": page.hash,
+              "x-input-size": String(page.size),
+              "x-input-channel": page.channel ?? "none",
+            },
+          });
+        }
         case "state":
           return Response.json(await repository.queueState());
         case "empty":

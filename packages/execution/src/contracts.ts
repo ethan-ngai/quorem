@@ -177,3 +177,33 @@ export function assertClaimFence(scope: string, confirmed: AttemptFence | null):
   if (!scope || (confirmed !== null && (!confirmed.attemptId || confirmed.sandboxScope !== scope)))
     throw new Error("claim fence mismatch");
 }
+/** Fixed-size identity and counts; values are fetched in bounded pages. */
+export interface InputBlobRef {
+  readonly hash: string;
+  readonly size: number;
+}
+export interface InputManifest {
+  readonly kind: "run" | "submit";
+  readonly level: number | null;
+  readonly caseCount: number;
+  readonly sampleCount: number;
+  readonly privateDetails: boolean;
+  readonly submitCasesAreSamples: boolean;
+  readonly source: InputBlobRef;
+  readonly metadata: InputBlobRef;
+}
+export type InputKind = "source" | "metadata" | "case";
+export interface InputPage extends InputBlobRef {
+  readonly bytes: Uint8Array;
+  readonly channel: "public" | "sample" | "private" | null;
+}
+export interface ExecutionInputReader {
+  inputManifest(job: Job, signal?: AbortSignal): Promise<InputManifest>;
+  inputPage(
+    job: Job,
+    kind: InputKind,
+    ordinal: number,
+    offset: number,
+    signal?: AbortSignal,
+  ): Promise<InputPage>;
+}
