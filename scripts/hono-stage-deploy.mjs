@@ -53,6 +53,8 @@ export function validateStageRequest(env) {
     ].every(digest)
   )
     throw new Error("Immutable staged image digests required");
+  if (!/^[0-9a-f]{64}$/.test(env.TF_VAR_case_namespace_id ?? ""))
+    throw new Error("Explicit case namespace required");
   if (env.TF_VAR_enable_queue_consumer !== "false") throw new Error("Queue must remain disabled");
 }
 

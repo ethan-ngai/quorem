@@ -8,6 +8,10 @@ on:
         options: [plan, stage]
         default: plan
         required: true
+      case_namespace:
+        description: Expected signed namespace, or 64 zeros only for first bootstrap
+        type: string
+        required: true
       release_sha:
         description: Exact migration-branch workflow revision
         type: string
@@ -57,7 +61,7 @@ jobs:
           WRANGLER_SEND_METRICS: "false"
         run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
       - run: node scripts/hono-container-validation.mjs
-      - run: node --test scripts/hono-stage-deploy.test.mjs scripts/hono-stage-config.test.mjs scripts/hono-stage-secrets.test.mjs scripts/hono-stage-preflight.test.mjs scripts/hono-stage-gate.test.mjs
+      - run: node --test scripts/hono-stage-deploy-pin.test.mjs scripts/hono-stage-deploy-proof.test.mjs scripts/hono-stage-deploy.test.mjs scripts/hono-stage-config.test.mjs scripts/hono-stage-secrets.test.mjs scripts/hono-stage-preflight.test.mjs scripts/hono-stage-gate.test.mjs
       - name: Terraform checks
         run: |
           for stack in hono-stage hono-services; do
@@ -104,7 +108,7 @@ jobs:
       TF_VAR_case_images: ${{ vars.HONO_CASE_IMAGES }}
       TF_VAR_command_origin: ${{ vars.HONO_STAGE_API_ORIGIN }}
       TF_VAR_source_origin: ${{ vars.HONO_STAGE_API_ORIGIN }}
-      TF_VAR_case_namespace_id: "0000000000000000000000000000000000000000000000000000000000000000"
+      TF_VAR_case_namespace_id: ${{ inputs.case_namespace }}
       TF_VAR_service_secrets: ${{ secrets.HONO_STAGE_SERVICE_SECRETS }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803

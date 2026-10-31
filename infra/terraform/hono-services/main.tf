@@ -128,6 +128,15 @@ resource "cloudflare_worker" "services" {
   name       = var.worker_name
   subdomain  = { enabled = false, previews_enabled = false }
 }
+resource "terraform_data" "case_namespace_pin" {
+  count = var.case_namespace_id == "0000000000000000000000000000000000000000000000000000000000000000" ? 0 : 1
+  input = var.case_namespace_id
+  lifecycle {
+    ignore_changes  = [input]
+    prevent_destroy = true
+  }
+}
+
 resource "cloudflare_worker_version" "services" {
   account_id         = var.account_id
   worker_id          = cloudflare_worker.services.id
@@ -138,6 +147,12 @@ resource "cloudflare_worker_version" "services" {
   containers         = [{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { class_name = "CaseSandbox" }]
   migrations         = { new_tag = "v1", new_sqlite_classes = ["RunnerService", "VerifierService", "CaseSandbox"] }
   deploy             = true
+  lifecycle {
+    precondition {
+      condition     = var.case_namespace_id == "0000000000000000000000000000000000000000000000000000000000000000" || try(terraform_data.case_namespace_pin[0].output == var.case_namespace_id, false)
+      error_message = "The case namespace must match its immutable state pin."
+    }
+  }
 }
 resource "restapi_object" "trusted" {
   for_each                  = local.trusted
