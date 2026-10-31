@@ -64,10 +64,13 @@ data "neon_branches" "existing" { project_id = var.project_id }
 
 locals { primary_branches = [for branch in data.neon_branches.existing.branches : branch.id if branch.primary] }
 
-# Schema-only creates an independent root; the stage database below starts empty.
+# Schema-only creates an independent root and requires compute in the same request.
 resource "restapi_object" "stage_branch" {
-  path                      = "/projects/${var.project_id}/branches"
-  data                      = jsonencode({ branch = { name = "quorem-hono-stage", init_source = "schema-only", parent_id = length(local.primary_branches) == 1 ? local.primary_branches[0] : null } })
+  path = "/projects/${var.project_id}/branches"
+  data = jsonencode({
+    branch    = { name = "quorem-hono-stage", init_source = "schema-only", parent_id = length(local.primary_branches) == 1 ? local.primary_branches[0] : null }
+    endpoints = [{ type = "read_write", autoscaling_limit_min_cu = 0.25, autoscaling_limit_max_cu = 1, suspend_timeout_seconds = 0 }]
+  })
   ignore_all_server_changes = true
   lifecycle {
     prevent_destroy = true
@@ -76,16 +79,13 @@ resource "restapi_object" "stage_branch" {
       condition     = length(local.primary_branches) == 1
       error_message = "Exactly one primary Neon branch is required."
     }
+    postcondition {
+      condition = length(jsondecode(self.create_response).endpoints) == 1 && alltrue([for endpoint in jsondecode(self.create_response).endpoints :
+        endpoint.type == "read_write" && endpoint.autoscaling_limit_min_cu == 0.25 && endpoint.autoscaling_limit_max_cu == 1 && endpoint.suspend_timeout_seconds == 0
+      ])
+      error_message = "The stage must be created with exactly one bounded read-write endpoint."
+    }
   }
-}
-resource "neon_endpoint" "stage" {
-  project_id               = var.project_id
-  branch_id                = restapi_object.stage_branch.id
-  type                     = "read_write"
-  autoscaling_limit_min_cu = 0.25
-  autoscaling_limit_max_cu = 1
-  suspend_timeout_seconds  = 0
-  lifecycle { prevent_destroy = true }
 }
 resource "neon_role" "stage" {
   project_id = var.project_id
@@ -107,7 +107,7 @@ output "database_url" {
     "postgresql://%s:%s@%s/%s?sslmode=verify-full",
     replace(urlencode(neon_role.stage.name), "+", "%20"),
     replace(urlencode(neon_role.stage.password), "+", "%20"),
-    neon_endpoint.stage.host,
+    one(jsondecode(restapi_object.stage_branch.create_response).endpoints).host,
     neon_database.stage.name,
   )
   sensitive = true

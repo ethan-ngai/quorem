@@ -27,9 +27,27 @@ void test(
           request.method === "POST" &&
           request.url === "/api/v2/projects/existing-project-fixture/branches"
         ) {
+          const input = JSON.parse(body);
+          if (!input.endpoints?.some((endpoint) => endpoint.type === "read_write")) {
+            response.writeHead(400, { "content-type": "application/json" });
+            response.end(
+              JSON.stringify({
+                message:
+                  "cannot create branch with schema-only init source without a read-write endpoint",
+              }),
+            );
+            return;
+          }
           response.writeHead(201, { "content-type": "application/json" });
           response.end(
-            JSON.stringify({ branch: { id: "br-stage-fixture", name: "quorem-hono-stage" } }),
+            JSON.stringify({
+              branch: { id: "br-stage-fixture", name: "quorem-hono-stage" },
+              endpoints: input.endpoints.map((endpoint) => ({
+                ...endpoint,
+                id: "ep-stage-fixture",
+                host: "fixture-stage.neon.example",
+              })),
+            }),
           );
         } else if (
           request.method === "GET" &&
@@ -131,6 +149,14 @@ void test(
       const post = requests.find((request) => request.method === "POST");
       assert.deepEqual(JSON.parse(post.body), {
         branch: { name: "quorem-hono-stage", init_source: "schema-only", parent_id: "br-primary" },
+        endpoints: [
+          {
+            type: "read_write",
+            autoscaling_limit_min_cu: 0.25,
+            autoscaling_limit_max_cu: 1,
+            suspend_timeout_seconds: 0,
+          },
+        ],
       });
       assert.ok(
         requests.some(
