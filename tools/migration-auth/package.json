@@ -1,0 +1,1 @@
+{"name":"quorem-auth-runtime-spike","private":true,"type":"module","scripts":{"probe":"node probe.mjs"},"dependencies":{"@better-auth/passkey":"1.7.7","better-auth":"1.7.7","drizzle-orm":"0.45.4","pg":"8.16.3","jose":"6.1.3"},"devDependencies":{"wrangler":"4.156.0"}}
