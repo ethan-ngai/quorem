@@ -358,7 +358,7 @@ void test("completion races with cancellation under the shared judge lock", asyn
     [id, workspace],
   );
   await pool.query(
-    "INSERT INTO execution_jobs(id,submission_id,attempt_id,lease_until) VALUES($1,$2,$3,clock_timestamp()+interval '1 minute')",
+    "INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until) VALUES($1,$2,$3,'cancellation-fixture',clock_timestamp()+interval '1 minute')",
     [job, id, attempt],
   );
   const client = await pool.connect();
@@ -417,7 +417,7 @@ void test("a cancellation preceding completion remains authoritative", async () 
     [id, workspace],
   );
   await pool.query(
-    "INSERT INTO execution_jobs(id,submission_id,attempt_id,lease_until) VALUES($1,$2,$3,clock_timestamp()+interval '1 minute')",
+    "INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until) VALUES($1,$2,$3,'cancellation-fixture',clock_timestamp()+interval '1 minute')",
     [job, id, attempt],
   );
   await repo.cancel(alice, id, "race-cancel-first");
