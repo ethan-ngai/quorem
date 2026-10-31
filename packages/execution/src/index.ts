@@ -56,3 +56,4 @@ export { compressCheckpointFrame, decompressCheckpointFrame } from "./checkpoint
 export { validateCompiledArtifact } from "./artifact.ts";
 
 export { canonicalWorkspaceCommand, workspaceCommandFingerprint } from "./fingerprint.ts";
+export { manifestCaseBinding, manifestInvocationBinding } from "./manifest-binding.ts";
