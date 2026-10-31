@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
 import { migrateAuth } from "./migrations";
+import { authPeerRequest } from "./peer.ts";
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL;
 describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () => {
   it("requires explicit linking, verifies missing email, preserves ownership and adds a first password", async () => {
@@ -41,16 +42,18 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
         .join("; ");
     const call = (path: string, body?: object, cookie = "", source = origin) =>
       auth.handler(
-        new Request(`${origin}/api/auth/${path}`, {
-          method: body ? "POST" : "GET",
-          headers: {
-            "x-forwarded-for": `192.0.2.${++requestNumber}`,
-            Origin: source,
-            Cookie: cookie,
-            ...(body ? { "Content-Type": "application/json" } : {}),
-          },
-          body: body ? JSON.stringify(body) : undefined,
-        }),
+        authPeerRequest(
+          new Request(`${origin}/api/auth/${path}`, {
+            method: body ? "POST" : "GET",
+            headers: {
+              Origin: source,
+              Cookie: cookie,
+              ...(body ? { "Content-Type": "application/json" } : {}),
+            },
+            body: body ? JSON.stringify(body) : undefined,
+          }),
+          `192.0.2.${++requestNumber}`,
+        ),
       );
     async function oauth(path = "sign-in/social", cookie = "") {
       const start = await call(
@@ -147,7 +150,9 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       let link = "";
       const { drizzleAuthRepository } = await import("./adapters/drizzle-auth-repository.ts");
       const { withNodeConnection } = await import("@quorem/database/core");
-      const repository = drizzleAuthRepository(callback => withNodeConnection(database, { lifetimeMs: 15000 }, callback));
+      const repository = drizzleAuthRepository((callback) =>
+        withNodeConnection(database, { lifetimeMs: 15000 }, callback),
+      );
       const flow = socialEmail(repository, origin, async (_email, url) => {
         link = url;
       });
