@@ -14,6 +14,7 @@ export async function spoolInput(options: {
   kind: InputKind;
   ordinal: number;
   expected?: InputBlobRef;
+  expectedChannel?: "public" | "sample" | "private";
   signal?: AbortSignal;
 }) {
   const directory = await mkdtemp(join(tmpdir(), "quorem-input-"));
@@ -41,6 +42,14 @@ export async function spoolInput(options: {
         channel = page.channel;
       }
       if (
+        !Number.isSafeInteger(page.size) ||
+        page.size < 0 ||
+        page.size > 1073741823 ||
+        !/^[a-f0-9]{64}$/.test(page.hash) ||
+        (options.kind === "case"
+          ? !["public", "sample", "private"].includes(page.channel ?? "")
+          : page.channel !== null) ||
+        (options.expectedChannel !== undefined && page.channel !== options.expectedChannel) ||
         page.size !== size ||
         page.hash !== hash ||
         page.channel !== channel ||

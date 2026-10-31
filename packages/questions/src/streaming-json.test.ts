@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { decodeUtf8Chunks, readAllowedObjectSpans, StreamingJsonReader } from "./streaming-json.ts";
+import {
+  decodeUtf8Chunks,
+  encodeJsonStringChunks,
+  readAllowedObjectSpans,
+  StreamingJsonReader,
+} from "./streaming-json.ts";
+import { stringifyLosslessJson } from "./json.ts";
 async function parse(bytes: Uint8Array, widths = 1) {
   async function* chunks() {
     for (let i = 0; i < bytes.length; i += widths) yield bytes.subarray(i, i + widths);
@@ -35,5 +41,22 @@ describe("bounded case field spans", () => {
     await expect(
       parse(new Uint8Array([123, 34, 97, 114, 103, 115, 34, 58, 34, 0xff, 34, 125])),
     ).rejects.toThrow();
+  });
+  it("encodes text as the same canonical JSON string across UTF-8 chunk boundaries", async () => {
+    const value = 'hello <λ>&\u0000\n"\\ 🐈';
+    const bytes = new TextEncoder().encode(value);
+    async function* chunks() {
+      for (const byte of bytes) yield new Uint8Array([byte]);
+    }
+    const parts: Uint8Array[] = [];
+    for await (const part of encodeJsonStringChunks(chunks())) parts.push(part);
+    const length = parts.reduce((n, p) => n + p.length, 0),
+      out = new Uint8Array(length);
+    let offset = 0;
+    for (const part of parts) {
+      out.set(part, offset);
+      offset += part.length;
+    }
+    expect(new TextDecoder().decode(out)).toBe(stringifyLosslessJson(value));
   });
 });
