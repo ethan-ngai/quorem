@@ -119,6 +119,11 @@ export interface SandboxControl {
 export interface ExecutionEngine {
   execute(job: Job, signal?: AbortSignal): Promise<Completion>;
 }
+export interface ExecutionQueueControl {
+  queueState(signal?: AbortSignal): Promise<{ queued: number; running: number }>;
+  confirmQueueEmpty(signal?: AbortSignal): Promise<boolean>;
+  nextRunnableDeadline(scope: string, signal?: AbortSignal): Promise<number | null>;
+}
 export interface ExecutionRepository {
   nextExpiredAttempt(
     resumable: boolean,

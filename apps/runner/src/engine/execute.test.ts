@@ -17,7 +17,7 @@ import {
   type Job,
 } from "@quorem/execution";
 import { dockerSandbox } from "../sandbox/docker.ts";
-import { executeAndStage } from "./execute.ts";
+import { executeAndStage, ExecutionYield } from "./execute.ts";
 const socket = process.env.QUOREM_TEST_DOCKER_SOCKET;
 function repository(spec: ExecutionSpec) {
   const frames: string[] = [],
@@ -244,6 +244,54 @@ void test(
       ],
     );
     assert.equal(sequenceResult.header.verdict, "accepted");
+  },
+);
+void test(
+  "case boundary yields only after a durable checkpoint and resumes",
+  { skip: !socket, timeout: 60000 },
+  async (t) => {
+    const stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-engine-yield-")));
+    t.after(() => rm(stateRoot, { recursive: true, force: true }));
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "yield",
+      cleanupMs: 10000,
+    });
+    const runtime = languageRuntime("python")!;
+    const spec: ExecutionSpec = {
+      problemJson: JSON.stringify({
+        signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      }),
+      source: "class Solution:\n def f(self): return 7",
+      kind: "run",
+      cases: ['{"args":[],"expected":7}', '{"args":[],"expected":7}'],
+      submitSamples: [],
+      submitCasesAreSamples: false,
+      privateDetails: false,
+    };
+    const fixture = repository(spec),
+      job: Job = {
+        jobId: randomUUID(),
+        submissionId: randomUUID(),
+        attemptId: randomUUID(),
+        sandboxScope: sandbox.scope,
+        language: "python",
+        problemVersionId: randomUUID(),
+        runtimeRevision: runtime.revision,
+        harnessRevision: runtime.harness,
+        sourceRef: "source",
+        suiteRef: "suite",
+        limits: defaultLimits(),
+      };
+    let boundaries = 0;
+    await assert.rejects(
+      executeAndStage(job, fixture.port, sandbox, undefined, () => ++boundaries > 0),
+      ExecutionYield,
+    );
+    assert.equal(fixture.frames.length, 1);
+    assert.equal((await executeAndStage(job, fixture.port, sandbox)).verdict, "accepted");
+    assert.equal(fixture.frames.length, 2);
   },
 );
 void test("a forged sandbox result cannot create a checkpoint", async () => {

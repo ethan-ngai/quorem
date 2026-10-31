@@ -1,5 +1,5 @@
 import type { ConnectionScope } from "@quorem/database/core";
-import type { ExecutionRepository } from "@quorem/execution";
+import type { ExecutionQueueControl, ExecutionRepository } from "@quorem/execution";
 import { postgresClaims, type RunnerCapabilities } from "./claim.ts";
 import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
@@ -11,7 +11,7 @@ type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export function postgresExecutionCommands(
   run: Run,
   capabilities: RunnerCapabilities,
-): ExecutionRepository {
+): ExecutionRepository & ExecutionQueueControl {
   const cap = Object.freeze({ ...capabilities }),
     claims = postgresClaims(run, cap),
     checkpoints = postgresCheckpoints(run),

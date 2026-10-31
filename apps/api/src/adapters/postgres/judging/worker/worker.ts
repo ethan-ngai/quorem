@@ -89,6 +89,9 @@ it("claims and fences a real attempt through workerd", async () => {
       timeoutMs: 5000,
       fetch: fetcher,
     });
+    expect((await claims.queueState()).queued).toBeGreaterThanOrEqual(1);
+    expect(await claims.confirmQueueEmpty()).toBe(false);
+    expect(await claims.nextRunnableDeadline("worker-scope")).toBe(0);
     const claimed = await claims.claimAfterTeardown(true, "worker-scope", null);
     expect(claimed?.jobId).toBe(job);
     expect(await claims.lease(claimed!, true)).toBe(true);

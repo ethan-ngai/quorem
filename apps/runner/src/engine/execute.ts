@@ -83,12 +83,19 @@ async function field(
       signal,
     );
 }
+/** A saved checkpoint is ready for a teardown-fenced yield. */
+export class ExecutionYield extends Error {
+  constructor() {
+    super("Execution checkpoint ready to yield");
+  }
+}
 /** Execute one case at a time; only bounded checkpoints and streamed fields cross the queue port. */
 export async function executeAndStage(
   job: Job,
   repository: ExecutionRepository,
   sandbox: IsolatedSandbox,
   signal?: AbortSignal,
+  shouldYield?: () => boolean,
 ): Promise<CompletionHeader> {
   const runtime = runtimeForRevision(job.runtimeRevision, job.harnessRevision);
   if (!runtime || runtime.language !== job.language)
@@ -147,6 +154,7 @@ export async function executeAndStage(
     throw new Error("Invalid checkpoint fatal");
   for (let ordinal = checkpoint.nextOrdinal; ordinal < all.length; ordinal++) {
     signal?.throwIfAborted();
+    if (ordinal > checkpoint.nextOrdinal && shouldYield?.()) throw new ExecutionYield();
     let frame: JudgeFrame;
     const compiled = !["python", "postgresql"].includes(job.language);
     if (fatal) frame = { ...fatal, artifact: undefined };

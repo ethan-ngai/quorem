@@ -7,13 +7,14 @@ import {
   type CompletionFieldChunk,
   type CompletionHeader,
   type ExecutionRepository,
+  type ExecutionQueueControl,
 } from "@quorem/execution";
 
 export interface RunnerPeer {
   readonly secret: string;
   readonly scope: string;
   readonly resumable: boolean;
-  readonly repository: (signal: AbortSignal) => ExecutionRepository;
+  readonly repository: (signal: AbortSignal) => ExecutionRepository & ExecutionQueueControl;
 }
 const encoder = new TextEncoder();
 async function sha(value: string): Promise<Uint8Array> {
@@ -134,6 +135,12 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           ? null
           : { attemptId: str(body.attemptId), sandboxScope: peer!.scope };
       switch (operation) {
+        case "state":
+          return Response.json(await repository.queueState());
+        case "empty":
+          return Response.json(await repository.confirmQueueEmpty());
+        case "deadline":
+          return Response.json(await repository.nextRunnableDeadline(peer.scope));
         case "expired":
           return Response.json(await repository.nextExpiredAttempt(peer.resumable, peer.scope));
         case "claim": {

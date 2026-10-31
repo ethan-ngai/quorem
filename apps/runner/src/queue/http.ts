@@ -9,6 +9,7 @@ import {
   type CompletionFieldChunk,
   type CompletionHeader,
   type ExecutionRepository,
+  type ExecutionQueueControl,
   type ExecutionSpec,
   type Job,
 } from "@quorem/execution";
@@ -30,7 +31,7 @@ export function privateRunnerCommands(options: {
   resumable: boolean;
   timeoutMs: number;
   fetch?: typeof fetch;
-}): ExecutionRepository {
+}): ExecutionRepository & ExecutionQueueControl {
   let origin: URL;
   try {
     origin = new URL(options.origin);
@@ -62,7 +63,15 @@ export function privateRunnerCommands(options: {
     raw?: Uint8Array,
     extra?: Record<string, string>,
   ): Promise<Response> {
-    const outcome = ["expired", "load", "checkpoint", "replay"].includes(op)
+    const outcome = [
+      "expired",
+      "load",
+      "checkpoint",
+      "replay",
+      "state",
+      "empty",
+      "deadline",
+    ].includes(op)
       ? "unavailable"
       : "unknown";
     try {
@@ -121,6 +130,33 @@ export function privateRunnerCommands(options: {
     return fence?.attemptId ?? null;
   };
   return {
+    async queueState(signal) {
+      const value = (await json("state", {}, signal)) as { queued: number; running: number };
+      if (
+        !value ||
+        !Number.isSafeInteger(value.queued) ||
+        value.queued < 0 ||
+        !Number.isSafeInteger(value.running) ||
+        value.running < 0
+      )
+        throw new RunnerCommandError("unavailable");
+      return value;
+    },
+    async confirmQueueEmpty(signal) {
+      const value = await json("empty", {}, signal);
+      if (typeof value !== "boolean") throw new RunnerCommandError("unavailable");
+      return value;
+    },
+    async nextRunnableDeadline(scope, signal) {
+      proof(scope, null);
+      const value = await json("deadline", {}, signal);
+      if (
+        value !== null &&
+        (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
+      )
+        throw new RunnerCommandError("unavailable");
+      return value;
+    },
     async nextExpiredAttempt(resumable, scope, signal) {
       if (resumable !== options.resumable) throw new Error("Capability mismatch");
       proof(scope, null);

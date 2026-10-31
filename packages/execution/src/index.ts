@@ -14,6 +14,7 @@ export type {
   SandboxControl,
   ExecutionEngine,
   ExecutionRepository,
+  ExecutionQueueControl,
 } from "./contracts.ts";
 export {
   sameAttempt,
