@@ -678,3 +678,271 @@ void test("legacy variable header strings stay bounded without an invented limit
   assert.ok(total > 32 * 1024 * 1024);
   assert.ok(max <= 65536);
 });
+async function legacyPrivateFixture(
+  payload: string,
+  initial: string[],
+  authoritative = false,
+): Promise<string> {
+  const id = crypto.randomUUID(),
+    client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result) VALUES($1,'results-alice',$2,'submit','','legacy-private','running','[]','{}')",
+      [id, interview],
+    );
+    await client.query(
+      "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results,private_results_payload) SELECT $1,session_id,document_version,document_epoch,question_epoch,fixture_id,level,$3::jsonb,$4 FROM interview_execution WHERE submission_id=$2",
+      [
+        id,
+        interviewSubmission,
+        JSON.stringify(initial.map((_, index) => ({ index, status: "passed" }))),
+        Buffer.from(payload),
+      ],
+    );
+    for (let i = 0; i < initial.length; i++)
+      await client.query(
+        "INSERT INTO interview_private_result_cases(submission_id,ordinal,result_data) VALUES($1,$2,$3)",
+        [id, i, Buffer.from(initial[i])],
+      );
+    if (authoritative)
+      await client.query(
+        "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+        [id, Buffer.from('{"publicCasesPresent":false,"publicCaseCount":0,"channel":"sample"}')],
+      );
+    await client.query("UPDATE submissions SET state='completed' WHERE id=$1", [id]);
+    await client.query("COMMIT");
+    return id;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+void test("legacy private sidecars rebuild atomically from the locked source", async () => {
+  const { backfillPrivateResultCases } =
+    await import("../../interviews/question/private-results.ts");
+  const raw = '[{"index":0,"status":"passed","actual":{"z":1,"a":2}}]';
+  const previous = '{"actual":{"a":2,"z":1},"index":0,"status":"passed"}';
+  const id = await legacyPrivateFixture(raw, [previous]);
+  assert.equal(
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, id),
+      ),
+    ),
+    true,
+  );
+  const data = (
+    await pool.query(
+      "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1",
+      [id],
+    )
+  ).rows[0].data;
+  assert.match(data, /"z":1,"a":2/);
+  const protectedId = await legacyPrivateFixture(raw, [previous], true);
+  await assert.rejects(
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, protectedId),
+      ),
+    ),
+    /Conflicting legacy case/,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1",
+        [protectedId],
+      )
+    ).rows[0].data,
+    previous,
+  );
+});
+void test("a failed legacy rebuild rolls back deleted sidecars", async () => {
+  const { backfillPrivateResultCases } =
+    await import("../../interviews/question/private-results.ts");
+  const previous = '{"index":0,"status":"passed","actual":1}';
+  const id = await legacyPrivateFixture(
+    '[{"index":0,"status":"passed","actual":2},{"index":1,"status":4}]',
+    [previous, '{"index":1,"status":"passed"}'],
+  );
+  await assert.rejects(
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, id),
+      ),
+    ),
+  );
+  const rows = await pool.query(
+    "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1 ORDER BY ordinal",
+    [id],
+  );
+  assert.equal(rows.rowCount, 2);
+  assert.equal(rows.rows[0].data, previous);
+});
+void test("legacy repair samples source only after acquiring the execution lock", async () => {
+  const { backfillPrivateResultCases } =
+    await import("../../interviews/question/private-results.ts");
+  const old = '{"index":0,"status":"passed","actual":1}',
+    id = await legacyPrivateFixture("[" + old + "]", [old]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "UPDATE interview_execution SET private_results_payload=$2 WHERE submission_id=$1",
+      [id, Buffer.from('[{"index":0,"status":"passed","actual":2}]')],
+    );
+    const pending = run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, id),
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await client.query("COMMIT");
+    assert.equal(await pending, true);
+    const data = (
+      await pool.query(
+        "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1",
+        [id],
+      )
+    ).rows[0].data;
+    assert.match(data, /"actual":2/);
+  } finally {
+    client.release();
+  }
+});
+void test("actual 27 interview promotion feeds authorized streamed results", async () => {
+  const { postgresCompletionStaging } = await import("../worker/staging.ts");
+  const { postgresCompletionPromotion } = await import("../worker/promote.ts");
+  const { backfillSnapshotPublicExamples } =
+    await import("../../interviews/question/public-examples.ts");
+  const session = crypto.randomUUID(),
+    questionEpoch = crypto.randomUUID(),
+    documentEpoch = crypto.randomUUID(),
+    submission = crypto.randomUUID(),
+    jobId = crypto.randomUUID(),
+    attemptId = crypto.randomUUID();
+  const fixture = JSON.stringify({
+    problem: {
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      constraints: [],
+      limits: {
+        wallTimeMs: 2000,
+        memoryBytes: 268435456,
+        outputBytes: 65536,
+        maxProcesses: 16,
+        maxCollectionElements: 10000,
+        maxNestingDepth: 100,
+      },
+      examples: [],
+    },
+    hiddenCases: [{ args: [], expected: 2 }],
+  });
+  await pool.query(
+    "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES($1,'results-host','promotion','{}','python','',$2,$3,$4,$4,$5,$5)",
+    [session, documentEpoch, questionEpoch, crypto.randomUUID(), crypto.randomUUID()],
+  );
+  await pool.query(
+    "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,'results-host','interviewer'),($1,'results-alice','interviewee')",
+    [session],
+  );
+  const fixtureId = (
+    await pool.query(
+      "WITH f AS (SELECT $2::jsonb AS value) INSERT INTO interview_question_snapshots(session_id,id,fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value FROM f RETURNING id",
+      [session, fixture],
+    )
+  ).rows[0].id;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'submit','','hash','running','[{\"args\":[],\"expected\":2}]')",
+      [submission, session],
+    );
+    await client.query(
+      "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level) VALUES($1,$2,1,$3,$4,$5,1)",
+      [submission, session, documentEpoch, questionEpoch, fixtureId],
+    );
+    await client.query(
+      "INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until,attempts) VALUES($1,$2,$3,'promotion-test',clock_timestamp()+interval '1 minute',1)",
+      [jobId, submission, attemptId],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSnapshotPublicExamples(tx, session, fixtureId),
+    ),
+  );
+  const job = {
+    jobId,
+    submissionId: submission,
+    attemptId,
+    sandboxScope: "promotion-test",
+    language: "python",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    sourceRef: "",
+    suiteRef: "",
+    problemVersionId: version,
+    limits: {
+      wallTimeMs: 2000,
+      memoryBytes: 268435456,
+      outputBytes: 65536,
+      maxProcesses: 16,
+      maxCollectionElements: 10000,
+      maxNestingDepth: 100,
+    },
+  };
+  const staging = postgresCompletionStaging(run);
+  await staging.begin(job, {
+    submissionId: submission,
+    attemptId,
+    verdict: "wrong_answer",
+    score: { passed: 0, total: 1 },
+    hiddenCases: [{ index: 0, status: "wrong_answer" }],
+    engineFailure: false,
+    diagnosticsPresent: false,
+    publicPresent: false,
+    samplePresent: false,
+    privatePresent: true,
+    publicCount: 0,
+    sampleCount: 0,
+    privateCount: 1,
+  });
+  await staging.chunk(job, {
+    channel: "private",
+    ordinal: 0,
+    field: "actual",
+    chunkOrdinal: 0,
+    bytes: new TextEncoder().encode("1"),
+  });
+  await staging.chunk(job, {
+    channel: "private",
+    ordinal: 0,
+    field: "stdout",
+    chunkOrdinal: 0,
+    bytes: new TextEncoder().encode('"PRIVATE\\u0000OUTPUT"'),
+  });
+  await staging.seal(job, "private", 0, "executed");
+  await staging.eof(job, job);
+  await postgresCompletionPromotion(run)(job, job);
+  const staff = await repo.interview(host, session, submission);
+  assert.match(staff, /PRIVATE\\u0000OUTPUT/);
+  assert.match(staff, /"expected":2/);
+  assert.doesNotMatch(await repo.interview(alice, session, submission), /PRIVATE|"expected":2/);
+  await pool.query(
+    "INSERT INTO interview_case_visibility(session_id,question_epoch,case_id) VALUES($1,$2,'hidden:0')",
+    [session, questionEpoch],
+  );
+  const revealed = await repo.interview(alice, session, submission);
+  assert.match(revealed, /PRIVATE\\u0000OUTPUT/);
+  assert.match(revealed, /"expected":2/);
+});

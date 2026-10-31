@@ -3,6 +3,7 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { legacyRaw, legacyKind, legacyInteger } from "./legacy-sql.ts";
 import { LegacyJsonReader } from "./legacy-json.ts";
+export class LegacyCaseConflict extends Error {}
 export type Span = { start: number; length: number };
 export type Fields = Map<string, Span>;
 const names = new Set([
@@ -176,8 +177,9 @@ export async function writeLegacyCase(
     channel === "private"
       ? sql`submission_id=${id}::uuid AND ordinal=${ordinal}`
       : sql`submission_id=${id}::uuid AND channel=${channel} AND ordinal=${ordinal}`;
-  const result = await tx.execute<{ ok: boolean }>(
-    sql`WITH source AS (${source}), projected AS (SELECT ${sql.join(parts, sql` || `)} AS data,(${sql.join(clauses, sql` AND `)}) AS valid FROM source), inserted AS (INSERT INTO ${table}(${columns}) SELECT ${values} FROM projected WHERE valid ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM inserted) OR EXISTS(SELECT 1 FROM ${table},projected WHERE ${filter} AND projected.valid AND result_data=projected.data) AS ok`,
+  const result = await tx.execute<{ ok: boolean; valid: boolean }>(
+    sql`WITH source AS (${source}), projected AS (SELECT ${sql.join(parts, sql` || `)} AS data,(${sql.join(clauses, sql` AND `)}) AS valid FROM source), inserted AS (INSERT INTO ${table}(${columns}) SELECT ${values} FROM projected WHERE valid ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM inserted) OR EXISTS(SELECT 1 FROM ${table},projected WHERE ${filter} AND projected.valid AND result_data=projected.data) AS ok,COALESCE((SELECT valid FROM projected),false) AS valid`,
   );
-  if (!result.rows[0]?.ok) throw new Error("Invalid or conflicting legacy case");
+  if (!result.rows[0]?.valid) throw new Error("Invalid legacy case");
+  if (!result.rows[0]?.ok) throw new LegacyCaseConflict("Conflicting legacy case");
 }

@@ -3,7 +3,11 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "@quorem/questions";
 import { resultCase } from "../../judging/results/projection.ts";
-import { scanLegacyCase, writeLegacyCase } from "../../judging/results/legacy-case.ts";
+import {
+  LegacyCaseConflict,
+  scanLegacyCase,
+  writeLegacyCase,
+} from "../../judging/results/legacy-case.ts";
 import { LegacyJsonReader } from "../../judging/results/legacy-json.ts";
 async function saveCase(
   tx: Transaction,
@@ -36,12 +40,16 @@ export async function savePrivateResultCase(
 /** Privileged, terminal-only normalization; each source read is bounded. */
 export async function backfillPrivateResultCases(tx: Transaction, id: string): Promise<boolean> {
   const row = (
-    await tx.execute<{ length: number | null; expected: number }>(
-      sql`SELECT octet_length(COALESCE(e.private_results_payload,convert_to(e.private_results::text,'UTF8')))::int AS length,CASE WHEN jsonb_typeof(e.private_results)='array' THEN jsonb_array_length(e.private_results) ELSE 0 END AS expected FROM interview_execution e JOIN submissions s ON s.id=e.submission_id WHERE e.submission_id=${id}::uuid AND s.state IN ('completed','failed','cancelled') AND s.result IS NOT NULL FOR UPDATE OF e,s`,
+    await tx.execute<{
+      length: number | null;
+      expected: number;
+      digest: Uint8Array | null;
+      summaryDigest: Uint8Array | null;
+    }>(
+      sql`SELECT octet_length(COALESCE(e.private_results_payload,convert_to(e.private_results::text,'UTF8')))::int AS length,sha256(COALESCE(e.private_results_payload,convert_to(e.private_results::text,'UTF8'))) AS digest,sha256(convert_to(e.private_results::text,'UTF8')) AS "summaryDigest",CASE WHEN jsonb_typeof(e.private_results)='array' THEN jsonb_array_length(e.private_results) ELSE 0 END AS expected FROM interview_execution e JOIN submissions s ON s.id=e.submission_id WHERE e.submission_id=${id}::uuid AND s.state IN ('completed','failed','cancelled') AND s.result IS NOT NULL FOR UPDATE OF e,s`,
     )
   ).rows[0];
   if (!row) return false;
-  if (row.length === null) return true;
   await tx.execute(sql`SELECT set_config('quorem.result_backfill','v1',true)`);
   async function* chunks(): AsyncGenerator<string> {
     const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -57,6 +65,15 @@ export async function backfillPrivateResultCases(tx: Transaction, id: string): P
     if (tail) yield tail;
   }
   async function normalize(): Promise<void> {
+    if (row!.length === null) {
+      const current = (
+        await tx.execute<{ count: number }>(
+          sql`SELECT count(*)::int AS count FROM interview_private_result_cases WHERE submission_id=${id}::uuid`,
+        )
+      ).rows[0].count;
+      if (current) throw new LegacyCaseConflict("Conflicting legacy case");
+      return;
+    }
     const input = new LegacyJsonReader(chunks()[Symbol.asyncIterator]());
     if ((await input.peek()) !== "[") {
       let token = "";
@@ -81,8 +98,34 @@ export async function backfillPrivateResultCases(tx: Transaction, id: string): P
         sql`SELECT count(*)::int AS count FROM interview_private_result_cases WHERE submission_id=${id}::uuid`,
       )
     ).rows[0].count;
-    if (actual !== ordinal) throw new Error("Invalid or conflicting legacy case");
+    if (actual !== ordinal) throw new LegacyCaseConflict("Conflicting legacy case");
   }
-  await normalize();
+  const assertStable = async () => {
+    const result = await tx.execute<{ ok: boolean }>(
+      sql`SELECT sha256(COALESCE(private_results_payload,convert_to(private_results::text,'UTF8'))) IS NOT DISTINCT FROM ${row.digest} AND sha256(convert_to(private_results::text,'UTF8')) IS NOT DISTINCT FROM ${row.summaryDigest} AS ok FROM interview_execution WHERE submission_id=${id}::uuid`,
+    );
+    if (!result.rows[0]?.ok) throw new Error("Legacy private result changed");
+  };
+  try {
+    await normalize();
+  } catch (error) {
+    if (!(error instanceof LegacyCaseConflict)) throw error;
+    if (
+      (
+        await tx.execute(
+          sql`SELECT 1 FROM submission_result_headers WHERE submission_id=${id}::uuid`,
+        )
+      ).rows.length
+    )
+      throw error;
+    await assertStable();
+    await tx.execute(sql`SELECT set_config('quorem.legacy_private_rebuild','v1',true)`);
+    await tx.execute(
+      sql`DELETE FROM interview_private_result_cases WHERE submission_id=${id}::uuid`,
+    );
+    await tx.execute(sql`SELECT set_config('quorem.legacy_private_rebuild','',true)`);
+    await normalize();
+  }
+  await assertStable();
   return true;
 }
