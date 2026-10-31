@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ApplicationError } from "../../../application/error.ts";
 import type { LocalPrincipal } from "../../identity/model.ts";
 import type { Notice } from "../dispatch/ports.ts";
@@ -54,7 +54,10 @@ describe("browser socket protocol", () => {
         ping: async () => {},
         close: () => {},
       },
-      security: { verify: async () => ({ principal: actor }), authorize: async () => "role-1" },
+      security: {
+        verify: async () => ({ principal: actor, binding: "test-grant" }),
+        authorize: async () => "role-1",
+      },
       subscription: {
         subscribe: async (f) => {
           order.push("subscribe");
@@ -100,7 +103,10 @@ describe("browser socket protocol", () => {
         },
         close: () => {},
       },
-      security: { verify: async () => ({ principal: actor }), authorize: async () => "member" },
+      security: {
+        verify: async () => ({ principal: actor, binding: "test-grant" }),
+        authorize: async () => "member",
+      },
       subscription: { subscribe: async () => () => {} },
       renew: async () => {
         renewed.push("renew");
@@ -139,7 +145,7 @@ describe("browser socket protocol", () => {
         close: (code) => closed.push(code),
       },
       security: {
-        verify: async () => ({ principal: actor }),
+        verify: async () => ({ principal: actor, binding: "test-grant" }),
         authorize: async () => {
           if (denied) throw new ApplicationError("forbidden", "Denied", 403);
           return role;
@@ -173,7 +179,10 @@ describe("browser socket protocol", () => {
         ping: async () => {},
         close: (code) => closed.push(code),
       },
-      security: { verify: async () => ({ principal: actor }), authorize: async () => "member" },
+      security: {
+        verify: async () => ({ principal: actor, binding: "test-grant" }),
+        authorize: async () => "member",
+      },
       subscription: { subscribe: async () => () => {} },
       commands: { execute: async () => ({}) },
     });
@@ -183,5 +192,41 @@ describe("browser socket protocol", () => {
     await turn();
     expect(closed).toContain(1013);
     blocked.resolve();
+  });
+  it("closes instead of overtaking a timed out document mutation", async () => {
+    vi.useFakeTimers();
+    try {
+      const blocked = defer<unknown>(),
+        closed: number[] = [],
+        calls: string[] = [];
+      const s = new SocketSession({
+        mode: "interview",
+        transport: {
+          send: async () => {},
+          ping: async () => {},
+          close: (code) => closed.push(code),
+        },
+        security: {
+          verify: async () => ({ principal: actor, binding: "test-grant" }),
+          authorize: async () => "member",
+        },
+        subscription: { subscribe: async () => () => {} },
+        commands: {
+          execute: async (_p, c) => {
+            calls.push(c.id);
+            return blocked.promise;
+          },
+        },
+      });
+      await s.start();
+      s.receive('{"id":"one","type":"push"}');
+      s.receive('{"id":"two","type":"push"}');
+      await vi.advanceTimersByTimeAsync(5001);
+      expect(closed).toEqual([1013]);
+      expect(calls).toEqual(["one"]);
+      blocked.resolve({});
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -12,13 +12,15 @@ import type {
 } from "./ports.ts";
 import { parseSocketCommand } from "./parse.ts";
 const encoder = new TextEncoder();
+class SocketDeadline extends Error {}
 const denied = (e: unknown) => e instanceof ApplicationError && [401, 403, 404].includes(e.status);
 const unavailable = {
   code: "temporarily_unavailable",
   status: 503,
   message: "Realtime temporarily unavailable",
 };
-const identity = (p: Principal) => JSON.stringify([p.kind, p.userId, p.sessionId]);
+const identity = (p: Principal | undefined, binding: string) =>
+  JSON.stringify([binding, p?.kind, p?.userId, p?.sessionId]);
 type Lane = { queue: SocketCommand[]; running: boolean };
 /** Each instance belongs to one socket and never stores bearer or guest credentials. */
 export class SocketSession {
@@ -26,8 +28,8 @@ export class SocketSession {
   private started = false;
   private stop?: () => void;
   private abort = new AbortController();
-  private cached?: { principal: Principal; until: number; identity: string };
-  private verifying?: Promise<Principal>;
+  private cached?: { principal: Principal | undefined; until: number; identity: string };
+  private verifying?: Promise<Principal | undefined>;
   private lanes: { command: Lane; advisory: Lane } = {
     command: { queue: [], running: false },
     advisory: { queue: [], running: false },
@@ -57,13 +59,39 @@ export class SocketSession {
   private now() {
     return this.deps.now?.() ?? Date.now();
   }
-  private async principal(): Promise<Principal> {
+  private async deadline<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    if (this.abort.signal.aborted) throw new SocketDeadline("Socket closed");
+    const stop = () => controller.abort();
+    this.abort.signal.addEventListener("abort", stop, { once: true });
+    const timer = setTimeout(stop, 5000);
+    try {
+      return await Promise.race([
+        fn(controller.signal),
+        new Promise<never>((_, reject) =>
+          controller.signal.addEventListener(
+            "abort",
+            () => reject(new SocketDeadline("Socket operation timed out")),
+            { once: true },
+          ),
+        ),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      this.abort.signal.removeEventListener("abort", stop);
+    }
+  }
+  private async principal(): Promise<Principal | undefined> {
     const now = this.now();
     if (this.cached && now < this.cached.until) return this.cached.principal;
     if (this.verifying) return this.verifying;
     this.verifying = (async () => {
-      const verified = await this.deps.security.verify();
-      const current = identity(verified.principal);
+      const verified = await this.deadline((signal) => this.deps.security.verify(signal));
+      if (!verified.binding || verified.binding.length > 256)
+        throw new ApplicationError("unauthenticated", "Invalid socket grant", 401);
+      if (this.deps.mode !== "invite" && !verified.principal)
+        throw new ApplicationError("unauthenticated", "Sign in required", 401);
+      const current = identity(verified.principal, verified.binding);
       if (this.cached && this.cached.identity !== current)
         throw new ApplicationError("unauthenticated", "Session changed", 401);
       if (verified.expiresAt !== undefined && verified.expiresAt <= this.now())
@@ -81,9 +109,12 @@ export class SocketSession {
       this.verifying = undefined;
     }
   }
-  private async authorized(): Promise<{ principal: Principal; stamp: string }> {
+  private async authorized(): Promise<{ principal: Principal | undefined; stamp: string }> {
     const principal = await this.principal();
-    return { principal, stamp: await this.deps.security.authorize(principal) };
+    return {
+      principal,
+      stamp: await this.deadline((signal) => this.deps.security.authorize(principal, signal)),
+    };
   }
   private fail(error: unknown) {
     if (denied(error)) {
@@ -145,10 +176,24 @@ export class SocketSession {
     try {
       await this.authorized();
       if (this.closed) return;
-      const stop = await this.deps.subscription.subscribe(
-        (n) => this.notice(n),
-        () => this.close(1013, "Realtime unavailable"),
-      );
+      let abandoned = false;
+      const stop = await this.deadline((signal) => {
+        const pending = this.deps.subscription.subscribe(
+          (n) => this.notice(n),
+          () => this.close(1013, "Realtime unavailable"),
+          signal,
+        );
+        void pending.then(
+          (release) => {
+            if (abandoned) release();
+          },
+          () => {},
+        );
+        return pending;
+      }).catch((error) => {
+        abandoned = true;
+        throw error;
+      });
       if (this.closed) {
         stop();
         return;
@@ -192,7 +237,7 @@ export class SocketSession {
           await this.send({ type: "changed" });
         else if (this.deps.mode === "membership") await this.send({ type: "membership.updated" });
         else if (this.deps.snapshot) {
-          const snapshot = await this.deps.snapshot.read(p);
+          const snapshot = await this.deadline((signal) => this.deps.snapshot!.read(p, signal));
           if ((await this.authorized()).stamp !== stamp) {
             this.dirty = true;
             continue;
@@ -229,10 +274,15 @@ export class SocketSession {
   async heartbeat(): Promise<void> {
     if (this.closed) return;
     try {
-      await this.deps.transport.ping(this.abort.signal);
+      try {
+        await this.deadline((signal) => this.deps.transport.ping(signal));
+      } catch {
+        this.close(1013, "Heartbeat unavailable");
+        return;
+      }
       void this.send({ type: "heartbeat" });
       const { principal: p } = await this.authorized();
-      if (this.deps.renew && !(await this.deps.renew(p))) {
+      if (this.deps.renew && (!p || !(await this.deadline(() => this.deps.renew!(p))))) {
         this.close(1013, "Lease expired");
         return;
       }
@@ -286,9 +336,16 @@ export class SocketSession {
         const cmd = lane.queue.shift()!;
         try {
           const { principal: p, stamp } = await this.authorized();
-          const value = await this.deps.commands!.execute(p, cmd);
+          if (!p) throw new ApplicationError("unauthenticated", "Sign in required", 401);
+          const value = await this.deadline((signal) =>
+            this.deps.commands!.execute(p, cmd, signal),
+          );
           if (!this.closed) await this.send({ type: "response", id: cmd.id, value }, stamp);
         } catch (e) {
+          if (e instanceof SocketDeadline) {
+            this.close(1013, "Command timed out");
+            return;
+          }
           if (denied(e)) {
             this.close(1008, "Access changed");
             return;

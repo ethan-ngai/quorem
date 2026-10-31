@@ -9,16 +9,22 @@ export interface SocketTransport {
 }
 export interface SocketSecurity {
   /** Verify live credentials; report expiry from the trusted verifier. */
-  verify(): Promise<{ principal: Principal; expiresAt?: number }>;
+  verify(
+    signal: AbortSignal,
+  ): Promise<{ principal?: Principal; binding: string; expiresAt?: number }>;
   /** Recheck current scope and role; failures must never be cached. */
-  authorize(principal: Principal): Promise<string>;
+  authorize(principal: Principal | undefined, signal: AbortSignal): Promise<string>;
 }
 export interface SocketSubscription {
-  subscribe(onNotice: (notice: Notice) => void, onLost: () => void): Promise<() => void>;
+  subscribe(
+    onNotice: (notice: Notice) => void,
+    onLost: () => void,
+    signal: AbortSignal,
+  ): Promise<() => void>;
 }
 export type Snapshot = { body: string; version?: string; terminal?: boolean };
 export interface SocketSnapshotSource {
-  read(principal: Principal): Promise<Snapshot>;
+  read(principal: Principal | undefined, signal: AbortSignal): Promise<Snapshot>;
 }
 export interface SocketCommand {
   id: string;
@@ -28,5 +34,5 @@ export interface SocketCommand {
   rawPush?: string;
 }
 export interface CommandHandler {
-  execute(principal: Principal, command: SocketCommand): Promise<unknown>;
+  execute(principal: Principal, command: SocketCommand, signal: AbortSignal): Promise<unknown>;
 }
