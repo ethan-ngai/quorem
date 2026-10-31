@@ -479,6 +479,48 @@ describe.skipIf(!url)("runner claim fences", () => {
       await pool.query("DELETE FROM submissions WHERE id=$1", [id]);
     }
   });
+  it("clears temporary completion data when another terminal writer finishes", async () => {
+    const submissionId = crypto.randomUUID(),
+      jobId = crypto.randomUUID();
+    try {
+      await pool.query(
+        "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[]')",
+        [submissionId, user, workspace],
+      );
+      await pool.query(
+        "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
+        [jobId, submissionId],
+      );
+      const live = await claims.claimAfterTeardown(true, "scope-a", null);
+      expect(live?.jobId).toBe(jobId);
+      await postgresCompletionStaging(run).begin(live!, {
+        submissionId,
+        attemptId: live!.attemptId,
+        engineFailure: false,
+        diagnosticsPresent: false,
+        publicPresent: false,
+        samplePresent: false,
+        privatePresent: false,
+        publicCount: 0,
+        sampleCount: 0,
+        privateCount: 0,
+      });
+      await pool.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [submissionId]);
+      await pool.query("UPDATE execution_jobs SET finished=true WHERE id=$1", [jobId]);
+      expect(
+        Number(
+          (
+            await pool.query("SELECT count(*) FROM execution_completion_staging WHERE job_id=$1", [
+              jobId,
+            ])
+          ).rows[0].count,
+        ),
+      ).toBe(0);
+    } finally {
+      await pool.query("DELETE FROM execution_jobs WHERE id=$1", [jobId]);
+      await pool.query("DELETE FROM submissions WHERE id=$1", [submissionId]);
+    }
+  });
   it("accepts and reclaims a real Go judge attempt with the same fences", async () => {
     const s = crypto.randomUUID(),
       j = crypto.randomUUID();
