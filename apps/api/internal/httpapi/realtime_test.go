@@ -8,7 +8,6 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/identity"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,42 +20,13 @@ import (
 	"github.com/ethan-ngai/quorem/apps/api/internal/matches"
 	"github.com/ethan-ngai/quorem/apps/api/internal/problems"
 	"github.com/ethan-ngai/quorem/apps/api/internal/realtime"
-	"github.com/jackc/pgx/v5"
 )
 
-// Each HTTP test owns a schema; parallel package suites cannot reset its state.
+// Each HTTP test owns a database; migrations target its public schema.
 func streamStore(t *testing.T) *postgres.Store {
 	t.Helper()
-	dsn := os.Getenv("QUOREM_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("QUOREM_TEST_DATABASE_URL required")
-	}
 	ctx := context.Background()
-	admin, e := postgres.Open(ctx, dsn)
-	if e != nil {
-		t.Fatal(e)
-	}
-	schema := "stream_" + strings.ReplaceAll(postgres.ID(), "-", "")
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, e = admin.Pool.Exec(ctx, "CREATE SCHEMA "+identifier); e != nil {
-		t.Fatal(e)
-	}
-	u, e := url.Parse(dsn)
-	if e != nil {
-		t.Fatal(e)
-	}
-	q := u.Query()
-	q.Set("search_path", schema)
-	u.RawQuery = q.Encode()
-	store, e := postgres.Open(ctx, u.String())
-	if e != nil {
-		t.Fatal(e)
-	}
-	t.Cleanup(func() {
-		store.Pool.Close()
-		admin.Pool.Exec(context.Background(), "DROP SCHEMA "+identifier+" CASCADE")
-		admin.Pool.Close()
-	})
+	store := NewHTTPTestDatabase(t)
 	root, e := os.Getwd()
 	if e != nil {
 		t.Fatal(e)
