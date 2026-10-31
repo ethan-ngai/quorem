@@ -48,7 +48,9 @@ export function createRegistrationHandler(options: { repository: MailRepository;
       link.searchParams.delete('verified'); link.searchParams.delete('setup'); link.searchParams.set('signupToken', token);
       try {
         const result = await mail.create('registration', { email: parsed.data, url: link.toString() }, await digest(token));
-        return result === 'rejected' ? json(503, { message: 'Could not send your email. Please try again.' }) : json(200, { retryAfter: 60 });
+        if (result === 'rejected') return json(503, { message: 'Could not send your email. Please try again.' });
+        if (result === 'uncertain') return json(503, { message: 'Could not confirm delivery. Check your email and wait before requesting another.' });
+        return json(200, { retryAfter: 60 });
       } catch (error) {
         if (error instanceof MailRateLimited) return json(200, { retryAfter: error.retryAfter });
         return json(503, { message: 'Could not send your email. Please try again.' });

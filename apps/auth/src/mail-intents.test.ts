@@ -1,6 +1,8 @@
 /** @file mail-intents.test.ts @description Disposable PostgreSQL mail-intent integration. @module auth */
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
+import { Client } from 'pg';
 import { createNodePool, withNodeConnection, type Transaction } from '@quorem/database/core';
 import { createMailRepository } from './mail-repository.ts';
 import { createMailIntentService, MailRejected } from './mail-intent.ts';
@@ -10,7 +12,7 @@ import { accountMailer } from './account-mailer.ts';
 import { migrateAuth } from './migrations.ts';
 
 const url = process.env.QUOREM_MAIL_TEST_DATABASE_URL;
-if (!url || new URL(url).pathname !== '/quorem_hono_mail_test' || new URL(url).port !== '55440' || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('Use the disposable mail test database');
+if (!url || new URL(url).pathname !== '/quorem_hono_mail_test' || !['55440', '55445'].includes(new URL(url).port) || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('Use the disposable mail test database');
 const pool = createNodePool({ connectionString: url, max: 3, connectionTimeoutMs: 1000, idleTimeoutMs: 1000, onIdleError: (error) => { throw error; } });
 const run = <T>(callback: (tx: Transaction) => Promise<T>) => withNodeConnection(pool, { lifetimeMs: 5000 }, (scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, callback));
 const repository = createMailRepository(run);
@@ -247,4 +249,91 @@ void test('restored grant survives rejection without restoring stale sender auth
   const rows = await pool.query('select generation,state from quorem_auth.mail_intent where recipient_key=$1 order by generation', [stale.recipient_key]);
   assert.deepEqual(rows.rows.map((row) => row.generation), [1, 2, 3]);
   assert.equal(await repository.acknowledge(stale, 'rejected', email), false);
+});
+
+void test('uncertain registration returns unavailable while preserving proof and budget', async () => {
+  let link = '';
+  const uncertainMail = createMailIntentService({ repository, key, deliver: async (_email, url) => { link = url; throw new Error('lost provider response'); } });
+  const localHandler = createRegistrationHandler({ repository, mail: uncertainMail, origin });
+  const email = 'uncertain-http@example.test';
+  const request = () => new Request(`${origin}/api/auth/registration/start`, { method: 'POST', headers: { origin }, body: JSON.stringify({ email }) });
+  const response = (await localHandler(request()))!;
+  assert.equal(response.status, 503);
+  const token = new URL(link).searchParams.get('signupToken'); assert.ok(token);
+  const { digest } = await import('./mail-crypto.ts');
+  assert.equal((await pool.query('select token_hash from quorem_auth.registration_email where email=$1', [email])).rows[0].token_hash, await digest(token));
+  assert.equal((await pool.query("select state from quorem_auth.mail_intent where state='uncertain' order by created_at desc limit 1")).rows[0].state, 'uncertain');
+  assert.equal((await localHandler(request()))!.status, 200);
+});
+
+void test('concurrent dispatch claims deliver at most once', async () => {
+  const cipher = mailCipher(key); const id = crypto.randomUUID(); const email = 'duplicate-claim@example.test';
+  await repository.create({ id, purpose: 'account', email, encrypt: (generation) => cipher.encrypt(id, 'account', generation, { email, url: `${origin}/link` }) });
+  let sends = 0;
+  const service = createMailIntentService({ repository, key, deliver: async () => { sends++; await delay(50); } });
+  const results = await Promise.all([service.dispatch(id), service.dispatch(id)]);
+  assert.equal(sends, 1);
+  assert.deepEqual([...results].sort(), ['accepted', 'uncertain']);
+});
+
+void test('corrupted ciphertext never reaches the provider or refunds', async () => {
+  const cipher = mailCipher(key); const id = crypto.randomUUID(); const email = 'corrupt@example.test';
+  await repository.create({ id, purpose: 'account', email, encrypt: (generation) => cipher.encrypt(id, 'account', generation, { email, url: `${origin}/link` }) });
+  await pool.query('update quorem_auth.mail_intent set ciphertext=set_byte(ciphertext,0,get_byte(ciphertext,0) # 1) where id=$1', [id]);
+  let sends = 0;
+  const service = createMailIntentService({ repository, key, deliver: async () => { sends++; } });
+  assert.equal(await service.dispatch(id), 'uncertain');
+  assert.equal(sends, 0);
+  assert.equal((await pool.query('select state from quorem_auth.mail_intent where id=$1', [id])).rows[0].state, 'uncertain');
+  await assert.rejects(service.create('account', { email, url: `${origin}/link` }), /rate limited/);
+});
+
+void test('acknowledgment cannot pass an expired lease after waiting for its lock', async () => {
+  const cipher = mailCipher(key); const id = crypto.randomUUID(); const email = 'lease-lock@example.test';
+  await repository.create({ id, purpose: 'account', email, encrypt: (generation) => cipher.encrypt(id, 'account', generation, { email, url: `${origin}/link` }) });
+  const claim = await repository.claim(id); assert.ok(claim);
+  await pool.query("update quorem_auth.mail_intent set claim_until=clock_timestamp()+interval '200 milliseconds' where id=$1", [id]);
+  const blocker = new Client({ connectionString: url }); await blocker.connect();
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query('select pg_advisory_xact_lock(hashtextextended($1,62))', [`${claim.purpose}:${claim.recipient_key}`]);
+    const pending = repository.acknowledge(claim, 'rejected', email);
+    await delay(350);
+    await blocker.query('COMMIT');
+    assert.equal(await pending, false);
+    assert.equal(await repository.claim(id), undefined);
+    assert.equal((await pool.query('select state from quorem_auth.mail_intent where id=$1', [id])).rows[0].state, 'uncertain');
+  } finally { await blocker.end(); }
+});
+
+void test('claim cannot start after intent expiry while blocked on its row', async () => {
+  const cipher = mailCipher(key); const id = crypto.randomUUID(); const email = 'expiry-lock@example.test';
+  await repository.create({ id, purpose: 'account', email, encrypt: (generation) => cipher.encrypt(id, 'account', generation, { email, url: `${origin}/link` }) });
+  await pool.query("update quorem_auth.mail_intent set expires_at=clock_timestamp()+interval '200 milliseconds' where id=$1", [id]);
+  const blocker = new Client({ connectionString: url }); await blocker.connect();
+  try {
+    await blocker.query('BEGIN'); await blocker.query('select id from quorem_auth.mail_intent where id=$1 for update', [id]);
+    const pending = repository.claim(id);
+    await delay(350); await blocker.query('COMMIT');
+    assert.equal(await pending, undefined);
+  } finally { await blocker.end(); }
+});
+
+void test('proof and grant expiry are checked after waiting for row locks', async () => {
+  const email = 'proof-lock@example.test';
+  await mail.create('registration', { email, url: `${origin}/link` }, 'proof-lock-token');
+  await pool.query("update quorem_auth.registration_email set expires_at=clock_timestamp()+interval '200 milliseconds' where email=$1", [email]);
+  const blocker = new Client({ connectionString: url }); await blocker.connect();
+  try {
+    await blocker.query('BEGIN'); await blocker.query('select email from quorem_auth.registration_email where email=$1 for update', [email]);
+    const pending = repository.verify('proof-lock-token', 'proof-lock-grant');
+    await delay(350); await blocker.query('COMMIT');
+    assert.equal(await pending, false);
+    await pool.query("update quorem_auth.registration_email set grant_hash='proof-lock-grant', expires_at=clock_timestamp()+interval '200 milliseconds' where email=$1", [email]);
+    await blocker.query('BEGIN'); await blocker.query('select email from quorem_auth.registration_email where email=$1 for update', [email]);
+    const completion = repository.complete({ grantHash: 'proof-lock-grant', email, username: 'expiredproof', name: '', passwordHash: 'unused' });
+    await delay(350); await blocker.query('COMMIT');
+    assert.equal(await completion, 'expired');
+    assert.equal((await pool.query('select count(*)::int as n from quorem_auth."user" where email=$1', [email])).rows[0].n, 0);
+  } finally { await blocker.end(); }
 });
