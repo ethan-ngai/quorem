@@ -4,14 +4,10 @@ import { expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection } from "@quorem/database/core";
 import worker, { type Env } from "../worker.ts";
+import { assertRuntimeTestDatabase } from "./test-database.ts";
 it("uses only explicitly trusted edge peer addresses for Better Auth buckets", async () => {
   const db = (env as unknown as { DB: { connectionString: string } }).DB.connectionString;
-  const check = new URL((env as unknown as { DATABASE_CHECK: string }).DATABASE_CHECK);
-  expect([check.hostname, check.port, check.pathname]).toEqual([
-    "127.0.0.1",
-    "55575",
-    "/quorem_hono_runtime_test",
-  ]);
+  assertRuntimeTestDatabase((env as unknown as { DATABASE_CHECK: string }).DATABASE_CHECK);
   await withWorkerConnection(db, { connectionTimeoutMs: 2000, lifetimeMs: 10000 }, (scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
       tx.execute(sql`DELETE FROM quorem_auth.rate_limit`),

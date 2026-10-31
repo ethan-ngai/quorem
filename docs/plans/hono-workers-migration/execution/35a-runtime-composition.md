@@ -12,4 +12,8 @@ Disposable PostgreSQL `127.0.0.1:55575/quorem_hono_runtime_test`: `QUOREM_RUNTIM
 
 Cancellable PostgreSQL scope lifetime timers are cleared on every exit. The previous managed-socket eviction failure is resolved: mandatory workerd tests evict and rehydrate both interview and membership Durable Objects, exercise the interview heartbeat after rehydration, and verify live session revocation closes the membership socket. Database primitives pass 14/14, including timer cleanup and both Node and Worker aborts during COMMIT retaining unknown-commit classification. Foundation Node and workerd suites pass 7/7 and 4/4, respectively.
 
-Remaining gates: full scheduled-repair/multi-instance fanout and hosted throughput remain unverified. Terraform and deployment are outside this slice. Do not activate on this report alone.
+The actual Worker scheduled entry point recovers an aged execution intent, arms and reconciles an overdue match through the deadline Durable Object, and publishes a committed interview outbox notice to a live socket. The composition inventory test covers all 66 ledger operations using registered HTTP routes and the shared native socket path classifier; registration does not establish behavioral parity.
+
+Two independent Node runtimes sharing PostgreSQL deliver a committed interview document update from one runtime to a live authorized socket on the other.
+
+Remaining gate: hosted throughput remains unverified. Terraform and deployment are outside this slice. Do not activate on this report alone.

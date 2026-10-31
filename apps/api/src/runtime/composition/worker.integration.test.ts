@@ -11,14 +11,10 @@ import { sql } from "drizzle-orm";
 import { withWorkerConnection } from "@quorem/database/core";
 import { newGuestToken, guestTokenHash } from "../../modules/identity/guest/credentials.ts";
 import worker, { type Env } from "../worker.ts";
+import { assertRuntimeTestDatabase } from "./test-database.ts";
 it("runs native auth, catalog, workspace and durable socket through composition", async () => {
   const db = (env as unknown as { DB: { connectionString: string } }).DB.connectionString;
-  const parsed = new URL((env as unknown as { DATABASE_CHECK: string }).DATABASE_CHECK);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-    "127.0.0.1",
-    "55575",
-    "/quorem_hono_runtime_test",
-  ]);
+  assertRuntimeTestDatabase((env as unknown as { DATABASE_CHECK: string }).DATABASE_CHECK);
   const user = `worker-${crypto.randomUUID()}`,
     session = crypto.randomUUID(),
     token = crypto.randomUUID(),
@@ -176,6 +172,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   const peer = peerUpgrade.webSocket!;
   let initialPeer!: () => void,
     updatePeer!: () => void,
+    scheduledPeer!: () => void,
     changes = 0;
   const peerReady = new Promise<void>((resolve) => {
     initialPeer = resolve;
@@ -183,16 +180,20 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   const peerChanged = new Promise<void>((resolve) => {
     updatePeer = resolve;
   });
+  const scheduledNotice = new Promise<void>((resolve) => {
+    scheduledPeer = resolve;
+  });
   peer.addEventListener("message", (event: MessageEvent) => {
     const frame = JSON.parse(String(event.data)) as {
       receipt?: string;
-      payload?: { type?: string };
+      payload?: { type?: string; kind?: string };
     };
     if (frame.receipt) peer.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
     if (frame.payload?.type === "changed") {
       changes++;
       if (changes === 1) initialPeer();
       else updatePeer();
+      if (frame.payload.kind === "runtime.repair.fixture") scheduledPeer();
     }
   });
   peer.accept();
@@ -227,6 +228,33 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       setTimeout(() => reject(new Error("peer notice timeout")), 8000),
     ),
   ]);
+  const outboxId = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+      tx.execute(
+        sql`INSERT INTO interview_outbox(id,session_id,event_type) VALUES(${outboxId}::uuid,${room}::uuid,'runtime.repair.fixture')`,
+      ),
+    ),
+  );
+  await worker.scheduled({}, env as unknown as Env);
+  await Promise.race([
+    scheduledNotice,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("scheduled notice timeout")), 8000),
+    ),
+  ]);
+  const published = await run((scope) =>
+    scope.transaction(
+      { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
+      async (tx) =>
+        (
+          await tx.execute<{ ok: boolean }>(
+            sql`SELECT published_at IS NOT NULL AS ok FROM interview_outbox WHERE id=${outboxId}::uuid`,
+          )
+        ).rows[0].ok,
+    ),
+  );
+  expect(published).toBe(true);
   peer.close();
   {
     const namespaces = (
@@ -325,6 +353,41 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   });
   expect(admitted.status, await admitted.clone().text()).toBe(202);
   const submission = ((await admitted.json()) as { id: string }).id;
+  const expiredMatch = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`UPDATE execution_dispatch_intents SET delivered_at=clock_timestamp()-interval '2 minutes' WHERE job_id IN (SELECT id FROM execution_jobs WHERE submission_id=${submission}::uuid)`,
+      );
+      await tx.execute(
+        sql`INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties) SELECT ${expiredMatch}::uuid,b.user_id,${crypto.randomUUID()},clock_timestamp()-interval '1 minute',30,'waiting',ARRAY['easy'] FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=${user}`,
+      );
+    }),
+  );
+  await worker.scheduled({}, env as unknown as Env);
+  const deadlineNamespace = (
+    env as unknown as {
+      DEADLINES: {
+        idFromName(name: string): unknown;
+        get(id: unknown): Parameters<typeof runDurableObjectAlarm>[0];
+      };
+    }
+  ).DEADLINES;
+  expect(
+    await runDurableObjectAlarm(deadlineNamespace.get(deadlineNamespace.idFromName("deadline-0"))),
+  ).toBe(true);
+  const repair = await run((scope) =>
+    scope.transaction(
+      { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
+      async (tx) =>
+        (
+          await tx.execute<{ state: string; delivered: boolean }>(
+            sql`SELECT (SELECT state FROM matches WHERE id=${expiredMatch}::uuid) AS state, EXISTS (SELECT 1 FROM execution_dispatch_intents WHERE job_id IN (SELECT id FROM execution_jobs WHERE submission_id=${submission}::uuid) AND delivered_at > clock_timestamp()-interval '1 minute') AS delivered`,
+          )
+        ).rows[0],
+    ),
+  );
+  expect(repair).toEqual({ state: "cancelled", delivered: true });
   const cancelled = await SELF.fetch(`http://127.0.0.1:8765/v1/submissions/${submission}/cancel`, {
     method: "POST",
     headers: { ...headers, "idempotency-key": "worker-runtime-cancel" },

@@ -49,6 +49,7 @@ it.skipIf(!url)(
       [session, token, user],
     );
     const runtime = await startNodeRuntime(env);
+    const peerRuntime = await startNodeRuntime(env);
     try {
       if (!runtime.server.listening) await once(runtime.server, "listening");
       const base = `http://127.0.0.1:${(runtime.server.address() as AddressInfo).port}`;
@@ -88,6 +89,80 @@ it.skipIf(!url)(
         }),
       });
       expect(workspace.status).toBe(201);
+      await pool.query(
+        "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) SELECT $1,b.user_id,'interviews.host','manual','fixture','fixture','fixture' FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=$2",
+        [crypto.randomUUID(), user],
+      );
+      const headers = {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+        "idempotency-key": `node-room-${crypto.randomUUID()}`,
+      };
+      const created = await fetch(`${base}/v1/interviews`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: "Node fanout",
+          question: {
+            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+            language: "python",
+          },
+        }),
+      });
+      expect(created.status, await created.clone().text()).toBe(201);
+      const room = ((await created.json()) as { id: string }).id;
+      const snapshot = await fetch(`${base}/v1/interviews/${room}`, { headers });
+      const value = (await snapshot.json()) as { document: { epoch: string; source: string } };
+      if (!peerRuntime.server.listening) await once(peerRuntime.server, "listening");
+      const peerBase = `ws://127.0.0.1:${(peerRuntime.server.address() as AddressInfo).port}`;
+      const peer = new WebSocket(
+        `${peerBase}/v1/interviews/${room}/events`,
+        ["quorem", `bearer.${bearer}`],
+        { headers: { origin: "http://127.0.0.1:5173" } },
+      );
+      let resolveInitial!: () => void,
+        resolveChanged!: () => void,
+        changes = 0;
+      const initial = new Promise<void>((resolve) => {
+        resolveInitial = resolve;
+      });
+      const changed = new Promise<void>((resolve) => {
+        resolveChanged = resolve;
+      });
+      peer.on("message", (data) => {
+        const frame = JSON.parse(frameText(data)) as {
+          receipt?: string;
+          payload?: { type?: string };
+        };
+        if (frame.receipt) peer.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
+        if (frame.payload?.type === "changed") {
+          if (++changes === 1) resolveInitial();
+          else resolveChanged();
+        }
+      });
+      await Promise.race([
+        initial,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("peer initial timeout")), 8000),
+        ),
+      ]);
+      const push = await fetch(`${base}/v1/interviews/${room}/updates`, {
+        method: "POST",
+        headers: { ...headers, "idempotency-key": `node-push-${crypto.randomUUID()}` },
+        body: JSON.stringify({
+          epoch: value.document.epoch,
+          version: 0,
+          updates: [{ clientID: "node", changes: [[0, "x"], value.document.source.length] }],
+        }),
+      });
+      expect(push.status, await push.clone().text()).toBe(200);
+      await Promise.race([
+        changed,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("peer fanout timeout")), 8000),
+        ),
+      ]);
+      peer.close();
       const socket = new WebSocket(
         `${base.replace("http:", "ws:")}/v1/memberships/events`,
         ["quorem", `bearer.${bearer}`],
@@ -117,6 +192,7 @@ it.skipIf(!url)(
       ]);
       expect(code).toBe(1008);
     } finally {
+      await peerRuntime.close();
       await runtime.close();
       await pool.end();
     }
