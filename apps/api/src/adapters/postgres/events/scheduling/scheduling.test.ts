@@ -65,6 +65,37 @@ describe("deadline scheduling with PostgreSQL", () => {
       "waiting",
     );
   });
+  it("keeps deadline and execution receipt ownership separate", async () => {
+    const execution = prearmReceipts(run, "execution"),
+      deadline = prearmReceipts(run, "deadline");
+    const a = crypto.randomUUID(),
+      b = crypto.randomUUID(),
+      shard = 39;
+    try {
+      await execution.create(a, shard);
+      await deadline.create(b, shard);
+      await run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+          consumePrearm(tx, a, shard, "execution"),
+        ),
+      );
+      await deadline.acknowledge(a);
+      expect(await execution.settle(a)).toBe("committed");
+      expect(await deadline.settle(a)).toBe("abandoned");
+      expect(await execution.list(shard)).toContain(a);
+      expect(await execution.list(shard)).not.toContain(b);
+      expect(await deadline.list(shard)).toContain(b);
+      await expect(
+        run((scope) =>
+          scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+            consumePrearm(tx, b, shard, "execution"),
+          ),
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await pool.query("DELETE FROM deadline_prearms WHERE id=ANY($1::uuid[])", [[a, b]]);
+    }
+  });
   it("locks receipt through commit; expiry cleanup cannot erase a delayed commit", async () => {
     const id = crypto.randomUUID();
     await receipts.create(id, 0);
