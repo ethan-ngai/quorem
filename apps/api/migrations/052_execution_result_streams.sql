@@ -66,6 +66,7 @@ BEGIN
  SELECT state,result IS NOT NULL INTO current_state,result_retained FROM submissions WHERE id=target FOR UPDATE;
  IF current_state IN ('completed','failed','cancelled') AND NOT
     ((TG_OP='INSERT' AND result_retained AND current_setting('quorem.result_backfill',true) IS NOT DISTINCT FROM 'v1') OR
+     (TG_OP='DELETE' AND TG_TABLE_NAME='interview_private_result_cases' AND result_retained AND current_setting('quorem.legacy_private_rebuild',true) IS NOT DISTINCT FROM 'v1' AND NOT EXISTS(SELECT 1 FROM submission_result_headers WHERE submission_id=target)) OR
      (TG_OP='DELETE' AND NOT result_retained)) THEN
   RAISE EXCEPTION 'terminal result rows are immutable' USING ERRCODE='55000';
  END IF;
