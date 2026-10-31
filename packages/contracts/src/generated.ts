@@ -2140,6 +2140,8 @@ export interface operations {
                 sort?: "title" | "difficulty";
                 order?: "asc" | "desc";
                 page?: number;
+                /** @description Opaque continuation returned by the preceding page; use with page 1 or omit page. */
+                cursor?: string;
                 limit?: number;
                 library?: "global" | "private";
                 type?: "classic" | "odyssey";
@@ -2163,6 +2165,8 @@ export interface operations {
                         page: number;
                         limit: number;
                         companies: string[];
+                        /** @description Opaque continuation for the same filters and ordering. */
+                        nextCursor?: string;
                         topics: string[];
                     };
                 };
