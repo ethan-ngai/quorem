@@ -41,7 +41,7 @@ BEGIN
  target := CASE WHEN TG_OP='DELETE' THEN OLD.submission_id ELSE NEW.submission_id END;
  SELECT state,result IS NOT NULL INTO current_state,result_retained FROM submissions WHERE id=target FOR UPDATE;
  IF current_state IN ('completed','failed','cancelled') AND NOT
-    ((TG_OP='INSERT' AND result_retained AND current_setting('quorem.result_backfill',true)='v1') OR
+    ((TG_OP='INSERT' AND result_retained AND current_setting('quorem.result_backfill',true) IS NOT DISTINCT FROM 'v1') OR
      (TG_OP='DELETE' AND NOT result_retained)) THEN
   RAISE EXCEPTION 'terminal result rows are immutable' USING ERRCODE='55000';
  END IF;
