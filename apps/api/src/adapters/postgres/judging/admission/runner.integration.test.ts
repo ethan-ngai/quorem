@@ -3,12 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { createServer as createNetServer } from "node:net";
-import { createHash, generateKeyPairSync } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
 import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { claimNext } from "../../../../../../runner/src/queue/claim.ts";
 import { fileURLToPath } from "node:url";
-import { mkdtemp, realpath, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -28,6 +28,8 @@ import { httpResultVerifier, type ResultVerifier } from "../worker/verification-
 import { createVerificationService } from "../../../../../../runner/src/verification/service.ts";
 import { createRunnerCommandHandler } from "../worker/http.ts";
 import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
+import { remoteSandbox } from "../../../../../../runner/src/sandbox/remote.ts";
+import { accessFetch } from "@quorem/execution/transport/access";
 import { localFenceRoot } from "../../../../../../runner/src/sandbox/fence.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 import { drainer } from "../../../../../../runner/src/drains/drain.ts";
@@ -37,18 +39,23 @@ import {
   queueControl,
 } from "../../../../../../runner/src/orchestration/control.ts";
 const url = process.env.QUOREM_ENGINE_TEST_DATABASE_URL,
-  socket = process.env.QUOREM_TEST_DOCKER_SOCKET;
+  socket = process.env.QUOREM_TEST_DOCKER_SOCKET,
+  remote = process.env.QUOREM_REMOTE_VALIDATION === "true";
 if (url) {
   const parsed = new URL(url);
   if (
     !["postgres:", "postgresql:"].includes(parsed.protocol) ||
     !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) ||
-    parsed.pathname !== "/quorem_hono_engine_test" ||
-    ["host", "hostaddr", "service"].some((key) => parsed.searchParams.has(key))
+    parsed.pathname !==
+      (remote ? "/quorem_hono_remote_validation_test" : "/quorem_hono_engine_test") ||
+    !!parsed.hash ||
+    [...parsed.searchParams.keys()].some((key) =>
+      ["host", "hostaddr", "service"].includes(key.toLowerCase()),
+    )
   )
     throw new Error("Disposable engine database required");
 }
-describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
+describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runner", () => {
   const pool = createNodePool({
     connectionString: url!,
     max: 8,
@@ -222,337 +229,552 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
     await pool.end();
     await rm(stateRoot, { recursive: true, force: true });
   });
-  it("runs an admitted job through separate runner and verifier executables", async () => {
-    const work = await realpath(await mkdtemp(join(tmpdir(), "quorem-executable-e2e-")));
-    const sandbox = await dockerSandbox({
-      socket: socket!,
-      stateRoot: work,
-      namespace: "executable-e2e",
-      cleanupMs: 10000,
-    });
-    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-    const keyFile = join(work, "verifier.pem");
-    await writeFile(keyFile, privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
-    const publicCrypto = await crypto.subtle.importKey(
-      "spki",
-      publicKey.export({ type: "spki", format: "der" }),
-      "Ed25519",
-      false,
-      ["verify"],
-    );
-    const sourceKey = new Uint8Array(32).fill(21),
-      serviceKey = new Uint8Array(32).fill(22);
-    const commandSecret = "fixture-command-secret-123456789012345",
-      drainSecret = "fixture-drain-secret-12345678901234567";
-    const source = createVerificationSourceHandler(run, sourceKey);
-    let commands: Awaited<ReturnType<typeof createRunnerCommandHandler>> | undefined;
-    const api = createServer(async (req, res) => {
-      try {
-        const parts: Uint8Array[] = [];
-        for await (const part of req) parts.push(part as Buffer);
-        const headers = new Headers();
-        for (const [name, value] of Object.entries(req.headers))
-          if (typeof value === "string") headers.set(name, value);
-        const request = new Request(`http://127.0.0.1${req.url}`, {
-          method: req.method,
-          headers,
-          body: new Uint8Array(Buffer.concat(parts)),
-        });
-        const response = req.url?.startsWith("/internal/verification/")
-          ? await source(request)
-          : commands
-            ? await commands(request)
-            : new Response(null, { status: 503 });
-        res.writeHead(response.status, Object.fromEntries(response.headers));
-        res.end(Buffer.from(await response.arrayBuffer()));
-      } catch {
-        res.writeHead(500).end();
-      }
-    });
-    api.listen(0, "127.0.0.1");
-    await once(api, "listening");
-    const addr = api.address();
-    if (!addr || typeof addr === "string") throw new Error("API address");
-    const apiOrigin = `http://127.0.0.1:${addr.port}`;
-    const freePort = async () => {
-      const server = createNetServer();
-      server.listen(0, "127.0.0.1");
-      await once(server, "listening");
-      const address = server.address();
-      if (!address || typeof address === "string") throw new Error("port");
-      const result = address.port;
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-      return result;
-    };
-    const verifierPort = await freePort(),
-      runnerPort = await freePort();
-    const waitHealth = async (origin: string, child: ChildProcess) => {
-      for (let i = 0; i < 100; i++) {
-        if (child.exitCode !== null) throw new Error("Service exited");
+  it(
+    "runs an admitted job through separate runner and verifier executables",
+    async () => {
+      const work = await realpath(await mkdtemp(join(tmpdir(), "quorem-executable-e2e-")));
+      const caseOrigin = process.env.QUOREM_CASE_ORIGIN ?? "";
+      const caseAccess =
+        process.env.QUOREM_CASE_ACCESS_CLIENT_ID && process.env.QUOREM_CASE_ACCESS_CLIENT_SECRET
+          ? {
+              id: process.env.QUOREM_CASE_ACCESS_CLIENT_ID,
+              secret: process.env.QUOREM_CASE_ACCESS_CLIENT_SECRET,
+            }
+          : undefined;
+      const sandbox = remote
+        ? remoteSandbox({
+            origin: caseOrigin,
+            secret: process.env.QUOREM_CASE_SECRET!,
+            namespaceId: process.env.QUOREM_CASE_NAMESPACE_ID!,
+            ownerPublicKey: await readFile(process.env.QUOREM_CASE_OWNER_PUBLIC_KEY_FILE!, "utf8"),
+            cleanupMs: 30000,
+            fetch: accessFetch(caseOrigin, caseAccess),
+          })
+        : await dockerSandbox({
+            socket: socket!,
+            stateRoot: work,
+            namespace: "executable-e2e",
+            cleanupMs: 10000,
+          });
+      const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+      const keyFile = join(work, "verifier.pem");
+      await writeFile(keyFile, privateKey.export({ type: "pkcs8", format: "pem" }), {
+        mode: 0o600,
+      });
+      const publicCrypto = await crypto.subtle.importKey(
+        "spki",
+        publicKey.export({ type: "spki", format: "der" }),
+        "Ed25519",
+        false,
+        ["verify"],
+      );
+      const sourceKey = new Uint8Array(32).fill(21),
+        serviceKey = new Uint8Array(32).fill(22);
+      const commandSecret = "fixture-command-secret-123456789012345",
+        drainSecret = "fixture-drain-secret-12345678901234567";
+      const source = createVerificationSourceHandler(run, sourceKey);
+      let commands: Awaited<ReturnType<typeof createRunnerCommandHandler>> | undefined;
+      const api = createServer(async (req, res) => {
         try {
-          if ((await fetch(`${origin}/health`)).ok) return;
-        } catch {}
-        await sleep(50);
-      }
-      throw new Error("Service unavailable");
-    };
-    const stop = async (child: ChildProcess | undefined) => {
-      if (!child || child.exitCode !== null) return;
-      const ended = once(child, "exit");
-      child.kill("SIGTERM");
-      const timer = setTimeout(() => child.kill("SIGKILL"), 15000);
-      try {
-        const [code] = await ended;
-        expect(code).toBe(0);
-      } finally {
-        clearTimeout(timer);
-      }
-    };
-    const containerMode = process.env.QUOREM_CONTAINER_FIXTURE === "1";
-    const service = (kind: "runner" | "verifier", script: string, env: NodeJS.ProcessEnv) => {
-      if (!containerMode)
-        return spawn(process.execPath, [script], {
-          stdio: "ignore",
-          env: { ...process.env, ...env },
-        });
-      const volume = process.env.QUOREM_CONTAINER_FENCE_VOLUME;
-      const namespace = process.env.HOSTNAME;
-      if (!volume || !namespace || !work.startsWith("/quorem-36b/"))
-        throw new Error("Container fixture requires its shared fence volume and network namespace");
-      const args = [
-        "run",
-        "--rm",
-        "--network",
-        `container:${namespace}`,
-        "--group-add",
-        process.env.QUOREM_CONTAINER_SOCKET_GID ?? "0",
-        "--mount",
-        `type=volume,source=${volume},destination=/quorem-36b`,
-      ];
-      if (kind === "runner")
-        args.push(
+          const parts: Uint8Array[] = [];
+          for await (const part of req) parts.push(part as Buffer);
+          const headers = new Headers();
+          for (const [name, value] of Object.entries(req.headers))
+            if (typeof value === "string") headers.set(name, value);
+          const request = new Request(`http://127.0.0.1${req.url}`, {
+            method: req.method,
+            headers,
+            body: new Uint8Array(Buffer.concat(parts)),
+          });
+          const response = req.url?.startsWith("/internal/verification/")
+            ? await source(request)
+            : commands
+              ? await commands(request)
+              : new Response(null, { status: 503 });
+          res.writeHead(response.status, Object.fromEntries(response.headers));
+          res.end(Buffer.from(await response.arrayBuffer()));
+        } catch {
+          res.writeHead(500).end();
+        }
+      });
+      api.listen(0, "127.0.0.1");
+      await once(api, "listening");
+      const addr = api.address();
+      if (!addr || typeof addr === "string") throw new Error("API address");
+      const apiOrigin = `http://127.0.0.1:${addr.port}`;
+      const freePort = async () => {
+        const server = createNetServer();
+        server.listen(0, "127.0.0.1");
+        await once(server, "listening");
+        const address = server.address();
+        if (!address || typeof address === "string") throw new Error("port");
+        const result = address.port;
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        return result;
+      };
+      const verifierPort = await freePort(),
+        runnerPort = await freePort();
+      const waitHealth = async (origin: string, child: ChildProcess) => {
+        for (let i = 0; i < 100; i++) {
+          if (child.exitCode !== null) throw new Error("Service exited");
+          try {
+            if ((await fetch(`${origin}/health`)).ok) return;
+          } catch {}
+          await sleep(50);
+        }
+        throw new Error("Service unavailable");
+      };
+      const stop = async (child: ChildProcess | undefined) => {
+        if (!child || child.exitCode !== null) return;
+        const ended = once(child, "exit");
+        child.kill("SIGTERM");
+        const timer = setTimeout(() => child.kill("SIGKILL"), 15000);
+        try {
+          const [code] = await ended;
+          expect(code).toBe(0);
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+      const containerMode = process.env.QUOREM_CONTAINER_FIXTURE === "1";
+      const service = (kind: "runner" | "verifier", script: string, env: NodeJS.ProcessEnv) => {
+        if (!containerMode)
+          return spawn(process.execPath, [script], {
+            stdio: "ignore",
+            env: { ...process.env, ...env },
+          });
+        const volume = process.env.QUOREM_CONTAINER_FENCE_VOLUME;
+        const namespace = process.env.HOSTNAME;
+        if (!volume || !namespace || !work.startsWith("/quorem-36b/"))
+          throw new Error(
+            "Container fixture requires its shared fence volume and network namespace",
+          );
+        const args = [
+          "run",
+          "--rm",
+          "--network",
+          `container:${namespace}`,
+          "--group-add",
+          process.env.QUOREM_CONTAINER_SOCKET_GID ?? "0",
           "--mount",
-          "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock",
-        );
-      for (const [key, value] of Object.entries(env))
-        if (value !== undefined) args.push("-e", `${key}=${value}`);
-      args.push(`quorem-hono-${kind}:36b`);
-      return spawn("docker", args, { stdio: "ignore" });
-    };
-    if (containerMode) {
-      const daemon = execFileSync(
-        "docker",
-        ["--host", `unix://${socket!}`, "info", "--format", "{{.ID}}"],
-        { encoding: "utf8" },
-      ).trim();
-      const root = await localFenceRoot(work, "executable-e2e", daemon);
-      expect(root.scope).toBe(sandbox.scope);
-      const fence = { sandboxScope: root.scope, attemptId: "shared-fence-probe" };
-      const lease = await root.acquire(fence, AbortSignal.timeout(5000));
-      const prefix = createHash("sha256").update(root.scope).digest("hex").slice(0, 16);
-      await utimes(
-        join(work, `attempt-${prefix}-${fence.attemptId}.lock`),
-        new Date(0),
-        new Date(0),
-      );
-      const probe = `import {localFenceRoot} from './apps/runner/src/sandbox/fence.ts'; const root=await localFenceRoot(process.env.ROOT,'executable-e2e',process.env.DAEMON); if(root.scope!==process.env.SCOPE) process.exit(3); try { const lease=await root.acquire({sandboxScope:root.scope,attemptId:'shared-fence-probe'},AbortSignal.timeout(1000)); await lease.release(); process.exit(4); } catch(e) { if(e.name!=='AbortError' || e.cause?.name!=='TimeoutError') throw e; }`;
-      try {
-        execFileSync(
-          "docker",
-          [
-            "run",
-            "--rm",
+          `type=volume,source=${volume},destination=/quorem-36b`,
+        ];
+        if (kind === "runner")
+          args.push(
             "--mount",
-            `type=volume,source=${process.env.QUOREM_CONTAINER_FENCE_VOLUME},destination=/quorem-36b`,
-            "-e",
-            `ROOT=${work}`,
-            "-e",
-            `DAEMON=${daemon}`,
-            "-e",
-            `SCOPE=${root.scope}`,
-            "--entrypoint",
-            "node",
-            "quorem-hono-runner:36b",
-            "--input-type=module",
-            "-e",
-            probe,
-          ],
-          { stdio: "pipe", timeout: 10000 },
-        );
-      } finally {
-        await lease.release();
-      }
-    }
-    let verifierProcess: ChildProcess | undefined,
-      runnerProcess: ChildProcess | undefined,
-      competingRunner: ChildProcess | undefined;
-    try {
-      verifierProcess = service(
-        "verifier",
-        fileURLToPath(new URL("../../../../../../runner/src/runtime/verifier.ts", import.meta.url)),
-        {
-          QUOREM_VERIFIER_LISTEN: `127.0.0.1:${verifierPort}`,
-          QUOREM_VERIFICATION_SOURCE_ORIGIN: apiOrigin,
-          QUOREM_VERIFICATION_SOURCE_KEY: Buffer.from(sourceKey).toString("hex"),
-          QUOREM_VERIFICATION_SERVICE_KEY: Buffer.from(serviceKey).toString("hex"),
-          QUOREM_VERIFICATION_SIGNING_KEY_FILE: keyFile,
-        },
-      );
-      const verifierOrigin = `http://127.0.0.1:${verifierPort}`;
-      await waitHealth(verifierOrigin, verifierProcess);
-      const externalVerifier = httpResultVerifier({
-        origin: verifierOrigin,
-        credential: serviceKey,
-        timeoutMs: 10000,
-      });
-      commands = await createRunnerCommandHandler([
-        {
-          secret: commandSecret,
-          scope: sandbox.scope,
-          resumable: true,
-          inputProtocol: "manifest-v1",
-          repository: () =>
-            postgresExecutionCommands(
-              run,
-              {
-                inputProtocol: "manifest-v1",
-                resumable: true,
-                losslessCases: true,
-                losslessResults: true,
-              },
-              { verifier: externalVerifier, verificationPublicKey: publicCrypto },
-            ),
-        },
-      ]);
-      runnerProcess = service(
-        "runner",
-        fileURLToPath(new URL("../../../../../../runner/src/runtime/runner.ts", import.meta.url)),
-        {
-          QUOREM_RUNNER_MODE: "http",
-          QUOREM_SANDBOX_PROVIDER: "docker",
-          QUOREM_RUNNER_LISTEN: `127.0.0.1:${runnerPort}`,
-          QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
-          QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
-          QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
-          QUOREM_DOCKER_SOCKET: socket!,
-          QUOREM_DOCKER_FENCE_ROOT: work,
-          QUOREM_DOCKER_NAMESPACE: "executable-e2e",
-        },
-      );
-      const runnerOrigin = `http://127.0.0.1:${runnerPort}`;
-      await waitHealth(runnerOrigin, runnerProcess);
-      const admitted = await app.request("https://fixture.test/v1/submissions", {
-        method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": "runner-executable-e2e" },
-        body: JSON.stringify({
-          workspaceId: workspace,
-          kind: "submit",
-          source: "class Solution:\n def f(self,x): return x+1",
-        }),
-      });
-      expect(admitted.status).toBe(202);
-      const id = (await admitted.json()).id as string;
-      const drain = await fetch(`${runnerOrigin}/internal/drain`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${drainSecret}` },
-        signal: AbortSignal.timeout(60000),
-      });
-      expect(drain.status).toBe(200);
-      const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
-      expect(result.status).toBe(200);
-      expect((await result.json()).verdict).toBe("accepted");
-      const slow = await app.request("https://fixture.test/v1/submissions", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "idempotency-key": "runner-executable-shutdown",
-        },
-        body: JSON.stringify({
-          workspaceId: workspace,
-          kind: "run",
-          source: "import time\nclass Solution:\n def f(self,x):\n  time.sleep(30)\n  return x",
-        }),
-      });
-      expect(slow.status).toBe(202);
-      const slowId = (await slow.json()).id as string;
-      const pending = fetch(`${runnerOrigin}/internal/drain`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${drainSecret}` },
-      }).then(
-        () => undefined,
-        () => undefined,
-      );
-      const label = createHash("sha256").update(sandbox.scope).digest("hex");
-      const containers = (all = false) =>
-        execFileSync(
+            "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock",
+          );
+        for (const [key, value] of Object.entries(env))
+          if (value !== undefined) args.push("-e", `${key}=${value}`);
+        args.push(`quorem-hono-${kind}:36b`);
+        return spawn("docker", args, { stdio: "ignore" });
+      };
+      if (containerMode) {
+        const daemon = execFileSync(
           "docker",
-          [
-            "--config",
-            "/nonexistent",
-            "--host",
-            `unix://${socket!}`,
-            "ps",
-            all ? "-aq" : "-q",
-            "--filter",
-            `label=quorem.scope=${label}`,
-          ],
+          ["--host", `unix://${socket!}`, "info", "--format", "{{.ID}}"],
           { encoding: "utf8" },
         ).trim();
-      let active = false;
-      for (let i = 0; i < 200; i++) {
-        if (containers()) {
-          active = true;
-          break;
+        const root = await localFenceRoot(work, "executable-e2e", daemon);
+        expect(root.scope).toBe(sandbox.scope);
+        const fence = { sandboxScope: root.scope, attemptId: "shared-fence-probe" };
+        const lease = await root.acquire(fence, AbortSignal.timeout(5000));
+        const prefix = createHash("sha256").update(root.scope).digest("hex").slice(0, 16);
+        await utimes(
+          join(work, `attempt-${prefix}-${fence.attemptId}.lock`),
+          new Date(0),
+          new Date(0),
+        );
+        const probe = `import {localFenceRoot} from './apps/runner/src/sandbox/fence.ts'; const root=await localFenceRoot(process.env.ROOT,'executable-e2e',process.env.DAEMON); if(root.scope!==process.env.SCOPE) process.exit(3); try { const lease=await root.acquire({sandboxScope:root.scope,attemptId:'shared-fence-probe'},AbortSignal.timeout(1000)); await lease.release(); process.exit(4); } catch(e) { if(e.name!=='AbortError' || e.cause?.name!=='TimeoutError') throw e; }`;
+        try {
+          execFileSync(
+            "docker",
+            [
+              "run",
+              "--rm",
+              "--mount",
+              `type=volume,source=${process.env.QUOREM_CONTAINER_FENCE_VOLUME},destination=/quorem-36b`,
+              "-e",
+              `ROOT=${work}`,
+              "-e",
+              `DAEMON=${daemon}`,
+              "-e",
+              `SCOPE=${root.scope}`,
+              "--entrypoint",
+              "node",
+              "quorem-hono-runner:36b",
+              "--input-type=module",
+              "-e",
+              probe,
+            ],
+            { stdio: "pipe", timeout: 10000 },
+          );
+        } finally {
+          await lease.release();
         }
-        await sleep(25);
       }
-      expect(active).toBe(true);
-      if (containerMode) {
-        const competingPort = await freePort();
-        competingRunner = service("runner", "", {
-          QUOREM_RUNNER_MODE: "http",
-          QUOREM_SANDBOX_PROVIDER: "docker",
-          QUOREM_RUNNER_LISTEN: `127.0.0.1:${competingPort}`,
-          QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
-          QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
-          QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
-          QUOREM_DOCKER_SOCKET: socket!,
-          QUOREM_DOCKER_FENCE_ROOT: work,
-          QUOREM_DOCKER_NAMESPACE: "executable-e2e",
+      let verifierProcess: ChildProcess | undefined,
+        runnerProcess: ChildProcess | undefined,
+        competingRunner: ChildProcess | undefined;
+      try {
+        verifierProcess = service(
+          "verifier",
+          fileURLToPath(
+            new URL("../../../../../../runner/src/runtime/verifier.ts", import.meta.url),
+          ),
+          {
+            QUOREM_VERIFIER_LISTEN: `127.0.0.1:${verifierPort}`,
+            QUOREM_VERIFICATION_SOURCE_ORIGIN: apiOrigin,
+            QUOREM_VERIFICATION_SOURCE_KEY: Buffer.from(sourceKey).toString("hex"),
+            QUOREM_VERIFICATION_SERVICE_KEY: Buffer.from(serviceKey).toString("hex"),
+            QUOREM_VERIFICATION_SIGNING_KEY_FILE: keyFile,
+          },
+        );
+        const verifierOrigin = `http://127.0.0.1:${verifierPort}`;
+        await waitHealth(verifierOrigin, verifierProcess);
+        const externalVerifier = httpResultVerifier({
+          origin: verifierOrigin,
+          credential: serviceKey,
+          timeoutMs: 10000,
         });
-        await waitHealth(`http://127.0.0.1:${competingPort}`, competingRunner);
-        expect(containers()).not.toBe("");
-        expect(
-          (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0].state,
-        ).toBe("running");
+        commands = await createRunnerCommandHandler([
+          {
+            secret: commandSecret,
+            scope: sandbox.scope,
+            resumable: true,
+            inputProtocol: "manifest-v1",
+            repository: () =>
+              postgresExecutionCommands(
+                run,
+                {
+                  inputProtocol: "manifest-v1",
+                  resumable: true,
+                  losslessCases: true,
+                  losslessResults: true,
+                },
+                { verifier: externalVerifier, verificationPublicKey: publicCrypto },
+              ),
+          },
+        ]);
+        runnerProcess = service(
+          "runner",
+          fileURLToPath(new URL("../../../../../../runner/src/runtime/runner.ts", import.meta.url)),
+          {
+            QUOREM_RUNNER_MODE: "http",
+            QUOREM_SANDBOX_PROVIDER: remote ? "remote" : "docker",
+            QUOREM_RUNNER_LISTEN: `127.0.0.1:${runnerPort}`,
+            QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
+            QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
+            QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
+            QUOREM_DOCKER_SOCKET: socket!,
+            QUOREM_DOCKER_FENCE_ROOT: work,
+            QUOREM_DOCKER_NAMESPACE: "executable-e2e",
+          },
+        );
+        const runnerOrigin = `http://127.0.0.1:${runnerPort}`;
+        await waitHealth(runnerOrigin, runnerProcess);
+        const admitted = await app.request("https://fixture.test/v1/submissions", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": "runner-executable-e2e",
+          },
+          body: JSON.stringify({
+            workspaceId: workspace,
+            kind: "submit",
+            source: "class Solution:\n def f(self,x): return x+1",
+          }),
+        });
+        expect(admitted.status).toBe(202);
+        const id = (await admitted.json()).id as string;
+        const drain = await fetch(`${runnerOrigin}/internal/drain`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${drainSecret}` },
+          signal: AbortSignal.timeout(60000),
+        });
+        expect(drain.status).toBe(200);
+        const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
+        expect(result.status).toBe(200);
+        expect((await result.json()).verdict).toBe("accepted");
+        if (remote) {
+          for (const [name, source, verdict] of [
+            ["wrong", "class Solution:\n def f(self,x): return 0", "wrong_answer"],
+            ["syntax", "not valid !", "syntax_error"],
+            [
+              "runtime",
+              "class Solution:\n def f(self,x): raise RuntimeError('fixture')",
+              "runtime_error",
+            ],
+            ["timeout", "class Solution:\n def f(self,x):\n  while True: pass", "time_limit"],
+          ]) {
+            await pool.query(
+              "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+              [owner],
+            );
+            const submitted = await app.request("https://fixture.test/v1/submissions", {
+              method: "POST",
+              headers: { "content-type": "application/json", "idempotency-key": `remote-${name}` },
+              body: JSON.stringify({ workspaceId: workspace, kind: "run", source }),
+            });
+            expect(submitted.status).toBe(202);
+            const submittedId = (await submitted.json()).id as string;
+            expect(
+              (
+                await fetch(`${runnerOrigin}/internal/drain`, {
+                  method: "POST",
+                  headers: { authorization: `Bearer ${drainSecret}` },
+                  signal: AbortSignal.timeout(180000),
+                })
+              ).status,
+            ).toBe(200);
+            const response = await app.request(
+              `https://fixture.test/v1/submissions/${submittedId}`,
+            );
+            expect(response.status).toBe(200);
+            expect((await response.json()).verdict).toBe(verdict);
+          }
+          const tsWorkspace = crypto.randomUUID();
+          await pool.query(
+            "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'typescript')",
+            [tsWorkspace, owner, version],
+          );
+          await pool.query(
+            "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+            [owner],
+          );
+          const compile = await app.request("https://fixture.test/v1/submissions", {
+            method: "POST",
+            headers: { "content-type": "application/json", "idempotency-key": "remote-compile" },
+            body: JSON.stringify({
+              workspaceId: tsWorkspace,
+              kind: "run",
+              source: "class Solution { f(x: number): number { return ; !!! } }",
+            }),
+          });
+          expect(compile.status).toBe(202);
+          const compileId = (await compile.json()).id as string;
+          expect(
+            (
+              await fetch(`${runnerOrigin}/internal/drain`, {
+                method: "POST",
+                headers: { authorization: `Bearer ${drainSecret}` },
+                signal: AbortSignal.timeout(180000),
+              })
+            ).status,
+          ).toBe(200);
+          expect(
+            (await (await app.request(`https://fixture.test/v1/submissions/${compileId}`)).json())
+              .verdict,
+          ).toBe("syntax_error");
+          await pool.query(
+            "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+            [owner],
+          );
+          const slow = await app.request("https://fixture.test/v1/submissions", {
+            method: "POST",
+            headers: { "content-type": "application/json", "idempotency-key": "remote-cancel" },
+            body: JSON.stringify({
+              workspaceId: workspace,
+              kind: "run",
+              source: "import time\nclass Solution:\n def f(self,x):\n  time.sleep(30)\n  return x",
+            }),
+          });
+          expect(slow.status).toBe(202);
+          const slowId = (await slow.json()).id as string;
+          const pending = fetch(`${runnerOrigin}/internal/drain`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${drainSecret}` },
+            signal: AbortSignal.timeout(180000),
+          });
+          const ownerKey = await readFile(process.env.QUOREM_CASE_OWNER_PUBLIC_KEY_FILE!, "utf8");
+          const probeKey = await crypto.subtle.importKey(
+            "spki",
+            createPublicKey(ownerKey).export({ type: "spki", format: "der" }),
+            "Ed25519",
+            false,
+            ["verify"],
+          );
+          const { verifyCaseProbe } = await import("../../../../../../../deploy/case-proof.js");
+          const probeFetch = accessFetch(caseOrigin, caseAccess) ?? fetch;
+          const probe = async (attempt: string, scope: string) => {
+            const nonce = crypto.randomUUID();
+            const response = await probeFetch(new URL(`/internal/case/${attempt}`, caseOrigin), {
+              headers: {
+                authorization: `Bearer ${process.env.QUOREM_CASE_SECRET!}`,
+                "x-quorem-case-probe": "lifecycle",
+                "x-quorem-owner-nonce": nonce,
+                "x-quorem-owner-scope": scope,
+              },
+              redirect: "error",
+              signal: AbortSignal.timeout(10000),
+            });
+            return verifyCaseProbe(response, {
+              publicKey: probeKey,
+              kind: "lifecycle",
+              scope,
+              attempt,
+              nonce,
+              expectedNamespace: process.env.QUOREM_CASE_NAMESPACE_ID!,
+            });
+          };
+          let activeAttempt: { attempt: string; scope: string } | undefined;
+          for (let i = 0; i < 600; i++) {
+            const row = (
+              await pool.query(
+                "SELECT attempt_id::text AS attempt,sandbox_scope AS scope FROM execution_jobs WHERE submission_id=$1",
+                [slowId],
+              )
+            ).rows[0];
+            if (row?.attempt && row.scope === sandbox.scope) {
+              const state = await probe(row.attempt, row.scope);
+              if (state.active === true && state.running === true) {
+                activeAttempt = { attempt: row.attempt, scope: row.scope };
+                break;
+              }
+            }
+            await sleep(100);
+          }
+          expect(activeAttempt).toBeDefined();
+          expect(
+            (
+              await app.request(`https://fixture.test/v1/submissions/${slowId}/cancel`, {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                  "idempotency-key": "remote-cancel-request",
+                },
+                body: "{}",
+              })
+            ).status,
+          ).toBe(200);
+          expect((await pending).status).toBe(200);
+          expect(
+            (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0].state,
+          ).toBe("cancelled");
+          const stopped = await probe(activeAttempt!.attempt, activeAttempt!.scope);
+          expect(stopped.active).toBe(false);
+          expect(stopped.running).toBe(false);
+          await sandbox.teardownAttempt({
+            attemptId: activeAttempt!.attempt,
+            sandboxScope: activeAttempt!.scope,
+          });
+          const foreignKey = generateKeyPairSync("ed25519")
+            .publicKey.export({ type: "spki", format: "pem" })
+            .toString();
+          const namespace = process.env.QUOREM_CASE_NAMESPACE_ID!;
+          for (const [namespaceId, ownerPublicKey] of [
+            [namespace === "0".repeat(64) ? "1".repeat(64) : "0".repeat(64), ownerKey],
+            [namespace, foreignKey],
+          ]) {
+            const wrong = remoteSandbox({
+              origin: caseOrigin,
+              secret: process.env.QUOREM_CASE_SECRET!,
+              namespaceId,
+              ownerPublicKey,
+              cleanupMs: 30000,
+              fetch: accessFetch(caseOrigin, caseAccess),
+            });
+            await expect(
+              wrong.teardownAttempt({ sandboxScope: wrong.scope, attemptId: crypto.randomUUID() }),
+            ).rejects.toThrow(/unconfirmed/i);
+          }
+          return;
+        }
+        const slow = await app.request("https://fixture.test/v1/submissions", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": "runner-executable-shutdown",
+          },
+          body: JSON.stringify({
+            workspaceId: workspace,
+            kind: "run",
+            source: "import time\nclass Solution:\n def f(self,x):\n  time.sleep(30)\n  return x",
+          }),
+        });
+        expect(slow.status).toBe(202);
+        const slowId = (await slow.json()).id as string;
+        const pending = fetch(`${runnerOrigin}/internal/drain`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${drainSecret}` },
+        }).then(
+          () => undefined,
+          () => undefined,
+        );
+        const label = createHash("sha256").update(sandbox.scope).digest("hex");
+        const containers = (all = false) =>
+          execFileSync(
+            "docker",
+            [
+              "--config",
+              "/nonexistent",
+              "--host",
+              `unix://${socket!}`,
+              "ps",
+              all ? "-aq" : "-q",
+              "--filter",
+              `label=quorem.scope=${label}`,
+            ],
+            { encoding: "utf8" },
+          ).trim();
+        let active = false;
+        for (let i = 0; i < 200; i++) {
+          if (containers()) {
+            active = true;
+            break;
+          }
+          await sleep(25);
+        }
+        expect(active).toBe(true);
+        if (containerMode) {
+          const competingPort = await freePort();
+          competingRunner = service("runner", "", {
+            QUOREM_RUNNER_MODE: "http",
+            QUOREM_SANDBOX_PROVIDER: "docker",
+            QUOREM_RUNNER_LISTEN: `127.0.0.1:${competingPort}`,
+            QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
+            QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
+            QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
+            QUOREM_DOCKER_SOCKET: socket!,
+            QUOREM_DOCKER_FENCE_ROOT: work,
+            QUOREM_DOCKER_NAMESPACE: "executable-e2e",
+          });
+          await waitHealth(`http://127.0.0.1:${competingPort}`, competingRunner);
+          expect(containers()).not.toBe("");
+          expect(
+            (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0].state,
+          ).toBe("running");
+          await stop(competingRunner);
+          competingRunner = undefined;
+        }
+        await stop(runnerProcess);
+        runnerProcess = undefined;
+        await pending;
+        expect(containers(true)).toBe("");
+        const row = (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId]))
+          .rows[0];
+        expect(["queued", "running"]).toContain(row.state);
+        await pool.query(
+          "DELETE FROM execution_dispatch_intents WHERE job_id IN (SELECT id FROM execution_jobs WHERE submission_id=$1)",
+          [slowId],
+        );
+        await pool.query("DELETE FROM execution_attempt_usage WHERE submission_id=$1", [slowId]);
+        await pool.query("DELETE FROM execution_jobs WHERE submission_id=$1", [slowId]);
+        await pool.query(
+          "DELETE FROM execution_idempotency WHERE owner_id=$1 AND key='runner-executable-shutdown'",
+          [owner],
+        );
+        await pool.query("DELETE FROM submissions WHERE id=$1", [slowId]);
+      } finally {
         await stop(competingRunner);
-        competingRunner = undefined;
+        await stop(runnerProcess);
+        await stop(verifierProcess);
+        await new Promise<void>((resolve) => api.close(() => resolve()));
+        await rm(work, { recursive: true, force: true });
       }
-      await stop(runnerProcess);
-      runnerProcess = undefined;
-      await pending;
-      expect(containers(true)).toBe("");
-      const row = (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0];
-      expect(["queued", "running"]).toContain(row.state);
-      await pool.query(
-        "DELETE FROM execution_dispatch_intents WHERE job_id IN (SELECT id FROM execution_jobs WHERE submission_id=$1)",
-        [slowId],
-      );
-      await pool.query("DELETE FROM execution_attempt_usage WHERE submission_id=$1", [slowId]);
-      await pool.query("DELETE FROM execution_jobs WHERE submission_id=$1", [slowId]);
-      await pool.query(
-        "DELETE FROM execution_idempotency WHERE owner_id=$1 AND key='runner-executable-shutdown'",
-        [owner],
-      );
-      await pool.query("DELETE FROM submissions WHERE id=$1", [slowId]);
-    } finally {
-      await stop(competingRunner);
-      await stop(runnerProcess);
-      await stop(verifierProcess);
-      await new Promise<void>((resolve) => api.close(() => resolve()));
-      await rm(work, { recursive: true, force: true });
-    }
-  }, 90000);
+    },
+    remote ? 900000 : 90000,
+  );
   it("runs a real admitted Python job through private commands and Docker", async () => {
     const response = await app.request("https://fixture.test/v1/submissions", {
       method: "POST",
