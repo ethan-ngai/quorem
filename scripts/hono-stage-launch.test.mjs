@@ -223,3 +223,31 @@ void test("command diagnostics expose only fixed provider resource names", () =>
     },
   );
 });
+void test("provider diagnostics separate errors and redact sensitive provider content", () => {
+  const secret = "token-supersecret-123456";
+  const url = "https://private.example.test/project/secret";
+  const identifier = "53e9c435-0a20-4b53-925f-abaa618fead0";
+  const error = new StageCommandFailure({
+    stderr: `╷
+│ Error: failed to create: HTTP status 403 {"code":10000,"message":"${secret} ${url} ${identifier}"}
+│ with cloudflare_zero_trust_access_service_token.stage,
+╵
+╷
+│ Error: authentication failed: project-scoped token ${secret}
+│ with neon_project.stage,
+╵`,
+  });
+  assert.equal(error.category, "provider permission");
+  assert.deepEqual(
+    error.diagnostics.map(({ resources }) => resources),
+    [["cloudflare_zero_trust_access_service_token.stage"], ["neon_project.stage"]],
+  );
+  assert.deepEqual(error.diagnostics[0].statuses, [403]);
+  assert.deepEqual(error.diagnostics[0].codes, [10000]);
+  assert.equal(error.diagnostics[1].flags.project, true);
+  assert.equal(error.diagnostics[1].flags.authentication, true);
+  for (const value of [secret, url, identifier])
+    assert.equal(JSON.stringify(error).includes(value), false);
+  const unrelated = new StageCommandFailure({ stderr: "Error: invalid permission configuration" });
+  assert.equal(unrelated.category, "configuration/provider");
+});
