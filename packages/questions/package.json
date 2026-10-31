@@ -8,12 +8,14 @@
   },
   "scripts": {
     "test": "vp test run && node test/node-import.mjs",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:workerd": "vp test run --config workerd.config.ts"
   },
   "dependencies": {
     "@quorem/contracts": "workspace:*"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.11",
     "@types/node": "24.19.2",
     "vitest": "5.0.3"
   }
