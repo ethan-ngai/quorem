@@ -1847,6 +1847,7 @@ export const execution_completion_frames = pgTable(
     job_id: uuid().notNull(),
     channel: text().notNull(),
     ordinal: integer().notNull(),
+    status: text().notNull(),
     frame_data: bytea().notNull(),
     frame_hash: bytea().notNull(),
   },
