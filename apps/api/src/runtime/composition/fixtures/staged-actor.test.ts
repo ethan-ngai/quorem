@@ -138,6 +138,7 @@ void test(
         QUOREM_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
         MATCH_INVITE_KEY: "ab".repeat(32),
         EXECUTION_WAKE_PROVIDER: "sqs",
+        EXECUTION_NODE_QUEUE_MODE: "disabled",
         SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/000000000000/test",
         PORT: "0",
         IDENTITY_MODE: "managed",

@@ -1,7 +1,6 @@
 /** @file worker.ts @description Worker HTTP, socket and durable recovery composition. @module api */
 // @ts-expect-error Workerd supplies this module.
 import { DurableObject } from "cloudflare:workers";
-import { accessFetch } from "@quorem/execution/transport/access";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { workerRuntime, type AuthWorkerEnv } from "@quorem/auth/worker";
 import { authPeerRequest, cloudflarePeer } from "@quorem/auth/peer";
@@ -38,7 +37,14 @@ import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { composeHttp } from "./composition/http.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { composePrivate } from "./composition/private.ts";
-import { boundedInt, flag, keyBytes, privateConfig, required } from "./composition/config.ts";
+import {
+  boundedInt,
+  drainConfig,
+  flag,
+  keyBytes,
+  privateConfig,
+  required,
+} from "./composition/config.ts";
 import { requestBudget, unavailable } from "./composition/budget.ts";
 import { privateResponse } from "./composition/private-response.ts";
 import { recoverAll } from "./composition/recovery.ts";
@@ -320,46 +326,7 @@ export default {
     }
   },
   async queue(batch: { messages: readonly WakeMessage[] }, env: Env): Promise<void> {
-    const credential = required(env.EXECUTION_DRAIN_SECRET);
-    const config = privateConfig(env);
-    if (
-      [
-        config.verificationSourceCredential,
-        config.verificationServiceCredential,
-        ...config.runnerPeers.map((peer) => peer.secret),
-      ].includes(credential)
-    )
-      throw new Error("Distinct drain credential required");
-    const drainURL = required(env.EXECUTION_DRAIN_URL);
-    const mode = required(env.EXECUTION_DRAIN_ACCESS_MODE);
-    const id = env.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
-      secret = env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET;
-    let send: typeof fetch | undefined;
-    if (mode === "none") {
-      if (id !== undefined || secret !== undefined)
-        throw new Error("Unexpected drain Access credentials");
-    } else if (mode === "cloudflare-access") {
-      const url = new URL(drainURL);
-      if (url.protocol !== "https:") throw new Error("Drain Access requires HTTPS");
-      const pair = { id: required(id), secret: required(secret) };
-      if (
-        [
-          credential,
-          config.verificationSourceCredential,
-          config.verificationServiceCredential,
-          ...config.runnerPeers.map((peer) => peer.secret),
-        ].includes(pair.secret)
-      )
-        throw new Error("Distinct drain Access credential required");
-      send = accessFetch(url.origin, pair);
-    } else throw new Error("Invalid drain Access mode");
-    await consumeWakeBatch(batch.messages, {
-      publisher: wake(env),
-      drainURL,
-      credential,
-      local: env.APP_ENV === "local",
-      fetch: send,
-    });
+    await consumeWakeBatch(batch.messages, { publisher: wake(env), ...drainConfig(env) });
   },
   async scheduled(_event: unknown, env: Env): Promise<void> {
     const run = runFor(env),

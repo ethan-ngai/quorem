@@ -127,3 +127,7 @@ The combined stage validator subsequently passed 62 contracts without skips, inc
 Finish the existing port; freeze new abstractions. Recovery validation now requires real workerd controls, migration provenance, checksummed ledgers and avatar-copy fixtures without skipped tests. Signed proof capture uses one bounded read; oversized responses cannot strand a cloned stream.
 
 Next: integrate queue-only deployment protection; pass combined checks and exact-head CI; resolve concrete API/consumer parity findings. Hosted validation requires GitHub staging environment configuration (none existed at the resumed check), provider setup and actual deployment evidence. Full maintenance/resume orchestration, production backfill/rollback and Go retirement remain open under #432. These are release gates, not reasons to add optional cache/search features.
+
+## Node delivery completion
+
+The Node composition now consumes its selected SQS or Cloudflare pull queue through the shared wake/drain owner. It publishes required continuations before acknowledgment; uncertain delivery/acknowledgment retries retain PostgreSQL authority. Production Node startup requires explicit drain configuration instead of silently publishing unconsumed wakes. Local fixtures can explicitly disable the consumer; the real composition test exercises local SQS publication, authenticated drain, delayed early-wake continuation and deletion. Native Workers continues using its existing push handler.

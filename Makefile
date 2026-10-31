@@ -1,4 +1,4 @@
-.PHONY: install dev database seed provision access profile-reads backfill-results validate-leetcode-structure reset api runner web language auth check build
+.PHONY: install dev database seed provision access profile-reads backfill-results validate-leetcode-structure reset api runner api-hono runner-hono verifier-hono language-hono web language auth check build
 
 QUOREM_ENV ?= development
 APP_ENV ?= local
@@ -43,6 +43,18 @@ api:
 
 runner:
 	go run ./apps/runner/cmd/runner
+
+api-hono:
+	vp -C apps/api run start
+
+runner-hono:
+	vp -C apps/runner run runner
+
+verifier-hono:
+	vp -C apps/runner run verifier
+
+language-hono:
+	vp -C apps/language run dev:node
 
 web:
 	vp -C apps/web dev --host 127.0.0.1 --port 5173 --strictPort

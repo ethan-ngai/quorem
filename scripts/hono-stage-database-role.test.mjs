@@ -184,6 +184,7 @@ void test(
       runtime = await startNodeRuntime({
         ...process.env,
         APP_ENV: "local",
+        EXECUTION_NODE_QUEUE_MODE: "disabled",
         AUTH_MODE: "password",
         AUTH_ORIGIN: "http://127.0.0.1:8765",
         AUTH_DATABASE_URL: runtimeURL.href,

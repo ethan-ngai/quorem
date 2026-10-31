@@ -11,7 +11,7 @@ import { nodeLocalIdentity } from "../adapters/identity/node-local.ts";
 import { developmentIdentity } from "../adapters/postgres/identity/repository.ts";
 import { sqsQueue } from "../adapters/delivery/sqs.ts";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { cloudflareRest } from "../adapters/delivery/cloudflare.ts";
+import { cloudflarePull } from "../adapters/delivery/cloudflare.ts";
 import { PostgresFanout } from "../adapters/events/fanout/postgres.ts";
 import { noticePublisher, socketSubscription } from "../adapters/events/fanout/publisher.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
@@ -29,10 +29,18 @@ import { startNodeNotifications } from "./composition/node-notifications.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { composeHttp } from "./composition/http.ts";
 import { composePrivate } from "./composition/private.ts";
-import { boundedInt, flag, keyBytes, privateConfig, required } from "./composition/config.ts";
+import {
+  boundedInt,
+  drainConfig,
+  flag,
+  keyBytes,
+  privateConfig,
+  required,
+} from "./composition/config.ts";
 import { requestBudget, unavailable } from "./composition/budget.ts";
 import { privateResponse } from "./composition/private-response.ts";
 import { recoverAll } from "./composition/recovery.ts";
+import { startNodeWakeConsumer } from "./composition/node-wake-consumer.ts";
 
 /** The caller owns shutdown; every HTTP request owns its database cancellation scope. */
 export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
@@ -114,7 +122,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
               : undefined,
           )
         : provider === "cloudflare-rest"
-          ? cloudflareRest({
+          ? cloudflarePull({
               accountId: required(env.CLOUDFLARE_ACCOUNT_ID),
               queueId: required(env.CLOUDFLARE_QUEUE_ID),
               token: required(env.CLOUDFLARE_QUEUE_TOKEN),
@@ -131,6 +139,13 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     const report = () => {
       console.error("Runtime recovery unavailable");
     };
+    const queueMode = env.EXECUTION_NODE_QUEUE_MODE ?? "consumer";
+    if (queueMode === "disabled") {
+      if (env.APP_ENV !== "local") throw new Error("Wake consumer may only be disabled locally");
+    } else if (queueMode === "consumer") {
+      disposers.push(await startNodeWakeConsumer(wake, { ...drainConfig(env), report }));
+    } else throw new Error("Invalid Node wake consumer mode");
+
     const deadlineReceipts = prearmReceipts(run);
     const deadlines = nodeCoordinator(async (shard) => {
       const ids = await deadlineReceipts.list(shard),
