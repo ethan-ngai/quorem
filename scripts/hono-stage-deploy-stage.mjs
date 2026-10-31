@@ -1,6 +1,10 @@
 import { fenceFailedStageRuntime, stageControls } from "./hono-stage-controls.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
-import { provisionStageDatabaseRole, stageRoleCredentials } from "./hono-stage-database-role.mjs";
+import {
+  provisionStageDatabaseRole,
+  stageRoleCredentials,
+  deriveStageRole,
+} from "./hono-stage-database-role.mjs";
 /** First staged activation; existing database updates require a separate cutover contract. */
 import { spawnSync } from "node:child_process";
 import { createPrivateKey, createPublicKey } from "node:crypto";
@@ -289,11 +293,17 @@ export async function deployStage(original, operations = defaults) {
   } catch {
     throw new Error("Invalid staged signing keys");
   }
+  if (
+    original.TF_VAR_release_generation !== undefined &&
+    original.TF_VAR_release_generation !== "1"
+  )
+    throw new Error("First activation requires generation one");
   const freshResources = await operations.freshness(original);
   operations.roleConfig(original);
   await operations.fresh(original);
   const env = {
     ...original,
+    TF_VAR_database_user: deriveStageRole(original.HONO_RELEASE_SHA, "1"),
     TF_VAR_enable_queue_consumer: "false",
     TF_VAR_case_diagnostics: "true",
     TF_VAR_release_sha: original.HONO_RELEASE_SHA,

@@ -122,7 +122,10 @@ function operations(events, fail) {
           ]),
         ),
       ),
-    terraform: (_, stack, op) => step(`${stack}:${op}`),
+    terraform: (input, stack, op) => {
+      assert.match(input.TF_VAR_database_user, /^quorem_stage_runtime_[0-9a-f]{32}$/);
+      return step(`${stack}:${op}`);
+    },
     probe: async (_, pinned) =>
       step(`probe:${pinned === "0".repeat(64) ? "bootstrap" : "pinned"}`, {
         namespace: ns,
@@ -345,4 +348,13 @@ void test("uncertain role provisioning always attempts a writer fence", async ()
     throw new Error("unknown role");
   };
   await assert.rejects(deployStage(env(), failing), /runtime writer fence unconfirmed/);
+});
+
+void test("first activation rejects any other generation before mutation", async () => {
+  const events = [];
+  await assert.rejects(
+    deployStage({ ...env(), TF_VAR_release_generation: "2" }, operations(events)),
+    /generation one/,
+  );
+  assert.deepEqual(events, []);
 });

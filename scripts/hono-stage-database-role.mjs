@@ -6,13 +6,29 @@ const { Client, escapeIdentifier, escapeLiteral } = createRequire(
   new URL("../packages/database/package.json", import.meta.url),
 )("pg");
 
+/** A release may never reuse a previously fenced generation's login. */
+export function deriveStageRole(release, rawGeneration = "1") {
+  if (
+    !/^[a-f0-9]{40}$/.test(release ?? "") ||
+    typeof rawGeneration !== "string" ||
+    !/^[1-9][0-9]*$/.test(rawGeneration)
+  )
+    throw new Error("Invalid staged release generation");
+  const generation = Number(rawGeneration);
+  if (!Number.isSafeInteger(generation)) throw new Error("Invalid staged release generation");
+  return `quorem_stage_runtime_${createHash("sha256")
+    .update(JSON.stringify([release, generation]))
+    .digest("hex")
+    .slice(0, 32)}`;
+}
+
 export function stageRoleCredentials(env) {
   const operator = new URL(stageDatabaseURL(env));
-  const role = `quorem_stage_runtime_${env.HONO_RELEASE_SHA?.slice(0, 12)}`;
+  const role = deriveStageRole(env.HONO_RELEASE_SHA, env.TF_VAR_release_generation ?? "1");
   const password = env.TF_VAR_database_password;
   if (
     !/^[a-f0-9]{40}$/.test(env.HONO_RELEASE_SHA ?? "") ||
-    env.TF_VAR_database_user !== role ||
+    (env.TF_VAR_database_user !== undefined && env.TF_VAR_database_user !== role) ||
     decodeURIComponent(operator.username) === role ||
     decodeURIComponent(operator.password) === password ||
     typeof password !== "string" ||

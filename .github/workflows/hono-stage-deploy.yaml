@@ -67,6 +67,7 @@ jobs:
           QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
         run: vp -C apps/runner exec node --test src/runtime/runtime.test.ts
       - run: node scripts/hono-stage-validation.mjs
+      - run: node scripts/hono-recovery-validation.mjs
       - name: Terraform checks
         run: |
           for stack in hono-stage hono-services; do
@@ -110,7 +111,6 @@ jobs:
           TF_VAR_database_host: ${{ vars.HONO_STAGE_DATABASE_HOST }}
           TF_VAR_database_port: ${{ vars.HONO_STAGE_DATABASE_PORT }}
           TF_VAR_database_name: quorem_hono_stage
-          TF_VAR_database_user: ${{ secrets.HONO_STAGE_DATABASE_USER }}
           TF_VAR_database_password: ${{ secrets.HONO_STAGE_DATABASE_PASSWORD }}
           TF_VAR_database_connection_limit: ${{ vars.HONO_STAGE_DATABASE_CONNECTION_LIMIT }}
           TF_VAR_enable_queue_consumer: "false"
@@ -182,7 +182,6 @@ jobs:
           TF_VAR_database_host: ${{ vars.HONO_STAGE_DATABASE_HOST }}
           TF_VAR_database_port: ${{ vars.HONO_STAGE_DATABASE_PORT }}
           TF_VAR_database_name: quorem_hono_stage
-          TF_VAR_database_user: ${{ secrets.HONO_STAGE_DATABASE_USER }}
           TF_VAR_database_password: ${{ secrets.HONO_STAGE_DATABASE_PASSWORD }}
           TF_VAR_database_connection_limit: ${{ vars.HONO_STAGE_DATABASE_CONNECTION_LIMIT }}
           TF_VAR_enable_queue_consumer: "false"
