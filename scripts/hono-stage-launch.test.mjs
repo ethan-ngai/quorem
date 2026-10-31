@@ -159,6 +159,35 @@ void test("stage reuses stored secrets and publishes genuine images exactly once
   assert.ok(masked.includes("fixture-password"));
   assert.equal(JSON.stringify(result).includes(expected.RECOVERY_CONTROL_SECRET), false);
 });
+void test("REST refresh metadata never authorizes an actual resource update or changed identity", async () => {
+  for (const sameIdentity of [true, false]) {
+    const calls = [];
+    const drift = {
+      address: "restapi_object.stage_branch",
+      change: {
+        actions: ["update"],
+        before: { id: "br-fixture", data: "fixture" },
+        after: {
+          id: sameIdentity ? "br-fixture" : "br-other",
+          data: "fixture",
+          api_response: "refreshed metadata",
+        },
+      },
+    };
+    const result = launchStage(env(), {
+      action: "plan",
+      run: terraform(
+        [change("restapi_object.stage_branch", ["no-op"])],
+        createStageSecrets(),
+        calls,
+        [drift],
+      ),
+    });
+    if (sameIdentity) assert.equal((await result).status, "planned");
+    else await assert.rejects(result, /unrelated or destructive/);
+    assert.equal(calls.includes("apply"), false);
+  }
+});
 
 void test("plan returns only allowed addresses and never publishes or applies", async () => {
   const calls = [],

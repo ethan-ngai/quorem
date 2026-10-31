@@ -1,5 +1,4 @@
 import { assertRunnerFixture } from "./test-db.ts";
-import { execFileSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -561,7 +560,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       await pool.query("DELETE FROM submissions WHERE id=$1", [submissionId]);
     }
   });
-  it("rejects a Go judge without manifest capability before a supported claim", async () => {
+  it("rejects claims without manifest capability before a supported claim", async () => {
     const s = crypto.randomUUID(),
       j = crypto.randomUUID();
     try {
@@ -574,20 +573,10 @@ describe.skipIf(!url)("runner claim fences", () => {
         [j, s],
       );
       await sealFixture(run, version, j, [{ args: [], expected: 2 }]);
-      const root = fileURLToPath(new URL("../../../../..", import.meta.url));
-      expect(() =>
-        execFileSync("go", ["run", "./src/adapters/postgres/judging/worker/testdata/goclaim"], {
-          cwd: root,
-          env: {
-            ...process.env,
-            QUOREM_LOSSLESS_CASES: "true",
-            QUOREM_LOSSLESS_RESULT_WRITES: "true",
-          },
-          encoding: "utf8",
-          stdio: "pipe",
-        }),
-      ).toThrow("runner input protocol required");
-      const next = await claims.claimAfterTeardown(true, "scope-go", null);
+      await expect(
+        pool.query("UPDATE execution_jobs SET attempt_id=$2 WHERE id=$1", [j, crypto.randomUUID()]),
+      ).rejects.toThrow("runner input protocol required");
+      const next = await claims.claimAfterTeardown(true, "scope-protocol", null);
       expect(next?.jobId).toBe(j);
     } finally {
       await pool.query("DELETE FROM execution_jobs WHERE id=$1", [j]);
