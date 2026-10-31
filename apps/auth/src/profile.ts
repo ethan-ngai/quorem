@@ -6,7 +6,6 @@ import {
 import { profileMutationLifetimeMs, type ProfileMutationBudget } from "./profile-budget.ts";
 import type { ProfileStorage } from "./profile-storage.ts";
 import { photoPrefix, profilePhotoKey as storedKey, validPhotoKey } from "./profile-object-key.ts";
-export { photoPrefix } from "./profile-object-key.ts";
 
 const byteLimit = 5 * 1024 * 1024;
 export type Profile = {

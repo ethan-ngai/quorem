@@ -10,5 +10,6 @@ export function validPhotoKey(key: string): boolean {
 }
 
 export function photoObjectPath(key: string): string {
+  if (!validPhotoKey(key)) throw new Error("Invalid photo key");
   return `avatars/${key}.webp`;
 }
