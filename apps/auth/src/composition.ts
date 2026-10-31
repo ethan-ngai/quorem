@@ -40,9 +40,9 @@ export function composeAuth(options: {
       adapter: scopedDrizzleAdapter(run),
       emailFlow: socialEmail(repository, config.origin, socialSender),
       accountMail: mail ? accountMailer(mail) : undefined,
-      rateLimit: repository.rateLimit,
-      profile: repository.profile,
-      recordAssurance: repository.recordAssurance,
+      rateLimit: (scope, subject, policy) => repository.rateLimit(scope, subject, policy),
+      profile: (id) => repository.profile(id),
+      recordAssurance: (id) => repository.recordAssurance(id),
     });
   const auth = makeAuth();
   const registration =

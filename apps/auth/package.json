@@ -7,19 +7,20 @@
     "migrate": "node --env-file-if-exists=.env --experimental-strip-types src/migrate.ts",
     "seed": "node --env-file-if-exists=.env --experimental-strip-types src/seed.ts",
     "test": "vp test",
-    "test:mail": "node --test src/mail-intents.test.ts"
+    "test:mail": "node --test src/mail-intents.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",
     "@better-auth/passkey": "1.7.7",
     "@quorem/contracts": "workspace:*",
+    "@quorem/database": "workspace:*",
     "better-auth": "1.7.7",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.14",
     "nodemailer": "8.0.3",
     "pg": "8.16.3",
-    "sharp": "0.35.5",
-    "@quorem/database": "workspace:*",
-    "drizzle-orm": "0.45.4",
-    "hono": "4.13.14"
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

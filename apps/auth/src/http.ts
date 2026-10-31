@@ -19,7 +19,7 @@ export function createAuthApp(options: {
     const request = context.req.raw;
     const path = new URL(request.url).pathname;
     if (path === "/api/auth/sign-in/hosted")
-      return hostedSignIn(request, options.config.method, options.auth.handler);
+      return hostedSignIn(request, options.config.method, (next) => options.auth.handler(next));
     if (path.startsWith("/api/auth/registration/"))
       return (await options.registration?.(request)) ?? new Response(null, { status: 404 });
     if (
