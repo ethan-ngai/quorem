@@ -9,6 +9,9 @@ const input = () => ({
     AUTH_ORIGIN: "https://stage.example",
     HTTP_MAX_REQUESTS: "16",
     DEADLINE_SHARDS: "2",
+    GUEST_CREATION: "false",
+    GUEST_ADMISSION: "true",
+    GUEST_EXECUTION: "false",
     VERIFICATION_SERVICE_ORIGIN: "https://verify.example",
     VERIFICATION_PUBLIC_KEY: "MCowBQYDK2VwAyEAtnR6Tl2sbDUoUU1629wFNWRHL+Y/6q19G/75ULZd7Kw=",
     EXECUTION_DRAIN_URL: "https://runner-stage.example/internal/drain",
@@ -51,6 +54,8 @@ test("stage binds actual runtime classes, queue and scheduled recovery without s
     ],
   );
   assert.equal(config.vars.EXECUTION_WAKE_PROVIDER, "cloudflare-binding");
+  assert.equal(config.vars.GUEST_CREATION, "false");
+  assert.equal(config.vars.GUEST_ADMISSION, "true");
   assert.equal(config.workers_dev, false);
   assert.doesNotMatch(
     JSON.stringify(config),
