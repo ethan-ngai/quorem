@@ -89,28 +89,49 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
       } finally { inTransaction = false; }
     },
   };
-  if (signal?.aborted) { await close(true); throw new DatabaseFailure('aborted'); }
+  let rejectFailure: (error: DatabaseFailure) => void = () => {};
+  let clientFailure: DatabaseFailure | undefined;
+  const failed = new Promise<never>((_, reject) => { rejectFailure = reject; });
+  void failed.catch(() => {});
+  const onClientError = (error: Error): void => {
+    broken = true;
+    active = false;
+    clientFailure ??= new DatabaseFailure(committing ? 'unknown_commit' : 'connection', error);
+    rejectFailure(clientFailure);
+    void close(true).catch(() => {});
+  };
+  client.on('error', onClientError);
+  if (signal?.aborted) {
+    try { await close(true); } finally { client.removeListener('error', onClientError); }
+    throw new DatabaseFailure('aborted');
+  }
   let abort: (() => void) | undefined;
   const cancelled = new Promise<never>((_, reject) => {
     abort = () => {
       active = false;
-      void close(true).catch(() => {});
       reject(new DatabaseFailure(committing ? 'unknown_commit' : 'aborted'));
+      void close(true).catch(() => {});
     };
     signal?.addEventListener('abort', abort, { once: true });
   });
+  let outcome: { ok: true; value: T } | { ok: false; error: unknown };
   try {
-    const value = await Promise.race([callback(scope), cancelled]);
+    const value = await Promise.race([callback(scope), cancelled, failed]);
     if (inTransaction) { broken = true; throw new Error('Transaction outlived connection scope'); }
-    return value;
+    outcome = { ok: true, value };
   } catch (error) {
     if (classifyDatabaseError(error) === 'connection') broken = true;
-    throw error;
-  } finally {
-    active = false;
-    if (abort) signal?.removeEventListener('abort', abort);
-    await close(broken || inTransaction);
+    outcome = { ok: false, error };
   }
+  active = false;
+  if (abort) signal?.removeEventListener('abort', abort);
+  let cleanupError: unknown;
+  try { await close(broken || inTransaction); } catch (error) { cleanupError = error; }
+  client.removeListener('error', onClientError);
+  if (!outcome.ok) throw outcome.error;
+  if (clientFailure) throw clientFailure;
+  if (cleanupError !== undefined) throw cleanupError;
+  return outcome.value;
 }
 
 export async function withNodeConnection<T>(pool: Pool, options: ScopeOptions, callback: (scope: ConnectionScope) => Promise<T>): Promise<T> {

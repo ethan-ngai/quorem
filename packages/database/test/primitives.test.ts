@@ -11,6 +11,11 @@ const url = process.env.QUOREM_TEST_DATABASE_URL;
 if (!url || new URL(url).pathname !== '/quorem_hono_primitives_test' || new URL(url).port !== '55436' || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('QUOREM_TEST_DATABASE_URL must name the disposable quorem_hono_primitives_test database');
 const pool = createNodePool({ connectionString: url, max: 1, connectionTimeoutMs: 250, idleTimeoutMs: 1000, onIdleError: (error) => { throw error; } });
 const options = { statementTimeoutMs: 1000, lockTimeoutMs: 100 };
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 const run = <T>(callback: Parameters<typeof withNodeConnection<T>>[2]) => withNodeConnection(pool, { lifetimeMs: 3000 }, callback);
 before(async () => { await pool.query('CREATE TABLE IF NOT EXISTS primitives_probe (id int primary key, value text)'); await pool.query('DELETE FROM primitives_probe'); await pool.query('CREATE TABLE IF NOT EXISTS primitives_deferred (value int, UNIQUE(value) DEFERRABLE INITIALLY DEFERRED)'); await pool.query('DELETE FROM primitives_deferred'); });
 after(async () => { await pool.query('DROP TABLE IF EXISTS primitives_deferred'); await pool.query('DROP TABLE IF EXISTS primitives_probe'); await pool.end(); });
@@ -77,6 +82,19 @@ void test('pool exhaustion and aborted waiter release late acquisition', async (
   assert.equal((await pool.query('select 1 as n')).rows[0].n, 1);
 });
 
+void test('concurrent waiters isolate cancellation', async () => {
+  const held = await pool.connect();
+  const controller = new AbortController();
+  const cancelled = withNodeConnection(pool, { lifetimeMs: 3000, signal: controller.signal }, async () => 'unexpected');
+  const next = withNodeConnection(pool, { lifetimeMs: 3000 }, async (scope) => scope.transaction(options, async (tx) => (await tx.execute(sql`select 42 as value`)).rows[0].value));
+  const rejection = assert.rejects(cancelled, (error) => classifyDatabaseError(error) === 'aborted');
+  controller.abort();
+  await rejection;
+  held.release();
+  assert.equal(await next, 42);
+  assert.equal(pool.waitingCount, 0);
+});
+
 void test('worker-shaped scope closes on success and abort', async () => {
   const pid = await withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 3000 }, (scope) => scope.transaction(options, async (tx) => (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0].pid));
   assert.equal((await pool.query('select count(*)::int as n from pg_stat_activity where pid = $1', [pid])).rows[0].n, 0);
@@ -86,15 +104,59 @@ void test('worker-shaped scope closes on success and abort', async () => {
   await assert.rejects(pending, (error) => classifyDatabaseError(error) === 'aborted');
 });
 
-void test('unknown commit is surfaced without replay after connection loss', async () => {
-  let calls = 0;
+void test('idle borrowed and Worker clients reject on backend loss', async () => {
   const killer = new Client({ connectionString: url }); await killer.connect();
   try {
-    await assert.rejects(run((scope) => scope.transaction(options, async (tx) => {
+    for (const kind of ['node', 'worker'] as const) {
+      const ready = deferred<unknown>();
+      const release = deferred<void>();
+      const callback = async (scope: import('../src/core/index.ts').ConnectionScope): Promise<string> => {
+        const pid = await scope.transaction(options, async (tx) => (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0].pid);
+        ready.resolve(pid);
+        await release.promise;
+        return 'should not succeed';
+      };
+      const pending = kind === 'node' ? run(callback) : withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 3000 }, callback);
+      const rejection = assert.rejects(pending, (error) => classifyDatabaseError(error) === 'connection');
+      const pid = await ready.promise;
+      await killer.query('select pg_terminate_backend($1)', [pid]);
+      await rejection;
+      release.resolve(undefined);
+      assert.equal((await killer.query('select count(*)::int as n from pg_stat_activity where pid = $1', [pid])).rows[0].n, 0);
+      assert.equal((await pool.query('select 1 as n')).rows[0].n, 1);
+    }
+  } finally { await killer.end(); }
+});
+
+void test('lost acknowledgment during COMMIT is unknown without replay', async () => {
+  let calls = 0;
+  const killer = new Client({ connectionString: url }); await killer.connect();
+  await killer.query(`create table primitives_commit_probe (value int)`);
+  await killer.query(`create function primitives_commit_delay() returns trigger language plpgsql as $$ begin perform pg_sleep(5); return new; end $$`);
+  await killer.query(`create constraint trigger primitives_commit_delay_trigger after insert on primitives_commit_probe deferrable initially deferred for each row execute function primitives_commit_delay()`);
+  try {
+    const ready = deferred<unknown>();
+    const pending = run((scope) => scope.transaction({ ...options, statementTimeoutMs: 10000 }, async (tx) => {
       calls++;
       const pid = (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0].pid;
-      await killer.query('select pg_terminate_backend($1)', [pid]);
-    })), (error) => classifyDatabaseError(error) === 'unknown_commit');
+      await tx.execute(sql`insert into primitives_commit_probe values (1)`);
+      ready.resolve(pid);
+    }));
+    const rejection = assert.rejects(pending, (error) => classifyDatabaseError(error) === 'unknown_commit');
+    const pid = await ready.promise;
+    let committing = false;
+    for (let i = 0; i < 100; i++) {
+      const result = await killer.query("select state = 'active' and query = 'COMMIT' as committing from pg_stat_activity where pid = $1", [pid]);
+      if (result.rows[0]?.committing) { committing = true; break; }
+      await delay(10);
+    }
+    assert.equal(committing, true);
+    await killer.query('select pg_terminate_backend($1)', [pid]);
+    await rejection;
     assert.equal(calls, 1);
-  } finally { await killer.end(); }
+  } finally {
+    await killer.query('drop table primitives_commit_probe');
+    await killer.query('drop function primitives_commit_delay()');
+    await killer.end();
+  }
 });
