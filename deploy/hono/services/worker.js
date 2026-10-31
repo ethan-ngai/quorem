@@ -250,24 +250,26 @@ export default {
         )
           return new Response(null, { status: 404 });
         if (
+          request.method !== "GET" &&
+          (!request.headers.get("x-quorem-owner-nonce") ||
+            !request.headers.get("x-quorem-owner-scope"))
+        )
+          return new Response(null, { status: 404 });
+        if (
           request.method === "POST" ||
+          request.method === "DELETE" ||
           (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle")
         ) {
           if (request.method === "GET" && request.headers.has("x-case-token"))
             return new Response(null, { status: 404 });
           const bound = await caseScope(env);
           if (
+            bound.namespace === "0".repeat(64) ||
             bound.namespace !== env.QUOREM_CASE_NAMESPACE_ID ||
             request.headers.get("x-quorem-owner-scope") !== bound.scope
           )
-            return new Response(null, { status: request.method === "POST" ? 503 : 404 });
+            return new Response(null, { status: request.method === "GET" ? 404 : 503 });
         }
-        if (
-          request.method !== "GET" &&
-          (!request.headers.get("x-quorem-owner-nonce") ||
-            !request.headers.get("x-quorem-owner-scope"))
-        )
-          return new Response(null, { status: 404 });
         return caseRequest(request, env, attempt, env.QUOREM_CASE_SECRET);
       }
       return new Response(null, { status: 404 });

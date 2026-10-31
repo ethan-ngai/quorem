@@ -417,6 +417,22 @@ test("signed live case observation follows execution and confirmed attempt teard
     ]),
   );
   assert.equal(await crypto.subtle.verify("Ed25519", publicKey, signature, message), true);
+  assert.equal(values.get("cancelled"), true);
+  const restarted = new CaseSandbox(context, env);
+  const late = await restarted.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/${attempt}`, {
+      method: "POST",
+      headers: {
+        "x-case-token": randomUUID(),
+        "x-case-language": "python",
+        "x-case-memory": "1024",
+        "x-case-processes": "1",
+      },
+      body: "late",
+    }),
+  );
+  assert.equal(late.status, 503);
+  assert.equal(context.container.running, false);
   const afterNonce = randomUUID();
   assert.deepEqual(
     await verifyCaseProbe(await probe(afterNonce), {
@@ -433,7 +449,7 @@ test("signed live case observation follows execution and confirmed attempt teard
   assert.equal((await probe(randomUUID())).status, 404);
 });
 
-test("execution requires pinned namespace and scope; cleanup remains available", async () => {
+test("execution and cleanup require the actual pinned namespace and scope", async () => {
   const env = base(),
     keys = generateKeyPairSync("ed25519"),
     namespace = secret("1");
@@ -479,14 +495,27 @@ test("execution requires pinned namespace and scope; cleanup remains available",
     );
   env.QUOREM_CASE_NAMESPACE_ID = secret("0");
   assert.equal((await request("POST")).status, 503);
+  assert.equal((await request("DELETE")).status, 503);
   assert.equal(forwarded, 0);
   env.QUOREM_CASE_NAMESPACE_ID = namespace;
   assert.equal((await request("POST", `remote:${secret("3")}`)).status, 503);
+  assert.equal((await request("DELETE", `remote:${secret("3")}`)).status, 503);
   assert.equal(forwarded, 0);
   assert.equal((await request("POST")).status, 200);
   assert.equal(forwarded, 1);
   env.QUOREM_CASE_NAMESPACE_ID = secret("0");
+  assert.equal((await request("DELETE")).status, 503);
+  assert.equal(forwarded, 1);
+  env.QUOREM_CASE_NAMESPACE_ID = namespace;
   assert.equal((await request("DELETE")).status, 204);
+  assert.equal(forwarded, 2);
+  env.QUOREM_CASE_NAMESPACE_ID = secret("0");
+  env.CASES.idFromName = () => secret("0");
+  const zeroScope = `remote:${createHash("sha256")
+    .update(JSON.stringify([env.CASE_ORIGIN, secret("0"), fingerprint]))
+    .digest("hex")}`;
+  assert.equal((await request("DELETE", zeroScope)).status, 503);
+  assert.equal((await request("POST", zeroScope)).status, 503);
   assert.equal(forwarded, 2);
 });
 

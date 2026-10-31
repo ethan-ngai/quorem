@@ -35,9 +35,11 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       getByName: () => ({
         fetch: async (request: Request) => {
           forwarded = request;
-          return request.method === "GET"
-            ? Response.json({ active: true, running: true, ordinal: 400, tokenHash: secret("2") })
-            : new Response("ok");
+          return request.method === "DELETE"
+            ? new Response(null, { status: 204 })
+            : request.method === "GET"
+              ? Response.json({ active: true, running: true, ordinal: 400, tokenHash: secret("2") })
+              : new Response("ok");
         },
       }),
     },
@@ -174,8 +176,64 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       expectedNamespace: actualNamespace,
     }),
   ).toEqual({ active: false, running: false, ordinal: null, tokenHash: null });
+  const deleteNonce = crypto.randomUUID();
+  const deleted = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/real-idle`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": deleteNonce,
+        "x-quorem-owner-scope": scope,
+      },
+    }),
+    env,
+  );
+  expect(deleted.status).toBe(204);
+  const deleteSignature = Uint8Array.from(
+    atob(deleted.headers.get("x-quorem-owner-signature")!),
+    (c) => c.charCodeAt(0),
+  );
+  expect(
+    await crypto.subtle.verify(
+      "Ed25519",
+      keys.publicKey,
+      deleteSignature,
+      new TextEncoder().encode(
+        JSON.stringify([
+          scope,
+          secret("1"),
+          "DELETE",
+          "real-idle",
+          "",
+          204,
+          deleteNonce,
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]),
+      ),
+    ),
+  ).toBe(true);
   expect(forwarded?.headers.get("authorization")).toBeNull();
   expect(forwarded?.headers.get("cf-access-client-secret")).toBeNull();
+  forwarded = undefined;
+  const remove = (ownerScope: string) =>
+    new Request(`${env.CASE_ORIGIN}/internal/case/attempt-1`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": crypto.randomUUID(),
+        "x-quorem-owner-scope": ownerScope,
+      },
+    });
+  expect(
+    (await worker.fetch(remove(scope), { ...env, QUOREM_CASE_NAMESPACE_ID: secret("0") })).status,
+  ).toBe(503);
+  expect((await worker.fetch(remove(`remote:${secret("3")}`), env)).status).toBe(503);
+  expect(forwarded).toBeUndefined();
   expect(
     (
       await worker.fetch(
