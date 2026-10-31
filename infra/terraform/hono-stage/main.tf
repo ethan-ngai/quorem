@@ -86,20 +86,6 @@ variable "access_service_token_ids" {
     error_message = "At least one existing Access service token ID is required."
   }
 }
-variable "drain_hostname" {
-  type = string
-  validation {
-    condition     = can(regex("^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\\.[a-z0-9-]+)+$", var.drain_hostname)) && var.drain_hostname != var.stage_hostname
-    error_message = "Use a distinct staged drain hostname."
-  }
-}
-variable "drain_access_service_token_id" {
-  type = string
-  validation {
-    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.drain_access_service_token_id)) && !contains(var.access_service_token_ids, var.drain_access_service_token_id)
-    error_message = "Use a distinct existing Access service token for the drain."
-  }
-}
 variable "enable_queue_consumer" {
   type    = bool
   default = false
@@ -164,24 +150,6 @@ resource "cloudflare_zero_trust_access_application" "internal" {
   service_auth_401_redirect = false
 }
 
-resource "cloudflare_zero_trust_access_policy" "drain" {
-  account_id = var.account_id
-  name       = "${var.worker_name}-drain-service"
-  decision   = "non_identity"
-  include    = [{ service_token = { token_id = var.drain_access_service_token_id } }]
-}
-
-resource "cloudflare_zero_trust_access_application" "drain" {
-  account_id                = var.account_id
-  name                      = "${var.worker_name}-drain"
-  type                      = "self_hosted"
-  domain                    = "${var.drain_hostname}/internal/drain"
-  destinations              = [{ type = "public", uri = "${var.drain_hostname}/internal/drain" }]
-  policies                  = [{ id = cloudflare_zero_trust_access_policy.drain.id, precedence = 1 }]
-  app_launcher_visible      = false
-  service_auth_401_redirect = false
-}
-
 resource "cloudflare_queue" "execution" {
   account_id = var.account_id
   queue_name = "${var.worker_name}-execution"
@@ -214,8 +182,6 @@ resource "cloudflare_queue_consumer" "execution" {
 output "worker_name" { value = cloudflare_worker.api.name }
 output "stage_hostname" { value = var.stage_hostname }
 output "internal_access_application_id" { value = cloudflare_zero_trust_access_application.internal.id }
-output "drain_hostname" { value = var.drain_hostname }
-output "drain_access_application_id" { value = cloudflare_zero_trust_access_application.drain.id }
 output "hyperdrive_id" { value = cloudflare_hyperdrive_config.database.id }
 output "queue_name" { value = cloudflare_queue.execution.queue_name }
 output "dead_letter_queue_name" { value = cloudflare_queue.dead_letter.queue_name }

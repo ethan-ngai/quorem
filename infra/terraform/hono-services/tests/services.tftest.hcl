@@ -186,9 +186,18 @@ run "repeat_v4" {
 }
 run "control_authority_and_access" {
   command = plan
+  override_resource {
+    target          = cloudflare_zero_trust_access_application.service["drain"]
+    values          = { id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" }
+    override_during = plan
+  }
   assert {
     condition     = local.public.SERVICES_RELEASE == var.release_sha && local.public.SERVICES_GENERATION == "1" && length(local.public.SERVICES_BINDINGS) == 64 && length([for binding in local.bindings : binding if try(binding.name == "CASE_CONTROL" || binding.name == "RUNNER_CONTROL", false)]) == 2 && cloudflare_zero_trust_access_application.service["drain"].domain == "runner-stage.example.com/internal/*"
     error_message = "Execution controls and pause must be configured and Access-protected."
+  }
+  assert {
+    condition     = output.drain_access_application_id == cloudflare_zero_trust_access_application.service["drain"].id && one(cloudflare_zero_trust_access_policy.service["drain"].include).service_token.token_id == var.access_token_ids.drain
+    error_message = "The exported drain application must be the service-owned ingress policy."
   }
 }
 

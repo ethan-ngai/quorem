@@ -46,9 +46,7 @@ const stackNames = {
     "dns_target",
     "worker_name",
     "stage_hostname",
-    "drain_hostname",
     "access_service_token_ids",
-    "drain_access_service_token_id",
     "database_host",
     "database_port",
     "database_name",
@@ -371,14 +369,6 @@ export async function deployStage(original, operations = defaults) {
       CLOUDFLARE_ACCESS_CLIENT_ID: services.RUNNER_API_ACCESS_CLIENT_ID,
       CLOUDFLARE_ACCESS_CLIENT_SECRET: services.RUNNER_API_ACCESS_CLIENT_SECRET,
     };
-    const outputs = await Promise.resolve(operations.outputs(env));
-    const configFile = join(temp, "wrangler.json");
-    const config = stageConfig(publicInput, outputs, configFile);
-    await writeFile(configFile, JSON.stringify(config), { mode: 0o600 });
-    checkStagePreflight(publicInput, outputs, workerSecrets);
-    await Promise.resolve(operations.deploy(configFile, env));
-    await Promise.resolve(operations.upload(publicInput, outputs, workerSecrets, env));
-    await operations.subdomains(env);
     const serviceOutput = await Promise.resolve(operations.servicesOutputs(env));
     const controlVars = serviceOutput?.origins?.value;
     if (
@@ -387,6 +377,17 @@ export async function deployStage(original, operations = defaults) {
       !/^[a-f0-9]{64}$/.test(controlVars?.SERVICES_BINDINGS ?? "")
     )
       throw new Error("Invalid services control output");
+    const outputs = {
+      ...(await Promise.resolve(operations.outputs(env))),
+      services: serviceOutput,
+    };
+    const configFile = join(temp, "wrangler.json");
+    const config = stageConfig(publicInput, outputs, configFile);
+    await writeFile(configFile, JSON.stringify(config), { mode: 0o600 });
+    checkStagePreflight(publicInput, outputs, workerSecrets);
+    await Promise.resolve(operations.deploy(configFile, env));
+    await Promise.resolve(operations.upload(publicInput, outputs, workerSecrets, env));
+    await operations.subdomains(env);
     controlClient = await operations.controls({
       namespace: verified.namespace,
       scope: verified.scope,

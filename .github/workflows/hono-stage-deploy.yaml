@@ -105,9 +105,7 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_worker_name: ${{ vars.HONO_STAGE_WORKER_NAME }}
           TF_VAR_stage_hostname: ${{ vars.HONO_STAGE_HOSTNAME }}
-          TF_VAR_drain_hostname: ${{ vars.HONO_DRAIN_HOSTNAME }}
           TF_VAR_access_service_token_ids: ${{ vars.HONO_API_ACCESS_TOKEN_IDS }}
-          TF_VAR_drain_access_service_token_id: ${{ vars.HONO_DRAIN_ACCESS_TOKEN_ID }}
           TF_VAR_database_host: ${{ vars.HONO_STAGE_DATABASE_HOST }}
           TF_VAR_database_port: ${{ vars.HONO_STAGE_DATABASE_PORT }}
           TF_VAR_database_name: quorem_hono_stage
@@ -176,9 +174,7 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_worker_name: ${{ vars.HONO_STAGE_WORKER_NAME }}
           TF_VAR_stage_hostname: ${{ vars.HONO_STAGE_HOSTNAME }}
-          TF_VAR_drain_hostname: ${{ vars.HONO_DRAIN_HOSTNAME }}
           TF_VAR_access_service_token_ids: ${{ vars.HONO_API_ACCESS_TOKEN_IDS }}
-          TF_VAR_drain_access_service_token_id: ${{ vars.HONO_DRAIN_ACCESS_TOKEN_ID }}
           TF_VAR_database_host: ${{ vars.HONO_STAGE_DATABASE_HOST }}
           TF_VAR_database_port: ${{ vars.HONO_STAGE_DATABASE_PORT }}
           TF_VAR_database_name: quorem_hono_stage

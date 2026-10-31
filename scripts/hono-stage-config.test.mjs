@@ -26,8 +26,10 @@ const outputs = () => ({
   hyperdrive_id: { value: "a".repeat(32) },
   queue_name: { value: "quorem-hono-stage-execution" },
   internal_access_application_id: { value: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
-  drain_hostname: { value: "runner-stage.example" },
-  drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
+  services: {
+    origins: { value: { DRAIN_ORIGIN: "https://runner-stage.example" } },
+    drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
+  },
 });
 void test("stage binds actual runtime classes, queue and scheduled recovery without secrets", () => {
   const config = stageConfig(input(), outputs(), "/tmp/wrangler.json");
@@ -88,7 +90,25 @@ void test("resources must match Terraform outputs", () => {
     { queue_name: { value: "production" } },
     { hyperdrive_id: { value: "placeholder" } },
     { internal_access_application_id: { value: "" } },
-    { drain_hostname: { value: "other.example" } },
+    { services: undefined },
+    {
+      services: {
+        origins: { value: { DRAIN_ORIGIN: "https://runner-stage.example" } },
+        drain_access_application_id: { value: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
+      },
+    },
+    {
+      services: {
+        origins: { value: { DRAIN_ORIGIN: "https://runner-stage.example" } },
+        drain_access_application_id: { value: "" },
+      },
+    },
+    {
+      services: {
+        origins: { value: { DRAIN_ORIGIN: "https://other.example" } },
+        drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
+      },
+    },
   ])
     assert.throws(() => stageConfig(input(), { ...outputs(), ...change }, "/tmp/wrangler.json"));
 });

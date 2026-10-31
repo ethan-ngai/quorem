@@ -1,5 +1,6 @@
 /** @file config.ts @description Strict runtime capability configuration. @module runtime */
 import { accessFetch } from "@quorem/execution/transport/access";
+import { validateDrainTransport } from "./wake-consumer.ts";
 import type { PrivateConfig } from "./private.ts";
 export function required(value: unknown): string {
   if (typeof value !== "string" || !value || value.trim() !== value)
@@ -117,24 +118,8 @@ export function drainConfig(env: Record<string, unknown>) {
   if (reserved.includes(credential)) throw new Error("Distinct drain credential required");
   const drainURL = required(env.EXECUTION_DRAIN_URL),
     mode = required(env.EXECUTION_DRAIN_ACCESS_MODE);
-  const url = new URL(drainURL),
-    local = env.APP_ENV === "local";
-  if (
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    url.pathname !== "/internal/drain" ||
-    (url.protocol !== "https:" &&
-      !(
-        local &&
-        url.protocol === "http:" &&
-        ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-      )) ||
-    new TextEncoder().encode(credential).length < 32 ||
-    /\s/.test(credential)
-  )
-    throw new Error("Invalid drain configuration");
+  const local = env.APP_ENV === "local";
+  const url = validateDrainTransport(drainURL, credential, local);
   const id = env.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
     secret = env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET;
   let send: typeof fetch | undefined;

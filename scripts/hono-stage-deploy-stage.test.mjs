@@ -13,8 +13,6 @@ const outputs = {
   hyperdrive_id: { value: "a".repeat(32) },
   queue_name: { value: "quorem-hono-stage-execution" },
   internal_access_application_id: { value: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
-  drain_hostname: { value: "drain-stage.example.com" },
-  drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
 };
 function env() {
   const input = JSON.parse(
@@ -74,6 +72,12 @@ function env() {
     TF_VAR_database_name: "quorem_hono_stage",
     TF_VAR_worker_name: "quorem-hono-stage",
     HONO_SERVICES_WORKER_NAME: "quorem-hono-services-stage",
+    TF_VAR_access_service_token_ids: JSON.stringify(["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]),
+    TF_VAR_access_token_ids: JSON.stringify({
+      drain: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      verifier: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      case: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+    }),
     TF_VAR_enable_queue_consumer: "false",
     TF_VAR_case_namespace_id: "0".repeat(64),
     TF_VAR_runner_image: image("runner"),
@@ -84,7 +88,6 @@ function env() {
       ),
     ),
     TF_VAR_stage_hostname: "api-stage.example.com",
-    TF_VAR_drain_hostname: "drain-stage.example.com",
     TF_VAR_hostnames: JSON.stringify({
       drain: "drain-stage.example.com",
       verifier: "verify-stage.example.com",
@@ -136,11 +139,13 @@ function operations(events, fail) {
       step("services-outputs", {
         origins: {
           value: {
+            DRAIN_ORIGIN: "https://drain-stage.example.com",
             SERVICES_RELEASE: "a".repeat(40),
             SERVICES_GENERATION: "1",
             SERVICES_BINDINGS: "b".repeat(64),
           },
         },
+        drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
       }),
     controls: async () => ({
       activate: async () => step("controls-activate", { generation: 1 }),
@@ -188,11 +193,11 @@ void test("first activation checks fresh DB before mutations and proves queue la
     "hono-services:apply",
     "probe:bootstrap",
     "hono-services:apply",
+    "services-outputs",
     "outputs",
     "deploy",
     "upload",
     "subdomains",
-    "services-outputs",
     "controls-activate",
     "remote",
     "actor",
