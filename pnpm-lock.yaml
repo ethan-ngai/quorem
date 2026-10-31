@@ -538,6 +538,9 @@ importers:
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
+      '@cloudflare/vitest-plugin':
+        specifier: 1.4.11
+        version: 1.4.11(@types/node@24.19.2)(vitest@5.0.3)
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2

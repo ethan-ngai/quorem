@@ -1,11 +1,8 @@
 /** @file draft.ts @description Bounded authoring draft rules. @module questions */
 import type { QuestionContent } from "./model.ts";
+import { validSource } from "./source.ts";
 
 const bytes = (value: string) => new TextEncoder().encode(value).length;
-const invalidUnicode = (value: string) =>
-  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value);
-const validSource = (source: string) =>
-  bytes(source) <= 65536 && !source.includes("\0") && !invalidUnicode(source);
 const hasNul = (value: unknown): boolean =>
   typeof value === "string"
     ? value.includes("\0")
