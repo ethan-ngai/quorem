@@ -1,0 +1,135 @@
+[
+  {
+    "name": "valid",
+    "inputHex": "01000000000000036f757402000000000000036572720300000000000004000000070400000000000000",
+    "stdoutHex": "6f7574",
+    "stderrHex": "657272",
+    "exitCode": 7,
+    "exitCallbacks": 1
+  },
+  {
+    "name": "empty",
+    "inputHex": "",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "case response truncated before exit: EOF"
+  },
+  {
+    "name": "short-header",
+    "inputHex": "010000",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "case response truncated before exit: unexpected EOF"
+  },
+  {
+    "name": "short-output",
+    "inputHex": "010000000000000378",
+    "stdoutHex": "78",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "case response truncated before exit: EOF"
+  },
+  {
+    "name": "short-exit",
+    "inputHex": "030000000000000400",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "case response truncated before exit: unexpected EOF"
+  },
+  {
+    "name": "missing-teardown",
+    "inputHex": "030000000000000400000007",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 1,
+    "error": "case response truncated after exit: EOF"
+  },
+  {
+    "name": "short-after-exit",
+    "inputHex": "0300000000000004000000070400",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 1,
+    "error": "case response truncated after exit: unexpected EOF"
+  },
+  {
+    "name": "reserved-byte",
+    "inputHex": "0101000000000000",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "invalid case frame"
+  },
+  {
+    "name": "oversize",
+    "inputHex": "0100000000010001",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "invalid case frame"
+  },
+  {
+    "name": "unknown-channel",
+    "inputHex": "0500000000000000",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "invalid case frame"
+  },
+  {
+    "name": "teardown-before-exit",
+    "inputHex": "0400000000000000",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 0,
+    "error": "invalid case teardown frame"
+  },
+  {
+    "name": "output-after-exit",
+    "inputHex": "0300000000000004000000070100000000000001780400000000000000",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 1,
+    "error": "output after case exit"
+  },
+  {
+    "name": "duplicate-exit",
+    "inputHex": "0300000000000004000000070300000000000004000000070400000000000000",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 1,
+    "error": "invalid case exit frame"
+  },
+  {
+    "name": "trailing-byte",
+    "inputHex": "030000000000000400000007040000000000000001",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 0,
+    "exitCallbacks": 1,
+    "error": "invalid case response ending"
+  },
+  {
+    "name": "empty-output",
+    "inputHex": "01000000000000000300000000000004000000070400000000000000",
+    "stdoutHex": "",
+    "stderrHex": "",
+    "exitCode": 7,
+    "exitCallbacks": 1
+  }
+]
