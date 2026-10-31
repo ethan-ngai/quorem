@@ -71,21 +71,27 @@ describe("managed identity", () => {
       .setExpirationTime(now + 1)
       .sign(first.privateKey);
     await expect(verifier.verify(stale)).rejects.toMatchObject({ kind: "unauthorized" });
-    for (const [issuer, audience, issued, expiry] of [
-      ["wrong", "quorem-api", now, now + 20],
-      ["https://auth.test", "wrong", now, now + 20],
-      ["https://auth.test", "quorem-api", now + 31, now + 60],
-      ["https://auth.test", "quorem-api", now - 50, now - 1],
-    ] as const) {
-      const bad = await new SignJWT({ sessionId: "s", emailVerified: true })
-        .setProtectedHeader({ alg: "EdDSA", kid: "first" })
-        .setIssuer(issuer)
-        .setAudience(audience)
-        .setSubject("s")
-        .setIssuedAt(issued)
-        .setExpirationTime(expiry)
-        .sign(first.privateKey);
-      await expect(verifier.verify(bad)).rejects.toMatchObject({ kind: "unauthorized" });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now * 1000);
+    try {
+      for (const [issuer, audience, issued, expiry] of [
+        ["wrong", "quorem-api", now, now + 20],
+        ["https://auth.test", "wrong", now, now + 20],
+        ["https://auth.test", "quorem-api", now + 31, now + 60],
+        ["https://auth.test", "quorem-api", now - 50, now - 1],
+      ] as const) {
+        const bad = await new SignJWT({ sessionId: "s", emailVerified: true })
+          .setProtectedHeader({ alg: "EdDSA", kid: "first" })
+          .setIssuer(issuer)
+          .setAudience(audience)
+          .setSubject("s")
+          .setIssuedAt(issued)
+          .setExpirationTime(expiry)
+          .sign(first.privateKey);
+        await expect(verifier.verify(bad)).rejects.toMatchObject({ kind: "unauthorized" });
+      }
+    } finally {
+      vi.useRealTimers();
     }
     const forged = await token({}, second.privateKey, "first");
     await expect(verifier.verify(forged)).rejects.toMatchObject({ kind: "unauthorized" });

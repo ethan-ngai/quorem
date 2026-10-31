@@ -10,7 +10,7 @@ import { guestTokenHash, newGuestToken } from '../../../modules/identity/guest/c
 import { workspaceRepository } from './repository.ts';
 
 const url = process.env.QUOREM_WORKSPACE_TEST_DATABASE_URL;
-if (!url || new URL(url).port !== '55451' || new URL(url).pathname !== '/quorem_hono_workspace_test' || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('Disposable workspace database required');
+if (!url || !['postgres:', 'postgresql:'].includes(new URL(url).protocol) || new URL(url).searchParams.has('host') || new URL(url).pathname !== '/quorem_hono_workspace_test' || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('Disposable workspace database required');
 const pool = createNodePool({ connectionString: url, max: 8, connectionTimeoutMs: 1000, idleTimeoutMs: 1000, onIdleError: (error) => { throw error; } });
 const run = <T>(f: (scope: ConnectionScope) => Promise<T>) => withNodeConnection(pool, { lifetimeMs: 5000 }, f);
 const repo = workspaceRepository(run);
