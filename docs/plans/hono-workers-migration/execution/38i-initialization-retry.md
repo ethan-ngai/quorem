@@ -1,0 +1,11 @@
+# 38i: Migration-only initialization retry
+
+Issue [#432](https://github.com/ethan-ngai/quorem/issues/432). A failed first initialization may leave a migrated database before any API/service authority exists. Default activation still requires an object-free database. The explicit Actions input `resume_initialization=true` selects `requireInitializableStageDatabase` instead; it never resets data or substitutes for existing-stage maintenance/resume.
+
+The provider freshness owner must first confirm that neither staged Worker nor any associated Durable Object namespace exists. The database verifier requires the dedicated stage database, an unswitched migration operator, no peers and no enabled runtime login. It holds recovery and migration locks, validates canonical table/view names and ownership, locks tables, verifies complete checksummed product/auth history through the shared migration owner, and requires empty application/auth/inventory/genesis tables. Only migration 061's exact initial GC cursor row is permitted. Unknown schemas/catalogs, data, history drift and active authority fail with fixed diagnostic categories.
+
+Exclusive privileged administrative control remains required through initialization; point-in-time checks do not fence a provider/database administrator. A database containing users, keys, claims or a genesis cannot enter this path. Successful receipts say `database: migrated-empty`; ordinary fresh activation retains its original behavior.
+
+Manual `action=diagnose` includes this database-only verdict, after closing its metadata connection. It does not establish provider freshness. `action=rehearse-role` applies canonical additive migrations and runs the actual role transaction with mandatory rollback; it does not publish Workers or attach queues. Use an exact migration workflow revision and the failed staged release as `target_release`. All credentials stay inside the protected Actions job.
+
+Self-contained PostgreSQL tests cover empty migration-only acceptance and refusal of auth data, corrupt history, live peers/runtime roles, catalog drift and an advanced cursor. Full staged contracts and migration upgrade/repeat/restore parity remain required. Hosted proof is separate.

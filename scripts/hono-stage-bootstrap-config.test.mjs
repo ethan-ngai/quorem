@@ -41,6 +41,11 @@ void test("assembles distinct private credentials and validates actual stage aut
   assert.equal(result.TF_VAR_enable_queue_consumer, "false");
   assert.equal(result.TF_VAR_database_connection_limit, "5");
   assert.equal(
+    assembleStageConfig(saved, { ...actions(), HONO_STAGE_INITIALIZATION_RESUME: "true" })
+      .HONO_STAGE_INITIALIZATION_RESUME,
+    "true",
+  );
+  assert.equal(
     result.HONO_STAGE_DATABASE_IDENTITY,
     "fixture-existing-project:br-stage-fixture:quorem_hono_stage",
   );

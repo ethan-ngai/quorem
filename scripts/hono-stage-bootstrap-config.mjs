@@ -215,6 +215,7 @@ export function assembleStageConfig(bootstrap, actions) {
       "GITHUB_REF",
       "GITHUB_SHA",
       "QUOREM_REMOTE_VALIDATION_DATABASE_URL",
+      "HONO_STAGE_INITIALIZATION_RESUME",
     ]
       .filter((key) => actions[key] !== undefined)
       .map((key) => [key, actions[key]]),
