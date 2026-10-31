@@ -1,7 +1,7 @@
 /** @file legacy-case.ts @description Bounded, lossless normalization of legacy case objects. @module judging */
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
-import { legacyRaw, legacyKind, legacyInteger } from "./legacy-sql.ts";
+import { legacyRaw, legacyKind, legacyInteger, legacySource } from "./legacy-sql.ts";
 import { LegacyJsonReader } from "./legacy-json.ts";
 export class LegacyCaseConflict extends Error {}
 export type Span = { start: number; length: number };
@@ -157,10 +157,7 @@ export async function writeLegacyCase(
     if (v) append(name, raw(v));
   }
   parts.push(sql`convert_to('}','UTF8')`);
-  const source =
-    channel === "private"
-      ? sql`SELECT COALESCE(private_results_payload,convert_to(private_results::text,'UTF8')) AS raw FROM interview_execution WHERE submission_id=${id}::uuid`
-      : sql`SELECT COALESCE(result_payload,convert_to(result::text,'UTF8')) AS raw FROM submissions WHERE id=${id}::uuid`;
+  const source = legacySource(id, channel === "private" ? "private" : "public");
   const table =
     channel === "private"
       ? sql`interview_private_result_cases`

@@ -3,10 +3,14 @@ import { JsonNumber } from "@quorem/questions";
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { LegacyJsonReader } from "./legacy-json.ts";
-import { legacyRaw as slice, legacyKind as type, legacyInteger as integer } from "./legacy-sql.ts";
+import {
+  legacyRaw as slice,
+  legacyKind as type,
+  legacyInteger as integer,
+  legacySource,
+} from "./legacy-sql.ts";
 import { legacyFields, legacySpan, type Fields } from "./legacy-case.ts";
-const source = (id: string) =>
-  sql`SELECT COALESCE(result_payload,convert_to(result::text,'UTF8')) AS raw FROM submissions WHERE id=${id}::uuid`;
+const source = (id: string) => legacySource(id, "public");
 async function insertField(
   tx: Transaction,
   id: string,

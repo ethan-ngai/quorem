@@ -9,6 +9,7 @@ import {
   writeLegacyCase,
 } from "../../judging/results/legacy-case.ts";
 import { LegacyJsonReader } from "../../judging/results/legacy-json.ts";
+import { spoolLegacySource } from "../../judging/results/legacy-sql.ts";
 async function saveCase(
   tx: Transaction,
   id: string,
@@ -51,12 +52,13 @@ export async function backfillPrivateResultCases(tx: Transaction, id: string): P
   ).rows[0];
   if (!row) return false;
   await tx.execute(sql`SELECT set_config('quorem.result_backfill','v1',true)`);
+  await spoolLegacySource(tx, id, "private");
   async function* chunks(): AsyncGenerator<string> {
     const decoder = new TextDecoder("utf-8", { fatal: true });
     for (let offset = 1; offset <= row!.length!; offset += 65536) {
       const data = (
         await tx.execute<{ data: Uint8Array }>(
-          sql`SELECT substring(COALESCE(private_results_payload,convert_to(private_results::text,'UTF8')) FROM ${offset} FOR 65536) AS data FROM interview_execution WHERE submission_id=${id}::uuid`,
+          sql`SELECT substring(raw FROM ${offset} FOR 65536) AS data FROM quorem_legacy_source WHERE id=${id}::uuid AND kind='private'`,
         )
       ).rows[0].data;
       yield decoder.decode(data, { stream: true });
