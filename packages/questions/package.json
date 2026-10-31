@@ -12,7 +12,9 @@
     "test:workerd": "vp exec vitest run --config workerd.config.ts"
   },
   "dependencies": {
-    "@quorem/contracts": "workspace:*"
+    "@quorem/contracts": "workspace:*",
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.11",
