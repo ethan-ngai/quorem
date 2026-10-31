@@ -1,4 +1,12 @@
-import { userInQuorem_auth, accountInQuorem_auth, sessionInQuorem_auth, verificationInQuorem_auth, jwksInQuorem_auth, passkeyInQuorem_auth } from './index.ts';
+/** @file schema/auth/adapter.ts @description PostgreSQL schema and migration ownership. @module database */
+import {
+  userInQuorem_auth,
+  accountInQuorem_auth,
+  sessionInQuorem_auth,
+  verificationInQuorem_auth,
+  jwksInQuorem_auth,
+  passkeyInQuorem_auth,
+} from "./index.ts";
 
 export const authAdapterSchema = {
   user: userInQuorem_auth,
