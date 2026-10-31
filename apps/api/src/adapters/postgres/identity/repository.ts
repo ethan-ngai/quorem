@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { product } from '@quorem/database/schema';
 import type { ConnectionScope, Transaction } from '@quorem/database/core';
-import { IdentityError, type Claims, type IdentityBindings, type Principal } from '../../../modules/identity/model.ts';
+import { IdentityError, type Claims, type IdentityBindings, type ManagedPrincipal, type LocalPrincipal } from '../../../modules/identity/model.ts';
 
 const { users, identity_bindings: bindings } = product;
 const transactionOptions = { statementTimeoutMs: 3000, lockTimeoutMs: 1000 };
@@ -11,7 +11,7 @@ async function read(tx: Transaction, claims: Claims) {
     .where(and(eq(bindings.issuer,claims.issuer),eq(bindings.subject,claims.subject))).limit(1);
   if (!row) return null;
   if (row.disabled) throw new IdentityError('unauthorized');
-  const principal: Principal = {userId:row.id, displayName:row.name, admin:row.role==='admin', emailVerified:true, sessionId:claims.sessionId, strongUntil:0};
+  const principal: ManagedPrincipal = {kind:'managed', credentialExpiresAt:claims.expiresAt, userId:row.id, displayName:row.name, admin:row.role==='admin', emailVerified:true, sessionId:claims.sessionId, strongUntil:0};
   return {principal, image:row.image, revision:row.revision};
 }
 export function identityRepository(scope: ConnectionScope): IdentityBindings {
@@ -43,10 +43,10 @@ export function identityRepository(scope: ConnectionScope): IdentityBindings {
   };
 }
 
-export async function developmentIdentity(scope: ConnectionScope, userId: string): Promise<Principal> {
+export async function developmentIdentity(scope: ConnectionScope, userId: string): Promise<LocalPrincipal> {
   return scope.transaction({...transactionOptions,readOnly:true},async tx => {
     const [user]=await tx.select({name:users.display_name,role:users.role,disabled:users.disabled}).from(users).where(eq(users.id,userId)).limit(1);
     if (!user || user.disabled) throw new IdentityError('unauthorized');
-    return {userId,displayName:user.name,admin:user.role==='admin',emailVerified:true,sessionId:'development',strongUntil:0};
+    return {kind:'local',userId,displayName:user.name,admin:user.role==='admin',emailVerified:true,sessionId:'development',strongUntil:0};
   });
 }

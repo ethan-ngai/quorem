@@ -1,8 +1,8 @@
 import { isIP } from 'node:net';
 import { bearer } from '../../modules/identity/credentials.ts';
-import { IdentityError, type Principal } from '../../modules/identity/model.ts';
+import { IdentityError, type LocalPrincipal } from '../../modules/identity/model.ts';
 
-export async function nodeLocalIdentity(headers: Headers, remoteAddress: string | undefined, lookup: (userId: string) => Promise<Principal>): Promise<Principal> {
+export async function nodeLocalIdentity(headers: Headers, remoteAddress: string | undefined, lookup: (userId: string) => Promise<LocalPrincipal>): Promise<LocalPrincipal> {
   if (bearer(headers) !== undefined) throw new IdentityError('unauthorized');
   const address = remoteAddress?.toLowerCase() ?? '';
   const ipv4 = address.startsWith('::ffff:') ? address.slice(7) : address;

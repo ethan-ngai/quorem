@@ -16,7 +16,7 @@ describe('managed identity', () => {
     const now=Math.floor(Date.now()/1000);
     const token=async (changes:Record<string,unknown>={}, privateKey=first.privateKey, kid='first') => new SignJWT({sessionId:'session',emailVerified:true,name:'Fixture',color:5,colorRevision:10,...changes}).setProtectedHeader({alg:'EdDSA',kid}).setIssuer('https://auth.test').setAudience('quorem-api').setSubject('subject').setIssuedAt(now).setExpirationTime(now+300).sign(privateKey);
     const valid=await token();
-    expect((await verifier.verify(valid)).subject).toBe('subject');
+    expect(await verifier.verify(valid)).toMatchObject({subject:'subject',issuedAt:now,expiresAt:now+300});
     expect(fetches).toBe(1);
     for (const changes of [{emailVerified:false},{sessionId:''},{colorRevision:Number.MAX_SAFE_INTEGER+1}]) await expect(verifier.verify(await token(changes))).rejects.toMatchObject({kind:'unauthorized'});
     const stale=await new SignJWT({sessionId:'s',emailVerified:true}).setProtectedHeader({alg:'EdDSA',kid:'first'}).setIssuer('https://auth.test').setAudience('quorem-api').setSubject('s').setIssuedAt(now-301).setExpirationTime(now+1).sign(first.privateKey);
@@ -28,10 +28,16 @@ describe('managed identity', () => {
     const forged=await token({},second.privateKey,'first');
     await expect(verifier.verify(forged)).rejects.toMatchObject({kind:'unauthorized'});
     await expect(verifier.verify('x'.repeat(16385))).rejects.toMatchObject({kind:'unauthorized'});
-    const bindings={lookup:async()=>({current:true,principal:{userId:'u',displayName:'User',admin:false,emailVerified:true,sessionId:'session',strongUntil:0}}),resolve:async()=>{throw Error('unexpected');}};
+    const bindings={lookup:async()=>({current:true,principal:{kind:'managed' as const,credentialExpiresAt:now+300,userId:'u',displayName:'User',admin:false,emailVerified:true,sessionId:'session',strongUntil:0}}),resolve:async()=>{throw Error('unexpected');}};
     let status=204;
     const authority=httpSessionAuthority({baseURL:'https://auth.test',secret:'fixture',fetch:async()=>new Response(null,{status,headers:{'X-Auth-Strong-At':String(now-1)}})});
-    expect((await authenticate(valid,verifier,authority,bindings)).strongUntil).toBe(now-1+600);
+    const principal=await authenticate(valid,verifier,authority,bindings);
+    expect(principal).toMatchObject({kind:'managed',credentialExpiresAt:now+300,strongUntil:now-1+600});
+    vi.useFakeTimers();
+    try {
+      const slowAuthority={check:async()=>{vi.setSystemTime(new Date((now+300)*1000));return {};}};
+      await expect(authenticate(valid,verifier,slowAuthority,bindings)).rejects.toMatchObject({kind:'unauthorized'});
+    } finally { vi.useRealTimers(); }
     status=401; await expect(authenticate(valid,verifier,authority,bindings)).rejects.toMatchObject({kind:'unauthorized'});
     status=503; await expect(authenticate(valid,verifier,authority,bindings)).rejects.toMatchObject({kind:'unavailable'});
     keys=[await key(second.publicKey,'second')];
@@ -50,8 +56,10 @@ describe('managed identity', () => {
     expect(bearer(new Headers({authorization:'Bearer a','sec-websocket-protocol':'bearer.b'}))).toBe('a');
   });
   it('restricts development identity to an explicit Node loopback adapter', async () => {
-    const lookup=async (userId:string)=>({userId,displayName:userId,admin:false,emailVerified:true,sessionId:'development',strongUntil:0});
-    expect((await nodeLocalIdentity(new Headers(),'127.0.0.1',lookup)).userId).toBe('alice');
+    const lookup=async (userId:string)=>({kind:'local' as const,userId,displayName:userId,admin:false,emailVerified:true,sessionId:'development',strongUntil:0});
+    const local=await nodeLocalIdentity(new Headers(),'127.0.0.1',lookup);
+    expect(local).toMatchObject({kind:'local',userId:'alice'});
+    expect(local.credentialExpiresAt).toBeUndefined();
     await expect(nodeLocalIdentity(new Headers({'x-dev-user':'alice'}),'192.0.2.1',lookup)).rejects.toMatchObject({kind:'unauthorized'});
     await expect(nodeLocalIdentity(new Headers({authorization:'Bearer broken'}),'127.0.0.1',lookup)).rejects.toMatchObject({kind:'unauthorized'});
   });

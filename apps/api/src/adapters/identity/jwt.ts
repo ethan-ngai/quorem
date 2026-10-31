@@ -64,7 +64,7 @@ export function jwtVerifier(options: { issuer: string; audience: string; jwksURL
       if (claims.colorRevision !== undefined && !Number.isSafeInteger(claims.colorRevision)) throw new IdentityError('unauthorized');
       if (claims.name !== undefined && typeof claims.name !== 'string' || claims.image !== undefined && typeof claims.image !== 'string') throw new IdentityError('unauthorized');
       await compactVerify(token, await key(header.kid, signal), { algorithms: ['EdDSA'] });
-      return { issuer: claims.iss, subject: claims.sub, sessionId: claims.sessionId, emailVerified: true, name: (claims.name as string | undefined) ?? '', image: (claims.image as string | undefined) ?? '', color: (claims.color as number | undefined) ?? 0, colorRevision: BigInt((claims.colorRevision as number | undefined) ?? 0) };
+      return { issuer: claims.iss, subject: claims.sub, sessionId: claims.sessionId, emailVerified: true, issuedAt: claims.iat!, expiresAt: claims.exp!, name: (claims.name as string | undefined) ?? '', image: (claims.image as string | undefined) ?? '', color: (claims.color as number | undefined) ?? 0, colorRevision: BigInt((claims.colorRevision as number | undefined) ?? 0) };
     } catch (error) { if (error instanceof IdentityError) throw error; throw new IdentityError('unauthorized', error); }
   } };
 }

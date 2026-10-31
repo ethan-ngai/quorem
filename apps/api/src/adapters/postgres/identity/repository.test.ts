@@ -14,7 +14,7 @@ describe.skipIf(!url)('identity and access on disposable PostgreSQL',()=>{
     try {
       await migrate(pool,'product',resolve('../../apps/api/migrations'));
       const suffix=crypto.randomUUID();
-      const claims:Claims={issuer:'https://fixture.test',subject:suffix,sessionId:'session',emailVerified:true,name:'Fixture',image:'/photo',color:7,colorRevision:10n};
+      const claims:Claims={issuer:'https://fixture.test',subject:suffix,sessionId:'session',emailVerified:true,name:'Fixture',image:'/photo',color:7,colorRevision:10n,issuedAt:100,expiresAt:400};
       const run=<T>(fn:(scope:Parameters<typeof identityRepository>[0])=>Promise<T>)=>withNodeConnection(pool,{lifetimeMs:10000},fn);
       const principal=await run(scope=>identityRepository(scope).resolve(claims));
       expect(principal.admin).toBe(false);
