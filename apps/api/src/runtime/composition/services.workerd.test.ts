@@ -372,6 +372,54 @@ it("real control objects block paused case posts and unactivated drains", async 
     env,
   );
   expect(drain.status).toBe(503);
+  const nonce = crypto.randomUUID();
+  const stateRequest = () =>
+    new Request(`${env.DRAIN_ORIGIN}/internal/control/runner/state`, {
+      headers: {
+        authorization: `Bearer ${env.RECOVERY_CONTROL_SECRET}`,
+        "x-quorem-owner-scope": scope,
+        "x-quorem-owner-nonce": nonce,
+      },
+    });
+  const state = await worker.fetch(stateRequest(), env);
+  const proof = {
+    publicKey: keys.publicKey,
+    kind: "runner-control-state",
+    scope,
+    attempt: "runner-control",
+    nonce,
+    expectedNamespace: namespace,
+  };
+  expect(await verifyCaseProbe(state.clone(), proof)).toEqual({
+    generation: 0,
+    status: "paused",
+    release: null,
+    bindings: null,
+  });
+  await expect(
+    verifyCaseProbe(state.clone(), { ...proof, nonce: crypto.randomUUID() }),
+  ).rejects.toThrow();
+  await expect(
+    verifyCaseProbe(state.clone(), { ...proof, scope: `remote:${secret("8")}` }),
+  ).rejects.toThrow();
+  await expect(
+    verifyCaseProbe(state.clone(), { ...proof, kind: "control-state", attempt: "control" }),
+  ).rejects.toThrow();
+  const tampered = new Response(
+    JSON.stringify({ generation: 1, status: "paused", release: null, bindings: null }),
+    { status: 200, headers: state.headers },
+  );
+  await expect(verifyCaseProbe(tampered, proof)).rejects.toThrow();
+  const malformed = {
+    ...env,
+    RUNNER_CONTROL: {
+      getByName: () => ({
+        fetch: async () =>
+          Response.json({ generation: 1, status: "active", release: null, bindings: null }),
+      }),
+    },
+  };
+  expect((await worker.fetch(stateRequest(), malformed)).status).toBe(503);
 });
 
 it("routes optional media with purpose bearer in workerd", async () => {

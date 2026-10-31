@@ -2,8 +2,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { ContainerLifecycle } from "../../container.js";
 import { caseRequest } from "../../case-service.js";
-import { signedCaseProbe } from "../../case-proof.js";
-import { controlRequest } from "./control-http.js";
+import { signedCaseProbe, validRunnerControlState } from "../../case-proof.js";
+import { controlRequest, readControlJson } from "./control-http.js";
 export { CaseControl } from "./case-control.js";
 export { RunnerReleaseControl } from "./runner-control.js";
 export { CaseSandbox } from "../../case-sandbox.js";
@@ -225,7 +225,7 @@ export default {
         if (bound.namespace !== env.QUOREM_CASE_NAMESPACE_ID || bound.namespace === "0".repeat(64))
           return new Response(null, { status: 503 });
         if (
-          caseControl &&
+          (caseControl || (runnerControl && operation === "state")) &&
           (request.headers.get("x-quorem-owner-scope") !== bound.scope ||
             !/^[a-f0-9-]{36}$/.test(request.headers.get("x-quorem-owner-nonce") ?? ""))
         )
@@ -237,7 +237,23 @@ export default {
         const control = caseControl
           ? env.CASE_CONTROL.getByName("case-control")
           : env.RUNNER_CONTROL.getByName("runner-control");
-        return control.fetch(await controlRequest(request, target));
+        const response = await control.fetch(await controlRequest(request, target));
+        if (runnerControl && operation === "state") {
+          if (response.status !== 200) {
+            await response.body?.cancel();
+            return new Response(null, { status: 503 });
+          }
+          const value = await readControlJson(response, 1024);
+          if (!validRunnerControlState(value)) return new Response(null, { status: 503 });
+          return await signedCaseProbe(env, {
+            kind: "runner-control-state",
+            scope: bound.scope,
+            attempt: "runner-control",
+            nonce: request.headers.get("x-quorem-owner-nonce"),
+            value,
+          });
+        }
+        return response;
       }
       if (url.search) return new Response(null, { status: 404 });
       if (

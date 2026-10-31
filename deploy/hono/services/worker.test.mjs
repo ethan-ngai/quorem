@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateKeyPairSync, randomUUID, createHash } from "node:crypto";
-import { verifyCaseProbe } from "../../case-proof.js";
+import { signedCaseProbe, verifyCaseProbe } from "../../case-proof.js";
 import { CaseSandbox } from "../../case-sandbox.js";
 import worker, { ImageService, RunnerService, VerifierService } from "./worker.js";
 const secret = (value) => value.repeat(64);
@@ -76,6 +76,13 @@ void test("control authority gates drains and registers authorized case attempts
           assert.equal(request.headers.get("authorization"), null);
           assert.equal(request.headers.get("cf-access-client-secret"), null);
           events.push(`gate:${new URL(request.url).pathname}`);
+          if (new URL(request.url).pathname === "/state")
+            return Response.json({
+              generation: 1,
+              status: "active",
+              release: env.SERVICES_RELEASE,
+              bindings: env.SERVICES_BINDINGS,
+            });
           return gate
             ? Response.json({
                 generation: gateGeneration,
@@ -213,16 +220,62 @@ void test("control authority gates drains and registers authorized case attempts
   assert.equal((await adminCase(env.RECOVERY_CONTROL_SECRET)).status, 204);
   assert.deepEqual(events.splice(0), ["control:/state"]);
   gate = true;
+  const runnerNonce = randomUUID();
   const adminRunner = (token) =>
     worker.fetch(
       new Request(`${env.DRAIN_ORIGIN}/internal/control/runner/state`, {
-        headers: { authorization: `Bearer ${token}` },
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-quorem-owner-scope": scope,
+          "x-quorem-owner-nonce": runnerNonce,
+        },
       }),
       env,
     );
   assert.equal((await adminRunner(env.QUOREM_RUNNER_DRAIN_SECRET)).status, 404);
   assert.deepEqual(events, []);
-  assert.equal((await adminRunner(env.RECOVERY_CONTROL_SECRET)).status, 200);
+  const runnerState = await adminRunner(env.RECOVERY_CONTROL_SECRET);
+  assert.equal(runnerState.status, 200);
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    keys.publicKey.export({ type: "spki", format: "der" }),
+    "Ed25519",
+    false,
+    ["verify"],
+  );
+  assert.deepEqual(
+    await verifyCaseProbe(runnerState, {
+      publicKey,
+      kind: "runner-control-state",
+      scope,
+      attempt: "runner-control",
+      nonce: runnerNonce,
+      expectedNamespace: namespace,
+    }),
+    {
+      generation: 1,
+      status: "active",
+      release: env.SERVICES_RELEASE,
+      bindings: env.SERVICES_BINDINGS,
+    },
+  );
+  const invalidSigned = await signedCaseProbe(env, {
+    kind: "runner-control-state",
+    scope,
+    attempt: "runner-control",
+    nonce: runnerNonce,
+    value: { generation: 1, status: "active", release: null, bindings: null },
+  });
+  await assert.rejects(
+    verifyCaseProbe(invalidSigned, {
+      publicKey,
+      kind: "runner-control-state",
+      scope,
+      attempt: "runner-control",
+      nonce: runnerNonce,
+      expectedNamespace: namespace,
+    }),
+  );
   assert.deepEqual(events.splice(0), ["gate:/state"]);
 });
 function target(name, seen) {
