@@ -4,6 +4,7 @@ terraform {
   required_providers {
     cloudflare = { source = "cloudflare/cloudflare", version = "5.28.1" }
     restapi    = { source = "Mastercard/restapi", version = "~> 2.0" }
+    external   = { source = "hashicorp/external", version = "2.3.5" }
   }
 }
 variable "account_id" { type = string }
@@ -137,6 +138,11 @@ resource "terraform_data" "case_namespace_pin" {
   }
 }
 
+data "external" "worker_migration" {
+  program = ["python3", "${path.module}/../../../scripts/worker-migration-tag.py"]
+  query   = { account_id = var.account_id, script_name = var.worker_name }
+}
+
 resource "cloudflare_worker_version" "services" {
   account_id         = var.account_id
   worker_id          = cloudflare_worker.services.id
@@ -145,9 +151,13 @@ resource "cloudflare_worker_version" "services" {
   modules            = [for name, source in local.modules : { name = name, content_type = "application/javascript+module", content_base64 = filebase64("${path.module}/${source}") }]
   bindings           = local.bindings
   containers         = [{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { class_name = "CaseSandbox" }]
-  migrations         = { new_tag = "v1", new_sqlite_classes = ["RunnerService", "VerifierService", "CaseSandbox"] }
+  migrations         = data.external.worker_migration.result.tag == "" ? { old_tag = "", new_tag = "v1", new_sqlite_classes = ["RunnerService", "VerifierService", "CaseSandbox"] } : null
   deploy             = true
   lifecycle {
+    precondition {
+      condition     = contains(["", "v1"], data.external.worker_migration.result.tag)
+      error_message = "Unknown staged Worker migration history; refuse deployment."
+    }
     precondition {
       condition     = var.case_namespace_id == "0000000000000000000000000000000000000000000000000000000000000000" || try(terraform_data.case_namespace_pin[0].output == var.case_namespace_id, false)
       error_message = "The case namespace must match its immutable state pin."
