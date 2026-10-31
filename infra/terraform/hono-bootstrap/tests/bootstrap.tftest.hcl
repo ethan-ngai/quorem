@@ -1,11 +1,10 @@
 mock_provider "restapi" {
   override_during = plan
-  mock_resource "restapi_object" { defaults = { id = "br-stage-fixture" } }
+  mock_resource "restapi_object" { defaults = { id = "br-stage-fixture", create_response = "{\"endpoints\":[{\"host\":\"fixture-stage.neon.example\",\"type\":\"read_write\",\"autoscaling_limit_min_cu\":0.25,\"autoscaling_limit_max_cu\":1,\"suspend_timeout_seconds\":0}]}" } }
 }
 mock_provider "neon" {
   override_during = plan
   mock_data "neon_branches" { defaults = { branches = [{ id = "br-primary", name = "main", primary = true }] } }
-  mock_resource "neon_endpoint" { defaults = { host = "fixture-stage.neon.example" } }
   mock_resource "neon_role" { defaults = { password = "fixture-only" } }
 }
 variables {
@@ -26,7 +25,7 @@ run "isolated_schema_only_branch" {
     error_message = "A separate schema-only branch must be created in the supplied project."
   }
   assert {
-    condition     = neon_endpoint.stage.branch_id == "br-stage-fixture" && neon_endpoint.stage.type == "read_write" && neon_endpoint.stage.autoscaling_limit_min_cu == 0.25 && neon_endpoint.stage.autoscaling_limit_max_cu == 1 && neon_endpoint.stage.suspend_timeout_seconds == 0
+    condition     = jsondecode(restapi_object.stage_branch.data).endpoints == [{ type = "read_write", autoscaling_limit_min_cu = 0.25, autoscaling_limit_max_cu = 1, suspend_timeout_seconds = 0 }]
     error_message = "The independent compute must be bounded and use the staged branch."
   }
   assert {
@@ -41,6 +40,15 @@ run "isolated_schema_only_branch" {
     condition     = nonsensitive(output.database_url) == "postgresql://quorem_stage_owner:fixture-only@fixture-stage.neon.example/quorem_hono_stage?sslmode=verify-full"
     error_message = "The migration URL must use the direct staged endpoint with verified TLS."
   }
+}
+run "reject_unbounded_endpoint" {
+  command = plan
+  override_resource {
+    override_during = plan
+    target          = restapi_object.stage_branch
+    values          = { id = "br-stage-fixture", create_response = "{\"endpoints\":[{\"host\":\"fixture-stage.neon.example\",\"type\":\"read_write\",\"autoscaling_limit_min_cu\":0.25,\"autoscaling_limit_max_cu\":2,\"suspend_timeout_seconds\":0}]}" }
+  }
+  expect_failures = [restapi_object.stage_branch]
 }
 run "reject_invalid_project" {
   command = plan

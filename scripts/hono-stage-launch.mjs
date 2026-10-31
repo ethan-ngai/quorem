@@ -17,7 +17,6 @@ import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 const stageResources = [
   "data.neon_branches.existing",
   "restapi_object.stage_branch",
-  "neon_endpoint.stage",
   "neon_role.stage",
   "neon_database.stage",
   "terraform_data.stage_secrets",
