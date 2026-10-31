@@ -8,6 +8,8 @@ const env = () => ({
   EXECUTION_DRAIN_SECRET: "d".repeat(32),
   CLOUDFLARE_ACCESS_CLIENT_ID: "api-access-id",
   CLOUDFLARE_ACCESS_CLIENT_SECRET: "api-access-secret",
+  VERIFICATION_ACCESS_CLIENT_ID: "verifier-access-id",
+  VERIFICATION_ACCESS_CLIENT_SECRET: "verifier-access-secret",
   EXECUTION_DRAIN_ACCESS_CLIENT_ID: "drain-access-id",
   EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "drain-access-secret",
 });
@@ -23,6 +25,11 @@ void test("private credentials must be distinct and well formed", () => {
   );
   assert.throws(() => checkSecrets({ ...env(), EXECUTION_DRAIN_SECRET: "short" }), /Invalid/);
   assert.throws(() => checkSecrets({ ...env(), RUNNER_PEERS: "[" }), /Invalid/);
+  assert.throws(() => checkSecrets({ ...env(), VERIFICATION_ACCESS_CLIENT_SECRET: "" }), /Invalid/);
+  assert.throws(
+    () => checkSecrets({ ...env(), VERIFICATION_ACCESS_CLIENT_SECRET: "drain-access-secret" }),
+    /distinct/,
+  );
   assert.throws(
     () => checkSecrets({ ...env(), EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "api-access-secret" }),
     /distinct/,
