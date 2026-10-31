@@ -57,6 +57,16 @@ CREATE TABLE submission_result_header_fields (
  field_data bytea NOT NULL,
  PRIMARY KEY(submission_id,field)
 );
+-- Any terminal writer releases unfinished temporary result data.
+CREATE FUNCTION cleanup_terminal_completion_staging() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF NEW.finished AND NOT OLD.finished THEN
+  DELETE FROM execution_completion_staging WHERE job_id=NEW.id;
+ END IF;
+ RETURN NULL;
+END $$;
+CREATE TRIGGER execution_completion_terminal_cleanup AFTER UPDATE OF finished ON execution_jobs
+ FOR EACH ROW EXECUTE FUNCTION cleanup_terminal_completion_staging();
 -- Once published, readers can page without holding a database transaction open.
 CREATE FUNCTION guard_terminal_result_rows() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE current_state text; result_retained boolean; target uuid;
