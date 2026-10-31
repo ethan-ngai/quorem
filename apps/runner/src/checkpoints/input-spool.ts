@@ -1,4 +1,6 @@
 /** @file input-spool.ts @description Verify paged input before exposing it to a sandbox. @module runner */
+import { Readable } from "node:stream";
+import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
 import { mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,9 +17,10 @@ export async function spoolInput(options: {
   signal?: AbortSignal;
 }) {
   const directory = await mkdtemp(join(tmpdir(), "quorem-input-"));
+  const path = join(directory, "value");
   let file: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    file = await open(join(directory, "value"), "wx+", 0o600);
+    file = await open(path, "wx+", 0o600);
     let offset = 0,
       size: number | undefined,
       hash: string | undefined,
@@ -66,9 +69,18 @@ export async function spoolInput(options: {
       size: size!,
       hash: hash!,
       channel: channel!,
-      stream() {
+      stream(start = 0, length = size! - start) {
         if (disposed) throw new Error("Input spool closed");
-        return ready.createReadStream({ start: 0, autoClose: false });
+        if (
+          !Number.isSafeInteger(start) ||
+          !Number.isSafeInteger(length) ||
+          start < 0 ||
+          length < 0 ||
+          start + length > size!
+        )
+          throw new Error("Invalid input span");
+        if (length === 0) return Readable.from([]);
+        return createReadStream(path, { start, end: start + length - 1 });
       },
       async dispose() {
         if (disposed) return;

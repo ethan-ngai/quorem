@@ -72,6 +72,9 @@ export function privateRunnerCommands(options: {
       "state",
       "empty",
       "deadline",
+      "manifest",
+      "caseref",
+      "input",
     ].includes(op)
       ? "unavailable"
       : "unknown";
@@ -158,8 +161,28 @@ export function privateRunnerCommands(options: {
         (value.submitCasesAreSamples &&
           (!value.privateDetails || value.caseCount !== value.sampleCount)) ||
         value.caseCount + (value.submitCasesAreSamples ? 0 : value.sampleCount) > 320 ||
+        !/^[a-f0-9]{64}$/.test(value.suiteHash) ||
         !validRef(value.source) ||
         !validRef(value.metadata)
+      )
+        throw new RunnerCommandError("unavailable");
+      return value;
+    },
+    async inputCaseRef(job, ordinal, signal) {
+      if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal > 319)
+        throw new Error("Invalid input ordinal");
+      const value = (await json(
+        "caseref",
+        { job: j(job), ordinal },
+        signal,
+      )) as import("@quorem/execution").InputCaseRef;
+      if (
+        !value ||
+        !/^[a-f0-9]{64}$/.test(value.hash) ||
+        !Number.isSafeInteger(value.size) ||
+        value.size < 0 ||
+        value.size > 1073741823 ||
+        !["public", "sample", "private"].includes(value.channel)
       )
         throw new RunnerCommandError("unavailable");
       return value;

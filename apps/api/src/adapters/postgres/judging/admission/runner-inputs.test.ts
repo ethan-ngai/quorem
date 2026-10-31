@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
@@ -9,9 +10,13 @@ import { saveInterviewFixture } from "../../interviews/execution/fixture.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
 import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
 import { createRunnerCommandHandler } from "../worker/http.ts";
+import { postgresExecutionLoad } from "../worker/load.ts";
+import { postgresCompletionStaging } from "../worker/staging.ts";
+import { postgresCompletionPromotion } from "../worker/promote.ts";
 import { postgresExecutionCommands } from "../worker/repository.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 import { spoolInput } from "../../../../../../runner/src/checkpoints/input-spool.ts";
+import { manifestCaseIdentity, manifestCasePage } from "../inputs/identity.ts";
 import { postgresInputReader } from "../inputs/read.ts";
 import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
@@ -79,6 +84,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         ]),
       ).rejects.toThrow();
       await client.query("ROLLBACK TO SAVEPOINT immutable_blob");
+      await client.query("SAVEPOINT version_retention");
+      await expect(
+        client.query("DELETE FROM runner_version_inputs WHERE version_id=$1", [version]),
+      ).rejects.toThrow();
+      await client.query("ROLLBACK TO SAVEPOINT version_retention");
       await client.query("DELETE FROM problem_versions WHERE id=$1", [version]);
       expect(
         (await client.query("SELECT 1 FROM runner_version_inputs WHERE version_id=$1", [version]))
@@ -208,6 +218,13 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               )
             ).rows[0];
             expect(result).toEqual({ sealed: true, n: 2 });
+            await tx.execute(sql`SAVEPOINT snapshot_retention`);
+            await expect(
+              tx.execute(
+                sql`DELETE FROM runner_snapshot_inputs WHERE session_id=${session}::uuid AND fixture_id=${first}`,
+              ),
+            ).rejects.toThrow();
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT snapshot_retention`);
             await setActiveRunnerFixture(tx, session, epoch, first);
             expect(
               (
@@ -228,6 +245,16 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               (
                 await tx.execute(
                   sql`SELECT 1 FROM interview_active_runner_inputs WHERE session_id=${session}::uuid`,
+                )
+              ).rows,
+            ).toHaveLength(0);
+            await tx.execute(
+              sql`DELETE FROM interview_question_snapshots WHERE session_id=${session}::uuid AND id=${first}`,
+            );
+            expect(
+              (
+                await tx.execute(
+                  sql`SELECT 1 FROM runner_snapshot_inputs WHERE session_id=${session}::uuid`,
                 )
               ).rows,
             ).toHaveLength(0);
@@ -357,6 +384,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         client.query("UPDATE runner_job_input_cases SET channel='private' WHERE job_id=$1", [job]),
       ).rejects.toThrow();
       await client.query("ROLLBACK TO SAVEPOINT frozen");
+      await client.query("SAVEPOINT job_retention");
+      await expect(
+        client.query("DELETE FROM runner_job_inputs WHERE job_id=$1", [job]),
+      ).rejects.toThrow();
+      await client.query("ROLLBACK TO SAVEPOINT job_retention");
       await client.query("DELETE FROM execution_jobs WHERE id=$1", [job]);
       expect(
         (await client.query("SELECT 1 FROM runner_job_input_cases WHERE job_id=$1", [job]))
@@ -430,6 +462,14 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               )
             ).rows[0];
             expect(bound).toEqual({ sealed: true, n: 2 });
+            const identity = await manifestCaseIdentity(tx, job, 0);
+            expect(identity).toMatchObject({ caseCount: 1, sampleCount: 1, channel: "private" });
+            expect(new TextDecoder().decode(await manifestCasePage(tx, job, 0, 0))).toBe(
+              '{"args":[3],"expected":4}',
+            );
+            await expect(manifestCaseIdentity(tx, job, 2)).rejects.toThrow(
+              "Runner input unavailable",
+            );
             const attempt = crypto.randomUUID();
             await tx.execute(
               sql`UPDATE submissions SET state='running' WHERE id=${submission}::uuid`,
@@ -465,6 +505,12 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               limits: defaultLimits(),
             };
             const manifest = await reader.inputManifest(fence);
+            const expectedSuite = createHash("sha256")
+              .update(
+                `private:${Buffer.from(hidden[0].hash).toString("hex")};sample:${Buffer.from(examples[0].hash).toString("hex")};`,
+              )
+              .digest("hex");
+            expect(manifest.suiteHash).toBe(expectedSuite);
             expect(manifest).toMatchObject({
               kind: "submit",
               caseCount: 1,
@@ -513,6 +559,34 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             for await (const chunk of spool.stream()) total += (chunk as Uint8Array).byteLength;
             expect(total).toBe(overHttp.metadata.size);
             await spool.dispose();
+            await expect(postgresExecutionLoad(scoped, true)(fence)).rejects.toThrow(
+              "Manifest input requires streaming verifier",
+            );
+            const stage = postgresCompletionStaging(scoped);
+            await stage.begin(fence, {
+              submissionId: submission,
+              attemptId: attempt,
+              verdict: "accepted",
+              engineFailure: false,
+              diagnosticsPresent: false,
+              publicPresent: false,
+              samplePresent: false,
+              privatePresent: false,
+              publicCount: 0,
+              sampleCount: 0,
+              privateCount: 0,
+            });
+            await stage.eof(fence, fence);
+            await expect(postgresCompletionPromotion(scoped)(fence, fence)).rejects.toThrow(
+              "Manifest result verification unavailable",
+            );
+            expect(
+              (
+                await tx.execute<{ state: string }>(
+                  sql`SELECT state FROM submissions WHERE id=${submission}::uuid`,
+                )
+              ).rows[0].state,
+            ).toBe("running");
             await expect(
               reader.inputPage({ ...fence, attemptId: crypto.randomUUID() }, "case", 0, 0),
             ).rejects.toThrow();

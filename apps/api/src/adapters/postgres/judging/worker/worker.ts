@@ -124,7 +124,7 @@ it("claims and fences a real attempt through workerd", async () => {
     expect((await claims.queueState()).queued).toBeGreaterThanOrEqual(1);
     expect(await claims.confirmQueueEmpty()).toBe(false);
     expect(await claims.nextRunnableDeadline("worker-scope")).toBe(0);
-    const claimed = await claims.claimAfterTeardown(true, "worker-scope", null);
+    let claimed = await claims.claimAfterTeardown(true, "worker-scope", null);
     expect(claimed?.jobId).toBe(job);
     expect(await claims.lease(claimed!, true)).toBe(true);
     const manifest = await claims.inputManifest(claimed!);
@@ -134,7 +134,11 @@ it("claims and fences a real attempt through workerd", async () => {
     expect(firstPage.bytes.length).toBe(65536);
     expect(secondPage.bytes.length).toBe(65536);
     expect(firstPage.hash).toBe(manifest.metadata.hash);
-    expect((await claims.inputPage(claimed!, "case", 0, 0)).channel).toBe("public");
+    const ref = await claims.inputCaseRef(claimed!, 0);
+    const casePage = await claims.inputPage(claimed!, "case", 0, 0);
+    expect(casePage.channel).toBe("public");
+    expect(casePage.hash).toBe(ref.hash);
+    expect(manifest.suiteHash).toMatch(/^[0-9a-f]{64}$/);
     await expect(
       claims.inputPage({ ...claimed!, attemptId: crypto.randomUUID() }, "case", 0, 0),
     ).rejects.toThrow();
@@ -195,6 +199,23 @@ it("claims and fences a real attempt through workerd", async () => {
     await expect(claims.lease({ ...claimed!, sandboxScope: "other" }, false)).rejects.toThrow(
       "scope",
     );
+    await expect(claims.load(claimed!)).rejects.toThrow();
+    // Isolated legacy fixture retains 27 regression coverage; it is never claimed by manifest-v1.
+    const legacyAttempt = crypto.randomUUID();
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(sql`DELETE FROM execution_jobs WHERE id=${job}::uuid`);
+        await tx.execute(sql`DELETE FROM submissions WHERE id=${submission}::uuid`);
+        await tx.execute(
+          sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${user},${workspace}::uuid,'run','','hash','running','[{"expected":2}]')`,
+        );
+        await tx.execute(sql`SELECT set_config('quorem.sandbox_scope','worker-scope',true)`);
+        await tx.execute(
+          sql`INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until,attempts,language,runtime_revision,harness_revision) VALUES(${job}::uuid,${submission}::uuid,${legacyAttempt}::uuid,'worker-scope',clock_timestamp()+interval '1 minute',1,'python','python-3.12-v1','quorem-harness-v2')`,
+        );
+      }),
+    );
+    claimed = { ...claimed!, attemptId: legacyAttempt };
     const judgeFrame = decodeJudgeFrame(
       '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}',
     );
@@ -253,8 +274,18 @@ it("claims and fences a real attempt through workerd", async () => {
         );
       }),
     );
-    const next = await claims.claimAfterTeardown(true, "worker-scope", null);
-    expect(next).not.toBeNull();
+    const nextAttempt = crypto.randomUUID();
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(sql`SELECT set_config('quorem.sandbox_scope','worker-scope',true)`);
+        await tx.execute(sql`SELECT set_config('quorem.checkpoint_claim','v1',true)`);
+        await tx.execute(
+          sql`UPDATE execution_jobs SET attempt_id=${nextAttempt}::uuid,lease_until=clock_timestamp()+interval '1 minute' WHERE id=${job}::uuid`,
+        );
+        await tx.execute(sql`UPDATE submissions SET state='running' WHERE id=${submission}::uuid`);
+      }),
+    );
+    const next = { ...claimed!, attemptId: nextAttempt };
     await claims.beginCompletion(next!, {
       submissionId: submission,
       attemptId: next!.attemptId,

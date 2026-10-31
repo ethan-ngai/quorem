@@ -132,6 +132,7 @@ export interface JsonSpan {
 export async function readAllowedObjectSpans(
   input: StreamingJsonReader,
   allowed: ReadonlySet<string>,
+  requireEnd = true,
 ): Promise<Map<string, JsonSpan>> {
   const result = new Map<string, JsonSpan>();
   const keyLimit = Math.max(0, ...Array.from(allowed, (key) => key.length)) * 6 + 2;
@@ -164,6 +165,6 @@ export async function readAllowedObjectSpans(
       if ((await input.peek()) === "}") throw new Error("Invalid JSON object separator");
     }
   await input.expect("}");
-  if (await input.peek()) throw new Error("Trailing JSON input");
+  if (requireEnd && (await input.peek())) throw new Error("Trailing JSON input");
   return result;
 }

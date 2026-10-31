@@ -26,3 +26,20 @@ export async function* checkedInput(input: CaseInput): AsyncGenerator<Uint8Array
   if (size !== input.size || digest.digest("hex") !== input.hash)
     throw new Error("Sandbox input digest mismatch");
 }
+/** Hash a reopenable composition without assembling its bytes. */
+export async function composedInput(
+  open: () => AsyncIterable<Uint8Array>,
+  signal?: AbortSignal,
+): Promise<CaseInput> {
+  const digest = createHash("sha256");
+  let size = 0;
+  for await (const chunk of open()) {
+    signal?.throwIfAborted();
+    if (!(chunk instanceof Uint8Array)) throw new Error("Invalid sandbox input");
+    size += chunk.length;
+    if (!Number.isSafeInteger(size)) throw new Error("Invalid sandbox input size");
+    digest.update(chunk);
+  }
+  signal?.throwIfAborted();
+  return { size, hash: digest.digest("hex"), open };
+}

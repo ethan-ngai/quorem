@@ -16,6 +16,7 @@ export type {
   ExecutionRepository,
   ExecutionQueueControl,
   InputBlobRef,
+  InputCaseRef,
   InputManifest,
   InputKind,
   InputPage,
