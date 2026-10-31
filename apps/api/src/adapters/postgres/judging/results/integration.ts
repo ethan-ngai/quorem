@@ -933,7 +933,16 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   });
   await staging.seal(job, "private", 0, "executed");
   await staging.eof(job, job);
-  await postgresCompletionPromotion(run)(job, job);
+  const promote = postgresCompletionPromotion(run);
+  await promote(job, job);
+  await promote(job, job);
+  const cleanup = (
+    await pool.query(
+      "SELECT (SELECT count(*)::int FROM execution_completion_staging WHERE job_id=$1) AS stages,(SELECT count(*)::int FROM execution_completion_frames WHERE job_id=$1) AS frames,(SELECT count(*)::int FROM execution_completion_field_chunks WHERE job_id=$1) AS chunks,(SELECT count(*)::int FROM execution_completion_receipts WHERE job_id=$1 AND outcome='completed') AS receipts",
+      [jobId],
+    )
+  ).rows[0];
+  assert.deepEqual(cleanup, { stages: 0, frames: 0, chunks: 0, receipts: 1 });
   const staff = await repo.interview(host, session, submission);
   assert.match(staff, /PRIVATE\\u0000OUTPUT/);
   assert.match(staff, /"expected":2/);
