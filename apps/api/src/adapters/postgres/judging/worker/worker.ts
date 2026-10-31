@@ -312,7 +312,7 @@ it("claims and fences a real attempt through workerd", async () => {
     });
     const chunk = async (
       channel: "header" | "public",
-      field: "diagnostics" | "actual" | "expected",
+      field: "diagnostics" | "actual",
       value: string,
     ) =>
       claims.writeCompletionChunk(next!, {
@@ -335,7 +335,15 @@ it("claims and fences a real attempt through workerd", async () => {
       });
     await claims.sealCompletionDiagnostics(next!);
     await chunk("public", "actual", "123");
-    await chunk("public", "expected", "987655");
+    await expect(
+      claims.writeCompletionChunk(next!, {
+        channel: "public",
+        ordinal: 0,
+        field: "expected",
+        chunkOrdinal: 0,
+        bytes: new TextEncoder().encode("987655"),
+      } as never),
+    ).rejects.toThrow();
     for (let offset = 0, part = 0; offset < diagnosticBytes.length; offset += 65536, part++)
       await claims.writeCompletionChunk(next!, {
         channel: "public",

@@ -35,12 +35,18 @@ export function verificationHandler(options: {
     }
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), options.timeoutMs);
+    const stopReading = () => {
+      if (!request.complete) request.destroy();
+    };
+    abort.signal.addEventListener("abort", stopReading, { once: true });
     request.once("aborted", () => abort.abort());
     try {
-      let body = "";
+      let body = "",
+        size = 0;
       for await (const chunk of request) {
+        size += (chunk as Buffer).length;
+        if (size > 256) throw new Error("Invalid request");
         body += (chunk as Buffer).toString("utf8");
-        if (body.length > 256) throw new Error("Invalid request");
       }
       const data: unknown = JSON.parse(body);
       if (
@@ -72,9 +78,10 @@ export function verificationHandler(options: {
           }),
         );
     } catch {
-      if (!response.headersSent) response.writeHead(503).end();
+      if (!response.headersSent && !response.destroyed) response.writeHead(503).end();
     } finally {
       clearTimeout(timer);
+      abort.signal.removeEventListener("abort", stopReading);
     }
   };
 }

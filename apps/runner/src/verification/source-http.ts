@@ -9,7 +9,12 @@ export function httpVerificationSource(options: {
   timeoutMs: number;
   fetch?: typeof fetch;
 }): VerificationSource {
-  const origin = new URL(options.origin);
+  let origin: URL;
+  try {
+    origin = new URL(options.origin);
+  } catch {
+    throw new Error("Invalid verification source configuration");
+  }
   if (
     origin.username ||
     origin.password ||

@@ -13,7 +13,12 @@ export function httpResultVerifier(options: {
   timeoutMs: number;
   fetch?: typeof fetch;
 }): ResultVerifier {
-  const origin = new URL(options.origin);
+  let origin: URL;
+  try {
+    origin = new URL(options.origin);
+  } catch {
+    throw new Error("Invalid verifier configuration");
+  }
   if (
     origin.username ||
     origin.password ||

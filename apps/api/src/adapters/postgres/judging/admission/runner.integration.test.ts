@@ -122,6 +122,10 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
       [version],
     );
     await pool.query(
+      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'typescript','','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1','')",
+      [version],
+    );
+    await pool.query(
       "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]','2')",
       [version],
     );
@@ -287,6 +291,360 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         })
       ).status,
     ).toBe(404);
+  }, 40000);
+  it("publishes independently verified syntax, runtime, time and output failures", async () => {
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "admission-runner-errors",
+      cleanupMs: 10000,
+    });
+    const secret = "fixture-only-private-runner-errors-123456";
+    const handler = await createRunnerCommandHandler([
+      {
+        secret,
+        scope: sandbox.scope,
+        resumable: true,
+        inputProtocol: "manifest-v1",
+        repository: () =>
+          postgresExecutionCommands(
+            run,
+            {
+              inputProtocol: "manifest-v1",
+              resumable: true,
+              losslessCases: true,
+              losslessResults: true,
+            },
+            { verifier, verificationPublicKey },
+          ),
+      },
+    ]);
+    const repository = privateRunnerCommands({
+      origin: "https://fixture",
+      secret,
+      scope: sandbox.scope,
+      resumable: true,
+      timeoutMs: 5000,
+      fetch: async (input, init) => handler(new Request(input, init)),
+    });
+    const drain = drainer({
+      repository,
+      sandbox,
+      cancellations: controlPolling(25),
+      queue: queueControl(repository, sandbox.scope, 25),
+      engine: checkpointedEngine(repository, sandbox),
+      slots: 1,
+      resumable: true,
+      graceMs: 100,
+      claimWindowMs: 10000,
+    });
+    for (const [name, source, expected] of [
+      ["syntax", "not valid !", "syntax_error"],
+      [
+        "runtime",
+        "class Solution:\n def f(self,x): raise RuntimeError('fixture')",
+        "runtime_error",
+      ],
+      ["time", "class Solution:\n def f(self,x):\n  while True: pass", "time_limit"],
+      ["nul", "class Solution:\n def f(self,x):\n  print('a\\x00b')\n  return x+1", "accepted"],
+      [
+        "output",
+        "class Solution:\n def f(self,x):\n  print('x'*100000)\n  return 2",
+        "output_limit",
+      ],
+    ] as const) {
+      await pool.query(
+        "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+        [owner],
+      );
+      const response = await app.request("https://fixture.test/v1/submissions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": `runner-error-${name}` },
+        body: JSON.stringify({ workspaceId: workspace, kind: "run", source }),
+      });
+      expect(response.status).toBe(202);
+      const id = (await response.json()).id as string;
+      expect((await drain.drain(AbortSignal.timeout(30000))).complete).toBe(true);
+      const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
+      expect(result.status).toBe(200);
+      const value = await result.json();
+      expect(value.verdict).toBe(expected);
+      expect(value.publicCases[0].status).toBe(expected);
+      if (name === "nul") expect(value.publicCases[0].stdout).toBe("a\u0000b\n");
+    }
+    const typescriptWorkspace = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'typescript')",
+      [typescriptWorkspace, owner, version],
+    );
+    await pool.query(
+      "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+      [owner],
+    );
+    const compile = await app.request("https://fixture.test/v1/submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "runner-error-compile" },
+      body: JSON.stringify({
+        workspaceId: typescriptWorkspace,
+        kind: "run",
+        source: "class Solution { f(x: number): number { return ; !!! } }",
+      }),
+    });
+    expect(compile.status).toBe(202);
+    const compiledId = (await compile.json()).id as string;
+    expect((await drain.drain(AbortSignal.timeout(30000))).complete).toBe(true);
+    const compiledResult = await app.request(`https://fixture.test/v1/submissions/${compiledId}`);
+    expect(compiledResult.status).toBe(200);
+    const compiledValue = await compiledResult.json();
+    expect(compiledValue.verdict).toBe("syntax_error");
+    expect(compiledValue.publicCases[0].status).toBe("syntax_error");
+  }, 120000);
+  it("verifies unordered SQL results and independently reports output type mismatch", async () => {
+    const sqlProblem = crypto.randomUUID(),
+      sqlVersion = crypto.randomUUID(),
+      sqlWorkspace = crypto.randomUUID();
+    const sqlConfig = {
+      dialect: "postgresql",
+      outputOrder: "unordered",
+      tables: [{ name: "items", columns: [{ name: "id", type: "integer" }] }],
+      output: [{ name: "id", type: "integer" }],
+    };
+    const signature = { className: "Solution", methodName: "f", parameters: [], returnType: "int" };
+    const limits = {
+      wallTimeMs: 2000,
+      memoryBytes: 268435456,
+      outputBytes: 65536,
+      maxProcesses: 16,
+      maxCollectionElements: 10000,
+      maxNestingDepth: 100,
+    };
+    const sample = {
+      args: [{ tables: [{ name: "items", rows: [[1], [2]] }] }],
+      expected: { rows: [[1], [2]] },
+    };
+    try {
+      await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [sqlProblem, sqlProblem]);
+      await pool.query(
+        "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
+        [
+          sqlVersion,
+          sqlProblem,
+          JSON.stringify(signature),
+          JSON.stringify(limits),
+          JSON.stringify(sqlConfig),
+        ],
+      );
+      await pool.query(
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'postgresql','','postgresql-17.6-v1','quorem-postgresql-v1','')",
+        [sqlVersion],
+      );
+      await pool.query(
+        "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
+        [sqlVersion, JSON.stringify(sample.args), JSON.stringify(sample.expected)],
+      );
+      await pool.query(
+        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'postgresql')",
+        [sqlWorkspace, owner, sqlVersion],
+      );
+      await run((scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+          indexRunnerFixture(
+            tx,
+            { version: sqlVersion },
+            JSON.stringify({
+              problem: {
+                id: sqlVersion,
+                signature,
+                constraints: [],
+                limits,
+                sql: sqlConfig,
+                examples: [sample],
+              },
+              hiddenCases: [],
+            }),
+          ),
+        ),
+      );
+      const sandbox = await dockerSandbox({
+        socket: socket!,
+        stateRoot,
+        namespace: "admission-runner-sql",
+        cleanupMs: 10000,
+      });
+      const secret = "fixture-only-private-runner-sql-12345678";
+      const handler = await createRunnerCommandHandler([
+        {
+          secret,
+          scope: sandbox.scope,
+          resumable: true,
+          inputProtocol: "manifest-v1",
+          repository: () =>
+            postgresExecutionCommands(
+              run,
+              {
+                inputProtocol: "manifest-v1",
+                resumable: true,
+                losslessCases: true,
+                losslessResults: true,
+              },
+              { verifier, verificationPublicKey },
+            ),
+        },
+      ]);
+      const repository = privateRunnerCommands({
+        origin: "https://fixture",
+        secret,
+        scope: sandbox.scope,
+        resumable: true,
+        timeoutMs: 5000,
+        fetch: async (input, init) => handler(new Request(input, init)),
+      });
+      const drain = drainer({
+        repository,
+        sandbox,
+        cancellations: controlPolling(25),
+        queue: queueControl(repository, sandbox.scope, 25),
+        engine: checkpointedEngine(repository, sandbox),
+        slots: 1,
+        resumable: true,
+        graceMs: 100,
+        claimWindowMs: 10000,
+      });
+      for (const [name, source, expected] of [
+        ["unordered", "SELECT id FROM items ORDER BY id DESC", "accepted"],
+        ["type", "SELECT id::bigint AS id FROM items ORDER BY id DESC", "wrong_answer"],
+        ["invalid", "SELECT 1 AS id FROM generate_series(1,10001)", "invalid_output"],
+      ] as const) {
+        await pool.query(
+          "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+          [owner],
+        );
+        const response = await app.request("https://fixture.test/v1/submissions", {
+          method: "POST",
+          headers: { "content-type": "application/json", "idempotency-key": `runner-sql-${name}` },
+          body: JSON.stringify({ workspaceId: sqlWorkspace, kind: "run", source }),
+        });
+        expect(response.status).toBe(202);
+        const id = (await response.json()).id as string;
+        expect((await drain.drain(AbortSignal.timeout(30000))).complete).toBe(true);
+        const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
+        expect(result.status).toBe(200);
+        const value = await result.json();
+        expect(value.verdict).toBe(expected);
+        if (name === "type")
+          expect(value.publicCases[0].diagnostics).toContainEqual({
+            message: "Output column types do not match the SQL schema.",
+          });
+        if (name === "invalid")
+          expect(value.publicCases[0].diagnostics).toContainEqual({
+            message: "The query returned an invalid or unsupported result.",
+          });
+      }
+    } finally {
+      await pool.query(
+        "DELETE FROM execution_dispatch_intents WHERE job_id IN (SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE s.workspace_id=$1)",
+        [sqlWorkspace],
+      );
+      await pool.query(
+        "DELETE FROM execution_idempotency WHERE owner_id=$1 AND key LIKE 'runner-sql-%'",
+        [owner],
+      );
+      await pool.query(
+        "DELETE FROM execution_attempt_usage WHERE submission_id IN (SELECT id FROM submissions WHERE workspace_id=$1)",
+        [sqlWorkspace],
+      );
+      await pool.query(
+        "DELETE FROM execution_jobs WHERE submission_id IN (SELECT id FROM submissions WHERE workspace_id=$1)",
+        [sqlWorkspace],
+      );
+      await pool.query("DELETE FROM submissions WHERE workspace_id=$1", [sqlWorkspace]);
+      await pool.query("DELETE FROM workspaces WHERE id=$1", [sqlWorkspace]);
+      await pool.query("DELETE FROM problem_versions WHERE id=$1", [sqlVersion]);
+      await pool.query("DELETE FROM problems WHERE id=$1", [sqlProblem]);
+    }
+  }, 90000);
+  it("persists verified failure before the next sandbox case completes", async () => {
+    await pool.query(
+      "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+      [owner],
+    );
+    const response = await app.request("https://fixture.test/v1/submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "runner-early-failure" },
+      body: JSON.stringify({
+        workspaceId: workspace,
+        kind: "submit",
+        source: "class Solution:\n def f(self,x):\n  if x==3: return 0\n  while True: pass",
+      }),
+    });
+    expect(response.status).toBe(202);
+    const id = (await response.json()).id as string;
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "admission-runner-early",
+      cleanupMs: 10000,
+    });
+    const secret = "fixture-only-private-runner-early-123456";
+    const handler = await createRunnerCommandHandler([
+      {
+        secret,
+        scope: sandbox.scope,
+        resumable: true,
+        inputProtocol: "manifest-v1",
+        repository: () =>
+          postgresExecutionCommands(
+            run,
+            {
+              inputProtocol: "manifest-v1",
+              resumable: true,
+              losslessCases: true,
+              losslessResults: true,
+            },
+            { verifier, verificationPublicKey },
+          ),
+      },
+    ]);
+    const repository = privateRunnerCommands({
+      origin: "https://fixture",
+      secret,
+      scope: sandbox.scope,
+      resumable: true,
+      timeoutMs: 5000,
+      fetch: async (input, init) => handler(new Request(input, init)),
+    });
+    const drain = drainer({
+      repository,
+      sandbox,
+      cancellations: controlPolling(25),
+      queue: queueControl(repository, sandbox.scope, 25),
+      engine: checkpointedEngine(repository, sandbox),
+      slots: 1,
+      resumable: true,
+      graceMs: 100,
+      claimWindowMs: 10000,
+    });
+    const running = drain.drain(AbortSignal.timeout(30000));
+    let seen = false;
+    for (let i = 0; i < 250; i++) {
+      const row = (
+        await pool.query(
+          "SELECT v.status,j.finished FROM execution_jobs j JOIN execution_verified_cases v ON v.job_id=j.id AND v.attempt_id=j.attempt_id WHERE j.submission_id=$1 AND v.ordinal=0",
+          [id],
+        )
+      ).rows[0];
+      if (row) {
+        expect(row.status).toBe("wrong_answer");
+        expect(row.finished).toBe(false);
+        seen = true;
+        break;
+      }
+      await sleep(20);
+    }
+    expect(seen).toBe(true);
+    expect((await running).complete).toBe(true);
+    const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
+    expect((await result.json()).verdict).toBe("wrong_answer");
   }, 40000);
   it("cancels an actually running Docker case and reclaims only after teardown", async () => {
     await pool.query(

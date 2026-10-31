@@ -219,3 +219,65 @@ void test("SQL type mismatch is independently derived and signed", async () => {
     false,
   );
 });
+void test("private verifier bounds stalled request bodies and verification time", async () => {
+  const { createServer } = await import("node:http"),
+    { connect } = await import("node:net"),
+    { verificationHandler } = await import("./http.ts");
+  const credential = new Uint8Array(32).fill(9);
+  const server = createServer(
+    verificationHandler({
+      credential,
+      timeoutMs: 50,
+      async verify() {
+        return await new Promise(() => {});
+      },
+    }),
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const socket = connect(address.port, "127.0.0.1");
+    await once(socket, "connect");
+    socket.write(
+      `POST /internal/results/verify HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${Buffer.from(credential).toString("hex")}\r\nContent-Length: 100\r\n\r\n{`,
+    );
+    await once(socket, "close");
+    const response = await fetch(`http://127.0.0.1:${address.port}/internal/results/verify`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${Buffer.from(credential).toString("hex")}` },
+      body: '{"challenge":"fixture"}',
+    });
+    assert.equal(response.status, 503);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
+void test("verification service rejects unusable configuration before listening", async () => {
+  const { createVerificationService } = await import("./service.ts");
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const base = {
+    sourceOrigin: "https://fixture",
+    sourceCredential: new Uint8Array(32).fill(1),
+    serviceCredential: new Uint8Array(32).fill(2),
+    signingKey: keys.privateKey,
+    timeoutMs: 1000,
+  };
+  assert.throws(
+    () => createVerificationService({ ...base, sourceOrigin: "http://public.invalid" }),
+    /Invalid verification source configuration/,
+  );
+  assert.throws(() => createVerificationService({ ...base, sourceOrigin: "not-a-url-secret" }), {
+    message: "Invalid verification source configuration",
+  });
+  assert.throws(
+    () => createVerificationService({ ...base, serviceCredential: base.sourceCredential }),
+    /Distinct verification credentials/,
+  );
+  assert.throws(
+    () => createVerificationService({ ...base, signingKey: keys.publicKey }),
+    /Invalid verifier signing key/,
+  );
+});

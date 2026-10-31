@@ -98,9 +98,7 @@ export function postgresCompletionStaging(
     async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
       if (
         !["public", "sample", "private", "header"].includes(item.channel) ||
-        !["actual", "expected", "stdout", "stderr", "diagnostics", "sqlTypes"].includes(
-          item.field,
-        ) ||
+        !["actual", "stdout", "stderr", "diagnostics", "sqlTypes"].includes(item.field) ||
         !Number.isInteger(item.ordinal) ||
         item.ordinal < 0 ||
         item.ordinal > 2147483646 ||

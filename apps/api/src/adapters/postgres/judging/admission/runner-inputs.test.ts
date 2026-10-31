@@ -1061,3 +1061,32 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
     }
   });
 });
+it("rejects malformed verifier credentials and untrusted transport before database access", async () => {
+  const handler = createVerificationSourceHandler(async () => {
+    throw new Error("Unexpected database access");
+  }, new Uint8Array(32));
+  const bad = await handler(
+    new Request("https://fixture/internal/verification/frozen", {
+      method: "POST",
+      headers: { authorization: `Bearer ${"g".repeat(64)}` },
+      body: "{}",
+    }),
+  );
+  expect(bad.status).toBe(401);
+  const insecure = await handler(
+    new Request("http://public.invalid/internal/verification/frozen", {
+      method: "POST",
+      headers: { authorization: `Bearer ${"0".repeat(64)}` },
+      body: "{}",
+    }),
+  );
+  expect(insecure.status).toBe(400);
+  const oversized = await handler(
+    new Request("https://fixture/internal/verification/frozen", {
+      method: "POST",
+      headers: { authorization: `Bearer ${"0".repeat(64)}` },
+      body: "x".repeat(90001),
+    }),
+  );
+  expect(oversized.status).toBe(503);
+});
