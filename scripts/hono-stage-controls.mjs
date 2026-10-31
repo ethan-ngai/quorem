@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { stageRoleCredentials } from "./hono-stage-database-role.mjs";
 import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
-import { verifyCaseProbe } from "../deploy/case-proof.js";
+import { readVerifiedCaseProbe } from "../deploy/case-proof.js";
 
 async function boundedJSON(response) {
   if (!response.body) throw new Error("Missing control receipt");
@@ -95,9 +95,8 @@ export async function stageControls(options, send = fetch) {
       signal: AbortSignal.timeout(10000),
     });
     if (!payload) {
-      const clone = response.clone();
       const probeKind = kind === "case" ? "control-state" : "runner-control-state";
-      const value = await verifyCaseProbe(response, {
+      const { value, envelope } = await readVerifiedCaseProbe(response, {
         publicKey: key,
         kind: probeKind,
         scope,
@@ -105,13 +104,7 @@ export async function stageControls(options, send = fetch) {
         nonce,
         expectedNamespace: namespace,
       });
-      proofs.push({
-        kind: probeKind,
-        nonce,
-        namespace,
-        signature: clone.headers.get("x-quorem-owner-signature"),
-        body: Buffer.from(await clone.arrayBuffer()).toString("base64"),
-      });
+      proofs.push(envelope);
       return value;
     }
     if (!response.ok) throw new Error("Control transition rejected");
