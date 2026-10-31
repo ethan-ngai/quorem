@@ -14,7 +14,8 @@ export class ExecutionRecoveryFixture extends DurableObject {
     super(state, env);
     const url = new URL(env.ADMISSION_DATABASE_URL);
     if (
-      url.port !== "55458" ||
+      !["postgres:", "postgresql:"].includes(url.protocol) ||
+    url.searchParams.has("host") ||
       url.pathname !== "/quorem_hono_admission_test" ||
       !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)
     )
