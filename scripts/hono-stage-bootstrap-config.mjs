@@ -61,6 +61,16 @@ export function assembleStageConfig(bootstrap, actions) {
     zone = required("CLOUDFLARE_ZONE_ID"),
     sha = required("GITHUB_SHA"),
     cfToken = required("CLOUDFLARE_API_TOKEN");
+  const project = bootstrap?.project_id?.value,
+    branch = bootstrap?.branch_id?.value;
+  if (
+    typeof project !== "string" ||
+    !/^[a-z][a-z0-9-]{3,99}$/.test(project) ||
+    project !== required("NEON_PROJECT_ID") ||
+    typeof branch !== "string" ||
+    !/^br-[a-z0-9-]{1,120}$/.test(branch)
+  )
+    throw new Error("Invalid staged database identity");
   for (const name of [
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -242,6 +252,7 @@ export function assembleStageConfig(bootstrap, actions) {
     HONO_WORKER_SECRETS_JSON: JSON.stringify(secrets),
     HONO_STAGE_PUBLIC_JSON: JSON.stringify({ stageZone: "quorem.app", vars }),
     HONO_STAGE_DATABASE_URL: url.href,
+    HONO_STAGE_DATABASE_IDENTITY: `${project}:${branch}:quorem_hono_stage`,
   });
   validateStageRequest(env, { requireImages: false });
   stageRoleCredentials(env);

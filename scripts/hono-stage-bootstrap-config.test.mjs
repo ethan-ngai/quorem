@@ -6,6 +6,8 @@ import { checkWorkerAuth } from "./hono-stage-preflight.mjs";
 import { deployStage } from "./hono-stage-deploy-stage.mjs";
 
 const bootstrap = () => ({
+  project_id: { value: "fixture-existing-project" },
+  branch_id: { value: "br-stage-fixture" },
   stage_secrets: { value: createStageSecrets() },
   database_url: {
     value:
@@ -13,6 +15,7 @@ const bootstrap = () => ({
   },
 });
 const actions = () => ({
+  NEON_PROJECT_ID: "fixture-existing-project",
   CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
   CLOUDFLARE_ZONE_ID: "b".repeat(32),
   CLOUDFLARE_API_TOKEN: "fixture-api-token-123456",
@@ -37,6 +40,10 @@ void test("assembles distinct private credentials and validates actual stage aut
   assert.equal(result.TF_VAR_dns_target, undefined);
   assert.equal(result.TF_VAR_enable_queue_consumer, "false");
   assert.equal(result.TF_VAR_database_connection_limit, "5");
+  assert.equal(
+    result.HONO_STAGE_DATABASE_IDENTITY,
+    "fixture-existing-project:br-stage-fixture:quorem_hono_stage",
+  );
   assert.equal(services.IMAGE_SERVICE_TOKEN, secrets.PROFILE_IMAGE_SERVICE_TOKEN);
   assert.notEqual(services.QUOREM_CASE_SECRET, services.QUOREM_RUNNER_COMMAND_SECRET);
   assert.notEqual(result.TF_VAR_database_password, "fixture-password");
@@ -63,6 +70,12 @@ void test("rejects non-isolated database, mismatched signing keys and wrong rele
   const missing = bootstrap();
   delete missing.stage_secrets;
   assert.throws(() => assembleStageConfig(missing, actions()));
+  assert.throws(() =>
+    assembleStageConfig({ ...bootstrap(), branch_id: { value: "bad/branch" } }, actions()),
+  );
+  assert.throws(() =>
+    assembleStageConfig(bootstrap(), { ...actions(), NEON_PROJECT_ID: "other-project" }),
+  );
   assert.throws(() =>
     assembleStageConfig(bootstrap(), { ...actions(), GITHUB_REF: "refs/heads/main" }),
   );

@@ -82,6 +82,7 @@ function env() {
     TF_VAR_service_secrets: JSON.stringify(services),
     HONO_WORKER_SECRETS_JSON: JSON.stringify(secrets),
     HONO_STAGE_DATABASE_URL: "fixture",
+    HONO_STAGE_DATABASE_IDENTITY: "fixture-project:br-stage-fixture:quorem_hono_stage",
     HONO_STAGE_BROWSER_ORIGIN: "https://web-stage.example.com",
   };
 }
@@ -130,7 +131,11 @@ function operations(events, fail) {
         },
       }),
     controls: async () => ({
-      activate: async () => step("controls-activate", { generation: 1 }),
+      activate: async ({ beforeActivation }) => {
+        const result = step("controls-activate", { generation: 1 });
+        await beforeActivation({ cases: { generation: 0 }, runner: { generation: 1 }, proofs: [] });
+        return result;
+      },
       pause: async () => step("controls-pause"),
       requireActive: async (generation) => {
         assert.equal(generation, 1);
@@ -164,6 +169,15 @@ function operations(events, fail) {
       assert.equal(input.BETTER_AUTH_SECRET, "z".repeat(32));
       return step("workload", { profile: "baseline", admissions: 40 });
     },
+    genesis: async (input, { namespace, observation }) => {
+      assert.equal(
+        input.HONO_STAGE_DATABASE_IDENTITY,
+        "fixture-project:br-stage-fixture:quorem_hono_stage",
+      );
+      assert.equal(namespace, ns);
+      assert.equal(observation.cases.generation, 0);
+      return step("genesis", { namespace });
+    },
   };
 }
 void test("first activation checks fresh DB and brackets workload with signed control checks", async () => {
@@ -192,6 +206,7 @@ void test("first activation checks fresh DB and brackets workload with signed co
     "upload",
     "subdomains",
     "controls-activate",
+    "genesis",
     "remote",
     "actor",
     "queue",
@@ -203,11 +218,12 @@ void test("first activation checks fresh DB and brackets workload with signed co
   ]);
 });
 void test("workload or active-control failure fences the deployed runtime", async () => {
-  for (const fail of ["workload", "controls-active"]) {
+  for (const fail of ["workload", "controls-active", "genesis"]) {
     const events = [];
     await assert.rejects(deployStage(env(), operations(events, fail)));
     assert.deepEqual(events.slice(-3), ["detach", "controls-pause", "runtime-fence"]);
     if (fail === "controls-active") assert.equal(events.includes("workload"), false);
+    if (fail === "genesis") assert.equal(events.includes("remote"), false);
   }
 });
 void test("fresh failure causes no later action; queue failure disposes fixture", async () => {

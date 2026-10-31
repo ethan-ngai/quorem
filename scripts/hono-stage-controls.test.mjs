@@ -119,6 +119,52 @@ void test("activates and checks signed state after each step without disclosing 
     await f.cleanup();
   }
 });
+void test("persists verified genesis before either authority activates", async () => {
+  const f = await fixture();
+  try {
+    const control = await stageControls(f.options, f.send);
+    let observed;
+    const receipt = await control.activate({
+      beforeActivation: async (value) => {
+        observed = value;
+        assert.equal(value.runner.status, "prepared");
+        assert.equal(value.runner.generation, 1);
+        assert.equal(value.cases.paused, true);
+        assert.equal(value.cases.generation, 0);
+        assert.deepEqual(value.proofs.map((proof) => proof.kind).sort(), [
+          "control-state",
+          "runner-control-state",
+        ]);
+        assert.ok(value.proofs.every((proof) => proof.signature && proof.body && proof.nonce));
+        assert.equal(f.calls.includes("case:activate"), false);
+        assert.equal(f.calls.includes("runner:activate"), false);
+      },
+    });
+    assert.deepEqual(receipt.proofs.slice(2, 4), observed.proofs);
+    assert.equal(receipt.proofs.length, 8);
+  } finally {
+    await f.cleanup();
+  }
+});
+void test("genesis persistence failure prevents activation", async () => {
+  const f = await fixture();
+  try {
+    const control = await stageControls(f.options, f.send);
+    await assert.rejects(
+      control.activate({
+        beforeActivation: async () => {
+          throw new Error("persist failed");
+        },
+      }),
+      /persist failed/,
+    );
+    assert.equal(f.calls.includes("case:activate"), false);
+    assert.equal(f.calls.includes("runner:activate"), false);
+    assert.equal(f.calls.at(-1), "case:state");
+  } finally {
+    await f.cleanup();
+  }
+});
 void test("active observations reject signed state from a changed release, binding or generation", async () => {
   for (const kind of ["runner", "case"]) {
     for (const patch of [
