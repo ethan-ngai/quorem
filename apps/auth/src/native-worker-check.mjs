@@ -2,11 +2,14 @@ import assert from 'node:assert/strict';
 import { Pool } from 'pg';
 import { verifyPassword } from 'better-auth/crypto';
 const origin='http://localhost:58738';
-const pool=new Pool({connectionString:'postgres://postgres:fixture-only@127.0.0.1:55438/quorem_hono_auth_native_test'});
+const database=process.env.AUTH_TEST_DATABASE_URL;
+const databaseURL=new URL(database);
+assert(['postgres:', 'postgresql:'].includes(databaseURL.protocol) && ['localhost', '127.0.0.1', '[::1]'].includes(databaseURL.hostname) && databaseURL.pathname==='/quorem_hono_auth_native_test' && !databaseURL.search && !databaseURL.hash);
+const pool=new Pool({connectionString:database});
 const id=crypto.randomUUID();
 const email=`${id}@example.test`;
 const nodeEmail=`node-${id}@example.test`;
-Object.assign(process.env,{APP_ENV:'local',AUTH_MODE:'password',AUTH_ORIGIN:origin,BETTER_AUTH_SECRET:'mock-secret-'.repeat(4),AUTH_DATABASE_URL:'postgres://postgres:fixture-only@127.0.0.1:55438/quorem_hono_auth_native_test',AUTH_INTERNAL_SECRET:'fixture-only'});
+Object.assign(process.env,{APP_ENV:'local',AUTH_MODE:'password',AUTH_ORIGIN:origin,BETTER_AUTH_SECRET:'mock-secret-'.repeat(4),AUTH_DATABASE_URL:database,AUTH_INTERNAL_SECRET:'fixture-only'});
 const node=await (await import('./node-auth.ts')).createNodeRuntime(process.env);
 const username=id.replaceAll('-','').slice(0,16);
 try {
@@ -26,6 +29,15 @@ try {
   assert.equal(session.status,200,await session.clone().text());
   const sessionData=await session.json();
   assert.equal(sessionData.user.id,user.id);
+  for (const request of [(path, init) => fetch(origin+path, init), (path, init) => node.app.request(origin+path, init)]) {
+    assert.equal((await request('/api/auth/profile',{headers:{cookie,origin}})).status,200);
+    const changed=await request('/api/auth/profile',{method:'PATCH',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify({color:7})});
+    assert.equal(changed.status,200,await changed.clone().text());
+    assert.equal((await changed.json()).color,7);
+    for (const method of ['PUT','DELETE']) assert.equal((await request('/api/auth/profile-photo',{method,headers:{cookie,origin,'content-type':'image/png'},...(method==='PUT'?{body:'fixture'}:{})})).status,503);
+    assert.equal((await request('/api/auth/profile',{headers:{origin}})).status,401);
+    assert.equal((await request('/api/auth/profile',{method:'PATCH',headers:{cookie,origin:'http://evil.test','content-type':'application/json'},body:'{"color":8}'})).status,403);
+  }
   const authorityURL=origin+`/fixture/authority?session=${encodeURIComponent(sessionData.session.id)}&subject=${encodeURIComponent(user.id)}`;
   assert.equal((await (await fetch(authorityURL)).json()).valid,true);
   await pool.query('INSERT INTO quorem_auth.session_assurance(session_id) VALUES($1)',[sessionData.session.id]);

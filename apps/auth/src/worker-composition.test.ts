@@ -31,9 +31,10 @@ describe("Worker auth composition", () => {
       (
         await runtime.app.request("http://localhost:58738/api/auth/profile-photo", {
           method: "PUT",
+          headers: { origin: "http://localhost:58738" },
         })
       ).status,
-    ).toBe(404);
+    ).toBe(401);
     const config = await (
       await runtime.app.request("http://localhost:58738/api/auth/quorem-config")
     ).json();
