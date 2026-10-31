@@ -7,7 +7,7 @@ import { Readable } from "node:stream";
 import { toNodeHandler } from "better-auth/node";
 import { createNodeRuntime } from "./node-auth.ts";
 import { createProfileHandler } from "./profile.ts";
-import { sharpImageProcessor } from "./adapters/sharp-image.ts";
+import { isolatedImageProcessor } from "./adapters/isolated-image.ts";
 import { hostedSignIn } from "./hosted-sign-in.ts";
 import { publicAuthConfiguration } from "./public-config.ts";
 export async function startServer(env: NodeJS.ProcessEnv = process.env) {
@@ -21,7 +21,7 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env) {
     origin: config.origin,
     session: (headers) => auth.api.getSession({ headers }),
     storage: profileStorage,
-    imageProcessor: sharpImageProcessor,
+    imageProcessor: isolatedImageProcessor(),
     repository: drizzleProfileRepository(run),
   });
   const server = createServer(async (req, res) => {

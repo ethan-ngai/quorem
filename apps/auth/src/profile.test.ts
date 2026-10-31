@@ -1,3 +1,4 @@
+import { ImageExecutionUncertain } from "./image-processing.ts";
 import { withNodeConnection } from "@quorem/database/core";
 import { drizzleProfileBudget } from "./adapters/drizzle-profile-budget.ts";
 import { drizzleProfileRepository } from "./adapters/drizzle-profile-repository.ts";
@@ -150,6 +151,41 @@ describe("profile photos", () => {
     await expect(result).rejects.toThrow();
     expect(released).toBe(1);
     expect(stored).toBe(0);
+  });
+  it("retains its lease when remote execution outcome is unknown", async () => {
+    let released = false;
+    const handler = createProfileHandler({
+      origin,
+      budget: {
+        ...testBudget(),
+        release: async () => {
+          released = true;
+        },
+      },
+      session: async () => ({ user: { id: "alice" } }),
+      repository: {
+        read: async () => ({ id: "alice", name: "A", email: "a@example.test" }),
+        replace: async () => true,
+        contains: async () => false,
+        setColor: async () => {},
+      },
+      storage: { put: async () => {}, get: async () => undefined, remove: async () => {} },
+      imageProcessor: {
+        process: async () => {
+          throw new ImageExecutionUncertain("unreachable");
+        },
+      },
+    });
+    await expect(
+      handler(
+        new Request(origin + "/api/auth/profile-photo", {
+          method: "PUT",
+          headers: { Origin: origin, "Content-Type": "image/png" },
+          body: "fixture",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(ImageExecutionUncertain);
+    expect(released).toBe(false);
   });
   it("requires an image processor at composition", () => {
     expect(() => createProfileHandler({} as Parameters<typeof createProfileHandler>[0])).toThrow(

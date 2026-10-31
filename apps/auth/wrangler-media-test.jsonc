@@ -1,0 +1,8 @@
+{
+  "name": "quorem-media-native-test",
+  "main": "src/media-worker-fixture.ts",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "hyperdrive": [{ "binding": "DB", "id": "00000000000000000000000000000000" }],
+  "r2_buckets": [{ "binding": "PROFILE_BUCKET", "bucket_name": "quorem-profile-fixture" }],
+}
