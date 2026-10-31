@@ -4,6 +4,7 @@ mock_provider "restapi" {
 }
 mock_provider "neon" {
   override_during = plan
+  mock_data "neon_branches" { defaults = { branches = [{ id = "br-primary", name = "main", primary = true }] } }
   mock_resource "neon_endpoint" { defaults = { host = "fixture-stage.neon.example" } }
   mock_resource "neon_role" { defaults = { password = "fixture-only" } }
 }
@@ -21,7 +22,7 @@ variables {
 run "isolated_schema_only_branch" {
   command = plan
   assert {
-    condition     = restapi_object.stage_branch.path == "/projects/existing-project-fixture/branches" && jsondecode(restapi_object.stage_branch.data).branch.name == "quorem-hono-stage" && jsondecode(restapi_object.stage_branch.data).branch.init_source == "schema-only" && restapi_object.stage_branch.ignore_all_server_changes
+    condition     = restapi_object.stage_branch.path == "/projects/existing-project-fixture/branches" && jsondecode(restapi_object.stage_branch.data).branch.name == "quorem-hono-stage" && jsondecode(restapi_object.stage_branch.data).branch.init_source == "schema-only" && jsondecode(restapi_object.stage_branch.data).branch.parent_id == "br-primary" && restapi_object.stage_branch.ignore_all_server_changes
     error_message = "A separate schema-only branch must be created in the supplied project."
   }
   assert {
@@ -50,4 +51,21 @@ run "reject_missing_application_secrets" {
   command = plan
   variables { stage_secrets = {} }
   expect_failures = [var.stage_secrets]
+}
+
+run "reject_no_primary" {
+  command = plan
+  override_data {
+    target = data.neon_branches.existing
+    values = { branches = [{ id = "br-other", name = "other", primary = false }] }
+  }
+  expect_failures = [restapi_object.stage_branch]
+}
+run "reject_multiple_primaries" {
+  command = plan
+  override_data {
+    target = data.neon_branches.existing
+    values = { branches = [{ id = "br-one", name = "one", primary = true }, { id = "br-two", name = "two", primary = true }] }
+  }
+  expect_failures = [restapi_object.stage_branch]
 }

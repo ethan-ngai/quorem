@@ -97,12 +97,17 @@ void test(
       });
     try {
       const source = await readFile(join(moduleRoot, "main.tf"), "utf8");
-      await writeFile(
-        join(dir, "main.tf"),
-        source
-          .replace('backend "s3" {}', "")
-          .replace("https://console.neon.tech/api/v2", `http://127.0.0.1:${port}/api/v2`),
-      );
+      const fixture = source
+        .replace('backend "s3" {}', "")
+        .replace(
+          'data "neon_branches" "existing" { project_id = var.project_id }',
+          'variable "fixture_primary" { default = "br-primary" }\nlocals { fixture_branches = [{ id = var.fixture_primary, primary = true }] }',
+        )
+        .replace("data.neon_branches.existing.branches", "local.fixture_branches")
+        .replace("https://console.neon.tech/api/v2", `http://127.0.0.1:${port}/api/v2`);
+      assert.ok(!fixture.includes('data "neon_branches"'));
+      assert.ok(!fixture.includes("https://console.neon.tech"));
+      await writeFile(join(dir, "main.tf"), fixture);
       await cp(join(moduleRoot, ".terraform.lock.hcl"), join(dir, ".terraform.lock.hcl"));
       await mkdir(join(dir, ".terraform"));
       await symlink(join(moduleRoot, ".terraform/providers"), join(dir, ".terraform/providers"));
@@ -119,12 +124,13 @@ void test(
         "plan",
         "-input=false",
         "-detailed-exitcode",
+        "-var=fixture_primary=br-new-primary",
         "-target=restapi_object.stage_branch",
       ]);
       assert.equal(result.code, 0, result.output);
       const post = requests.find((request) => request.method === "POST");
       assert.deepEqual(JSON.parse(post.body), {
-        branch: { name: "quorem-hono-stage", init_source: "schema-only" },
+        branch: { name: "quorem-hono-stage", init_source: "schema-only", parent_id: "br-primary" },
       });
       assert.ok(
         requests.some(

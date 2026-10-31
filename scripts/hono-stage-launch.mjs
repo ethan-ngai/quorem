@@ -15,6 +15,7 @@ import { stageNamespaceReady } from "./hono-stage-ready.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 
 const stageResources = [
+  "data.neon_branches.existing",
   "restapi_object.stage_branch",
   "neon_endpoint.stage",
   "neon_role.stage",
@@ -31,7 +32,7 @@ function providerDiagnostics(text) {
       const resources = stageResources.filter((name) => chunk.includes(name));
       const statuses = [
         ...chunk.matchAll(
-          /\b(?:HTTP(?:\s+status)?|status(?:\s+code)?)\s*[:=]?\s*(400|401|403|404|409|422|429|500|502|503|504)\b/gi,
+          /\b(?:HTTP(?:\s+status)?|status(?:\s+code)?|response\s+code)\s*[:=]?\s*['"]?(400|401|403|404|409|422|423|429|500|502|503|504)\b/gi,
         ),
       ].map((match) => Number(match[1]));
       const codes =
@@ -41,6 +42,11 @@ function providerDiagnostics(text) {
             )
           : [];
       const flags = {
+        schemaOnly: /schema[-_]only|parent[-_]schema/i.test(chunk),
+        parent: /parent_id|parent branch.*required|parent.*not found/i.test(chunk),
+        feature: /not supported|unsupported|not available|not enabled|early access|\bbeta\b/i.test(
+          chunk,
+        ),
         organization: /\b(?:(?:organization|organisation|org)[ -]scoped|org_id)\b/i.test(chunk),
         project: /\bproject[ -]scoped\b/i.test(chunk),
         authentication:
@@ -56,13 +62,24 @@ function providerDiagnostics(text) {
             chunk,
           ),
       };
-      return { resources, statuses: [...new Set(statuses)], codes: [...new Set(codes)], flags };
+      // Neon documents this field as a machine-readable error code, never response prose.
+      const types = [...chunk.matchAll(/"code"\s*:\s*"([A-Za-z][A-Za-z0-9_]{1,79})"/g)].map(
+        (match) => match[1],
+      );
+      return {
+        resources,
+        statuses: [...new Set(statuses)],
+        codes: [...new Set(codes)],
+        types: [...new Set(types)],
+        flags,
+      };
     })
     .filter(
       (item) =>
         item.resources.length ||
         item.statuses.length ||
         item.codes.length ||
+        item.types.length ||
         Object.values(item.flags).some(Boolean),
     );
 }
@@ -188,7 +205,9 @@ export async function launchStage(
       if (
         !allowed.has(change.address) ||
         !Array.isArray(change.change?.actions) ||
-        change.change.actions.some((value) => !["no-op", "create", "read"].includes(value))
+        change.change.actions.some((value) => !["no-op", "create", "read"].includes(value)) ||
+        (change.address.startsWith("data.") &&
+          change.change.actions.some((value) => !["no-op", "read"].includes(value)))
       )
         throw new Error("Bootstrap plan includes unrelated or destructive changes");
     }
