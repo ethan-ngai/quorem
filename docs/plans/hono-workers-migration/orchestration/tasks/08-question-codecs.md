@@ -4,7 +4,7 @@
 
 Model: `gpt-6.1-terra`; reasoning: `medium`. Dispatch only after orchestrator fills [exact assignment](../task-template.md). Implementation authorized for development; production/main promotion remains separately gated.
 
-Prerequisites: [07](./07-question-model.md), [06](./06-db-primitives.md).
+Prerequisites: [07](./07-question-model.md), [03](./03-vectors.md).
 
 Read: [codecs](../../codecs.md); [database](../../database.md).
 
