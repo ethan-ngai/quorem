@@ -1,5 +1,8 @@
 mock_provider "cloudflare" {}
 mock_provider "restapi" {}
+mock_provider "external" {
+  mock_data "external" { defaults = { result = { tag = "" } } }
+}
 variables {
   account_id           = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   zone_id              = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -33,6 +36,11 @@ variables {
 }
 run "isolated_stage" {
   command = plan
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "" } }
+    override_during = plan
+  }
   assert {
     condition     = cloudflare_worker.services.subdomain.enabled == false && length(cloudflare_worker_version.services.containers) == 3 && cloudflare_worker_version.services.migrations.new_tag == "v1"
     error_message = "Private Worker must be isolated, with its own three container classes."
@@ -55,4 +63,26 @@ run "reject_shared_access_token" {
   command = plan
   variables { access_token_ids = { drain = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", verifier = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", case = "cccccccc-cccc-cccc-cccc-cccccccccccc" } }
   expect_failures = [var.access_token_ids]
+}
+
+run "existing_v1_reuses_classes" {
+  command = plan
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v1" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations == null
+    error_message = "An existing v1 Worker must not recreate its Durable Object classes."
+  }
+}
+run "reject_unknown_migration" {
+  command = plan
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v4" } }
+    override_during = plan
+  }
+  expect_failures = [cloudflare_worker_version.services]
 }
