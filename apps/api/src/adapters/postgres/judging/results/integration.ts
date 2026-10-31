@@ -1128,11 +1128,11 @@ void test("classic interview fallback shares verified examples without hiding th
       );
     }),
   );
-  const { backfillSnapshotPublicExamples } =
-    await import("../../interviews/question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } =
+    await import("../../interviews/runner-inputs/legacy-backfill.ts");
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
-      await backfillSnapshotPublicExamples(tx, session, fixtureId);
+      await backfillHistoricalRunnerInput(tx, session, fixtureId);
       const owner = { session, fixture: fixtureId };
       await indexRunnerFixture(tx, owner, fixture);
       await bindJobInputs(tx, {
@@ -1206,4 +1206,116 @@ void test("classic interview fallback shares verified examples without hiding th
   assert.equal(result.publicCases[0].expected, 2);
   assert.equal(result.privateCaseResults[0].caseId, "example:0");
   assert.equal(result.privateCaseResults[0].case.expected, 2);
+  // Exercise the promoted sample through the current Odyssey snapshot transport.
+  const { interviewSnapshotStream } = await import("../../interviews/question/stream.ts");
+  const question = {
+    problem: {
+      id: version,
+      title: "Feedback",
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      odyssey: { levels: [{ title: "One", statementMarkdown: "One", methods: [] }] },
+    },
+  };
+  await pool.query("UPDATE interviews SET question=$2::jsonb WHERE id=$1", [
+    session,
+    JSON.stringify(question),
+  ]);
+  await pool.query(
+    "INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) VALUES($1,$2,0,convert_to('[]','UTF8')),($1,$2,1,convert_to('[]','UTF8'))",
+    [session, epoch],
+  );
+  const snapshot = interviewSnapshotStream(run);
+  for (const actor of [host, alice]) {
+    const value = JSON.parse(await new Response(await snapshot(actor, session)).text());
+    assert.deepEqual(value.question.progress.caseStatuses, [{ index: 0, status: "accepted" }]);
+  }
+});
+void test("status backfill scans retained case pages and preserves case index and NUL", async () => {
+  const { backfillOnePublicStatus } = await import("./status-backfill.ts");
+  const { evaluatedStatusPlan, nextEvaluatedStatus, evaluatedStatusPage } =
+    await import("./evaluated-status.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,odyssey_level) VALUES($1,'results-alice',$2,'run','','status-backfill','running','[]',1)",
+    [id, workspace],
+  );
+  await pool.query(
+    "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+    [id, Buffer.from('{"publicCasesPresent":true,"publicCaseCount":1,"channel":"public"}')],
+  );
+  await pool.query(
+    `INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT $1,'public',0,convert_to('{"index":7,"status":"wrong\\u0000answer","actual":"'||repeat('x',2097152)||'"}','UTF8')`,
+    [id],
+  );
+  await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
+  const read = () =>
+    run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 5000, lockTimeoutMs: 1000, isolation: "repeatable read" },
+        async (tx) => {
+          const criteria = {
+            kind: "workspace" as const,
+            workspaceId: workspace,
+            owner: "results-alice",
+          };
+          const plan = await evaluatedStatusPlan(tx, criteria),
+            row = await nextEvaluatedStatus(tx, criteria, -1);
+          if (!row) return [];
+          assert.equal(plan.count, 1);
+          return [
+            {
+              index: row.index,
+              status: JSON.parse(new TextDecoder().decode(await evaluatedStatusPage(tx, row, 0))),
+            },
+          ];
+        },
+      ),
+    );
+  await assert.rejects(read(), /require backfill/);
+  assert.equal(
+    await operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePublicStatus(tx, id),
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    await operatorRun((scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillOnePublicStatus(tx, id),
+      ),
+    ),
+    false,
+  );
+  const statuses = await read();
+  assert.deepEqual(statuses, [{ index: 7, status: "wrong\u0000answer" }]);
+  const plan = () =>
+    run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 5000, lockTimeoutMs: 1000, isolation: "repeatable read" },
+        (tx) =>
+          evaluatedStatusPlan(tx, {
+            kind: "workspace",
+            workspaceId: workspace,
+            owner: "results-alice",
+          }),
+      ),
+    );
+  const before = await plan();
+  await pool.query("UPDATE submissions SET result=result WHERE id=$1", [id]);
+  const after = await plan();
+  assert.equal(after.count, before.count);
+  assert.notEqual(after.digest, before.digest);
+  await assert.rejects(
+    pool.query("UPDATE submission_public_case_statuses SET status_json=$2 WHERE submission_id=$1", [
+      id,
+      Buffer.from('"accepted"'),
+    ]),
+    /immutable/,
+  );
+  await assert.rejects(
+    pool.query("DELETE FROM submission_public_case_statuses WHERE submission_id=$1", [id]),
+    /immutable/,
+  );
 });

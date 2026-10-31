@@ -179,4 +179,12 @@ export async function writeLegacyCase(
   );
   if (!result.rows[0]?.valid) throw new Error("Invalid legacy case");
   if (!result.rows[0]?.ok) throw new LegacyCaseConflict("Conflicting legacy case");
+  if (channel !== "private") {
+    const status = raw(item.fields.get("status")!),
+      index = text(item.fields.get("index")!);
+    const stored = await tx.execute<{ ok: boolean }>(
+      sql`WITH source AS (${source}), input AS (SELECT ${status} AS value FROM source), inserted AS (INSERT INTO submission_public_case_statuses(submission_id,channel,ordinal,case_index,status_json,status_hash) SELECT ${id}::uuid,${channel},${ordinal},${index}::integer,value,sha256(value) FROM input,source ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM inserted) OR EXISTS(SELECT 1 FROM submission_public_case_statuses s,input,source WHERE s.submission_id=${id}::uuid AND s.channel=${channel} AND s.ordinal=${ordinal} AND s.status_json=input.value AND s.case_index=${index}::integer) AS ok`,
+    );
+    if (!stored.rows[0]?.ok) throw new LegacyCaseConflict("Conflicting legacy case status");
+  }
 }
