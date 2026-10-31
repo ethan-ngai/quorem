@@ -7,7 +7,7 @@ export default defineConfig({
       miniflare: {
         compatibilityDate: "2026-10-23",
         compatibilityFlags: ["nodejs_compat"],
-        durableObjects: { TEST_CASES: "CaseSandbox" },
+        durableObjects: { TEST_CASES: "CaseSandbox", TEST_RUNNERS: "RunnerService" },
         bindings: { CASE_DIAGNOSTICS: "true" },
       },
     }),

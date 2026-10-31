@@ -100,13 +100,21 @@ test("private ingress pins capability host, method, bearer and strips Access sec
     }),
     { namespace: secret("1") },
   );
+  assert.equal(
+    (await call(env.DRAIN_ORIGIN, "/internal/pause", env.QUOREM_RUNNER_DRAIN_SECRET)).status,
+    204,
+  );
+  assert.equal(
+    (await call(env.DRAIN_ORIGIN, "/internal/pause", env.QUOREM_CASE_SECRET)).status,
+    404,
+  );
   env.QUOREM_CASE_NAMESPACE_ID = secret("2");
   assert.equal(
     (await call(env.DRAIN_ORIGIN, "/internal/drain", env.QUOREM_RUNNER_DRAIN_SECRET)).status,
     503,
   );
   env.QUOREM_CASE_NAMESPACE_ID = secret("1");
-  assert.equal(seen.length, 2);
+  assert.equal(seen.length, 3);
   for (const request of seen) {
     assert.equal(request.headers.get("cf-access-client-secret"), null);
     assert.equal(request.headers.get("cf-access-client-id"), null);
@@ -183,7 +191,10 @@ test("service lifecycle starts once and forwards only the intended request", asy
       };
     },
   };
-  const service = new RunnerService({ container, waitUntil() {} }, env);
+  const service = new RunnerService(
+    { container, storage: { async get() {} }, waitUntil() {} },
+    env,
+  );
   const request = () =>
     new Request(`${env.DRAIN_ORIGIN}/internal/drain`, {
       method: "POST",
@@ -546,4 +557,23 @@ test("image ingress and authenticated local readiness are isolated", async () =>
     "IMAGE_SERVICE_TOKEN",
     "IMAGE_SERVICE_TRANSPORT",
   ]);
+});
+
+test("runner pause persists across instances and rejects subsequent drains", async () => {
+  const env = base(),
+    state = new Map();
+  const storage = {
+    async get(key) {
+      return state.get(key);
+    },
+    async put(key, value) {
+      state.set(key, value);
+    },
+  };
+  const context = { storage, container: {}, waitUntil() {} };
+  const pause = () => new Request(`${env.DRAIN_ORIGIN}/internal/pause`, { method: "POST" });
+  const drain = () => new Request(`${env.DRAIN_ORIGIN}/internal/drain`, { method: "POST" });
+  assert.equal((await new RunnerService(context, env).fetch(pause())).status, 204);
+  assert.equal((await new RunnerService(context, env).fetch(drain())).status, 503);
+  assert.equal((await new RunnerService(context, env).fetch(pause())).status, 204);
 });
