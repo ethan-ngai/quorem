@@ -236,7 +236,7 @@ jobs:
       - name: Staged orchestration and private service contracts
         run: |
           node scripts/hono-stage-validation.mjs
-          node scripts/hono-profile-cutover-validation.mjs
+          node scripts/hono-recovery-validation.mjs
           node --import ./deploy/test-register.mjs --test deploy/hono/services/*.test.mjs
       - name: Isolated Terraform module contracts
         run: |
