@@ -27,6 +27,7 @@ import { releaseQueue, setQueue } from "./hono-stage-deploy-queue.mjs";
 import { verifyNoAlternateIngress } from "./hono-stage-deploy-subdomains.mjs";
 import { runStageWorkload } from "./hono-stage-workload.mjs";
 import { provisionStageGenesis } from "./hono-stage-genesis.mjs";
+import { requireInitializableStageDatabase } from "./hono-stage-initialization.mjs";
 
 const commonNames = [
   "PATH",
@@ -177,7 +178,13 @@ function remoteProof(env) {
 const defaults = {
   freshness: requireFreshStageResources,
   roleConfig: stageRoleCredentials,
-  fresh: requireFreshStageDatabase,
+  fresh: (env) => {
+    const resume = env.HONO_STAGE_INITIALIZATION_RESUME ?? "false";
+    if (!["true", "false"].includes(resume)) throw new Error("Invalid initialization opt-in");
+    return resume === "true"
+      ? requireInitializableStageDatabase(env)
+      : requireFreshStageDatabase(env);
+  },
   migrate,
   databaseRole: provisionStageDatabaseRole,
   images: publishImages,
@@ -287,7 +294,7 @@ export async function deployStage(original, operations = defaults) {
   const freshResources = await operations.freshness(original);
   operations.roleConfig(original);
   operations.phase?.("check-stage-database");
-  await operations.fresh(original);
+  const initialDatabase = await operations.fresh(original);
   const env = {
     ...original,
     TF_VAR_database_user: deriveStageRole(original.HONO_RELEASE_SHA, "1"),
@@ -441,7 +448,7 @@ export async function deployStage(original, operations = defaults) {
     const workloadAfter = await controlClient.requireActive(1);
     receipt = {
       release: env.HONO_RELEASE_SHA,
-      database: "fresh",
+      database: initialDatabase?.kind ?? "fresh",
       freshResources,
       controls: controlReceipt,
       genesis,

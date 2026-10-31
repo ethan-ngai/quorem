@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 import { deriveStageRole, rehearseStageRole } from "./hono-stage-database-role.mjs";
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { runStageCommand } from "./hono-stage-launch.mjs";
+import {
+  requireInitializableStageDatabase,
+  StageInitializationFailure,
+} from "./hono-stage-initialization.mjs";
 
 export async function diagnoseStageRole(client, role) {
   if (!/^quorem_stage_runtime_[a-f0-9]{32}$/.test(role)) throw new Error("Invalid runtime role");
@@ -154,14 +158,30 @@ export async function inspectStageRole(env) {
         child,
       );
   }
+  let closed = false;
   try {
     await client.connect();
     const before = await diagnoseStageRole(client, role);
-    if (action === "diagnose") return before;
+    if (action === "diagnose") {
+      await client.end();
+      closed = true;
+      let initialization;
+      try {
+        initialization = await requireInitializableStageDatabase({
+          HONO_STAGE_DATABASE_URL: url.href,
+          TF_VAR_database_host: url.hostname,
+          TF_VAR_database_port: url.port || "5432",
+        });
+      } catch (error) {
+        if (!(error instanceof StageInitializationFailure)) throw error;
+        initialization = { refused: error.reason };
+      }
+      return { ...before, initialization };
+    }
     const rehearsal = await rehearseStageRole(client, role, password);
     return { before, rehearsal, after: await diagnoseStageRole(client, role) };
   } finally {
-    await client.end().catch(() => {});
+    if (!closed) await client.end().catch(() => {});
   }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
