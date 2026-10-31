@@ -8,6 +8,7 @@ import { developmentIdentity } from "../../identity/repository.ts";
 import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { cloudflareCoordinator } from "../../../scheduling/cloudflare.ts";
 import { matchLifecycleRoutes } from "../../../../modules/matches/lifecycle/routes.ts";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { matchLifecycle } from "./repository.ts";
 it("serves real lifecycle commands with a durable prearmed deadline", async () => {
   const bindings = env as unknown as {
@@ -17,12 +18,7 @@ it("serves real lifecycle commands with a durable prearmed deadline", async () =
       get(id: unknown): { wake(n: number): Promise<void> };
     };
   };
-  const url = new URL(bindings.MATCH_LIFECYCLE_URL);
-  expect([url.hostname, url.port, url.pathname]).toEqual([
-    "127.0.0.1",
-    "55467",
-    "/quorem_hono_lifecycle_test",
-  ]);
+  assertRunnerFixture(bindings.MATCH_LIFECYCLE_URL, ["/quorem_hono_lifecycle_test"]);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(
       bindings.MATCH_LIFECYCLE_URL,
@@ -76,6 +72,7 @@ it("serializes simultaneous ready requests in workerd", async () => {
       get(id: unknown): { wake(n: number): Promise<void> };
     };
   };
+  assertRunnerFixture(bindings.MATCH_LIFECYCLE_URL, ["/quorem_hono_lifecycle_test"]);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(
       bindings.MATCH_LIFECYCLE_URL,
