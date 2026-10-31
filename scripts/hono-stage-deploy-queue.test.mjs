@@ -1,4 +1,6 @@
 import { test } from "node:test";
+import { existsSync, statSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import assert from "node:assert/strict";
 import { releaseQueue, setQueue } from "./hono-stage-deploy-queue.mjs";
 const env = () => ({
@@ -118,4 +120,95 @@ void test("profile proof is mandatory before attaching queue when enabled", asyn
     change: async (_, enabled) => calls.push(enabled),
   });
   assert.deepEqual(calls, ["manual", "ingress", "profile", true, "queue"]);
+});
+
+void test("applies only a validated saved consumer plan and removes its private file", () => {
+  for (const enabled of [true, false]) {
+    let planPath,
+      applied = false;
+    const calls = [];
+    setQueue(env(), enabled, (_, args) => {
+      calls.push(args);
+      if (args[1] === "plan") {
+        assert.ok(args.includes("-target=cloudflare_queue_consumer.execution"));
+        planPath = args.find((arg) => arg.startsWith("-out=")).slice(5);
+        writeFileSync(planPath, "private plan");
+        assert.equal(statSync(dirname(planPath)).mode & 0o777, 0o700);
+        return { status: 0, stdout: "" };
+      }
+      if (args[1] === "show") {
+        assert.equal(statSync(planPath).mode & 0o777, 0o600);
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            resource_changes: [
+              {
+                address: "cloudflare_queue_consumer.execution[0]",
+                change: { actions: [enabled ? "create" : "delete"] },
+              },
+              { address: "cloudflare_queue.execution", change: { actions: ["no-op"] } },
+            ],
+            planned_values: {
+              root_module: {
+                resources: enabled
+                  ? [{ address: "cloudflare_queue_consumer.execution[0]", mode: "managed" }]
+                  : [],
+              },
+            },
+          }),
+        };
+      }
+      assert.equal(args[1], "apply");
+      assert.equal(args.at(-1), planPath);
+      applied = true;
+      return { status: 0, stdout: "" };
+    });
+    assert.equal(applied, true);
+    assert.equal(existsSync(planPath), false);
+    assert.deepEqual(
+      calls.map((args) => args[1]),
+      ["plan", "show", "apply"],
+    );
+  }
+});
+void test("rejects dependency mutation, malformed plans and unreviewed replacement", () => {
+  for (const change of [
+    { address: "cloudflare_hyperdrive_config.database", change: { actions: ["update"] } },
+    { address: "cloudflare_queue.execution", change: { actions: ["update"] } },
+    {
+      address: "cloudflare_queue_consumer.execution[0]",
+      change: { actions: ["delete", "create"] },
+    },
+    { address: "cloudflare_queue_consumer.execution[0]", change: {} },
+  ]) {
+    let planPath,
+      applied = false;
+    assert.throws(() =>
+      setQueue(env(), true, (_, args) => {
+        if (args[1] === "plan") {
+          planPath = args.find((arg) => arg.startsWith("-out=")).slice(5);
+          writeFileSync(planPath, "fixture");
+          return { status: 0 };
+        }
+        if (args[1] === "show")
+          return {
+            status: 0,
+            stdout: JSON.stringify({
+              resource_changes: [change],
+              planned_values: {
+                root_module: {
+                  resources: [
+                    { address: "cloudflare_queue_consumer.execution[0]", mode: "managed" },
+                  ],
+                },
+              },
+            }),
+          };
+        applied = true;
+        return { status: 0 };
+      }),
+    );
+    assert.equal(applied, false);
+    assert.equal(existsSync(planPath), false);
+  }
 });
