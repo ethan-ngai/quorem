@@ -39,13 +39,14 @@ describe("prearmed execution admission", () => {
     ).resolves.toBe(7);
     expect(calls).toEqual(["receipt", "prearm", "prewake", "commit", "wake"]);
     calls.length = 0;
+    const cause = new Error("offline");
     await expect(
       admitWithRecovery({
         receipts,
         coordinator,
         publisher: {
           send: async () => {
-            throw new Error("offline");
+            throw cause;
           },
         },
         shard: 1,
@@ -53,7 +54,12 @@ describe("prearmed execution admission", () => {
           calls.push("commit");
         },
       }),
-    ).rejects.toThrow("offline");
+    ).rejects.toMatchObject({
+      code: "temporarily_unavailable",
+      status: 503,
+      message: "Judge unavailable",
+      cause,
+    });
     expect(calls).toEqual(["receipt", "prearm"]);
   });
   it("bounds a stalled prewake without opening the transaction", async () => {
@@ -82,6 +88,26 @@ describe("prearmed execution admission", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+  it("preserves authorization errors from commit", async () => {
+    const { ApplicationError } = await import("../../../application/error.ts");
+    const denied = new ApplicationError("forbidden", "Denied", 403);
+    await expect(
+      admitWithRecovery({
+        receipts: {
+          create: async () => {},
+          settle: async () => "pending",
+          acknowledge: async () => {},
+          list: async () => [],
+        },
+        coordinator: { prearm: async () => {}, wake: async () => {} },
+        publisher: { send: async () => {} },
+        shard: 0,
+        commit: async () => {
+          throw denied;
+        },
+      }),
+    ).rejects.toBe(denied);
   });
   it("does not replay an uncertain commit", async () => {
     let attempts = 0;
