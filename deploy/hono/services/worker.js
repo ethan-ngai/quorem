@@ -2,7 +2,10 @@
 import { DurableObject } from "cloudflare:workers";
 import { ContainerLifecycle } from "../../container.js";
 import { caseRequest } from "../../case-service.js";
-import { signedCaseProbe } from "../../case-proof.js";
+import { signedCaseProbe, validRunnerControlState } from "../../case-proof.js";
+import { controlRequest, readControlJson } from "./control-http.js";
+export { CaseControl } from "./case-control.js";
+export { RunnerReleaseControl } from "./runner-control.js";
 export { CaseSandbox } from "../../case-sandbox.js";
 
 const runnerKeys = [
@@ -31,10 +34,18 @@ function selected(env, keys) {
   );
 }
 function config(env) {
+  if (
+    !/^[a-f0-9]{40}$/.test(env.SERVICES_RELEASE ?? "") ||
+    !/^[a-f0-9]{64}$/.test(env.SERVICES_BINDINGS ?? "") ||
+    !/^[1-9][0-9]{0,15}$/.test(env.SERVICES_GENERATION ?? "") ||
+    !Number.isSafeInteger(Number(env.SERVICES_GENERATION))
+  )
+    throw new Error("Invalid release authority");
   const imageEnabled = env.IMAGE_SERVICE_ENABLED === "true";
   if (env.IMAGE_SERVICE_ENABLED && !["true", "false"].includes(env.IMAGE_SERVICE_ENABLED))
     throw new Error("Invalid image configuration");
   const secrets = [
+    env.RECOVERY_CONTROL_SECRET,
     env.QUOREM_RUNNER_COMMAND_SECRET,
     env.QUOREM_RUNNER_DRAIN_SECRET,
     env.QUOREM_CASE_SECRET,
@@ -191,7 +202,60 @@ export default {
     try {
       const [drain, verifier, cases, image] = config(env),
         url = new URL(request.url);
-      if (url.search || url.hash) return new Response(null, { status: 404 });
+      if (url.hash) return new Response(null, { status: 404 });
+      const caseControl =
+        url.origin === cases &&
+        url.pathname.match(
+          /^\/internal\/control\/case\/(initialize|activate|pause|state|inventory)$/,
+        )?.[1];
+      const runnerControl =
+        url.origin === drain &&
+        url.pathname.match(
+          /^\/internal\/control\/runner\/(prepare|activate|pause|state|history)$/,
+        )?.[1];
+      if (caseControl || runnerControl) {
+        const operation = caseControl || runnerControl;
+        const reading = ["state", "inventory", "history"].includes(operation);
+        if (
+          request.headers.get("authorization") !== `Bearer ${env.RECOVERY_CONTROL_SECRET}` ||
+          request.method !== (reading ? "GET" : "POST")
+        )
+          return new Response(null, { status: 404 });
+        const bound = await caseScope(env);
+        if (bound.namespace !== env.QUOREM_CASE_NAMESPACE_ID || bound.namespace === "0".repeat(64))
+          return new Response(null, { status: 503 });
+        if (
+          (caseControl || (runnerControl && operation === "state")) &&
+          (request.headers.get("x-quorem-owner-scope") !== bound.scope ||
+            !/^[a-f0-9-]{36}$/.test(request.headers.get("x-quorem-owner-nonce") ?? ""))
+        )
+          return new Response(null, { status: 404 });
+        const target = new URL(
+          `https://${caseControl ? "case" : "runner"}-control.internal/${operation}`,
+        );
+        target.search = url.search;
+        const control = caseControl
+          ? env.CASE_CONTROL.getByName("case-control")
+          : env.RUNNER_CONTROL.getByName("runner-control");
+        const response = await control.fetch(await controlRequest(request, target));
+        if (runnerControl && operation === "state") {
+          if (response.status !== 200) {
+            await response.body?.cancel();
+            return new Response(null, { status: 503 });
+          }
+          const value = await readControlJson(response, 1024);
+          if (!validRunnerControlState(value)) return new Response(null, { status: 503 });
+          return await signedCaseProbe(env, {
+            kind: "runner-control-state",
+            scope: bound.scope,
+            attempt: "runner-control",
+            nonce: request.headers.get("x-quorem-owner-nonce"),
+            value,
+          });
+        }
+        return response;
+      }
+      if (url.search) return new Response(null, { status: 404 });
       if (
         image &&
         url.origin === image &&
@@ -227,7 +291,29 @@ export default {
           env.QUOREM_CASE_NAMESPACE_ID
         )
           return new Response(null, { status: 503 });
-        return env.RUNNERS.getByName("runner").fetch(clean(request));
+        const generation = Number(env.SERVICES_GENERATION);
+        const expectedRunner = `runner:${env.SERVICES_RELEASE}:${generation}`;
+        if (url.pathname === "/internal/pause")
+          return env.RUNNERS.getByName(expectedRunner).fetch(clean(request));
+        const gate = await env.RUNNER_CONTROL.getByName("runner-control").fetch(
+          new Request("https://runner-control.internal/gate", {
+            method: "POST",
+            body: JSON.stringify({ generation, release: env.SERVICES_RELEASE }),
+          }),
+        );
+        if (gate.status !== 200) {
+          await gate.body?.cancel();
+          return new Response(null, { status: 503 });
+        }
+        const allowed = await gate.json();
+        if (
+          allowed.generation !== generation ||
+          allowed.release !== env.SERVICES_RELEASE ||
+          allowed.bindings !== env.SERVICES_BINDINGS ||
+          allowed.runner !== expectedRunner
+        )
+          return new Response(null, { status: 503 });
+        return env.RUNNERS.getByName(expectedRunner).fetch(clean(request));
       }
       if (
         url.origin === verifier &&
@@ -269,6 +355,22 @@ export default {
             request.headers.get("x-quorem-owner-scope") !== bound.scope
           )
             return new Response(null, { status: request.method === "GET" ? 404 : 503 });
+        }
+        if (request.method === "POST") {
+          if (request.headers.get("authorization") !== `Bearer ${env.QUOREM_CASE_SECRET}`)
+            return new Response(null, { status: 404 });
+          const registered = await env.CASE_CONTROL.getByName("case-control").fetch(
+            new Request("https://case-control.internal/register", {
+              method: "POST",
+              body: JSON.stringify({
+                attempt,
+                generation: Number(env.SERVICES_GENERATION),
+                release: env.SERVICES_RELEASE,
+              }),
+            }),
+          );
+          await registered.body?.cancel();
+          if (registered.status !== 204) return new Response(null, { status: 503 });
         }
         return caseRequest(request, env, attempt, env.QUOREM_CASE_SECRET);
       }

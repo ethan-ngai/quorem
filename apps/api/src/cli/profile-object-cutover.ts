@@ -9,6 +9,7 @@ import { profileObjectS3 } from "../../../auth/src/adapters/profile-object-s3.ts
 import { s3ProfileStorage } from "../../../auth/src/adapters/s3-profile-storage.ts";
 import { copyProfilePhotoPage } from "../../../auth/src/profile-object-cutover.ts";
 import { verifiedOperator } from "./operator-backfill.ts";
+import { operatorDatabaseIdentity } from "./operator-database.ts";
 
 export function profileObjectEndpoint(endpoint: string): URL {
   const url = new URL(endpoint);
@@ -42,24 +43,6 @@ function store(prefix: "SOURCE" | "DESTINATION") {
       ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
     },
   };
-}
-/** Explicit TLS and routing prevent a resume cursor crossing databases. */
-export function cutoverDatabaseIdentity(value: string): readonly string[] {
-  const url = new URL(value);
-  const params = [...url.searchParams.entries()];
-  const local = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
-  if (
-    !["postgres:", "postgresql:"].includes(url.protocol) ||
-    !url.hostname ||
-    !url.pathname ||
-    url.pathname === "/" ||
-    url.hash ||
-    params.length !== 1 ||
-    params[0][0] !== "sslmode" ||
-    !["verify-full", ...(local ? ["disable"] : [])].includes(params[0][1])
-  )
-    throw new Error("Operator database requires explicit safe routing and TLS");
-  return [url.protocol, url.hostname, url.port || "5432", url.pathname, params[0][1]];
 }
 export async function profileObjectCutover(args: string[]) {
   const { values } = parseArgs({
@@ -95,7 +78,7 @@ export async function profileObjectCutover(args: string[]) {
     destination = store("DESTINATION");
   if (source.bucket === destination.bucket && source.endpoint === destination.endpoint)
     throw new Error("Source and destination must differ");
-  const databaseIdentity = cutoverDatabaseIdentity(database);
+  const databaseIdentity = operatorDatabaseIdentity(database);
   const fingerprint = createHash("sha256")
     .update(
       JSON.stringify([

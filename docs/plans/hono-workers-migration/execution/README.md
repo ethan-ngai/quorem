@@ -60,7 +60,7 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 | 30a/30b/30c | Local committed | `9377130d` stack, [#399](https://github.com/ethan-ngai/quorem/issues/399); bounded socket notices/document pages and shared browser receipt credit; authorized HTTP snapshot/status streams |
 | 31 | Local committed | `14a9e506`, [#403](https://github.com/ethan-ngai/quorem/issues/403); real Node WebSocket/PG replicas, live authorization and shared protocol |
 | 32 | Local committed | `cc1a9191`, [#404](https://github.com/ethan-ngai/quorem/issues/404); actual workerd DO/PG opaque grants, quotas, revocation and receipt pressure; mandatory local managed hibernation passed in 35a; hosted behavior remains unverified |
-| 35a | Draft review | [#415](https://github.com/ethan-ngai/quorem/pull/415); composed Node/Worker runtime, per-aggregate DO routing, mandatory managed hibernation, trusted peer attribution, scheduled repair and two-instance fanout proved locally |
+| 35a | Integrated | [#415](https://github.com/ethan-ngai/quorem/pull/415); composed Node/Worker runtime, per-aggregate DO routing, mandatory managed hibernation, trusted peer attribution, scheduled repair and two-instance fanout proved locally |
 | 35b | Local committed | [#418](https://github.com/ethan-ngai/quorem/pull/418); staged Terraform, Access ingress and native artifacts now included in 415 review stack; no apply/deploy |
 | 36a | Local committed | `9c374b72`, [#413](https://github.com/ethan-ngai/quorem/issues/413); executable verifier and fenced HTTP/continuous runner; actual spawned-process Docker promotion and SIGTERM teardown |
 | 36b | Local committed | `04d57ea1`, [#417](https://github.com/ethan-ngai/quorem/issues/417); real staged runner/verifier containers, trusted host daemon, signed promotion, competing startup, held-fence refusal and SIGTERM teardown; local topology only |
@@ -98,7 +98,7 @@ Socket integration decision: WebSockets carry bounded invalidations and document
 
 ## Current integration checkpoint
 
-`feat/hono-migration` at `5a3e0196` includes media #396, admission #397, result streaming #400 and CLI #406 after their exact-head checks. Later packets are assembled in draft [#415](https://github.com/ethan-ngai/quorem/pull/415), not yet merged into the integration branch. Root owns integration; dev/main remain untouched.
+`feat/hono-migration` at `d327e4c1` includes [#415](https://github.com/ethan-ngai/quorem/pull/415), merged after exact-head CI [41226036650](https://github.com/ethan-ngai/quorem/actions/runs/41226036650) passed. Packets 20–37 listed above as local/review are now integrated through that PR; their individual reports record evidence at implementation time. Recovery work remains separate on `feat/hono-recovery-control`. Root owns integration; dev/main remain untouched.
 
 The current review tree includes private image hosting, Vite cache isolation, match presence repair and public interview Run promotion. API typecheck, private service contracts 6/6 and actual Sharp image processing 1/1 passed after integration. CI run `41223310928` passed exact head `d873a24c`; subsequent recovery/data changes still require exact-head CI.
 
@@ -121,3 +121,9 @@ CI is exposing older standalone fixtures that predate sealed inputs; fix their c
 The shared [stage contract validator](../../../../scripts/hono-stage-validation.mjs) starts and removes only its own disposable PostgreSQL container; it ran 58/58 contracts without skips before the inventory addition. Normal PR CI now includes staged orchestration, private service images/contracts and both Terraform modules. Exact-head CI for the latest combined tree is still required; the earlier run is not evidence for subsequent commits.
 
 The combined stage validator subsequently passed 62 contracts without skips, including an actual non-owner Better Auth → JWT → Hono admission → Drizzle claim → protected inventory path. Provisioning checks separate SHA-bound runtime credentials, generates a PostgreSQL SCRAM verifier client-side, denies ledger/inventory/DDL/ownership privileges and precedes Hyperdrive application. Local schema/privilege evidence does not establish managed-provider permissions. Full affected Go PostgreSQL adapter/worker suites and six HTTP/socket regressions passed after replacing legacy unscoped test claims; production Go already uses engine-derived scopes. Migration 062 still requires older unscoped writers to drain.
+
+## Resumed completion scope
+
+Finish the existing port; freeze new abstractions. Recovery validation now requires real workerd controls, migration provenance, checksummed ledgers and avatar-copy fixtures without skipped tests. Signed proof capture uses one bounded read; oversized responses cannot strand a cloned stream.
+
+Next: integrate queue-only deployment protection; pass combined checks and exact-head CI; resolve concrete API/consumer parity findings. Hosted validation requires GitHub staging environment configuration (none existed at the resumed check), provider setup and actual deployment evidence. Full maintenance/resume orchestration, production backfill/rollback and Go retirement remain open under #432. These are release gates, not reasons to add optional cache/search features.

@@ -1,29 +1,282 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateKeyPairSync, randomUUID, createHash } from "node:crypto";
-import { verifyCaseProbe } from "../../case-proof.js";
+import { signedCaseProbe, verifyCaseProbe } from "../../case-proof.js";
 import { CaseSandbox } from "../../case-sandbox.js";
 import worker, { ImageService, RunnerService, VerifierService } from "./worker.js";
 const secret = (value) => value.repeat(64);
-const base = () => ({
-  DRAIN_ORIGIN: "https://runner-stage.example.test",
-  VERIFIER_ORIGIN: "https://verify-stage.example.test",
-  CASE_ORIGIN: "https://case-stage.example.test",
-  QUOREM_CASE_ORIGIN: "https://case-stage.example.test",
-  QUOREM_RUNNER_COMMAND_SECRET: secret("a"),
-  QUOREM_RUNNER_DRAIN_SECRET: secret("b"),
-  QUOREM_CASE_SECRET: secret("c"),
-  QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
-  QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
-  RUNNER_API_ACCESS_CLIENT_ID: "runner-id",
-  RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
-  VERIFIER_API_ACCESS_CLIENT_ID: "verifier-id",
-  VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
-  QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
-  QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
-  QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: "public key",
-  QUOREM_VERIFICATION_SIGNING_KEY_PEM: "private key",
-  CASE_OWNER_PRIVATE_KEY: "case private key",
+const base = () => {
+  const env = {
+    DRAIN_ORIGIN: "https://runner-stage.example.test",
+    VERIFIER_ORIGIN: "https://verify-stage.example.test",
+    CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_RUNNER_COMMAND_SECRET: secret("a"),
+    QUOREM_RUNNER_DRAIN_SECRET: secret("b"),
+    QUOREM_CASE_SECRET: secret("c"),
+    QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
+    QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
+    RUNNER_API_ACCESS_CLIENT_ID: "runner-id",
+    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
+    VERIFIER_API_ACCESS_CLIENT_ID: "verifier-id",
+    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
+    QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
+    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
+    QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: "public key",
+    QUOREM_VERIFICATION_SIGNING_KEY_PEM: "private key",
+    CASE_OWNER_PRIVATE_KEY: "case private key",
+    RECOVERY_CONTROL_SECRET: secret("r"),
+    SERVICES_RELEASE: "a".repeat(40),
+    SERVICES_GENERATION: "1",
+    SERVICES_BINDINGS: secret("9"),
+  };
+  env.RUNNER_CONTROL = {
+    getByName: () => ({
+      fetch: async () =>
+        Response.json({
+          generation: 1,
+          release: env.SERVICES_RELEASE,
+          bindings: env.SERVICES_BINDINGS,
+          runner: `runner:${env.SERVICES_RELEASE}:1`,
+        }),
+    }),
+  };
+  env.CASE_CONTROL = {
+    getByName: () => ({ fetch: async () => new Response(null, { status: 204 }) }),
+  };
+  return env;
+};
+void test("control authority gates drains and registers authorized case attempts first", async () => {
+  const env = base(),
+    keys = generateKeyPairSync("ed25519"),
+    namespace = secret("1"),
+    events = [];
+  env.QUOREM_CASE_NAMESPACE_ID = namespace;
+  env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM = keys.publicKey.export({ type: "spki", format: "pem" });
+  env.CASE_OWNER_PRIVATE_KEY = keys.privateKey
+    .export({ type: "pkcs8", format: "der" })
+    .toString("base64");
+  const fingerprint = createHash("sha256")
+    .update(keys.publicKey.export({ type: "spki", format: "der" }))
+    .digest("hex");
+  const scope = `remote:${createHash("sha256")
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
+    .digest("hex")}`;
+  let gate = true,
+    registered = true,
+    gateBindings = env.SERVICES_BINDINGS,
+    gateGeneration = 1,
+    gateRelease = env.SERVICES_RELEASE,
+    gateRunner = `runner:${env.SERVICES_RELEASE}:1`;
+  env.RUNNER_CONTROL = {
+    getByName: (name) => {
+      assert.equal(name, "runner-control");
+      return {
+        fetch: async (request) => {
+          assert.equal(request.headers.get("authorization"), null);
+          assert.equal(request.headers.get("cf-access-client-secret"), null);
+          events.push(`gate:${new URL(request.url).pathname}`);
+          if (new URL(request.url).pathname === "/state")
+            return Response.json({
+              generation: 1,
+              status: "active",
+              release: env.SERVICES_RELEASE,
+              bindings: env.SERVICES_BINDINGS,
+            });
+          return gate
+            ? Response.json({
+                generation: gateGeneration,
+                release: gateRelease,
+                bindings: gateBindings,
+                runner: gateRunner,
+              })
+            : new Response(null, { status: 503 });
+        },
+      };
+    },
+  };
+  env.RUNNERS = {
+    getByName: (name) => {
+      assert.equal(name, `runner:${env.SERVICES_RELEASE}:1`);
+      return {
+        fetch: async () => {
+          events.push("drain");
+          return new Response(null, { status: 204 });
+        },
+      };
+    },
+  };
+  env.CASE_CONTROL = {
+    getByName: (name) => {
+      assert.equal(name, "case-control");
+      return {
+        fetch: async (request) => {
+          assert.equal(request.headers.get("authorization"), null);
+          assert.equal(request.headers.get("cf-access-client-secret"), null);
+          events.push(`control:${new URL(request.url).pathname}`);
+          if (new URL(request.url).pathname === "/register")
+            assert.deepEqual(await request.json(), {
+              attempt: "one",
+              generation: 1,
+              release: env.SERVICES_RELEASE,
+            });
+          return new Response(null, { status: registered ? 204 : 503 });
+        },
+      };
+    },
+  };
+  env.CASES = {
+    idFromName: () => namespace,
+    getByName: () => ({
+      fetch: async () => {
+        events.push("case");
+        return new Response("ok");
+      },
+    }),
+  };
+  const drain = () =>
+    worker.fetch(
+      new Request(`${env.DRAIN_ORIGIN}/internal/drain`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}` },
+      }),
+      env,
+    );
+  assert.equal((await drain()).status, 204);
+  assert.deepEqual(events.splice(0), ["gate:/gate", "drain"]);
+  gate = false;
+  assert.equal((await drain()).status, 503);
+  assert.deepEqual(events.splice(0), ["gate:/gate"]);
+  gate = true;
+  gateBindings = secret("8");
+  assert.equal((await drain()).status, 503);
+  assert.deepEqual(events.splice(0), ["gate:/gate"]);
+  gateBindings = env.SERVICES_BINDINGS;
+  for (const field of ["generation", "release", "runner"]) {
+    if (field === "generation") gateGeneration = 2;
+    if (field === "release") gateRelease = "b".repeat(40);
+    if (field === "runner") gateRunner = "runner:wrong:1";
+    assert.equal((await drain()).status, 503);
+    assert.deepEqual(events.splice(0), ["gate:/gate"]);
+    gateGeneration = 1;
+    gateRelease = env.SERVICES_RELEASE;
+    gateRunner = `runner:${env.SERVICES_RELEASE}:1`;
+  }
+  gate = false;
+  assert.equal(
+    (
+      await worker.fetch(
+        new Request(`${env.DRAIN_ORIGIN}/internal/pause`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}` },
+        }),
+        env,
+      )
+    ).status,
+    204,
+  );
+  assert.deepEqual(events.splice(0), ["drain"]);
+  const body = "fixture",
+    digest = createHash("sha256").update(body).digest("hex");
+  const post = (token = env.QUOREM_CASE_SECRET) =>
+    worker.fetch(
+      new Request(`${env.CASE_ORIGIN}/internal/case/one`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-quorem-owner-scope": scope,
+          "x-quorem-owner-nonce": randomUUID(),
+          "x-quorem-case-binding": secret("2"),
+          "x-quorem-body-sha256": digest,
+          "x-quorem-case-ordinal": "0",
+        },
+        body,
+      }),
+      env,
+    );
+  assert.equal((await post(secret("z"))).status, 404);
+  assert.deepEqual(events, []);
+  registered = false;
+  assert.equal((await post()).status, 503);
+  assert.deepEqual(events.splice(0), ["control:/register"]);
+  registered = true;
+  assert.equal((await post()).status, 200);
+  assert.deepEqual(events.splice(0), ["control:/register", "case"]);
+  const adminCase = (token, ownerScope = scope) =>
+    worker.fetch(
+      new Request(`${env.CASE_ORIGIN}/internal/control/case/state`, {
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-quorem-owner-scope": ownerScope,
+          "x-quorem-owner-nonce": randomUUID(),
+        },
+      }),
+      env,
+    );
+  assert.equal((await adminCase(env.QUOREM_CASE_SECRET)).status, 404);
+  assert.deepEqual(events, []);
+  assert.equal((await adminCase(env.RECOVERY_CONTROL_SECRET, `remote:${secret("8")}`)).status, 404);
+  assert.deepEqual(events, []);
+  assert.equal((await adminCase(env.RECOVERY_CONTROL_SECRET)).status, 204);
+  assert.deepEqual(events.splice(0), ["control:/state"]);
+  gate = true;
+  const runnerNonce = randomUUID();
+  const adminRunner = (token) =>
+    worker.fetch(
+      new Request(`${env.DRAIN_ORIGIN}/internal/control/runner/state`, {
+        headers: {
+          authorization: `Bearer ${token}`,
+          "x-quorem-owner-scope": scope,
+          "x-quorem-owner-nonce": runnerNonce,
+        },
+      }),
+      env,
+    );
+  assert.equal((await adminRunner(env.QUOREM_RUNNER_DRAIN_SECRET)).status, 404);
+  assert.deepEqual(events, []);
+  const runnerState = await adminRunner(env.RECOVERY_CONTROL_SECRET);
+  assert.equal(runnerState.status, 200);
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    keys.publicKey.export({ type: "spki", format: "der" }),
+    "Ed25519",
+    false,
+    ["verify"],
+  );
+  assert.deepEqual(
+    await verifyCaseProbe(runnerState, {
+      publicKey,
+      kind: "runner-control-state",
+      scope,
+      attempt: "runner-control",
+      nonce: runnerNonce,
+      expectedNamespace: namespace,
+    }),
+    {
+      generation: 1,
+      status: "active",
+      release: env.SERVICES_RELEASE,
+      bindings: env.SERVICES_BINDINGS,
+    },
+  );
+  const invalidSigned = await signedCaseProbe(env, {
+    kind: "runner-control-state",
+    scope,
+    attempt: "runner-control",
+    nonce: runnerNonce,
+    value: { generation: 1, status: "active", release: null, bindings: null },
+  });
+  await assert.rejects(
+    verifyCaseProbe(invalidSigned, {
+      publicKey,
+      kind: "runner-control-state",
+      scope,
+      attempt: "runner-control",
+      nonce: runnerNonce,
+      expectedNamespace: namespace,
+    }),
+  );
+  assert.deepEqual(events.splice(0), ["gate:/state"]);
 });
 function target(name, seen) {
   return {
@@ -48,7 +301,7 @@ void test("private ingress pins capability host, method, bearer and strips Acces
     .toString("base64");
   env.QUOREM_CASE_NAMESPACE_ID = secret("1");
   env.CASES = { idFromName: () => secret("1") };
-  env.RUNNERS = target("runner", seen);
+  env.RUNNERS = target(`runner:${env.SERVICES_RELEASE}:1`, seen);
   env.VERIFIERS = target("verifier", seen);
   const call = (origin, path, token, method = "POST") =>
     worker.fetch(

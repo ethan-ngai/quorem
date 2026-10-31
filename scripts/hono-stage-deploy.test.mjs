@@ -35,7 +35,8 @@ const env = () => ({
 });
 void test("plans only isolated stage stacks with locking and no saved plan", () => {
   const calls = [];
-  runPlan(env(), (cmd, args) => {
+  runPlan(env(), (cmd, args, options) => {
+    assert.match(options.env.TF_VAR_database_user, /^quorem_stage_runtime_[0-9a-f]{32}$/);
     calls.push([cmd, args]);
     return { status: 0, stdout: "No changes.", stderr: "" };
   });

@@ -27,6 +27,21 @@ variable "hostnames" {
     error_message = "Three distinct staged hostnames are required."
   }
 }
+variable "release_sha" {
+  type = string
+  validation {
+    condition     = can(regex("^[a-f0-9]{40}$", var.release_sha))
+    error_message = "Supply the immutable release commit."
+  }
+}
+variable "release_generation" {
+  type    = number
+  default = 1
+  validation {
+    condition     = var.release_generation >= 1 && floor(var.release_generation) == var.release_generation && var.release_generation < 9007199254740991
+    error_message = "Supply a positive safe release generation."
+  }
+}
 variable "profile_media_enabled" {
   type    = bool
   default = false
@@ -113,7 +128,7 @@ variable "service_secrets" {
   type      = map(string)
   sensitive = true
   validation {
-    condition     = alltrue([for k in ["QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"] : try(length(var.service_secrets[k]) > 0, false)])
+    condition     = alltrue([for k in ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"] : try(length(var.service_secrets[k]) > 0, false)])
     error_message = "All purpose-scoped service credentials and keys are required."
   }
 }
@@ -126,17 +141,37 @@ provider "restapi" {
 }
 locals {
   modules = {
-    "deploy/hono/services/worker.js" = "../../../deploy/hono/services/worker.js"
-    "deploy/container.js"            = "../../../deploy/container.js"
-    "deploy/policy.js"               = "../../../deploy/policy.js"
-    "deploy/case-service.js"         = "../../../deploy/case-service.js"
-    "deploy/case-proof.js"           = "../../../deploy/case-proof.js"
-    "deploy/case-sandbox.js"         = "../../../deploy/case-sandbox.js"
+    "deploy/hono/services/case-control.js"   = "../../../deploy/hono/services/case-control.js"
+    "deploy/hono/services/runner-control.js" = "../../../deploy/hono/services/runner-control.js"
+    "deploy/hono/services/control-http.js"   = "../../../deploy/hono/services/control-http.js"
+    "deploy/hono/services/worker.js"         = "../../../deploy/hono/services/worker.js"
+    "deploy/container.js"                    = "../../../deploy/container.js"
+    "deploy/policy.js"                       = "../../../deploy/policy.js"
+    "deploy/case-service.js"                 = "../../../deploy/case-service.js"
+    "deploy/case-proof.js"                   = "../../../deploy/case-proof.js"
+    "deploy/case-sandbox.js"                 = "../../../deploy/case-sandbox.js"
   }
-  service_hosts  = merge(var.hostnames, var.profile_media_enabled ? { image = var.image_hostname } : {})
-  service_tokens = merge(var.access_token_ids, var.profile_media_enabled ? { image = var.image_access_service_token_id } : {})
-  secret_names   = concat(var.profile_media_enabled ? ["IMAGE_SERVICE_TOKEN"] : [], ["QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"])
+  service_hosts   = merge(var.hostnames, var.profile_media_enabled ? { image = var.image_hostname } : {})
+  service_tokens  = merge(var.access_token_ids, var.profile_media_enabled ? { image = var.image_access_service_token_id } : {})
+  secret_names    = concat(var.profile_media_enabled ? ["IMAGE_SERVICE_TOKEN"] : [], ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"])
+  prior_tag       = data.external.worker_migration.result.tag
+  control_classes = ["CaseControl", "RunnerReleaseControl"]
+  new_classes     = local.prior_tag == "" ? concat(["RunnerService", "VerifierService", "CaseSandbox"], local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v1" ? concat(local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v2" ? local.control_classes : local.prior_tag == "v3" && var.profile_media_enabled ? ["ImageService"] : []
+  target_tag      = var.profile_media_enabled || contains(["v2", "v4"], local.prior_tag) ? "v4" : "v3"
+  control_digest = sha256(jsonencode({
+    release        = var.release_sha
+    generation     = var.release_generation
+    namespace      = var.case_namespace_id
+    command_origin = var.command_origin
+    source_origin  = var.source_origin
+    images         = merge(var.case_images, { runner = var.runner_image, verifier = var.verifier_image, image = var.profile_media_enabled ? var.image_service_image : "" })
+    secrets        = nonsensitive(sha256(jsonencode({ for name in local.secret_names : name => var.service_secrets[name] })))
+    modules        = { for name, source in local.modules : name => filesha256("${path.module}/${source}") }
+  }))
   public = {
+    SERVICES_RELEASE                  = var.release_sha
+    SERVICES_GENERATION               = tostring(var.release_generation)
+    SERVICES_BINDINGS                 = local.control_digest
     IMAGE_SERVICE_ENABLED             = tostring(var.profile_media_enabled)
     IMAGE_ORIGIN                      = var.profile_media_enabled ? "https://${var.image_hostname}" : ""
     CASE_DIAGNOSTICS                  = tostring(var.case_diagnostics)
@@ -149,13 +184,13 @@ locals {
     QUOREM_CASE_NAMESPACE_ID          = var.case_namespace_id
   }
   bindings = concat(
-    [{ type = "durable_object_namespace", name = "RUNNERS", class_name = "RunnerService" }, { type = "durable_object_namespace", name = "VERIFIERS", class_name = "VerifierService" }, { type = "durable_object_namespace", name = "CASES", class_name = "CaseSandbox" }],
+    [{ type = "durable_object_namespace", name = "CASE_CONTROL", class_name = "CaseControl" }, { type = "durable_object_namespace", name = "RUNNER_CONTROL", class_name = "RunnerReleaseControl" }, { type = "durable_object_namespace", name = "RUNNERS", class_name = "RunnerService" }, { type = "durable_object_namespace", name = "VERIFIERS", class_name = "VerifierService" }, { type = "durable_object_namespace", name = "CASES", class_name = "CaseSandbox" }],
     var.profile_media_enabled ? [{ type = "durable_object_namespace", name = "IMAGES", class_name = "ImageService" }] : [],
     [for k, v in local.public : { type = "plain_text", name = k, text = v }],
     [for k in local.secret_names : { type = "secret_text", name = k, text = var.service_secrets[k] }]
   )
   trusted = merge({ runner = { class = "RunnerService", image = var.runner_image }, verifier = { class = "VerifierService", image = var.verifier_image } }, var.profile_media_enabled ? { image = { class = "ImageService", image = var.image_service_image } } : {})
-  paths   = { drain = "/internal/drain", verifier = "/internal/results/verify", case = "/internal/case/*", image = "" }
+  paths   = { drain = "/internal/*", verifier = "/internal/results/verify", case = "/internal/*", image = "" }
 }
 resource "cloudflare_worker" "services" {
   account_id = var.account_id
@@ -184,12 +219,16 @@ resource "cloudflare_worker_version" "services" {
   modules            = [for name, source in local.modules : { name = name, content_type = "application/javascript+module", content_base64 = filebase64("${path.module}/${source}") }]
   bindings           = local.bindings
   containers         = concat([{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { class_name = "CaseSandbox" }], var.profile_media_enabled ? [{ class_name = "ImageService" }] : [])
-  migrations         = data.external.worker_migration.result.tag == "" ? { old_tag = "", new_tag = var.profile_media_enabled ? "v2" : "v1", new_sqlite_classes = concat(["RunnerService", "VerifierService", "CaseSandbox"], var.profile_media_enabled ? ["ImageService"] : []) } : data.external.worker_migration.result.tag == "v1" && var.profile_media_enabled ? { old_tag = "v1", new_tag = "v2", new_sqlite_classes = ["ImageService"] } : null
+  migrations         = length(local.new_classes) > 0 ? { old_tag = local.prior_tag, new_tag = local.target_tag, new_sqlite_classes = local.new_classes } : null
   deploy             = true
   lifecycle {
     precondition {
-      condition     = contains(["", "v1", "v2"], data.external.worker_migration.result.tag)
+      condition     = contains(["", "v1", "v2", "v3", "v4"], data.external.worker_migration.result.tag)
       error_message = "Unknown staged Worker migration history; refuse deployment."
+    }
+    precondition {
+      condition     = try(length(var.service_secrets["RECOVERY_CONTROL_SECRET"]) >= 32 && !can(regex("\\s", var.service_secrets["RECOVERY_CONTROL_SECRET"])) && !contains([for name in local.secret_names : name == "RECOVERY_CONTROL_SECRET" ? "" : var.service_secrets[name]], var.service_secrets["RECOVERY_CONTROL_SECRET"]), false)
+      error_message = "Recovery authority requires a distinct strong bearer."
     }
     precondition {
       condition     = !var.profile_media_enabled || try(length(var.service_secrets["IMAGE_SERVICE_TOKEN"]) >= 32 && !can(regex("\\s", var.service_secrets["IMAGE_SERVICE_TOKEN"])) && !contains([for k in local.secret_names : k == "IMAGE_SERVICE_TOKEN" ? "" : var.service_secrets[k]], var.service_secrets["IMAGE_SERVICE_TOKEN"]), false)

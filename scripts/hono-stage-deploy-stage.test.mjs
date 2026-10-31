@@ -33,6 +33,7 @@ function env() {
     EXECUTION_DRAIN_URL: "https://drain-stage.example.com/internal/drain",
   });
   const services = {
+    RECOVERY_CONTROL_SECRET: "q".repeat(32),
     QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: caseKey.publicKey
       .export({ type: "spki", format: "pem" })
       .toString(),
@@ -105,9 +106,11 @@ function operations(events, fail) {
     return value;
   };
   return {
+    freshness: async () => step("freshness", { workersChecked: 0, namespacesChecked: 0 }),
     roleConfig: () => step("role-config"),
     fresh: async () => step("fresh"),
     databaseRole: async () => step("database-role"),
+    fenceRuntime: async () => step("runtime-fence"),
     migrate: () => step("migrate"),
     images: () =>
       step(
@@ -119,13 +122,30 @@ function operations(events, fail) {
           ]),
         ),
       ),
-    terraform: (_, stack, op) => step(`${stack}:${op}`),
+    terraform: (input, stack, op) => {
+      assert.match(input.TF_VAR_database_user, /^quorem_stage_runtime_[0-9a-f]{32}$/);
+      return step(`${stack}:${op}`);
+    },
     probe: async (_, pinned) =>
       step(`probe:${pinned === "0".repeat(64) ? "bootstrap" : "pinned"}`, {
         namespace: ns,
         scope: `remote:${"d".repeat(64)}`,
       }),
     outputs: () => step("outputs", outputs),
+    servicesOutputs: () =>
+      step("services-outputs", {
+        origins: {
+          value: {
+            SERVICES_RELEASE: "a".repeat(40),
+            SERVICES_GENERATION: "1",
+            SERVICES_BINDINGS: "b".repeat(64),
+          },
+        },
+      }),
+    controls: async () => ({
+      activate: async () => step("controls-activate", { generation: 1 }),
+      pause: async () => step("controls-pause"),
+    }),
     deploy: () => step("deploy"),
     upload: () => step("upload"),
     subdomains: async () => step("subdomains"),
@@ -155,6 +175,7 @@ void test("first activation checks fresh DB before mutations and proves queue la
   assert.equal(receipt.cutoverReady, false);
   assert.equal(receipt.acceptance.automatic, "automatic-submission");
   assert.deepEqual(events, [
+    "freshness",
     "role-config",
     "fresh",
     "hono-services:init",
@@ -171,6 +192,8 @@ void test("first activation checks fresh DB before mutations and proves queue la
     "deploy",
     "upload",
     "subdomains",
+    "services-outputs",
+    "controls-activate",
     "remote",
     "actor",
     "queue",
@@ -181,10 +204,16 @@ void test("first activation checks fresh DB before mutations and proves queue la
 void test("fresh failure causes no later action; queue failure disposes fixture", async () => {
   let events = [];
   await assert.rejects(deployStage(env(), operations(events, "fresh")));
-  assert.deepEqual(events, ["role-config", "fresh"]);
+  assert.deepEqual(events, ["freshness", "role-config", "fresh"]);
   events = [];
   await assert.rejects(deployStage(env(), operations(events, "queue")));
-  assert.deepEqual(events.slice(-2), ["dispose", "cleanup"]);
+  assert.deepEqual(events.slice(-5), [
+    "dispose",
+    "cleanup",
+    "detach",
+    "controls-pause",
+    "runtime-fence",
+  ]);
 });
 void test("existing pin is verified before service apply", async () => {
   const events = [],
@@ -223,6 +252,7 @@ void test("pin-plan failure stops before migrations and image publication", asyn
   const events = [];
   await assert.rejects(deployStage(env(), operations(events, "hono-services:plan")));
   assert.deepEqual(events, [
+    "freshness",
     "role-config",
     "fresh",
     "hono-services:init",
@@ -235,14 +265,14 @@ void test("failure after queue attachment detaches and reports uncertain detach"
   for (const failure of ["dispose", "cleanup"]) {
     const events = [];
     await assert.rejects(deployStage(env(), operations(events, failure)), /cleanup failed/);
-    assert.equal(events.at(-1), "detach");
+    assert.deepEqual(events.slice(-3), ["detach", "controls-pause", "runtime-fence"]);
   }
   const events = [],
     ops = operations(events, "dispose");
   ops.detach = async () => {
     throw new Error("provider output");
   };
-  await assert.rejects(deployStage(env(), ops), /detachment is unconfirmed/);
+  await assert.rejects(deployStage(env(), ops), /detachment unconfirmed/);
 });
 
 void test("optional profile media requires matching Terraform outputs and isolated credentials", async () => {
@@ -283,4 +313,48 @@ void test("optional profile media requires matching Terraform outputs and isolat
   const failed = [];
   await assert.rejects(deployStage(input, operations(failed)), /Image service/);
   assert.deepEqual(failed, []);
+});
+
+void test("provider freshness failure prevents database and cloud mutation", async () => {
+  const events = [];
+  await assert.rejects(deployStage(env(), operations(events, "freshness")));
+  assert.deepEqual(events, ["freshness"]);
+});
+void test("activation failure detaches queue and pauses controls; uncertain pause is explicit", async () => {
+  const events = [],
+    ops = operations(events, "controls-activate");
+  await assert.rejects(deployStage(env(), ops));
+  assert.deepEqual(events.slice(-3), ["detach", "controls-pause", "runtime-fence"]);
+  const failing = operations([], "controls-activate");
+  failing.controls = async () => ({
+    activate: async () => {
+      throw new Error("lost ack");
+    },
+    pause: async () => {
+      throw new Error("timeout");
+    },
+  });
+  await assert.rejects(deployStage(env(), failing), /control pause unconfirmed/);
+});
+
+void test("uncertain role provisioning always attempts a writer fence", async () => {
+  const events = [],
+    ops = operations(events, "database-role");
+  await assert.rejects(deployStage(env(), ops), /fixture failure/);
+  assert.ok(events.includes("runtime-fence"));
+  assert.equal(events.includes("controls-activate"), false);
+  const failing = operations([], "database-role");
+  failing.fenceRuntime = async () => {
+    throw new Error("unknown role");
+  };
+  await assert.rejects(deployStage(env(), failing), /runtime writer fence unconfirmed/);
+});
+
+void test("first activation rejects any other generation before mutation", async () => {
+  const events = [];
+  await assert.rejects(
+    deployStage({ ...env(), TF_VAR_release_generation: "2" }, operations(events)),
+    /generation one/,
+  );
+  assert.deepEqual(events, []);
 });

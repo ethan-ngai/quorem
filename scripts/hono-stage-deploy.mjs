@@ -1,3 +1,4 @@
+import { deriveStageRole } from "./hono-stage-database-role.mjs";
 /** Staged deployment control: mutation stays disabled until hosted proof is implemented. */
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -98,6 +99,12 @@ export function runPlan(env, run = spawnSync) {
   for (const stack of ["hono-stage", "hono-services"]) {
     const stackEnv = {
       ...env,
+      TF_VAR_database_user: deriveStageRole(
+        env.HONO_RELEASE_SHA,
+        env.TF_VAR_release_generation ?? "1",
+      ),
+      TF_VAR_release_sha: env.HONO_RELEASE_SHA,
+      TF_VAR_release_generation: env.TF_VAR_release_generation ?? "1",
       TF_VAR_worker_name:
         stack === "hono-stage" ? env.TF_VAR_worker_name : env.HONO_SERVICES_WORKER_NAME,
     };

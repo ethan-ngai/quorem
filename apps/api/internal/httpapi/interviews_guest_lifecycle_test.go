@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 
@@ -19,39 +18,9 @@ import (
 
 func guestLifecycleStore(t *testing.T) *postgres.Store {
 	t.Helper()
-	database := os.Getenv("QUOREM_TEST_DATABASE_URL")
-	if database == "" {
-		t.Skip("QUOREM_TEST_DATABASE_URL enables disposable PostgreSQL integration")
-	}
 	ctx := context.Background()
-	admin, err := postgres.Open(ctx, database)
-	if err != nil {
-		t.Fatal(err)
-	}
-	schema := "guest_http_" + strings.ReplaceAll(postgres.ID(), "-", "")
-	if _, err = admin.Pool.Exec(ctx, "CREATE SCHEMA "+schema); err != nil {
-		admin.Pool.Close()
-		t.Fatal(err)
-	}
-	target, err := url.Parse(database)
-	if err != nil {
-		t.Fatal(err)
-	}
-	params := target.Query()
-	params.Set("search_path", schema)
-	target.RawQuery = params.Encode()
-	s, err := postgres.Open(ctx, target.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	// HTTP tests own a schema so the adapter suite can truncate its disposable schema concurrently.
-	t.Cleanup(func() {
-		s.Pool.Close()
-		if _, err := admin.Pool.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE"); err != nil {
-			t.Error(err)
-		}
-		admin.Pool.Close()
-	})
+	s := httpapi.NewHTTPTestDatabase(t)
+	var err error
 	if err = s.Migrate(ctx, "../../migrations"); err != nil {
 		t.Fatal(err)
 	}

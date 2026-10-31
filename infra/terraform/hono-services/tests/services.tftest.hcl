@@ -4,6 +4,7 @@ mock_provider "external" {
   mock_data "external" { defaults = { result = { tag = "" } } }
 }
 variables {
+  release_sha          = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
   account_id           = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   zone_id              = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   cloudflare_api_token = "fixture-token"
@@ -18,6 +19,8 @@ variables {
   source_origin        = "https://api-stage.example.com"
   case_namespace_id    = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   service_secrets = {
+    IMAGE_SERVICE_TOKEN                 = "image-fixture-token-0123456789abcdef"
+    RECOVERY_CONTROL_SECRET             = "recovery-control-fixture-distinct-strong"
     QUOREM_RUNNER_COMMAND_SECRET        = "runner-command-fixture"
     QUOREM_RUNNER_DRAIN_SECRET          = "runner-drain-fixture"
     QUOREM_CASE_SECRET                  = "case-secret-fixture"
@@ -42,11 +45,11 @@ run "isolated_stage" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker.services.subdomain.enabled == false && length(cloudflare_worker_version.services.containers) == 3 && cloudflare_worker_version.services.migrations.new_tag == "v1"
+    condition     = cloudflare_worker.services.subdomain.enabled == false && length(cloudflare_worker_version.services.containers) == 3 && cloudflare_worker_version.services.migrations.new_tag == "v3"
     error_message = "Private Worker must be isolated, with its own three container classes."
   }
   assert {
-    condition     = length(cloudflare_zero_trust_access_application.service) == 3 && cloudflare_zero_trust_access_application.service["case"].domain == "case-stage.example.com/internal/case/*"
+    condition     = length(cloudflare_zero_trust_access_application.service) == 3 && cloudflare_zero_trust_access_application.service["case"].domain == "case-stage.example.com/internal/*"
     error_message = "Each private capability needs a scoped Access application."
   }
   assert {
@@ -73,15 +76,15 @@ run "existing_v1_reuses_classes" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker_version.services.migrations == null
-    error_message = "An existing v1 Worker must not recreate its Durable Object classes."
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v3" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["CaseControl", "RunnerReleaseControl"])
+    error_message = "Existing v1 retains every original namespace and adds controls only."
   }
 }
 run "reject_unknown_migration" {
   command = plan
   override_data {
     target          = data.external.worker_migration
-    values          = { result = { tag = "v4" } }
+    values          = { result = { tag = "v5" } }
     override_during = plan
   }
   expect_failures = [cloudflare_worker_version.services]
@@ -94,23 +97,7 @@ run "fresh_image" {
     image_hostname                = "image-stage.example.com"
     image_access_service_token_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
     image_service_image           = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    service_secrets = {
-      QUOREM_RUNNER_COMMAND_SECRET        = "runner-command-fixture"
-      QUOREM_RUNNER_DRAIN_SECRET          = "runner-drain-fixture"
-      QUOREM_CASE_SECRET                  = "case-secret-fixture"
-      QUOREM_VERIFICATION_SOURCE_KEY      = "source-key-fixture"
-      QUOREM_VERIFICATION_SERVICE_KEY     = "service-key-fixture"
-      QUOREM_CASE_OWNER_PUBLIC_KEY_PEM    = "public-key-fixture"
-      QUOREM_VERIFICATION_SIGNING_KEY_PEM = "signing-key-fixture"
-      RUNNER_API_ACCESS_CLIENT_ID         = "runner-api-id"
-      RUNNER_API_ACCESS_CLIENT_SECRET     = "runner-api-secret"
-      VERIFIER_API_ACCESS_CLIENT_ID       = "verifier-api-id"
-      VERIFIER_API_ACCESS_CLIENT_SECRET   = "verifier-api-secret"
-      QUOREM_CASE_ACCESS_CLIENT_ID        = "case-api-id"
-      QUOREM_CASE_ACCESS_CLIENT_SECRET    = "case-api-secret"
-      IMAGE_SERVICE_TOKEN                 = "image-fixture-token-0123456789abcdef"
-      CASE_OWNER_PRIVATE_KEY              = "case-owner-private"
-    }
+
   }
   override_data {
     target          = data.external.worker_migration
@@ -118,7 +105,7 @@ run "fresh_image" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker_version.services.migrations.new_tag == "v2" && length(cloudflare_worker_version.services.migrations.new_sqlite_classes) == 4 && length(cloudflare_workers_route.service) == 4 && cloudflare_zero_trust_access_application.service["image"].domain == "image-stage.example.com"
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && length(cloudflare_worker_version.services.migrations.new_sqlite_classes) == 6 && length(cloudflare_workers_route.service) == 4 && cloudflare_zero_trust_access_application.service["image"].domain == "image-stage.example.com"
     error_message = "Fresh image stage must isolate all four services."
   }
 }
@@ -129,23 +116,7 @@ run "add_image_to_v1" {
     image_hostname                = "image-stage.example.com"
     image_access_service_token_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
     image_service_image           = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    service_secrets = {
-      QUOREM_RUNNER_COMMAND_SECRET        = "runner-command-fixture"
-      QUOREM_RUNNER_DRAIN_SECRET          = "runner-drain-fixture"
-      QUOREM_CASE_SECRET                  = "case-secret-fixture"
-      QUOREM_VERIFICATION_SOURCE_KEY      = "source-key-fixture"
-      QUOREM_VERIFICATION_SERVICE_KEY     = "service-key-fixture"
-      QUOREM_CASE_OWNER_PUBLIC_KEY_PEM    = "public-key-fixture"
-      QUOREM_VERIFICATION_SIGNING_KEY_PEM = "signing-key-fixture"
-      RUNNER_API_ACCESS_CLIENT_ID         = "runner-api-id"
-      RUNNER_API_ACCESS_CLIENT_SECRET     = "runner-api-secret"
-      VERIFIER_API_ACCESS_CLIENT_ID       = "verifier-api-id"
-      VERIFIER_API_ACCESS_CLIENT_SECRET   = "verifier-api-secret"
-      QUOREM_CASE_ACCESS_CLIENT_ID        = "case-api-id"
-      QUOREM_CASE_ACCESS_CLIENT_SECRET    = "case-api-secret"
-      IMAGE_SERVICE_TOKEN                 = "image-fixture-token-0123456789abcdef"
-      CASE_OWNER_PRIVATE_KEY              = "case-owner-private"
-    }
+
   }
   override_data {
     target          = data.external.worker_migration
@@ -153,8 +124,8 @@ run "add_image_to_v1" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker_version.services.migrations.old_tag == "v1" && cloudflare_worker_version.services.migrations.new_tag == "v2" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["ImageService"])
-    error_message = "Upgrade must add only the image class."
+    condition     = cloudflare_worker_version.services.migrations.old_tag == "v1" && cloudflare_worker_version.services.migrations.new_tag == "v4" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["CaseControl", "RunnerReleaseControl", "ImageService"])
+    error_message = "Upgrade preserves original classes and adds only controls and image processing."
   }
 }
 run "repeat_v2" {
@@ -164,23 +135,7 @@ run "repeat_v2" {
     image_hostname                = "image-stage.example.com"
     image_access_service_token_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
     image_service_image           = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    service_secrets = {
-      QUOREM_RUNNER_COMMAND_SECRET        = "runner-command-fixture"
-      QUOREM_RUNNER_DRAIN_SECRET          = "runner-drain-fixture"
-      QUOREM_CASE_SECRET                  = "case-secret-fixture"
-      QUOREM_VERIFICATION_SOURCE_KEY      = "source-key-fixture"
-      QUOREM_VERIFICATION_SERVICE_KEY     = "service-key-fixture"
-      QUOREM_CASE_OWNER_PUBLIC_KEY_PEM    = "public-key-fixture"
-      QUOREM_VERIFICATION_SIGNING_KEY_PEM = "signing-key-fixture"
-      RUNNER_API_ACCESS_CLIENT_ID         = "runner-api-id"
-      RUNNER_API_ACCESS_CLIENT_SECRET     = "runner-api-secret"
-      VERIFIER_API_ACCESS_CLIENT_ID       = "verifier-api-id"
-      VERIFIER_API_ACCESS_CLIENT_SECRET   = "verifier-api-secret"
-      QUOREM_CASE_ACCESS_CLIENT_ID        = "case-api-id"
-      QUOREM_CASE_ACCESS_CLIENT_SECRET    = "case-api-secret"
-      IMAGE_SERVICE_TOKEN                 = "image-fixture-token-0123456789abcdef"
-      CASE_OWNER_PRIVATE_KEY              = "case-owner-private"
-    }
+
   }
   override_data {
     target          = data.external.worker_migration
@@ -188,8 +143,8 @@ run "repeat_v2" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker_version.services.migrations == null
-    error_message = "Repeat deploy must not recreate v2 classes."
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["CaseControl", "RunnerReleaseControl"])
+    error_message = "Existing v2 adds only controls, preserving image and case namespaces."
   }
 }
 run "disabled_after_v2" {
@@ -200,7 +155,58 @@ run "disabled_after_v2" {
     override_during = plan
   }
   assert {
-    condition     = cloudflare_worker_version.services.migrations == null && length(cloudflare_workers_route.service) == 3
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["CaseControl", "RunnerReleaseControl"]) && length(cloudflare_workers_route.service) == 3
     error_message = "Disabling media must not recreate or delete DO classes."
+  }
+}
+
+run "repeat_v3" {
+  command = plan
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v3" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations == null
+    error_message = "Control namespaces must not be recreated."
+  }
+}
+run "repeat_v4" {
+  command = plan
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v4" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations == null
+    error_message = "Image and control namespaces must not be recreated."
+  }
+}
+run "control_authority_and_access" {
+  command = plan
+  assert {
+    condition     = local.public.SERVICES_RELEASE == var.release_sha && local.public.SERVICES_GENERATION == "1" && length(local.public.SERVICES_BINDINGS) == 64 && length([for binding in local.bindings : binding if try(binding.name == "CASE_CONTROL" || binding.name == "RUNNER_CONTROL", false)]) == 2 && cloudflare_zero_trust_access_application.service["drain"].domain == "runner-stage.example.com/internal/*"
+    error_message = "Execution controls and pause must be configured and Access-protected."
+  }
+}
+
+run "add_image_to_v3" {
+  command = plan
+  variables {
+    profile_media_enabled         = true
+    image_hostname                = "image-stage.example.com"
+    image_access_service_token_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+    image_service_image           = "registry.cloudflare.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+  override_data {
+    target          = data.external.worker_migration
+    values          = { result = { tag = "v3" } }
+    override_during = plan
+  }
+  assert {
+    condition     = cloudflare_worker_version.services.migrations.new_tag == "v4" && toset(cloudflare_worker_version.services.migrations.new_sqlite_classes) == toset(["ImageService"])
+    error_message = "Enabling media after control activation must add only ImageService."
   }
 }

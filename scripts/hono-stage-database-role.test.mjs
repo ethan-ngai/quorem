@@ -1,12 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { provisionStageRole, stageRoleCredentials } from "./hono-stage-database-role.mjs";
+import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
+import {
+  deriveStageRole,
+  provisionStageRole,
+  stageRoleCredentials,
+} from "./hono-stage-database-role.mjs";
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
 );
 const password = "fixture-only-secret-abcdefghijklmnopqrstuvwxyz";
-const role = "quorem_stage_runtime_aaaaaaaaaaaa";
+const role = deriveStageRole("a".repeat(40), "1");
+const nextRole = deriveStageRole("a".repeat(40), "2");
 void test("role name binds release and migration login differs", () => {
   const env = {
     HONO_RELEASE_SHA: "a".repeat(40),
@@ -18,6 +24,11 @@ void test("role name binds release and migration login differs", () => {
     TF_VAR_database_port: "5432",
   };
   assert.equal(stageRoleCredentials(env).role, role);
+  assert.notEqual(role, nextRole);
+  assert.notEqual(deriveStageRole("a".repeat(39) + "b", "1"), role);
+  assert.ok(deriveStageRole("a".repeat(40), String(Number.MAX_SAFE_INTEGER)).length < 63);
+  for (const value of ["0", "01", "-1", "9007199254740992", "1.0"])
+    assert.throws(() => deriveStageRole("a".repeat(40), value));
   assert.throws(() => stageRoleCredentials({ ...env, TF_VAR_database_user: "operator" }));
   assert.throws(() => stageRoleCredentials({ ...env, TF_VAR_database_password: "short" }));
   assert.throws(() =>
@@ -85,6 +96,26 @@ void test(
       } finally {
         await login.end();
       }
+      await fenceStageRuntime(operator, role);
+      const nextURL = new URL(runtimeURL);
+      nextURL.username = nextRole;
+      await provisionStageRole(
+        operator,
+        new Client({ connectionString: nextURL.href }),
+        nextRole,
+        password,
+      );
+      const stale = new Client({ connectionString: runtimeURL.href });
+      await assert.rejects(stale.connect());
+      await stale.end().catch(() => {});
+      await assert.rejects(
+        provisionStageRole(
+          operator,
+          new Client({ connectionString: runtimeURL.href }),
+          role,
+          password,
+        ),
+      );
     } finally {
       await operator.end();
     }
@@ -113,7 +144,7 @@ void test(
     const { once } = await import("node:events");
     const operator = new Pool({ connectionString: raw.href });
     const runtimeURL = new URL(raw);
-    runtimeURL.username = role;
+    runtimeURL.username = nextRole;
     runtimeURL.password = password;
     const authSecret = "local-runtime-fixture-secret-32-characters",
       user = `fixture-${randomUUID()}`,
