@@ -22,8 +22,6 @@ export function setQueue(env, enabled, run = spawnSync) {
     "AWS_SECRET_ACCESS_KEY",
     "TF_IN_AUTOMATION",
     "TF_VAR_account_id",
-    "TF_VAR_zone_id",
-    "TF_VAR_dns_target",
     "TF_VAR_worker_name",
     "TF_VAR_stage_hostname",
     "TF_VAR_access_service_token_ids",

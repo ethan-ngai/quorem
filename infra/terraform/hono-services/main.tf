@@ -70,7 +70,6 @@ variable "image_service_image" {
     error_message = "Image service must use an account-local digest-pinned image."
   }
 }
-variable "dns_target" { type = string }
 variable "access_token_ids" {
   type = object({ drain = string, verifier = string, case = string })
   validation {
@@ -296,21 +295,13 @@ resource "cloudflare_zero_trust_access_application" "service" {
   app_launcher_visible      = false
   service_auth_401_redirect = false
 }
-resource "cloudflare_dns_record" "service" {
-  for_each = local.service_hosts
-  zone_id  = var.zone_id
-  name     = each.value
-  type     = "CNAME"
-  content  = var.dns_target
-  proxied  = true
-  ttl      = 1
-}
-resource "cloudflare_workers_route" "service" {
+resource "cloudflare_workers_custom_domain" "service" {
   for_each   = local.service_hosts
+  account_id = var.account_id
   zone_id    = var.zone_id
-  pattern    = "${each.value}/*"
-  script     = cloudflare_worker.services.name
-  depends_on = [cloudflare_dns_record.service, cloudflare_zero_trust_access_application.service, terraform_data.case_images]
+  hostname   = each.value
+  service    = cloudflare_worker.services.name
+  depends_on = [cloudflare_zero_trust_access_application.service, terraform_data.case_images]
 }
 output "origins" { value = local.public }
 

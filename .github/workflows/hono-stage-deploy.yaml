@@ -113,7 +113,6 @@ jobs:
           TF_VAR_database_connection_limit: ${{ vars.HONO_STAGE_DATABASE_CONNECTION_LIMIT }}
           TF_VAR_enable_queue_consumer: "false"
           TF_VAR_hostnames: ${{ vars.HONO_SERVICE_HOSTNAMES }}
-          TF_VAR_dns_target: ${{ vars.HONO_SERVICE_DNS_TARGET }}
           TF_VAR_profile_media_enabled: ${{ vars.HONO_PROFILE_MEDIA_ENABLED || 'false' }}
           TF_VAR_image_hostname: ${{ vars.HONO_IMAGE_HOSTNAME }}
           TF_VAR_image_access_service_token_id: ${{ vars.HONO_IMAGE_ACCESS_TOKEN_ID }}
@@ -182,7 +181,6 @@ jobs:
           TF_VAR_database_connection_limit: ${{ vars.HONO_STAGE_DATABASE_CONNECTION_LIMIT }}
           TF_VAR_enable_queue_consumer: "false"
           TF_VAR_hostnames: ${{ vars.HONO_SERVICE_HOSTNAMES }}
-          TF_VAR_dns_target: ${{ vars.HONO_SERVICE_DNS_TARGET }}
           TF_VAR_profile_media_enabled: ${{ vars.HONO_PROFILE_MEDIA_ENABLED || 'false' }}
           TF_VAR_image_hostname: ${{ vars.HONO_IMAGE_HOSTNAME }}
           TF_VAR_image_access_service_token_id: ${{ vars.HONO_IMAGE_ACCESS_TOKEN_ID }}

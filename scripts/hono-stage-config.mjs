@@ -169,10 +169,7 @@ export function stageConfig(input, outputs, output) {
     compatibility_flags: ["nodejs_compat"],
     workers_dev: false,
     preview_urls: false,
-    routes: ["/v1/*", "/api/auth/*", "/health", "/internal/*"].map((path) => ({
-      pattern: `${host}${path}`,
-      zone_name: stageZone,
-    })),
+    routes: [{ pattern: host, zone_name: stageZone, custom_domain: true }],
     vars: { ...vars, EXECUTION_WAKE_PROVIDER: "cloudflare-binding" },
     hyperdrive: [{ binding: "DB", id: hyperdriveId }],
     queues: { producers: [{ binding: "EXECUTION_QUEUE", queue: queueName }] },
