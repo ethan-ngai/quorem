@@ -4,6 +4,7 @@ import { env } from "cloudflare:test";
 import { expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
+import { encodeJob } from "@quorem/execution";
 import { postgresExecutionCommands } from "./repository.ts";
 import { createRunnerCommandHandler } from "./http.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
@@ -46,11 +47,12 @@ it("claims and fences a real attempt through workerd", async () => {
     }),
   );
   try {
-    const commands = postgresExecutionCommands(run, {
-      resumable: true,
-      losslessCases: true,
-      losslessResults: true,
-    });
+    const commands = (signal: AbortSignal) =>
+      postgresExecutionCommands(
+        <T>(f: (scope: ConnectionScope) => Promise<T>) =>
+          withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000, signal }, f),
+        { resumable: true, losslessCases: true, losslessResults: true },
+      );
     const secret = "fixture-only-worker-private-credential-12345";
     const handler = await createRunnerCommandHandler([
       { secret, scope: "worker-scope", resumable: true, repository: commands },
@@ -89,6 +91,60 @@ it("claims and fences a real attempt through workerd", async () => {
     const claimed = await claims.claimAfterTeardown(true, "worker-scope", null);
     expect(claimed?.jobId).toBe(job);
     expect(await claims.lease(claimed!, true)).toBe(true);
+    const leaseBefore = await run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },
+        async (tx) =>
+          (
+            await tx.execute<{ value: string }>(
+              sql`SELECT lease_until::text AS value FROM execution_jobs WHERE id=${job}::uuid`,
+            )
+          ).rows[0].value,
+      ),
+    );
+    let releaseLock!: () => void, reportLocked!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const ready = new Promise<void>((resolve) => {
+      reportLocked = resolve;
+    });
+    const lock = run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(sql`SELECT id FROM execution_jobs WHERE id=${job}::uuid FOR UPDATE`);
+        reportLocked();
+        await hold;
+      }),
+    );
+    await ready;
+    const abort = new AbortController();
+    const pending = handler(
+      new Request("https://fixture/internal/runner/lease", {
+        method: "POST",
+        headers: { authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ job: encodeJob(claimed!), heartbeat: true }),
+        signal: abort.signal,
+      }),
+    );
+    setTimeout(() => abort.abort(), 30);
+    try {
+      expect((await pending).status).toBe(503);
+    } finally {
+      releaseLock();
+      await lock;
+    }
+    const leaseAfter = await run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },
+        async (tx) =>
+          (
+            await tx.execute<{ value: string }>(
+              sql`SELECT lease_until::text AS value FROM execution_jobs WHERE id=${job}::uuid`,
+            )
+          ).rows[0].value,
+      ),
+    );
+    expect(leaseAfter).toBe(leaseBefore);
     await expect(claims.lease({ ...claimed!, sandboxScope: "other" }, false)).rejects.toThrow(
       "scope",
     );
