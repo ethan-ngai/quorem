@@ -214,3 +214,34 @@ jobs:
           done
           go test -race ./apps/api/internal/adapters/eventbus
       - run: go vet ./...
+
+  hono-platform-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - name: Build private service fixture images
+        run: |
+          docker build -f deploy/hono/services/Dockerfile -t quorem-35d-private-fixture:local .
+          docker build -f deploy/hono/services/Dockerfile.image -t quorem-35f-image-fixture:local .
+      - name: Staged orchestration and private service contracts
+        run: |
+          node --test scripts/hono-stage*.test.mjs scripts/hono-remote-validation.test.mjs
+          node --import ./deploy/test-register.mjs --test deploy/hono/services/*.test.mjs
+      - name: Isolated Terraform module contracts
+        run: |
+          for stack in hono-stage hono-services; do
+            terraform -chdir=infra/terraform/$stack fmt -check -recursive
+            terraform -chdir=infra/terraform/$stack init -backend=false -input=false
+            terraform -chdir=infra/terraform/$stack validate
+            terraform -chdir=infra/terraform/$stack test
+          done
