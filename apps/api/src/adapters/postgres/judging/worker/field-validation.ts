@@ -56,5 +56,13 @@ export async function validateFieldChunks(
            CASE WHEN e.value::text ~ '^(0|[1-9][0-9]*)$' THEN e.value::text::numeric > 2147483647 ELSE false END))
       ) END AS valid FROM parsed`);
   if (checked.rows.some((row) => !row.valid)) throw new Error("Invalid result field");
+  if (fields.has("diagnostics")) {
+    const duplicated = (
+      await tx.execute<{ bad: boolean }>(
+        sql`WITH source AS (SELECT replace(convert_from(string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal),'UTF8'),E'\\\\u0000',E'\\\\u0001')::json AS value FROM execution_completion_field_chunks WHERE job_id=${jobId}::uuid AND channel=${channel} AND ordinal=${ordinal} AND field='diagnostics') SELECT EXISTS(SELECT 1 FROM source, LATERAL json_array_elements(value) item, LATERAL (SELECT key FROM json_each(item) GROUP BY key HAVING count(*)>1) duplicates) AS bad`,
+      )
+    ).rows[0]?.bad;
+    if (duplicated) throw new Error("Duplicate diagnostic field");
+  }
   return fields;
 }
