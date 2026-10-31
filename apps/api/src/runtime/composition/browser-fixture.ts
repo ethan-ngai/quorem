@@ -25,10 +25,14 @@ const random = () => randomBytes(32).toString("hex");
 const root = resolve(import.meta.dirname, "../../../../..");
 
 /** Vite must remain in development mode for the React refresh preamble. */
-export function browserViteEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function browserViteEnvironment(
+  base: NodeJS.ProcessEnv,
+  cacheDir: string,
+): NodeJS.ProcessEnv {
   return {
     ...base,
     NODE_ENV: "development",
+    QUOREM_VITE_CACHE_DIR: cacheDir,
     QUOREM_API_DEV_ORIGIN: apiOrigin,
     QUOREM_AUTH_DEV_ORIGIN: apiOrigin,
   };
@@ -314,7 +318,7 @@ export async function startBrowserFixture(database: string, socket: string) {
     vite = start(
       "vp",
       ["-C", "apps/web", "dev", "--port", "5187"],
-      browserViteEnvironment(childEnv),
+      browserViteEnvironment(childEnv, join(temp, "vite-cache")),
     );
     let ready = false;
     for (let i = 0; i < 150; i++) {
