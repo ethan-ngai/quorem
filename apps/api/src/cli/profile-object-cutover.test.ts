@@ -6,7 +6,41 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import pg from "pg";
-import { profileObjectCutover } from "./profile-object-cutover.ts";
+import {
+  cutoverDatabaseIdentity,
+  profileObjectCutover,
+  profileObjectEndpoint,
+} from "./profile-object-cutover.ts";
+
+test("resume identity rejects routing overrides and requires verified remote TLS", () => {
+  const a = cutoverDatabaseIdentity("postgres://user:secret@db.example/app?sslmode=verify-full");
+  assert.deepEqual(
+    a,
+    cutoverDatabaseIdentity("postgres://other:secret2@db.example:5432/app?sslmode=verify-full"),
+  );
+  assert.notDeepEqual(
+    a,
+    cutoverDatabaseIdentity("postgres://db.example/other?sslmode=verify-full"),
+  );
+  assert.notDeepEqual(
+    cutoverDatabaseIdentity("postgres://127.0.0.1/db?sslmode=disable"),
+    cutoverDatabaseIdentity("postgres://127.0.0.1/db?sslmode=verify-full"),
+  );
+  assert.doesNotThrow(() => cutoverDatabaseIdentity("postgres://[::1]/db?sslmode=disable"));
+  assert.equal(profileObjectEndpoint("http://[::1]:9000").origin, "http://[::1]:9000");
+  assert.throws(() => profileObjectEndpoint("http://remote.example"));
+  for (const value of [
+    "postgres://db.example/app",
+    "postgres://db.example/app?sslmode=require",
+    "postgres://db.example/app?sslmode=verify-full&HOST=other",
+    "postgres://db.example/app?sslmode=verify-full&hostaddr=127.0.0.1",
+    "postgres://db.example/app?sslmode=verify-full&SERVICE=other",
+    "postgres://db.example/app?sslmode=verify-full&SSLMODE=disable",
+    "postgres://db.example/app?sslmode=verify-full#fragment",
+    "https://db.example/app?sslmode=verify-full",
+  ])
+    assert.throws(() => cutoverDatabaseIdentity(value));
+});
 
 const url = process.env.QUOREM_PROFILE_CUTOVER_TEST_URL;
 test(
@@ -17,7 +51,7 @@ test(
     assert.equal(parsed.hostname, "127.0.0.1");
     assert.equal(parsed.port, "55707");
     assert.equal(parsed.pathname, "/quorem_hono_profile_cutover_test");
-    assert.equal(parsed.search, "");
+    assert.equal(parsed.search, "?sslmode=disable");
     assert.equal(parsed.hash, "");
     const pool = new pg.Pool({ connectionString: url });
     const objects = new Map<string, Buffer>(),
@@ -129,6 +163,12 @@ test(
       let result = await profileObjectCutover(args);
       assert.equal(result.complete, false);
       assert.equal((await stat(file)).mode & 0o777, 0o600);
+      process.env.QUOREM_OPERATOR_DATABASE_URL = url!.replace(
+        "sslmode=disable",
+        "sslmode=verify-full",
+      );
+      await assert.rejects(profileObjectCutover(args), /resume/);
+      process.env.QUOREM_OPERATOR_DATABASE_URL = url!;
       result = await profileObjectCutover(args);
       assert.equal(result.complete, false);
       result = await profileObjectCutover(args);

@@ -10,13 +10,7 @@ import { s3ProfileStorage } from "../../../auth/src/adapters/s3-profile-storage.
 import { copyProfilePhotoPage } from "../../../auth/src/profile-object-cutover.ts";
 import { verifiedOperator } from "./operator-backfill.ts";
 
-function store(prefix: "SOURCE" | "DESTINATION") {
-  const bucket = process.env[`PROFILE_COPY_${prefix}_BUCKET`],
-    endpoint = process.env[`PROFILE_COPY_${prefix}_ENDPOINT`];
-  const accessKeyId = process.env[`PROFILE_COPY_${prefix}_ACCESS_KEY_ID`],
-    secretAccessKey = process.env[`PROFILE_COPY_${prefix}_SECRET_ACCESS_KEY`];
-  if (!bucket || !endpoint || Boolean(accessKeyId) !== Boolean(secretAccessKey))
-    throw new Error("Invalid object store configuration");
+export function profileObjectEndpoint(endpoint: string): URL {
   const url = new URL(endpoint);
   if (
     url.username ||
@@ -25,9 +19,19 @@ function store(prefix: "SOURCE" | "DESTINATION") {
     url.hash ||
     url.pathname !== "/" ||
     (url.protocol !== "https:" &&
-      !(url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname)))
+      !(url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)))
   )
     throw new Error("Invalid object store endpoint");
+  return url;
+}
+function store(prefix: "SOURCE" | "DESTINATION") {
+  const bucket = process.env[`PROFILE_COPY_${prefix}_BUCKET`],
+    endpoint = process.env[`PROFILE_COPY_${prefix}_ENDPOINT`];
+  const accessKeyId = process.env[`PROFILE_COPY_${prefix}_ACCESS_KEY_ID`],
+    secretAccessKey = process.env[`PROFILE_COPY_${prefix}_SECRET_ACCESS_KEY`];
+  if (!bucket || !endpoint || Boolean(accessKeyId) !== Boolean(secretAccessKey))
+    throw new Error("Invalid object store configuration");
+  const url = profileObjectEndpoint(endpoint);
   return {
     bucket,
     endpoint: url.origin,
@@ -38,6 +42,24 @@ function store(prefix: "SOURCE" | "DESTINATION") {
       ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
     },
   };
+}
+/** Explicit TLS and routing prevent a resume cursor crossing databases. */
+export function cutoverDatabaseIdentity(value: string): readonly string[] {
+  const url = new URL(value);
+  const params = [...url.searchParams.entries()];
+  const local = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
+  if (
+    !["postgres:", "postgresql:"].includes(url.protocol) ||
+    !url.hostname ||
+    !url.pathname ||
+    url.pathname === "/" ||
+    url.hash ||
+    params.length !== 1 ||
+    params[0][0] !== "sslmode" ||
+    !["verify-full", ...(local ? ["disable"] : [])].includes(params[0][1])
+  )
+    throw new Error("Operator database requires explicit safe routing and TLS");
+  return [url.protocol, url.hostname, url.port || "5432", url.pathname, params[0][1]];
 }
 export async function profileObjectCutover(args: string[]) {
   const { values } = parseArgs({
@@ -73,18 +95,11 @@ export async function profileObjectCutover(args: string[]) {
     destination = store("DESTINATION");
   if (source.bucket === destination.bucket && source.endpoint === destination.endpoint)
     throw new Error("Source and destination must differ");
-  const databaseIdentity = new URL(database);
-  databaseIdentity.username = "";
-  databaseIdentity.password = "";
+  const databaseIdentity = cutoverDatabaseIdentity(database);
   const fingerprint = createHash("sha256")
     .update(
       JSON.stringify([
-        [
-          databaseIdentity.protocol,
-          databaseIdentity.hostname,
-          databaseIdentity.port,
-          databaseIdentity.pathname,
-        ],
+        databaseIdentity,
         issuer,
         source.endpoint,
         source.bucket,
