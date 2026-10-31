@@ -361,7 +361,9 @@ it("runs native auth, catalog, workspace and durable socket through composition"
 
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
-      await tx.execute(sql`UPDATE matches SET state='cancelled',outcome='{}'::jsonb WHERE id=${matchId}::uuid`);
+      await tx.execute(
+        sql`UPDATE matches SET state='cancelled',outcome='{}'::jsonb WHERE id=${matchId}::uuid`,
+      );
       await tx.execute(
         sql`INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) SELECT ${crypto.randomUUID()}::uuid,b.user_id,'matches.host_guests','manual','fixture','fixture','fixture' FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=${user}`,
       );
@@ -417,21 +419,25 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       };
     }
   ).DEADLINES;
-  expect(
-    await runDurableObjectAlarm(deadlineNamespace.get(deadlineNamespace.idFromName("deadline-0"))),
-  ).toBe(true);
-  const repair = await run((scope) =>
-    scope.transaction(
-      { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
-      async (tx) =>
-        (
-          await tx.execute<{ state: string; delivered: boolean }>(
-            sql`SELECT (SELECT state FROM matches WHERE id=${expiredMatch}::uuid) AS state, EXISTS (SELECT 1 FROM execution_dispatch_intents WHERE job_id IN (SELECT id FROM execution_jobs WHERE submission_id=${submission}::uuid) AND delivered_at > clock_timestamp()-interval '1 minute') AS delivered`,
-          )
-        ).rows[0],
-    ),
-  );
-  expect(repair).toEqual({ state: "cancelled", delivered: true });
+  // Workerd can deliver the due alarm while scheduled recovery is still finishing.
+  await runDurableObjectAlarm(deadlineNamespace.get(deadlineNamespace.idFromName("deadline-0")));
+  await expect
+    .poll(
+      () =>
+        run((scope) =>
+          scope.transaction(
+            { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
+            async (tx) =>
+              (
+                await tx.execute<{ state: string; delivered: boolean }>(
+                  sql`SELECT (SELECT state FROM matches WHERE id=${expiredMatch}::uuid) AS state, EXISTS (SELECT 1 FROM execution_dispatch_intents WHERE job_id IN (SELECT id FROM execution_jobs WHERE submission_id=${submission}::uuid) AND delivered_at > clock_timestamp()-interval '1 minute') AS delivered`,
+                )
+              ).rows[0],
+          ),
+        ),
+      { timeout: 5000, interval: 100 },
+    )
+    .toEqual({ state: "cancelled", delivered: true });
   const cancelled = await SELF.fetch(`http://127.0.0.1:8765/v1/submissions/${submission}/cancel`, {
     method: "POST",
     headers: { ...headers, "idempotency-key": "worker-runtime-cancel" },
