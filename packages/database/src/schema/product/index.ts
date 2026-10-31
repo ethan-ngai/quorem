@@ -1822,3 +1822,90 @@ export const interview_execution_public = pgView("interview_execution_public", {
   result_count: integer(),
   private_statuses: jsonb(),
 }).existing();
+
+export const execution_completion_staging = pgTable(
+  "execution_completion_staging",
+  {
+    job_id: uuid().primaryKey().notNull(),
+    attempt_id: uuid().notNull(),
+    sandbox_scope: text().notNull(),
+    header_data: bytea().notNull(),
+    header_hash: bytea().notNull(),
+    eof: boolean().default(false).notNull(),
+    promoted: boolean().default(false).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_jobs.id],
+      name: "execution_completion_staging_job_id_fkey",
+    }).onDelete("cascade"),
+    check("execution_completion_staging_header_hash_check", sql`octet_length(header_hash) = 32`),
+  ],
+);
+export const execution_completion_frames = pgTable(
+  "execution_completion_frames",
+  {
+    job_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    frame_data: bytea().notNull(),
+    frame_hash: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.channel, table.ordinal],
+      name: "execution_completion_frames_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_completion_staging.job_id],
+      name: "execution_completion_frames_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_frames_channel_check",
+      sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text])`,
+    ),
+    check("execution_completion_frames_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check("execution_completion_frames_frame_hash_check", sql`octet_length(frame_hash) = 32`),
+  ],
+);
+export const submission_result_headers = pgTable(
+  "submission_result_headers",
+  {
+    submission_id: uuid().primaryKey().notNull(),
+    header_data: bytea().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.submission_id],
+      foreignColumns: [submissions.id],
+      name: "submission_result_headers_submission_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
+export const submission_public_result_cases = pgTable(
+  "submission_public_result_cases",
+  {
+    submission_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    result_data: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.submission_id, table.channel, table.ordinal],
+      name: "submission_public_result_cases_pkey",
+    }),
+    foreignKey({
+      columns: [table.submission_id],
+      foreignColumns: [submissions.id],
+      name: "submission_public_result_cases_submission_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "submission_public_result_cases_channel_check",
+      sql`channel = ANY (ARRAY['public'::text, 'sample'::text])`,
+    ),
+    check("submission_public_result_cases_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+  ],
+);
