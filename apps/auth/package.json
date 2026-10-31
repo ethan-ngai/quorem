@@ -20,6 +20,7 @@
     "@better-auth/passkey": "1.7.7",
     "@quorem/contracts": "workspace:*",
     "@quorem/database": "workspace:*",
+    "@quorem/execution": "workspace:*",
     "better-auth": "1.7.7",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.14",

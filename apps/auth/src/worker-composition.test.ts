@@ -14,6 +14,37 @@ const fixture = {
   AUTH_EMAIL_FROM: "fixture@example.test",
 };
 describe("Worker auth composition", () => {
+  it("requires a distinct Access pair and HTTPS when stage media is selected", () => {
+    const stage = {
+      ...fixture,
+      APP_ENV: "stage",
+      AUTH_ORIGIN: "https://auth.example",
+      AUTH_PASSWORD_PRODUCTION: "true",
+      AUTH_MAIL_INTENT_KEY: "07".repeat(32),
+      PROFILE_MEDIA_ENABLED: "true",
+      PROFILE_IMAGE_SERVICE_URL: "https://image.example/",
+      PROFILE_IMAGE_SERVICE_TOKEN: "image-fixture-token-".repeat(3),
+      PROFILE_BUCKET: { get: async () => null, put: async () => {}, delete: async () => {} },
+    };
+    expect(() => workerRuntime(stage)).toThrow("Invalid image ingress configuration");
+    const access = {
+      ...stage,
+      PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
+      PROFILE_IMAGE_ACCESS_CLIENT_ID: "fixture-id",
+      PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "fixture-secret",
+    };
+    expect(() => workerRuntime(access)).not.toThrow();
+    expect(() =>
+      workerRuntime({ ...access, PROFILE_IMAGE_SERVICE_URL: "http://image.example/" }),
+    ).toThrow();
+    expect(() =>
+      workerRuntime({
+        ...access,
+        PROFILE_IMAGE_ACCESS_CLIENT_SECRET: stage.PROFILE_IMAGE_SERVICE_TOKEN,
+      }),
+    ).toThrow();
+    expect(() => workerRuntime({ ...access, PROFILE_IMAGE_ACCESS_MODE: "none" })).toThrow();
+  });
   it("fails closed for a missing or malformed selected mail key", () => {
     expect(() => workerRuntime(fixture)).toThrow(
       "AUTH_MAIL_INTENT_KEY must be 32 bytes encoded as hex",
