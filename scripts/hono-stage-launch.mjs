@@ -14,24 +14,72 @@ import { requirePrivateStageState } from "./hono-stage-state.mjs";
 import { stageNamespaceReady } from "./hono-stage-ready.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 
+const stageResources = [
+  "cloudflare_zero_trust_access_service_token.stage",
+  "neon_project.stage",
+  "terraform_data.stage_secrets",
+];
+function providerDiagnostics(text) {
+  // Terraform emits independent diagnostics between box borders; never forward their contents.
+  return text
+    .split(/(?:^|\n)\s*[╷╵]\s*(?:\n|$)/u)
+    .filter(Boolean)
+    .map((chunk) => {
+      const resources = stageResources.filter((name) => chunk.includes(name));
+      const statuses = [
+        ...chunk.matchAll(
+          /\b(?:HTTP(?:\s+status)?|status(?:\s+code)?)\s*[:=]?\s*(401|403|404|409|422|429|500|502|503|504)\b/gi,
+        ),
+      ].map((match) => Number(match[1]));
+      const codes = resources.some((name) => name.startsWith("cloudflare_"))
+        ? [...chunk.matchAll(/(?:"code"\s*:\s*|\b(?:error\s+)?code\s*[:=]\s*)(\d{1,6})\b/gi)].map(
+            (match) => Number(match[1]),
+          )
+        : [];
+      const flags = {
+        organization: /\b(?:organization|organisation|org)[ -]scoped\b/i.test(chunk),
+        project: /\bproject[ -]scoped\b/i.test(chunk),
+        authentication:
+          /\b(?:unauthorized|unauthenticated|authentication failed|invalid (?:api )?(?:key|token))\b/i.test(
+            chunk,
+          ),
+        permission:
+          /\b(?:permission denied|insufficient permissions?|access denied|forbidden|not authorized)\b/i.test(
+            chunk,
+          ),
+        quota:
+          /\b(?:quota (?:exceeded|limit)|rate[ -]limit(?:ed| exceeded)?|too many requests)\b/i.test(
+            chunk,
+          ),
+      };
+      return { resources, statuses: [...new Set(statuses)], codes: [...new Set(codes)], flags };
+    })
+    .filter(
+      (item) =>
+        item.resources.length ||
+        item.statuses.length ||
+        item.codes.length ||
+        Object.values(item.flags).some(Boolean),
+    );
+}
 export class StageCommandFailure extends Error {
   constructor(result) {
     const text = result.stderr ?? "";
-    const category =
-      /permission|unauthorized|forbidden|authentication|denied|HTTP\s*(401|403)\b|\b403\b|\b401\b/i.test(
-        text,
-      )
-        ? "provider permission"
-        : /quota|rate.limit|\b429\b/i.test(text)
-          ? "provider limit"
-          : "configuration/provider";
+    const diagnostics = providerDiagnostics(text);
+    const category = diagnostics.some(
+      ({ statuses, flags }) =>
+        flags.authentication ||
+        flags.permission ||
+        statuses.some((status) => status === 401 || status === 403),
+    )
+      ? "provider permission"
+      : diagnostics.some(({ statuses, flags }) => flags.quota || statuses.includes(429))
+        ? "provider limit"
+        : "configuration/provider";
     super(`Stage command failed (${category}); output withheld`);
     this.category = category;
-    this.resources = [
-      "cloudflare_zero_trust_access_service_token.stage",
-      "neon_project.stage",
-      "terraform_data.stage_secrets",
-    ].filter((name) => text.includes(name));
+    this.diagnostics = diagnostics;
+    this.resources = stageResources.filter((name) => text.includes(name));
     this.noState = /No state file was found/i.test(text);
   }
 }
@@ -224,7 +272,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stdout.write(`${JSON.stringify(receipt)}\n`);
   } catch (error) {
     process.stderr.write(
-      `${error instanceof StageCommandFailure ? JSON.stringify({ error: "stage-command", category: error.category, resources: error.resources }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
+      `${error instanceof StageCommandFailure ? JSON.stringify({ error: "stage-command", category: error.category, resources: error.resources, diagnostics: error.diagnostics }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
     );
     process.exitCode = 1;
   }
