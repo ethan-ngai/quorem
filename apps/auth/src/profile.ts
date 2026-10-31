@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import type { ImageFormat, ImageProcessor } from "./image-processing.ts";
 import type { ProfileStorage } from "./profile-storage.ts";
 
 export const photoPrefix = "/api/auth/profile-photos/";
@@ -58,7 +58,14 @@ async function boundedBody(request: Request) {
   } finally {
     reader.releaseLock();
   }
-  return size ? Buffer.concat(chunks) : undefined;
+  if (!size) return undefined;
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
 }
 
 export function createProfileHandler(options: {
@@ -66,7 +73,9 @@ export function createProfileHandler(options: {
   session: SessionReader;
   repository: ProfileRepository;
   storage?: ProfileStorage;
+  imageProcessor: ImageProcessor;
 }) {
+  if (!options.imageProcessor) throw new Error("Profile image processor is required");
   let processing = 0;
   const attempts = new Map<string, { starts: number; count: number }>();
   const cleanup = async (key: string | undefined) => {
@@ -86,7 +95,7 @@ export function createProfileHandler(options: {
       if (!options.storage) return json(503, { error: "Photo storage unavailable" });
       const image = await options.storage.get(key);
       return image
-        ? new Response(Buffer.from(image), {
+        ? new Response(new Uint8Array(image).buffer, {
             headers: {
               "Content-Type": "image/webp",
               "Cache-Control": "public, max-age=60",
@@ -115,7 +124,7 @@ export function createProfileHandler(options: {
       try {
         const bytes = await boundedBody(request);
         if (!bytes || bytes.length > 1024) return json(400, { error: "Invalid color" });
-        color = (JSON.parse(bytes.toString("utf8")) as { color?: unknown }).color;
+        color = (JSON.parse(new TextDecoder().decode(bytes)) as { color?: unknown }).color;
       } catch {
         return json(400, { error: "Invalid color" });
       }
@@ -143,30 +152,18 @@ export function createProfileHandler(options: {
         const format = (
           { "image/png": "png", "image/jpeg": "jpeg", "image/webp": "webp" } as Record<
             string,
-            string
+            ImageFormat
           >
         )[request.headers.get("content-type") ?? ""];
         if (!format) return json(415, { error: "Choose a PNG, JPEG or WebP image" });
         const bytes = await boundedBody(request);
         if (!bytes) return json(413, { error: "Choose an image smaller than 5 MiB" });
-        let image: Buffer;
-        try {
-          const { default: sharp } = await import("sharp");
-          const source = sharp(bytes, { limitInputPixels: 16000000, failOn: "warning" });
-          const metadata = await source.metadata();
-          if (metadata.format !== format || (metadata.pages ?? 1) !== 1)
-            return json(415, { error: "Choose a static PNG, JPEG or WebP image" });
-          // Re-encoding strips metadata and active payloads; no original bytes are served.
-          image = await source
-            .rotate()
-            .resize(512, 512, { fit: "cover", withoutEnlargement: true })
-            .webp({ quality: 85 })
-            .toBuffer();
-        } catch {
-          return json(422, { error: "Image could not be decoded" });
-        }
-        nextKey = randomUUID();
-        await options.storage.put(nextKey, image);
+        const image = await options.imageProcessor.process(bytes, format);
+        if (image.kind === "unsupported")
+          return json(415, { error: "Choose a static PNG, JPEG or WebP image" });
+        if (image.kind === "invalid") return json(422, { error: "Image could not be decoded" });
+        nextKey = crypto.randomUUID();
+        await options.storage.put(nextKey, image.bytes);
       }
       const nextImage = nextKey ? photoPrefix + nextKey : null;
       if (!(await options.session(request.headers))) {
