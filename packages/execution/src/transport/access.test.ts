@@ -1,5 +1,5 @@
 /** @file access.test.ts @description Pinned private ingress transport. @module execution */
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { accessFetch } from "./access.ts";
 void test("private ingress attaches credentials only to the pinned HTTPS origin", async () => {
