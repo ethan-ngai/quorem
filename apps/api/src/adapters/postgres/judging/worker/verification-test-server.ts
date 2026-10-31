@@ -11,7 +11,7 @@ const parsed = new URL(url);
 if (
   !["postgres:", "postgresql:"].includes(parsed.protocol) ||
   !["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) ||
-  parsed.pathname !== "/quorem_hono_engine_test" ||
+  !["/quorem_hono_engine_test", "/quorem_hono_runner_test"].includes(parsed.pathname) ||
   ["host", "hostaddr", "service"].some((key) => parsed.searchParams.has(key))
 )
   throw new Error("Disposable test database required");
