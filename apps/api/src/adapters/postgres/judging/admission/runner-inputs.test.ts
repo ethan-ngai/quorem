@@ -539,7 +539,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
     const problem = crypto.randomUUID(),
       version = crypto.randomUUID();
     const raw = JSON.stringify({
-      problem: { examples: Array.from({ length: 321 }, (_, i) => ({ args: [i], expected: i })) },
+      problem: { examples: Array.from({ length: 1000 }, (_, i) => ({ args: [i], expected: i })) },
       hiddenCases: [],
     });
     try {
@@ -553,9 +553,18 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
             );
             await indexRunnerFixture(tx, { version }, raw);
-            await expect(fixtureCaseRefs(tx, { version }, "example", 0)).rejects.toThrow(
+            let returned = 0;
+            const observed = {
+              execute: async (query: Parameters<typeof tx.execute>[0]) => {
+                const result = await tx.execute(query);
+                returned = result.rows.length;
+                return result;
+              },
+            } as unknown as typeof tx;
+            await expect(fixtureCaseRefs(observed, { version }, "example", 0)).rejects.toThrow(
               "exceeds admitted case count",
             );
+            expect(returned).toBe(321);
             throw new Error("fixture rollback");
           }),
         ),
