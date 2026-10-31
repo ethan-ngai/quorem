@@ -3,7 +3,9 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { migrate } from "@quorem/database/migrations";
 import { test } from "node:test";
 import pg from "pg";
 import {
@@ -54,6 +56,13 @@ test(
     assert.equal(parsed.search, "?sslmode=disable");
     assert.equal(parsed.hash, "");
     const pool = new pg.Pool({ connectionString: url });
+    const lock = await pool.connect();
+    const root = fileURLToPath(new URL("../../../../", import.meta.url));
+    const operator = "00000000-0000-4000-8000-000000000001";
+    const subject = "00000000-0000-4000-8000-000000000002";
+    const first = "00000000-0000-4000-8000-000000000003";
+    const second = "00000000-0000-4000-8000-000000000004";
+    let locked = false;
     const objects = new Map<string, Buffer>(),
       writes: string[] = [];
     let racePath: string | undefined;
@@ -102,8 +111,39 @@ test(
     const temp = await mkdtemp(join(tmpdir(), "profile-copy-test-"));
     const env = { ...process.env };
     try {
+      assert.equal(
+        (await lock.query("SELECT current_database() AS name")).rows[0].name,
+        "quorem_hono_profile_cutover_test",
+      );
+      locked = (await lock.query("SELECT pg_try_advisory_lock(740038, 1) AS locked")).rows[0]
+        .locked;
+      assert.ok(locked, "fixture database is already in use");
+      await lock.query(
+        "DROP SCHEMA IF EXISTS quorem_auth CASCADE; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public",
+      );
+      await migrate(pool, "product", resolve(root, "apps/api/migrations"));
+      await migrate(pool, "auth", resolve(root, "apps/auth/migrations"));
       await pool.query(
-        `CREATE SCHEMA quorem_auth; CREATE TABLE quorem_auth."user" (id text primary key, image text, "emailVerified" boolean); CREATE TABLE users(id text primary key, role text, disabled boolean); CREATE TABLE identity_bindings(user_id text, subject text, issuer text); CREATE TABLE access_audit(operation_id text primary key, actor text, user_id text, action text, scope text, reason text); INSERT INTO quorem_auth."user" VALUES ('subject',NULL,true), ('u1','/api/auth/profile-photos/${key1}',true), ('u2','/api/auth/profile-photos/${key2}',true); INSERT INTO users VALUES ('operator','admin',false); INSERT INTO identity_bindings VALUES ('operator','subject','https://auth.example'); INSERT INTO access_audit VALUES ('bootstrap:operator','operator','operator','operator.bootstrap','subject','fixture');`,
+        "INSERT INTO users(id,display_name,role) VALUES($1,'Fixture Operator','admin')",
+        [operator],
+      );
+      await pool.query(
+        `INSERT INTO quorem_auth."user"(id,name,email,"emailVerified","createdAt","updatedAt",image) VALUES ($1,'Operator','operator@fixture.test',true,clock_timestamp(),clock_timestamp(),NULL),($2,'First','first@fixture.test',true,clock_timestamp(),clock_timestamp(),$4),($3,'Second','second@fixture.test',true,clock_timestamp(),clock_timestamp(),$5)`,
+        [
+          subject,
+          first,
+          second,
+          `/api/auth/profile-photos/${key1}`,
+          `/api/auth/profile-photos/${key2}`,
+        ],
+      );
+      await pool.query(
+        "INSERT INTO identity_bindings(issuer,subject,user_id) VALUES('https://auth.example',$1,$2)",
+        [subject, operator],
+      );
+      await pool.query(
+        "INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES('bootstrap:operator',$1,$1,'operator.bootstrap',$2,'Disposable fixture')",
+        [operator, subject],
       );
       Object.assign(process.env, {
         QUOREM_OPERATOR_DATABASE_URL: url,
@@ -136,7 +176,7 @@ test(
         ),
         1,
       );
-      await pool.query("UPDATE users SET disabled=true WHERE id='operator'");
+      await pool.query("UPDATE users SET disabled=true WHERE id=$1", [operator]);
       await assert.rejects(
         profileObjectCutover([
           "--apply",
@@ -147,7 +187,21 @@ test(
         ]),
         /operator/,
       );
-      await pool.query("UPDATE users SET disabled=false WHERE id='operator'");
+      await pool.query("UPDATE users SET disabled=false WHERE id=$1", [operator]);
+      await pool.query(`UPDATE quorem_auth."user" SET "emailVerified"=false WHERE id=$1`, [
+        subject,
+      ]);
+      await assert.rejects(
+        profileObjectCutover([
+          "--apply",
+          "--reason",
+          "fixture",
+          "--resume-file",
+          join(temp, "unverified.json"),
+        ]),
+        /operator/,
+      );
+      await pool.query(`UPDATE quorem_auth."user" SET "emailVerified"=true WHERE id=$1`, [subject]);
       const file = join(temp, "resume.json"),
         args = [
           "--apply",
@@ -177,6 +231,16 @@ test(
       assert.equal(writes.length, 2);
       assert.equal(objects.get(`/destination/avatars/${key1}.webp`)?.toString(), "first");
       assert.equal(objects.get(`/destination/avatars/${key2}.webp`)?.toString(), "second");
+      assert.equal(objects.get(`/source/avatars/${key1}.webp`)?.toString(), "first");
+      assert.equal(objects.get(`/source/avatars/${key2}.webp`)?.toString(), "second");
+      const references = await pool.query(
+        `SELECT image FROM quorem_auth."user" WHERE id IN ($1,$2) ORDER BY id`,
+        [first, second],
+      );
+      assert.deepEqual(
+        references.rows.map((row) => row.image),
+        [`/api/auth/profile-photos/${key1}`, `/api/auth/profile-photos/${key2}`],
+      );
       assert.ok((await readFile(file, "utf8")).includes('"complete":true'));
       assert.equal(
         Number(
@@ -215,10 +279,17 @@ test(
     } finally {
       for (const key of Object.keys(process.env)) if (!(key in env)) delete process.env[key];
       Object.assign(process.env, env);
-      await pool.query(
-        "DROP SCHEMA quorem_auth CASCADE; DROP TABLE access_audit, identity_bindings, users",
-      );
-      await pool.end();
+      try {
+        if (locked) {
+          await lock.query(
+            "DROP SCHEMA IF EXISTS quorem_auth CASCADE; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public",
+          );
+          await lock.query("SELECT pg_advisory_unlock(740038, 1)");
+        }
+      } finally {
+        lock.release();
+        await pool.end();
+      }
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await rm(temp, { recursive: true, force: true });
     }
