@@ -23,6 +23,15 @@ const verifierOrigin = "http://127.0.0.1:18761",
 const random = () => randomBytes(32).toString("hex");
 const root = resolve(import.meta.dirname, "../../../../..");
 
+/** Vite must remain in development mode for the React refresh preamble. */
+export function browserViteEnvironment(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    NODE_ENV: "development",
+    QUOREM_API_DEV_ORIGIN: apiOrigin,
+    QUOREM_AUTH_DEV_ORIGIN: apiOrigin,
+  };
+}
 /** This fixture may reset only its separately provisioned local database. */
 export function assertBrowserDatabase(value: string): void {
   assertRuntimeTestDatabase(value);
@@ -293,16 +302,17 @@ export async function startBrowserFixture(database: string, socket: string) {
       },
     );
     await health(runnerOrigin, runner);
-    vite = start("vp", ["-C", "apps/web", "dev", "--port", "5187"], {
-      ...childEnv,
-      QUOREM_API_DEV_ORIGIN: apiOrigin,
-      QUOREM_AUTH_DEV_ORIGIN: apiOrigin,
-    });
+    vite = start(
+      "vp",
+      ["-C", "apps/web", "dev", "--port", "5187"],
+      browserViteEnvironment(childEnv),
+    );
     let ready = false;
     for (let i = 0; i < 150; i++) {
       if (!vite.pid || vite.exitCode !== null || vite.signalCode !== null) break;
       try {
-        if ((await fetch(`${webOrigin}/practice`, { signal: AbortSignal.timeout(1000) })).ok) {
+        const page = await fetch(`${webOrigin}/practice`, { signal: AbortSignal.timeout(1000) });
+        if (page.ok && (await page.text()).includes("/@react-refresh")) {
           ready = true;
           break;
         }

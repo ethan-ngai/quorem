@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertBrowserDatabase, startBrowserFixture } from "./browser-fixture.ts";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { resolve } from "node:path";
+import {
+  assertBrowserDatabase,
+  startBrowserFixture,
+  browserViteEnvironment,
+} from "./browser-fixture.ts";
 
 void test("browser fixture requires its exact disposable loopback database and port", async () => {
   assert.doesNotThrow(() =>
@@ -25,3 +32,42 @@ void test("browser fixture requires its exact disposable loopback database and p
     ),
   );
 });
+
+void test(
+  "the fixture's live Vite response includes the React refresh preamble",
+  { timeout: 30000 },
+  async () => {
+    const child = spawn("vp", ["-C", "apps/web", "dev", "--port", "5188"], {
+      cwd: resolve(import.meta.dirname, "../../../../.."),
+      env: browserViteEnvironment({ ...process.env, NODE_ENV: "production" }),
+      stdio: "ignore",
+      detached: true,
+    });
+    try {
+      let html = "";
+      for (let i = 0; i < 150; i++) {
+        if (child.exitCode !== null) break;
+        try {
+          const response = await fetch("http://127.0.0.1:5188/practice", {
+            signal: AbortSignal.timeout(1000),
+          });
+          if (response.ok) {
+            html = await response.text();
+            break;
+          }
+        } catch {}
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      assert.match(html, /\/@react-refresh/);
+      assert.match(html, /window\.\$RefreshReg\$/);
+      assert.match(html, /\/@vite\/client/);
+      const module = await (await fetch("http://127.0.0.1:5188/src/ui/LoadingScreen.tsx")).text();
+      assert.match(module, /\$RefreshReg\$/);
+    } finally {
+      if (child.pid && child.exitCode === null) {
+        process.kill(-child.pid, "SIGTERM");
+        await once(child, "exit");
+      }
+    }
+  },
+);
