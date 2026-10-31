@@ -216,3 +216,10 @@ export function markRawDocumentChanges(
   });
   return marks;
 }
+
+/** Preserve custom execution case literals for Go operation identity. */
+export function markRawExecutionCases(raw: string, command: Obj): Map<string, string> {
+  const { root, marks, fields, cases } = markerContext(raw);
+  cases(command.customCases, fields(root, "customCases")?.items);
+  return marks;
+}
