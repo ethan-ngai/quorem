@@ -1478,4 +1478,198 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       (await pool.query("SELECT state FROM submissions WHERE id=$1", [id])).rows[0].state,
     ).toBe("cancelled");
   }, 40000);
+  it("promotes a resumed interview Run without replacing prior Submit feedback", async () => {
+    const { seedCatalog } = await import("../../../../cli/seed.ts");
+    const { interviewLifecycle } = await import("../../interviews/lifecycle/repository.ts");
+    const { preparePublishedInterviewQuestion } =
+      await import("../../interviews/question/prepare.ts");
+    const { interviewSnapshotStream } = await import("../../interviews/question/stream.ts");
+    const { interviewDocumentCommands } = await import("../../interviews/document/commands.ts");
+    const { interviewQuestionCommands } = await import("../../interviews/question/commands.ts");
+    const { postgresInterviewAdmission } = await import("../../interviews/execution/repository.ts");
+    const { parseInterviewExecution } =
+      await import("../../../../modules/interviews/execution/command.ts");
+    const { sourceHash } = await import("@quorem/execution");
+    await seedCatalog(pool, false);
+    const interviewOwner = `interview-host-${crypto.randomUUID()}`;
+    const host: LocalPrincipal = {
+      ...principal,
+      userId: interviewOwner,
+      displayName: interviewOwner,
+    };
+    await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Host')", [interviewOwner]);
+    await pool.query(
+      "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,$2,'interviews.host','manual','interview-run-fixture','fixture','fixture')",
+      [crypto.randomUUID(), interviewOwner],
+    );
+    const candidate = `interview-candidate-${crypto.randomUUID()}`;
+    await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Candidate')", [candidate]);
+    const interview = interviewLifecycle(run, {
+      question: preparePublishedInterviewQuestion,
+      snapshot: interviewSnapshotStream(run),
+    });
+    const questions = interviewQuestionCommands(run),
+      docs = interviewDocumentCommands(run);
+    const created = JSON.parse(
+      await interview.create(host, "run-regression-create", {
+        title: "Run regression",
+        question: { problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7", language: "python" },
+      }),
+    ) as { id: string };
+    await pool.query(
+      "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,$2,'interviewee')",
+      [created.id, candidate],
+    );
+    const candidateActor: LocalPrincipal = { ...host, userId: candidate, displayName: candidate };
+    const snapshot = async () =>
+      JSON.parse(await new Response(await interview.read(host, created.id)).text());
+    const initial = await snapshot();
+    const source =
+      "# UTF-16 🧪 café\nclass Solution:\n def runWidths(self, values):\n  result=[]\n  for value in values:\n   if not result or value != previous: result.append(1)\n   else: result[-1]+=1\n   previous=value\n  return result\n";
+    await docs.push(host, created.id, "run-regression-edit", {
+      epoch: initial.document.epoch,
+      version: 0,
+      updates: [
+        { clientID: "fixture", changes: [[initial.document.source.length, ...source.split("\n")]] },
+      ],
+    });
+    const current = await snapshot();
+    const admit = postgresInterviewAdmission(run, { losslessCases: true, guestExecution: true });
+    const submit = async (kind: "run" | "submit", key: string) => {
+      await pool.query(
+        "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+        [interviewOwner],
+      );
+      const receiptId = crypto.randomUUID(),
+        jobId = crypto.randomUUID();
+      await pool.query(
+        "INSERT INTO deadline_prearms(id,purpose,shard,expires_at) VALUES($1,'execution',0,clock_timestamp()+interval '1 minute')",
+        [receiptId],
+      );
+      const command = await parseInterviewExecution(
+        JSON.stringify({
+          kind,
+          level: 1,
+          questionEpoch: current.questionEpoch,
+          documentEpoch: current.document.epoch,
+          sourceHash: await sourceHash(source),
+        }),
+        key,
+      );
+      return {
+        ...(await admit(host, created.id, key, command, { receiptId, jobId, shard: 0 })),
+        jobId,
+      };
+    };
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "interview-run-regression",
+      cleanupMs: 10000,
+    });
+    const secret = "fixture-only-interview-runner-secret-123456";
+    const handler = await createRunnerCommandHandler([
+      {
+        secret,
+        scope: sandbox.scope,
+        resumable: true,
+        inputProtocol: "manifest-v1",
+        repository: () =>
+          postgresExecutionCommands(
+            run,
+            {
+              inputProtocol: "manifest-v1",
+              resumable: true,
+              losslessCases: true,
+              losslessResults: true,
+            },
+            { verifier, verificationPublicKey },
+          ),
+      },
+    ]);
+    const repository = privateRunnerCommands({
+      origin: "https://fixture",
+      secret,
+      scope: sandbox.scope,
+      resumable: true,
+      timeoutMs: 5000,
+      fetch: async (input, init) => handler(new Request(input, init)),
+    });
+    const drain = (sliceMs: number) =>
+      drainer({
+        repository,
+        sandbox,
+        cancellations: controlPolling(25),
+        queue: queueControl(repository, sandbox.scope, 25),
+        engine: checkpointedEngine(repository, sandbox, sliceMs),
+        slots: 1,
+        resumable: true,
+        graceMs: 100,
+        claimWindowMs: 30000,
+      });
+    const submitted = await submit("submit", "interview-submit");
+    expect((await drain(50000).drain(AbortSignal.timeout(60000))).complete).toBe(true);
+    const snapshots = submissionSnapshots(run);
+    const staffResult = await new Response(
+      await snapshots.interview(host, created.id, submitted.id),
+    ).json();
+    const candidateResult = await new Response(
+      await snapshots.interview(candidateActor, created.id, submitted.id),
+    ).json();
+    expect(staffResult.verdict).toBe("accepted");
+    expect(staffResult.privateCaseResults.length).toBeGreaterThan(0);
+    expect(candidateResult.privateCaseResults).toBeUndefined();
+    const caseId = (
+      await pool.query(
+        "SELECT case_id FROM interview_question_private_cases WHERE session_id=$1 AND question_epoch=$2 ORDER BY ordinal LIMIT 1",
+        [created.id, current.questionEpoch],
+      )
+    ).rows[0].case_id;
+    await questions.caseVisibility(host, created.id, "reveal", caseId, true, current.questionEpoch);
+    expect(
+      (
+        await new Response(
+          await snapshots.interview(candidateActor, created.id, submitted.id),
+        ).json()
+      ).privateCaseResults.length,
+    ).toBeGreaterThan(0);
+    const before = await snapshot();
+    expect(before.latestSubmissionId).toBe(submitted.id);
+    const latestSubmit = async () =>
+      (
+        await pool.query(
+          "SELECT s.id::text FROM submissions s JOIN interview_execution e ON e.submission_id=s.id WHERE e.session_id=$1 AND s.kind='submit' AND s.state='completed' ORDER BY s.admitted_at DESC,s.id DESC LIMIT 1",
+          [created.id],
+        )
+      ).rows[0].id;
+    expect(await latestSubmit()).toBe(submitted.id);
+    const executed = await submit("run", "interview-run");
+    expect((await drain(1).drain(AbortSignal.timeout(60000))).complete).toBe(true);
+    const result = await new Response(
+      await snapshots.interview(host, created.id, executed.id),
+    ).json();
+    expect(result.verdict).toBe("accepted");
+    expect(result.publicCases.length).toBeGreaterThan(0);
+    expect(result.privateCaseResults).toBeUndefined();
+    const row = (
+      await pool.query(
+        "SELECT s.state,(SELECT count(DISTINCT v.attempt_id)::int FROM execution_verified_cases v WHERE v.job_id=j.id) AS verified_attempts,(SELECT count(*)::int FROM interview_private_result_cases p WHERE p.submission_id=s.id) AS private_count FROM submissions s JOIN execution_jobs j ON j.submission_id=s.id WHERE s.id=$1",
+        [executed.id],
+      )
+    ).rows[0];
+    expect(row.state).toBe("completed");
+    expect(row.verified_attempts).toBeGreaterThan(1);
+    expect(row.private_count).toBe(0);
+    expect(await latestSubmit()).toBe(submitted.id);
+    const after = await snapshot();
+    expect(after.latestSubmissionId).toBe(executed.id);
+    expect(after.question.privateCaseDetails).toEqual(before.question.privateCaseDetails);
+    expect(
+      (
+        await new Response(
+          await snapshots.interview(candidateActor, created.id, submitted.id),
+        ).json()
+      ).privateCaseResults.length,
+    ).toBeGreaterThan(0);
+  }, 120000);
 });

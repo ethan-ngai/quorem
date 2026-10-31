@@ -145,7 +145,7 @@ export function postgresCompletionPromotion(run: Run) {
           await tx.execute(
             sql`INSERT INTO submission_public_case_statuses(submission_id,channel,ordinal,case_index,status_json,status_hash) SELECT ${job.submissionId}::uuid,${channel},ordinal,ordinal,convert_to(to_json(status)::text,'UTF8'),sha256(convert_to(to_json(status)::text,'UTF8')) FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${state.fallback && state.kind === "submit" ? "private" : channel}`,
           );
-          if (state.interview) {
+          if (state.interview && state.kind === "submit") {
             for (let ordinal = 0; ordinal < state.cases; ordinal++)
               await savePrivateResultFrame(
                 tx,

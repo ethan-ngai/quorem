@@ -1,0 +1,5 @@
+# 37l: Match presence
+
+Issue #433. The canonical authorized match snapshot now derives each participant's presence from an unexpired `realtime_presence_leases` row for the exact match topic and internal owner ID. Stored `match_participants.presence` no longer controls the response. REST reads, mutation responses and socket snapshots share this query; presence does not change the match aggregate version. Existing heartbeat snapshots carry a newer server time for same-version updates.
+
+Against an isolated PostgreSQL database, the complete Node match lifecycle suite passed 15/15, including a real two-user WebSocket test for online/offline transitions, multiple windows, expired and unrelated leases, public-ID mismatch, HTTP and mutation consistency, and same-version heartbeat refresh. Native workerd lifecycle tests passed 3/3, including the shared socket snapshot owner; a real authenticated Durable Object WebSocket test also observed the live participant as online. Browser match-sync tests passed 11/11. API typecheck and scoped Node lint passed. The local fixture was not the active browser database; a browser recheck after integration remains appropriate.

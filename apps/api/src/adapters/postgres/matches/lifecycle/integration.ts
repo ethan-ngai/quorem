@@ -18,6 +18,7 @@ import { languageRuntime } from "@quorem/execution";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { frameText } from "../../../events/fanout/common.ts";
 import { normalizeSettings } from "../../../../modules/matches/lifecycle/model.ts";
 import { drainDeadlines } from "../../../../modules/events/scheduling/scheduling.ts";
 import { nodeCoordinator } from "../../../scheduling/shells.ts";
@@ -825,3 +826,170 @@ void test("rule announcements use canonical membership, replay, suppression and 
   );
   await assert.rejects(repo.mutate(actor, room.id, "forfeited-rule", "rule-events", "clipboard"));
 });
+
+void test(
+  "live match presence is derived from scoped socket leases across HTTP and Node WebSockets",
+  { timeout: 30000 },
+  async () => {
+    const { createServer } = await import("node:http");
+    const { default: WebSocket } = await import("ws");
+    const { installNodeSockets } = await import("../../../../runtime/node/socket/server.ts");
+    const { matchSocketSnapshot } = await import("../../../../modules/events/socket/match.ts");
+    const { matchSocketLeases } = await import("../socket/leases.ts");
+    const { matchLifecycleRoutes } =
+      await import("../../../../modules/matches/lifecycle/routes.ts");
+    const { createApp } = await import("../../../../app.ts");
+    const hostId = `presence-host-${crypto.randomUUID()}`,
+      rivalId = `presence-rival-${crypto.randomUUID()}`;
+    const h = principal(hostId),
+      r = principal(rivalId),
+      leases = matchSocketLeases(run);
+    await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Host'),($2,'Rival')", [
+      hostId,
+      rivalId,
+    ]);
+    const room = (await repo.create(h, "presence-create", settings)) as { id: string };
+    await pool.query(
+      "INSERT INTO match_participants(match_id,owner_id,seat,presence) VALUES($1,$2,2,'online')",
+      [room.id, rivalId],
+    );
+    const publicId = (
+      await pool.query("SELECT participant_id::text AS id FROM users WHERE id=$1", [rivalId])
+    ).rows[0].id as string;
+    await pool.query(
+      "INSERT INTO realtime_presence_leases(id,topic,subject,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 minute'),($4,$5,$6,clock_timestamp()+interval '1 minute'),($7,$2,$6,clock_timestamp()-interval '1 second')",
+      [
+        crypto.randomUUID(),
+        `/matches/${room.id}`,
+        publicId,
+        crypto.randomUUID(),
+        `/matches/${crypto.randomUUID()}`,
+        rivalId,
+        crypto.randomUUID(),
+      ],
+    );
+    const app = createApp({ allowedOrigins: [], requestId: () => "presence" }).route(
+      "/",
+      matchLifecycleRoutes({ lifecycle: repo, identify: async () => h }),
+    );
+    type Snapshot = {
+      version: string;
+      serverNow: string;
+      participants: { userId: string; presence: string }[];
+    };
+    const read = async () =>
+      (await (await app.request(`/v1/matches/${room.id}`)).json()) as Snapshot;
+    const presence = (snapshot: Snapshot, id: string) =>
+      snapshot.participants.find((p) => p.userId === id)!.presence;
+    const hostPublic = (
+      await pool.query("SELECT participant_id::text AS id FROM users WHERE id=$1", [hostId])
+    ).rows[0].id as string;
+    assert.notEqual(publicId, rivalId);
+    assert.equal(presence(await read(), publicId), "offline");
+    const server = createServer((_req, res) => res.writeHead(404).end());
+    const stop = installNodeSockets(server, {
+      origins: ["https://example.test"],
+      heartbeatMs: 1000,
+      resolve: async (request) => {
+        const actor = new URL(request.url).pathname === "/host" ? h : r;
+        const lease = await leases.acquire(actor, room.id);
+        return {
+          mode: "match",
+          security: {
+            verify: async () => ({ principal: actor, binding: actor.userId }),
+            authorize: async () => "member",
+          },
+          subscription: { subscribe: async () => () => {} },
+          snapshot: matchSocketSnapshot(room.id, repo),
+          renew: (who) => leases.renew(who, room.id, lease),
+          release: () => leases.release(actor.userId, room.id, lease),
+        };
+      },
+    });
+    server.listen(0, "127.0.0.1");
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const base = `ws://127.0.0.1:${(server.address() as { port: number }).port}`;
+    const sockets: InstanceType<typeof WebSocket>[] = [];
+    const connect = async (path: string) => {
+      const ws = new WebSocket(base + path, ["quorem"], {
+        headers: { origin: "https://example.test" },
+      });
+      sockets.push(ws);
+      const frames: Snapshot[] = [];
+      ws.on("message", (raw) => {
+        const envelope = JSON.parse(frameText(raw));
+        ws.send(JSON.stringify({ type: "receipt", id: envelope.receipt }));
+        if (envelope.payload?.type === "match.updated") frames.push(envelope.payload.payload);
+      });
+      await new Promise<void>((resolve) => ws.once("open", resolve));
+      for (let i = 0; i < 200 && !frames.length; i++)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      assert.ok(frames.length);
+      return { ws, frames };
+    };
+    const waitFor = async (predicate: () => Promise<boolean>) => {
+      for (let i = 0; i < 300; i++) {
+        if (await predicate()) return;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error("presence timeout");
+    };
+    try {
+      const one = await connect("/host"),
+        two = await connect("/host"),
+        other = await connect("/rival");
+      const initial = await read();
+      assert.equal(presence(initial, hostPublic), "online");
+      assert.equal(presence(initial, publicId), "online");
+      assert.equal(presence(other.frames[0], publicId), "online");
+      const ready = await app.request(`/v1/matches/${room.id}/ready`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": "presence-ready" },
+        body: '{"ready":true}',
+      });
+      assert.equal(ready.status, 200);
+      const readySnapshot = (await ready.json()) as Snapshot;
+      assert.equal(presence(readySnapshot, hostPublic), "online");
+      one.ws.close();
+      await waitFor(
+        async () =>
+          Number(
+            (
+              await pool.query(
+                "SELECT count(*) FROM realtime_presence_leases WHERE topic=$1 AND subject=$2 AND expires_at>clock_timestamp()",
+                [`/matches/${room.id}`, hostId],
+              )
+            ).rows[0].count,
+          ) === 1,
+      );
+      assert.equal(presence(await read(), hostPublic), "online");
+      two.ws.close();
+      await waitFor(async () => presence(await read(), hostPublic) === "offline");
+      await waitFor(async () =>
+        other.frames.some(
+          (frame) =>
+            frame.version === readySnapshot.version &&
+            Date.parse(frame.serverNow) > Date.parse(readySnapshot.serverNow) &&
+            presence(frame, hostPublic) === "offline" &&
+            presence(frame, publicId) === "online",
+        ),
+      );
+      const expired = await leases.acquire(r, room.id);
+      await pool.query(
+        "UPDATE realtime_presence_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+        [expired],
+      );
+      other.ws.close();
+      await waitFor(async () => presence(await read(), publicId) === "offline");
+    } finally {
+      for (const ws of sockets) ws.terminate();
+      await stop();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await pool.query(
+        "DELETE FROM realtime_presence_leases WHERE topic=$1 OR subject IN ($2,$3,$4)",
+        [`/matches/${room.id}`, hostId, rivalId, publicId],
+      );
+      await repo.mutate(h, room.id, "presence-close", "leave", null);
+    }
+  },
+);
