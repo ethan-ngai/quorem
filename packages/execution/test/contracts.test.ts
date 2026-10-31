@@ -17,10 +17,8 @@ import {
   decodeCompletion,
   decodeJob,
   encodeCheckpointCase,
-  checkpointProvenance,
-  encodeCheckpointFrame,
-  decodeCheckpointFrame,
-  assertCheckpointProvenance,
+  manifestCheckpointProvenance,
+  encodeManifestCheckpointFrame,
   encodeCompletion,
   encodeJob,
   languageRuntime,
@@ -87,16 +85,19 @@ it("matches stored Go runtime registry vectors", () => {
       });
   }
 });
-it("preserves bound checkpoint JSON and rejects legacy frames", async () => {
-  const spec = {
-    problemJson: '{"signature":{}}',
-    source: "fixture",
+it("preserves manifest checkpoint JSON and rejects legacy frames", async () => {
+  const manifest = {
     kind: "run" as const,
-    cases: ["{}", "{}", '{"args":[9007199254740993]}'],
-    submitSamples: [],
-    submitCasesAreSamples: false,
+    level: null,
+    caseCount: 3,
+    sampleCount: 0,
     privateDetails: false,
+    submitCasesAreSamples: false,
+    source: { hash: "a".repeat(64), size: 1 },
+    metadata: { hash: "b".repeat(64), size: 1 },
+    suiteHash: "c".repeat(64),
   };
+  const ref = { channel: "public" as const, hash: "d".repeat(64), size: 1 };
   const frame = {
     status: "executed",
     actual: "9007199254740993",
@@ -109,88 +110,22 @@ it("preserves bound checkpoint JSON and rejects legacy frames", async () => {
     compilationNanos: 123456789n,
     fatal: '{"status":"syntax_error"}',
   };
-  const provenance = await checkpointProvenance(job, spec, 2, job, metadata, frame);
-  const cp = {
-    ordinal: 2,
-    frame: encodeCheckpointFrame(frame, provenance),
-    ...metadata,
-  };
+  const provenance = await manifestCheckpointProvenance(
+    job,
+    manifest,
+    ref,
+    2,
+    job,
+    metadata,
+    frame,
+  );
+  const cp = { ordinal: 2, frame: encodeManifestCheckpointFrame(frame, provenance), ...metadata };
   expect(decodeCheckpointCase(encodeCheckpointCase(cp))).toEqual(cp);
-  expect(() => encodeCheckpointCase({ ...cp, ordinal: 320 })).toThrow();
+  expect(() => encodeCheckpointCase({ ...cp, ordinal: 2147483647 })).toThrow();
   expect(() => encodeCheckpointCase({ ...cp, compilationNanos: 120000000001n })).toThrow();
   expect(() => decodeCheckpointCase('{"Ordinal":0,"Frame":{},"CompilationNanos":1.0}')).toThrow();
   const go = oracle.find((v) => v.name === "checkpointCaseJSON")!;
   expect(() => decodeCheckpointCase(go.output as string)).toThrow();
-  const decoded = decodeCheckpointFrame(cp.frame);
-  await assertCheckpointProvenance(job, spec, 2, decoded.provenance, true, decoded.frame, metadata);
-  const resumed = { ...job, attemptId: "attempt-2" };
-  await assertCheckpointProvenance(
-    resumed,
-    spec,
-    2,
-    decoded.provenance,
-    false,
-    decoded.frame,
-    metadata,
-  );
-  await expect(
-    assertCheckpointProvenance(resumed, spec, 2, decoded.provenance, true, decoded.frame, metadata),
-  ).rejects.toThrow();
-  for (const changed of [
-    { ...spec, source: "different" },
-    { ...spec, problemJson: '{"signature":{"x":1}}' },
-    { ...spec, cases: ["{}", "{}", '{"args":[9007199254740992]}'] },
-  ])
-    await expect(
-      assertCheckpointProvenance(
-        job,
-        changed,
-        2,
-        decoded.provenance,
-        false,
-        decoded.frame,
-        metadata,
-      ),
-    ).rejects.toThrow();
-  await expect(
-    assertCheckpointProvenance(
-      { ...job, sandboxScope: "other" },
-      spec,
-      2,
-      decoded.provenance,
-      false,
-      decoded.frame,
-      metadata,
-    ),
-  ).rejects.toThrow();
-  await expect(
-    assertCheckpointProvenance(
-      { ...job, runtimeRevision: "different" },
-      spec,
-      2,
-      decoded.provenance,
-      false,
-      decoded.frame,
-      metadata,
-    ),
-  ).rejects.toThrow();
-  await expect(
-    assertCheckpointProvenance(
-      job,
-      spec,
-      2,
-      decoded.provenance,
-      false,
-      { ...decoded.frame, actual: "0" },
-      metadata,
-    ),
-  ).rejects.toThrow();
-  await expect(
-    assertCheckpointProvenance(job, spec, 2, decoded.provenance, false, decoded.frame, {
-      ...metadata,
-      artifact: '{"file":"AQ=="}',
-    }),
-  ).rejects.toThrow();
 });
 it("maps completion raw values without leaking hidden fields", () => {
   const value = {

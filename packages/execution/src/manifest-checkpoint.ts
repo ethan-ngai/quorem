@@ -116,7 +116,7 @@ export function decodeManifestCheckpointFrame(raw: string): {
   )
     throw new Error("Invalid checkpoint envelope");
   const schemaVersion = Number(intField(p, "schemaVersion", 2n, 2n)) as 2,
-    ordinal = Number(intField(p, "ordinal", 0n, 319n));
+    ordinal = Number(intField(p, "ordinal", 0n, 2147483646n));
   const attemptId = stringField(p, "attemptId"),
     sandboxScope = stringField(p, "sandboxScope"),
     caseBinding = stringField(p, "caseBinding"),

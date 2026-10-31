@@ -152,15 +152,15 @@ export function privateRunnerCommands(options: {
         (value.level !== null && (!Number.isSafeInteger(value.level) || value.level < 1)) ||
         !Number.isInteger(value.caseCount) ||
         value.caseCount < 0 ||
-        value.caseCount > 320 ||
+        value.caseCount > 2147483647 ||
         !Number.isInteger(value.sampleCount) ||
         value.sampleCount < 0 ||
-        value.sampleCount > 320 ||
+        value.sampleCount > 2147483647 ||
         typeof value.privateDetails !== "boolean" ||
         typeof value.submitCasesAreSamples !== "boolean" ||
         (value.submitCasesAreSamples &&
           (!value.privateDetails || value.caseCount !== value.sampleCount)) ||
-        value.caseCount + (value.submitCasesAreSamples ? 0 : value.sampleCount) > 320 ||
+        value.caseCount + (value.submitCasesAreSamples ? 0 : value.sampleCount) > 2147483647 ||
         !/^[a-f0-9]{64}$/.test(value.suiteHash) ||
         !validRef(value.source) ||
         !validRef(value.metadata)
@@ -169,7 +169,7 @@ export function privateRunnerCommands(options: {
       return value;
     },
     async inputCaseRef(job, ordinal, signal) {
-      if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal > 319)
+      if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal > 2147483646)
         throw new Error("Invalid input ordinal");
       const value = (await json(
         "caseref",
@@ -191,7 +191,7 @@ export function privateRunnerCommands(options: {
       if (
         !["source", "metadata", "case"].includes(kind) ||
         !Number.isSafeInteger(ordinal) ||
-        (kind === "case" ? ordinal < 0 || ordinal > 319 : ordinal !== 0) ||
+        (kind === "case" ? ordinal < 0 || ordinal > 2147483646 : ordinal !== 0) ||
         !Number.isSafeInteger(offset) ||
         offset < 0 ||
         offset > 1073741823

@@ -148,7 +148,7 @@ export async function checkpointProvenance(
     !Number.isInteger(ordinal) ||
     ordinal < 0 ||
     ordinal >= cases.length ||
-    ordinal >= 320 ||
+    ordinal > 2147483646 ||
     !/^[A-Za-z0-9-]{1,128}$/.test(original.attemptId) ||
     !original.sandboxScope ||
     encoder.encode(original.sandboxScope).length > 256 ||
@@ -263,7 +263,7 @@ export function decodeCheckpointFrame(raw: string): {
     language = stringField(o, "language"),
     runtimeRevision = stringField(o, "runtimeRevision"),
     harnessRevision = stringField(o, "harnessRevision"),
-    ordinal = Number(intField(o, "ordinal", 0n, 319n)),
+    ordinal = Number(intField(o, "ordinal", 0n, 2147483646n)),
     attemptId = stringField(o, "attemptId"),
     sandboxScope = stringField(o, "sandboxScope"),
     sourceHash = stringField(o, "sourceHash"),

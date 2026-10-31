@@ -7,13 +7,16 @@ import { sql } from "drizzle-orm";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import {
   encodeJob,
-  checkpointProvenance,
+  manifestCheckpointProvenance,
   decodeJudgeFrame,
-  encodeCheckpointFrame,
+  encodeManifestCheckpointFrame,
 } from "@quorem/execution";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
 import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
 import { postgresExecutionCommands } from "./repository.ts";
+import { httpResultVerifier } from "./verification-client.ts";
+import { postgresVerificationPrepare } from "./verification-prepare.ts";
+import { postgresVerificationCommit } from "./verification-commit.ts";
 import { createRunnerCommandHandler } from "./http.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 
@@ -78,6 +81,19 @@ it("claims and fences a real attempt through workerd", async () => {
     }),
   );
   try {
+    const bindings = env as unknown as { VERIFIER_ORIGIN: string; VERIFIER_PUBLIC_KEY: string };
+    const publicKey = await crypto.subtle.importKey(
+      "spki",
+      Uint8Array.from(atob(bindings.VERIFIER_PUBLIC_KEY), (c) => c.charCodeAt(0)),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    const verifier = httpResultVerifier({
+      origin: bindings.VERIFIER_ORIGIN,
+      credential: new Uint8Array(32).fill(7),
+      timeoutMs: 5000,
+    });
     const commands = (signal: AbortSignal) =>
       postgresExecutionCommands(
         <T>(f: (scope: ConnectionScope) => Promise<T>) =>
@@ -88,6 +104,7 @@ it("claims and fences a real attempt through workerd", async () => {
           losslessCases: true,
           losslessResults: true,
         },
+        { verificationPublicKey: publicKey, verifier },
       );
     const secret = "fixture-only-worker-private-credential-12345";
     const handler = await createRunnerCommandHandler([
@@ -209,35 +226,19 @@ it("claims and fences a real attempt through workerd", async () => {
       "scope",
     );
     await expect(claims.load(claimed!)).rejects.toThrow();
-    // Isolated legacy fixture retains 27 regression coverage; it is never claimed by manifest-v1.
-    const legacyAttempt = crypto.randomUUID();
-    await run((scope) =>
-      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
-        await tx.execute(sql`DELETE FROM execution_jobs WHERE id=${job}::uuid`);
-        await tx.execute(sql`DELETE FROM submissions WHERE id=${submission}::uuid`);
-        await tx.execute(
-          sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${user},${workspace}::uuid,'run','','hash','running','[{"expected":2}]')`,
-        );
-        await tx.execute(sql`SELECT set_config('quorem.sandbox_scope','worker-scope',true)`);
-        await tx.execute(
-          sql`INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until,attempts,language,runtime_revision,harness_revision) VALUES(${job}::uuid,${submission}::uuid,${legacyAttempt}::uuid,'worker-scope',clock_timestamp()+interval '1 minute',1,'python','python-3.12-v1','quorem-harness-v2')`,
-        );
-      }),
-    );
-    claimed = { ...claimed!, attemptId: legacyAttempt };
     const judgeFrame = decodeJudgeFrame(
       '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}',
     );
-    const spec = await claims.load(claimed!);
-    const provenance = await checkpointProvenance(
+    const provenance = await manifestCheckpointProvenance(
       claimed!,
-      spec,
+      manifest,
+      ref,
       0,
       claimed!,
       { compilationNanos: 42n },
       judgeFrame,
     );
-    const savedFrame = encodeCheckpointFrame(judgeFrame, provenance);
+    const savedFrame = encodeManifestCheckpointFrame(judgeFrame, provenance);
     await claims.saveCheckpoint(claimed!, { ordinal: 0, frame: savedFrame, compilationNanos: 42n });
     const replayed: string[] = [];
     await claims.replayCheckpoint(claimed!, 1, async (_ordinal, frame) => {
@@ -288,6 +289,7 @@ it("claims and fences a real attempt through workerd", async () => {
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
         await tx.execute(sql`SELECT set_config('quorem.sandbox_scope','worker-scope',true)`);
         await tx.execute(sql`SELECT set_config('quorem.checkpoint_claim','v1',true)`);
+        await tx.execute(sql`SELECT set_config('quorem.runner_input_protocol','manifest-v1',true)`);
         await tx.execute(
           sql`UPDATE execution_jobs SET attempt_id=${nextAttempt}::uuid,lease_until=clock_timestamp()+interval '1 minute' WHERE id=${job}::uuid`,
         );
@@ -342,6 +344,47 @@ it("claims and fences a real attempt through workerd", async () => {
         chunkOrdinal: part,
         bytes: diagnosticBytes.subarray(offset, offset + 65536),
       });
+    const challenge = await postgresVerificationPrepare(run)(next!, "public", 0, "accepted");
+    await expect(
+      httpResultVerifier({
+        origin: bindings.VERIFIER_ORIGIN,
+        credential: new Uint8Array(32).fill(8),
+        timeoutMs: 5000,
+      }).verify(challenge),
+    ).rejects.toThrow("Verifier unavailable");
+    await expect(
+      httpResultVerifier({
+        origin: bindings.VERIFIER_ORIGIN,
+        credential: new Uint8Array(32).fill(7),
+        timeoutMs: 1000,
+        fetch: async () => new Response(null, { status: 503 }),
+      }).verify(challenge),
+    ).rejects.toThrow();
+    const signed = await verifier.verify(challenge);
+    expect(signed.receipt.status).toBe("wrong_answer");
+    await expect(
+      postgresVerificationCommit(run, publicKey)(
+        { ...signed.receipt, status: "accepted" },
+        signed.signature,
+      ),
+    ).rejects.toThrow();
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(
+          sql`UPDATE submissions SET cancel_requested=true WHERE id=${submission}::uuid`,
+        );
+      }),
+    );
+    await expect(
+      postgresVerificationCommit(run, publicKey)(signed.receipt, signed.signature),
+    ).rejects.toThrow();
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(
+          sql`UPDATE submissions SET cancel_requested=false WHERE id=${submission}::uuid`,
+        );
+      }),
+    );
     await claims.sealCompletionFrame(next!, "public", 0, "accepted");
     await claims.finishCompletionStream(next!, next!);
     await claims.promoteCompletion(next!, next!);

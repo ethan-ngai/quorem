@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { createServer } from "node:http";
+import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseLosslessJson } from "@quorem/questions";
@@ -13,6 +15,16 @@ import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
 import { createRunnerCommandHandler } from "../worker/http.ts";
 import { postgresExecutionLoad } from "../worker/load.ts";
 import { postgresCompletionStaging } from "../worker/staging.ts";
+import { postgresVerificationPrepare } from "../worker/verification-prepare.ts";
+import { postgresVerificationSource } from "../worker/verification-source.ts";
+import { postgresVerificationCommit } from "../worker/verification-commit.ts";
+import { createVerificationSourceHandler } from "../worker/verification-http.ts";
+import { httpResultVerifier } from "../worker/verification-client.ts";
+import { httpVerificationSource } from "../../../../../../runner/src/verification/source-http.ts";
+import { verificationHandler } from "../../../../../../runner/src/verification/http.ts";
+import { verifiedMatchProgress } from "../worker/verified-progress.ts";
+import { nodeResultVerifier } from "../../../../../../runner/src/verification/verifier.ts";
+import { verifyResultReceipt } from "@quorem/execution";
 import { postgresCompletionPromotion } from "../worker/promote.ts";
 import { postgresExecutionCommands } from "../worker/repository.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
@@ -536,6 +548,10 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             expect((await reader.inputPage(fence, "case", 0, 0)).channel).toBe("private");
             const scoped = async <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
               fn({ transaction: async (_options, action) => action(tx) } as ConnectionScope);
+            const bootstrapKeys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+              "sign",
+              "verify",
+            ]);
             const secret = "fixture-only-input-page-private-credential";
             const handler = await createRunnerCommandHandler([
               {
@@ -544,12 +560,23 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
                 resumable: true,
                 inputProtocol: "manifest-v1",
                 repository: () =>
-                  postgresExecutionCommands(scoped, {
-                    resumable: true,
-                    inputProtocol: "manifest-v1",
-                    losslessCases: true,
-                    losslessResults: true,
-                  }),
+                  postgresExecutionCommands(
+                    scoped,
+                    {
+                      resumable: true,
+                      inputProtocol: "manifest-v1",
+                      losslessCases: true,
+                      losslessResults: true,
+                    },
+                    {
+                      verificationPublicKey: bootstrapKeys.publicKey,
+                      verifier: {
+                        async verify() {
+                          throw new Error("Unavailable in input-only fixture");
+                        },
+                      },
+                    },
+                  ),
               },
             ]);
             const client = privateRunnerCommands({
@@ -590,9 +617,186 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sampleCount: 0,
               privateCount: 0,
             });
+            await tx.execute(sql`SAVEPOINT verify_test`);
+            const priorHeader = (
+              await tx.execute<{ header: Uint8Array }>(
+                sql`SELECT header_data AS header FROM execution_completion_staging WHERE job_id=${job}::uuid`,
+              )
+            ).rows[0].header;
+            const header = JSON.parse(new TextDecoder().decode(priorHeader));
+            header.samplePresent = true;
+            header.sampleCount = 1;
+            const headerBytes = new TextEncoder().encode(JSON.stringify(header));
+            await tx.execute(
+              sql`UPDATE execution_completion_staging SET header_data=${headerBytes}::bytea,header_hash=sha256(${headerBytes}::bytea) WHERE job_id=${job}::uuid`,
+            );
+            const actual = new TextEncoder().encode("8");
+            await tx.execute(
+              sql`INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash) VALUES(${job}::uuid,'sample',0,'actual',0,${actual}::bytea,sha256(${actual}::bytea))`,
+            );
+            const challenge = await postgresVerificationPrepare(scoped)(
+              fence,
+              "sample",
+              0,
+              "accepted",
+            );
+            expect(await postgresVerificationPrepare(scoped)(fence, "sample", 0, "accepted")).toBe(
+              challenge,
+            );
+            const authority = postgresVerificationSource(scoped);
+            const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+              "sign",
+              "verify",
+            ]);
+            const verifierCredential = new Uint8Array(32).fill(3);
+            const sourceCredential = new Uint8Array(32).fill(4);
+            const sourceHandler = createVerificationSourceHandler(scoped, sourceCredential);
+            const sourceHttp = httpVerificationSource({
+              origin: "https://fixture",
+              credential: sourceCredential,
+              challenge,
+              timeoutMs: 5000,
+              fetch: async (input, init) => sourceHandler(new Request(input, init)),
+            });
+            const server = createServer(
+              verificationHandler({
+                credential: verifierCredential,
+                timeoutMs: 5000,
+                verify: nodeResultVerifier(sourceHttp, keys.privateKey),
+              }),
+            );
+            server.listen(0, "127.0.0.1");
+            await once(server, "listening");
+            const address = server.address();
+            if (!address || typeof address === "string")
+              throw new Error("Missing verifier address");
+            let verified: Awaited<ReturnType<ReturnType<typeof httpResultVerifier>["verify"]>>;
+            try {
+              const verifier = httpResultVerifier({
+                origin: `http://127.0.0.1:${address.port}`,
+                credential: verifierCredential,
+                timeoutMs: 5000,
+              });
+              verified = await verifier.verify(challenge);
+              await postgresCompletionStaging(scoped, {
+                verifier,
+                verificationPublicKey: keys.publicKey,
+              }).seal(fence, "sample", 0, "accepted");
+            } finally {
+              server.close();
+              await once(server, "close");
+            }
+            expect(verified.receipt.status).toBe("wrong_answer");
+            expect(
+              await verifyResultReceipt(verified.receipt, verified.signature, keys.publicKey),
+            ).toBe(true);
+            await expect(
+              authority.putChunk(challenge, "actual", 0, new TextEncoder().encode("9")),
+            ).rejects.toThrow("Verification output conflict");
+            const commit = postgresVerificationCommit(scoped, keys.publicKey);
+            await expect(
+              commit({ ...verified.receipt, status: "accepted" }, verified.signature),
+            ).rejects.toThrow("Invalid verification signature");
+            await tx.execute(
+              sql`UPDATE submissions SET cancel_requested=true WHERE id=${submission}::uuid`,
+            );
+            await expect(commit(verified.receipt, verified.signature)).rejects.toThrow(
+              "Verification unavailable",
+            );
+            await tx.execute(
+              sql`UPDATE submissions SET cancel_requested=false WHERE id=${submission}::uuid`,
+            );
+            await commit(verified.receipt, verified.signature);
+            await commit(verified.receipt, verified.signature);
+            const saved = (
+              await tx.execute<{ status: string; raw: string }>(
+                sql`SELECT status,convert_from(frame_data,'UTF8') AS raw FROM execution_completion_frames WHERE job_id=${job}::uuid AND channel='sample' AND ordinal=0`,
+              )
+            ).rows[0];
+            expect(saved.status).toBe("wrong_answer");
+            expect(JSON.parse(saved.raw)).toMatchObject({
+              status: "wrong_answer",
+              actual: 8,
+              expected: 2,
+            });
+            expect(await verifiedMatchProgress(tx, job)).toEqual({ kind: "unavailable" });
+            header.privatePresent = true;
+            header.privateCount = 1;
+            const header2 = new TextEncoder().encode(JSON.stringify(header));
+            await tx.execute(
+              sql`UPDATE execution_completion_staging SET header_data=${header2}::bytea,header_hash=sha256(${header2}::bytea) WHERE job_id=${job}::uuid`,
+            );
+            const privateActual = new TextEncoder().encode("4");
+            await tx.execute(
+              sql`INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash) VALUES(${job}::uuid,'private',0,'actual',0,${privateActual}::bytea,sha256(${privateActual}::bytea))`,
+            );
+            const privateChallenge = await postgresVerificationPrepare(scoped)(
+              fence,
+              "private",
+              0,
+              "executed",
+            );
+            const privateVerified = await nodeResultVerifier(
+              {
+                inputs: reader,
+                frozenCase: authority.frozenCase,
+                fieldPage: authority.fieldPage,
+                async putField(id, field, chunks) {
+                  let n = 0;
+                  for await (const chunk of chunks) await authority.putChunk(id, field, n++, chunk);
+                },
+              },
+              keys.privateKey,
+            )(privateChallenge);
+            expect(privateVerified.receipt.status).toBe("accepted");
+            await commit(privateVerified.receipt, privateVerified.signature);
+            expect(await verifiedMatchProgress(tx, job)).toEqual({
+              kind: "verified",
+              caseCount: 1,
+              definiteFailures: 0,
+              terminal: null,
+            });
+            await tx.execute(sql`SAVEPOINT terminal_test`);
+            await tx.execute(sql`UPDATE execution_jobs SET finished=true WHERE id=${job}::uuid`);
+            expect((await verifiedMatchProgress(tx, job)).kind).toBe("verified");
+            expect(
+              ((await verifiedMatchProgress(tx, job)) as { terminal: unknown }).terminal,
+            ).toBeNull();
+            await tx.execute(
+              sql`INSERT INTO execution_completion_receipts(job_id,attempt_id,sandbox_scope,outcome) VALUES(${job}::uuid,${attempt}::uuid,'scope','completed')`,
+            );
+            expect(await verifiedMatchProgress(tx, job)).toEqual({
+              kind: "verified",
+              caseCount: 1,
+              definiteFailures: 0,
+              terminal: { verdict: "accepted", passed: 1 },
+            });
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT terminal_test`);
+            await stage.eof(fence, fence);
+            const promote = postgresCompletionPromotion(scoped);
+            await promote(fence, fence);
+            await promote(fence, fence);
+            const finished = (
+              await tx.execute<{
+                state: string;
+                result: { verdict: string; score: { passed: number; total: number } };
+              }>(sql`SELECT state,result FROM submissions WHERE id=${submission}::uuid`)
+            ).rows[0];
+            expect(finished).toMatchObject({
+              state: "completed",
+              result: { verdict: "accepted", score: { passed: 1, total: 1 } },
+            });
+            expect(
+              (
+                await tx.execute<{ raw: string }>(
+                  sql`SELECT convert_from(field_data,'UTF8') AS raw FROM submission_result_header_fields WHERE submission_id=${submission}::uuid AND field='hiddenCases'`,
+                )
+              ).rows[0].raw,
+            ).toContain('"accepted"');
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT verify_test`);
             await stage.eof(fence, fence);
             await expect(postgresCompletionPromotion(scoped)(fence, fence)).rejects.toThrow(
-              "Manifest result verification unavailable",
+              "Invalid completion channels",
             );
             expect(
               (

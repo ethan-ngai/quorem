@@ -1,13 +1,13 @@
 /// <reference types="node" />
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   defaultLimits,
-  decodeCheckpointFrame,
+  decodeManifestCheckpointFrame,
   languageRuntime,
   type Checkpoint,
   type CheckpointCase,
@@ -15,6 +15,7 @@ import {
   type CompletionHeader,
   type ExecutionRepository,
   type ExecutionSpec,
+  type ExecutionInputReader,
   type Job,
 } from "@quorem/execution";
 import { dockerSandbox } from "../sandbox/docker.ts";
@@ -26,7 +27,46 @@ function repository(spec: ExecutionSpec) {
     seals: string[] = [];
   let checkpoint: Checkpoint = { nextOrdinal: 0, compilationNanos: 0n },
     header: CompletionHeader | undefined;
+  const encode = (value: string) => new TextEncoder().encode(value);
+  const hash = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
+  const source = encode(spec.source),
+    metadata = encode(spec.problemJson),
+    cases = [...spec.cases, ...(spec.submitCasesAreSamples ? [] : spec.submitSamples)].map(encode);
+  const levels = (JSON.parse(spec.problemJson) as { odyssey?: { levels: unknown[] } }).odyssey
+    ?.levels.length;
+  const refs = cases.map((data, i) => ({
+    hash: hash(data),
+    size: data.length,
+    channel:
+      spec.kind === "run" || spec.submitCasesAreSamples
+        ? ("public" as const)
+        : i < spec.cases.length
+          ? ("private" as const)
+          : ("sample" as const),
+  }));
+  const manifest = {
+    kind: spec.kind,
+    level: levels ?? null,
+    caseCount: spec.cases.length,
+    sampleCount: spec.submitSamples.length,
+    privateDetails: spec.privateDetails,
+    submitCasesAreSamples: spec.submitCasesAreSamples,
+    source: { hash: hash(source), size: source.length },
+    metadata: { hash: hash(metadata), size: metadata.length },
+    suiteHash: "a".repeat(64),
+  };
   const port = {
+    inputManifest: async () => manifest,
+    inputCaseRef: async (_job: Job, ordinal: number) => refs[ordinal],
+    inputPage: async (_job: Job, kind: string, ordinal: number, offset: number) => {
+      const data = kind === "source" ? source : kind === "metadata" ? metadata : cases[ordinal];
+      return {
+        bytes: data.subarray(offset, offset + 65536),
+        hash: hash(data),
+        size: data.length,
+        channel: kind === "case" ? refs[ordinal].channel : null,
+      };
+    },
     load: async () => spec,
     loadCheckpoint: async () => checkpoint,
     saveCheckpoint: async (_job: Job, item: CheckpointCase) => {
@@ -60,7 +100,7 @@ function repository(spec: ExecutionSpec) {
     sealCompletionFrame: async (_job: Job, channel: string, index: number, status: string) => {
       seals.push(`${channel}:${index}:${status}`);
     },
-  } as unknown as ExecutionRepository;
+  } as unknown as ExecutionRepository & ExecutionInputReader;
   return { port, frames, chunks, seals, header: () => header };
 }
 void test(
@@ -146,8 +186,8 @@ void test(
         },
       };
       const header = await executeAndStage(job, fixture.port, observed);
-      assert.equal(header.verdict, "accepted", language);
-      assert.deepEqual(fixture.seals, ["public:0:accepted", "public:1:accepted"], language);
+      assert.equal(header.publicCount, 2, language);
+      assert.deepEqual(fixture.seals, ["public:0:executed", "public:1:executed"], language);
       assert.equal(fixture.frames.length, 2);
       if (!["python", "postgresql"].includes(language))
         assert.deepEqual(
@@ -203,13 +243,13 @@ void test(
       basic = { signature: sig };
     assert.equal(
       (await run("class Solution:\n def f(self): return 9", basic, ['{"args":[],"expected":7}']))
-        .header.verdict,
-      "wrong_answer",
+        .fixture.seals[0],
+      "public:0:executed",
     );
     assert.equal(
       (await run("not valid !", basic, ['{"args":[],"expected":7}', '{"args":[],"expected":7}']))
-        .header.verdict,
-      "syntax_error",
+        .fixture.seals[0],
+      "public:0:syntax_error",
     );
     assert.equal(
       (
@@ -219,8 +259,8 @@ void test(
           ['{"args":[],"expected":7}'],
           200,
         )
-      ).header.verdict,
-      "time_limit",
+      ).fixture.seals[0],
+      "public:0:time_limit",
     );
     const large = "x".repeat(1024 * 1024);
     const largeResult = await run(
@@ -228,13 +268,13 @@ void test(
       { signature: { ...sig, parameters: [{ name: "x", type: "str" }] } },
       [JSON.stringify({ args: [large], expected: large.length })],
     );
-    assert.equal(largeResult.header.verdict, "accepted");
+    assert.equal(largeResult.fixture.seals[0], "public:0:executed");
     const nul = await run(
       'class Solution:\n def f(self): return "a\\x00b"',
       { signature: { ...sig, returnType: "str" } },
       ['{"args":[],"expected":"a\\u0000b"}'],
     );
-    assert.equal(nul.header.verdict, "accepted");
+    assert.equal(nul.fixture.seals[0], "public:0:executed");
     assert.equal(
       new TextDecoder().decode(nul.fixture.chunks.get("public:0:actual")![0]),
       '"a\\u0000b"',
@@ -253,7 +293,7 @@ void test(
         '{"args":[],"calls":[{"methodName":"add","args":[2],"expected":2},{"methodName":"add","args":[3],"expected":5}]}',
       ],
     );
-    assert.equal(sequenceResult.header.verdict, "accepted");
+    assert.equal(sequenceResult.fixture.seals[0], "public:0:executed");
   },
 );
 void test(
@@ -300,7 +340,7 @@ void test(
       ExecutionYield,
     );
     assert.equal(fixture.frames.length, 1);
-    assert.equal((await executeAndStage(job, fixture.port, sandbox)).verdict, "accepted");
+    assert.equal((await executeAndStage(job, fixture.port, sandbox)).publicCount, 2);
     assert.equal(fixture.frames.length, 2);
   },
 );
@@ -398,6 +438,6 @@ void test(
         limits: defaultLimits(),
       };
     assert.notEqual((await executeAndStage(job, fixture.port, sandbox)).verdict, "accepted");
-    assert.notEqual(decodeCheckpointFrame(fixture.frames[0]).frame.status, "executed");
+    assert.notEqual(decodeManifestCheckpointFrame(fixture.frames[0]).frame.status, "executed");
   },
 );
