@@ -15,7 +15,7 @@ const genesisValid = (v) =>
   typeof v.operation === "string" &&
   /^[a-f0-9-]{36}$/.test(v.operation) &&
   typeof v.release === "string" &&
-  /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(v.release);
+  /^[a-f0-9]{40}$/.test(v.release);
 const same = (a, b) =>
   !!a &&
   genesisValid(b) &&
@@ -49,7 +49,12 @@ async function json(request) {
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 }
 
-/** One permanent inventory and irreversible pause for a case namespace. */
+const operationValid = (v) => typeof v === "string" && /^[a-f0-9-]{36}$/.test(v);
+const generationValid = (v) => Number.isSafeInteger(v) && v >= 0 && v < Number.MAX_SAFE_INTEGER;
+const objectKeys = (v, keys) =>
+  !!v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).sort().join() === keys;
+const equalFields = (a, b) => Object.keys(b).every((key) => a[key] === b[key]);
+/** Inventory persists across explicitly activated generations. */
 export class CaseControl extends DurableObject {
   async fetch(request) {
     try {
@@ -62,7 +67,15 @@ export class CaseControl extends DurableObject {
         if (url.search) return new Response(null, { status: 400 });
         const value = await json(request);
         const result = await this.ctx.storage.transaction(async (tx) => {
-          const state = (await tx.get("state")) ?? { genesis: null, active: false, halted: false };
+          const state = (await tx.get("state")) ?? {
+            genesis: null,
+            active: false,
+            generation: 0,
+            release: null,
+            bindings: null,
+            activationOperation: null,
+            pauseOperation: null,
+          };
           if (path === "/initialize") {
             if (
               !genesisValid(value) ||
@@ -78,15 +91,51 @@ export class CaseControl extends DurableObject {
             return 204;
           }
           if (path === "/activate") {
-            if (!same(state.genesis, value) || state.halted) return 409;
+            if (
+              !objectKeys(value, "bindings,expectedGeneration,operation,release") ||
+              !operationValid(value.operation) ||
+              !generationValid(value.expectedGeneration) ||
+              typeof value.release !== "string" ||
+              !/^[a-f0-9]{40}$/.test(value.release) ||
+              typeof value.bindings !== "string" ||
+              !/^[a-f0-9]{64}$/.test(value.bindings)
+            )
+              return 400;
+            const previous = await tx.get(`operation:${value.operation}`);
+            if (previous)
+              return previous.kind === "activate" && equalFields(previous.value, value) ? 204 : 409;
+            if (
+              !state.genesis ||
+              state.active ||
+              state.generation !== value.expectedGeneration ||
+              state.generation >= Number.MAX_SAFE_INTEGER - 1
+            )
+              return 409;
+            await tx.put(`operation:${value.operation}`, { kind: "activate", value });
+            state.generation++;
             state.active = true;
+            state.release = value.release;
+            state.bindings = value.bindings;
+            state.activationOperation = value.operation;
+            state.pauseOperation = null;
             await tx.put("state", state);
             return 204;
           }
           if (path === "/pause") {
-            if (!same(state.genesis, value)) return 409;
+            if (
+              !objectKeys(value, "expectedGeneration,operation") ||
+              !operationValid(value.operation) ||
+              !generationValid(value.expectedGeneration)
+            )
+              return 400;
+            const previous = await tx.get(`operation:${value.operation}`);
+            if (previous)
+              return previous.kind === "pause" && equalFields(previous.value, value) ? 204 : 409;
+            if (!state.genesis || !state.active || state.generation !== value.expectedGeneration)
+              return 409;
+            await tx.put(`operation:${value.operation}`, { kind: "pause", value });
             state.active = false;
-            state.halted = true;
+            state.pauseOperation = value.operation;
             await tx.put("state", state);
             return 204;
           }
@@ -94,13 +143,28 @@ export class CaseControl extends DurableObject {
             !value ||
             typeof value !== "object" ||
             Array.isArray(value) ||
-            Object.keys(value).join() !== "attempt" ||
+            Object.keys(value).sort().join() !== "attempt,generation,release" ||
             typeof value.attempt !== "string" ||
-            !attemptPattern.test(value.attempt)
+            !attemptPattern.test(value.attempt) ||
+            !generationValid(value.generation) ||
+            typeof value.release !== "string" ||
+            !/^[a-f0-9]{40}$/.test(value.release)
           )
             return 400;
-          if (!state.genesis || !state.active || state.halted) return 503;
-          await tx.put(`attempt:${value.attempt}`, true);
+          if (
+            !state.genesis ||
+            !state.active ||
+            state.generation !== value.generation ||
+            state.release !== value.release
+          )
+            return 503;
+          const prior = await tx.get(`attempt:${value.attempt}`);
+          if (prior && (prior.generation !== value.generation || prior.release !== value.release))
+            return 409;
+          await tx.put(`attempt:${value.attempt}`, {
+            generation: value.generation,
+            release: value.release,
+          });
           return 204;
         });
         return new Response(null, { status: result, headers: { "cache-control": "no-store" } });
@@ -110,7 +174,11 @@ export class CaseControl extends DurableObject {
       const state = (await this.ctx.storage.get("state")) ?? {
         genesis: null,
         active: false,
-        halted: false,
+        generation: 0,
+        release: null,
+        bindings: null,
+        activationOperation: null,
+        pauseOperation: null,
       };
       const scope = request.headers.get("x-quorem-owner-scope"),
         nonce = request.headers.get("x-quorem-owner-nonce");
@@ -125,7 +193,18 @@ export class CaseControl extends DurableObject {
       if (path === "/state") {
         if (url.search) return new Response(null, { status: 400 });
         kind = "control-state";
-        value = { ...state.genesis, paused: !state.active, halted: state.halted };
+        value = {
+          namespace: state.genesis.namespace,
+          scope: state.genesis.scope,
+          initialOperation: state.genesis.operation,
+          initialRelease: state.genesis.release,
+          generation: state.generation,
+          release: state.release,
+          bindings: state.bindings,
+          activationOperation: state.activationOperation,
+          pauseOperation: state.pauseOperation,
+          paused: !state.active,
+        };
       } else {
         if (
           [...url.searchParams.keys()].some((k) => !["after", "limit"].includes(k)) ||

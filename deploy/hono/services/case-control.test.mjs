@@ -44,17 +44,46 @@ test("genesis, pause and bounded authenticated inventory survive recreation", as
     operation: randomUUID(),
     release: "c".repeat(40),
   };
-  assert.equal((await call("/register", { attempt: "a" })).status, 503);
+  const activation = {
+    operation: randomUUID(),
+    release: "c".repeat(40),
+    bindings: "d".repeat(64),
+    expectedGeneration: 0,
+  };
+  const registration = (attempt, generation = 1, release = activation.release) => ({
+    attempt,
+    generation,
+    release,
+  });
+  const pause = { operation: randomUUID(), expectedGeneration: 1 };
+  assert.equal((await call("/register", registration("a"))).status, 503);
   assert.equal((await call("/initialize", genesis)).status, 204);
-  assert.equal((await call("/register", { attempt: "a" })).status, 503);
-  assert.equal((await call("/activate", genesis)).status, 204);
+  assert.equal((await call("/activate", { ...activation, release: "c".repeat(64) })).status, 400);
+  assert.equal((await call("/activate", { ...activation, expectedGeneration: 1 })).status, 409);
+  assert.equal((await call("/register", registration("a"))).status, 503);
+  assert.equal((await call("/activate", activation)).status, 204);
   for (const attempt of ["a", "b", "c", "d", "e"])
-    assert.equal((await call("/register", { attempt })).status, 204);
-  assert.equal((await call("/pause", genesis)).status, 204);
-  assert.equal((await call("/register", { attempt: "a" })).status, 503);
-  assert.equal((await call("/activate", genesis)).status, 409);
+    assert.equal((await call("/register", registration(attempt))).status, 204);
+  assert.equal((await call("/pause", pause)).status, 204);
+  assert.equal((await call("/pause", { ...pause, expectedGeneration: 0 })).status, 409);
+  assert.equal((await call("/register", registration("a"))).status, 503);
+  assert.equal((await call("/activate", activation)).status, 204);
+  assert.equal((await call("/register", registration("a"))).status, 503);
   control = new CaseControl({ storage }, env);
   assert.equal((await call("/initialize", { ...genesis, release: "d".repeat(40) })).status, 409);
+  const activation2 = {
+    operation: randomUUID(),
+    release: "e".repeat(40),
+    bindings: "f".repeat(64),
+    expectedGeneration: 1,
+  };
+  assert.equal((await call("/activate", activation2)).status, 204);
+  assert.equal((await call("/register", registration("a"))).status, 503);
+  assert.equal((await call("/register", registration("z", 2, activation2.release))).status, 204);
+  assert.equal((await call("/register", registration("a", 2, activation2.release))).status, 409);
+  const pause2 = { operation: randomUUID(), expectedGeneration: 2 };
+  assert.equal((await call("/pause", pause2)).status, 204);
+  assert.equal((await call("/pause", pause)).status, 204);
   const nonce = randomUUID();
   const response = await control.fetch(
     new Request("https://private/inventory?limit=4", {
@@ -97,7 +126,7 @@ test("genesis, pause and bounded authenticated inventory survive recreation", as
   );
   assert.deepEqual(await verifyCaseProbe(last, { ...options, nonce: nonce2, expectedAfter: "d" }), {
     after: "d",
-    attempts: ["e"],
+    attempts: ["e", "z"],
     next: null,
   });
   const stateNonce = randomUUID();
@@ -115,6 +144,17 @@ test("genesis, pause and bounded authenticated inventory survive recreation", as
       nonce: stateNonce,
       expectedNamespace: namespace,
     }),
-    { ...genesis, paused: true, halted: true },
+    {
+      namespace,
+      scope: genesis.scope,
+      initialOperation: genesis.operation,
+      initialRelease: genesis.release,
+      generation: 2,
+      release: activation2.release,
+      bindings: activation2.bindings,
+      activationOperation: activation2.operation,
+      pauseOperation: pause2.operation,
+      paused: true,
+    },
   );
 });

@@ -130,16 +130,33 @@ export async function verifyCaseProbe(
             : value.ordinal !== null || value.tokenHash !== null)
         : kind === "control-state"
           ? Object.keys(value).sort().join() !==
-              "halted,namespace,operation,paused,release,scope" ||
+              "activationOperation,bindings,generation,initialOperation,initialRelease,namespace,pauseOperation,paused,release,scope" ||
             value.namespace !== namespace ||
             value.scope !== scope ||
-            typeof value.operation !== "string" ||
-            !/^[a-f0-9-]{36}$/.test(value.operation) ||
-            typeof value.release !== "string" ||
-            !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(value.release) ||
+            typeof value.initialOperation !== "string" ||
+            !/^[a-f0-9-]{36}$/.test(value.initialOperation) ||
+            typeof value.initialRelease !== "string" ||
+            !/^[a-f0-9]{40}$/.test(value.initialRelease) ||
+            !Number.isSafeInteger(value.generation) ||
+            value.generation < 0 ||
+            (value.generation === 0
+              ? value.release !== null ||
+                value.bindings !== null ||
+                value.activationOperation !== null ||
+                value.pauseOperation !== null ||
+                !value.paused
+              : typeof value.release !== "string" ||
+                !/^[a-f0-9]{40}$/.test(value.release) ||
+                typeof value.bindings !== "string" ||
+                !/^[a-f0-9]{64}$/.test(value.bindings) ||
+                typeof value.activationOperation !== "string" ||
+                !/^[a-f0-9-]{36}$/.test(value.activationOperation) ||
+                (value.paused
+                  ? typeof value.pauseOperation !== "string" ||
+                    !/^[a-f0-9-]{36}$/.test(value.pauseOperation)
+                  : value.pauseOperation !== null)) ||
             typeof value.paused !== "boolean" ||
-            typeof value.halted !== "boolean" ||
-            (value.halted && !value.paused)
+            value.generation >= Number.MAX_SAFE_INTEGER
           : kind === "control-inventory"
             ? Object.keys(value).sort().join() !== "after,attempts,next" ||
               typeof expectedAfter !== "string" ||
