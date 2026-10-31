@@ -11,7 +11,10 @@
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
-    "hono": "4.13.14"
+    "hono": "4.13.14",
+    "@quorem/database": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "jose": "6.2.12"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.11",
