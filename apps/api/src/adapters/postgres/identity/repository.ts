@@ -120,3 +120,16 @@ export function verifiedIdentityReader(scope: ConnectionScope) {
       async (tx) => (await read(tx, claims))?.principal ?? null,
     );
 }
+
+/** Resolve the public participant key used by membership outbox notices. */
+export async function participantKey(scope: ConnectionScope, userId: string): Promise<string> {
+  return scope.transaction({ ...transactionOptions, readOnly: true }, async (tx) => {
+    const [row] = await tx
+      .select({ id: users.participant_id, disabled: users.disabled })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!row || row.disabled) throw new IdentityError("unauthorized");
+    return row.id;
+  });
+}

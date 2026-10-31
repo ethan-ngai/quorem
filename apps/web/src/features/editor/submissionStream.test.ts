@@ -16,6 +16,7 @@ class Socket {
   ) {
     Socket.instances.push(this);
   }
+  send = vi.fn();
   close() {
     this.onclose?.();
   }
@@ -40,15 +41,35 @@ it("invalidates on open and change, ignoring stale sockets after reconnect", asy
   expect(first.protocols).toEqual(["quorem", "bearer.token"]);
   first.onopen?.();
   expect(changed).toHaveBeenCalledTimes(1);
-  first.onmessage?.({ data: '{"type":"heartbeat"}' } as MessageEvent);
-  first.onmessage?.({ data: '{"type":"changed"}' } as MessageEvent);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "heartbeat" },
+    }),
+  } as MessageEvent);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
   expect(changed).toHaveBeenCalledTimes(2);
   first.onclose?.();
   await vi.advanceTimersByTimeAsync(600);
   const second = Socket.instances[1]!;
   second.onopen?.();
-  first.onmessage?.({ data: '{"type":"changed"}' } as MessageEvent);
-  second.onmessage?.({ data: '{"type":"changed"}' } as MessageEvent);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
+  second.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
   expect(changed).toHaveBeenCalledTimes(4);
   stream.stop();
 });

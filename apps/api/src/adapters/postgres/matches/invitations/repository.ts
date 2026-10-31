@@ -35,11 +35,12 @@ async function locate(tx: Transaction, hash: string): Promise<string> {
 }
 export async function currentInvite(tx: Transaction, id: string, hash: string) {
   const row = (
-    await tx.execute<{ ok: boolean }>(
-      sql`SELECT m.invite_hash=${hash} AND m.expires_at>clock_timestamp() AND m.state IN ('waiting','ready') AND NOT h.disabled AS ok FROM matches m JOIN users h ON h.id=m.host_owner_id WHERE m.id=${id}::uuid`,
+    await tx.execute<{ ok: boolean; expires: string }>(
+      sql`SELECT m.invite_hash=${hash} AND m.expires_at>clock_timestamp() AND m.state IN ('waiting','ready') AND NOT h.disabled AS ok, floor(extract(epoch FROM m.expires_at))::bigint::text AS expires FROM matches m JOIN users h ON h.id=m.host_owner_id WHERE m.id=${id}::uuid`,
     )
   ).rows[0];
   if (!row?.ok) throw unavailable();
+  return Number(row.expires);
 }
 /** Recheck a verified invitation hash against the current scoped invitation. */
 export function verifiedInviteReader(run: Run) {
@@ -54,6 +55,22 @@ export function verifiedInviteReader(run: Run) {
       throw error;
     }
   };
+}
+/** Turn a checked bearer invitation into its scoped, expiring stored grant. */
+export async function verifiedInviteGrant(run: Run, raw: string) {
+  validate(raw);
+  const hash = await guestTokenHash(raw);
+  return run((scope) =>
+    scope.transaction({ ...options, readOnly: true }, async (tx) => {
+      const resourceId = await locate(tx, hash);
+      return {
+        kind: "invite" as const,
+        resourceId,
+        hash,
+        expiresAt: await currentInvite(tx, resourceId, hash),
+      };
+    }),
+  );
 }
 async function existingInvite(tx: Transaction, id: string, hash: string) {
   const row = (

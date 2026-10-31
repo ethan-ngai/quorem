@@ -10,6 +10,7 @@ import {
 /** Stored only in trusted server storage; never sent to a browser or socket attachment. */
 export type ManagedGrant = Pick<Claims, "issuer" | "subject" | "sessionId" | "expiresAt"> & {
   kind: "managed";
+  strongUntil: number;
 };
 export type GuestGrant = {
   kind: "guest";
@@ -27,13 +28,14 @@ export interface GrantReaders {
   invite(resourceId: string, hash: string): Promise<boolean>;
 }
 /** Only call after token verification; profile claims and bearer bytes are deliberately discarded. */
-export function managedGrant(claims: Claims): ManagedGrant {
+export function managedGrant(claims: Claims, strongUntil: number): ManagedGrant {
   return {
     kind: "managed",
     issuer: claims.issuer,
     subject: claims.subject,
     sessionId: claims.sessionId,
     expiresAt: claims.expiresAt,
+    strongUntil,
   };
 }
 /** Every wake rechecks the original expiry and current authoritative session and binding. */
@@ -51,6 +53,8 @@ export async function reauthorizeGrant(
       const principal = await readers.managed(grant);
       if (!principal || principal.kind !== "managed" || principal.sessionId !== grant.sessionId)
         throw new IdentityError("unauthorized");
+      if (!Number.isSafeInteger(grant.strongUntil) || grant.strongUntil < 0)
+        throw new IdentityError("unauthorized");
       const seconds = Math.floor(now / 1000);
       const strongAt = session.strongAt;
       return {
@@ -61,7 +65,7 @@ export async function reauthorizeGrant(
           Number.isSafeInteger(strongAt) &&
           strongAt <= seconds &&
           strongAt > seconds - 600
-            ? strongAt + 600
+            ? Math.min(strongAt + 600, grant.strongUntil)
             : 0,
       };
     }

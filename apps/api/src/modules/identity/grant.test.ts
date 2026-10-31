@@ -8,6 +8,7 @@ const grant: ManagedGrant = {
   subject: "subject",
   sessionId: "session",
   expiresAt: 2000,
+  strongUntil: 1599,
 };
 const principal = {
   kind: "managed" as const,
@@ -71,5 +72,13 @@ describe("verified grants", () => {
         1000000,
       ),
     ).rejects.toMatchObject({ kind: "unauthorized" });
+  });
+  it("never upgrades strong authority beyond the original grant", async () => {
+    expect(await reauthorizeGrant({ ...grant, strongUntil: 0 }, readers, 1000000)).toMatchObject({
+      strongUntil: 0,
+    });
+    expect(await reauthorizeGrant({ ...grant, strongUntil: 1200 }, readers, 1000000)).toMatchObject(
+      { strongUntil: 1200 },
+    );
   });
 });
