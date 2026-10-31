@@ -76,7 +76,7 @@ jobs:
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
-          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test; do
+          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test; do
             docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
           done
           # Match server-major archive tools; only disposable fixtures enter /tmp.
@@ -158,6 +158,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Canonical operator and mixed-seeder fixtures
+        env:
+          QUOREM_CLI_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_cli_test?sslmode=disable
+          QUOREM_CLI_GO_INTEROP: "true"
+        run: |
+          go build -o /tmp/quorem-cli-go-oracle ./apps/api/cmd/provision
+          vp -C apps/api exec vitest run --config src/cli/vitest.config.ts
       - run: go test -race ./apps/language/...
       - run: go build -o /tmp/quorem-language ./apps/language/cmd/language
       - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
