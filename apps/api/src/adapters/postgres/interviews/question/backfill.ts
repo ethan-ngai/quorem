@@ -6,7 +6,7 @@ import {
   backfillSnapshotPublicExamples,
 } from "./public-examples.ts";
 import { backfillPrivateResultCases } from "./private-results.ts";
-type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
+type Run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) => Promise<T>;
 const opts = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 /** Operator-only primitive; the caller supplies a privileged scope and invokes bounded batches. */
 export async function backfillInterviewBatch(
