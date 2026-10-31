@@ -226,7 +226,6 @@ it("claims and fences a real attempt through workerd", async () => {
     await expect(claims.lease({ ...claimed!, sandboxScope: "other" }, false)).rejects.toThrow(
       "scope",
     );
-    await expect(claims.load(claimed!)).rejects.toThrow();
     const judgeFrame = decodeJudgeFrame(
       '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}',
     );

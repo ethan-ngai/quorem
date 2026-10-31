@@ -30,8 +30,8 @@ const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign",
 const verify = nodeResultVerifier(
   {
     inputs,
-    frozenCase: source.frozenCase,
-    fieldPage: source.fieldPage,
+    frozenCase: (id) => source.frozenCase(id),
+    fieldPage: (id, field, offset) => source.fieldPage(id, field, offset),
     async putField(id, field, chunks) {
       let ordinal = 0;
       for await (const chunk of chunks) await source.putChunk(id, field, ordinal++, chunk);

@@ -8,6 +8,7 @@ import {
 } from "@quorem/execution";
 import { postgresInputReader } from "../inputs/read.ts";
 import { lockVerificationChallenge, postgresVerificationSource } from "./verification-source.ts";
+import { reconcileMatch } from "../../matches/reconcile/repository.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const encode = new TextEncoder();
 /** Network and signature verification finish before this function acquires its commit locks. */
@@ -33,8 +34,25 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
       receipt.binding !== binding
     )
       throw new Error("Verification provenance mismatch");
+    const match = await run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
+        async (tx) =>
+          (
+            await tx.execute<{ id: string | null }>(
+              sql`SELECT s.match_id::text AS id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
+            )
+          ).rows[0]?.id ?? null,
+      ),
+    );
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+        if (match) {
+          const locked = await tx.execute(
+            sql`SELECT id FROM matches WHERE id=${match}::uuid FOR UPDATE`,
+          );
+          if (!locked.rows.length) throw new Error("Verification unavailable");
+        }
         const row = await lockVerificationChallenge(tx, receipt.challenge);
         if (
           row.job_id !== job.jobId ||
@@ -84,6 +102,7 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
         await tx.execute(
           sql`INSERT INTO execution_verified_cases(job_id,ordinal,attempt_id,sandbox_scope,challenge_id,binding,frame_hash,actual_hash,expected_hash,type_mismatch,status) VALUES(${job.jobId}::uuid,${receipt.ordinal},${job.attemptId}::uuid,${job.sandboxScope},${receipt.challenge}::uuid,decode(${receipt.binding},'hex'),decode(${receipt.frameHash},'hex'),CASE WHEN ${receipt.actualHash}::text IS NULL THEN NULL ELSE decode(${receipt.actualHash},'hex') END,CASE WHEN ${receipt.expectedHash}::text IS NULL THEN NULL ELSE decode(${receipt.expectedHash},'hex') END,${receipt.typeMismatch},${receipt.status})`,
         );
+        if (match) await reconcileMatch(tx, match);
       }),
     );
   };

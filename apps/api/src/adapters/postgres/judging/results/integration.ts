@@ -969,8 +969,8 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   const verifier = nodeResultVerifier(
     {
       inputs: postgresInputReader(run),
-      frozenCase: source.frozenCase,
-      fieldPage: source.fieldPage,
+      frozenCase: (id) => source.frozenCase(id),
+      fieldPage: (id, field, offset) => source.fieldPage(id, field, offset),
       async putField(id, field, chunks) {
         let ordinal = 0;
         for await (const chunk of chunks) await source.putChunk(id, field, ordinal++, chunk);

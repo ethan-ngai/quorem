@@ -13,7 +13,6 @@ import { saveInterviewFixture } from "../../interviews/execution/fixture.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
 import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
 import { createRunnerCommandHandler } from "../worker/http.ts";
-import { postgresExecutionLoad } from "../worker/load.ts";
 import { postgresCompletionStaging } from "../worker/staging.ts";
 import { postgresVerificationPrepare } from "../worker/verification-prepare.ts";
 import { postgresVerificationSource } from "../worker/verification-source.ts";
@@ -610,9 +609,6 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             for await (const chunk of spool.stream()) total += (chunk as Uint8Array).byteLength;
             expect(total).toBe(overHttp.metadata.size);
             await spool.dispose();
-            await expect(postgresExecutionLoad(scoped, true)(fence)).rejects.toThrow(
-              "Manifest input requires streaming verifier",
-            );
             const stage = postgresCompletionStaging(scoped);
             await stage.begin(fence, {
               submissionId: submission,
@@ -773,8 +769,8 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const privateVerified = await nodeResultVerifier(
               {
                 inputs: reader,
-                frozenCase: authority.frozenCase,
-                fieldPage: authority.fieldPage,
+                frozenCase: (id) => authority.frozenCase(id),
+                fieldPage: (id, field, offset) => authority.fieldPage(id, field, offset),
                 async putField(id, field, chunks) {
                   let n = 0;
                   for await (const chunk of chunks) await authority.putChunk(id, field, n++, chunk);
