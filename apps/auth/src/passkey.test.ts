@@ -14,9 +14,9 @@ describe.skipIf(!databaseURL)("passkey protocol with disposable PostgreSQL", () 
       GOOGLE_CLIENT_ID: "test-google-client",
       GOOGLE_CLIENT_SECRET: "test-google-secret",
     });
-    const { database, config } = await import("./database");
+    const runtime = await (await import("./node-auth")).createNodeRuntime(process.env);
+    const { database, config, auth } = runtime;
     await migrateAuth(database);
-    const { auth } = await import("./node-auth");
     const id = randomUUID(),
       other = randomUUID(),
       key = randomUUID(),

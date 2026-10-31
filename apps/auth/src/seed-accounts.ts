@@ -1,8 +1,13 @@
 import { Pool } from "pg";
 import { seedProductUser } from "./seed-product-user.ts";
-import { createAuth, config, database } from "./node-auth.ts";
+import type { createNodeRuntime } from "./node-auth.ts";
 
-export async function seedAccounts(password: string, productURL?: string) {
+export async function seedAccounts(
+  runtime: Awaited<ReturnType<typeof createNodeRuntime>>,
+  password: string,
+  productURL?: string,
+) {
+  const { createAuth, config, database } = runtime;
   if (config.method !== "password" || !config.localPassword)
     throw new Error("Seeding requires local password mode");
   for (const value of [config.database, ...(productURL ? [productURL] : [])]) {

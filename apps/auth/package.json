@@ -6,7 +6,8 @@
     "dev": "node --env-file-if-exists=.env --experimental-strip-types src/server.ts",
     "migrate": "node --env-file-if-exists=.env --experimental-strip-types src/migrate.ts",
     "seed": "node --env-file-if-exists=.env --experimental-strip-types src/seed.ts",
-    "test": "vp test"
+    "test": "vp test",
+    "test:mail": "node --test src/mail-intents.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",

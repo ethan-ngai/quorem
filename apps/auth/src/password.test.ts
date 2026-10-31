@@ -12,9 +12,9 @@ describe.skipIf(!databaseURL)("local credential service with disposable PostgreS
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
     });
-    const { database, config } = await import("./database");
+    const runtime = await (await import("./node-auth")).createNodeRuntime(process.env);
+    const { database, config, auth } = runtime;
     await migrateAuth(database);
-    const { auth } = await import("./node-auth");
     const { seedAccounts } = await import("./seed-accounts");
     const productURL = process.env.PRODUCT_AUTH_TEST_DATABASE_URL;
     const product = productURL ? new Pool({ connectionString: productURL }) : undefined;
@@ -34,7 +34,7 @@ describe.skipIf(!databaseURL)("local credential service with disposable PostgreS
       );
     try {
       await database.query('DELETE FROM "user" WHERE username=ANY($1)', [["alice", "bob"]]);
-      const accounts = await seedAccounts(password, productURL);
+      const accounts = await seedAccounts(runtime, password, productURL);
       seededSubjects = accounts.map((account) => account.subject);
       if (product) {
         const bindings = await product.query(
@@ -45,7 +45,7 @@ describe.skipIf(!databaseURL)("local credential service with disposable PostgreS
         expect(bindings.rows.every((row) => !["alice", "bob"].includes(row.id))).toBe(true);
       }
       expect(accounts.map((account) => account.username)).toEqual(["alice", "bob"]);
-      expect(await seedAccounts(password, productURL)).toEqual(accounts);
+      expect(await seedAccounts(runtime, password, productURL)).toEqual(accounts);
       const stored = await database.query(
         'SELECT password FROM account WHERE "userId"=$1 AND "providerId"=\'credential\'',
         [accounts[0].subject],

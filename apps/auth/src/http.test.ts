@@ -25,7 +25,7 @@ describe.skipIf(!process.env.AUTH_TEST_DATABASE_URL)("native auth mount with Pos
       BETTER_AUTH_SECRET: "mock-secret-".repeat(4), AUTH_DATABASE_URL: process.env.AUTH_TEST_DATABASE_URL,
       AUTH_INTERNAL_SECRET: "fixture-secret",
     });
-    const { auth, config, database, createAuth } = await import("./node-auth.ts");
+    const { auth, config, database, createAuth } = await (await import("./node-auth.ts")).createNodeRuntime(process.env);
     const { migrateAuth } = await import("./migrations.ts");
     await migrateAuth(database);
     const name = crypto.randomUUID();

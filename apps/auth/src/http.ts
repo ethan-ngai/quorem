@@ -22,10 +22,12 @@ export function createAuthApp(options: {
       return hostedSignIn(request, options.config.method, options.auth.handler);
     if (path.startsWith("/api/auth/registration/"))
       return (await options.registration?.(request)) ?? new Response(null, { status: 404 });
-    if (path.startsWith("/api/auth/profile")) {
-      const response = await options.profile?.(request);
-      if (response) return response;
-    }
+    if (
+      path === "/api/auth/profile" ||
+      path === "/api/auth/profile-photo" ||
+      path.startsWith("/api/auth/profile-photos/")
+    )
+      return (await options.profile?.(request)) ?? new Response(null, { status: 404 });
     return options.auth.handler(request);
   });
   return app;

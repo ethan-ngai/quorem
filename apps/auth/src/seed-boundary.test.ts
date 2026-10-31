@@ -8,12 +8,17 @@ const { config, createAuth } = vi.hoisted(() => ({
   },
   createAuth: vi.fn(),
 }));
-vi.mock("./node-auth.ts", () => ({ config, createAuth, database: { query: vi.fn() } }));
 import { seedAccounts } from "./seed-accounts";
 describe("seed environment boundary", () => {
   it("rejects production credentials even with loopback databases before creating auth or users", async () => {
     await expect(
-      seedAccounts("Long-test-password!", "postgres://localhost/product"),
+      seedAccounts(
+        { config, createAuth, database: { query: vi.fn() } } as unknown as Parameters<
+          typeof seedAccounts
+        >[0],
+        "Long-test-password!",
+        "postgres://localhost/product",
+      ),
     ).rejects.toThrow("Seeding requires local password mode");
     expect(createAuth).not.toHaveBeenCalled();
   });

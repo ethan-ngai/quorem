@@ -7,7 +7,7 @@ const id=crypto.randomUUID();
 const email=`${id}@example.test`;
 const nodeEmail=`node-${id}@example.test`;
 Object.assign(process.env,{APP_ENV:'local',AUTH_MODE:'password',AUTH_ORIGIN:origin,BETTER_AUTH_SECRET:'mock-secret-'.repeat(4),AUTH_DATABASE_URL:'postgres://postgres:fixture-only@127.0.0.1:55438/quorem_hono_auth_native_test',AUTH_INTERNAL_SECRET:'fixture-only'});
-const node=await import('./node-auth.ts');
+const node=await (await import('./node-auth.ts')).createNodeRuntime(process.env);
 const username=id.replaceAll('-','').slice(0,16);
 try {
   await pool.query('DELETE FROM quorem_auth.rate_limit');
