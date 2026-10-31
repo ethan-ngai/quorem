@@ -1,5 +1,5 @@
 /** @file vite.config.ts @description Editor development and build configuration. @module web */
-import { seoMarkup } from "../../packages/ui/src/seo";
+import { seoMarkup } from "../../packages/ui/src/seo.ts";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite-plus";
 import type { IncomingMessage, ServerResponse } from "node:http";
