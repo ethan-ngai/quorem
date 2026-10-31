@@ -1,0 +1,100 @@
+/** @file primitives.test.ts @description PostgreSQL transaction and lifetime tests. @module database */
+import assert from 'node:assert/strict';
+import { after, before, test } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
+import { sql } from 'drizzle-orm';
+import { Client } from 'pg';
+import type { Transaction } from '../src/core/index.ts';
+import { classifyDatabaseError, createNodePool, withNodeConnection, withWorkerConnection } from '../src/core/index.ts';
+
+const url = process.env.QUOREM_TEST_DATABASE_URL;
+if (!url || new URL(url).pathname !== '/quorem_hono_primitives_test' || new URL(url).port !== '55436' || !['127.0.0.1', 'localhost', '[::1]'].includes(new URL(url).hostname)) throw new Error('QUOREM_TEST_DATABASE_URL must name the disposable quorem_hono_primitives_test database');
+const pool = createNodePool({ connectionString: url, max: 1, connectionTimeoutMs: 250, idleTimeoutMs: 1000, onIdleError: (error) => { throw error; } });
+const options = { statementTimeoutMs: 1000, lockTimeoutMs: 100 };
+const run = <T>(callback: Parameters<typeof withNodeConnection<T>>[2]) => withNodeConnection(pool, { lifetimeMs: 3000 }, callback);
+before(async () => { await pool.query('CREATE TABLE IF NOT EXISTS primitives_probe (id int primary key, value text)'); await pool.query('DELETE FROM primitives_probe'); await pool.query('CREATE TABLE IF NOT EXISTS primitives_deferred (value int, UNIQUE(value) DEFERRABLE INITIALLY DEFERRED)'); await pool.query('DELETE FROM primitives_deferred'); });
+after(async () => { await pool.query('DROP TABLE IF EXISTS primitives_deferred'); await pool.query('DROP TABLE IF EXISTS primitives_probe'); await pool.end(); });
+
+void test('commit, rollback, pinned client and classified wrapped constraints', async () => {
+  let retained: Transaction | undefined;
+  const pids = await run((scope) => scope.transaction(options, async (tx) => {
+    retained = tx;
+    const first = await tx.execute(sql`select pg_backend_pid() as pid`);
+    await tx.execute(sql`insert into primitives_probe values (1, 'ok')`);
+    const second = await tx.execute(sql`select pg_backend_pid() as pid`);
+    return [first.rows[0].pid, second.rows[0].pid];
+  }));
+  assert.equal(pids[0], pids[1]);
+  const mode = await run((scope) => scope.transaction({ ...options, isolation: 'repeatable read', readOnly: true }, async (tx) => (await tx.execute(sql`select current_setting('transaction_isolation') as isolation, current_setting('transaction_read_only') as readonly`)).rows[0]));
+  assert.equal(mode.isolation, 'repeatable read');
+  assert.equal(mode.readonly, 'on');
+  assert.throws(() => retained?.execute(sql`select 1`), /no longer active/);
+  await assert.rejects(run((scope) => scope.transaction(options, async (tx) => { await tx.execute(sql`insert into primitives_probe values (2, 'rollback')`); throw new Error('sentinel'); })), /sentinel/);
+  await assert.rejects(run((scope) => scope.transaction(options, async (tx) => { await tx.execute(sql`insert into primitives_probe values (1, 'duplicate')`); })), (error) => classifyDatabaseError(error) === 'unique');
+  assert.equal((await pool.query('select count(*)::int as n from primitives_probe')).rows[0].n, 1);
+});
+
+void test('commit constraint failure remains a definite unique violation', async () => {
+  await assert.rejects(run((scope) => scope.transaction(options, async (tx) => {
+    await tx.execute(sql`insert into primitives_deferred values (1), (1)`);
+  })), (error) => classifyDatabaseError(error) === 'unique');
+  assert.equal((await pool.query('select count(*)::int as n from primitives_deferred')).rows[0].n, 0);
+});
+
+void test('statement and lock deadlines with rollback', async () => {
+  await assert.rejects(run((scope) => scope.transaction({ ...options, statementTimeoutMs: 50 }, async (tx) => { await tx.execute(sql`select pg_sleep(1)`); })), (error) => classifyDatabaseError(error) === 'query_cancelled');
+  const blocker = new Client({ connectionString: url }); await blocker.connect();
+  try {
+    await blocker.query('BEGIN'); await blocker.query('select id from primitives_probe where id=1 for update');
+    await assert.rejects(run((scope) => scope.transaction(options, async (tx) => { await tx.execute(sql`update primitives_probe set value='blocked' where id=1`); })), (error) => classifyDatabaseError(error) === 'lock_timeout');
+  } finally { await blocker.query('ROLLBACK'); await blocker.end(); }
+  assert.equal((await pool.query('select value from primitives_probe where id=1')).rows[0].value, 'ok');
+});
+
+void test('abort active work destroys borrowed client and leaves no writes', async () => {
+  const controller = new AbortController();
+  const pending = withNodeConnection(pool, { lifetimeMs: 3000, signal: controller.signal }, (scope) => scope.transaction(options, async (tx) => { await tx.execute(sql`insert into primitives_probe values (3, 'abort')`); await tx.execute(sql`select pg_sleep(2)`); }));
+  await delay(100); controller.abort();
+  await assert.rejects(pending, (error) => classifyDatabaseError(error) === 'aborted');
+  await delay(100);
+  assert.equal((await pool.query('select count(*)::int as n from primitives_probe where id=3')).rows[0].n, 0);
+});
+
+void test('scope lifetime bounds stalled callbacks', async () => {
+  await assert.rejects(withNodeConnection(pool, { lifetimeMs: 40 }, async () => { await delay(200); }), (error) => classifyDatabaseError(error) === 'aborted');
+  assert.equal((await pool.query('select 1 as n')).rows[0].n, 1);
+});
+
+void test('pool exhaustion and aborted waiter release late acquisition', async () => {
+  const held = await pool.connect();
+  const controller = new AbortController();
+  const waiting = withNodeConnection(pool, { lifetimeMs: 3000, signal: controller.signal }, async () => 'unreachable');
+  controller.abort();
+  await assert.rejects(waiting, (error) => classifyDatabaseError(error) === 'aborted');
+  await assert.rejects(withNodeConnection(pool, { lifetimeMs: 3000 }, async () => 'unreachable'), /timeout/i);
+  held.release(); await delay(100);
+  assert.equal(pool.waitingCount, 0);
+  assert.equal((await pool.query('select 1 as n')).rows[0].n, 1);
+});
+
+void test('worker-shaped scope closes on success and abort', async () => {
+  const pid = await withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 3000 }, (scope) => scope.transaction(options, async (tx) => (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0].pid));
+  assert.equal((await pool.query('select count(*)::int as n from pg_stat_activity where pid = $1', [pid])).rows[0].n, 0);
+  const controller = new AbortController();
+  const pending = withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 3000, signal: controller.signal }, (scope) => scope.transaction(options, async (tx) => { await tx.execute(sql`select pg_sleep(2)`); }));
+  await delay(100); controller.abort();
+  await assert.rejects(pending, (error) => classifyDatabaseError(error) === 'aborted');
+});
+
+void test('unknown commit is surfaced without replay after connection loss', async () => {
+  let calls = 0;
+  const killer = new Client({ connectionString: url }); await killer.connect();
+  try {
+    await assert.rejects(run((scope) => scope.transaction(options, async (tx) => {
+      calls++;
+      const pid = (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0].pid;
+      await killer.query('select pg_terminate_backend($1)', [pid]);
+    })), (error) => classifyDatabaseError(error) === 'unknown_commit');
+    assert.equal(calls, 1);
+  } finally { await killer.end(); }
+});

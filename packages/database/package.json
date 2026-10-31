@@ -5,12 +5,15 @@
   "exports": {
     "./schema": "./src/schema/index.ts",
     "./migrations": "./src/migrations.ts",
-    "./auth-adapter-schema": "./src/schema/auth/adapter.ts"
+    "./auth-adapter-schema": "./src/schema/auth/adapter.ts",
+    "./core": "./src/core/index.ts"
   },
   "scripts": {
     "migrate": "node src/migrate.ts",
     "test": "node --test src/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:integration": "node --test test/primitives.test.ts",
+    "test:workers": "node test/worker-check.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
