@@ -6,6 +6,7 @@ const url = process.env.AUTH_TEST_DATABASE_URL;
 describe.skipIf(!url)("auth schema migrations", () => {
   it("serializes concurrent startup, skips applied SQL and preserves unknown history", async () => {
     const database = new Pool({ connectionString: url });
+    let firstChecksum: string | undefined;
     try {
       await Promise.all([migrateAuth(database), migrateAuth(database)]);
       const before = await database.query('SELECT count(*) FROM quorem_auth."user"');
@@ -23,10 +24,20 @@ describe.skipIf(!url)("auth schema migrations", () => {
         { name: "005_mail_intents.sql" },
         { name: "006_profile_budgets.sql" },
       ]);
+      firstChecksum = (
+        await database.query(
+          "SELECT checksum FROM quorem_auth.schema_migrations WHERE name='001_schema.sql'",
+        )
+      ).rows[0].checksum;
       await database.query("DELETE FROM quorem_auth.schema_migrations WHERE name='001_schema.sql'");
       await expect(migrateAuth(database)).rejects.toThrow("not a contiguous prefix");
-      await database.query("INSERT INTO quorem_auth.schema_migrations VALUES('001_schema.sql')");
-      await database.query("INSERT INTO quorem_auth.schema_migrations VALUES('unavailable.sql')");
+      await database.query(
+        "INSERT INTO quorem_auth.schema_migrations(name,checksum) VALUES('001_schema.sql',$1)",
+        [firstChecksum],
+      );
+      await database.query(
+        "INSERT INTO quorem_auth.schema_migrations(name) VALUES('unavailable.sql')",
+      );
       await expect(migrateAuth(database)).rejects.toThrow("unavailable auth migration");
       expect(
         (
@@ -37,7 +48,8 @@ describe.skipIf(!url)("auth schema migrations", () => {
       ).toBe(1);
     } finally {
       await database.query(
-        "INSERT INTO quorem_auth.schema_migrations VALUES('001_schema.sql') ON CONFLICT DO NOTHING",
+        "INSERT INTO quorem_auth.schema_migrations(name,checksum) VALUES('001_schema.sql',$1) ON CONFLICT DO NOTHING",
+        [firstChecksum ?? null],
       );
       await database.query(
         "DELETE FROM quorem_auth.schema_migrations WHERE name='unavailable.sql'",

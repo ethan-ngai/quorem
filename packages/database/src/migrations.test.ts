@@ -65,9 +65,12 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         Number((await pool.query(`SELECT count(*) FROM ${ledger}`)).rows[0].count),
         names.length,
       );
+      const checksum = (
+        await pool.query(`SELECT checksum FROM ${ledger} WHERE name=$1`, [names[0]])
+      ).rows[0].checksum;
       await pool.query(`DELETE FROM ${ledger} WHERE name=$1`, [names[0]]);
       await assert.rejects(migrate(pool, owner, dir), /contiguous prefix/);
-      await pool.query(`INSERT INTO ${ledger}(name) VALUES($1)`, [names[0]]);
+      await pool.query(`INSERT INTO ${ledger}(name,checksum) VALUES($1,$2)`, [names[0], checksum]);
       await pool.query(`INSERT INTO ${ledger}(name) VALUES('unavailable.sql')`);
       await assert.rejects(migrate(pool, owner, dir), /unavailable/);
       await pool.query(`DELETE FROM ${ledger} WHERE name='unavailable.sql'`);
