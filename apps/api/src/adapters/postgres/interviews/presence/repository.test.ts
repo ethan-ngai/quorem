@@ -151,6 +151,9 @@ it.skipIf(!url)(
         "UPDATE interview_rule_events SET occurred_at=clock_timestamp()-interval '10 seconds' WHERE session_id=$1",
         [id],
       );
+      expect(
+        JSON.parse(await new Response(await lifecycle.read(host, id)).text()).ruleEvents,
+      ).toHaveLength(100);
       await monitoring.report(candidate, id, "trim", "paste");
       expect(
         JSON.parse(await new Response(await lifecycle.read(host, id)).text()).ruleEvents,

@@ -171,7 +171,7 @@ export async function prepareInterviewSnapshot(
   if (access.role === "interviewer") {
     const events = (
       await tx.execute<{ value: string }>(
-        sql`SELECT COALESCE(jsonb_agg(jsonb_build_object('id',e.id,'userId',e.owner_id,'name',u.display_name,'kind',e.kind,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id),'[]'::jsonb)::text AS value FROM interview_rule_events e JOIN users u ON u.id=e.owner_id WHERE e.session_id=${id}::uuid`,
+        sql`SELECT COALESCE(jsonb_agg(jsonb_build_object('id',e.id,'userId',e.owner_id,'name',u.display_name,'kind',e.kind,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id),'[]'::jsonb)::text AS value FROM (SELECT id,owner_id,kind,occurred_at FROM interview_rule_events WHERE session_id=${id}::uuid ORDER BY occurred_at DESC,id DESC LIMIT 100) e JOIN users u ON u.id=e.owner_id`,
       )
     ).rows[0];
     const entries = parseLosslessJson(events.value);
