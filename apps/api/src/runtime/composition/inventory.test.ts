@@ -17,6 +17,7 @@ const ports: HttpPorts = {
   wake: { send: unavailable },
   inviteKey: new Uint8Array(32),
   shards: 1,
+  guestCreation: false,
   guestAdmission: false,
   guestExecution: false,
   localStrongBypass: false,

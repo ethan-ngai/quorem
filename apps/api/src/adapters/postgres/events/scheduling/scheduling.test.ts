@@ -3,6 +3,7 @@ import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { postgresDeadlines } from "./deadlines.ts";
 import { prearmReceipts, consumePrearm } from "./prearm.ts";
 import { retainBatch } from "./retention.ts";
+import { seedCatalog } from "../../../../cli/seed.ts";
 import {
   drainDeadlines,
   activateDeadline,
@@ -165,6 +166,86 @@ describe("deadline scheduling with PostgreSQL", () => {
       ),
     ).rejects.toThrow();
     await receipts.acknowledge(op);
+  });
+  it("scrubs expired guest sidecars and normalized results without touching live or recent account work", async () => {
+    await seedCatalog(pool, true);
+    const version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7";
+    const owner = `retention-${crypto.randomUUID()}`;
+    const cases = [
+      { name: "guest", kind: "guest", days: 8, state: "completed" },
+      { name: "sidecar", kind: "guest", days: 8, state: "completed" },
+      { name: "live", kind: "guest", days: 8, state: "running" },
+      { name: "account", kind: "account", days: 8, state: "completed" },
+      { name: "old-account", kind: "account", days: 31, state: "completed" },
+    ] as const;
+    const ids = new Map<string, string>();
+    for (const item of cases) {
+      const user = `${owner}-${item.name}`,
+        workspace = crypto.randomUUID(),
+        id = crypto.randomUUID();
+      ids.set(item.name, id);
+      await pool.query("INSERT INTO users(id,display_name,kind) VALUES($1,$1,$2)", [
+        user,
+        item.kind,
+      ]);
+      await pool.query(
+        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        [workspace, user, version],
+      );
+      await pool.query(
+        `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,lossless_cases,admitted_at) VALUES($1,$2,$3,'run',$4,'hash','running','[]'::jsonb,$5::jsonb,convert_to('[123]','UTF8'),clock_timestamp()-($6::text||' days')::interval)`,
+        [
+          id,
+          user,
+          workspace,
+          item.name === "sidecar" ? "" : "secret",
+          item.name === "sidecar" ? null : "{}",
+          item.days,
+        ],
+      );
+      if (item.name === "guest") {
+        await pool.query(
+          "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,convert_to('{}','UTF8'))",
+          [id],
+        );
+        await pool.query(
+          "INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) VALUES($1,'public',0,convert_to('{}','UTF8'))",
+          [id],
+        );
+        await pool.query(
+          `INSERT INTO submission_public_case_statuses(submission_id,channel,ordinal,case_index,status_json,status_hash) VALUES($1,'public',0,0,convert_to('"passed"','UTF8'),sha256(convert_to('"passed"','UTF8')))`,
+          [id],
+        );
+        await pool.query("SELECT set_config('quorem.lossless_result_write','v1',false)");
+        await pool.query(
+          "UPDATE submissions SET result_payload=convert_to('{}','UTF8') WHERE id=$1",
+          [id],
+        );
+      }
+      if (item.state === "completed")
+        await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [id]);
+    }
+    await retainBatch(run);
+    const rows = await pool.query(
+      `SELECT id,source,result IS NOT NULL AS result, result_payload IS NOT NULL AS payload, lossless_cases IS NOT NULL AS cases FROM submissions WHERE id=ANY($1::uuid[])`,
+      [[...ids.values()]],
+    );
+    const byName = (name: string) => rows.rows.find((row) => row.id === ids.get(name));
+    expect(byName("guest")).toMatchObject({
+      source: "",
+      result: false,
+      payload: false,
+      cases: false,
+    });
+    expect(byName("sidecar")).toMatchObject({ source: "", cases: false });
+    expect(byName("old-account")).toMatchObject({ source: "", result: false, cases: false });
+    for (const name of ["live", "account"])
+      expect(byName(name)).toMatchObject({ source: "secret", result: true, cases: true });
+    const remaining = await pool.query(
+      `SELECT (SELECT count(*) FROM submission_result_headers WHERE submission_id=$1)::int AS headers,(SELECT count(*) FROM submission_public_result_cases WHERE submission_id=$1)::int AS cases,(SELECT count(*) FROM submission_public_case_statuses WHERE submission_id=$1)::int AS statuses`,
+      [ids.get("guest")],
+    );
+    expect(remaining.rows[0]).toEqual({ headers: 0, cases: 0, statuses: 0 });
   });
   it("deletes only expired published notices in bounded batches", async () => {
     const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];

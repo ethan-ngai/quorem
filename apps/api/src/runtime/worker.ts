@@ -22,6 +22,7 @@ import {
   AdmissionRecovery,
   type AdmissionAlarmStorage,
 } from "../modules/judging/admission/recovery.ts";
+import { retainBatch } from "../adapters/postgres/events/scheduling/retention.ts";
 import { postgresDeadlines } from "../adapters/postgres/events/scheduling/deadlines.ts";
 import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts";
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
@@ -152,6 +153,7 @@ function makeHttp(env: Env, request: Request) {
     wake: wake(env),
     inviteKey: keyBytes(env.MATCH_INVITE_KEY),
     shards: boundedInt(env.DEADLINE_SHARDS, 1, 256),
+    guestCreation: flag(env.GUEST_CREATION),
     guestAdmission: flag(env.GUEST_ADMISSION),
     guestExecution: flag(env.GUEST_EXECUTION),
     localStrongBypass: false,
@@ -174,6 +176,7 @@ function socketAuthority(env: Env) {
     wake: wake(env),
     inviteKey: keyBytes(env.MATCH_INVITE_KEY),
     shards: boundedInt(env.DEADLINE_SHARDS, 1, 256),
+    guestCreation: flag(env.GUEST_CREATION),
     guestAdmission: flag(env.GUEST_ADMISSION),
     guestExecution: flag(env.GUEST_EXECUTION),
     localStrongBypass: false,
@@ -377,6 +380,7 @@ export default {
         (_, shard) => () => deadlines.wake(shard),
       ),
       () => recovery.wake(0),
+      () => retainBatch(run),
     ]);
   },
 };

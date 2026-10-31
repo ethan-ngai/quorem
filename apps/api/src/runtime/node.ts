@@ -19,6 +19,7 @@ import { socketTarget } from "./worker/socket/target.ts";
 import { installNodeSockets } from "./node/socket/server.ts";
 import { nodeCoordinator } from "../adapters/scheduling/shells.ts";
 import { drainDeadlines } from "../modules/events/scheduling/scheduling.ts";
+import { retainBatch } from "../adapters/postgres/events/scheduling/retention.ts";
 import { postgresDeadlines } from "../adapters/postgres/events/scheduling/deadlines.ts";
 import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts";
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
@@ -194,6 +195,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         dispatch,
         ...Array.from({ length: shards }, (_, shard) => () => deadlines.wake(shard)),
         () => recovery.wake(0),
+        () => retainBatch(run),
       ]);
     await repair().catch(report);
     const timer = setInterval(() => {
@@ -214,6 +216,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       wake,
       inviteKey: keyBytes(env.MATCH_INVITE_KEY),
       shards,
+      guestCreation: flag(env.GUEST_CREATION),
       guestAdmission: flag(env.GUEST_ADMISSION),
       guestExecution: flag(env.GUEST_EXECUTION),
       localStrongBypass: identityMode === "local",

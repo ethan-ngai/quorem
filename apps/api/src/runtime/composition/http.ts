@@ -54,6 +54,7 @@ export interface HttpPorts {
   wake: ExecutionWakePublisher;
   inviteKey: Uint8Array;
   shards: number;
+  guestCreation: boolean;
   guestAdmission: boolean;
   guestExecution: boolean;
   localStrongBypass: boolean;
@@ -76,7 +77,7 @@ export function composeHttp(ports: HttpPorts) {
     receipts: prearmReceipts(run),
     coordinator: ports.deadline,
     shards: ports.shards,
-    guestCreation: ports.guestAdmission,
+    guestCreation: ports.guestCreation,
   });
   const budget = { allow: (peer: string) => run((scope) => publicGuestBudget(scope).allow(peer)) };
   app.route(
