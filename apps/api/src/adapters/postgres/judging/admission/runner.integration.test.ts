@@ -8,7 +8,7 @@ import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { claimNext } from "../../../../../../runner/src/queue/claim.ts";
 import { fileURLToPath } from "node:url";
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -28,6 +28,7 @@ import { httpResultVerifier, type ResultVerifier } from "../worker/verification-
 import { createVerificationService } from "../../../../../../runner/src/verification/service.ts";
 import { createRunnerCommandHandler } from "../worker/http.ts";
 import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
+import { localFenceRoot } from "../../../../../../runner/src/sandbox/fence.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 import { drainer } from "../../../../../../runner/src/drains/drain.ts";
 import { checkpointedEngine } from "../../../../../../runner/src/orchestration/engine.ts";
@@ -307,25 +308,94 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         clearTimeout(timer);
       }
     };
-    let verifierProcess: ChildProcess | undefined, runnerProcess: ChildProcess | undefined;
-    try {
-      verifierProcess = spawn(
-        process.execPath,
-        [
-          fileURLToPath(
-            new URL("../../../../../../runner/src/runtime/verifier.ts", import.meta.url),
-          ),
-        ],
-        {
+    const containerMode = process.env.QUOREM_CONTAINER_FIXTURE === "1";
+    const service = (kind: "runner" | "verifier", script: string, env: NodeJS.ProcessEnv) => {
+      if (!containerMode)
+        return spawn(process.execPath, [script], {
           stdio: "ignore",
-          env: {
-            ...process.env,
-            QUOREM_VERIFIER_LISTEN: `127.0.0.1:${verifierPort}`,
-            QUOREM_VERIFICATION_SOURCE_ORIGIN: apiOrigin,
-            QUOREM_VERIFICATION_SOURCE_KEY: Buffer.from(sourceKey).toString("hex"),
-            QUOREM_VERIFICATION_SERVICE_KEY: Buffer.from(serviceKey).toString("hex"),
-            QUOREM_VERIFICATION_SIGNING_KEY_FILE: keyFile,
-          },
+          env: { ...process.env, ...env },
+        });
+      const volume = process.env.QUOREM_CONTAINER_FENCE_VOLUME;
+      const namespace = process.env.HOSTNAME;
+      if (!volume || !namespace || !work.startsWith("/quorem-36b/"))
+        throw new Error("Container fixture requires its shared fence volume and network namespace");
+      const args = [
+        "run",
+        "--rm",
+        "--network",
+        `container:${namespace}`,
+        "--group-add",
+        process.env.QUOREM_CONTAINER_SOCKET_GID ?? "0",
+        "--mount",
+        `type=volume,source=${volume},destination=/quorem-36b`,
+      ];
+      if (kind === "runner")
+        args.push(
+          "--mount",
+          "type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock",
+        );
+      for (const [key, value] of Object.entries(env))
+        if (value !== undefined) args.push("-e", `${key}=${value}`);
+      args.push(`quorem-hono-${kind}:36b`);
+      return spawn("docker", args, { stdio: "ignore" });
+    };
+    if (containerMode) {
+      const daemon = execFileSync(
+        "docker",
+        ["--host", `unix://${socket!}`, "info", "--format", "{{.ID}}"],
+        { encoding: "utf8" },
+      ).trim();
+      const root = await localFenceRoot(work, "executable-e2e", daemon);
+      expect(root.scope).toBe(sandbox.scope);
+      const fence = { sandboxScope: root.scope, attemptId: "shared-fence-probe" };
+      const lease = await root.acquire(fence, AbortSignal.timeout(5000));
+      const prefix = createHash("sha256").update(root.scope).digest("hex").slice(0, 16);
+      await utimes(
+        join(work, `attempt-${prefix}-${fence.attemptId}.lock`),
+        new Date(0),
+        new Date(0),
+      );
+      const probe = `import {localFenceRoot} from './apps/runner/src/sandbox/fence.ts'; const root=await localFenceRoot(process.env.ROOT,'executable-e2e',process.env.DAEMON); if(root.scope!==process.env.SCOPE) process.exit(3); try { const lease=await root.acquire({sandboxScope:root.scope,attemptId:'shared-fence-probe'},AbortSignal.timeout(1000)); await lease.release(); process.exit(4); } catch(e) { if(e.name!=='AbortError' || e.cause?.name!=='TimeoutError') throw e; }`;
+      try {
+        execFileSync(
+          "docker",
+          [
+            "run",
+            "--rm",
+            "--mount",
+            `type=volume,source=${process.env.QUOREM_CONTAINER_FENCE_VOLUME},destination=/quorem-36b`,
+            "-e",
+            `ROOT=${work}`,
+            "-e",
+            `DAEMON=${daemon}`,
+            "-e",
+            `SCOPE=${root.scope}`,
+            "--entrypoint",
+            "node",
+            "quorem-hono-runner:36b",
+            "--input-type=module",
+            "-e",
+            probe,
+          ],
+          { stdio: "pipe", timeout: 10000 },
+        );
+      } finally {
+        await lease.release();
+      }
+    }
+    let verifierProcess: ChildProcess | undefined,
+      runnerProcess: ChildProcess | undefined,
+      competingRunner: ChildProcess | undefined;
+    try {
+      verifierProcess = service(
+        "verifier",
+        fileURLToPath(new URL("../../../../../../runner/src/runtime/verifier.ts", import.meta.url)),
+        {
+          QUOREM_VERIFIER_LISTEN: `127.0.0.1:${verifierPort}`,
+          QUOREM_VERIFICATION_SOURCE_ORIGIN: apiOrigin,
+          QUOREM_VERIFICATION_SOURCE_KEY: Buffer.from(sourceKey).toString("hex"),
+          QUOREM_VERIFICATION_SERVICE_KEY: Buffer.from(serviceKey).toString("hex"),
+          QUOREM_VERIFICATION_SIGNING_KEY_FILE: keyFile,
         },
       );
       const verifierOrigin = `http://127.0.0.1:${verifierPort}`;
@@ -354,22 +424,18 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
             ),
         },
       ]);
-      runnerProcess = spawn(
-        process.execPath,
-        [fileURLToPath(new URL("../../../../../../runner/src/runtime/runner.ts", import.meta.url))],
+      runnerProcess = service(
+        "runner",
+        fileURLToPath(new URL("../../../../../../runner/src/runtime/runner.ts", import.meta.url)),
         {
-          stdio: "ignore",
-          env: {
-            ...process.env,
-            QUOREM_RUNNER_MODE: "http",
-            QUOREM_RUNNER_LISTEN: `127.0.0.1:${runnerPort}`,
-            QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
-            QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
-            QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
-            QUOREM_DOCKER_SOCKET: socket!,
-            QUOREM_DOCKER_FENCE_ROOT: work,
-            QUOREM_DOCKER_NAMESPACE: "executable-e2e",
-          },
+          QUOREM_RUNNER_MODE: "http",
+          QUOREM_RUNNER_LISTEN: `127.0.0.1:${runnerPort}`,
+          QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
+          QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
+          QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
+          QUOREM_DOCKER_SOCKET: socket!,
+          QUOREM_DOCKER_FENCE_ROOT: work,
+          QUOREM_DOCKER_NAMESPACE: "executable-e2e",
         },
       );
       const runnerOrigin = `http://127.0.0.1:${runnerPort}`;
@@ -440,6 +506,26 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         await sleep(25);
       }
       expect(active).toBe(true);
+      if (containerMode) {
+        const competingPort = await freePort();
+        competingRunner = service("runner", "", {
+          QUOREM_RUNNER_MODE: "http",
+          QUOREM_RUNNER_LISTEN: `127.0.0.1:${competingPort}`,
+          QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
+          QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
+          QUOREM_RUNNER_DRAIN_SECRET: drainSecret,
+          QUOREM_DOCKER_SOCKET: socket!,
+          QUOREM_DOCKER_FENCE_ROOT: work,
+          QUOREM_DOCKER_NAMESPACE: "executable-e2e",
+        });
+        await waitHealth(`http://127.0.0.1:${competingPort}`, competingRunner);
+        expect(containers()).not.toBe("");
+        expect(
+          (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0].state,
+        ).toBe("running");
+        await stop(competingRunner);
+        competingRunner = undefined;
+      }
       await stop(runnerProcess);
       runnerProcess = undefined;
       await pending;
@@ -458,6 +544,7 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
       );
       await pool.query("DELETE FROM submissions WHERE id=$1", [slowId]);
     } finally {
+      await stop(competingRunner);
       await stop(runnerProcess);
       await stop(verifierProcess);
       await new Promise<void>((resolve) => api.close(() => resolve()));
