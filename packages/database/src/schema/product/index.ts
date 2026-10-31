@@ -1,6 +1,7 @@
 /** @file schema/product/index.ts @description PostgreSQL schema and migration ownership. @module database */
 import {
   pgTable,
+  pgView,
   text,
   foreignKey,
   timestamp,
@@ -1670,9 +1671,7 @@ export const execution_dispatch_intents = pgTable(
   "execution_dispatch_intents",
   {
     id: uuid().primaryKey().notNull(),
-    job_id: uuid()
-      .notNull()
-      .references(() => execution_jobs.id, { onDelete: "cascade" }),
+    job_id: uuid().notNull(),
     available_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
@@ -1681,6 +1680,11 @@ export const execution_dispatch_intents = pgTable(
     dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table) => [
+    foreignKey({
+      name: "execution_dispatch_intents_job_id_fkey",
+      columns: [table.job_id],
+      foreignColumns: [execution_jobs.id],
+    }).onDelete("cascade"),
     index("execution_dispatch_pending")
       .on(table.available_at, table.id)
       .where(sql`delivered_at IS NULL`),
@@ -1700,3 +1704,119 @@ export const deadline_prearms = pgTable(
     index("deadline_prearms_shard").on(table.shard, table.expires_at, table.id),
   ],
 );
+
+export const interview_public_examples = pgTable(
+  "interview_public_examples",
+  {
+    session_id: uuid().notNull(),
+    question_epoch: uuid().notNull(),
+    level: integer().notNull(),
+    examples: bytea().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "interview_public_examples_session_id_fkey",
+      columns: [table.session_id],
+      foreignColumns: [interviews.id],
+    }).onDelete("cascade"),
+    primaryKey({
+      name: "interview_public_examples_pkey",
+      columns: [table.session_id, table.question_epoch, table.level],
+    }),
+    check("interview_public_examples_level_check", sql`level >= 0`),
+  ],
+);
+
+export const interview_snapshot_public_examples = pgTable(
+  "interview_snapshot_public_examples",
+  {
+    session_id: uuid().notNull(),
+    fixture_id: bytea().notNull(),
+    level: integer().notNull(),
+    examples: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "interview_snapshot_public_examples_pkey",
+      columns: [table.session_id, table.fixture_id, table.level],
+    }),
+    foreignKey({
+      name: "interview_snapshot_public_examples_session_id_fixture_id_fkey",
+      columns: [table.session_id, table.fixture_id],
+      foreignColumns: [interview_question_snapshots.session_id, interview_question_snapshots.id],
+    }).onDelete("cascade"),
+    check("interview_snapshot_public_examples_level_check", sql`level >= 0`),
+  ],
+);
+
+export const interview_question_private_cases = pgTable(
+  "interview_question_private_cases",
+  {
+    session_id: uuid().notNull(),
+    question_epoch: uuid().notNull(),
+    case_id: text().notNull(),
+    ordinal: integer().notNull(),
+    case_data: bytea().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "interview_question_private_cases_session_id_fkey",
+      columns: [table.session_id],
+      foreignColumns: [interviews.id],
+    }).onDelete("cascade"),
+    primaryKey({
+      name: "interview_question_private_cases_pkey",
+      columns: [table.session_id, table.question_epoch, table.case_id],
+    }),
+    unique("interview_question_private_ca_session_id_question_epoch_ord_key").on(
+      table.session_id,
+      table.question_epoch,
+      table.ordinal,
+    ),
+    check("interview_question_private_cases_ordinal_check", sql`ordinal >= 0`),
+  ],
+);
+
+export const interview_question_public = pgView("interview_question_public", {
+  session_id: uuid(),
+  question_epoch: uuid(),
+  metadata: jsonb(),
+  private_ids: text().array(),
+}).existing();
+
+export const interview_private_result_cases = pgTable(
+  "interview_private_result_cases",
+  {
+    submission_id: uuid().notNull(),
+    ordinal: integer().notNull(),
+    result_data: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "interview_private_result_cases_pkey",
+      columns: [table.submission_id, table.ordinal],
+    }),
+    foreignKey({
+      name: "interview_private_result_cases_submission_id_fkey",
+      columns: [table.submission_id],
+      foreignColumns: [interview_execution.submission_id],
+    }).onDelete("cascade"),
+    check("interview_private_result_cases_ordinal_check", sql`ordinal >= 0`),
+  ],
+);
+export const interview_snapshot_public = pgView("interview_snapshot_public", {
+  session_id: uuid(),
+  fixture_id: bytea(),
+  total_stages: integer(),
+  private_ids: text().array(),
+  example_count: integer(),
+}).existing();
+export const interview_execution_public = pgView("interview_execution_public", {
+  submission_id: uuid(),
+  session_id: uuid(),
+  question_epoch: uuid(),
+  fixture_id: bytea(),
+  level: integer(),
+  result_count: integer(),
+  private_statuses: jsonb(),
+}).existing();

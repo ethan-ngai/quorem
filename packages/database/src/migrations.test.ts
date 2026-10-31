@@ -1,6 +1,6 @@
 /** @file migrations.test.ts @description PostgreSQL schema and migration ownership. @module database */
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, copyFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, copyFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
@@ -11,7 +11,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { passkey } from "@better-auth/passkey";
 import { authAdapterSchema } from "./schema/auth/adapter.ts";
 import pg from "pg";
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { getTableConfig, getViewConfig, isPgView, PgColumn } from "drizzle-orm/pg-core";
 import { is, sql, SQL } from "drizzle-orm";
 import { PgTable, PgDialect, pgTable, bigint, numeric } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -94,6 +94,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
       ["quorem_auth", auth],
     ] as const) {
       const tables = Object.values(definitions).filter((value) => is(value, PgTable));
+      const views = Object.values(definitions).filter(isPgView);
       const actual = await pool.query(
         `SELECT table_name,column_name,udt_name,is_nullable FROM information_schema.columns WHERE table_schema=$1 ORDER BY table_name,column_name`,
         [namespace],
@@ -103,6 +104,14 @@ await test("migration and catalog parity on disposable database", { skip: !url }
           const config = getTableConfig(table);
           return config.columns.map((col) => `${config.name}.${col.name}`);
         })
+        .concat(
+          views.flatMap((view) => {
+            const config = getViewConfig(view);
+            return Object.values(config.selectedFields)
+              .filter((col) => is(col, PgColumn))
+              .map((col) => `${config.name}.${col.name}`);
+          }),
+        )
         .sort();
       assert.deepEqual(
         expected,
@@ -124,6 +133,27 @@ await test("migration and catalog parity on disposable database", { skip: !url }
       for (const table of tables) {
         const config = getTableConfig(table);
         for (const col of config.columns) {
+          const row = actual.rows.find(
+            (row) => row.table_name === config.name && row.column_name === col.name,
+          );
+          assert.equal(
+            types[col.getSQLType()],
+            row.udt_name,
+            `${namespace}.${config.name}.${col.name} type`,
+          );
+          assert.equal(
+            col.notNull,
+            row.is_nullable === "NO",
+            `${namespace}.${config.name}.${col.name} nullability`,
+          );
+        }
+      }
+
+      for (const view of views) {
+        const config = getViewConfig(view);
+        for (const col of Object.values(config.selectedFields).filter((value) =>
+          is(value, PgColumn),
+        )) {
           const row = actual.rows.find(
             (row) => row.table_name === config.name && row.column_name === col.name,
           );
@@ -310,6 +340,32 @@ await test("migration and catalog parity on disposable database", { skip: !url }
           `${namespace}.${config.name} indexes`,
         );
       }
+    }
+    const viewSource = await readFile(
+      join(productDir, "051_interview_public_examples.sql"),
+      "utf8",
+    );
+    for (const name of [
+      "interview_question_public",
+      "interview_snapshot_public",
+      "interview_execution_public",
+    ]) {
+      const start = viewSource.indexOf(`CREATE VIEW ${name} WITH (security_barrier=true) AS`);
+      assert.notEqual(start, -1);
+      const end = viewSource.indexOf(";", start);
+      assert.notEqual(end, -1);
+      const viewDDL = viewSource.slice(start, end + 1);
+      await pool.query(viewDDL.replace(`CREATE VIEW ${name}`, `CREATE TEMP VIEW parity_${name}`));
+      const views = await pool.query(
+        `SELECT c.relname,pg_get_viewdef(c.oid,true) AS definition,c.reloptions FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE (n.nspname='public' AND c.relname=$1) OR (n.oid=pg_my_temp_schema() AND c.relname=$2)`,
+        [name, `parity_${name}`],
+      );
+      assert.equal(views.rows.length, 2);
+      const original = views.rows.find((row) => row.relname === name),
+        probe = views.rows.find((row) => row.relname === `parity_${name}`);
+      assert.deepEqual(original.reloptions, ["security_barrier=true"]);
+      assert.deepEqual(probe.reloptions, ["security_barrier=true"]);
+      assert.equal(original.definition, probe.definition);
     }
     const snapshot = async () =>
       (
