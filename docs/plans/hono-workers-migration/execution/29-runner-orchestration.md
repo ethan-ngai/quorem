@@ -1,6 +1,6 @@
 # 29: runner orchestration
 
-Issue #402. Partial implementation; full packet remains open pending normalized bounded input, production composition, recovery and failure tests.
+Issue #402. Partial implementation; full packet remains open pending interview producer integration, production composition, legacy backfill/drain and remaining recovery validation.
 
 The private control API returns database-clock runnable deadlines, queue counts, and empty confirmation under the admission advisory lock. The Node runner claims through 27, performs live lease checks at one-second intervals and renews every 15 seconds. Failed checks or cancellation abort execution; no completion or yield occurs before confirmed sandbox teardown. Failure detection is bounded by the poll interval plus private command timeout, not instantaneous. Engine yields only at a persisted case boundary; the existing lease owner handles release.
 
