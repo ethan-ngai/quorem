@@ -169,9 +169,9 @@ it("claims and fences a real attempt through workerd", async () => {
     });
     await claims.finishCompletionStream(claimed!, claimed!);
     dropPromotionAck = true;
-    await expect(claims.promoteCompletion(claimed!, claimed!)).rejects.toThrow(
-      "lost acknowledgement",
-    );
+    await expect(claims.promoteCompletion(claimed!, claimed!)).rejects.toMatchObject({
+      outcome: "unknown",
+    });
     expect(promotionCalls).toBe(1);
     await claims.promoteCompletion(claimed!, claimed!);
     expect(promotionCalls).toBe(2);

@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { privateRunnerCommands } from "./http.ts";
@@ -48,4 +49,6 @@ void test("redirects fail closed, release bodies and never replay", async () => 
   await assert.rejects(client.nextExpiredAttempt(true, "s"), /unavailable/);
   assert.equal(count, 1);
   assert.equal(cancelled, true);
+  await assert.rejects(client.claimAfterTeardown(true, "s", null), { outcome: "unknown" });
+  assert.equal(count, 2);
 });

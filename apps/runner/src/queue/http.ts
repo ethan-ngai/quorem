@@ -13,6 +13,15 @@ import {
   type Job,
 } from "@quorem/execution";
 
+/** A failed mutation may have committed; callers must resolve its receipt, not blindly replay. */
+export class RunnerCommandError extends Error {
+  readonly outcome: "unknown" | "unavailable";
+  constructor(outcome: "unknown" | "unavailable") {
+    super(outcome === "unknown" ? "Runner command outcome unknown" : "Runner command unavailable");
+    this.outcome = outcome;
+  }
+}
+
 /** Scope is fixed by server-side credential configuration and cannot be selected per request. */
 export function privateRunnerCommands(options: {
   origin: string;
@@ -22,7 +31,12 @@ export function privateRunnerCommands(options: {
   timeoutMs: number;
   fetch?: typeof fetch;
 }): ExecutionRepository {
-  const origin = new URL(options.origin);
+  let origin: URL;
+  try {
+    origin = new URL(options.origin);
+  } catch {
+    throw new Error("Invalid private runner configuration");
+  }
   if (
     origin.username ||
     origin.password ||
@@ -48,28 +62,40 @@ export function privateRunnerCommands(options: {
     raw?: Uint8Array,
     extra?: Record<string, string>,
   ): Promise<Response> {
-    const result = await fetcher(new URL(`/internal/runner/${op}`, origin), {
-      method: "POST",
-      redirect: "manual",
-      headers: { authorization: `Bearer ${options.secret}`, ...extra },
-      body: raw ? new Uint8Array(raw) : JSON.stringify(data),
-      signal: AbortSignal.any([
-        AbortSignal.timeout(options.timeoutMs),
-        ...(signal ? [signal] : []),
-      ]),
-    });
-    if (!result.ok) {
-      await result.body?.cancel();
-      throw new Error("Runner command unavailable");
+    const outcome = ["expired", "load", "checkpoint", "replay"].includes(op)
+      ? "unavailable"
+      : "unknown";
+    try {
+      const result = await fetcher(new URL(`/internal/runner/${op}`, origin), {
+        method: "POST",
+        redirect: "manual",
+        headers: { authorization: `Bearer ${options.secret}`, ...extra },
+        body: raw ? new Uint8Array(raw) : JSON.stringify(data),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(options.timeoutMs),
+          ...(signal ? [signal] : []),
+        ]),
+      });
+      if (!result.ok) {
+        await result.body?.cancel();
+        throw new RunnerCommandError(outcome);
+      }
+      return result;
+    } catch {
+      throw new RunnerCommandError(outcome);
     }
-    return result;
   }
   async function json(
     op: string,
     data: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<unknown> {
-    return (await call(op, data, signal)).json();
+    try {
+      return await (await call(op, data, signal)).json();
+    } catch (error) {
+      if (error instanceof RunnerCommandError) throw error;
+      throw new RunnerCommandError(op === "claim" || op === "lease" ? "unknown" : "unavailable");
+    }
   }
   async function ack(
     op: string,
@@ -78,7 +104,12 @@ export function privateRunnerCommands(options: {
     raw?: Uint8Array,
     extra?: Record<string, string>,
   ): Promise<void> {
-    await (await call(op, data, signal, raw, extra)).json();
+    try {
+      await (await call(op, data, signal, raw, extra)).json();
+    } catch (error) {
+      if (error instanceof RunnerCommandError) throw error;
+      throw new RunnerCommandError("unknown");
+    }
   }
   const j = (job: Job) => {
     if (job.sandboxScope !== options.scope) throw new Error("Runner scope mismatch");
@@ -108,12 +139,17 @@ export function privateRunnerCommands(options: {
     async claimAfterTeardown(resumable, scope, confirmed, signal) {
       if (resumable !== options.resumable) throw new Error("Capability mismatch");
       const data = await json("claim", { attemptId: proof(scope, confirmed) }, signal);
-      if (data !== null && typeof data !== "string") throw new Error("Invalid claim response");
-      return data === null ? null : decodeJob(data, scope);
+      if (data === null) return null;
+      if (typeof data !== "string") throw new RunnerCommandError("unknown");
+      try {
+        return decodeJob(data, scope);
+      } catch {
+        throw new RunnerCommandError("unknown");
+      }
     },
     async lease(job, heartbeat, signal) {
       const value = await json("lease", { job: j(job), heartbeat }, signal);
-      if (typeof value !== "boolean") throw new Error("Invalid lease response");
+      if (typeof value !== "boolean") throw new RunnerCommandError("unknown");
       return value;
     },
     async load(job, signal) {
