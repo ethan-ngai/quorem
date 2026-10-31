@@ -148,6 +148,29 @@ describe.skipIf(!url)("document PostgreSQL", () => {
       expect(
         (await docs.pull(host, id, restored.document.epoch, page.version)).updates,
       ).toHaveLength(1);
+      const large = "z".repeat(20000);
+      await docs.push(host, id, "large-first", {
+        epoch: restored.document.epoch,
+        version: 257,
+        updates: [{ clientID: "large", changes: [[restored.document.source.length, large]] }],
+      });
+      const largeUpdate = { clientID: "large", changes: [[large.length, large]] };
+      for (let i = 0; i < 2; i++)
+        await docs.push(host, id, `large-${i}`, {
+          epoch: restored.document.epoch,
+          version: 258 + i * 10,
+          updates: Array(10).fill(largeUpdate),
+        });
+      let cursor = 257,
+        total = 0;
+      while (cursor < 278) {
+        const part = await docs.pull(host, id, restored.document.epoch, cursor);
+        expect(new TextEncoder().encode(JSON.stringify(part)).length).toBeLessThanOrEqual(245760);
+        expect(part.version).toBeGreaterThan(cursor);
+        total += part.updates.length;
+        cursor = part.version;
+      }
+      expect(total).toBe(21);
       const before = await docs.read(host, id);
       await expect(
         docs.push(host, id, "atomic", {
