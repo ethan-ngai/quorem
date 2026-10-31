@@ -1,4 +1,4 @@
-import { assertRuntimeFixture } from "./fixture-guard.ts";
+import { assertRuntimeTestDatabase } from "./test-database.ts";
 import { createHmac, createHash } from "node:crypto";
 import { createServer, type RequestListener } from "node:http";
 import { once } from "node:events";
@@ -21,7 +21,7 @@ const url = process.env.QUOREM_RUNTIME_TEST_URL,
 it.skipIf(!url || !docker).each(["node", "worker"] as const)(
   "%s admits only after a durable wake and completes Docker through the signed HTTP verifier",
   async (mode) => {
-    assertRuntimeFixture(url!);
+    assertRuntimeTestDatabase(url!);
     let queueReady = false,
       queueCalls = 0;
     const queue = createServer((req, res) => {

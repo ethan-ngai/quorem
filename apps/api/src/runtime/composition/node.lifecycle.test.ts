@@ -1,10 +1,10 @@
-import { assertRuntimeFixture } from "./fixture-guard.ts";
+import { assertRuntimeTestDatabase } from "./test-database.ts";
 import { expect, it } from "vitest";
 import { createNodePool } from "@quorem/database/core";
 import { startNodeRuntime } from "../node.ts";
 const url = process.env.QUOREM_RUNTIME_TEST_URL;
 it.skipIf(!url)("releases all opened PostgreSQL sessions after startup failure", async () => {
-  assertRuntimeFixture(url!);
+  assertRuntimeTestDatabase(url!);
   const pool = createNodePool({
     connectionString: url!,
     max: 1,

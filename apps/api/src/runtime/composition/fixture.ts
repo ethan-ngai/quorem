@@ -4,12 +4,12 @@ import { fileURLToPath } from "node:url";
 import { createNodePool } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import { seedCatalog } from "../../cli/seed.ts";
-import { assertRuntimeFixture } from "./fixture-guard.ts";
+import { assertRuntimeTestDatabase } from "./test-database.ts";
 
 const root = fileURLToPath(new URL("../../../../../", import.meta.url));
 /** Hold an exclusive session lock throughout validation; only the named disposable DB is reset. */
 export async function bootstrapRuntimeFixture(url: string): Promise<() => Promise<void>> {
-  assertRuntimeFixture(url);
+  assertRuntimeTestDatabase(url);
   const pool = createNodePool({
     connectionString: url,
     max: 3,
@@ -24,7 +24,7 @@ export async function bootstrapRuntimeFixture(url: string): Promise<() => Promis
   let locked = false;
   const reset = async () => {
     await client.query(
-      "DROP SCHEMA IF EXISTS quorem_auth CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public",
+      "DROP SCHEMA IF EXISTS quorem_auth CASCADE; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public",
     );
   };
   try {
