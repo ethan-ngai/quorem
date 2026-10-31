@@ -1933,3 +1933,41 @@ export const execution_completion_receipts = pgTable(
     ),
   ],
 );
+export const execution_completion_field_chunks = pgTable(
+  "execution_completion_field_chunks",
+  {
+    job_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    field: text().notNull(),
+    chunk_ordinal: integer().notNull(),
+    chunk_data: bytea().notNull(),
+    chunk_hash: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.job_id, table.channel, table.ordinal, table.field, table.chunk_ordinal],
+      name: "execution_completion_field_chunks_pkey",
+    }),
+    foreignKey({
+      columns: [table.job_id],
+      foreignColumns: [execution_completion_staging.job_id],
+      name: "execution_completion_field_chunks_job_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "execution_completion_field_chunks_channel_check",
+      sql`channel = ANY (ARRAY['public'::text, 'sample'::text, 'private'::text])`,
+    ),
+    check("execution_completion_field_chunks_ordinal_check", sql`ordinal >= 0 AND ordinal <= 319`),
+    check(
+      "execution_completion_field_chunks_field_check",
+      sql`field = ANY (ARRAY['actual'::text, 'expected'::text, 'stdout'::text, 'stderr'::text, 'diagnostics'::text, 'sqlTypes'::text])`,
+    ),
+    check("execution_completion_field_chunks_chunk_ordinal_check", sql`chunk_ordinal >= 0`),
+    check(
+      "execution_completion_field_chunks_chunk_data_check",
+      sql`octet_length(chunk_data) <= 65536`,
+    ),
+    check("execution_completion_field_chunks_chunk_hash_check", sql`octet_length(chunk_hash) = 32`),
+  ],
+);
