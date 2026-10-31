@@ -1,0 +1,23 @@
+{
+  "name": "@quorem/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vp exec vitest run --config vitest.config.ts",
+    "test:workers": "vp exec vitest run --config vitest.workers.config.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:boundaries": "node --experimental-strip-types src/check-boundaries.ts",
+    "start": "node --experimental-strip-types src/runtime/node.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "hono": "4.13.14"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.11",
+    "@types/node": "24.19.2",
+    "typescript": "6.0.3",
+    "vitest": "5.0.3",
+    "wrangler": "4.156.0"
+  }
+}

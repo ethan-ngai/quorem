@@ -5,7 +5,7 @@ export default defineConfig({
   defaultPackage: "./apps/web",
   lint: {
     options: { typeAware: true, typeCheck: true },
-    ignorePatterns: ["**/generated.ts", "**/.astro/**"],
+    ignorePatterns: ["**/generated.ts", "**/.astro/**", "tools/migration-runtime/**"],
   },
   fmt: {
     ignorePatterns: [
