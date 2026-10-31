@@ -105,7 +105,9 @@ function operations(events, fail) {
     return value;
   };
   return {
+    roleConfig: () => step("role-config"),
     fresh: async () => step("fresh"),
+    databaseRole: async () => step("database-role"),
     migrate: () => step("migrate"),
     images: () =>
       step(
@@ -153,12 +155,14 @@ void test("first activation checks fresh DB before mutations and proves queue la
   assert.equal(receipt.cutoverReady, false);
   assert.equal(receipt.acceptance.automatic, "automatic-submission");
   assert.deepEqual(events, [
+    "role-config",
     "fresh",
     "hono-services:init",
     "hono-services:plan",
     "hono-stage:init",
-    "hono-stage:apply",
     "migrate",
+    "database-role",
+    "hono-stage:apply",
     "images",
     "hono-services:apply",
     "probe:bootstrap",
@@ -177,7 +181,7 @@ void test("first activation checks fresh DB before mutations and proves queue la
 void test("fresh failure causes no later action; queue failure disposes fixture", async () => {
   let events = [];
   await assert.rejects(deployStage(env(), operations(events, "fresh")));
-  assert.deepEqual(events, ["fresh"]);
+  assert.deepEqual(events, ["role-config", "fresh"]);
   events = [];
   await assert.rejects(deployStage(env(), operations(events, "queue")));
   assert.deepEqual(events.slice(-2), ["dispose", "cleanup"]);
@@ -218,7 +222,13 @@ void test("mismatched signing keys and duplicate private credentials fail before
 void test("pin-plan failure stops before migrations and image publication", async () => {
   const events = [];
   await assert.rejects(deployStage(env(), operations(events, "hono-services:plan")));
-  assert.deepEqual(events, ["fresh", "hono-services:init", "hono-services:plan", "cleanup"]);
+  assert.deepEqual(events, [
+    "role-config",
+    "fresh",
+    "hono-services:init",
+    "hono-services:plan",
+    "cleanup",
+  ]);
 });
 
 void test("failure after queue attachment detaches and reports uncertain detach", async () => {

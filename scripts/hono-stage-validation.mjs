@@ -12,12 +12,29 @@ await withDisposablePostgres(
         "--test",
         "--test-concurrency=1",
         ...globSync("scripts/hono-stage*.test.mjs")
-          .filter((file) => file !== "scripts/hono-stage-recovery-inventory.test.mjs")
+          .filter(
+            (file) =>
+              ![
+                "scripts/hono-stage-recovery-inventory.test.mjs",
+                "scripts/hono-stage-database-role.test.mjs",
+              ].includes(file),
+          )
           .sort(),
         "scripts/hono-remote-validation.test.mjs",
       ],
       { env: { ...process.env, QUOREM_STAGE_RECOVERY_TEST_DATABASE_URL: url } },
     );
+    for (const [owner, dir] of [
+      ["product", "apps/api/migrations"],
+      ["auth", "apps/auth/migrations"],
+    ]) {
+      await run("vp", ["exec", "node", "packages/database/src/migrate.ts", owner, dir], {
+        env: { ...process.env, DATABASE_URL: url },
+      });
+    }
+    await run(process.execPath, ["--test", "scripts/hono-stage-database-role.test.mjs"], {
+      env: { ...process.env, QUOREM_STAGE_ROLE_TEST_URL: url },
+    });
   },
 );
 
