@@ -189,16 +189,21 @@ export interface InputManifest {
   readonly sampleCount: number;
   readonly privateDetails: boolean;
   readonly submitCasesAreSamples: boolean;
+  readonly suiteHash: string;
   readonly source: InputBlobRef;
   readonly metadata: InputBlobRef;
 }
 export type InputKind = "source" | "metadata" | "case";
+export interface InputCaseRef extends InputBlobRef {
+  readonly channel: "public" | "sample" | "private";
+}
 export interface InputPage extends InputBlobRef {
   readonly bytes: Uint8Array;
   readonly channel: "public" | "sample" | "private" | null;
 }
 export interface ExecutionInputReader {
   inputManifest(job: Job, signal?: AbortSignal): Promise<InputManifest>;
+  inputCaseRef(job: Job, ordinal: number, signal?: AbortSignal): Promise<InputCaseRef>;
   inputPage(
     job: Job,
     kind: InputKind,

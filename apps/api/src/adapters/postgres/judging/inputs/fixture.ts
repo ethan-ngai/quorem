@@ -7,9 +7,11 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
+import { fixtureSourceHash } from "./source.ts";
+import type { FixtureOwner } from "./bind.ts";
 
 type Obj = { [key: string]: JsonValue };
-type Parent = { version: string } | { session: string; fixture: Uint8Array };
+type Parent = FixtureOwner;
 function object(value: JsonValue | undefined): Obj {
   if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof JsonNumber)
     throw new Error("Invalid fixture");
@@ -25,8 +27,36 @@ function wireCase(value: JsonValue): Obj {
   if (item.expected !== undefined) result.expected = item.expected;
   return result;
 }
-async function blob(tx: Transaction, value: JsonValue): Promise<Uint8Array> {
-  const bytes = new TextEncoder().encode(stringifyLosslessJson(value));
+/** Canonical execution-only metadata shared with the offline normalizer. */
+export function fixtureMetadata(value: JsonValue): Obj {
+  const problem = object(value),
+    metadata: Obj = {};
+  for (const key of ["id", "signature", "constraints", "limits", "sql"])
+    if (problem[key] !== undefined && problem[key] !== null) metadata[key] = problem[key];
+  if (problem.odyssey !== undefined && problem.odyssey !== null)
+    metadata.odyssey = {
+      levels: list(object(problem.odyssey).levels).map((level) => ({
+        methods: object(level).methods ?? [],
+      })),
+    };
+  return metadata;
+}
+/** Canonicalize metadata numeric rendering through the authoritative PostgreSQL JSONB representation. */
+export async function encodeFixtureMetadata(
+  tx: Transaction,
+  value: JsonValue,
+): Promise<Uint8Array> {
+  const raw = stringifyLosslessJson(fixtureMetadata(value));
+  const row = (
+    await tx.execute<{ canonical: string }>(sql`SELECT ${raw}::jsonb::text AS canonical`)
+  ).rows[0];
+  return new TextEncoder().encode(stringifyLosslessJson(parseLosslessJson(row.canonical)));
+}
+/** Canonical case bytes used by publication and the operator backfill. */
+export function encodeFixtureCase(value: JsonValue): Uint8Array {
+  return new TextEncoder().encode(stringifyLosslessJson(wireCase(value)));
+}
+export async function storeFixtureBlob(tx: Transaction, bytes: Uint8Array): Promise<Uint8Array> {
   const row = (
     await tx.execute<{ hash: Uint8Array }>(
       sql`WITH input AS (SELECT ${bytes}::bytea AS data), inserted AS (INSERT INTO runner_input_blobs(hash,data) SELECT sha256(data),data FROM input ON CONFLICT(hash) DO NOTHING RETURNING hash) SELECT hash FROM inserted UNION ALL SELECT b.hash FROM runner_input_blobs b,input i WHERE b.hash=sha256(i.data) AND b.data=i.data LIMIT 1`,
@@ -44,47 +74,33 @@ export async function indexRunnerFixture(
   const root = object(parseLosslessJson(raw)),
     problem = object(root.problem);
   const levels = problem.odyssey ? list(object(problem.odyssey).levels) : [];
-  const metadata: Obj = { ...problem };
-  delete metadata.examples;
-  if (problem.odyssey)
-    metadata.odyssey = {
-      ...object(problem.odyssey),
-      levels: levels.map((level) => {
-        const copy = { ...object(level) };
-        delete copy.examples;
-        return copy;
-      }),
-    };
-  const metadataHash = await blob(tx, metadata);
-  const fixtureHash = new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stringifyLosslessJson(root))),
-  );
+  const metadataHash = await storeFixtureBlob(tx, await encodeFixtureMetadata(tx, problem));
+  const fixtureHash = await fixtureSourceHash(tx, parent);
+  let existing: { sealed: boolean; same: boolean } | undefined;
   if ("version" in parent) {
-    const existing = (
+    existing = (
       await tx.execute<{ sealed: boolean; same: boolean }>(
         sql`SELECT sealed,(metadata_hash=${metadataHash}::bytea AND fixture_hash=${fixtureHash}::bytea) AS same FROM runner_version_inputs WHERE version_id=${parent.version}::uuid`,
       )
     ).rows[0];
-    if (existing) {
-      if (!existing.sealed || !existing.same) throw new Error("Conflicting runner fixture");
-      return;
-    }
-    await tx.execute(
-      sql`INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) VALUES(${parent.version}::uuid,${metadataHash},${fixtureHash})`,
-    );
+    if (existing && (!existing.sealed || !existing.same))
+      throw new Error("Conflicting runner fixture");
+    if (!existing)
+      await tx.execute(
+        sql`INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) VALUES(${parent.version}::uuid,${metadataHash},${fixtureHash})`,
+      );
   } else {
-    const existing = (
+    existing = (
       await tx.execute<{ sealed: boolean; same: boolean }>(
         sql`SELECT sealed,(metadata_hash=${metadataHash}::bytea AND fixture_hash=${fixtureHash}::bytea) AS same FROM runner_snapshot_inputs WHERE session_id=${parent.session}::uuid AND fixture_id=${parent.fixture}::bytea`,
       )
     ).rows[0];
-    if (existing) {
-      if (!existing.sealed || !existing.same) throw new Error("Conflicting runner fixture");
-      return;
-    }
-    await tx.execute(
-      sql`INSERT INTO runner_snapshot_inputs(session_id,fixture_id,metadata_hash,fixture_hash) VALUES(${parent.session}::uuid,${parent.fixture},${metadataHash},${fixtureHash})`,
-    );
+    if (existing && (!existing.sealed || !existing.same))
+      throw new Error("Conflicting runner fixture");
+    if (!existing)
+      await tx.execute(
+        sql`INSERT INTO runner_snapshot_inputs(session_id,fixture_id,metadata_hash,fixture_hash) VALUES(${parent.session}::uuid,${parent.fixture},${metadataHash},${fixtureHash})`,
+      );
   }
   const cases: {
     channel: "example" | "hidden";
@@ -98,7 +114,7 @@ export async function indexRunnerFixture(
         channel,
         stage,
         ordinal,
-        data: new TextEncoder().encode(stringifyLosslessJson(wireCase(values[ordinal]))),
+        data: encodeFixtureCase(values[ordinal]),
       });
   };
   if (levels.length) {
@@ -111,6 +127,28 @@ export async function indexRunnerFixture(
   } else {
     add("example", 0, list(problem.examples));
     add("hidden", 0, list(root.hiddenCases));
+  }
+  if (existing) {
+    const actual =
+      "version" in parent
+        ? sql`SELECT c.channel,c.stage,c.ordinal,b.data FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.version_id=${parent.version}::uuid`
+        : sql`SELECT c.channel,c.stage,c.ordinal,b.data FROM runner_snapshot_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.session_id=${parent.session}::uuid AND c.fixture_id=${parent.fixture}::bytea`;
+    const expected = cases.length
+      ? sql`SELECT * FROM (VALUES ${sql.join(
+          cases.map(
+            (item) =>
+              sql`(${item.channel}::text,${item.stage}::integer,${item.ordinal}::integer,${item.data}::bytea)`,
+          ),
+          sql`, `,
+        )}) AS v(channel,stage,ordinal,data)`
+      : sql`SELECT NULL::text AS channel,NULL::integer AS stage,NULL::integer AS ordinal,NULL::bytea AS data WHERE false`;
+    const conflict = (
+      await tx.execute<{ found: boolean }>(
+        sql`WITH expected AS (${expected}),actual AS (${actual}) SELECT EXISTS((SELECT * FROM expected EXCEPT SELECT * FROM actual) UNION ALL (SELECT * FROM actual EXCEPT SELECT * FROM expected)) AS found`,
+      )
+    ).rows[0];
+    if (conflict.found) throw new Error("Conflicting runner fixture");
+    return;
   }
   if (cases.length) {
     const rows = sql.join(

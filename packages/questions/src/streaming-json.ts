@@ -1,4 +1,5 @@
 /** @file streaming-json.ts @description Incremental JSON value boundaries and byte offsets. @module questions */
+import { stringifyLosslessJson } from "./json.ts";
 /** One token is buffered at a time; callers split arrays into individual values. */
 export class StreamingJsonReader {
   private buffer = "";
@@ -167,4 +168,16 @@ export async function readAllowedObjectSpans(
   await input.expect("}");
   if (requireEnd && (await input.peek())) throw new Error("Trailing JSON input");
   return result;
+}
+/** Encode verified UTF-8 text as one canonical JSON string without materializing it. */
+export async function* encodeJsonStringChunks(
+  chunks: AsyncIterable<Uint8Array>,
+): AsyncGenerator<Uint8Array> {
+  const encoder = new TextEncoder();
+  yield encoder.encode('"');
+  for await (const part of decodeUtf8Chunks(chunks)) {
+    const quoted = stringifyLosslessJson(part);
+    yield encoder.encode(quoted.slice(1, -1));
+  }
+  yield encoder.encode('"');
 }

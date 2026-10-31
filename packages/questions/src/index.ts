@@ -27,5 +27,10 @@ export type { SchemaValidator, RuntimeResolver } from "./publication.ts";
 export { validateQuestionSchema } from "./schema-validation.ts";
 export { normalizeQuestionDraft } from "./draft-normalize.ts";
 
-export { StreamingJsonReader, decodeUtf8Chunks, readAllowedObjectSpans } from "./streaming-json.ts";
+export {
+  StreamingJsonReader,
+  decodeUtf8Chunks,
+  encodeJsonStringChunks,
+  readAllowedObjectSpans,
+} from "./streaming-json.ts";
 export type { JsonSpan as StreamingJsonSpan } from "./streaming-json.ts";

@@ -36,6 +36,10 @@ export function postgresExecutionLoad(run: Run, lossless: boolean) {
       scope.transaction(
         { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
         async (tx) => {
+          const manifest = (
+            await tx.execute(sql`SELECT 1 FROM runner_job_inputs WHERE job_id=${job.jobId}::uuid`)
+          ).rows.length;
+          if (manifest) throw new Error("Manifest input requires streaming verifier");
           const row = (
             await tx.execute<{
               source: string;

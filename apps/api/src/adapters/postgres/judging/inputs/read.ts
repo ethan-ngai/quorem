@@ -24,12 +24,13 @@ export function postgresInputReader(run: Run): ExecutionInputReader {
                 sample_count: number;
                 private_details: boolean;
                 submit_cases_are_samples: boolean;
+                suite_hash: string;
                 source_hash: string;
                 source_size: number;
                 metadata_hash: string;
                 metadata_size: number;
               }>(
-                sql`SELECT s.kind,COALESCE(s.odyssey_level,ie.level)::int AS level,i.case_count,i.sample_count,i.private_details,i.submit_cases_are_samples,encode(src.hash,'hex') AS source_hash,octet_length(src.data)::int AS source_size,encode(meta.hash,'hex') AS metadata_hash,octet_length(meta.data)::int AS metadata_size ${base} JOIN runner_input_blobs src ON src.hash=i.source_hash JOIN runner_input_blobs meta ON meta.hash=i.metadata_hash WHERE ${authorized(job)}`,
+                sql`SELECT s.kind,COALESCE(s.odyssey_level,ie.level)::int AS level,encode(sha256(convert_to(COALESCE((SELECT string_agg(c.channel||':'||encode(c.blob_hash,'hex')||';','' ORDER BY c.ordinal) FROM runner_job_input_cases c WHERE c.job_id=i.job_id),''),'UTF8')),'hex') AS suite_hash,i.case_count,i.sample_count,i.private_details,i.submit_cases_are_samples,encode(src.hash,'hex') AS source_hash,octet_length(src.data)::int AS source_size,encode(meta.hash,'hex') AS metadata_hash,octet_length(meta.data)::int AS metadata_size ${base} JOIN runner_input_blobs src ON src.hash=i.source_hash JOIN runner_input_blobs meta ON meta.hash=i.metadata_hash WHERE ${authorized(job)}`,
               )
             ).rows[0];
             if (!row || (row.kind !== "run" && row.kind !== "submit"))
@@ -41,9 +42,32 @@ export function postgresInputReader(run: Run): ExecutionInputReader {
               sampleCount: row.sample_count,
               privateDetails: row.private_details,
               submitCasesAreSamples: row.submit_cases_are_samples,
+              suiteHash: row.suite_hash,
               source: { hash: row.source_hash, size: row.source_size },
               metadata: { hash: row.metadata_hash, size: row.metadata_size },
             };
+          },
+        ),
+      );
+    },
+    async inputCaseRef(job, ordinal) {
+      if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal > 319)
+        throw new Error("Invalid input ordinal");
+      return run((scope) =>
+        scope.transaction(
+          { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
+          async (tx) => {
+            const row = (
+              await tx.execute<{
+                hash: string;
+                size: number;
+                channel: "public" | "private" | "sample";
+              }>(
+                sql`SELECT encode(b.hash,'hex') AS hash,octet_length(b.data)::int AS size,c.channel ${base} JOIN runner_job_input_cases c ON c.job_id=i.job_id AND c.ordinal=${ordinal} JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE ${authorized(job)}`,
+              )
+            ).rows[0];
+            if (!row) throw new Error("Runner input unavailable");
+            return row;
           },
         ),
       );

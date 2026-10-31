@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
@@ -9,12 +10,17 @@ import { saveInterviewFixture } from "../../interviews/execution/fixture.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
 import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
 import { createRunnerCommandHandler } from "../worker/http.ts";
+import { postgresExecutionLoad } from "../worker/load.ts";
+import { postgresCompletionStaging } from "../worker/staging.ts";
+import { postgresCompletionPromotion } from "../worker/promote.ts";
 import { postgresExecutionCommands } from "../worker/repository.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 import { spoolInput } from "../../../../../../runner/src/checkpoints/input-spool.ts";
+import { manifestCaseIdentity, manifestCasePage } from "../inputs/identity.ts";
 import { postgresInputReader } from "../inputs/read.ts";
 import { bindJobInputs, fixtureCaseRefs } from "../inputs/bind.ts";
-import { indexRunnerFixture } from "../inputs/fixture.ts";
+import { fixtureSourceHash } from "../inputs/source.ts";
+import { indexRunnerFixture, encodeFixtureCase, encodeFixtureMetadata } from "../inputs/fixture.ts";
 import { sql } from "drizzle-orm";
 const url = process.env.QUOREM_ENGINE_TEST_DATABASE_URL;
 if (url) {
@@ -79,6 +85,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         ]),
       ).rejects.toThrow();
       await client.query("ROLLBACK TO SAVEPOINT immutable_blob");
+      await client.query("SAVEPOINT version_retention");
+      await expect(
+        client.query("DELETE FROM runner_version_inputs WHERE version_id=$1", [version]),
+      ).rejects.toThrow();
+      await client.query("ROLLBACK TO SAVEPOINT version_retention");
       await client.query("DELETE FROM problem_versions WHERE id=$1", [version]);
       expect(
         (await client.query("SELECT 1 FROM runner_version_inputs WHERE version_id=$1", [version]))
@@ -114,7 +125,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
           await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
           await tx.execute(
-            sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+            sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy',repeat('x',4194304),'{}','[]','{}','')`,
           );
           await indexRunnerFixture(tx, { version }, raw);
           await indexRunnerFixture(tx, { version }, raw);
@@ -202,12 +213,22 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const first = await saveInterviewFixture(tx, session, raw),
               second = await saveInterviewFixture(tx, session, raw);
             expect(first).toEqual(second);
+            expect(
+              Buffer.from(await fixtureSourceHash(tx, { session, fixture: first })).toString("hex"),
+            ).toBe(createHash("sha256").update(raw).digest("hex"));
             const result = (
               await tx.execute<{ sealed: boolean; n: number }>(
                 sql`SELECT i.sealed,count(c.ordinal)::int AS n FROM runner_snapshot_inputs i JOIN runner_snapshot_input_cases c USING(session_id,fixture_id) WHERE i.session_id=${session}::uuid GROUP BY i.sealed`,
               )
             ).rows[0];
             expect(result).toEqual({ sealed: true, n: 2 });
+            await tx.execute(sql`SAVEPOINT snapshot_retention`);
+            await expect(
+              tx.execute(
+                sql`DELETE FROM runner_snapshot_inputs WHERE session_id=${session}::uuid AND fixture_id=${first}`,
+              ),
+            ).rejects.toThrow();
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT snapshot_retention`);
             await setActiveRunnerFixture(tx, session, epoch, first);
             expect(
               (
@@ -228,6 +249,16 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               (
                 await tx.execute(
                   sql`SELECT 1 FROM interview_active_runner_inputs WHERE session_id=${session}::uuid`,
+                )
+              ).rows,
+            ).toHaveLength(0);
+            await tx.execute(
+              sql`DELETE FROM interview_question_snapshots WHERE session_id=${session}::uuid AND id=${first}`,
+            );
+            expect(
+              (
+                await tx.execute(
+                  sql`SELECT 1 FROM runner_snapshot_inputs WHERE session_id=${session}::uuid`,
                 )
               ).rows,
             ).toHaveLength(0);
@@ -357,6 +388,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         client.query("UPDATE runner_job_input_cases SET channel='private' WHERE job_id=$1", [job]),
       ).rejects.toThrow();
       await client.query("ROLLBACK TO SAVEPOINT frozen");
+      await client.query("SAVEPOINT job_retention");
+      await expect(
+        client.query("DELETE FROM runner_job_inputs WHERE job_id=$1", [job]),
+      ).rejects.toThrow();
+      await client.query("ROLLBACK TO SAVEPOINT job_retention");
       await client.query("DELETE FROM execution_jobs WHERE id=$1", [job]);
       expect(
         (await client.query("SELECT 1 FROM runner_job_input_cases WHERE job_id=$1", [job]))
@@ -383,7 +419,16 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       job = crypto.randomUUID(),
       user = `owner-${crypto.randomUUID()}`;
     const raw = JSON.stringify({
-      problem: { note: "x".repeat(150000), examples: [{ args: [1], expected: 2 }] },
+      problem: {
+        signature: {
+          className: "Solution",
+          methodName: "f",
+          parameters: [],
+          returnType: "int",
+          description: "x".repeat(150000),
+        },
+        examples: [{ args: [1], expected: 2 }],
+      },
       hiddenCases: [{ args: [3], expected: 4 }],
     });
     try {
@@ -430,6 +475,14 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               )
             ).rows[0];
             expect(bound).toEqual({ sealed: true, n: 2 });
+            const identity = await manifestCaseIdentity(tx, job, 0);
+            expect(identity).toMatchObject({ caseCount: 1, sampleCount: 1, channel: "private" });
+            expect(new TextDecoder().decode(await manifestCasePage(tx, job, 0, 0))).toBe(
+              '{"args":[3],"expected":4}',
+            );
+            await expect(manifestCaseIdentity(tx, job, 2)).rejects.toThrow(
+              "Runner input unavailable",
+            );
             const attempt = crypto.randomUUID();
             await tx.execute(
               sql`UPDATE submissions SET state='running' WHERE id=${submission}::uuid`,
@@ -465,6 +518,12 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               limits: defaultLimits(),
             };
             const manifest = await reader.inputManifest(fence);
+            const expectedSuite = createHash("sha256")
+              .update(
+                `private:${Buffer.from(hidden[0].hash).toString("hex")};sample:${Buffer.from(examples[0].hash).toString("hex")};`,
+              )
+              .digest("hex");
+            expect(manifest.suiteHash).toBe(expectedSuite);
             expect(manifest).toMatchObject({
               kind: "submit",
               caseCount: 1,
@@ -513,6 +572,34 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             for await (const chunk of spool.stream()) total += (chunk as Uint8Array).byteLength;
             expect(total).toBe(overHttp.metadata.size);
             await spool.dispose();
+            await expect(postgresExecutionLoad(scoped, true)(fence)).rejects.toThrow(
+              "Manifest input requires streaming verifier",
+            );
+            const stage = postgresCompletionStaging(scoped);
+            await stage.begin(fence, {
+              submissionId: submission,
+              attemptId: attempt,
+              verdict: "accepted",
+              engineFailure: false,
+              diagnosticsPresent: false,
+              publicPresent: false,
+              samplePresent: false,
+              privatePresent: false,
+              publicCount: 0,
+              sampleCount: 0,
+              privateCount: 0,
+            });
+            await stage.eof(fence, fence);
+            await expect(postgresCompletionPromotion(scoped)(fence, fence)).rejects.toThrow(
+              "Manifest result verification unavailable",
+            );
+            expect(
+              (
+                await tx.execute<{ state: string }>(
+                  sql`SELECT state FROM submissions WHERE id=${submission}::uuid`,
+                )
+              ).rows[0].state,
+            ).toBe("running");
             await expect(
               reader.inputPage({ ...fence, attemptId: crypto.randomUUID() }, "case", 0, 0),
             ).rejects.toThrow();
@@ -587,11 +674,21 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       epoch = crypto.randomUUID(),
       host = `pin-${session}`;
     const versionRaw = JSON.stringify({
-      problem: { id: version, examples: [{ args: [1], expected: 2 }] },
+      problem: {
+        id: version,
+        runtimeRevision: "python-original",
+        starterSource: "original",
+        examples: [{ args: [1], expected: 2 }],
+      },
       hiddenCases: [{ args: [1], expected: 2 }],
     });
     const activeRaw = JSON.stringify({
-      problem: { id: version, examples: [{ args: [1], expected: 2 }] },
+      problem: {
+        id: version,
+        runtimeRevision: "java-selected",
+        starterSource: "selected",
+        examples: [{ args: [1], expected: 2 }],
+      },
       hiddenCases: [],
     });
     try {
@@ -612,6 +709,8 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const first = await createActiveRunnerFixture(tx, session, epoch, version),
               second = await createActiveRunnerFixture(tx, session, epoch, version);
             expect(first).toEqual(second);
+            await indexRunnerFixture(tx, { session, fixture: first }, activeRaw);
+            expect(await saveInterviewFixture(tx, session, activeRaw)).toEqual(first);
             const rows = (
               await tx.execute<{ channel: string; n: number }>(
                 sql`SELECT channel,count(*)::int AS n FROM runner_snapshot_input_cases WHERE session_id=${session}::uuid AND fixture_id=${first} GROUP BY channel`,
@@ -624,6 +723,97 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             await expect(createActiveRunnerFixture(tx, session, epoch, version)).rejects.toThrow(
               "Runner fixture unavailable",
             );
+            throw new Error("fixture rollback");
+          }),
+        ),
+      ).rejects.toThrow("fixture rollback");
+    } finally {
+      await pool.end();
+    }
+  });
+  it("derives source hashes from persisted lossless bytes or canonical PostgreSQL JSONB", async () => {
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 2,
+      connectionTimeoutMs: 2000,
+      idleTimeoutMs: 1000,
+      onIdleError: () => {},
+    });
+    const problem = crypto.randomUUID(),
+      version = crypto.randomUUID();
+    try {
+      await expect(
+        withNodeConnection(pool, { lifetimeMs: 10000 }, (scope) =>
+          scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+            await tx.execute(
+              sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
+            );
+            await tx.execute(
+              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+            );
+            const canonical = (
+              await tx.execute<{ fields: (string | null)[] }>(
+                sql`SELECT ARRAY[v.id::text,v.problem_id::text,v.version::text,v.title,v.difficulty,v.statement_markdown,v.signature::text,v.constraints::text,v.limits::text,v.attribution,v.sql_config::text,(v.odyssey-'levels')::text] AS fields FROM problem_versions v WHERE v.id=${version}::uuid`,
+              )
+            ).rows[0].fields;
+            const hash = (value: Uint8Array | string) =>
+              createHash("sha256").update(value).digest();
+            const metadataHash = hash(
+              Buffer.concat(
+                canonical.map((value) =>
+                  hash(
+                    value === null
+                      ? Buffer.from([0])
+                      : Buffer.concat([Buffer.from([1]), Buffer.from(value)]),
+                  ),
+                ),
+              ),
+            );
+            const empty = hash(new Uint8Array());
+            const expected = hash(
+              Buffer.concat([
+                Buffer.from("quorem-version-fixture-v1"),
+                metadataHash,
+                empty,
+                empty,
+                empty,
+                empty,
+                empty,
+                empty,
+                empty,
+              ]),
+            ).toString("hex");
+            expect(Buffer.from(await fixtureSourceHash(tx, { version })).toString("hex")).toBe(
+              expected,
+            );
+            await tx.execute(
+              sql`INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES(${version}::uuid,0,'["λ"]'::jsonb,'1'::jsonb)`,
+            );
+            expect(Buffer.from(await fixtureSourceHash(tx, { version })).toString("hex")).not.toBe(
+              expected,
+            );
+            const metadata = await encodeFixtureMetadata(tx, {
+              id: "v",
+              title: "ignored",
+              signature: { returnType: "int" },
+              examples: [],
+            });
+            expect(new TextDecoder().decode(metadata)).toBe(
+              '{"id":"v","signature":{"returnType":"int"}}',
+            );
+            const raw = String.raw` { "z": "λ\u0000", "n": 1e+30, "a": -0 } `;
+            const losslessVersion = crypto.randomUUID();
+            await tx.execute(
+              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES(${losslessVersion}::uuid,2,${problem}::uuid,'Fixture','easy','','{}','[]','{}','',${new TextEncoder().encode(raw)})`,
+            );
+            expect(
+              Buffer.from(await fixtureSourceHash(tx, { version: losslessVersion })).toString(
+                "hex",
+              ),
+            ).toBe(createHash("sha256").update(raw).digest("hex"));
+            expect(
+              new TextDecoder().decode(encodeFixtureCase({ expected: "λ\u0000", args: [] })),
+            ).toBe('{"args":[],"expected":"λ\\u0000"}');
             throw new Error("fixture rollback");
           }),
         ),

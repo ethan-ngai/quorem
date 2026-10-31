@@ -16,6 +16,7 @@ export type {
   ExecutionRepository,
   ExecutionQueueControl,
   InputBlobRef,
+  InputCaseRef,
   InputManifest,
   InputKind,
   InputPage,
@@ -55,3 +56,11 @@ export { compressCheckpointFrame, decompressCheckpointFrame } from "./checkpoint
 export { validateCompiledArtifact } from "./artifact.ts";
 
 export { canonicalWorkspaceCommand, workspaceCommandFingerprint } from "./fingerprint.ts";
+export { manifestCaseBinding, manifestInvocationBinding } from "./manifest-binding.ts";
+export {
+  manifestCheckpointProvenance,
+  encodeManifestCheckpointFrame,
+  decodeManifestCheckpointFrame,
+  assertManifestCheckpoint,
+} from "./manifest-checkpoint.ts";
+export type { ManifestCheckpointProvenance } from "./manifest-checkpoint.ts";

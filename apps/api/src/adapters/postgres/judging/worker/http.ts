@@ -148,6 +148,8 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
       switch (operation) {
         case "manifest":
           return Response.json(await repository.inputManifest(job()));
+        case "caseref":
+          return Response.json(await repository.inputCaseRef(job(), Number(body.ordinal)));
         case "input": {
           const page = await repository.inputPage(
             job(),
