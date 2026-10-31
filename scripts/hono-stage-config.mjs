@@ -46,8 +46,8 @@ export function stageConfig(input, outputs, output) {
   const queueName = outputs?.queue_name?.value;
   const stageHostname = outputs?.stage_hostname?.value;
   const accessId = outputs?.internal_access_application_id?.value;
-  const drainHostname = outputs?.drain_hostname?.value;
-  const drainAccessId = outputs?.drain_access_application_id?.value;
+  const drainOrigin = outputs?.services?.origins?.value?.DRAIN_ORIGIN;
+  const drainAccessId = outputs?.services?.drain_access_application_id?.value;
   if (
     !/^[a-z][a-z0-9-]*-hono-stage$/.test(workerName) ||
     !/^[0-9a-f]{32}$/.test(hyperdriveId) ||
@@ -55,7 +55,8 @@ export function stageConfig(input, outputs, output) {
     typeof accessId !== "string" ||
     !/^[0-9a-f-]{32,36}$/.test(accessId) ||
     typeof drainAccessId !== "string" ||
-    !/^[0-9a-f-]{32,36}$/.test(drainAccessId)
+    !/^[0-9a-f-]{32,36}$/.test(drainAccessId) ||
+    drainAccessId === accessId
   )
     throw new Error("Invalid isolated stage resources");
   if (
@@ -130,7 +131,10 @@ export function stageConfig(input, outputs, output) {
     )
       throw new Error(`Invalid ${key}`);
   }
-  if (new URL(vars.EXECUTION_DRAIN_URL).hostname !== drainHostname)
+  if (
+    typeof drainOrigin !== "string" ||
+    vars.EXECUTION_DRAIN_URL !== `${drainOrigin}/internal/drain`
+  )
     throw new Error("Drain must match the protected Terraform hostname");
   if (
     vars.ALLOWED_ORIGINS.split(",").some((value) => {

@@ -1,9 +1,27 @@
 {
-  "worker_name": {"value": "quorem-hono-stage"},
-  "stage_hostname": {"value": "stage.example"},
-  "hyperdrive_id": {"value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-  "queue_name": {"value": "quorem-hono-stage-execution"},
-  "internal_access_application_id": {"value": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
-  "drain_hostname": {"value": "runner-stage.example"},
-  "drain_access_application_id": {"value": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}
+  "worker_name": {
+    "value": "quorem-hono-stage"
+  },
+  "stage_hostname": {
+    "value": "stage.example"
+  },
+  "hyperdrive_id": {
+    "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "queue_name": {
+    "value": "quorem-hono-stage-execution"
+  },
+  "internal_access_application_id": {
+    "value": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  },
+  "services": {
+    "origins": {
+      "value": {
+        "DRAIN_ORIGIN": "https://runner-stage.example"
+      }
+    },
+    "drain_access_application_id": {
+      "value": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    }
+  }
 }

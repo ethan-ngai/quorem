@@ -313,3 +313,5 @@ resource "cloudflare_workers_route" "service" {
   depends_on = [cloudflare_dns_record.service, cloudflare_zero_trust_access_application.service, terraform_data.case_images]
 }
 output "origins" { value = local.public }
+
+output "drain_access_application_id" { value = cloudflare_zero_trust_access_application.service["drain"].id }

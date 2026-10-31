@@ -5,20 +5,18 @@ mock_provider "cloudflare" {
 }
 
 variables {
-  account_id                    = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  zone_id                       = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-  dns_target                    = "origin-stage.example.com"
-  worker_name                   = "quorem-hono-stage"
-  database_host                 = "db-stage.example.com"
-  database_port                 = 5432
-  database_name                 = "quorem_stage"
-  database_user                 = "fixture"
-  database_password             = "fixture-only"
-  database_connection_limit     = 10
-  stage_hostname                = "stage.example.com"
-  access_service_token_ids      = ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
-  drain_hostname                = "runner-stage.example.com"
-  drain_access_service_token_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  account_id                = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  zone_id                   = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  dns_target                = "origin-stage.example.com"
+  worker_name               = "quorem-hono-stage"
+  database_host             = "db-stage.example.com"
+  database_port             = 5432
+  database_name             = "quorem_stage"
+  database_user             = "fixture"
+  database_password         = "fixture-only"
+  database_connection_limit = 10
+  stage_hostname            = "stage.example.com"
+  access_service_token_ids  = ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
 }
 
 run "bootstrap_without_consumer" {
@@ -30,10 +28,6 @@ run "bootstrap_without_consumer" {
   assert {
     condition     = length(cloudflare_queue_consumer.execution) == 0 && length(cloudflare_r2_bucket.profile) == 0
     error_message = "The queue consumer must wait until the staged Worker is deployed."
-  }
-  assert {
-    condition     = cloudflare_zero_trust_access_application.drain.domain == "runner-stage.example.com/internal/drain" && one(cloudflare_zero_trust_access_policy.drain.include).service_token.token_id == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-    error_message = "Drain access needs its own explicit service token."
   }
   assert {
     condition     = cloudflare_dns_record.api.name == "stage.example.com" && cloudflare_dns_record.api.proxied && cloudflare_dns_record.api.content == "origin-stage.example.com"
