@@ -160,3 +160,36 @@ void test('lost acknowledgment during COMMIT is unknown without replay', async (
     await killer.end();
   }
 });
+
+void test('full Drizzle callback prevents escaped handles and lazy writes', async () => {
+  let handle!: import('drizzle-orm/node-postgres').NodePgDatabase;
+  let lazy!: ReturnType<typeof handle.execute>;
+  await run(async scope => {
+    await scope.withDatabase(async db => {
+      handle=db;
+      assert.throws(()=>Reflect.get(db, '$client'),/Raw database client is unavailable/);
+      assert.equal((db._ as unknown as {session?:unknown}).session,undefined);
+      lazy=db.execute(sql`insert into primitives_probe values (77, 'late')`);
+      const result=await db.execute(sql`select txid_current_if_assigned() as assigned`);
+      assert.equal(result.rows[0].assigned,null);
+      await assert.rejects(scope.transaction(options,async()=>{}),/unavailable/);
+      let transaction!: import('drizzle-orm/node-postgres').NodePgDatabase;
+      await db.transaction(async tx=>{transaction=tx; await tx.execute(sql`select 1`);});
+      assert.throws(()=>transaction.select(),/transaction is no longer active/);
+    });
+    assert.throws(()=>handle.select(),/no longer active/);
+    assert.throws(()=>lazy.then(()=>{}),/no longer active/);
+  });
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM primitives_probe WHERE id=77')).rows[0].n,0);
+});
+
+void test('detached Drizzle query destroys scope instead of returning a live connection', async () => {
+  await assert.rejects(run(scope=>scope.withDatabase(async db=>{
+    void db.execute(sql`select pg_sleep(1)`).then(()=>{},()=>{});
+  })),/query outlived callback/);
+  await assert.rejects(run(scope=>scope.withDatabase(async db=>{
+    void db.execute(sql`select pg_sleep(1)`).then(()=>{},()=>{});
+    throw new Error('callback failed');
+  })),/callback failed/);
+  await run(scope=>scope.transaction(options,async tx=>{await tx.execute(sql`select 1`);}));
+});

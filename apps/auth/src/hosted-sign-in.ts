@@ -23,7 +23,13 @@ export async function hostedSignIn(
       chunks.push(value);
     }
   }
-  const body = new TextDecoder().decode(Buffer.concat(chunks));
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  const body = new TextDecoder().decode(bytes);
   let input: { callbackURL?: unknown; errorCallbackURL?: unknown };
   try {
     input = JSON.parse(body);
