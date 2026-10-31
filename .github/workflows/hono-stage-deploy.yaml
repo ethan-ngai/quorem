@@ -61,7 +61,7 @@ jobs:
           WRANGLER_SEND_METRICS: "false"
         run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
       - run: node scripts/hono-container-validation.mjs
-      - run: node --test scripts/hono-stage-deploy-pin.test.mjs scripts/hono-stage-deploy-proof.test.mjs scripts/hono-stage-deploy-acceptance.test.mjs scripts/hono-stage-deploy.test.mjs scripts/hono-stage-config.test.mjs scripts/hono-stage-secrets.test.mjs scripts/hono-stage-preflight.test.mjs scripts/hono-stage-gate.test.mjs
+      - run: node --test scripts/hono-stage-deploy-pin.test.mjs scripts/hono-stage-deploy-proof.test.mjs scripts/hono-stage-deploy-acceptance.test.mjs scripts/hono-stage-deploy-images.test.mjs scripts/hono-stage-deploy.test.mjs scripts/hono-stage-config.test.mjs scripts/hono-stage-secrets.test.mjs scripts/hono-stage-preflight.test.mjs scripts/hono-stage-gate.test.mjs
       - name: Terraform checks
         run: |
           for stack in hono-stage hono-services; do
