@@ -78,3 +78,15 @@ void test("withholds arbitrary provider errors and secret output", () => {
     (error) => !String(error).includes(marker),
   );
 });
+
+void test("summarizes keyed resource actions without exposing provider values", () => {
+  const result = runPlan(env(), (_, args) => ({
+    status: 0,
+    stdout:
+      args[1] === "plan"
+        ? '  # cloudflare_workers_route.service["case"] will be created\n  secret fixture-secret\nPlan: 1 to add, 0 to change, 0 to destroy.\n'
+        : "",
+  }));
+  assert.deepEqual(result[0].actions, ['cloudflare_workers_route.service["case"] will be created']);
+  assert.doesNotMatch(JSON.stringify(result), /fixture-secret/);
+});

@@ -105,7 +105,7 @@ export function runPlan(env, run = spawnSync) {
         const lines = (result.stdout ?? "").split("\n");
         const actions = lines
           .map((line) =>
-            /^  # ([a-z0-9_]+\.[a-z0-9_]+(?:\[[0-9]+\])?) (will be created|will be updated in-place|will be destroyed|must be replaced)$/.exec(
+            /^  # ([a-z0-9_]+\.[a-z0-9_]+(?:\[(?:[0-9]+|"[a-z0-9_-]+")\])?) (will be created|will be updated in-place|will be destroyed|must be replaced)$/.exec(
               line,
             ),
           )
