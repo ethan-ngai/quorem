@@ -149,6 +149,19 @@ class Service extends DurableObject {
 export class RunnerService extends Service {
   constructor(ctx, env) {
     super(ctx, env, "runner");
+    this.storage = ctx.storage;
+  }
+  async fetch(request) {
+    const path = new URL(request.url).pathname;
+    if (request.method !== "POST") return new Response(null, { status: 404 });
+    if (path === "/internal/pause") {
+      await this.storage.put("recovery-paused", true);
+      return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+    }
+    if (path !== "/internal/drain") return new Response(null, { status: 404 });
+    if (await this.storage.get("recovery-paused"))
+      return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+    return super.fetch(request);
   }
 }
 export class VerifierService extends Service {
@@ -205,7 +218,7 @@ export default {
       }
       if (
         url.origin === drain &&
-        url.pathname === "/internal/drain" &&
+        ["/internal/drain", "/internal/pause"].includes(url.pathname) &&
         request.method === "POST" &&
         request.headers.get("authorization") === `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}`
       ) {

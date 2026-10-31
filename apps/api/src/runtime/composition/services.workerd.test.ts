@@ -232,3 +232,21 @@ it("routes optional media with purpose bearer in workerd", async () => {
   expect(forwarded?.headers.get("cf-access-client-secret")).toBeNull();
   expect((await worker.fetch(request(secret("z")), env)).status).toBe(404);
 });
+
+it("persists runner pause in Durable Object storage", async () => {
+  const binding = (
+    runtimeEnv as unknown as {
+      TEST_RUNNERS: {
+        idFromName(name: string): unknown;
+        get(id: unknown): { fetch(url: string, init: RequestInit): Promise<Response> };
+      };
+    }
+  ).TEST_RUNNERS;
+  const runner = binding.get(binding.idFromName(crypto.randomUUID()));
+  expect((await runner.fetch("https://service/internal/pause", { method: "POST" })).status).toBe(
+    204,
+  );
+  expect((await runner.fetch("https://service/internal/drain", { method: "POST" })).status).toBe(
+    503,
+  );
+});
