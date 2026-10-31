@@ -38,12 +38,17 @@ async function json(response) {
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
 }
 
-export async function hostedAcceptance(env, send = fetch) {
+export async function hostedAcceptance(
+  env,
+  send = fetch,
+  delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+) {
   const api = stagedOrigin(env.HONO_STAGE_API_ORIGIN),
     drain = stagedOrigin(env.HONO_DRAIN_ORIGIN);
   if (
     api === drain ||
-    !/^[0-9a-f-]{36}$/.test(env.HONO_STAGE_WORKSPACE_ID ?? "") ||
+    !/^[0-9a-f-]{36}$/.test(env.HONO_STAGE_PROBLEM_VERSION_ID ?? "") ||
+    !["manual", "queue"].includes(env.HONO_STAGE_ACCEPTANCE_MODE) ||
     !env.HONO_STAGE_SESSION_COOKIE ||
     /[\r\n]/.test(env.HONO_STAGE_SESSION_COOKIE) ||
     !env.HONO_STAGE_ACCEPT_SOURCE ||
@@ -63,16 +68,38 @@ export async function hostedAcceptance(env, send = fetch) {
   )
     throw new Error("Invalid staged drain credentials");
   const privateFetch = accessFetch(drain, { id, secret }, send);
+  const tokenResponse = await send(`${api}/api/auth/token`, {
+    headers: { cookie: env.HONO_STAGE_SESSION_COOKIE, origin: api },
+    redirect: "error",
+    signal: AbortSignal.timeout(30000),
+  });
+  if (tokenResponse.status !== 200) throw new Error("Stage token exchange failed");
+  const bearer = (await json(tokenResponse)).token;
+  if (typeof bearer !== "string" || !bearer || bearer.length > 16384 || /\s/.test(bearer))
+    throw new Error("Invalid stage bearer");
   const headers = {
-    cookie: env.HONO_STAGE_SESSION_COOKIE,
+    authorization: `Bearer ${bearer}`,
     origin: api,
     "content-type": "application/json",
   };
+  const workspaceResponse = await send(`${api}/v1/workspaces`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      problemVersionId: env.HONO_STAGE_PROBLEM_VERSION_ID,
+      language: "python",
+    }),
+    redirect: "error",
+    signal: AbortSignal.timeout(30000),
+  });
+  if (workspaceResponse.status !== 201) throw new Error("Stage workspace creation failed");
+  const workspace = (await json(workspaceResponse)).id;
+  if (!/^[0-9a-f-]{36}$/.test(workspace ?? "")) throw new Error("Invalid stage workspace");
   const admission = await send(`${api}/v1/submissions`, {
     method: "POST",
     headers: { ...headers, "idempotency-key": `stage-${randomUUID()}` },
     body: JSON.stringify({
-      workspaceId: env.HONO_STAGE_WORKSPACE_ID,
+      workspaceId: workspace,
       kind: "submit",
       source: env.HONO_STAGE_ACCEPT_SOURCE,
     }),
@@ -82,19 +109,26 @@ export async function hostedAcceptance(env, send = fetch) {
   if (admission.status !== 202) throw new Error("Stage admission failed");
   const submission = (await json(admission)).id;
   if (!/^[0-9a-f-]{36}$/.test(submission ?? "")) throw new Error("Invalid stage submission");
-  const drained = await privateFetch(`${drain}/internal/drain`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}` },
-    redirect: "error",
-    signal: AbortSignal.timeout(210000),
-  });
-  if (drained.status !== 200) throw new Error("Stage drain failed");
-  const response = await send(`${api}/v1/submissions/${submission}`, {
-    headers,
-    redirect: "error",
-    signal: AbortSignal.timeout(30000),
-  });
-  if (response.status !== 200 || (await json(response)).verdict !== "accepted")
-    throw new Error("Stage submission not accepted");
-  return { submission };
+  if (env.HONO_STAGE_ACCEPTANCE_MODE === "manual") {
+    const drained = await privateFetch(`${drain}/internal/drain`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(210000),
+    });
+    if (drained.status !== 200) throw new Error("Stage drain failed");
+  }
+  const deadline = Date.now() + 210000;
+  for (;;) {
+    const response = await send(`${api}/v1/submissions/${submission}`, {
+      headers,
+      redirect: "error",
+      signal: AbortSignal.timeout(30000),
+    });
+    if (response.status !== 200) throw new Error("Stage result unavailable");
+    const result = await json(response);
+    if (result.verdict === "accepted") return { submission };
+    if (result.verdict || Date.now() >= deadline) throw new Error("Stage submission not accepted");
+    await delay(1000);
+  }
 }
