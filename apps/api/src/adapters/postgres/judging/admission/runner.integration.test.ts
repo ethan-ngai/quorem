@@ -429,6 +429,7 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         fileURLToPath(new URL("../../../../../../runner/src/runtime/runner.ts", import.meta.url)),
         {
           QUOREM_RUNNER_MODE: "http",
+          QUOREM_SANDBOX_PROVIDER: "docker",
           QUOREM_RUNNER_LISTEN: `127.0.0.1:${runnerPort}`,
           QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
           QUOREM_RUNNER_COMMAND_SECRET: commandSecret,
@@ -510,6 +511,7 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         const competingPort = await freePort();
         competingRunner = service("runner", "", {
           QUOREM_RUNNER_MODE: "http",
+          QUOREM_SANDBOX_PROVIDER: "docker",
           QUOREM_RUNNER_LISTEN: `127.0.0.1:${competingPort}`,
           QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
           QUOREM_RUNNER_COMMAND_SECRET: commandSecret,

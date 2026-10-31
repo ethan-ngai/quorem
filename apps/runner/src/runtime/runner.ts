@@ -1,6 +1,8 @@
-/** @file runner.ts @description Private Docker runner process and bounded recovery loop. @module runner */
+/** @file runner.ts @description Private runner process and bounded recovery loop. @module runner */
+import { readFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { dockerSandbox } from "../sandbox/docker.ts";
+import { remoteSandbox } from "../sandbox/remote.ts";
 import { checkpointedEngine } from "../orchestration/engine.ts";
 import { drainHandler } from "../drains/http.ts";
 import { UnconfirmedTeardown } from "../sandbox/types.ts";
@@ -11,12 +13,15 @@ import { listenPrivate } from "./server.ts";
 
 export async function startRunner(env: NodeJS.ProcessEnv) {
   const config = runnerConfig(env);
-  const sandbox = await dockerSandbox({
-    socket: config.socket,
-    stateRoot: config.stateRoot,
-    namespace: config.namespace,
-    cleanupMs: config.cleanupMs,
-  });
+  const sandbox =
+    config.sandbox.provider === "docker"
+      ? await dockerSandbox({ ...config.sandbox, cleanupMs: config.cleanupMs })
+      : remoteSandbox({
+          ...config.sandbox,
+          ownerPublicKey: await readFile(config.sandbox.publicKeyFile, "utf8"),
+          fetch: accessFetch(config.sandbox.origin, config.sandbox.access),
+          cleanupMs: config.cleanupMs,
+        });
   const runner = createRunner({
     sandbox,
     commandOrigin: config.commandOrigin,

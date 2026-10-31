@@ -44,9 +44,14 @@ function origin(env: Env, name: string): string {
     throw new Error(`Invalid ${name}`);
   return url.origin;
 }
-function access(env: Env, target: string) {
-  const id = env.CLOUDFLARE_ACCESS_CLIENT_ID,
-    secret = env.CLOUDFLARE_ACCESS_CLIENT_SECRET;
+function access(
+  env: Env,
+  target: string,
+  idName = "CLOUDFLARE_ACCESS_CLIENT_ID",
+  secretName = "CLOUDFLARE_ACCESS_CLIENT_SECRET",
+) {
+  const id = env[idName],
+    secret = env[secretName];
   if (id === undefined && secret === undefined) return undefined;
   if (
     !id ||
@@ -73,24 +78,68 @@ export function runnerConfig(env: Env) {
   if (commandSecret === drainSecret) throw new Error("Distinct runner credentials required");
   const mode = required(env, "QUOREM_RUNNER_MODE");
   if (mode !== "http" && mode !== "continuous") throw new Error("Invalid runner mode");
-  const socket = required(env, "QUOREM_DOCKER_SOCKET"),
-    stateRoot = required(env, "QUOREM_DOCKER_FENCE_ROOT"),
-    namespace = required(env, "QUOREM_DOCKER_NAMESPACE");
-  if (
-    !socket.startsWith("/") ||
-    !stateRoot.startsWith("/") ||
-    !/^[A-Za-z0-9._-]{1,128}$/.test(namespace)
-  )
-    throw new Error("Invalid Docker configuration");
   const commandOrigin = origin(env, "QUOREM_RUNNER_COMMAND_ORIGIN");
   const ingress = access(env, commandOrigin);
   if (ingress && [commandSecret, drainSecret].includes(ingress.secret))
     throw new Error("Distinct credentials required");
+  const provider = required(env, "QUOREM_SANDBOX_PROVIDER");
+  let sandbox:
+    | { provider: "docker"; socket: string; stateRoot: string; namespace: string }
+    | {
+        provider: "remote";
+        origin: string;
+        secret: string;
+        namespaceId: string;
+        publicKeyFile: string;
+        access?: { id: string; secret: string };
+      };
+  if (provider === "docker") {
+    const socket = required(env, "QUOREM_DOCKER_SOCKET"),
+      stateRoot = required(env, "QUOREM_DOCKER_FENCE_ROOT"),
+      namespace = required(env, "QUOREM_DOCKER_NAMESPACE");
+    if (
+      !socket.startsWith("/") ||
+      !stateRoot.startsWith("/") ||
+      !/^[A-Za-z0-9._-]{1,128}$/.test(namespace)
+    )
+      throw new Error("Invalid Docker configuration");
+    sandbox = { provider, socket, stateRoot, namespace };
+  } else if (provider === "remote") {
+    const caseOrigin = origin(env, "QUOREM_CASE_ORIGIN"),
+      caseSecret = secret(env, "QUOREM_CASE_SECRET"),
+      namespaceId = required(env, "QUOREM_CASE_NAMESPACE_ID"),
+      publicKeyFile = required(env, "QUOREM_CASE_OWNER_PUBLIC_KEY_FILE");
+    const caseAccess = access(
+      env,
+      caseOrigin,
+      "QUOREM_CASE_ACCESS_CLIENT_ID",
+      "QUOREM_CASE_ACCESS_CLIENT_SECRET",
+    );
+    if (
+      !/^[a-f0-9]{64}$/.test(namespaceId) ||
+      !publicKeyFile.startsWith("/") ||
+      [commandSecret, drainSecret, ingress?.id, ingress?.secret].includes(caseSecret)
+    )
+      throw new Error("Invalid remote sandbox configuration");
+    if (
+      caseAccess &&
+      [caseSecret, commandSecret, drainSecret, ingress?.id, ingress?.secret].some(
+        (value) => value === caseAccess.id || value === caseAccess.secret,
+      )
+    )
+      throw new Error("Distinct credentials required");
+    sandbox = {
+      provider,
+      origin: caseOrigin,
+      secret: caseSecret,
+      namespaceId,
+      publicKeyFile,
+      access: caseAccess,
+    };
+  } else throw new Error("Invalid sandbox provider");
   return {
     mode,
-    socket,
-    stateRoot,
-    namespace,
+    sandbox,
     commandSecret,
     drainSecret,
     commandOrigin,

@@ -107,6 +107,7 @@ void test(
     const env = {
       ...process.env,
       QUOREM_RUNNER_MODE: "http",
+      QUOREM_SANDBOX_PROVIDER: "docker",
       QUOREM_RUNNER_LISTEN: `127.0.0.1:${listen}`,
       QUOREM_RUNNER_COMMAND_ORIGIN: "http://127.0.0.1:9",
       QUOREM_RUNNER_COMMAND_SECRET: "command-fixture-12345678901234567890",
@@ -164,6 +165,7 @@ void test(
     const env = {
       ...process.env,
       QUOREM_RUNNER_MODE: "continuous",
+      QUOREM_SANDBOX_PROVIDER: "docker",
       QUOREM_RUNNER_LISTEN: `127.0.0.1:${listen}`,
       QUOREM_RUNNER_COMMAND_ORIGIN: `http://127.0.0.1:${apiAddress.port}`,
       QUOREM_RUNNER_COMMAND_SECRET: "command-fixture-12345678901234567890",
@@ -192,6 +194,7 @@ void test("configuration rejects insecure origins, duplicate secrets and malform
   const { runnerConfig, verifierConfig } = await import("./config.ts");
   const runner = {
     QUOREM_RUNNER_MODE: "http",
+    QUOREM_SANDBOX_PROVIDER: "docker",
     QUOREM_RUNNER_LISTEN: "127.0.0.1:8000",
     QUOREM_RUNNER_COMMAND_ORIGIN: "http://127.0.0.1:9000",
     QUOREM_RUNNER_COMMAND_SECRET: "command-fixture-12345678901234567890",
@@ -201,6 +204,41 @@ void test("configuration rejects insecure origins, duplicate secrets and malform
     QUOREM_DOCKER_NAMESPACE: "fixture",
   };
   assert.equal(runnerConfig(runner).mode, "http");
+  assert.throws(() => runnerConfig({ ...runner, QUOREM_SANDBOX_PROVIDER: undefined }));
+  const remote = {
+    ...runner,
+    QUOREM_SANDBOX_PROVIDER: "remote",
+    QUOREM_CASE_ORIGIN: "http://127.0.0.1:9001",
+    QUOREM_CASE_SECRET: "case-fixture-secret-1234567890123456",
+    QUOREM_CASE_NAMESPACE_ID: "a".repeat(64),
+    QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: "/tmp/owner.pem",
+    QUOREM_DOCKER_SOCKET: undefined,
+    QUOREM_DOCKER_FENCE_ROOT: undefined,
+    QUOREM_DOCKER_NAMESPACE: undefined,
+  };
+  assert.equal(runnerConfig(remote).sandbox.provider, "remote");
+  assert.throws(() => runnerConfig({ ...remote, QUOREM_CASE_NAMESPACE_ID: "bad" }));
+  assert.throws(() => runnerConfig({ ...remote, QUOREM_CASE_ORIGIN: "http://example.test" }));
+  assert.throws(() =>
+    runnerConfig({ ...remote, QUOREM_CASE_SECRET: remote.QUOREM_RUNNER_COMMAND_SECRET }),
+  );
+  assert.throws(() => runnerConfig({ ...remote, QUOREM_CASE_ACCESS_CLIENT_ID: "case-id" }));
+  assert.throws(() =>
+    runnerConfig({
+      ...remote,
+      QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
+      QUOREM_CASE_ACCESS_CLIENT_SECRET: "case-secret",
+    }),
+  );
+  const withCaseAccess = runnerConfig({
+    ...remote,
+    QUOREM_CASE_ORIGIN: "https://case.example",
+    QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
+    QUOREM_CASE_ACCESS_CLIENT_SECRET: "case-secret",
+  });
+  assert.equal(withCaseAccess.sandbox.provider, "remote");
+  if (withCaseAccess.sandbox.provider === "remote")
+    assert.equal(withCaseAccess.sandbox.access?.id, "case-id");
   assert.throws(() =>
     runnerConfig({ ...runner, QUOREM_RUNNER_COMMAND_ORIGIN: "http://external.example" }),
   );
@@ -234,6 +272,53 @@ void test("configuration rejects insecure origins, duplicate secrets and malform
       QUOREM_VERIFICATION_SERVICE_KEY: "11".repeat(32),
     }),
   );
+});
+void test("remote runner process validates owner key before listening", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "quorem-remote-process-"));
+  const file = join(dir, "owner.pem");
+  const { publicKey } = generateKeyPairSync("ed25519");
+  await writeFile(file, publicKey.export({ type: "spki", format: "pem" }));
+  const listen = await port(),
+    base = `http://127.0.0.1:${listen}`;
+  const env = {
+    ...process.env,
+    QUOREM_RUNNER_MODE: "http",
+    QUOREM_SANDBOX_PROVIDER: "remote",
+    QUOREM_RUNNER_LISTEN: `127.0.0.1:${listen}`,
+    QUOREM_RUNNER_COMMAND_ORIGIN: "http://127.0.0.1:9",
+    QUOREM_RUNNER_COMMAND_SECRET: "command-fixture-12345678901234567890",
+    QUOREM_RUNNER_DRAIN_SECRET: "drain-fixture-1234567890123456789012",
+    QUOREM_CASE_ORIGIN: "http://127.0.0.1:10",
+    QUOREM_CASE_SECRET: "case-fixture-secret-1234567890123456",
+    QUOREM_CASE_NAMESPACE_ID: "a".repeat(64),
+    QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: file,
+  };
+  const child = spawn(process.execPath, [resolve("src/runtime/runner.ts")], {
+    env,
+    stdio: "ignore",
+  });
+  try {
+    await healthy(base, child);
+    assert.equal(
+      (
+        await fetch(`${base}/internal/drain`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${"wrong".repeat(8)}` },
+        })
+      ).status,
+      401,
+    );
+    assert.equal(await stop(child), 0);
+    await writeFile(file, "invalid");
+    const invalid = spawn(process.execPath, [resolve("src/runtime/runner.ts")], {
+      env,
+      stdio: "ignore",
+    });
+    assert.equal((await once(invalid, "exit"))[0], 1);
+  } finally {
+    if (child.exitCode === null) await stop(child);
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 void test("optional private ingress credentials stay on the pinned HTTPS origin", async () => {
   const { accessFetch } = await import("@quorem/execution/transport/access");
