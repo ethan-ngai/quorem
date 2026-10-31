@@ -66,7 +66,7 @@ jobs:
         env:
           QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
         run: vp -C apps/runner exec node --test src/runtime/runtime.test.ts
-      - run: node --test scripts/hono-stage-deploy-subdomains.test.mjs scripts/hono-stage-deploy-stage.test.mjs scripts/hono-stage-deploy-pin.test.mjs scripts/hono-stage-deploy-proof.test.mjs scripts/hono-stage-deploy-acceptance.test.mjs scripts/hono-stage-deploy-database.test.mjs scripts/hono-stage-deploy-profile.test.mjs scripts/hono-stage-deploy-ingress.test.mjs scripts/hono-stage-deploy-queue.test.mjs scripts/hono-stage-deploy-images.test.mjs scripts/hono-stage-deploy-secrets.test.mjs scripts/hono-stage-deploy.test.mjs scripts/hono-stage-config.test.mjs scripts/hono-stage-secrets.test.mjs scripts/hono-stage-preflight.test.mjs scripts/hono-stage-gate.test.mjs
+      - run: node scripts/hono-stage-validation.mjs
       - name: Terraform checks
         run: |
           for stack in hono-stage hono-services; do

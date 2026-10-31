@@ -235,7 +235,7 @@ jobs:
           docker build -f deploy/hono/services/Dockerfile.image -t quorem-35f-image-fixture:local .
       - name: Staged orchestration and private service contracts
         run: |
-          node --test scripts/hono-stage*.test.mjs scripts/hono-remote-validation.test.mjs
+          node scripts/hono-stage-validation.mjs
           node --import ./deploy/test-register.mjs --test deploy/hono/services/*.test.mjs
       - name: Isolated Terraform module contracts
         run: |
