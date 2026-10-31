@@ -16,7 +16,7 @@ describe.skipIf(!url || !inbox)(
         AUTH_DATABASE_URL: url,
         AUTH_INTERNAL_SECRET: "mock-internal-secret",
         SMTP_HOST: "127.0.0.1",
-        SMTP_PORT: "51025",
+        SMTP_PORT: process.env.AUTH_TEST_SMTP_PORT ?? "51025",
       });
       const { auth, createAuth, database } = await (await import("./node-auth")).createNodeRuntime(process.env);
       await migrateAuth(database);

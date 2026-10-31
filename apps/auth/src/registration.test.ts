@@ -41,6 +41,7 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
       SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: process.env.AUTH_TEST_SMTP_PORT ?? "51025",
     });
     const { auth, database: authDatabase } = await (await import("./node-auth")).createNodeRuntime(process.env);
     const origin = "http://localhost:5180",
@@ -52,7 +53,7 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       ? verificationMailer(
           smtpEmail({
             host: "127.0.0.1",
-            port: 51025,
+            port: Number(process.env.AUTH_TEST_SMTP_PORT ?? "51025"),
             from: "Quorem <accounts@quorem.local>",
           }),
         )

@@ -15,7 +15,7 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       GITHUB_CLIENT_ID: "fixture",
       GITHUB_CLIENT_SECRET: "fixture",
       SMTP_HOST: "127.0.0.1",
-      SMTP_PORT: "51025",
+      SMTP_PORT: process.env.AUTH_TEST_SMTP_PORT ?? "51025",
     });
     const { database, auth } = await (await import("./node-auth")).createNodeRuntime(process.env);
     await migrateAuth(database);
