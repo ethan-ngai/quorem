@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export function validateStageRequest(env) {
+export function validateStageRequest(env, { requireImages = true } = {}) {
   if (!["plan", "stage"].includes(env.HONO_STAGE_ACTION)) throw new Error("Invalid stage action");
   if (env.GITHUB_REF !== "refs/heads/feat/hono-migration")
     throw new Error("Migration branch required");
@@ -25,7 +25,7 @@ export function validateStageRequest(env) {
   let names, images;
   try {
     names = JSON.parse(env.TF_VAR_hostnames);
-    images = JSON.parse(env.TF_VAR_case_images);
+    images = requireImages ? JSON.parse(env.TF_VAR_case_images) : undefined;
   } catch {
     throw new Error("Invalid staged hosts or images");
   }
@@ -45,12 +45,13 @@ export function validateStageRequest(env) {
       `^registry\\.cloudflare\\.com/${env.CLOUDFLARE_ACCOUNT_ID}/[a-z0-9-]+@sha256:[0-9a-f]{64}$`,
     ).test(v);
   if (
-    !images ||
-    ![
-      env.TF_VAR_runner_image,
-      env.TF_VAR_verifier_image,
-      ...["python", "java", "typescript", "ocaml", "postgresql"].map((k) => images[k]),
-    ].every(digest)
+    requireImages &&
+    (!images ||
+      ![
+        env.TF_VAR_runner_image,
+        env.TF_VAR_verifier_image,
+        ...["python", "java", "typescript", "ocaml", "postgresql"].map((k) => images[k]),
+      ].every(digest))
   )
     throw new Error("Immutable staged image digests required");
   if (!/^[0-9a-f]{64}$/.test(env.TF_VAR_case_namespace_id ?? ""))
@@ -58,10 +59,29 @@ export function validateStageRequest(env) {
   if (env.TF_VAR_enable_queue_consumer !== "false") throw new Error("Queue must remain disabled");
 }
 
+export function terraformInitArgs(env, stack) {
+  if (!["hono-stage", "hono-services"].includes(stack)) throw new Error("Invalid Terraform stack");
+  const endpoint = `endpoints={s3="https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"}`;
+  return [
+    "-chdir=infra/terraform/" + stack,
+    "init",
+    "-input=false",
+    `-backend-config=bucket=${env.TF_STATE_BUCKET}`,
+    `-backend-config=key=${stack}/terraform.tfstate`,
+    "-backend-config=region=auto",
+    `-backend-config=${endpoint}`,
+    "-backend-config=skip_credentials_validation=true",
+    "-backend-config=skip_region_validation=true",
+    "-backend-config=skip_requesting_account_id=true",
+    "-backend-config=skip_metadata_api_check=true",
+    "-backend-config=skip_s3_checksum=true",
+    "-backend-config=use_lockfile=true",
+  ];
+}
+
 export function runPlan(env, run = spawnSync) {
   validateStageRequest(env);
   if (env.HONO_STAGE_ACTION !== "plan") throw new Error("Stage deployment is not yet enabled");
-  const endpoint = `endpoints={s3="https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"}`;
   const summaries = [];
   for (const stack of ["hono-stage", "hono-services"]) {
     const stackEnv = {
@@ -69,21 +89,7 @@ export function runPlan(env, run = spawnSync) {
       TF_VAR_worker_name:
         stack === "hono-stage" ? env.TF_VAR_worker_name : env.HONO_SERVICES_WORKER_NAME,
     };
-    const init = [
-      "-chdir=infra/terraform/" + stack,
-      "init",
-      "-input=false",
-      `-backend-config=bucket=${env.TF_STATE_BUCKET}`,
-      `-backend-config=key=${stack}/terraform.tfstate`,
-      "-backend-config=region=auto",
-      `-backend-config=${endpoint}`,
-      "-backend-config=skip_credentials_validation=true",
-      "-backend-config=skip_region_validation=true",
-      "-backend-config=skip_requesting_account_id=true",
-      "-backend-config=skip_metadata_api_check=true",
-      "-backend-config=skip_s3_checksum=true",
-      "-backend-config=use_lockfile=true",
-    ];
+    const init = terraformInitArgs(env, stack);
     for (const args of [
       init,
       ["-chdir=infra/terraform/" + stack, "plan", "-input=false", "-no-color", "-lock-timeout=5m"],

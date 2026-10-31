@@ -35,7 +35,7 @@ export async function requireFreshStageDatabase(
   try {
     const result = await pool.query(`SELECT current_database() AS name,
       has_database_privilege(current_user,current_database(),'CREATE') AND has_schema_privilege(current_user,'public','CREATE') AS migration_role,
-      (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S','f')) AS objects,
+      (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND left(n.nspname,3) <> 'pg_' AND c.relkind IN ('r','p','v','m','S','f')) AS objects,
       (SELECT count(*)::int FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()) AS peers`);
     const row = result.rows[0];
     if (

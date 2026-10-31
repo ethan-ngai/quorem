@@ -50,10 +50,19 @@ export function checkStagePreflight(input, outputs, secrets) {
     "TRUST_CLOUDFLARE_PEER",
   ])
     flag(merged[name]);
+  checkWorkerAuth(config.vars, workerSecrets, Boolean(config.r2_buckets));
+}
+/** Validate the canonical Worker auth constructor without binding real providers. */
+export function checkWorkerAuth(vars, secrets, hasBucket) {
   workerRuntime({
-    ...merged,
+    ...Object.fromEntries(
+      secretNames
+        .filter((name) => secrets[name] !== undefined)
+        .map((name) => [name, secrets[name]]),
+    ),
+    ...vars,
     DB: { connectionString: "postgres://fixture:fixture@127.0.0.1:1/fixture" },
-    ...(config.r2_buckets ? { PROFILE_BUCKET: {} } : {}),
+    ...(hasBucket ? { PROFILE_BUCKET: {} } : {}),
   });
 }
 const hostOnly = new Set([

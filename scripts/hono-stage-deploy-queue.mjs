@@ -61,13 +61,14 @@ export async function releaseQueue(
     namespace !== env.TF_VAR_case_namespace_id
   )
     throw new Error("Verified staged namespace required");
-  await accept({ ...env, HONO_STAGE_ACCEPTANCE_MODE: "manual" });
+  const manual = await accept({ ...env, HONO_STAGE_ACCEPTANCE_MODE: "manual" });
   await ingress(env, namespace);
   let attempted = false;
   try {
     attempted = true;
     await Promise.resolve(change(env, true));
-    await accept({ ...env, HONO_STAGE_ACCEPTANCE_MODE: "queue" });
+    const automatic = await accept({ ...env, HONO_STAGE_ACCEPTANCE_MODE: "queue" });
+    return { manual: manual.submission, automatic: automatic.submission };
   } catch {
     if (attempted) {
       try {

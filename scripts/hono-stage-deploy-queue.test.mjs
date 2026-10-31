@@ -36,7 +36,10 @@ const env = () => ({
 void test("requires manual and private controls before automatic queue proof", async () => {
   const calls = [];
   await releaseQueue(env(), "a".repeat(64), {
-    accept: async (v) => calls.push(v.HONO_STAGE_ACCEPTANCE_MODE),
+    accept: async (v) => {
+      calls.push(v.HONO_STAGE_ACCEPTANCE_MODE);
+      return { submission: v.HONO_STAGE_ACCEPTANCE_MODE };
+    },
     ingress: async () => calls.push("ingress"),
     change: async (_, enabled) => calls.push(enabled),
   });
@@ -50,6 +53,7 @@ void test("attempts detach for unknown attach and failed automatic proof", async
         accept: async (v) => {
           calls.push(v.HONO_STAGE_ACCEPTANCE_MODE);
           if (fail === "queue" && v.HONO_STAGE_ACCEPTANCE_MODE === "queue") throw new Error();
+          return { submission: v.HONO_STAGE_ACCEPTANCE_MODE };
         },
         ingress: async () => calls.push("ingress"),
         change: async (_, enabled) => {
@@ -91,6 +95,7 @@ void test("namespace mismatch and failed detachment are explicit", async () => {
     releaseQueue(env(), "a".repeat(64), {
       accept: async (v) => {
         if (v.HONO_STAGE_ACCEPTANCE_MODE === "queue") throw new Error();
+        return { submission: "manual" };
       },
       ingress: async () => {},
       change: async (_, enabled) => {
