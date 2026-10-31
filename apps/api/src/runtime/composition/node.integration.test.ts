@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { expect, it } from "vitest";
 import { WebSocket } from "ws";
 import { createNodePool } from "@quorem/database/core";
+import { frameText } from "../../adapters/events/fanout/common.ts";
 import { startNodeRuntime } from "../node.ts";
 const url = process.env.QUOREM_RUNTIME_TEST_URL;
 it.skipIf(!url)(
@@ -31,6 +32,7 @@ it.skipIf(!url)(
       SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/000000000000/test",
       PORT: "0",
       IDENTITY_MODE: "managed",
+      SOCKET_HEARTBEAT_MS: "1000",
     };
     const pool = createNodePool({
       connectionString: url!,
@@ -61,6 +63,23 @@ it.skipIf(!url)(
       });
       expect(auth.status).toBe(200);
       const bearer = ((await auth.json()) as { token: string }).token;
+      const sessionResponse = await fetch(`${base}/v1/session`, {
+        headers: { authorization: `Bearer ${bearer}` },
+      });
+      expect(sessionResponse.status).toBe(200);
+      expect(await sessionResponse.json()).toMatchObject({
+        kind: "account",
+        mode: "managed",
+        user: { displayName: user },
+      });
+      const capabilities = await fetch(`${base}/v1/capabilities`, {
+        headers: { authorization: `Bearer ${bearer}` },
+      });
+      expect(capabilities.status).toBe(200);
+      expect(await capabilities.json()).toMatchObject({
+        interviewConcurrency: 1,
+        authorCustomQuestions: false,
+      });
       const catalog = await fetch(`${base}/v1/problems`);
       expect(catalog.status).toBe(200);
       expect(catalog.headers.get("x-request-id")).toBeTruthy();
@@ -78,9 +97,12 @@ it.skipIf(!url)(
         ["quorem", `bearer.${bearer}`],
         { headers: { origin: "http://127.0.0.1:5173" } },
       );
+      socket.on("message", (data) => {
+        const frame = JSON.parse(frameText(data)) as { receipt?: string };
+        if (frame.receipt) socket.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
+      });
       await once(socket, "open");
-      socket.close();
-      await once(socket, "close");
+      const closed = once(socket, "close");
       await pool.query('DELETE FROM quorem_auth."session" WHERE id=$1', [session]);
       const revoked = await fetch(`${base}/v1/workspaces`, {
         method: "POST",
@@ -91,6 +113,13 @@ it.skipIf(!url)(
         }),
       });
       expect(revoked.status).toBe(401);
+      const [code] = await Promise.race([
+        closed,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("socket revocation timeout")), 8000),
+        ),
+      ]);
+      expect(code).toBe(1008);
     } finally {
       await runtime.close();
       await pool.end();

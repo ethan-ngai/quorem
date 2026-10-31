@@ -618,3 +618,71 @@ void test("selected SQL question gives each participant a PostgreSQL workspace",
   );
   await repo.mutate(host, id, "sql-forfeit", "forfeit", null);
 });
+void test("rule announcements use canonical membership, replay, suppression and bounded history", async () => {
+  const { createApp } = await import("../../../../app.ts");
+  const { matchLifecycleRoutes } = await import("../../../../modules/matches/lifecycle/routes.ts");
+  const actor = principal(`rule-${crypto.randomUUID()}`),
+    peer = principal(`rule-${crypto.randomUUID()}`);
+  await pool.query(
+    "INSERT INTO users(id,display_name,kind) VALUES($1,'Host','account'),($2,'Peer','account')",
+    [actor.userId, peer.userId],
+  );
+  const room = (await repo.create(
+    actor,
+    "rule-create",
+    normalizeSettings({ ...settings, rules: { clipboard: "announce", focus: "warning" } }),
+  )) as { id: string };
+  await pool.query("INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,2)", [
+    room.id,
+    peer.userId,
+  ]);
+  await pool.query("INSERT INTO match_reservations(owner_id,match_id) VALUES($1,$2)", [
+    peer.userId,
+    room.id,
+  ]);
+  await repo.mutate(actor, room.id, "rule-ready-a", "ready", true);
+  await repo.mutate(peer, room.id, "rule-ready-b", "ready", true);
+  const app = createApp({ allowedOrigins: [], requestId: () => "rule" }).route(
+    "/",
+    matchLifecycleRoutes({ lifecycle: repo, identify: async () => actor }),
+  );
+  const report = (key: string, kind: string) =>
+    app.request(`/v1/matches/${room.id}/rule-events`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": key },
+      body: JSON.stringify({ kind }),
+    });
+  assert.equal((await report("bad", "paste")).status, 400);
+  const first = await report("one", "clipboard");
+  assert.equal(first.status, 200);
+  const snapshot = (await first.json()) as { version: string; ruleEvents: unknown[] };
+  assert.equal(snapshot.ruleEvents.length, 1);
+  assert.deepEqual(await (await report("one", "clipboard")).json(), snapshot);
+  assert.equal((await report("one", "focus")).status, 409);
+  const suppressed = (await (await report("two", "clipboard")).json()) as typeof snapshot;
+  assert.equal(suppressed.version, snapshot.version);
+  await pool.query("UPDATE match_participants SET last_rule_event_at=NULL WHERE match_id=$1", [
+    room.id,
+  ]);
+  const warning = (await (await report("warning", "focus")).json()) as typeof snapshot;
+  assert.equal(warning.version, snapshot.version);
+  for (let i = 0; i < 22; i++) {
+    await pool.query("UPDATE match_participants SET last_rule_event_at=NULL WHERE match_id=$1", [
+      room.id,
+    ]);
+    await repo.mutate(actor, room.id, `report-${i}`, "rule-events", "clipboard");
+  }
+  const retained = (await repo.read(peer, room.id)) as {
+    ruleEvents: { kind: string; action: string }[];
+  };
+  assert.equal(retained.ruleEvents.length, 20);
+  assert.ok(
+    retained.ruleEvents.every((event) => event.kind === "clipboard" && event.action === "announce"),
+  );
+  await assert.rejects(repo.mutate(outsider, room.id, "outsider-rule", "rule-events", "focus"));
+  await pool.query(
+    "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id=$2",
+    [room.id, actor.userId],
+  );
+  await assert.rejects(repo.mutate(actor, room.id, "forfeited-rule", "rule-events", "clipboard"));
+});

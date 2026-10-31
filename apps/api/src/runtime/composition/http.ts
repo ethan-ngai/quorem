@@ -1,3 +1,5 @@
+import { identityRoutes } from "../../modules/identity/routes.ts";
+import { capabilityRepository } from "../../adapters/postgres/access/repository.ts";
 /** @file http.ts @description Compose canonical HTTP domains with selected runtime ports. @module runtime */
 import type { ConnectionScope } from "@quorem/database/core";
 import { languageRuntime } from "@quorem/execution";
@@ -86,6 +88,16 @@ export function composeHttp(ports: HttpPorts) {
       budget,
       managed: ports.managed,
       guests: ports.guests,
+    }),
+  );
+  app.route(
+    "/",
+    identityRoutes({
+      identify,
+      guests: ports.guests,
+      capabilities: {
+        capabilities: (userId) => run((scope) => capabilityRepository(scope).capabilities(userId)),
+      },
     }),
   );
   app.route("/", problemRoutes({ queries: problemQueries(run), identify }));

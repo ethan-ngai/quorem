@@ -1,3 +1,4 @@
+import { peerHeaders, validPeer } from "./peer.ts";
 import { withNodeConnection } from "@quorem/database/core";
 import { drizzleProfileBudget } from "./adapters/drizzle-profile-budget.ts";
 import { drizzleProfileRepository } from "./adapters/drizzle-profile-repository.ts";
@@ -25,6 +26,9 @@ export async function startServer(env: NodeJS.ProcessEnv = process.env) {
     repository: drizzleProfileRepository(run),
   });
   const server = createServer(async (req, res) => {
+    for (const name of peerHeaders) delete req.headers[name];
+    const peer = validPeer(req.socket.remoteAddress);
+    if (peer) req.headers["x-quorem-peer-ip"] = peer;
     if (req.url === "/api/auth/quorem-config" && req.method === "GET") {
       res
         .writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })

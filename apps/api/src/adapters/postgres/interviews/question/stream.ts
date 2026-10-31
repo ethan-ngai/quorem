@@ -11,6 +11,7 @@ import {
   evaluatedStatusBytes,
   evaluatedStatusPlan,
 } from "../../judging/results/evaluated-status.ts";
+import { privateStatusPage, privateStatusPlan } from "./private-status-read.ts";
 import { projectedObject } from "../../judging/results/projected-stream.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -107,9 +108,37 @@ export function interviewSnapshotStream(run: Run) {
               true,
             ))
               yield* text(part);
-            yield* text(
-              `,"revealed":${c.revealed}${c.status !== undefined ? `,"status":${JSON.stringify(c.status)}` : ""}}`,
-            );
+            yield* text(`,"revealed":${c.revealed}`);
+            if (c.status) {
+              yield* text(',"status":');
+              for (let offset = 0; offset < c.status.size; offset += 65536) {
+                const ref = c.status;
+                const part = await transact(async (tx) => {
+                  const access = await readInterviewAccess(
+                    tx,
+                    actor,
+                    id,
+                    capabilitiesInTransaction,
+                  );
+                  const current = await privateStatusPlan(tx, id, plan.epoch);
+                  if (
+                    access.questionEpoch !== plan.epoch ||
+                    access.version !== plan.version ||
+                    access.role !== plan.role ||
+                    current.digest !== plan.privateStatusPlan.digest
+                  )
+                    throw changed();
+                  const visible = await tx.execute(
+                    sql`SELECT 1 FROM interview_question_private_cases c JOIN interview_members m ON m.session_id=c.session_id AND m.user_id=${actor.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE c.session_id=${id}::uuid AND c.question_epoch=${plan.epoch}::uuid AND c.case_id=${c.id} AND c.xmin::text=${c.rowVersion} AND (m.role='interviewer' OR v.case_id IS NOT NULL) AND (v.case_id IS NOT NULL)=${c.revealed}`,
+                  );
+                  if (!visible.rows.length) throw changed();
+                  return privateStatusPage(tx, ref, offset);
+                });
+                if (!part.length) throw changed();
+                yield part;
+              }
+            }
+            yield* text("}");
           }
           yield* text("]");
         }
@@ -146,6 +175,8 @@ export function interviewSnapshotStream(run: Run) {
             else {
               await transact(async (tx) => {
                 const access = await readInterviewAccess(tx, actor, id, capabilitiesInTransaction);
+                const privateCurrent = await privateStatusPlan(tx, id, plan.epoch);
+                if (privateCurrent.digest !== plan.privateStatusPlan.digest) throw changed();
                 if (plan.statusPlan) {
                   const current = await evaluatedStatusPlan(tx, {
                     kind: "interview",

@@ -15,8 +15,16 @@ export function createAuth(options: {
   config: ReturnType<typeof configuration>;
   accountMail?: (email: string, url: string, subject: string, instruction: string) => Promise<void>;
   emailFlow: ReturnType<typeof socialEmail>;
-  rateLimit(scope: string, subject: string, policy: {limit: number; seconds: number}): Promise<{allowed: boolean; retryAfter: number}>;
-  profile(id: string): Promise<{profile_color: number; profile_color_revision: number | string | bigint} | undefined>;
+  rateLimit(
+    scope: string,
+    subject: string,
+    policy: { limit: number; seconds: number },
+  ): Promise<{ allowed: boolean; retryAfter: number }>;
+  profile(
+    id: string,
+  ): Promise<
+    { profile_color: number; profile_color_revision: number | string | bigint } | undefined
+  >;
   recordAssurance(sessionId: string): Promise<void>;
   adapter: BetterAuthOptions["database"];
   allowSeed?: boolean;
@@ -114,7 +122,8 @@ export function createAuth(options: {
       window: 60,
       max: 30,
       customStorage: {
-        consume: async (key, rule) => options.rateLimit("better-auth", key, { limit: rule.max, seconds: rule.window }),
+        consume: async (key, rule) =>
+          options.rateLimit("better-auth", key, { limit: rule.max, seconds: rule.window }),
       },
       customRules: {
         "/sign-up/email": { window: 60, max: 5 },
@@ -296,7 +305,10 @@ export function createAuth(options: {
         },
       },
     },
-    advanced: { useSecureCookies: new URL(config.origin).protocol === "https:" },
+    advanced: {
+      useSecureCookies: new URL(config.origin).protocol === "https:",
+      ipAddress: { ipAddressHeaders: ["x-quorem-peer-ip"] },
+    },
     plugins: [
       {
         id: "await-account-delivery",
@@ -343,7 +355,8 @@ export function createAuth(options: {
           definePayload: async ({ user, session }) => {
             const profile = await options.profile(user.id);
             const colorRevision = Number(profile?.profile_color_revision ?? 0);
-            if (!Number.isSafeInteger(colorRevision)) throw new Error("Profile revision exceeds safe integer range");
+            if (!Number.isSafeInteger(colorRevision))
+              throw new Error("Profile revision exceeds safe integer range");
             return {
               color: profile?.profile_color ?? 0,
               colorRevision,

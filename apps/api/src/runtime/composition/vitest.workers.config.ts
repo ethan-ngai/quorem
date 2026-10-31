@@ -32,5 +32,13 @@ export default defineConfig({
       },
     }),
   ],
-  test: { testTimeout: 30000, include: ["src/runtime/composition/worker.integration.test.ts"] },
+  test: {
+    fileParallelism: false,
+    testTimeout: 30000,
+    include: [
+      "src/runtime/composition/worker.integration.test.ts",
+      "src/runtime/composition/worker.queue.test.ts",
+      "src/runtime/composition/worker.peer.test.ts",
+    ],
+  },
 });

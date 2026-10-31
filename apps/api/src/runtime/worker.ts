@@ -3,7 +3,12 @@
 import { DurableObject } from "cloudflare:workers";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { workerRuntime, type AuthWorkerEnv } from "@quorem/auth/worker";
-import { IdentityError, type SessionAuthority } from "../modules/identity/model.ts";
+import { authPeerRequest, cloudflarePeer } from "@quorem/auth/peer";
+import {
+  IdentityError,
+  type SessionAuthority,
+  type TokenVerifier,
+} from "../modules/identity/model.ts";
 import { jwtVerifier } from "../adapters/identity/jwt.ts";
 import {
   cloudflareBinding,
@@ -29,6 +34,10 @@ import { composeIdentity } from "./composition/identity.ts";
 import { composePrivate } from "./composition/private.ts";
 import { boundedInt, flag, keyBytes, privateConfig, required } from "./composition/config.ts";
 import { requestBudget, unavailable } from "./composition/budget.ts";
+import { privateResponse } from "./composition/private-response.ts";
+import { recoverAll } from "./composition/recovery.ts";
+import { health } from "./composition/health.ts";
+import { consumeWakeBatch, type WakeMessage } from "./composition/wake-consumer.ts";
 
 interface SocketStub {
   fetch(request: Request): Promise<Response>;
@@ -86,15 +95,28 @@ function wake(env: Env) {
     });
   throw new Error("Unsupported execution wake provider");
 }
+let verifierCache: { origin: string; database: string; verifier: TokenVerifier } | undefined;
 function makeSecurity(env: Env, signal?: AbortSignal) {
   const auth = workerRuntime(env, signal),
     origin = required(env.AUTH_ORIGIN);
-  const verifier = jwtVerifier({
-    issuer: origin,
-    audience: "quorem-api",
-    jwksURL: new URL("/api/auth/jwks", origin).href,
-    fetch: async (input, init) => auth.app.fetch(new Request(input, init)),
-  });
+  if (
+    !verifierCache ||
+    verifierCache.origin !== origin ||
+    verifierCache.database !== env.DB.connectionString
+  ) {
+    verifierCache = {
+      origin,
+      database: env.DB.connectionString,
+      verifier: jwtVerifier({
+        issuer: origin,
+        audience: "quorem-api",
+        jwksURL: new URL("/api/auth/jwks", origin).href,
+        fetch: async (input, init) =>
+          workerRuntime(env, init?.signal ?? undefined).app.fetch(new Request(input, init)),
+      }),
+    };
+  }
+  const verifier = verifierCache.verifier;
   const sessions: SessionAuthority = {
     async check(id, subject) {
       try {
@@ -118,7 +140,7 @@ function makeHttp(env: Env, request: Request) {
     run,
     ...identity,
     origins: allowed,
-    trustedPeer: () => request.headers.get("cf-connecting-ip") ?? undefined,
+    trustedPeer: () => cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER),
     deadline: cloudflareCoordinator(env.DEADLINES),
     execution: cloudflareCoordinator(env.EXECUTION_RECOVERY),
     wake: wake(env),
@@ -227,16 +249,23 @@ export default {
       if (stream && request.headers.get("upgrade")?.toLowerCase() === "websocket")
         return await socketStub(env, stream).fetch(request);
       budget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
+      if (path === "/health")
+        return await budget(request, async () => health(request, origins(env)));
       return await budget(request, async () => {
         const run = runFor(env, request.signal);
         if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
           const handlers = await composePrivate(run, privateConfig(env));
-          return path.startsWith("/internal/runner/")
-            ? handlers.runner(request)
-            : handlers.source(request);
+          return privateResponse(
+            await (path.startsWith("/internal/runner/")
+              ? handlers.runner(request)
+              : handlers.source(request)),
+          );
         }
         const composed = makeHttp(env, request);
-        const response = await composed.app.fetch(request);
+        const incoming = path.startsWith("/api/auth/")
+          ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
+          : request;
+        const response = await composed.app.fetch(incoming);
         if (response.status < 400 && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
           const store = postgresDispatch(run),
             publisher = notices(env),
@@ -255,18 +284,43 @@ export default {
       return unavailable();
     }
   },
+  async queue(batch: { messages: readonly WakeMessage[] }, env: Env): Promise<void> {
+    const credential = required(env.EXECUTION_DRAIN_SECRET);
+    const config = privateConfig(env);
+    if (
+      [
+        config.verificationSourceCredential,
+        config.verificationServiceCredential,
+        ...config.runnerPeers.map((peer) => peer.secret),
+      ].includes(credential)
+    )
+      throw new Error("Distinct drain credential required");
+    await consumeWakeBatch(batch.messages, {
+      publisher: wake(env),
+      drainURL: required(env.EXECUTION_DRAIN_URL),
+      credential,
+      local: env.APP_ENV === "local",
+    });
+  },
   async scheduled(_event: unknown, env: Env): Promise<void> {
     const run = runFor(env),
       store = postgresDispatch(run),
-      publisher = notices(env),
-      queue = wake(env);
-    await recoverExecutionIntents(run);
-    for (const stream of ["interview", "match", "submission", "membership", "execution"] as const)
-      await dispatchBatch(store, publisher, queue, stream);
+      publisher = notices(env);
     const deadlines = cloudflareCoordinator(env.DEADLINES),
       recovery = cloudflareCoordinator(env.EXECUTION_RECOVERY);
-    for (let shard = 0; shard < boundedInt(env.DEADLINE_SHARDS, 1, 256); shard++)
-      await deadlines.wake(shard);
-    await recovery.wake(0);
+    await recoverAll([
+      ...(["interview", "match", "submission", "membership"] as const).map(
+        (stream) => () => dispatchBatch(store, publisher, wake(env), stream),
+      ),
+      async () => {
+        await recoverExecutionIntents(run);
+        await dispatchBatch(store, publisher, wake(env), "execution");
+      },
+      ...Array.from(
+        { length: boundedInt(env.DEADLINE_SHARDS, 1, 256) },
+        (_, shard) => () => deadlines.wake(shard),
+      ),
+      () => recovery.wake(0),
+    ]);
   },
 };

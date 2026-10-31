@@ -193,3 +193,64 @@ void test('detached Drizzle query destroys scope instead of returning a live con
   })),/callback failed/);
   await run(scope=>scope.transaction(options,async tx=>{await tx.execute(sql`select 1`);}));
 });
+
+void test('successful, failed and pre-aborted scopes clear their lifetime timers', async () => {
+  const originalSet = globalThis.setTimeout, originalClear = globalThis.clearTimeout;
+  const pending = new Set<ReturnType<typeof setTimeout>>();
+  let created = 0;
+  globalThis.setTimeout = ((callback: (...args: unknown[]) => void, milliseconds?: number, ...args: unknown[]) => {
+    const timer = originalSet(callback, milliseconds, ...args);
+    if (milliseconds === 123456789) { created++; pending.add(timer); }
+    return timer;
+  }) as typeof setTimeout;
+  globalThis.clearTimeout = ((timer: ReturnType<typeof setTimeout>) => {
+    pending.delete(timer);
+    return originalClear(timer);
+  }) as typeof clearTimeout;
+  try {
+    await withNodeConnection(pool, { lifetimeMs: 123456789 }, async () => 'ok');
+    await assert.rejects(withNodeConnection(pool, { lifetimeMs: 123456789 }, async () => { throw new Error('fixture'); }));
+    await withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 123456789 }, async () => 'ok');
+    await assert.rejects(withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 123456789 }, async () => { throw new Error('fixture'); }));
+    const controller = new AbortController(); controller.abort();
+    await assert.rejects(withNodeConnection(pool, { lifetimeMs: 123456789, signal: controller.signal }, async () => 'unexpected'));
+    await assert.rejects(withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 123456789, signal: controller.signal }, async () => 'unexpected'));
+    assert.equal(created, 6);
+    assert.equal(pending.size, 0);
+  } finally { globalThis.setTimeout = originalSet; globalThis.clearTimeout = originalClear; }
+});
+
+void test('abort during COMMIT remains unknown for both connection owners', async () => {
+  const observer = new Client({ connectionString: url }); await observer.connect();
+  await observer.query('CREATE TABLE primitives_abort_commit (value int)');
+  await observer.query("CREATE FUNCTION primitives_abort_commit_delay() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(5); RETURN NEW; END $$");
+  await observer.query('CREATE CONSTRAINT TRIGGER primitives_abort_commit_trigger AFTER INSERT ON primitives_abort_commit DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION primitives_abort_commit_delay()');
+  try {
+    for (const kind of ['node', 'worker'] as const) {
+      const controller = new AbortController(), ready = deferred<unknown>();
+      const callback = (scope: import('../src/core/index.ts').ConnectionScope) => scope.transaction({ ...options, statementTimeoutMs: 10000 }, async (tx) => {
+        const pid = (await tx.execute(sql`SELECT pg_backend_pid() AS pid`)).rows[0].pid;
+        await tx.execute(sql`INSERT INTO primitives_abort_commit VALUES (1)`);
+        ready.resolve(pid);
+      });
+      const pending = kind === 'node'
+        ? withNodeConnection(pool, { lifetimeMs: 10000, signal: controller.signal }, callback)
+        : withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 10000, signal: controller.signal }, callback);
+      const rejection = assert.rejects(pending, error => classifyDatabaseError(error) === 'unknown_commit');
+      const pid = await ready.promise;
+      let committing = false;
+      for (let i = 0; i < 100; i++) {
+        committing = Boolean((await observer.query("SELECT state='active' AND query='COMMIT' AS committing FROM pg_stat_activity WHERE pid=$1", [pid])).rows[0]?.committing);
+        if (committing) break;
+        await delay(10);
+      }
+      assert.equal(committing, true);
+      controller.abort();
+      await rejection;
+    }
+  } finally {
+    await observer.query('DROP TABLE primitives_abort_commit');
+    await observer.query('DROP FUNCTION primitives_abort_commit_delay()');
+    await observer.end();
+  }
+});

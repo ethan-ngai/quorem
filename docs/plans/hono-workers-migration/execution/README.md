@@ -30,27 +30,40 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 | 12b | Integrated | [#369](https://github.com/ethan-ngai/quorem/pull/369); encrypted durable mail, fenced compensation and lock-expiry tests |
 | 13 | Integrated | [#367](https://github.com/ethan-ngai/quorem/pull/367); restricted-role PostgreSQL/workerd catalog queries and cursor contracts |
 | 10b | Integrated | [#382](https://github.com/ethan-ngai/quorem/pull/382); scoped guests and shared request budgets |
-| 12c | CI review | [#391](https://github.com/ethan-ngai/quorem/pull/391); PostgreSQL profile admission; 18 focused tests after rebase; uncertain execution retains capacity |
-| 12d | CI review | [#396](https://github.com/ethan-ngai/quorem/pull/396); isolated Sharp/R2 and explicit child-exit proof; supervisor loss withholds proof and retains capacity; hosted recovery remains |
+| 12c | Integrated | [#391](https://github.com/ethan-ngai/quorem/pull/391); PostgreSQL profile admission; 18 focused tests after rebase; uncertain execution retains capacity |
+| 12d | Integrated | [#396](https://github.com/ethan-ngai/quorem/pull/396); isolated Sharp/R2 and explicit child-exit proof; supervisor loss withholds proof and retains capacity; hosted recovery remains |
 | 14 | Integrated | [#385](https://github.com/ethan-ngai/quorem/pull/385), `1393ab99`; Worker-safe generated validators and atomic question publication |
 | 15 | Integrated | [#384](https://github.com/ethan-ngai/quorem/pull/384); durable dispatch intents and wake adapters; deployment ingress replacement remains |
 | 16 | Integrated | [#392](https://github.com/ethan-ngai/quorem/pull/392), `184ee74f`; 7 PostgreSQL and 3 real workerd/DO tests after rebase; transition binding and hosted delays remain |
-| 17 | CI review | [#394](https://github.com/ethan-ngai/quorem/pull/394); scoped workspaces/Odyssey; 5 Node/PG and 2 workerd/PG tests after rebase; CI fixture wired |
-| 18 | CI review | [#397](https://github.com/ethan-ngai/quorem/pull/397); admission, recovery and cancellation; includes actual Go judge differential execution; current shared-owner merges under validation |
+| 17 | Integrated | [#394](https://github.com/ethan-ngai/quorem/pull/394); scoped workspaces/Odyssey; 5 Node/PG and 2 workerd/PG tests after rebase; CI fixture wired |
+| 18 | Integrated | [#397](https://github.com/ethan-ngai/quorem/pull/397); admission, recovery and cancellation; includes actual Go judge differential execution; current shared-owner merges under validation |
 | 19a/19b | CI review | [#400](https://github.com/ethan-ngai/quorem/pull/400); bounded result/header streaming, current authorization per page, privileged legacy normalization; 23 PG and 6 workerd tests; final staging cleanup and lint passed |
 | 20a | Local committed | Canonical pure/transactional reconciliation; full lifecycle belongs 20b |
 | 20b | Local committed | `123a66a2`, [#389](https://github.com/ethan-ngai/quorem/issues/389); lifecycle; 12 PG and 2 workerd tests; host revocation tightening continues in 21 |
-| 21 | Running | [#398](https://github.com/ethan-ngai/quorem/issues/398); invitations/join/removal/current-match and shared selection |
+| 21 | Local committed | `d35593ab`, [#398](https://github.com/ethan-ngai/quorem/issues/398); invitations/join/removal/current-match and shared selection; 9 PG and 1 workerd tests |
 | 22/23a | Local committed | Interview membership/lifecycle and safe normalized snapshots; migration 051; runtime mounting remains |
 | 23b | Local committed | `2de377a8`, [#387](https://github.com/ethan-ngai/quorem/issues/387); question controls/manual advancement and privileged 051 backfill |
 | 24 | Local committed | `ab4deefe`, [#390](https://github.com/ethan-ngai/quorem/issues/390); official ChangeSet/document commands; realtime must pass original push text for fingerprint replay |
 | 25 | Local committed | `33d0f43d`, [#393](https://github.com/ethan-ngai/quorem/issues/393); cross-instance presence/monitoring; real workerd heartbeat during held document lock and paste/focus privacy |
 | 26 | Local committed | `16194ed8`, [#395](https://github.com/ethan-ngai/quorem/issues/395); fenced interview admission, actual promotion/manual-stage race and streamed privacy; production mounting remains |
-| 27 | Local committed | Fenced private runner commands, typed execution source, chunked checkpoint/completion, immutable receipts and normalized promotion; actual engine provenance being integrated in 28 |
-| 28 | Running | [#388](https://github.com/ethan-ngai/quorem/issues/388); actual five-language Docker engines and signed namespace-bound remote proof; fault/replay review underway |
-| 33/34 | Local committed | Trusted Node language gateway and canonical operator/fixture tools; deployment/CI/retirement integration remains |
-| 30a/30c | Local committed | `0f73f88c`/`1b291cbc`, [#399](https://github.com/ethan-ngai/quorem/issues/399); bounded protocol core and browser invalidations; 30b streamed snapshots/command acknowledgments still running |
-| 29/31/32/35–39 | Pending | Follow prerequisite graph and empirical gates; no broad backend parity, hosted validation or Go-retirement claim |
+| 27 | Local committed | Fenced private runner commands, bounded manifests, signed independent verifier evidence, checkpoint v2 and normalized promotion; real Docker/private HTTP pipeline exercised in 29 |
+| 28 | Local committed | [#388](https://github.com/ethan-ngai/quorem/issues/388); five actual Docker languages, durable daemon/state-directory fencing and signed namespace-bound remote proof; hosted remote isolation remains unverified |
+| 33 | Integrated | [#401](https://github.com/ethan-ngai/quorem/pull/401); trusted Node language gateway, actual Docker lifecycle and acknowledged close before replacement |
+| 34 | CI passed; awaiting parent | [#406](https://github.com/ethan-ngai/quorem/pull/406); canonical operator/fixture tools, self-contained Go/TS publication interoperability fixture |
+| 29a | Local committed | `518a8146` stack, [#402](https://github.com/ethan-ngai/quorem/issues/402); resumable orchestration, independent Node verifier, immediate checkpoint verification and real Docker/private HTTP signed promotion; 17 admission/runner regressions |
+| 29b | Local committed | `83aba9a1`, [#405](https://github.com/ethan-ngai/quorem/issues/405); sealed indexed admission, no full fixture transfer; actual >128 MiB stored fixture admitted through workerd |
+| 29c | Local committed | `ea0cfde0`, [#407](https://github.com/ethan-ngai/quorem/issues/407); bounded interview input producers, immutable guards and audited legacy normalization; actual large-fixture workerd flow |
+| 29d | Superseded | Interim unavailable-only reconciliation replaced by verified progress reader in 29f; not a final implementation |
+| 29e | Local committed | `5b989105`, [#409](https://github.com/ethan-ngai/quorem/issues/409); SQL manifest binding, constant-state ordered digest; fresh authoring remains 320 cases; separate 408-case historical fixture |
+| 29f | Local committed | `419b1547`, [#411](https://github.com/ethan-ngai/quorem/issues/411); real verified match scoring, deadline/cancellation races, Odyssey feedback preservation and native workerd regressions |
+| 29g | Local committed | `518a8146`; migrations 059/060 stream public/private status feedback; audited dry-run/backfill refuses missing or ambiguous legacy source; results PG 26/26, workerd private status 1/1 |
+| 30a/30b/30c | Local committed | `9377130d` stack, [#399](https://github.com/ethan-ngai/quorem/issues/399); bounded socket notices/document pages and shared browser receipt credit; authorized HTTP snapshot/status streams |
+| 31 | Local committed | `14a9e506`, [#403](https://github.com/ethan-ngai/quorem/issues/403); real Node WebSocket/PG replicas, live authorization and shared protocol |
+| 32 | Local committed | `cc1a9191`, [#404](https://github.com/ethan-ngai/quorem/issues/404); actual workerd DO/PG opaque grants, quotas, revocation and receipt pressure; full managed-runtime hibernation remains blocked in 35a |
+| 35a | Running | [#410](https://github.com/ethan-ngai/quorem/issues/410); actual Node/Worker composition and real Docker/private HTTP verifier flow; managed DO hibernation and trusted client IP attribution unresolved |
+| 35b | Running | [#412](https://github.com/ethan-ngai/quorem/issues/412); staged Terraform and deployment artifacts; no apply/deploy |
+| 36a | Running | [#413](https://github.com/ethan-ngai/quorem/issues/413); executable trusted Node verifier and fenced HTTP/continuous runner composition |
+| 36b–39 | Pending | Hosted gates, full audit, cutover and verified Go retirement; no broad backend parity or deployment claim |
 
 
 Reports update here or link their issue/PR; no claimed runtime parity without executed tests. Independent agent worktrees start from current `origin/feat/hono-migration`; dependent packets use their assigned predecessor commit. Preserve branches until all dependent work is integrated. All migration PRs target `feat/hono-migration` or a predecessor feature branch; CI follows that integration target; production workflows remain main-only.
@@ -74,3 +87,9 @@ Migration commits and child PRs moved off dev at the user's request. `feat/hono-
 - Runtime shells, real domain mounts, socket protocols, Terraform/GitHub Actions deployment, hosted isolation/capacity, cutover and verified Go retirement remain outstanding. No deployment or dev/main promotion occurred.
 
 Socket integration decision: WebSockets carry bounded invalidations and document pages; large authorized results/snapshots use HTTP streams. All browser consumers, mutation/list responses and shared snapshot readers must move together. An interface pretending Workers can stream a single WebSocket message is insufficient. Old runtime remains active until this refactor and actual Node/DO shells pass end-to-end checks.
+
+## Current integration checkpoint
+
+`feat/hono-migration` includes media #396 and admission #397 after exact-head CI passed. Result streaming #400 reruns with the database probe port outside the Linux ephemeral range; #406 passed its previous exact head and awaits that parent. Later local packets are assembled in the 35a review stack but are not integrated or active. Root owns integration; no migration commits enter dev/main.
+
+Production gates still include real managed DO hibernation, executable runner service composition, provisioned provider isolation/teardown equivalence, database/Worker budgets, load and rollback safety, old-writer drain, audited backfills, and complete entrypoint/consumer audit. Local workerd/Docker tests do not establish hosted capacity or production activation.

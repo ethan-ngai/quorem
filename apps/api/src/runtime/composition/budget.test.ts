@@ -46,3 +46,14 @@ it("releases a stream permit when its request aborts", async () => {
     (await budget(new Request("https://example.test/"), async () => new Response(null))).status,
   ).toBe(200);
 });
+it("preserves multiple Set-Cookie headers on streamed responses", async () => {
+  const headers = new Headers();
+  headers.append("set-cookie", "a=1; Path=/; HttpOnly");
+  headers.append("set-cookie", "b=2; Path=/; HttpOnly");
+  const response = await requestBudget(1)(
+    new Request("https://example.test/"),
+    async () => new Response("ok", { headers }),
+  );
+  expect(response.headers.getSetCookie()).toHaveLength(2);
+  await response.text();
+});

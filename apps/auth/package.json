@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     "./worker": "./src/worker.ts",
-    "./node": "./src/node-auth.ts"
+    "./node": "./src/node-auth.ts",
+    "./peer": "./src/peer.ts"
   },
   "scripts": {
     "dev": "node --env-file-if-exists=.env --experimental-strip-types src/server.ts",
