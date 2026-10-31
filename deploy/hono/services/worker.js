@@ -2,6 +2,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { ContainerLifecycle } from "../../container.js";
 import { caseRequest } from "../../case-service.js";
+import { signedCaseProbe } from "../../case-proof.js";
 export { CaseSandbox } from "../../case-sandbox.js";
 
 const runnerKeys = [
@@ -75,6 +76,19 @@ function config(env) {
     throw new Error("Distinct private origins required");
   return origins;
 }
+async function caseScope(env) {
+  const namespace = env.CASES.idFromName("quorem-sandbox-namespace-v1").toString();
+  const pem = env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM;
+  const encoded = pem.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, "");
+  const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+  const digest = (value) =>
+    crypto.subtle
+      .digest("SHA-256", value)
+      .then((x) => Array.from(new Uint8Array(x), (b) => b.toString(16).padStart(2, "0")).join(""));
+  const fingerprint = await digest(bytes);
+  const scope = `remote:${await digest(new TextEncoder().encode(JSON.stringify([new URL(env.CASE_ORIGIN).origin, namespace, fingerprint])))}`;
+  return { namespace, scope };
+}
 function clean(request) {
   const headers = new Headers(request.headers);
   headers.delete("CF-Access-Client-Id");
@@ -131,9 +145,15 @@ export default {
         request.method === "GET" &&
         request.headers.get("authorization") === `Bearer ${env.QUOREM_CASE_SECRET}`
       ) {
+        if (env.CASE_DIAGNOSTICS !== "true") return new Response(null, { status: 404 });
         const namespace = env.CASES.idFromName("quorem-sandbox-namespace-v1").toString();
-        if (!/^[a-f0-9]{64}$/.test(namespace)) return new Response(null, { status: 503 });
-        return Response.json({ namespace }, { headers: { "cache-control": "no-store" } });
+        return await signedCaseProbe(env, {
+          kind: "namespace",
+          scope: "",
+          attempt: "namespace",
+          nonce: request.headers.get("x-quorem-owner-nonce"),
+          value: { namespace },
+        });
       }
       if (
         url.origin === drain &&
@@ -159,6 +179,27 @@ export default {
         url.origin === cases &&
         url.pathname.match(/^\/internal\/case\/([a-zA-Z0-9-]{1,128})$/)?.[1];
       if (attempt) {
+        if (
+          request.method === "GET" &&
+          attempt !== "ready" &&
+          (env.CASE_DIAGNOSTICS !== "true" ||
+            request.headers.get("x-quorem-case-probe") !== "lifecycle" ||
+            !request.headers.get("x-quorem-owner-nonce") ||
+            !request.headers.get("x-quorem-owner-scope"))
+        )
+          return new Response(null, { status: 404 });
+        if (
+          request.method === "GET" &&
+          request.headers.get("x-quorem-case-probe") === "lifecycle"
+        ) {
+          if (request.headers.has("x-case-token")) return new Response(null, { status: 404 });
+          const bound = await caseScope(env);
+          if (
+            bound.namespace !== env.QUOREM_CASE_NAMESPACE_ID ||
+            request.headers.get("x-quorem-owner-scope") !== bound.scope
+          )
+            return new Response(null, { status: 404 });
+        }
         if (
           request.method !== "GET" &&
           (!request.headers.get("x-quorem-owner-nonce") ||

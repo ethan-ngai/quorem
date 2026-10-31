@@ -34,10 +34,30 @@ variable "access_token_ids" {
     error_message = "Each capability requires a distinct Access service token ID."
   }
 }
-variable "runner_image" { type = string }
-variable "verifier_image" { type = string }
+variable "case_diagnostics" {
+  type    = bool
+  default = false
+}
+variable "runner_image" {
+  type = string
+  validation {
+    condition     = startswith(var.runner_image, "registry.cloudflare.com/${var.account_id}/") && can(regex("@sha256:[0-9a-f]{64}$", var.runner_image))
+    error_message = "Runner image must be an account-local digest-pinned image."
+  }
+}
+variable "verifier_image" {
+  type = string
+  validation {
+    condition     = startswith(var.verifier_image, "registry.cloudflare.com/${var.account_id}/") && can(regex("@sha256:[0-9a-f]{64}$", var.verifier_image))
+    error_message = "Verifier image must be an account-local digest-pinned image."
+  }
+}
 variable "case_images" {
   type = object({ python = string, java = string, typescript = string, ocaml = string, postgresql = string })
+  validation {
+    condition     = alltrue([for image in values(var.case_images) : startswith(image, "registry.cloudflare.com/${var.account_id}/") && can(regex("@sha256:[0-9a-f]{64}$", image))])
+    error_message = "All case images must be account-local and digest-pinned."
+  }
 }
 variable "command_origin" {
   type = string
@@ -81,10 +101,12 @@ locals {
     "deploy/container.js"            = "../../../deploy/container.js"
     "deploy/policy.js"               = "../../../deploy/policy.js"
     "deploy/case-service.js"         = "../../../deploy/case-service.js"
+    "deploy/case-proof.js"           = "../../../deploy/case-proof.js"
     "deploy/case-sandbox.js"         = "../../../deploy/case-sandbox.js"
   }
   secret_names = ["QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"]
   public = {
+    CASE_DIAGNOSTICS                  = tostring(var.case_diagnostics)
     DRAIN_ORIGIN                      = "https://${var.hostnames.drain}"
     VERIFIER_ORIGIN                   = "https://${var.hostnames.verifier}"
     CASE_ORIGIN                       = "https://${var.hostnames.case}"

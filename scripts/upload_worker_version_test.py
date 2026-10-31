@@ -35,6 +35,18 @@ class UploadTest(unittest.TestCase):
             self.assertIn(b'name="worker.js"; filename="worker.js"', seen[0].data)
             self.assertEqual(len(seen), 1)
 
+    def test_nested_module_names_and_invalid_segments(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "source.js"
+            path.write_text("export default {};", encoding="utf-8")
+            body = module.multipart({}, [{"name": "deploy/hono/services/worker.js", "path": str(path)}], "safe")
+            self.assertIn(b'name="deploy/hono/services/worker.js"; filename="deploy/hono/services/worker.js"', body)
+            for name in ["/absolute", "../escape", "a/../escape", "a/./file", "a//b", "a\\b", "a\r\nb", "a/", "metadata"]:
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    module.multipart({}, [{"name": name, "path": str(path)}], "safe")
+            with self.assertRaises(ValueError):
+                module.multipart({}, [{"name": "same.js", "path": str(path)}, {"name": "same.js", "path": str(path)}], "safe")
+
     def test_rejects_invalid_parts_and_responses(self):
         with self.assertRaises(ValueError):
             module.multipart({}, [{"name": '../bad', "path": '/dev/null'}], 'safe')

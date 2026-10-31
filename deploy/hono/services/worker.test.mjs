@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { generateKeyPairSync, randomUUID, createHash } from "node:crypto";
+import { verifyCaseProbe } from "../../case-proof.js";
+import { CaseSandbox } from "../../case-sandbox.js";
 import worker, { RunnerService, VerifierService } from "./worker.js";
 const secret = (value) => value.repeat(64);
 const base = () => ({
@@ -38,6 +41,11 @@ function target(name, seen) {
 test("private ingress pins capability host, method, bearer and strips Access secrets", async () => {
   const env = base(),
     seen = [];
+  const keys = generateKeyPairSync("ed25519");
+  env.CASE_DIAGNOSTICS = "true";
+  env.CASE_OWNER_PRIVATE_KEY = keys.privateKey
+    .export({ type: "pkcs8", format: "der" })
+    .toString("base64");
   env.QUOREM_CASE_NAMESPACE_ID = secret("1");
   env.CASES = { idFromName: () => secret("1") };
   env.RUNNERS = target("runner", seen);
@@ -68,13 +76,30 @@ test("private ingress pins capability host, method, bearer and strips Access sec
     ).status,
     204,
   );
+  const nonce = randomUUID();
   const namespace = await worker.fetch(
     new Request(`${env.CASE_ORIGIN}/internal/case/namespace`, {
-      headers: { authorization: `Bearer ${env.QUOREM_CASE_SECRET}` },
+      headers: { authorization: `Bearer ${env.QUOREM_CASE_SECRET}`, "x-quorem-owner-nonce": nonce },
     }),
     env,
   );
-  assert.deepEqual(await namespace.json(), { namespace: secret("1") });
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    keys.publicKey.export({ type: "spki", format: "der" }),
+    "Ed25519",
+    false,
+    ["verify"],
+  );
+  assert.deepEqual(
+    await verifyCaseProbe(namespace, {
+      publicKey,
+      kind: "namespace",
+      scope: "",
+      attempt: "namespace",
+      nonce,
+    }),
+    { namespace: secret("1") },
+  );
   env.QUOREM_CASE_NAMESPACE_ID = secret("2");
   assert.equal(
     (await call(env.DRAIN_ORIGIN, "/internal/drain", env.QUOREM_RUNNER_DRAIN_SECRET)).status,
@@ -173,4 +198,226 @@ test("service lifecycle starts once and forwards only the intended request", asy
   assert.equal(calls[0].env.QUOREM_SANDBOX_PROVIDER, "remote");
   assert.equal(calls[0].env.QUOREM_VERIFICATION_SIGNING_KEY_PEM, undefined);
   assert.equal(calls[0].env.QUOREM_CASE_SECRET, env.QUOREM_CASE_SECRET);
+});
+test("signed live case observation follows execution and confirmed attempt teardown", async () => {
+  const env = base(),
+    keys = generateKeyPairSync("ed25519"),
+    namespace = secret("1"),
+    attempt = randomUUID(),
+    token = randomUUID();
+  env.CASE_DIAGNOSTICS = "true";
+  env.QUOREM_CASE_NAMESPACE_ID = namespace;
+  env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM = keys.publicKey.export({ type: "spki", format: "pem" });
+  env.CASE_OWNER_PRIVATE_KEY = keys.privateKey
+    .export({ type: "pkcs8", format: "der" })
+    .toString("base64");
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    keys.publicKey.export({ type: "spki", format: "der" }),
+    "Ed25519",
+    false,
+    ["verify"],
+  );
+  const fingerprint = createHash("sha256")
+    .update(keys.publicKey.export({ type: "spki", format: "der" }))
+    .digest("hex");
+  const scope = `remote:${createHash("sha256")
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
+    .digest("hex")}`;
+  const values = new Map();
+  const context = {
+    storage: {
+      async get(key) {
+        return values.get(key);
+      },
+      async put(key, value) {
+        values.set(key, value);
+      },
+      async delete(key) {
+        values.delete(key);
+      },
+      async setAlarm() {},
+      async deleteAlarm() {},
+    },
+    waitUntil() {},
+    container: {
+      images: { python: "fixture" },
+      running: false,
+      start() {
+        this.running = true;
+      },
+      async setInactivityTimeout() {},
+      async destroy() {
+        this.running = false;
+      },
+      async exec() {
+        return {
+          stdin: new WritableStream(),
+          stdout: new ReadableStream(),
+          stderr: new ReadableStream(),
+          exitCode: new Promise(() => {}),
+        };
+      },
+    },
+  };
+  const sandbox = new CaseSandbox(context, env);
+  env.CASES = {
+    idFromName: () => namespace,
+    getByName: (id) => {
+      assert.equal(id, attempt);
+      return sandbox;
+    },
+  };
+  const body = "fixture",
+    digest = createHash("sha256").update(body).digest("hex");
+  const startNonce = randomUUID();
+  const started = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/${attempt}`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": startNonce,
+        "x-quorem-owner-scope": scope,
+        "x-quorem-case-binding": secret("2"),
+        "x-quorem-body-sha256": digest,
+        "x-quorem-case-ordinal": "400",
+        "x-case-token": token,
+        "x-case-language": "python",
+        "x-case-memory": "1024",
+        "x-case-processes": "1",
+      },
+      body,
+    }),
+    env,
+  );
+  assert.equal(started.status, 200);
+  const probe = async (nonce, override = scope) =>
+    worker.fetch(
+      new Request(`${env.CASE_ORIGIN}/internal/case/${attempt}`, {
+        headers: {
+          authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+          "x-quorem-owner-nonce": nonce,
+          "x-quorem-owner-scope": override,
+          "x-quorem-case-probe": "lifecycle",
+        },
+      }),
+      env,
+    );
+  const nonce = randomUUID(),
+    response = await probe(nonce);
+  const proof = await verifyCaseProbe(response.clone(), {
+    publicKey,
+    kind: "lifecycle",
+    scope,
+    attempt,
+    nonce,
+    expectedNamespace: namespace,
+  });
+  assert.deepEqual(proof, {
+    active: true,
+    running: true,
+    ordinal: 400,
+    tokenHash: createHash("sha256").update(token).digest("hex"),
+  });
+  assert.ok(!JSON.stringify(proof).includes(token));
+  await assert.rejects(
+    verifyCaseProbe(response.clone(), {
+      publicKey,
+      kind: "lifecycle",
+      scope,
+      attempt,
+      nonce,
+      expectedNamespace: secret("2"),
+    }),
+  );
+  const forged = new Response(
+    JSON.stringify({ active: false, running: false, ordinal: null, tokenHash: null }),
+    { status: 200, headers: response.headers },
+  );
+  await assert.rejects(
+    verifyCaseProbe(forged, {
+      publicKey,
+      kind: "lifecycle",
+      scope,
+      attempt,
+      nonce,
+      expectedNamespace: namespace,
+    }),
+  );
+  assert.equal(
+    (
+      await worker.fetch(
+        new Request(`${env.CASE_ORIGIN}/internal/case/${attempt}`, {
+          headers: {
+            authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+            "x-quorem-owner-nonce": randomUUID(),
+            "x-quorem-owner-scope": scope,
+            "x-quorem-case-probe": "lifecycle",
+            "x-case-token": randomUUID(),
+          },
+        }),
+        env,
+      )
+    ).status,
+    404,
+  );
+  await assert.rejects(
+    verifyCaseProbe(response, {
+      publicKey,
+      kind: "lifecycle",
+      scope,
+      attempt,
+      nonce: randomUUID(),
+      expectedNamespace: namespace,
+    }),
+  );
+  assert.equal((await probe(randomUUID(), `remote:${secret("0")}`)).status, 404);
+  const stopNonce = randomUUID();
+  const stopped = await worker.fetch(
+    new Request(`${env.CASE_ORIGIN}/internal/case/${attempt}`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-nonce": stopNonce,
+        "x-quorem-owner-scope": scope,
+      },
+    }),
+    env,
+  );
+  assert.equal(stopped.status, 204);
+  const signature = Uint8Array.from(atob(stopped.headers.get("x-quorem-owner-signature")), (c) =>
+    c.charCodeAt(0),
+  );
+  const message = new TextEncoder().encode(
+    JSON.stringify([
+      scope,
+      namespace,
+      "DELETE",
+      attempt,
+      "",
+      204,
+      stopNonce,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]),
+  );
+  assert.equal(await crypto.subtle.verify("Ed25519", publicKey, signature, message), true);
+  const afterNonce = randomUUID();
+  assert.deepEqual(
+    await verifyCaseProbe(await probe(afterNonce), {
+      publicKey,
+      kind: "lifecycle",
+      scope,
+      attempt,
+      nonce: afterNonce,
+      expectedNamespace: namespace,
+    }),
+    { active: false, running: false, ordinal: null, tokenHash: null },
+  );
+  env.CASE_DIAGNOSTICS = "false";
+  assert.equal((await probe(randomUUID())).status, 404);
 });
