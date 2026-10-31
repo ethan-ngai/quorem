@@ -1,4 +1,5 @@
 /** @file config.ts @description Strict runtime capability configuration. @module runtime */
+import { accessFetch } from "@quorem/execution/transport/access";
 import type { PrivateConfig } from "./private.ts";
 export function required(value: unknown): string {
   if (typeof value !== "string" || !value || value.trim() !== value)
@@ -102,4 +103,54 @@ export function privateConfig(env: Record<string, unknown>): PrivateConfig {
     verificationPublicKey: required(env.VERIFICATION_PUBLIC_KEY),
     verificationAccess,
   };
+}
+
+/** Purpose-scoped drain transport shared by Node and Worker queue consumers. */
+export function drainConfig(env: Record<string, unknown>) {
+  const config = privateConfig(env),
+    credential = required(env.EXECUTION_DRAIN_SECRET);
+  const reserved = [
+    config.verificationSourceCredential,
+    config.verificationServiceCredential,
+    ...config.runnerPeers.map((peer) => peer.secret),
+  ];
+  if (reserved.includes(credential)) throw new Error("Distinct drain credential required");
+  const drainURL = required(env.EXECUTION_DRAIN_URL),
+    mode = required(env.EXECUTION_DRAIN_ACCESS_MODE);
+  const url = new URL(drainURL),
+    local = env.APP_ENV === "local";
+  if (
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.pathname !== "/internal/drain" ||
+    (url.protocol !== "https:" &&
+      !(
+        local &&
+        url.protocol === "http:" &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+      )) ||
+    new TextEncoder().encode(credential).length < 32 ||
+    /\s/.test(credential)
+  )
+    throw new Error("Invalid drain configuration");
+  const id = env.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
+    secret = env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET;
+  let send: typeof fetch | undefined;
+  if (mode === "none") {
+    if (id !== undefined || secret !== undefined)
+      throw new Error("Unexpected drain Access credentials");
+  } else if (mode === "cloudflare-access") {
+    const pair = { id: required(id), secret: required(secret) };
+    if (
+      url.protocol !== "https:" ||
+      pair.id === pair.secret ||
+      [pair.id, pair.secret].some((value) => /\s/.test(value) || value.length > 256) ||
+      [credential, ...reserved].includes(pair.secret)
+    )
+      throw new Error("Invalid drain Access credentials");
+    send = accessFetch(url.origin, pair);
+  } else throw new Error("Invalid drain Access mode");
+  return { drainURL, credential, local, fetch: send };
 }

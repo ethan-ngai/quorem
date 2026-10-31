@@ -12,7 +12,6 @@ import { developmentIdentity } from "../adapters/postgres/identity/repository.ts
 import { sqsQueue } from "../adapters/delivery/sqs.ts";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { cloudflarePull } from "../adapters/delivery/cloudflare.ts";
-import { accessFetch } from "@quorem/execution/transport/access";
 import { PostgresFanout } from "../adapters/events/fanout/postgres.ts";
 import { noticePublisher, socketSubscription } from "../adapters/events/fanout/publisher.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
@@ -30,7 +29,14 @@ import { startNodeNotifications } from "./composition/node-notifications.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { composeHttp } from "./composition/http.ts";
 import { composePrivate } from "./composition/private.ts";
-import { boundedInt, flag, keyBytes, privateConfig, required } from "./composition/config.ts";
+import {
+  boundedInt,
+  drainConfig,
+  flag,
+  keyBytes,
+  privateConfig,
+  required,
+} from "./composition/config.ts";
 import { requestBudget, unavailable } from "./composition/budget.ts";
 import { privateResponse } from "./composition/private-response.ts";
 import { recoverAll } from "./composition/recovery.ts";
@@ -137,41 +143,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     if (queueMode === "disabled") {
       if (env.APP_ENV !== "local") throw new Error("Wake consumer may only be disabled locally");
     } else if (queueMode === "consumer") {
-      const config = privateConfig(env),
-        credential = required(env.EXECUTION_DRAIN_SECRET);
-      const reserved = [
-        config.verificationSourceCredential,
-        config.verificationServiceCredential,
-        ...config.runnerPeers.map((peer) => peer.secret),
-      ];
-      if (reserved.includes(credential)) throw new Error("Distinct drain credential required");
-      const drainURL = required(env.EXECUTION_DRAIN_URL),
-        mode = required(env.EXECUTION_DRAIN_ACCESS_MODE);
-      let send: typeof fetch | undefined;
-      if (mode === "none") {
-        if (
-          env.EXECUTION_DRAIN_ACCESS_CLIENT_ID !== undefined ||
-          env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET !== undefined
-        )
-          throw new Error("Unexpected drain Access credentials");
-      } else if (mode === "cloudflare-access") {
-        const pair = {
-          id: required(env.EXECUTION_DRAIN_ACCESS_CLIENT_ID),
-          secret: required(env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET),
-        };
-        if ([credential, ...reserved].includes(pair.secret))
-          throw new Error("Distinct drain Access credential required");
-        send = accessFetch(new URL(drainURL).origin, pair);
-      } else throw new Error("Invalid drain Access mode");
-      disposers.push(
-        await startNodeWakeConsumer(wake, {
-          drainURL,
-          credential,
-          local: env.APP_ENV === "local",
-          fetch: send,
-          report,
-        }),
-      );
+      disposers.push(await startNodeWakeConsumer(wake, { ...drainConfig(env), report }));
     } else throw new Error("Invalid Node wake consumer mode");
 
     const deadlineReceipts = prearmReceipts(run);

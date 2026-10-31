@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { accessFetch } from "@quorem/execution/transport/access";
 import { httpResultVerifier } from "../../adapters/postgres/judging/worker/verification-client.ts";
-import { privateConfig } from "./config.ts";
+import { drainConfig, privateConfig } from "./config.ts";
 const base = {
   RUNNER_PEERS: JSON.stringify([
     { secret: "fixture-runner-secret-32-characters", scope: "scope", resumable: true },
@@ -84,4 +84,65 @@ it("sends verifier bearer and Access pair only to the pinned origin", async () =
   expect(new Headers(init.headers).get("cf-access-client-secret")).toBe("verify-secret");
   expect(new Headers(init.headers).get("authorization")).toBe(`Bearer ${"00".repeat(32)}`);
   await expect(fetch("https://other.example/", {})).rejects.toThrow();
+});
+
+it("validates one purpose-scoped drain configuration for both runtimes", () => {
+  const local = {
+    ...base,
+    APP_ENV: "local",
+    EXECUTION_DRAIN_URL: "http://127.0.0.1:8787/internal/drain",
+    EXECUTION_DRAIN_SECRET: "d".repeat(40),
+    EXECUTION_DRAIN_ACCESS_MODE: "none",
+  };
+  expect(drainConfig(local)).toMatchObject({
+    drainURL: local.EXECUTION_DRAIN_URL,
+    credential: local.EXECUTION_DRAIN_SECRET,
+    local: true,
+    fetch: undefined,
+  });
+  expect(() =>
+    drainConfig({
+      ...local,
+      APP_ENV: "production",
+      VERIFICATION_SERVICE_ORIGIN: "https://verifier.example",
+    }),
+  ).toThrow();
+  expect(() =>
+    drainConfig({ ...local, EXECUTION_DRAIN_SECRET: base.VERIFICATION_SOURCE_CREDENTIAL }),
+  ).toThrow();
+  expect(() => drainConfig({ ...local, EXECUTION_DRAIN_SECRET: "short" })).toThrow();
+  expect(() => drainConfig({ ...local, EXECUTION_DRAIN_ACCESS_CLIENT_ID: "unexpected" })).toThrow();
+  const secure = {
+    ...local,
+    APP_ENV: "production",
+    VERIFICATION_SERVICE_ORIGIN: "https://verifier.example",
+    EXECUTION_DRAIN_URL: "https://drain.example/internal/drain",
+    EXECUTION_DRAIN_ACCESS_MODE: "cloudflare-access",
+    EXECUTION_DRAIN_ACCESS_CLIENT_ID: "access-id",
+    EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "access-secret",
+  };
+  expect(drainConfig(secure).fetch).toBeTypeOf("function");
+  expect(() =>
+    drainConfig({ ...secure, EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: undefined }),
+  ).toThrow();
+  expect(() =>
+    drainConfig({ ...secure, EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: secure.EXECUTION_DRAIN_SECRET }),
+  ).toThrow();
+  expect(() =>
+    drainConfig({
+      ...secure,
+      EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: secure.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
+    }),
+  ).toThrow();
+  expect(() =>
+    drainConfig({ ...secure, EXECUTION_DRAIN_URL: "https://drain.example/other" }),
+  ).toThrow();
+  expect(() =>
+    drainConfig({
+      ...local,
+      EXECUTION_DRAIN_ACCESS_MODE: "cloudflare-access",
+      EXECUTION_DRAIN_ACCESS_CLIENT_ID: "id",
+      EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "secret",
+    }),
+  ).toThrow();
 });
