@@ -42,6 +42,10 @@ void test(
           assert.equal(report.runtime.database_connect, true);
           assert.equal(report.runtime.create_role, false);
           assert.equal(report.database.genesis_table, true);
+          const { fenceStageRuntime, stageFenceOptions } =
+            await import("./hono-stage-recovery-fence.mjs");
+          await fenceStageRuntime(client, role, stageFenceOptions(url));
+          assert.equal((await diagnoseStageRole(client, role)).runtime.login, false);
           for (const secret of [url, runtime.password, role])
             assert.equal(JSON.stringify(report).includes(secret), false);
         } finally {
@@ -51,3 +55,14 @@ void test(
     );
   },
 );
+
+void test("Neon stage trusts only its reserved provider superuser", async () => {
+  const { stageFenceOptions } = await import("./hono-stage-recovery-fence.mjs");
+  assert.deepEqual(stageFenceOptions("postgres://operator@ep-test.neon.tech/quorem_hono_stage"), {
+    trustedAdministrators: ["cloud_admin"],
+  });
+  for (const host of ["localhost", "neon.tech.evil.example", "other.example"])
+    assert.deepEqual(stageFenceOptions(`postgres://operator@${host}/quorem_hono_stage`), {
+      trustedAdministrators: [],
+    });
+});

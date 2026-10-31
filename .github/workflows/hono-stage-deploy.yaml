@@ -8,7 +8,7 @@ on:
       action:
         description: Plan bootstrap or provision and activate a fresh isolated stage
         type: choice
-        options: [plan, stage, diagnose, rehearse-role, probe-role]
+        options: [plan, stage, diagnose, rehearse-role, probe-role, fence-role]
         default: plan
         required: true
       release_sha:
@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   diagnose:
-    if: github.ref == 'refs/heads/feat/hono-migration' && (inputs.action == 'diagnose' || inputs.action == 'rehearse-role' || inputs.action == 'probe-role') && inputs.release_sha == github.sha
+    if: github.ref == 'refs/heads/feat/hono-migration' && (inputs.action == 'diagnose' || inputs.action == 'rehearse-role' || inputs.action == 'probe-role' || inputs.action == 'fence-role') && inputs.release_sha == github.sha
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: hono-stage
@@ -60,7 +60,7 @@ jobs:
           TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
         run: vp exec node scripts/hono-stage-role-diagnostics.mjs
   preflight:
-    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role'
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role' && inputs.action != 'fence-role'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -75,7 +75,7 @@ jobs:
           HONO_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: node scripts/hono-stage-provider-check.mjs
   validate:
-    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'plan' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role' && (github.event_name == 'push' || inputs.release_sha == github.sha)
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'plan' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role' && inputs.action != 'fence-role' && (github.event_name == 'push' || inputs.release_sha == github.sha)
     runs-on: ubuntu-latest
     services:
       postgres:
