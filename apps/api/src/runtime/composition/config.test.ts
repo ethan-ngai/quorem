@@ -2,6 +2,7 @@ import { expect, it, vi } from "vitest";
 import { accessFetch } from "@quorem/execution/transport/access";
 import { httpResultVerifier } from "../../adapters/postgres/judging/worker/verification-client.ts";
 import { drainConfig, privateConfig } from "./config.ts";
+import { validateDrainTransport } from "./wake-consumer.ts";
 const base = {
   RUNNER_PEERS: JSON.stringify([
     { secret: "fixture-runner-secret-32-characters", scope: "scope", resumable: true },
@@ -145,4 +146,20 @@ it("validates one purpose-scoped drain configuration for both runtimes", () => {
       EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "secret",
     }),
   ).toThrow();
+});
+
+it("shares strict endpoint and credential validation", () => {
+  const secret = "s".repeat(32);
+  expect(validateDrainTransport("http://[::1]:9000/internal/drain", secret, true).hostname).toBe(
+    "[::1]",
+  );
+  for (const [url, credential, local] of [
+    ["http://[::1]:9000/internal/drain", secret, false],
+    ["https://user:pass@example.test/internal/drain", secret, false],
+    ["https://example.test/internal/drain?x=1", secret, false],
+    ["https://example.test/other", secret, false],
+    ["https://example.test/internal/drain", "short", false],
+    ["https://example.test/internal/drain", `${secret} `, false],
+  ] as const)
+    expect(() => validateDrainTransport(url, credential, local)).toThrow();
 });
