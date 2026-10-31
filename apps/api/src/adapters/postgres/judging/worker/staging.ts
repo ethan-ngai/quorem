@@ -126,6 +126,24 @@ export function postgresCompletionStaging(run: Run) {
         hash = await digest(bytes);
       await transact(async (tx) => {
         if (!(await locked(tx, job))) throw new Error("Stale completion");
+        const context = (
+          await tx.execute<{ kind: string; cases: number; interview: boolean; samples: number }>(
+            sql`SELECT s.kind,jsonb_array_length(s.cases)::int AS cases,s.interview_id IS NOT NULL AS interview,CASE WHEN COALESCE(q.fixture->'problem'->'odyssey',v.odyssey) IS NULL THEN COALESCE(jsonb_array_length(q.fixture->'problem'->'examples'),(SELECT count(*)::int FROM problem_examples WHERE version_id=v.id)) ELSE COALESCE((SELECT sum(jsonb_array_length(level->'examples')) FROM jsonb_array_elements(COALESCE(q.fixture->'problem'->'odyssey',v.odyssey)->'levels') WITH ORDINALITY st(level,n) WHERE n<=COALESCE(ie.level,s.odyssey_level)),0) END::int AS samples FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=${job.submissionId}::uuid`,
+          )
+        ).rows[0];
+        if (
+          !context ||
+          (context.kind === "run" &&
+            (header.samplePresent ||
+              header.privatePresent ||
+              (header.publicCount !== 0 && header.publicCount !== context.cases))) ||
+          (context.kind === "submit" &&
+            (header.publicPresent ||
+              (header.sampleCount !== 0 && header.sampleCount !== context.samples) ||
+              (header.privateCount !== 0 &&
+                (!context.interview || header.privateCount !== context.cases))))
+        )
+          throw new Error("Invalid completion provenance");
         const existing = (
           await tx.execute<{ attempt: string; scope: string; matches: boolean; promoted: boolean }>(
             sql`SELECT attempt_id::text AS attempt,sandbox_scope AS scope,header_hash=${hash} AND header_data=${bytes} AS matches,promoted FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid FOR UPDATE`,

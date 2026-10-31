@@ -68,7 +68,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       [workspace, user, version],
     );
     await pool.query(
-      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[]'::jsonb)",
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[{}]'::jsonb)",
       [submission, user, workspace],
     );
     await pool.query(
@@ -177,6 +177,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     };
     await staging.begin(live!, header);
     await staging.begin(live!, header);
+    await expect(staging.begin(live!, { ...header, publicCount: 2 })).rejects.toThrow("provenance");
     const chunk = {
       channel: "public" as const,
       ordinal: 0,
