@@ -16,8 +16,7 @@ import {
 import { consumePrearm } from "../../events/scheduling/prearm.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { lookupGuestInTransaction } from "../../identity/guest.ts";
-import { readCandidates } from "../../problems/queries/repository.ts";
-import type { CandidateCriteria } from "../../../../modules/problems/model.ts";
+import { selectMatchCandidate, validateSelectedMatchProblem } from "../selection/repository.ts";
 import { finishMatch, matchEvent, reconcileMatch } from "../reconcile/repository.ts";
 import { digest, fingerprint, inviteCipher, settingsBody, token } from "./crypto.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -42,6 +41,17 @@ export async function lockMatchOwner(tx: Transaction, who: Principal) {
     )
   ).rows[0];
   if (!row || (row.kind === "guest") !== (who.kind === "guest")) throw missing();
+}
+/** Locks host authority before the aggregate; recheck the host after locking the match. */
+export async function lockMatchHost(tx: Transaction, id: string): Promise<string> {
+  if (!uuid.test(id)) throw missing();
+  const row = (
+    await tx.execute<{ host: string }>(
+      sql`SELECT h.id AS host FROM matches m JOIN users h ON h.id=m.host_owner_id AND NOT h.disabled WHERE m.id=${id}::uuid FOR SHARE OF h`,
+    )
+  ).rows[0];
+  if (!row) throw missing();
+  return row.host;
 }
 /** Caller must lock the owner first for mutating commands. */
 export async function lockMatch(tx: Transaction, id: string): Promise<MatchRecord> {
@@ -78,7 +88,7 @@ export async function requireMatchMember(tx: Transaction, who: Principal, id: st
   if (
     !(
       await tx.execute(
-        sql`SELECT 1 FROM match_participants WHERE match_id=${id}::uuid AND owner_id=${who.userId}`,
+        sql`SELECT 1 FROM match_participants p JOIN matches m ON m.id=p.match_id JOIN users h ON h.id=m.host_owner_id AND NOT h.disabled WHERE p.match_id=${id}::uuid AND p.owner_id=${who.userId}`,
       )
     ).rows.length
   )
@@ -109,17 +119,6 @@ async function hosting(tx: Transaction, owner: string, mode: string) {
       403,
     );
 }
-async function selected(tx: Transaction, owner: string, s: Settings) {
-  if (!s.selectedProblemVersionId) return;
-  if (
-    !(
-      await tx.execute(
-        sql`SELECT 1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${s.selectedProblemVersionId} AND p.current_version_id=v.id AND v.sealed AND (p.owner_id IS NULL OR p.owner_id=${owner})`,
-      )
-    ).rows.length
-  )
-    throw new ApplicationError("invalid_input", "Problem not found", 400);
-}
 function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
   if (value && typeof value === "object")
@@ -129,56 +128,9 @@ function stable(value: unknown): string {
       .join(",")}}`;
   return JSON.stringify(value);
 }
-function choice<T>(items: readonly T[]): T {
-  const bound = Math.floor(0x100000000 / items.length) * items.length;
-  const n = new Uint32Array(1);
-  do crypto.getRandomValues(n);
-  while (n[0] >= bound);
-  return items[n[0] % items.length];
-}
 async function start(tx: Transaction, id: string, m: MatchRecord) {
   await hosting(tx, m.host, m.access);
-  await selected(tx, m.host, m.settings);
-  const f = m.settings.questionFilters;
-  const criteria: CandidateCriteria = {
-    selectedVersionId: m.settings.selectedProblemVersionId,
-    difficulty: m.settings.difficulties.join(","),
-    type: (f.type ?? "") as "" | "classic" | "odyssey",
-    sql: f.sql === "true" ? "true" : "false",
-    topic: f.topic ?? "",
-    company: f.company ?? "",
-  };
-  const available = await readCandidates(tx, { userId: m.host }, criteria);
-  const permitted = (
-    await tx.execute<{ id: string }>(
-      sql`SELECT id::text AS id FROM problem_versions WHERE sealed AND id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(available.map((x) => x.id))}::jsonb))`,
-    )
-  ).rows;
-  const allowed = new Set(permitted.map((x) => x.id));
-  const candidates = available.filter((x) => allowed.has(x.id));
-  if (!candidates.length)
-    throw new ApplicationError(
-      "no_matching_questions",
-      "No questions match the selected filters",
-      409,
-    );
-  const chosen = choice(candidates);
-  const pinned = await tx.execute(
-    sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${chosen.id}::uuid AND v.sealed AND p.current_version_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${m.host}) FOR SHARE OF p,v`,
-  );
-  if (!pinned.rows.length)
-    throw new ApplicationError(
-      "no_matching_questions",
-      "No questions match the selected filters",
-      409,
-    );
-  const latest = await readCandidates(tx, { userId: m.host }, criteria);
-  if (!latest.some((item) => item.id === chosen.id))
-    throw new ApplicationError(
-      "no_matching_questions",
-      "No questions match the selected filters",
-      409,
-    );
+  const chosen = await selectMatchCandidate(tx, m.host, m.settings);
   await tx.execute(
     sql`UPDATE matches SET state='active',problem_version_id=${chosen.id}::uuid,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=${id}::uuid`,
   );
@@ -197,20 +149,9 @@ async function start(tx: Transaction, id: string, m: MatchRecord) {
     );
   }
 }
-export function matchLifecycle(
-  run: Run,
-  deps: {
-    inviteKey: Uint8Array;
-    receipts: Receipts;
-    coordinator: Coordinator;
-    shards: number;
-    guestCreation: boolean;
-  },
-): Lifecycle {
-  if (!Number.isInteger(deps.shards) || deps.shards < 1 || deps.shards > 256)
-    throw new RangeError("Invalid shard count");
-  const cipher = inviteCipher(deps.inviteKey);
-  const shard = (id: string) => parseInt(id.slice(0, 8), 16) % deps.shards;
+/** Shared transaction owner for match command idempotency and encrypted invitation replay. */
+export function matchCommandOwner(run: Run, inviteKey: Uint8Array) {
+  const cipher = inviteCipher(inviteKey);
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, f));
   async function command(
@@ -220,10 +161,12 @@ export function matchLifecycle(
     body: unknown,
     action: (tx: Transaction) => Promise<unknown>,
     receipt?: { id: string; shard: number },
+    replayGuard?: (tx: Transaction, value: unknown) => Promise<void>,
+    bodyHash?: string,
   ) {
     if (!key || new TextEncoder().encode(key).length > 128)
       throw new ApplicationError("invalid_input", "Idempotency-Key required", 400);
-    const hash = await fingerprint(body);
+    const hash = bodyHash ?? (await fingerprint(body));
     return transact(async (tx) => {
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${who.userId + ":" + route + ":" + key},740040))`,
@@ -241,23 +184,50 @@ export function matchLifecycle(
             "Key was used for a different command",
             409,
           );
-        if (route !== "create" && (who.kind === "guest" || !route.startsWith("leave:"))) {
+        const value =
+          route === "create" || route === "rotate"
+            ? await cipher.open(prior.response)
+            : prior.response;
+        if (replayGuard) await replayGuard(tx, value);
+        else if (
+          route !== "create" &&
+          route.includes(":") &&
+          (who.kind === "guest" || !route.startsWith("leave:"))
+        ) {
           const matchId = route.slice(route.indexOf(":") + 1);
           await lockMatch(tx, matchId);
           await requireMatchMember(tx, who, matchId);
         }
         if (receipt) await consumePrearm(tx, receipt.id, receipt.shard);
-        return route === "create" ? cipher.open(prior.response) : prior.response;
+        return value;
       }
       const value = await action(tx);
       if (receipt) await consumePrearm(tx, receipt.id, receipt.shard);
-      const stored = route === "create" ? await cipher.seal(value) : value;
+      const stored = route === "create" || route === "rotate" ? await cipher.seal(value) : value;
       await tx.execute(
         sql`INSERT INTO match_idempotency(owner_id,route,key,body_hash,response,expires_at) VALUES(${who.userId},${route},${key},${hash},${JSON.stringify(stored)}::jsonb,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,route,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,response=EXCLUDED.response,expires_at=EXCLUDED.expires_at`,
       );
       return value;
     });
   }
+  return command;
+}
+export function matchLifecycle(
+  run: Run,
+  deps: {
+    inviteKey: Uint8Array;
+    receipts: Receipts;
+    coordinator: Coordinator;
+    shards: number;
+    guestCreation: boolean;
+  },
+): Lifecycle {
+  if (!Number.isInteger(deps.shards) || deps.shards < 1 || deps.shards > 256)
+    throw new RangeError("Invalid shard count");
+  const shard = (id: string) => parseInt(id.slice(0, 8), 16) % deps.shards;
+  const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
+    run((scope) => scope.transaction(options, f));
+  const command = matchCommandOwner(run, deps.inviteKey);
   const arm = <T>(id: string, fn: (receipt: { id: string; shard: number }) => Promise<T>) =>
     activateDeadline(deps.receipts, deps.coordinator, shard(id), (fence) =>
       fn({ id: fence, shard: shard(id) }),
@@ -280,7 +250,7 @@ export function matchLifecycle(
           settingsBody(s),
           async (tx) => {
             await hosting(tx, who.userId, s.accessMode);
-            await selected(tx, who.userId, s);
+            await validateSelectedMatchProblem(tx, who.userId, s);
             if (
               (await tx.execute(sql`SELECT 1 FROM match_reservations WHERE owner_id=${who.userId}`))
                 .rows.length
@@ -371,7 +341,7 @@ export function matchLifecycle(
               if (count > (s.mode === "free-for-all" ? 8 : 2))
                 throw transition("Too many players for this mode");
               await hosting(tx, who.userId, s.accessMode);
-              await selected(tx, who.userId, s);
+              await validateSelectedMatchProblem(tx, who.userId, s);
               if (
                 s.accessMode === "accounts_only" &&
                 (
