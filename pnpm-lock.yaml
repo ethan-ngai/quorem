@@ -195,6 +195,9 @@ importers:
       '@hono/node-server':
         specifier: 2.1.5
         version: 2.1.5(hono@4.13.14)
+      '@quorem/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@quorem/database':
         specifier: workspace:*
         version: link:../../packages/database
