@@ -1059,3 +1059,142 @@ void test("streams a synthetic legacy-sized 408-case result without a Worker cas
   assert.equal(value.publicCases.length, 408);
   assert.equal(value.publicCases[407].index, 407);
 });
+void test("classic interview fallback shares verified examples without hiding them", async () => {
+  const { postgresCompletionStaging } = await import("../worker/staging.ts");
+  const { postgresCompletionPromotion } = await import("../worker/promote.ts");
+  const { indexRunnerFixture } = await import("../inputs/fixture.ts");
+  const { bindJobInputs } = await import("../inputs/bind.ts");
+  const { postgresInputReader } = await import("../inputs/read.ts");
+  const { postgresVerificationSource } = await import("../worker/verification-source.ts");
+  const { nodeResultVerifier } =
+    await import("../../../../../../runner/src/verification/verifier.ts");
+  const session = crypto.randomUUID(),
+    epoch = crypto.randomUUID(),
+    documentEpoch = crypto.randomUUID(),
+    submission = crypto.randomUUID(),
+    jobId = crypto.randomUUID(),
+    attemptId = crypto.randomUUID();
+  const limits = {
+    wallTimeMs: 2000,
+    memoryBytes: 268435456,
+    outputBytes: 65536,
+    maxProcesses: 16,
+    maxCollectionElements: 10000,
+    maxNestingDepth: 100,
+  };
+  const fixture = JSON.stringify({
+    problem: {
+      id: version,
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      constraints: [],
+      limits,
+      examples: [{ args: [], expected: 2 }],
+    },
+    hiddenCases: [],
+  });
+  await pool.query(
+    "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES($1,'results-host','fallback','{}','python','',$2,$3,$4,$4,$5,$5)",
+    [session, documentEpoch, epoch, crypto.randomUUID(), crypto.randomUUID()],
+  );
+  await pool.query(
+    "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,'results-host','interviewer'),($1,'results-alice','interviewee')",
+    [session],
+  );
+  const fixtureId = (
+    await pool.query(
+      "WITH f AS (SELECT $2::jsonb AS value) INSERT INTO interview_question_snapshots(session_id,id,fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value FROM f RETURNING id",
+      [session, fixture],
+    )
+  ).rows[0].id;
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,'results-alice',${session}::uuid,'submit','','hash','running','[]')`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level) VALUES(${submission}::uuid,${session}::uuid,1,${documentEpoch}::uuid,${epoch}::uuid,${fixtureId}::bytea,1)`,
+      );
+      await tx.execute(
+        sql`INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until,attempts) VALUES(${jobId}::uuid,${submission}::uuid,${attemptId}::uuid,'fallback-test',clock_timestamp()+interval '1 minute',1)`,
+      );
+    }),
+  );
+  const { backfillSnapshotPublicExamples } =
+    await import("../../interviews/question/public-examples.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      await backfillSnapshotPublicExamples(tx, session, fixtureId);
+      const owner = { session, fixture: fixtureId };
+      await indexRunnerFixture(tx, owner, fixture);
+      await bindJobInputs(tx, {
+        jobId,
+        owner,
+        level: 1,
+        primary: "example",
+        custom: [],
+        caseCount: 1,
+        sampleCount: 1,
+        privateDetails: true,
+        submitCasesAreSamples: true,
+      });
+    }),
+  );
+  const job = {
+    jobId,
+    submissionId: submission,
+    attemptId,
+    sandboxScope: "fallback-test",
+    language: "python",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    sourceRef: submission,
+    suiteRef: version,
+    problemVersionId: version,
+    limits,
+  };
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]),
+    source = postgresVerificationSource(run);
+  const verify = nodeResultVerifier(
+    {
+      inputs: postgresInputReader(run),
+      frozenCase: (id) => source.frozenCase(id),
+      fieldPage: (id, field, offset) => source.fieldPage(id, field, offset),
+      async putField(id, field, chunks) {
+        let ordinal = 0;
+        for await (const chunk of chunks) await source.putChunk(id, field, ordinal++, chunk);
+      },
+    },
+    keys.privateKey,
+  );
+  const stage = postgresCompletionStaging(run, {
+    verifier: { verify },
+    verificationPublicKey: keys.publicKey,
+  });
+  await stage.begin(job, {
+    submissionId: submission,
+    attemptId,
+    engineFailure: false,
+    diagnosticsPresent: false,
+    publicPresent: false,
+    samplePresent: false,
+    privatePresent: true,
+    publicCount: 0,
+    sampleCount: 0,
+    privateCount: 1,
+  });
+  await stage.chunk(job, {
+    channel: "private",
+    ordinal: 0,
+    field: "actual",
+    chunkOrdinal: 0,
+    bytes: new TextEncoder().encode("2"),
+  });
+  await stage.seal(job, "private", 0, "executed");
+  await stage.eof(job, job);
+  await postgresCompletionPromotion(run)(job, job);
+  const result = JSON.parse(await repo.interview(alice, session, submission));
+  assert.equal(result.verdict, "accepted");
+  assert.equal(result.publicCases[0].expected, 2);
+  assert.equal(result.privateCaseResults[0].caseId, "example:0");
+  assert.equal(result.privateCaseResults[0].case.expected, 2);
+});
