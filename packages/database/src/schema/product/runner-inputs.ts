@@ -20,6 +20,14 @@ import {
   execution_jobs,
 } from "./index.ts";
 
+export const runner_input_gc_state = pgTable(
+  "runner_input_gc_state",
+  { id: integer().primaryKey().notNull(), cursor: bytea("cursor") },
+  () => [
+    check("runner_input_gc_state_id_check", sql`id = 1`),
+    check("runner_input_gc_state_cursor_check", sql`cursor IS NULL OR octet_length(cursor) = 32`),
+  ],
+);
 export const runner_input_blobs = pgTable(
   "runner_input_blobs",
   { hash: bytea("hash").primaryKey().notNull(), data: bytea("data").notNull() },
