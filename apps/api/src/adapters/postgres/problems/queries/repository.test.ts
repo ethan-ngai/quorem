@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { createNodePool, withNodeConnection } from "@quorem/database/core";
+import {
+  createNodePool,
+  withNodeConnection,
+  type ConnectionScope,
+  type Transaction,
+} from "@quorem/database/core";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 import { problemQueries } from "./repository.ts";
+import { createApp } from "../../../../app.ts";
 import { problemRoutes } from "../../../../modules/problems/routes.ts";
 import { parseCatalogFilter } from "../../../../modules/problems/queries.ts";
 
@@ -161,6 +169,53 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         const queries = problemQueries((read) =>
           withNodeConnection(limited, { lifetimeMs: 10000 }, read),
         );
+        const captured: SQL[] = [];
+        const traced = problemQueries((read) =>
+          withNodeConnection(limited, { lifetimeMs: 10000 }, async (scope) =>
+            read({
+              transaction: (options, action) =>
+                scope.transaction(options, async (tx) => {
+                  const wrapped = new Proxy(tx, {
+                    get(target, key, receiver) {
+                      const member = Reflect.get(target, key, receiver);
+                      if (key !== "execute" || typeof member !== "function") return member;
+                      return (...args: unknown[]) => {
+                        captured.push(args[0] as SQL);
+                        return Reflect.apply(member, target, args);
+                      };
+                    },
+                  }) as Transaction;
+                  return action(wrapped);
+                }),
+            } as ConnectionScope),
+          ),
+        );
+        await traced.catalog(
+          undefined,
+          parseCatalogFilter(new URLSearchParams(`q=${uid}&limit=1`)),
+        );
+        expect(captured).toHaveLength(4);
+        const dialect = new PgDialect();
+        const plans = [];
+        for (const statement of captured) {
+          const query = dialect.sqlToQuery(statement);
+          const result = await pool.query(
+            `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query.sql}`,
+            query.params,
+          );
+          plans.push(result.rows[0]["QUERY PLAN"][0]);
+        }
+        console.info(
+          "catalog EXPLAIN summary",
+          JSON.stringify(
+            plans.map((p) => ({
+              node: p.Plan["Node Type"],
+              rows: p.Plan["Actual Rows"],
+              planningMs: p["Planning Time"],
+              executionMs: p["Execution Time"],
+            })),
+          ),
+        );
         const page = JSON.parse(
           await queries.catalog(
             undefined,
@@ -193,7 +248,10 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           '"isPrivate":true',
         );
         expect(await queries.byVersion({ userId: other }, versions[1])).toBeNull();
-        const anonymous = problemRoutes({ queries, identify: async () => undefined });
+        const anonymous = createApp({ allowedOrigins: [], requestId: () => "test" }).route(
+          "/",
+          problemRoutes({ queries, identify: async () => undefined }),
+        );
         expect(
           (
             await anonymous.request(`/v1/problem-versions/${versions[1]}`, {
@@ -201,18 +259,21 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             })
           ).status,
         ).toBe(404);
-        const member = problemRoutes({
-          queries,
-          identify: async () => ({
-            kind: "local",
-            userId: participant,
-            displayName: "member",
-            admin: false,
-            emailVerified: true,
-            sessionId: "test",
-            strongUntil: 0,
+        const member = createApp({ allowedOrigins: [], requestId: () => "test" }).route(
+          "/",
+          problemRoutes({
+            queries,
+            identify: async () => ({
+              kind: "local",
+              userId: participant,
+              displayName: "member",
+              admin: false,
+              emailVerified: true,
+              sessionId: "test",
+              strongUntil: 0,
+            }),
           }),
-        });
+        );
         expect((await member.request(`/v1/problem-versions/${versions[1]}`)).status).toBe(200);
 
         const visible = await queries.byVersion(undefined, versions[2]);
@@ -278,11 +339,55 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           { difficulty: "easy", topic: "arrays", company: "", type: "classic", sql: "false" },
         );
         expect(candidates.some((c) => c.id === versions[1])).toBe(true);
+        let resume!: () => void;
+        let ready!: () => void;
+        const paused = new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+        const entered = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        const raced = problemQueries((read) =>
+          withNodeConnection(limited, { lifetimeMs: 10000 }, async (scope) =>
+            read({
+              transaction: (options, action) =>
+                scope.transaction(options, async (tx) => {
+                  ready();
+                  await paused;
+                  return action(tx);
+                }),
+            } as ConnectionScope),
+          ),
+        );
+        const inFlight = raced.byVersion({ userId: participant }, versions[1]);
+        await entered;
         await pool.query(
           "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id=$2",
           [match, participant],
         );
+        resume();
+        expect(await inFlight).not.toBeNull();
         expect(await queries.byVersion({ userId: participant }, versions[1])).toBeNull();
+        let unblock!: () => void;
+        let began!: () => void;
+        const waiting = new Promise<void>((resolve) => {
+          unblock = resolve;
+        });
+        const opened = new Promise<void>((resolve) => {
+          began = resolve;
+        });
+        const bounded = problemQueries((read) =>
+          withNodeConnection(limited, { lifetimeMs: 50 }, async (scope) => {
+            began();
+            await waiting;
+            return read(scope);
+          }),
+        );
+        const deadline = bounded.bySlug(undefined, `${uid}-0`);
+        await opened;
+        await expect(deadline).rejects.toMatchObject({ kind: "aborted" });
+        unblock();
+
         await pool.query("UPDATE problems SET owner_id=$1 WHERE id=$2", [other, ids[1]]);
         expect(await queries.byVersion({ userId: owner }, versions[1])).not.toBeNull();
         await pool.query("UPDATE matches SET state='completed',outcome='{}'::jsonb WHERE id=$1", [
@@ -299,6 +404,12 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         await pool.query("UPDATE problems SET current_version_id=NULL WHERE id=$1", [ids[2]]);
         expect(await queries.bySlug(undefined, `${uid}-2`)).toBeNull();
         expect(await queries.byVersion(undefined, versions[2])).not.toBeNull();
+        await pool.query(`REVOKE SELECT(lossless_public) ON problem_versions FROM ${role}`);
+        const unavailable = await anonymous.request(`/v1/problems/${uid}-0`);
+        expect(unavailable.status).toBe(503);
+        const failure = await unavailable.text();
+        expect(failure).toContain("temporarily_unavailable");
+        expect(failure).not.toContain("permission denied");
       } finally {
         await limited.end();
         await pool.query(`DROP OWNED BY ${role}`);
