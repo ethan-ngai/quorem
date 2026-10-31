@@ -4,7 +4,7 @@ import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { CaseControl } from "./case-control.js";
 import { verifyCaseProbe } from "../../case-proof.js";
 
-test("genesis, pause and bounded authenticated inventory survive recreation", async () => {
+void test("genesis, pause and bounded authenticated inventory survive recreation", async () => {
   const keys = generateKeyPairSync("ed25519"),
     namespace = "a".repeat(64);
   const env = {

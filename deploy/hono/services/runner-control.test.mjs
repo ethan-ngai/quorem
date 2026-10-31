@@ -39,7 +39,7 @@ const request = (path, body) =>
           body: JSON.stringify(body),
         },
   );
-test("release gate freezes, fences, replays and survives recreation", async () => {
+void test("release gate freezes, fences, replays and survives recreation", async () => {
   const state = storage(),
     control = () => new RunnerReleaseControl({ storage: state }, {}),
     op = randomUUID();
@@ -98,7 +98,7 @@ test("release gate freezes, fences, replays and survives recreation", async () =
   assert.equal(history.items.length, 1);
   assert.equal(history.items[0].release, sha);
 });
-test("competing prepare operations cannot both win the same generation", async () => {
+void test("competing prepare operations cannot both win the same generation", async () => {
   const control = new RunnerReleaseControl({ storage: storage() }, {});
   const send = () =>
     control.fetch(
@@ -157,7 +157,7 @@ test("competing prepare operations cannot both win the same generation", async (
   );
 });
 
-test("new preparation freezes routing and immutable history uses bounded keyset pages", async () => {
+void test("new preparation freezes routing and immutable history uses bounded keyset pages", async () => {
   const control = new RunnerReleaseControl({ storage: storage() }, {});
   const first = await (
     await control.fetch(
