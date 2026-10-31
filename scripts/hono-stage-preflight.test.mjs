@@ -99,15 +99,19 @@ void test("uses actual Worker restrictions for mail, encryption key, and profile
   );
   const profile = login();
   profile.profileBucket = "fixture-bucket";
+  const profileOutputs = { ...outputs(), profile_bucket_name: { value: "fixture-bucket" } };
   Object.assign(profile.vars, {
     PROFILE_MEDIA_ENABLED: "true",
     PROFILE_IMAGE_SERVICE_URL: "https://images.example",
+    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
   });
-  assert.throws(() => checkStagePreflight(profile, outputs(), secrets()), /image service/);
+  assert.throws(() => checkStagePreflight(profile, profileOutputs, secrets()), /image service/);
   assert.doesNotThrow(() =>
-    checkStagePreflight(profile, outputs(), {
+    checkStagePreflight(profile, profileOutputs, {
       ...secrets(),
       PROFILE_IMAGE_SERVICE_TOKEN: "x".repeat(32),
+      PROFILE_IMAGE_ACCESS_CLIENT_ID: "profile-id",
+      PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "profile-secret",
     }),
   );
 });
@@ -142,6 +146,7 @@ void test("secret upload projection omits private signing and host-only credenti
     secrets().VERIFICATION_ACCESS_CLIENT_SECRET,
   );
   for (const key of [
+    "PROFILE_IMAGE_SERVICE_TOKEN",
     "CASE_OWNER_PRIVATE_KEY",
     "QUOREM_VERIFICATION_SIGNING_KEY_PEM",
     "QUOREM_CASE_SECRET",

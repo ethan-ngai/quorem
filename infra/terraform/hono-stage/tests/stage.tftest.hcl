@@ -6,6 +6,8 @@ mock_provider "cloudflare" {
 
 variables {
   account_id                    = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  zone_id                       = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  dns_target                    = "origin-stage.example.com"
   worker_name                   = "quorem-hono-stage"
   database_host                 = "db-stage.example.com"
   database_port                 = 5432
@@ -32,6 +34,10 @@ run "bootstrap_without_consumer" {
   assert {
     condition     = cloudflare_zero_trust_access_application.drain.domain == "runner-stage.example.com/internal/drain" && one(cloudflare_zero_trust_access_policy.drain.include).service_token.token_id == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     error_message = "Drain access needs its own explicit service token."
+  }
+  assert {
+    condition     = cloudflare_dns_record.api.name == "stage.example.com" && cloudflare_dns_record.api.proxied && cloudflare_dns_record.api.content == "origin-stage.example.com"
+    error_message = "Stage API DNS must be proxied and use its staged origin."
   }
   assert {
     condition     = cloudflare_worker.api.name == "quorem-hono-stage" && cloudflare_worker.api.subdomain.enabled == false
@@ -107,4 +113,16 @@ run "optional_profile_bucket" {
     condition     = length(cloudflare_r2_bucket.profile) == 1 && cloudflare_r2_bucket.profile[0].name == "quorem-hono-stage-profile"
     error_message = "Enabled media requires a fresh staged bucket."
   }
+}
+
+run "reject_live_dns_target" {
+  command = plan
+  variables { dns_target = "production.example.com" }
+  expect_failures = [var.dns_target]
+}
+
+run "reject_stage_substring_in_live_label" {
+  command = plan
+  variables { stage_hostname = "productionstage.example.com" }
+  expect_failures = [var.stage_hostname]
 }

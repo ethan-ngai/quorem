@@ -24,6 +24,7 @@ const allowed = new Set([
   "GITHUB_CLIENT_ID",
   "PROFILE_MEDIA_ENABLED",
   "PROFILE_IMAGE_SERVICE_URL",
+  "PROFILE_IMAGE_ACCESS_MODE",
   "HTTP_MAX_REQUESTS",
   "DEADLINE_SHARDS",
   "GUEST_CREATION",
@@ -38,7 +39,8 @@ const allowed = new Set([
   "EXECUTION_DRAIN_ACCESS_MODE",
 ]);
 export function stageConfig(input, outputs, output) {
-  const { profileBucket, stageZone, vars } = input;
+  const { stageZone, vars } = input;
+  const profileBucket = outputs?.profile_bucket_name?.value;
   const workerName = outputs?.worker_name?.value;
   const hyperdriveId = outputs?.hyperdrive_id?.value;
   const queueName = outputs?.queue_name?.value;
@@ -141,7 +143,18 @@ export function stageConfig(input, outputs, output) {
     })
   )
     throw new Error("Invalid ALLOWED_ORIGINS");
-  if (vars.PROFILE_MEDIA_ENABLED === "true" && (!profileBucket || !vars.PROFILE_IMAGE_SERVICE_URL))
+  if (![undefined, "true", "false"].includes(vars.PROFILE_MEDIA_ENABLED))
+    throw new Error("Invalid profile media flag");
+  if (input.profileBucket !== undefined && input.profileBucket !== profileBucket)
+    throw new Error("Profile bucket must match Terraform output");
+  if (vars.PROFILE_MEDIA_ENABLED !== "true" && profileBucket)
+    throw new Error("Unexpected profile bucket");
+  if (
+    vars.PROFILE_MEDIA_ENABLED === "true" &&
+    (!profileBucket ||
+      !vars.PROFILE_IMAGE_SERVICE_URL ||
+      vars.PROFILE_IMAGE_ACCESS_MODE !== "cloudflare-access")
+  )
     throw new Error("Profile media requires its bucket and image service");
   if (profileBucket && !/^[a-z0-9][a-z0-9-]{1,62}$/.test(profileBucket))
     throw new Error("Invalid profile bucket");

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { generateKeyPairSync } from "node:crypto";
 import { deployStage } from "./hono-stage-deploy-stage.mjs";
 const ns = "a".repeat(64),
@@ -126,6 +127,11 @@ function operations(events, fail) {
     deploy: () => step("deploy"),
     upload: () => step("upload"),
     subdomains: async () => step("subdomains"),
+    detach: async () => step("detach"),
+    cleanup: async (dir) => {
+      await rm(dir, { recursive: true, force: true });
+      step("cleanup");
+    },
     remote: () => step("remote"),
     actor: async () =>
       step("actor", {
@@ -165,6 +171,7 @@ void test("first activation checks fresh DB before mutations and proves queue la
     "actor",
     "queue",
     "dispose",
+    "cleanup",
   ]);
 });
 void test("fresh failure causes no later action; queue failure disposes fixture", async () => {
@@ -173,7 +180,7 @@ void test("fresh failure causes no later action; queue failure disposes fixture"
   assert.deepEqual(events, ["fresh"]);
   events = [];
   await assert.rejects(deployStage(env(), operations(events, "queue")));
-  assert.equal(events.at(-1), "dispose");
+  assert.deepEqual(events.slice(-2), ["dispose", "cleanup"]);
 });
 void test("existing pin is verified before service apply", async () => {
   const events = [],
@@ -211,5 +218,59 @@ void test("mismatched signing keys and duplicate private credentials fail before
 void test("pin-plan failure stops before migrations and image publication", async () => {
   const events = [];
   await assert.rejects(deployStage(env(), operations(events, "hono-services:plan")));
-  assert.deepEqual(events, ["fresh", "hono-services:init", "hono-services:plan"]);
+  assert.deepEqual(events, ["fresh", "hono-services:init", "hono-services:plan", "cleanup"]);
+});
+
+void test("failure after queue attachment detaches and reports uncertain detach", async () => {
+  for (const failure of ["dispose", "cleanup"]) {
+    const events = [];
+    await assert.rejects(deployStage(env(), operations(events, failure)), /cleanup failed/);
+    assert.equal(events.at(-1), "detach");
+  }
+  const events = [],
+    ops = operations(events, "dispose");
+  ops.detach = async () => {
+    throw new Error("provider output");
+  };
+  await assert.rejects(deployStage(env(), ops), /detachment is unconfirmed/);
+});
+
+void test("optional profile media requires matching Terraform outputs and isolated credentials", async () => {
+  const input = env(),
+    events = [],
+    publicInput = JSON.parse(input.HONO_STAGE_PUBLIC_JSON),
+    service = JSON.parse(input.TF_VAR_service_secrets),
+    secrets = JSON.parse(input.HONO_WORKER_SECRETS_JSON);
+  input.TF_VAR_profile_media_enabled = "true";
+  input.TF_VAR_image_hostname = "image-stage.example.com";
+  input.TF_VAR_image_access_service_token_id = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+  input.TF_VAR_image_service_image = image("image");
+  Object.assign(publicInput.vars, {
+    PROFILE_MEDIA_ENABLED: "true",
+    PROFILE_IMAGE_SERVICE_URL: "https://image-stage.example.com",
+    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
+  });
+  Object.assign(secrets, {
+    PROFILE_IMAGE_SERVICE_TOKEN: "p".repeat(32),
+    PROFILE_IMAGE_ACCESS_CLIENT_ID: "profile-id",
+    PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "profile-secret",
+  });
+  service.IMAGE_SERVICE_TOKEN = secrets.PROFILE_IMAGE_SERVICE_TOKEN;
+  input.HONO_STAGE_PUBLIC_JSON = JSON.stringify(publicInput);
+  input.TF_VAR_service_secrets = JSON.stringify(service);
+  input.HONO_WORKER_SECRETS_JSON = JSON.stringify(secrets);
+  const ops = operations(events),
+    baseImages = ops.images;
+  ops.images = () => ({ ...baseImages(), image: image("image") });
+  ops.outputs = () => {
+    events.push("outputs");
+    return { ...outputs, profile_bucket_name: { value: "quorem-hono-stage-profile" } };
+  };
+  await deployStage(input, ops);
+  assert.ok(events.includes("queue"));
+  service.IMAGE_SERVICE_TOKEN = "wrong";
+  input.TF_VAR_service_secrets = JSON.stringify(service);
+  const failed = [];
+  await assert.rejects(deployStage(input, operations(failed)), /Image service/);
+  assert.deepEqual(failed, []);
 });

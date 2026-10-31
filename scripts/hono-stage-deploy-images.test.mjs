@@ -51,3 +51,23 @@ void test("rejects wrong SHA and unverifiable or ambiguous remote digest without
     (error) => !String(error).includes("private-fixture-secret"),
   );
 });
+
+void test("builds and resolves the optional image processor only when enabled", () => {
+  const calls = [];
+  const run = (cmd, args) => {
+    calls.push([cmd, args]);
+    if (cmd === "docker" && args[0] === "image")
+      return {
+        status: 0,
+        stdout: JSON.stringify([`${args.at(-1).replace(/:[^:]+$/, "")}@sha256:${"c".repeat(64)}`]),
+      };
+    return { status: 0, stdout: "" };
+  };
+  const images = publishImages({ ...env(), TF_VAR_profile_media_enabled: "true" }, run);
+  assert.ok(images.image);
+  assert.ok(
+    calls.some(
+      ([cmd, args]) => cmd === "docker" && args.includes("deploy/hono/services/Dockerfile.image"),
+    ),
+  );
+});

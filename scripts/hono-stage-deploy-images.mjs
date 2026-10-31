@@ -45,6 +45,17 @@ export function publishImages(env, run = spawnSync) {
       `quorem-hono-${role}:stage-build`,
       ".",
     ]);
+  const profile = env.TF_VAR_profile_media_enabled ?? "false";
+  if (!["true", "false"].includes(profile)) throw new Error("Invalid profile media flag");
+  if (profile === "true")
+    call("docker", [
+      "build",
+      "-f",
+      "deploy/hono/services/Dockerfile.image",
+      "-t",
+      "quorem-hono-image:stage-build",
+      ".",
+    ]);
   call("python3", ["scripts/build-judge-images.py"]);
   const result = {};
   for (const role of [
@@ -55,8 +66,9 @@ export function publishImages(env, run = spawnSync) {
     "typescript",
     "ocaml",
     "postgresql",
+    ...(profile === "true" ? ["image"] : []),
   ]) {
-    const source = ["runner", "verifier"].includes(role)
+    const source = ["runner", "verifier", "image"].includes(role)
       ? `quorem-hono-${role}:stage-build`
       : `quorem-case-${role}:local`;
     const repository = `registry.cloudflare.com/${account}/quorem-hono-stage-${role}`;

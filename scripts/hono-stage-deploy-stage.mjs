@@ -16,7 +16,7 @@ import { requireFreshStageDatabase } from "./hono-stage-deploy-database.mjs";
 import { publishImages } from "./hono-stage-deploy-images.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { uploadWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
-import { releaseQueue } from "./hono-stage-deploy-queue.mjs";
+import { releaseQueue, setQueue } from "./hono-stage-deploy-queue.mjs";
 import { verifyNoAlternateIngress } from "./hono-stage-deploy-subdomains.mjs";
 
 const commonNames = [
@@ -35,6 +35,8 @@ const commonNames = [
 const stackNames = {
   "hono-stage": [
     "account_id",
+    "zone_id",
+    "dns_target",
     "worker_name",
     "stage_hostname",
     "drain_hostname",
@@ -46,6 +48,7 @@ const stackNames = {
     "database_user",
     "database_password",
     "database_connection_limit",
+    "profile_media_enabled",
     "enable_queue_consumer",
   ],
   "hono-services": [
@@ -55,6 +58,10 @@ const stackNames = {
     "worker_name",
     "hostnames",
     "dns_target",
+    "profile_media_enabled",
+    "image_hostname",
+    "image_access_service_token_id",
+    "image_service_image",
     "access_token_ids",
     "runner_image",
     "verifier_image",
@@ -170,6 +177,8 @@ const defaults = {
   actor: createStagedActor,
   queue: releaseQueue,
   subdomains: verifyNoAlternateIngress,
+  detach: (env) => setQueue(env, false),
+  cleanup: (dir) => rm(dir, { recursive: true, force: true }),
 };
 
 export async function deployStage(original, operations = defaults) {
@@ -185,10 +194,20 @@ export async function deployStage(original, operations = defaults) {
     publicInput.vars?.EXECUTION_DRAIN_URL !== `https://${hosts.drain}/internal/drain`
   )
     throw new Error("Stage service origins do not match");
+  const profileEnabled = (original.TF_VAR_profile_media_enabled ?? "false") === "true";
+  if ((publicInput.vars?.PROFILE_MEDIA_ENABLED ?? "false") !== String(profileEnabled))
+    throw new Error("Profile feature flags differ");
+  if (
+    profileEnabled &&
+    (publicInput.vars.PROFILE_IMAGE_SERVICE_URL !== `https://${original.TF_VAR_image_hostname}` ||
+      publicInput.vars.PROFILE_IMAGE_ACCESS_MODE !== "cloudflare-access" ||
+      supplied.PROFILE_IMAGE_SERVICE_TOKEN !== services.IMAGE_SERVICE_TOKEN)
+  )
+    throw new Error("Image service configuration differs");
   if (!publicInput.vars?.ALLOWED_ORIGINS?.split(",").includes(original.HONO_STAGE_BROWSER_ORIGIN))
     throw new Error("Invalid stage browser origin");
   keyBytes(supplied.MATCH_INVITE_KEY);
-  checkWorkerAuth(publicInput.vars, supplied, Boolean(publicInput.profileBucket));
+  checkWorkerAuth(publicInput.vars, supplied, profileEnabled);
   // The provisional scope validates credentials only; authority comes from the signed probe.
   const preflightSecrets = {
     ...supplied,
@@ -214,6 +233,8 @@ export async function deployStage(original, operations = defaults) {
     supplied.VERIFICATION_ACCESS_CLIENT_SECRET,
     supplied.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
   ];
+  if (profileEnabled)
+    extra.push(services.IMAGE_SERVICE_TOKEN, supplied.PROFILE_IMAGE_ACCESS_CLIENT_SECRET);
   if (
     extra.some((value) => typeof value !== "string" || !value || /\s/.test(value)) ||
     new Set(extra).size !== extra.length ||
@@ -250,7 +271,11 @@ export async function deployStage(original, operations = defaults) {
     TF_VAR_case_diagnostics: "true",
   };
   const temp = await mkdtemp(join(tmpdir(), "quorem-stage-deploy-"));
-  let actor;
+  let actor,
+    receipt,
+    failure,
+    cleanupFailed = false,
+    queueAttached = false;
   try {
     const keyFile = join(temp, "case-public.pem");
     await writeFile(keyFile, services.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
@@ -272,6 +297,7 @@ export async function deployStage(original, operations = defaults) {
     const images = await Promise.resolve(operations.images(original));
     env.TF_VAR_runner_image = images.runner;
     env.TF_VAR_verifier_image = images.verifier;
+    if (profileEnabled) env.TF_VAR_image_service_image = images.image;
     env.TF_VAR_case_images = JSON.stringify(
       Object.fromEntries(
         ["python", "java", "typescript", "ocaml", "postgresql"].map((name) => [name, images[name]]),
@@ -280,6 +306,7 @@ export async function deployStage(original, operations = defaults) {
     Object.assign(caseEnv, {
       TF_VAR_runner_image: env.TF_VAR_runner_image,
       TF_VAR_verifier_image: env.TF_VAR_verifier_image,
+      ...(profileEnabled ? { TF_VAR_image_service_image: env.TF_VAR_image_service_image } : {}),
       TF_VAR_case_images: env.TF_VAR_case_images,
     });
     validateStageRequest(env);
@@ -329,7 +356,8 @@ export async function deployStage(original, operations = defaults) {
       },
       verified.namespace,
     );
-    return {
+    queueAttached = true;
+    receipt = {
       release: env.HONO_RELEASE_SHA,
       database: "fresh",
       namespace: verified.namespace,
@@ -337,13 +365,32 @@ export async function deployStage(original, operations = defaults) {
       acceptance,
       cutoverReady: false,
     };
+  } catch (error) {
+    failure = error;
   } finally {
     try {
       await actor?.dispose();
-    } finally {
-      await rm(temp, { recursive: true, force: true });
+    } catch {
+      cleanupFailed = true;
+    }
+    try {
+      await operations.cleanup(temp);
+    } catch {
+      cleanupFailed = true;
     }
   }
+  if (cleanupFailed) {
+    if (queueAttached) {
+      try {
+        await Promise.resolve(operations.detach(env));
+      } catch {
+        throw new Error("Stage cleanup failed and queue detachment is unconfirmed");
+      }
+    }
+    throw new Error("Stage cleanup failed; queue detached if previously attached");
+  }
+  if (failure) throw failure;
+  return receipt;
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

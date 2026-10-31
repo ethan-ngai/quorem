@@ -21,7 +21,7 @@ export function validateStageRequest(env, { requireImages = true } = {}) {
   )
     throw new Error("Invalid stage backend");
   const host = (v) =>
-    typeof v === "string" && /^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\.[a-z0-9.-]+$/.test(v);
+    typeof v === "string" && /^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\.[a-z0-9-]+)+$/.test(v);
   let names, images;
   try {
     names = JSON.parse(env.TF_VAR_hostnames);
@@ -54,6 +54,18 @@ export function validateStageRequest(env, { requireImages = true } = {}) {
       ].every(digest))
   )
     throw new Error("Immutable staged image digests required");
+  const profile = env.TF_VAR_profile_media_enabled ?? "false";
+  if (!["true", "false"].includes(profile)) throw new Error("Invalid profile media flag");
+  if (
+    profile === "true" &&
+    (!host(env.TF_VAR_image_hostname) ||
+      [env.TF_VAR_stage_hostname, names.drain, names.verifier, names.case].includes(
+        env.TF_VAR_image_hostname,
+      ) ||
+      !/^[0-9a-f-]{36}$/.test(env.TF_VAR_image_access_service_token_id ?? "") ||
+      (requireImages && !digest(env.TF_VAR_image_service_image)))
+  )
+    throw new Error("Invalid staged image service");
   if (!/^[0-9a-f]{64}$/.test(env.TF_VAR_case_namespace_id ?? ""))
     throw new Error("Explicit case namespace required");
   if (env.TF_VAR_enable_queue_consumer !== "false") throw new Error("Queue must remain disabled");

@@ -66,7 +66,7 @@ jobs:
         env:
           QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
         run: vp -C apps/runner exec node --test src/runtime/runtime.test.ts
-      - run: node --test scripts/hono-stage-deploy-subdomains.test.mjs scripts/hono-stage-deploy-stage.test.mjs scripts/hono-stage-deploy-pin.test.mjs scripts/hono-stage-deploy-proof.test.mjs scripts/hono-stage-deploy-acceptance.test.mjs scripts/hono-stage-deploy-database.test.mjs scripts/hono-stage-deploy-ingress.test.mjs scripts/hono-stage-deploy-queue.test.mjs scripts/hono-stage-deploy-images.test.mjs scripts/hono-stage-deploy-secrets.test.mjs scripts/hono-stage-deploy.test.mjs scripts/hono-stage-config.test.mjs scripts/hono-stage-secrets.test.mjs scripts/hono-stage-preflight.test.mjs scripts/hono-stage-gate.test.mjs
+      - run: node --test scripts/hono-stage-deploy-subdomains.test.mjs scripts/hono-stage-deploy-stage.test.mjs scripts/hono-stage-deploy-pin.test.mjs scripts/hono-stage-deploy-proof.test.mjs scripts/hono-stage-deploy-acceptance.test.mjs scripts/hono-stage-deploy-database.test.mjs scripts/hono-stage-deploy-profile.test.mjs scripts/hono-stage-deploy-ingress.test.mjs scripts/hono-stage-deploy-queue.test.mjs scripts/hono-stage-deploy-images.test.mjs scripts/hono-stage-deploy-secrets.test.mjs scripts/hono-stage-deploy.test.mjs scripts/hono-stage-config.test.mjs scripts/hono-stage-secrets.test.mjs scripts/hono-stage-preflight.test.mjs scripts/hono-stage-gate.test.mjs
       - name: Terraform checks
         run: |
           for stack in hono-stage hono-services; do
@@ -116,6 +116,10 @@ jobs:
           TF_VAR_enable_queue_consumer: "false"
           TF_VAR_hostnames: ${{ vars.HONO_SERVICE_HOSTNAMES }}
           TF_VAR_dns_target: ${{ vars.HONO_SERVICE_DNS_TARGET }}
+          TF_VAR_profile_media_enabled: ${{ vars.HONO_PROFILE_MEDIA_ENABLED || 'false' }}
+          TF_VAR_image_hostname: ${{ vars.HONO_IMAGE_HOSTNAME }}
+          TF_VAR_image_access_service_token_id: ${{ vars.HONO_IMAGE_ACCESS_TOKEN_ID }}
+          TF_VAR_image_service_image: ${{ vars.HONO_IMAGE_SERVICE_IMAGE }}
           TF_VAR_access_token_ids: ${{ vars.HONO_SERVICE_ACCESS_TOKEN_IDS }}
           TF_VAR_runner_image: ${{ vars.HONO_RUNNER_IMAGE }}
           TF_VAR_verifier_image: ${{ vars.HONO_VERIFIER_IMAGE }}
@@ -184,6 +188,10 @@ jobs:
           TF_VAR_enable_queue_consumer: "false"
           TF_VAR_hostnames: ${{ vars.HONO_SERVICE_HOSTNAMES }}
           TF_VAR_dns_target: ${{ vars.HONO_SERVICE_DNS_TARGET }}
+          TF_VAR_profile_media_enabled: ${{ vars.HONO_PROFILE_MEDIA_ENABLED || 'false' }}
+          TF_VAR_image_hostname: ${{ vars.HONO_IMAGE_HOSTNAME }}
+          TF_VAR_image_access_service_token_id: ${{ vars.HONO_IMAGE_ACCESS_TOKEN_ID }}
+          TF_VAR_image_service_image: ${{ vars.HONO_IMAGE_SERVICE_IMAGE }}
           TF_VAR_access_token_ids: ${{ vars.HONO_SERVICE_ACCESS_TOKEN_IDS }}
           TF_VAR_runner_image: ${{ vars.HONO_RUNNER_IMAGE }}
           TF_VAR_verifier_image: ${{ vars.HONO_VERIFIER_IMAGE }}

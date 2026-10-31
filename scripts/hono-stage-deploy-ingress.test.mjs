@@ -62,3 +62,28 @@ void test("rejects unexpected control responses, missing Access and namespace dr
     /changed/,
   );
 });
+
+void test("optional image service requires terminated Access control and denies bypass", async () => {
+  const input = {
+    ...env(),
+    PROFILE_MEDIA_ENABLED: "true",
+    PROFILE_IMAGE_SERVICE_URL: "https://image-stage.example.com",
+    PROFILE_IMAGE_SERVICE_TOKEN: "i".repeat(32),
+    PROFILE_IMAGE_ACCESS_CLIENT_ID: "image-id",
+    PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "image-secret",
+  };
+  let n = 0;
+  await verifyPrivateIngress(
+    input,
+    "a".repeat(64),
+    async () => {
+      n++;
+      if (n === 2) return new Response("ok", { headers: { "x-image-execution": "terminated" } });
+      if (n === 4 || n === 6) return new Response(null, { status: 503 });
+      if (n === 8) return new Response(null, { status: 200 });
+      return new Response(null, { status: 403 });
+    },
+    async () => ({ namespace: "a".repeat(64) }),
+  );
+  assert.equal(n, 9);
+});

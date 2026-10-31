@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { accessFetch } from "../packages/execution/src/transport/access.ts";
 import { probeNamespace } from "../deploy/hono/services/probe.mjs";
+import { profileProbePNG } from "./hono-stage-deploy-profile.mjs";
 
 export async function verifyPrivateIngress(
   env,
@@ -25,6 +26,16 @@ export async function verifyPrivateIngress(
       !/(^|-)stag(e|ing)(-|$)/.test(u.hostname.split(".")[0])
     )
       throw new Error("Invalid staged ingress origin");
+  }
+  if (env.PROFILE_MEDIA_ENABLED === "true") {
+    const image = new URL(env.PROFILE_IMAGE_SERVICE_URL);
+    if (
+      image.protocol !== "https:" ||
+      image.origin !== env.PROFILE_IMAGE_SERVICE_URL ||
+      !/(^|-)stag(e|ing)(-|$)/.test(image.hostname.split(".")[0])
+    )
+      throw new Error("Invalid staged image origin");
+    origins.push(image.origin);
   }
   if (new Set(origins).size !== origins.length)
     throw new Error("Distinct staged ingress origins required");
@@ -68,6 +79,33 @@ export async function verifyPrivateIngress(
       expected: 200,
     },
   ];
+  if (env.PROFILE_MEDIA_ENABLED === "true") {
+    const origin = origins[4],
+      bearer = env.PROFILE_IMAGE_SERVICE_TOKEN,
+      id = env.PROFILE_IMAGE_ACCESS_CLIENT_ID,
+      secret = env.PROFILE_IMAGE_ACCESS_CLIENT_SECRET;
+    if (!bearer || !id || !secret || /\s/.test(bearer + id + secret))
+      throw new Error("Invalid image ingress credentials");
+    const request = {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "image/png",
+        "x-image-format": "png",
+      },
+      body: profileProbePNG,
+      redirect: "error",
+      signal: AbortSignal.timeout(30000),
+    };
+    const control = await accessFetch(origin, { id, secret }, send)(`${origin}/`, request);
+    if (control.status !== 200 || control.headers.get("x-image-execution") !== "terminated")
+      throw new Error("Authenticated image ingress control failed");
+    await control.body?.cancel();
+    const negative = await send(`${origin}/`, { ...request, signal: AbortSignal.timeout(30000) });
+    if (![401, 403].includes(negative.status))
+      throw new Error("Image ingress permits access without Access");
+    await negative.body?.cancel();
+  }
   for (const check of checks) {
     if (
       !check.bearer ||

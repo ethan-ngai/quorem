@@ -44,6 +44,18 @@ export function checkSecrets(env) {
     ].every((value) => typeof value === "string" && value.length > 0 && !/\s/.test(value))
   )
     throw new Error("Invalid private credentials");
+  const profileId = env.PROFILE_IMAGE_ACCESS_CLIENT_ID,
+    profileSecret = env.PROFILE_IMAGE_ACCESS_CLIENT_SECRET,
+    profileToken = env.PROFILE_IMAGE_SERVICE_TOKEN;
+  if (
+    (profileId === undefined) !== (profileSecret === undefined) ||
+    (profileId !== undefined &&
+      (!profileId ||
+        !profileSecret ||
+        /\s/.test(profileId + profileSecret) ||
+        profileId === profileSecret))
+  )
+    throw new Error("Invalid profile credentials");
   const all = [
     source,
     service,
@@ -52,6 +64,7 @@ export function checkSecrets(env) {
     drainAccess,
     verifierAccess,
     ...peers.map((p) => p.secret),
+    ...[profileSecret, profileToken].filter((v) => v !== undefined),
   ];
   if (new Set(all).size !== all.length) throw new Error("Private credentials must be distinct");
 }

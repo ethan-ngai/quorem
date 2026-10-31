@@ -7,6 +7,20 @@ terraform {
 }
 
 variable "account_id" { type = string }
+variable "zone_id" {
+  type = string
+  validation {
+    condition     = can(regex("^[0-9a-f]{32}$", var.zone_id))
+    error_message = "A Cloudflare zone ID is required."
+  }
+}
+variable "dns_target" {
+  type = string
+  validation {
+    condition     = can(regex("^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\\.[a-z0-9-]+)+$", var.dns_target))
+    error_message = "A distinct staged DNS target is required."
+  }
+}
 variable "worker_name" {
   type = string
   validation {
@@ -61,7 +75,7 @@ variable "database_connection_limit" {
 variable "stage_hostname" {
   type = string
   validation {
-    condition     = can(regex("^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\\.[a-z0-9.-]+$", var.stage_hostname))
+    condition     = can(regex("^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\\.[a-z0-9-]+)+$", var.stage_hostname))
     error_message = "Use a distinct staged hostname."
   }
 }
@@ -75,7 +89,7 @@ variable "access_service_token_ids" {
 variable "drain_hostname" {
   type = string
   validation {
-    condition     = can(regex("^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\\.[a-z0-9.-]+$", var.drain_hostname)) && var.drain_hostname != var.stage_hostname
+    condition     = can(regex("^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\\.[a-z0-9-]+)+$", var.drain_hostname)) && var.drain_hostname != var.stage_hostname
     error_message = "Use a distinct staged drain hostname."
   }
 }
@@ -105,6 +119,21 @@ resource "cloudflare_hyperdrive_config" "database" {
   caching                 = { disabled = true }
   mtls                    = { sslmode = "require" }
   origin_connection_limit = var.database_connection_limit
+}
+
+resource "cloudflare_dns_record" "api" {
+  zone_id = var.zone_id
+  name    = var.stage_hostname
+  type    = "CNAME"
+  content = var.dns_target
+  proxied = true
+  ttl     = 1
+  lifecycle {
+    precondition {
+      condition     = var.dns_target != var.stage_hostname
+      error_message = "The staged DNS target must differ from its hostname."
+    }
+  }
 }
 
 resource "cloudflare_worker" "api" {

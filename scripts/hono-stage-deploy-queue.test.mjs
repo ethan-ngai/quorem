@@ -105,3 +105,17 @@ void test("namespace mismatch and failed detachment are explicit", async () => {
     /detachment is unconfirmed/,
   );
 });
+
+void test("profile proof is mandatory before attaching queue when enabled", async () => {
+  const calls = [];
+  await releaseQueue({ ...env(), PROFILE_MEDIA_ENABLED: "true" }, "a".repeat(64), {
+    accept: async (v) => {
+      calls.push(v.HONO_STAGE_ACCEPTANCE_MODE);
+      return { submission: "fixture" };
+    },
+    ingress: async () => calls.push("ingress"),
+    profile: async () => calls.push("profile"),
+    change: async (_, enabled) => calls.push(enabled),
+  });
+  assert.deepEqual(calls, ["manual", "ingress", "profile", true, "queue"]);
+});

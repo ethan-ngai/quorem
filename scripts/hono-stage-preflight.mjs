@@ -23,6 +23,8 @@ const secretNames = [
   "APPLE_CLIENT_SECRET",
   "GITHUB_CLIENT_SECRET",
   "PROFILE_IMAGE_SERVICE_TOKEN",
+  "PROFILE_IMAGE_ACCESS_CLIENT_ID",
+  "PROFILE_IMAGE_ACCESS_CLIENT_SECRET",
   "RUNNER_PEERS",
   "VERIFICATION_SOURCE_CREDENTIAL",
   "VERIFICATION_SERVICE_CREDENTIAL",
@@ -79,7 +81,12 @@ export function validatedWorkerSecrets(input, outputs, secrets) {
   checkStagePreflight(input, outputs, secrets);
   return Object.fromEntries(
     secretNames
-      .filter((name) => !hostOnly.has(name) && secrets[name] !== undefined)
+      .filter(
+        (name) =>
+          !hostOnly.has(name) &&
+          secrets[name] !== undefined &&
+          (!name.startsWith("PROFILE_IMAGE_") || input.vars.PROFILE_MEDIA_ENABLED === "true"),
+      )
       .map((name) => [name, secrets[name]]),
   );
 }
