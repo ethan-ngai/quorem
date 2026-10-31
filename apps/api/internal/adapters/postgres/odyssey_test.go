@@ -88,7 +88,7 @@ func TestOdysseyPublicationProgressAndCumulativeAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		j, err := s.Claim(ctx)
+		j, err := claimTestJob(ctx, s, false)
 		if err != nil || j.SubmissionID != sub.ID {
 			t.Fatal(j, err)
 		}

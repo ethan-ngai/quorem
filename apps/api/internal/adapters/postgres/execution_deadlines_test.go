@@ -71,7 +71,7 @@ func TestExecutionDeadlineNotificationsSkipLeaseExtensions(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("missing admission wake")
 	}
-	job, err := store.Claim(ctx)
+	job, err := claimTestJob(ctx, store, false)
 	if err != nil || job.JobID == "" {
 		t.Fatal(job, err)
 	}

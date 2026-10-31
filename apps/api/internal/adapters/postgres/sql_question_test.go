@@ -122,7 +122,7 @@ func TestSQLPublicationAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != sub.ID {
 		t.Fatal(job, err)
 	}
@@ -197,7 +197,7 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, `INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES($1,'bob',$2,'run','','hash','completed','[]')`, ID(), room.ID); err == nil {
 		t.Fatal("interview submission accepted without an execution snapshot")
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != submission.ID || job.ProblemVersionID != d.PublishedVersionID {
 		t.Fatal("interview claim", job, err)
 	}
@@ -215,7 +215,7 @@ func TestPrivateSQLInterviewAdmissionWithoutGlobalSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err = s.Claim(ctx)
+	job, err = claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != submission.ID {
 		t.Fatal(job, err)
 	}

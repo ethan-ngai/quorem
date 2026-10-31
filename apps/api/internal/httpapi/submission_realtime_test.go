@@ -18,6 +18,10 @@ import (
 	"github.com/ethan-ngai/quorem/internal/execution"
 )
 
+func claimStreamTestJob(ctx context.Context, store *postgres.Store) (execution.Job, error) {
+	return store.ClaimAfterTeardown(ctx, false, "", "test-scope")
+}
+
 func dialSubmission(ctx context.Context, server, id, user string) (*websocket.Conn, *http.Response, error) {
 	h := http.Header{"Origin": []string{"http://localhost:5173"}}
 	return websocket.Dial(ctx, "ws"+strings.TrimPrefix(server, "http")+"/v1/submissions/"+id+"/events?user="+user, &websocket.DialOptions{HTTPHeader: h})
@@ -77,7 +81,7 @@ func TestSubmissionStreamRepairsSilentlyLostNotice(t *testing.T) {
 	}
 	defer conn.CloseNow()
 	readSubmission(t, conn, "queued")
-	job, err := store.Claim(ctx)
+	job, err := claimStreamTestJob(ctx, store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +127,7 @@ func TestSubmissionStreamCrossReplica(t *testing.T) {
 			}
 			defer conn.CloseNow()
 			readSubmission(t, conn, "queued")
-			job, e := store.Claim(ctx)
+			job, e := claimStreamTestJob(ctx, store)
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -191,7 +195,7 @@ func TestSubmissionStreamOwnerAndReconnectSnapshot(t *testing.T) {
 	if got := readSubmission(t, conn, "queued"); got.ID != admitted.ID {
 		t.Fatal(got)
 	}
-	job, err := store.Claim(ctx)
+	job, err := claimStreamTestJob(ctx, store)
 	if err != nil || job.SubmissionID != admitted.ID {
 		t.Fatal(job, err)
 	}
@@ -252,7 +256,7 @@ func TestSubmissionStreamRetryFailureAndCancellation(t *testing.T) {
 		if _, err = store.Pool.Exec(ctx, "UPDATE execution_jobs SET available_at=clock_timestamp() WHERE submission_id=$1", second.ID); err != nil {
 			t.Fatal(err)
 		}
-		job, e := store.Claim(ctx)
+		job, e := claimStreamTestJob(ctx, store)
 		if e != nil || job.SubmissionID != second.ID {
 			t.Fatal(job, e)
 		}

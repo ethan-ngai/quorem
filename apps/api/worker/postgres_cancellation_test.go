@@ -53,7 +53,7 @@ func TestPostgresCancellationCommitAndSharedWorkers(t *testing.T) {
 	jobs := make([]execution.Job, 2)
 	for i := range jobs {
 		var err error
-		jobs[i], err = store.Claim(ctx)
+		jobs[i], err = store.ClaimAfterTeardown(ctx, false, "", "test-scope")
 		if err != nil || jobs[i].JobID == "" {
 			t.Fatal(jobs[i], err)
 		}
@@ -128,7 +128,7 @@ func TestPostgresCancellationAndAttemptFenceBeforeStart(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			wakeAdmission(t, store, "alice")
-			job, err := store.Claim(ctx)
+			job, err := store.ClaimAfterTeardown(ctx, false, "", "test-scope")
 			if err != nil || job.JobID == "" {
 				t.Fatal(job, err)
 			}
@@ -137,7 +137,18 @@ func TestPostgresCancellationAndAttemptFenceBeforeStart(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				if _, err = store.Pool.Exec(ctx, `UPDATE execution_jobs SET attempt_id=$2 WHERE id=$1`, job.JobID, postgres.ID()); err != nil {
+				tx, e := store.Pool.Begin(ctx)
+				if e != nil {
+					t.Fatal(e)
+				}
+				defer tx.Rollback(ctx)
+				if _, err = tx.Exec(ctx, `SELECT set_config('quorem.sandbox_scope','test-scope',true)`); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = tx.Exec(ctx, `UPDATE execution_jobs SET attempt_id=$2 WHERE id=$1`, job.JobID, postgres.ID()); err != nil {
+					t.Fatal(err)
+				}
+				if err = tx.Commit(ctx); err != nil {
 					t.Fatal(err)
 				}
 			}

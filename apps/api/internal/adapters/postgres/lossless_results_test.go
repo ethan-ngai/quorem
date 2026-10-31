@@ -27,7 +27,7 @@ func TestLosslessRunResultAndSafeDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestLosslessInterviewPrivateResultsAndRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil {
 		t.Fatal(err)
 	}

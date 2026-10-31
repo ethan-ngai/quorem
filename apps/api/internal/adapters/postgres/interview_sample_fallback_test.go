@@ -57,7 +57,7 @@ func TestInterviewSampleFallbackExecutionAndVisibility(t *testing.T) {
 					t.Fatalf("snapshot private cases: %s", shape)
 				}
 			}
-			job, err := s.Claim(ctx)
+			job, err := claimTestJob(ctx, s, false)
 			if err != nil || job.SubmissionID != submission.ID {
 				t.Fatal(job, err)
 			}
