@@ -2,10 +2,13 @@ name: CI
 on:
   pull_request:
     branches: [main, feat/hono-migration]
+  push:
+    branches: [feat/hono-migration]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.event.pull_request.number }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   checks:
@@ -57,6 +60,10 @@ jobs:
       - name: Lint and type checks
         run: vp check --no-fmt
       - run: vp run contracts:check
+      - run: vp -C apps/api run typecheck
+      - run: vp -C apps/api run check:boundaries
+      - run: vp -C apps/api run test
+      - run: vp -C apps/api run test:workers
       - run: vp -C apps/auth test
       - run: vp -C apps/web test
       - run: vp node --test scripts/marketing-dev.test.mjs
