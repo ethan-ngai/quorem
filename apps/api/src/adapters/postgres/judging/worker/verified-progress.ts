@@ -33,7 +33,7 @@ export async function verifiedMatchProgress(
       count(v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status NOT IN ('accepted','executed'))::int AS failures,
       count(v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status='accepted')::int AS passed,
       count(v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status='executed')::int AS unresolved,
-      (array_agg(v.status ORDER BY v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status NOT IN ('accepted','executed')))[1] AS first_failure,
+      (SELECT x.status FROM execution_verified_cases x WHERE x.job_id=j.id AND x.attempt_id=j.attempt_id AND x.sandbox_scope=j.sandbox_scope AND x.ordinal<i.case_count AND x.status NOT IN ('accepted','executed') ORDER BY x.ordinal LIMIT 1) AS first_failure,
       j.finished, EXISTS(SELECT 1 FROM execution_completion_receipts r WHERE r.job_id=j.id AND r.attempt_id=j.attempt_id AND r.sandbox_scope=j.sandbox_scope AND r.outcome='completed') AS receipt
     FROM execution_jobs j JOIN runner_job_inputs i ON i.job_id=j.id AND i.sealed
     LEFT JOIN execution_verified_cases v ON v.job_id=j.id AND v.attempt_id=j.attempt_id AND v.sandbox_scope=j.sandbox_scope
