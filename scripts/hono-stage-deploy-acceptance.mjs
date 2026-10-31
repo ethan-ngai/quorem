@@ -1,7 +1,7 @@
 /** Exercise a real staged submission through the deployed Worker and drain. */
 import { randomUUID } from "node:crypto";
 
-function stagedOrigin(value) {
+export function stagedOrigin(value) {
   const url = new URL(value);
   if (
     url.protocol !== "https:" ||
@@ -15,7 +15,7 @@ function stagedOrigin(value) {
     throw new Error("Invalid staged origin");
   return url.origin;
 }
-async function json(response) {
+export async function json(response) {
   if (!response.body) throw new Error("Missing stage response");
   const reader = response.body.getReader();
   const chunks = [];

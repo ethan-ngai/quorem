@@ -143,6 +143,19 @@ export async function stageControls(options, send = fetch) {
     row.generation === generation &&
     row.release === expectedRelease &&
     row.bindings === expectedBindings;
+  const requireActive = async (generation) => {
+    if (!Number.isSafeInteger(generation) || generation < 1)
+      throw new Error("Invalid active generation");
+    const observed = await observe();
+    if (
+      observed.runner.status !== "active" ||
+      observed.cases.paused ||
+      !matching(observed.runner, generation, release, bindings) ||
+      !matching(observed.cases, generation, release, bindings)
+    )
+      throw new Error("Unexpected active release");
+    return observed;
+  };
   const genesis = (row, prior) =>
     row.initialOperation === prior.initialOperation && row.initialRelease === prior.initialRelease;
   /** Caller must independently establish teardown before using the resume transitions. */
@@ -428,6 +441,7 @@ export async function stageControls(options, send = fetch) {
     activate,
     pause,
     observe,
+    requireActive,
     inventoryPage,
     pausePinned,
     prepareResume,

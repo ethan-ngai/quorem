@@ -25,6 +25,7 @@ import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { uploadWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { releaseQueue, setQueue } from "./hono-stage-deploy-queue.mjs";
 import { verifyNoAlternateIngress } from "./hono-stage-deploy-subdomains.mjs";
+import { runStageWorkload } from "./hono-stage-workload.mjs";
 
 const commonNames = [
   "PATH",
@@ -189,6 +190,7 @@ const defaults = {
   deploy: workerDeploy,
   remote: remoteProof,
   actor: createStagedActor,
+  workload: runStageWorkload,
   queue: releaseQueue,
   subdomains: verifyNoAlternateIngress,
   detach: (env) => setQueue(env, false),
@@ -412,6 +414,16 @@ export async function deployStage(original, operations = defaults) {
       verified.namespace,
     );
     queueAttached = true;
+    operations.phase?.("hosted-workload");
+    const workloadBefore = await controlClient.requireActive(1);
+    const workload = await operations.workload({
+      HONO_STAGE_API_ORIGIN: publicInput.vars.AUTH_ORIGIN,
+      HONO_STAGE_BROWSER_ORIGIN: env.HONO_STAGE_BROWSER_ORIGIN,
+      ALLOWED_ORIGINS: publicInput.vars.ALLOWED_ORIGINS,
+      QUOREM_STAGE_DATABASE_URL: env.HONO_STAGE_DATABASE_URL,
+      BETTER_AUTH_SECRET: workerSecrets.BETTER_AUTH_SECRET,
+    });
+    const workloadAfter = await controlClient.requireActive(1);
     receipt = {
       release: env.HONO_RELEASE_SHA,
       database: "fresh",
@@ -420,6 +432,7 @@ export async function deployStage(original, operations = defaults) {
       namespace: verified.namespace,
       images,
       acceptance,
+      workload: { ...workload, controls: { before: workloadBefore, after: workloadAfter } },
       cutoverReady: false,
     };
   } catch (error) {

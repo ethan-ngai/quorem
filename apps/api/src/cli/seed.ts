@@ -30,21 +30,28 @@ async function files(dir: string): Promise<string[]> {
     .sort()
     .map((p) => join(dir, p));
 }
-export async function seedCatalog(pool: Pool, local: boolean): Promise<void> {
+export async function seedCatalog(pool: Pool, local: boolean, signal?: AbortSignal): Promise<void> {
   const run = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
-    withNodeConnection(pool, { lifetimeMs: 20000 }, fn);
+    withNodeConnection(pool, { lifetimeMs: 20000, signal }, fn);
+  signal?.throwIfAborted();
   if (local)
-    await pool.query(
-      `INSERT INTO users(id,display_name,participant_id) VALUES ('alice','Alice','00000000-0000-4000-8000-000000000001'),('bob','Bob','00000000-0000-4000-8000-000000000002'),('charlie','Charlie','00000000-0000-4000-8000-000000000003'),('dana','Dana','00000000-0000-4000-8000-000000000004') ON CONFLICT(id) DO NOTHING`,
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 3000 }, async (tx) => {
+        await tx.execute(
+          sql`INSERT INTO users(id,display_name,participant_id) VALUES ('alice','Alice','00000000-0000-4000-8000-000000000001'),('bob','Bob','00000000-0000-4000-8000-000000000002'),('charlie','Charlie','00000000-0000-4000-8000-000000000003'),('dana','Dana','00000000-0000-4000-8000-000000000004') ON CONFLICT(id) DO NOTHING`,
+        );
+      }),
     );
   const editorials = new Map<string, JsonValue[]>();
   for (const path of await files(join(root, "fixtures/editorials"))) {
+    signal?.throwIfAborted();
     const item = object(parseLosslessJson(await readFile(path, "utf8")));
     editorials.set(str(item.versionId), list(item.solutions));
   }
   const paths = await files(join(root, "fixtures/problems"));
   if (!paths.length) throw new Error("No catalog fixtures");
   for (const path of paths) {
+    signal?.throwIfAborted();
     const c = object(parseLosslessJson(await readFile(path, "utf8"))),
       p = object(c.problem),
       slug = str(p.slug),
@@ -55,6 +62,7 @@ export async function seedCatalog(pool: Pool, local: boolean): Promise<void> {
     editorials.delete(versionId);
     const raw = stringifyLosslessJson(c);
     validateQuestionPublication(raw, validateQuestionSchema, languageRuntime);
+    signal?.throwIfAborted();
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 3000 }, async (tx) => {
         await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
