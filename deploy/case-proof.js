@@ -47,11 +47,11 @@ export async function signedCaseProbe(env, { kind, scope, attempt, nonce, value 
 /**
  * Verify an authenticated bounded response against caller bindings.
  * @param {Response} response
- * @param {{publicKey: CryptoKey, kind: string, scope?: string, attempt: string, nonce: string, expectedNamespace?: string}} options
+ * @param {{publicKey: CryptoKey, kind: string, scope?: string, attempt: string, nonce: string, expectedNamespace?: string, expectedAfter?: string}} options
  */
 export async function verifyCaseProbe(
   response,
-  { publicKey, kind, scope = "", attempt, nonce, expectedNamespace },
+  { publicKey, kind, scope = "", attempt, nonce, expectedNamespace, expectedAfter },
 ) {
   const namespace = response.headers.get("x-quorem-owner-namespace"),
     raw = response.headers.get("x-quorem-owner-signature");
@@ -62,6 +62,13 @@ export async function verifyCaseProbe(
     (expectedNamespace && namespace !== expectedNamespace) ||
     !/^[a-f0-9-]{36}$/.test(nonce ?? "") ||
     !/^[A-Za-z0-9+/]{86}==$/.test(raw ?? "")
+  )
+    throw new Error("Invalid case probe");
+  if (
+    (kind === "control-state" || kind === "control-inventory") &&
+    (!/^[a-f0-9]{64}$/.test(expectedNamespace ?? "") ||
+      !/^remote:[a-f0-9]{64}$/.test(scope) ||
+      attempt !== "control")
   )
     throw new Error("Invalid case probe");
   const reader = response.body.getReader(),
@@ -121,7 +128,51 @@ export async function verifyCaseProbe(
               value.ordinal > 2147483646 ||
               !/^[a-f0-9]{64}$/.test(value.tokenHash)
             : value.ordinal !== null || value.tokenHash !== null)
-        : true)
+        : kind === "control-state"
+          ? Object.keys(value).sort().join() !==
+              "activationOperation,bindings,generation,initialOperation,initialRelease,namespace,pauseOperation,paused,release,scope" ||
+            value.namespace !== namespace ||
+            value.scope !== scope ||
+            typeof value.initialOperation !== "string" ||
+            !/^[a-f0-9-]{36}$/.test(value.initialOperation) ||
+            typeof value.initialRelease !== "string" ||
+            !/^[a-f0-9]{40}$/.test(value.initialRelease) ||
+            !Number.isSafeInteger(value.generation) ||
+            value.generation < 0 ||
+            (value.generation === 0
+              ? value.release !== null ||
+                value.bindings !== null ||
+                value.activationOperation !== null ||
+                value.pauseOperation !== null ||
+                !value.paused
+              : typeof value.release !== "string" ||
+                !/^[a-f0-9]{40}$/.test(value.release) ||
+                typeof value.bindings !== "string" ||
+                !/^[a-f0-9]{64}$/.test(value.bindings) ||
+                typeof value.activationOperation !== "string" ||
+                !/^[a-f0-9-]{36}$/.test(value.activationOperation) ||
+                (value.paused
+                  ? typeof value.pauseOperation !== "string" ||
+                    !/^[a-f0-9-]{36}$/.test(value.pauseOperation)
+                  : value.pauseOperation !== null)) ||
+            typeof value.paused !== "boolean" ||
+            value.generation >= Number.MAX_SAFE_INTEGER
+          : kind === "control-inventory"
+            ? Object.keys(value).sort().join() !== "after,attempts,next" ||
+              typeof expectedAfter !== "string" ||
+              value.after !== expectedAfter ||
+              (value.after !== "" && !/^[A-Za-z0-9-]{1,128}$/.test(value.after)) ||
+              !Array.isArray(value.attempts) ||
+              value.attempts.length > 4 ||
+              value.attempts.some(
+                (item, index) =>
+                  typeof item !== "string" ||
+                  !/^[A-Za-z0-9-]{1,128}$/.test(item) ||
+                  item <= (index ? value.attempts[index - 1] : value.after),
+              ) ||
+              (value.next !== null &&
+                (value.attempts.length === 0 || value.next !== value.attempts.at(-1)))
+            : true)
   )
     throw new Error("Invalid case probe");
   return value;
