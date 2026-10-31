@@ -626,7 +626,7 @@ void test("privileged backfill runs in bounded batches", async () => {
 void test("historical result reader fetches only revealed case and result bytes under restricted role", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
   const { backfillSnapshotPublicExamples } = await import("../question/public-examples.ts");
-  const { backfillPrivateResultCases, savePrivateResultCases } = await import("../question/private-results.ts");
+  const { backfillPrivateResultCases, savePrivateResultCase, savePrivateResultCases } = await import("../question/private-results.ts");
   const { submissionSnapshots } = await import("../../judging/results/repository.ts");
   const session = (
     await pool.query(
@@ -685,6 +685,12 @@ void test("historical result reader fetches only revealed case and result bytes 
       backfillPrivateResultCases(tx, submission),
     ),
   );
+  await run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+    savePrivateResultCase(tx, submission, 0, '{"index":0,"status":"wrong_answer","actual":"RESULT-A\\u0000","expected":9007199254740993}'),
+  ));
+  await assert.rejects(run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+    savePrivateResultCase(tx, submission, 0, '{"index":0,"status":"accepted"}'),
+  )));
   await assert.rejects(run((scope) => scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
     savePrivateResultCases(tx, submission, '[{"index":0,"status":"accepted"}]'),
   )));
