@@ -6,8 +6,11 @@ import { createStageSecrets } from "./hono-stage-bootstrap-config.mjs";
 import {
   bootstrapEnvironment,
   launchStage as actualLaunchStage,
-  validateStageIntent,
+  runStageCommand,
+  StageCommandFailure,
 } from "./hono-stage-launch.mjs";
+
+import { validateStageIntent } from "./hono-stage-intent.mjs";
 
 const launchStage = (env, options) => actualLaunchStage(env, { state: async () => {}, ...options });
 
@@ -102,7 +105,7 @@ void test("plan refuses destructive, drift and unrelated resources before apply"
       }),
       /unrelated or destructive/,
     );
-    assert.deepEqual(calls, ["init", "plan", "show"]);
+    assert.deepEqual(calls, ["init", "state", "plan", "show"]);
   }
   const calls = [];
   await assert.rejects(
@@ -113,7 +116,7 @@ void test("plan refuses destructive, drift and unrelated resources before apply"
     }),
     /unrelated or destructive/,
   );
-  assert.deepEqual(calls, ["init", "plan", "show"]);
+  assert.deepEqual(calls, ["init", "state", "plan", "show"]);
 });
 
 void test("stage reuses stored secrets and publishes genuine images exactly once", async () => {
@@ -154,7 +157,7 @@ void test("stage reuses stored secrets and publishes genuine images exactly once
     },
   });
   assert.deepEqual(result, { status: "fixture" });
-  assert.deepEqual(calls, ["freshness", "init", "plan", "show", "apply", "output"]);
+  assert.deepEqual(calls, ["freshness", "init", "state", "plan", "show", "apply", "output"]);
   assert.equal(publishes, 1);
   assert.equal(activations, 1);
   assert.ok(masked.includes(expected.RECOVERY_CONTROL_SECRET));
@@ -175,7 +178,7 @@ void test("plan returns only allowed addresses and never publishes or applies", 
       throw new Error("unexpected activation");
     },
   });
-  assert.deepEqual(calls, ["init", "plan", "show"]);
+  assert.deepEqual(calls, ["init", "state", "plan", "show"]);
   assert.deepEqual(result, {
     status: "planned",
     resources: [{ address: "neon_project.stage", actions: ["create"] }],
@@ -201,4 +204,22 @@ void test("state privacy failure prevents all provisioning", async () => {
     /provider preflight failed/,
   );
   assert.deepEqual(calls, ["freshness"]);
+});
+
+void test("command diagnostics expose only fixed provider resource names", () => {
+  const secret = "do-not-print-this-provider-payload";
+  assert.throws(
+    () =>
+      runStageCommand("terraform", [], {}, () => ({
+        status: 1,
+        stderr: `with cloudflare_zero_trust_access_service_token.stage: HTTP403 ${secret}`,
+      })),
+    (error) => {
+      assert.ok(error instanceof StageCommandFailure);
+      assert.equal(error.category, "provider permission");
+      assert.deepEqual(error.resources, ["cloudflare_zero_trust_access_service_token.stage"]);
+      assert.equal(JSON.stringify(error).includes(secret), false);
+      return true;
+    },
+  );
 });

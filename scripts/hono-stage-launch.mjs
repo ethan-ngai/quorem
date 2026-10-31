@@ -1,9 +1,10 @@
 /** Provision a fresh isolated stage; provider credentials and state never leave the job. */
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stageIntent } from "./hono-stage-intent.mjs";
 import { assembleStageConfig, createStageSecrets } from "./hono-stage-bootstrap-config.mjs";
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { publishImages } from "./hono-stage-deploy-images.mjs";
@@ -13,24 +14,35 @@ import { requirePrivateStageState } from "./hono-stage-state.mjs";
 import { stageNamespaceReady } from "./hono-stage-ready.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 
-function command(program, args, env) {
-  const result = spawnSync(program, args, {
+export class StageCommandFailure extends Error {
+  constructor(result) {
+    const text = result.stderr ?? "";
+    const category =
+      /permission|unauthorized|forbidden|authentication|denied|HTTP\s*(401|403)\b|\b403\b|\b401\b/i.test(
+        text,
+      )
+        ? "provider permission"
+        : /quota|rate.limit|\b429\b/i.test(text)
+          ? "provider limit"
+          : "configuration/provider";
+    super(`Stage command failed (${category}); output withheld`);
+    this.category = category;
+    this.resources = [
+      "cloudflare_zero_trust_access_service_token.stage",
+      "neon_project.stage",
+      "terraform_data.stage_secrets",
+    ].filter((name) => text.includes(name));
+    this.noState = /No state file was found/i.test(text);
+  }
+}
+export function runStageCommand(program, args, env, execute = spawnSync) {
+  const result = execute(program, args, {
     env,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 16 * 1024 * 1024,
   });
-  if (result.error || result.status !== 0) {
-    const category =
-      /permission|unauthorized|forbidden|authentication|access denied|\b403\b|\b401\b/i.test(
-        result.stderr ?? "",
-      )
-        ? "provider permission"
-        : /quota|rate.limit|\b429\b/i.test(result.stderr ?? "")
-          ? "provider limit"
-          : "configuration/provider";
-    throw new Error(`Stage command failed (${category}); output withheld`);
-  }
+  if (result.error || result.status !== 0) throw new StageCommandFailure(result);
   return result.stdout ?? "";
 }
 export function bootstrapEnvironment(env, secrets) {
@@ -72,34 +84,12 @@ export function bootstrapEnvironment(env, secrets) {
     TF_VAR_stage_secrets: JSON.stringify(secrets),
   };
 }
-/** A source-controlled request triggers only this staging workflow, never production deployment. */
-export function validateStageIntent(env, request) {
-  if (env.GITHUB_EVENT_NAME === "workflow_dispatch") {
-    if (
-      !["plan", "stage"].includes(env.HONO_BOOTSTRAP_ACTION) ||
-      env.HONO_RELEASE_SHA !== env.GITHUB_SHA
-    )
-      throw new Error("Exact stage request required");
-    return env.HONO_BOOTSTRAP_ACTION;
-  }
-  if (
-    env.GITHUB_EVENT_NAME !== "push" ||
-    !request ||
-    Object.keys(request).sort().join() !== "action,operation" ||
-    request.action !== "stage" ||
-    !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
-      request.operation ?? "",
-    )
-  )
-    throw new Error("Explicit stage intent required");
-  return "stage";
-}
 export async function launchStage(
   env,
   {
     action = "plan",
     state = requirePrivateStageState,
-    run = command,
+    run = runStageCommand,
     createSecrets = createStageSecrets,
     assemble = assembleStageConfig,
     images = publishImages,
@@ -118,6 +108,21 @@ export async function launchStage(
   const prefix = ["-chdir=infra/terraform/hono-bootstrap"];
   try {
     run("terraform", terraformInitArgs(env, "hono-bootstrap"), child);
+    let existing = "";
+    try {
+      existing = run("terraform", [...prefix, "state", "list"], child);
+    } catch (error) {
+      if (!(error instanceof StageCommandFailure) || !error.noState) throw error;
+    }
+    const resources = existing
+      .split("\n")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const allowedState =
+      /^(neon_project\.stage|terraform_data\.stage_secrets|cloudflare_zero_trust_access_service_token\.stage\["(runner_api|verifier_api|drain|verifier|case|image)"\])$/;
+    if (resources.some((value) => !allowedState.test(value)))
+      throw new Error("Unexpected bootstrap state");
+    report("bootstrap-state", { resources });
     run(
       "terraform",
       [...prefix, "plan", "-input=false", "-no-color", "-lock-timeout=5m", `-out=${plan}`],
@@ -203,12 +208,7 @@ export async function launchStage(
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const action = validateStageIntent(
-      process.env,
-      process.env.GITHUB_EVENT_NAME === "push"
-        ? JSON.parse(readFileSync("deploy/hono/stage-request.json", "utf8"))
-        : undefined,
-    );
+    const action = stageIntent(process.env);
     const receipt = await launchStage(process.env, {
       action,
       report(phase, resources) {
@@ -224,7 +224,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stdout.write(`${JSON.stringify(receipt)}\n`);
   } catch (error) {
     process.stderr.write(
-      `${error instanceof Error && error.message.startsWith("Stage command failed (") ? error.message : "Isolated stage launch failed; sensitive output withheld"}\n`,
+      `${error instanceof StageCommandFailure ? JSON.stringify({ error: "stage-command", category: error.category, resources: error.resources }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
     );
     process.exitCode = 1;
   }

@@ -1,6 +1,7 @@
 /** Read-only provider checks; report only the adapters' redacted metadata. */
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { stageIntent } from "./hono-stage-intent.mjs";
 import { requirePrivateStageState } from "./hono-stage-state.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 
@@ -39,7 +40,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.log(
       JSON.stringify(
         await checkStageProvider(process.env, {
-          fresh: process.env.HONO_BOOTSTRAP_ACTION !== "plan",
+          fresh: stageIntent(process.env) === "stage",
           report: (phase, metadata) => console.log(JSON.stringify({ phase, metadata })),
         }),
       ),
