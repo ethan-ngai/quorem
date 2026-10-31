@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { createServer as createNetServer } from "node:net";
-import { createHash, generateKeyPairSync } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
 import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { claimNext } from "../../../../../../runner/src/queue/claim.ts";
@@ -46,8 +46,12 @@ if (url) {
   if (
     !["postgres:", "postgresql:"].includes(parsed.protocol) ||
     !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) ||
-    parsed.pathname !== (remote ? "/quorem_hono_remote_validation_test" : "/quorem_hono_engine_test") ||
-    !!parsed.hash || [...parsed.searchParams.keys()].some((key) => ["host", "hostaddr", "service"].includes(key.toLowerCase()))
+    parsed.pathname !==
+      (remote ? "/quorem_hono_remote_validation_test" : "/quorem_hono_engine_test") ||
+    !!parsed.hash ||
+    [...parsed.searchParams.keys()].some((key) =>
+      ["host", "hostaddr", "service"].includes(key.toLowerCase()),
+    )
   )
     throw new Error("Disposable engine database required");
 }
@@ -582,18 +586,55 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
             headers: { authorization: `Bearer ${drainSecret}` },
             signal: AbortSignal.timeout(180000),
           });
-          let running = false;
+          const ownerKey = await readFile(process.env.QUOREM_CASE_OWNER_PUBLIC_KEY_FILE!, "utf8");
+          const probeKey = await crypto.subtle.importKey(
+            "spki",
+            createPublicKey(ownerKey).export({ type: "spki", format: "der" }),
+            "Ed25519",
+            false,
+            ["verify"],
+          );
+          const { verifyCaseProbe } = await import("../../../../../../../deploy/case-proof.js");
+          const probeFetch = accessFetch(caseOrigin, caseAccess) ?? fetch;
+          const probe = async (attempt: string, scope: string) => {
+            const nonce = crypto.randomUUID();
+            const response = await probeFetch(new URL(`/internal/case/${attempt}`, caseOrigin), {
+              headers: {
+                authorization: `Bearer ${process.env.QUOREM_CASE_SECRET!}`,
+                "x-quorem-case-probe": "lifecycle",
+                "x-quorem-owner-nonce": nonce,
+                "x-quorem-owner-scope": scope,
+              },
+              redirect: "error",
+              signal: AbortSignal.timeout(10000),
+            });
+            return verifyCaseProbe(response, {
+              publicKey: probeKey,
+              kind: "lifecycle",
+              scope,
+              attempt,
+              nonce,
+              expectedNamespace: process.env.QUOREM_CASE_NAMESPACE_ID!,
+            });
+          };
+          let activeAttempt: { attempt: string; scope: string } | undefined;
           for (let i = 0; i < 600; i++) {
-            if (
-              (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0]
-                ?.state === "running"
-            ) {
-              running = true;
-              break;
+            const row = (
+              await pool.query(
+                "SELECT attempt_id::text AS attempt,sandbox_scope AS scope FROM execution_jobs WHERE submission_id=$1",
+                [slowId],
+              )
+            ).rows[0];
+            if (row?.attempt && row.scope === sandbox.scope) {
+              const state = await probe(row.attempt, row.scope);
+              if (state.active === true && state.running === true) {
+                activeAttempt = { attempt: row.attempt, scope: row.scope };
+                break;
+              }
             }
             await sleep(100);
           }
-          expect(running).toBe(true);
+          expect(activeAttempt).toBeDefined();
           expect(
             (
               await app.request(`https://fixture.test/v1/submissions/${slowId}/cancel`, {
@@ -610,7 +651,13 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           expect(
             (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0].state,
           ).toBe("cancelled");
-          const ownerKey = await readFile(process.env.QUOREM_CASE_OWNER_PUBLIC_KEY_FILE!, "utf8");
+          const stopped = await probe(activeAttempt!.attempt, activeAttempt!.scope);
+          expect(stopped.active).toBe(false);
+          expect(stopped.running).toBe(false);
+          await sandbox.teardownAttempt({
+            attemptId: activeAttempt!.attempt,
+            sandboxScope: activeAttempt!.scope,
+          });
           const foreignKey = generateKeyPairSync("ed25519")
             .publicKey.export({ type: "spki", format: "pem" })
             .toString();

@@ -70,6 +70,31 @@ try {
         ].some((x) => x === id || x === access)))
   )
     fail("Invalid case ingress credentials");
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    createPublicKey(await readFile(keyFile)).export({ type: "spki", format: "der" }),
+    "Ed25519",
+    false,
+    ["verify"],
+  );
+  const { verifyCaseProbe } = await import("../deploy/case-proof.js");
+  const { accessFetch } = await import("../packages/execution/src/transport/access.ts");
+  const send =
+    accessFetch(origin.origin, id && access ? { id, secret: access } : undefined) ?? fetch;
+  const nonce = crypto.randomUUID();
+  const response = await send(new URL("/internal/case/namespace", origin), {
+    headers: { authorization: `Bearer ${secret}`, "x-quorem-owner-nonce": nonce },
+    redirect: "error",
+    signal: AbortSignal.timeout(10000),
+  });
+  await verifyCaseProbe(response, {
+    publicKey,
+    kind: "namespace",
+    scope: "",
+    attempt: "namespace",
+    nonce,
+    expectedNamespace: process.env.QUOREM_CASE_NAMESPACE_ID,
+  });
   const dir = await mkdtemp(join(tmpdir(), "quorem-remote-validation-"));
   try {
     const report = join(dir, "result.json");
@@ -102,7 +127,7 @@ try {
     const json = JSON.parse(await readFile(report, "utf8"));
     if (json.numPassedTests !== 1 || json.numFailedTests !== 0 || json.numPendingTests !== 6)
       fail("Remote test selection mismatch");
-    fail("Hosted active-case teardown proof is not yet available");
+    console.log("Remote execution validation passed");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
