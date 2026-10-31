@@ -98,6 +98,8 @@ export function runPlan(env, run = spawnSync) {
   for (const stack of ["hono-stage", "hono-services"]) {
     const stackEnv = {
       ...env,
+      TF_VAR_release_sha: env.HONO_RELEASE_SHA,
+      TF_VAR_release_generation: env.TF_VAR_release_generation ?? "1",
       TF_VAR_worker_name:
         stack === "hono-stage" ? env.TF_VAR_worker_name : env.HONO_SERVICES_WORKER_NAME,
     };
