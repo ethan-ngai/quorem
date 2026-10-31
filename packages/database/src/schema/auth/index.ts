@@ -1,6 +1,7 @@
 /** @file schema/auth/index.ts @description PostgreSQL schema and migration ownership. @module database */
 import {
   pgSchema,
+  jsonb,
   text,
   timestamp,
   index,
@@ -13,6 +14,7 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { bytea } from "../../core/bytea.ts";
 import { passkeyCounter } from "../../core/passkey-counter.ts";
 
 export const quorem_auth = pgSchema("quorem_auth");
@@ -230,3 +232,26 @@ export const userInQuorem_auth = quorem_auth.table(
     check("user_profile_color_check", sql`((profile_color >= 1) AND (profile_color <= 24))`),
   ],
 );
+
+export const mail_intentInQuorem_auth = quorem_auth.table("mail_intent", {
+  id: text().primaryKey().notNull(),
+  purpose: text().notNull(),
+  recipient_key: text().notNull(),
+  generation: integer().notNull(),
+  ciphertext: bytea().notNull(),
+  nonce: bytea().notNull(),
+  budget_reservations: jsonb().notNull(),
+  registration_token_hash: text(),
+  registration_previous: jsonb(),
+  state: text().notNull(),
+  claim_id: text(),
+  claim_until: timestamp({ withTimezone: true, mode: "date" }),
+  expires_at: timestamp({ withTimezone: true, mode: "date" }).notNull(),
+  created_at: timestamp({ withTimezone: true, mode: "date" }).defaultNow().notNull(),
+}, (table) => [
+  unique("mail_intent_purpose_recipient_key_generation_key").on(table.purpose, table.recipient_key, table.generation),
+  check("mail_intent_purpose_check", sql`purpose IN ('registration', 'account')`),
+  check("mail_intent_generation_check", sql`generation > 0`),
+  check("mail_intent_state_check", sql`state IN ('pending', 'sending', 'accepted', 'rejected', 'uncertain', 'cancelled')`),
+  index("mail_intent_expiry").on(table.expires_at),
+]);

@@ -9,7 +9,12 @@ import {
 } from "../../../../modules/events/scheduling/scheduling.ts";
 const url = process.env.QUOREM_SCHEDULING_TEST_DATABASE_URL!;
 const parsed = new URL(url);
-if (parsed.port !== "55453" || parsed.pathname !== "/quorem_hono_scheduling_test")
+if (
+  !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+  !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) ||
+  parsed.searchParams.has("host") ||
+  parsed.pathname !== "/quorem_hono_scheduling_test"
+)
   throw new Error("Disposable database required");
 const pool = createNodePool({
   connectionString: url,

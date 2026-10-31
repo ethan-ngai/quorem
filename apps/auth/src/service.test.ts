@@ -16,9 +16,10 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
       COGNITO_REGION: "us-east-1",
       COGNITO_USERPOOL_ID: "us-east-1_mock",
     });
-    const { database, config } = await import("./database");
+    const runtime = await (await import("./node-auth")).createNodeRuntime(process.env);
+    const { database, config, auth } = runtime;
     await migrateAuth(database);
-    const { auth } = await import("./auth");
+    await database.query("DELETE FROM rate_limit");
     const id = randomUUID();
     const sessionId = randomUUID();
     const sessionToken = randomUUID();

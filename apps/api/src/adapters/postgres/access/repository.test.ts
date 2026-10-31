@@ -5,7 +5,8 @@ const url = process.env.QUOREM_ADMISSION_TEST_DATABASE_URL;
 it.skipIf(!url)("transactional capability reads match the existing repository", async () => {
   const parsed = new URL(url!);
   if (
-    parsed.port !== "55458" ||
+    !["postgres:", "postgresql:"].includes(parsed.protocol) ||
+    parsed.searchParams.has("host") ||
     parsed.pathname !== "/quorem_hono_admission_test" ||
     !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)
   )
