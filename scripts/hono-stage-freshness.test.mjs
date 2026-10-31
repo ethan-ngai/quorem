@@ -100,3 +100,24 @@ void test("reports only redacted provider status and inventory metadata", async 
     { phase: "failure", metadata: { reason: "unavailable" } },
   ]);
 });
+void test("derives omitted page count and rejects malformed present counts", async () => {
+  const workers = Array.from({ length: 101 }, (_, i) => ({ id: String(i), name: `worker-${i}` }));
+  const original = list(workers, []);
+  const withoutPages = async (url, init) => {
+    const response = await original(url, init);
+    const data = await response.json();
+    delete data.result_info.total_pages;
+    return Response.json(data);
+  };
+  assert.equal((await requireFreshStageResources(env, withoutPages)).workersChecked, 101);
+  for (const value of [null, -1, "2", 1.5, 1]) {
+    await assert.rejects(
+      requireFreshStageResources(env, async (url, init) => {
+        const data = await (await original(url, init)).json();
+        data.result_info.total_pages = value;
+        return Response.json(data);
+      }),
+      /freshness/,
+    );
+  }
+});
