@@ -59,9 +59,9 @@ export interface CompletionHeader {
   readonly attemptId: string;
   readonly verdict?: Verdict;
   readonly score?: { readonly passed: number; readonly total: number };
-  readonly safeDiagnostics?: readonly Diagnostic[];
   readonly hiddenCases?: readonly { readonly index: number; readonly status: Verdict }[];
-  readonly engineFailure?: string;
+  readonly engineFailure: boolean;
+  readonly diagnosticsPresent: boolean;
   readonly publicPresent: boolean;
   readonly samplePresent: boolean;
   readonly privatePresent: boolean;
@@ -69,15 +69,9 @@ export interface CompletionHeader {
   readonly sampleCount: number;
   readonly privateCount: number;
 }
-/** Raw JSON preserves numeric lexemes; each ordinal is independently fenced. */
-export interface CompletionFrame {
-  readonly channel: "public" | "sample" | "private";
-  readonly ordinal: number;
-  readonly raw: string;
-}
 /** A raw JSON field is transported independently in bounded byte chunks. */
 export interface CompletionFieldChunk {
-  readonly channel: "public" | "sample" | "private";
+  readonly channel: "public" | "sample" | "private" | "header";
   readonly ordinal: number;
   readonly field: "actual" | "expected" | "stdout" | "stderr" | "diagnostics" | "sqlTypes";
   readonly chunkOrdinal: number;
@@ -143,11 +137,12 @@ export interface ExecutionRepository {
   writeCompletionChunk(job: Job, chunk: CompletionFieldChunk, signal?: AbortSignal): Promise<void>;
   sealCompletionFrame(
     job: Job,
-    channel: CompletionFieldChunk["channel"],
+    channel: "public" | "sample" | "private",
     ordinal: number,
     status: string,
     signal?: AbortSignal,
   ): Promise<void>;
+  sealCompletionDiagnostics(job: Job, signal?: AbortSignal): Promise<void>;
   finishCompletionStream(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   promoteCompletion(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   loadCheckpoint(job: Job, signal?: AbortSignal): Promise<Checkpoint>;

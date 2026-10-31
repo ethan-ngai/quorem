@@ -168,6 +168,8 @@ describe.skipIf(!url)("runner claim fences", () => {
     const header = {
       submissionId: submission,
       attemptId: live!.attemptId,
+      engineFailure: false,
+      diagnosticsPresent: false,
       publicPresent: true,
       samplePresent: false,
       privatePresent: false,
@@ -261,6 +263,8 @@ describe.skipIf(!url)("runner claim fences", () => {
       submissionId: submission,
       attemptId: live!.attemptId,
       verdict: "accepted" as const,
+      engineFailure: false,
+      diagnosticsPresent: true,
       publicPresent: true,
       samplePresent: false,
       privatePresent: false,
@@ -275,6 +279,14 @@ describe.skipIf(!url)("runner claim fences", () => {
       (await pool.query("SELECT state FROM submissions WHERE id=$1", [submission])).rows[0].state,
     ).toBe("running");
     await staging.begin(live!, result);
+    await staging.chunk(live!, {
+      channel: "header",
+      ordinal: 0,
+      field: "diagnostics",
+      chunkOrdinal: 0,
+      bytes: new TextEncoder().encode('[{"message":"m\\u0000n"}]'),
+    });
+    await staging.sealDiagnostics(live!);
     await staging.chunk(live!, {
       channel: "public",
       ordinal: 0,
@@ -310,6 +322,11 @@ describe.skipIf(!url)("runner claim fences", () => {
     expect(row.payload).toContain("\\u0000");
     expect(row.payload).toContain('"expected":2');
     expect(row.payload).not.toContain("987655");
+    const diagnostic = await pool.query(
+      "SELECT convert_from(field_data,'UTF8') AS data FROM submission_result_header_fields WHERE submission_id=$1 AND field='diagnostics'",
+      [submission],
+    );
+    expect(diagnostic.rows[0].data).toContain("\\u0000");
     await promote(live!, live!);
     await expect(
       pool.query(
@@ -382,7 +399,8 @@ describe.skipIf(!url)("runner claim fences", () => {
       await staging.begin(live!, {
         submissionId: s,
         attemptId: live!.attemptId,
-        engineFailure: "cancelled",
+        engineFailure: true,
+        diagnosticsPresent: false,
         publicPresent: false,
         samplePresent: false,
         privatePresent: false,

@@ -26,6 +26,7 @@ export function postgresExecutionCommands(
     writeCompletionChunk: (job, chunk) => staging.chunk(job, chunk),
     sealCompletionFrame: (job, channel, ordinal, status) =>
       staging.seal(job, channel, ordinal, status),
+    sealCompletionDiagnostics: (job) => staging.sealDiagnostics(job),
     finishCompletionStream: (job, proof) => staging.eof(job, proof),
     promoteCompletion: postgresCompletionPromotion(run),
     async loadCheckpoint(job) {

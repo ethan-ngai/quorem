@@ -7,7 +7,6 @@ export type {
   CaseResult,
   Completion,
   CompletionHeader,
-  CompletionFrame,
   CompletionFieldChunk,
   ExecutionSpec,
   Checkpoint,

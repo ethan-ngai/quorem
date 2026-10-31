@@ -22,6 +22,8 @@ function counts(header: CompletionHeader): void {
     if (!Number.isInteger(count) || count < 0 || count > 320)
       throw new Error("Invalid result count");
   if (
+    typeof header.engineFailure !== "boolean" ||
+    typeof header.diagnosticsPresent !== "boolean" ||
     typeof header.publicPresent !== "boolean" ||
     typeof header.samplePresent !== "boolean" ||
     typeof header.privatePresent !== "boolean" ||
@@ -30,6 +32,8 @@ function counts(header: CompletionHeader): void {
     (!header.privatePresent && header.privateCount !== 0)
   )
     throw new Error("Invalid result presence");
+  if (header.hiddenCases && header.hiddenCases.length > 320)
+    throw new Error("Invalid hidden case count");
 }
 async function locked(tx: Transaction, job: Job): Promise<boolean> {
   const row = await tx.execute(
@@ -46,6 +50,25 @@ export function postgresCompletionStaging(run: Run) {
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, f));
   return {
+    async sealDiagnostics(job: Job): Promise<void> {
+      await transact(async (tx) => {
+        if (!(await locked(tx, job))) throw new Error("Stale completion");
+        const stage = (
+          await tx.execute<{ eof: boolean; header: Uint8Array }>(
+            sql`SELECT eof,header_data AS header FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
+          )
+        ).rows[0];
+        if (!stage || stage.eof) throw new Error("Completion stream closed");
+        const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
+        if (!header.diagnosticsPresent) throw new Error("Unexpected diagnostics");
+        const fields = await validateFieldChunks(tx, job.jobId, "header", 0, 1);
+        if (fields.size !== 1 || !fields.has("diagnostics")) throw new Error("Missing diagnostics");
+        const result = await tx.execute(
+          sql`WITH source AS (SELECT string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel='header' AND ordinal=0 AND field='diagnostics') INSERT INTO execution_completion_header_fields(job_id,field,field_data,field_hash) SELECT ${job.jobId}::uuid,'diagnostics',data,sha256(data) FROM source WHERE data IS NOT NULL ON CONFLICT(job_id,field) DO UPDATE SET field_data=EXCLUDED.field_data WHERE execution_completion_header_fields.field_hash=EXCLUDED.field_hash AND execution_completion_header_fields.field_data=EXCLUDED.field_data RETURNING field`,
+        );
+        if (!result.rows.length) throw new Error("Diagnostics conflict");
+      });
+    },
     async seal(
       job: Job,
       channel: "public" | "sample" | "private",
@@ -105,7 +128,7 @@ export function postgresCompletionStaging(run: Run) {
     },
     async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
       if (
-        !["public", "sample", "private"].includes(item.channel) ||
+        !["public", "sample", "private", "header"].includes(item.channel) ||
         !["actual", "expected", "stdout", "stderr", "diagnostics", "sqlTypes"].includes(
           item.field,
         ) ||
@@ -134,19 +157,32 @@ export function postgresCompletionStaging(run: Run) {
         )
           throw new Error("Invalid completion channel");
         const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
+        if (
+          item.channel === "header" &&
+          (item.ordinal !== 0 || item.field !== "diagnostics" || !header.diagnosticsPresent)
+        )
+          throw new Error("Invalid header field");
         const count =
           item.channel === "public"
             ? header.publicCount
             : item.channel === "sample"
               ? header.sampleCount
-              : header.privateCount;
+              : item.channel === "private"
+                ? header.privateCount
+                : 1;
         if (item.ordinal >= count) throw new Error("Unexpected completion ordinal");
         const sealed =
-          (
-            await tx.execute(
-              sql`SELECT 1 FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal}`,
-            )
-          ).rows.length > 0;
+          item.channel === "header"
+            ? (
+                await tx.execute(
+                  sql`SELECT 1 FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid AND field=${item.field}`,
+                )
+              ).rows.length > 0
+            : (
+                await tx.execute(
+                  sql`SELECT 1 FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal}`,
+                )
+              ).rows.length > 0;
         if (sealed) {
           const same = (
             await tx.execute<{ same: boolean }>(
@@ -179,14 +215,15 @@ export function postgresCompletionStaging(run: Run) {
           attemptId: header.attemptId,
           verdict: header.verdict,
           score: header.score,
-          safeDiagnostics: header.safeDiagnostics,
           hiddenCases: header.hiddenCases,
-          engineFailure: header.engineFailure,
+          engineFailure: header.engineFailure ? "failed" : undefined,
         }),
       ) as Record<string, unknown>;
       const bytes = encoder.encode(
           JSON.stringify({
             ...canonical,
+            engineFailure: header.engineFailure,
+            diagnosticsPresent: header.diagnosticsPresent,
             publicPresent: header.publicPresent,
             samplePresent: header.samplePresent,
             privatePresent: header.privatePresent,
@@ -211,6 +248,7 @@ export function postgresCompletionStaging(run: Run) {
               (header.publicCount !== 0 && header.publicCount !== context.cases))) ||
           (context.kind === "submit" &&
             (header.publicPresent ||
+              (header.privatePresent && !context.interview) ||
               (header.sampleCount !== 0 && header.sampleCount !== context.samples) ||
               (header.privateCount !== 0 &&
                 (!context.interview || header.privateCount !== context.cases))))
@@ -247,12 +285,19 @@ export function postgresCompletionStaging(run: Run) {
         if (
           (
             await tx.execute(
-              sql`SELECT 1 FROM execution_completion_field_chunks c WHERE c.job_id=${job.jobId}::uuid AND NOT EXISTS(SELECT 1 FROM execution_completion_frames f WHERE f.job_id=c.job_id AND f.channel=c.channel AND f.ordinal=c.ordinal) LIMIT 1`,
+              sql`SELECT 1 FROM execution_completion_field_chunks c WHERE c.job_id=${job.jobId}::uuid AND CASE WHEN c.channel='header' THEN NOT EXISTS(SELECT 1 FROM execution_completion_header_fields h WHERE h.job_id=c.job_id AND h.field=c.field) ELSE NOT EXISTS(SELECT 1 FROM execution_completion_frames f WHERE f.job_id=c.job_id AND f.channel=c.channel AND f.ordinal=c.ordinal) END LIMIT 1`,
             )
           ).rows.length
         )
           throw new Error("Unsealed completion chunks");
         const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
+        const hasDiagnostics =
+          (
+            await tx.execute(
+              sql`SELECT 1 FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid AND field='diagnostics'`,
+            )
+          ).rows.length !== 0;
+        if (hasDiagnostics !== header.diagnosticsPresent) throw new Error("Incomplete diagnostics");
         const rows = await tx.execute<{ channel: string; count: number }>(
           sql`SELECT channel,count(*)::int AS count FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid GROUP BY channel`,
         );

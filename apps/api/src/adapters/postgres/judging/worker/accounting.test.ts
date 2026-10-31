@@ -34,6 +34,8 @@ describe.skipIf(!url)("guest execution metering", () => {
   const complete = async (job: Job, value: Completion) => {
     await staging.begin(job, {
       ...value,
+      engineFailure: !!value.engineFailure,
+      diagnosticsPresent: false,
       publicPresent: !!value.publicCaseResults,
       samplePresent: false,
       privatePresent: false,

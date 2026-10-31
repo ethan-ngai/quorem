@@ -79,9 +79,10 @@ export function postgresCompletionPromotion(run: Run) {
             ? "failed"
             : "completed";
         if (terminal === "completed" && state.kind === "submit") {
-          validateSubmit(header, state.cases);
+          validateSubmit({ ...header, engineFailure: undefined }, state.cases);
           if (
             header.publicPresent ||
+            (header.privatePresent && !state.interview) ||
             (header.privateCount && (!state.interview || header.privateCount !== state.cases))
           )
             throw new Error("Invalid completion channels");
@@ -156,7 +157,7 @@ export function postgresCompletionPromotion(run: Run) {
                   verdict: header.verdict,
                   score: state.kind === "submit" ? header.score : undefined,
                   hiddenCases: state.kind === "submit" ? header.hiddenCases : undefined,
-                  diagnostics: state.kind === "run" ? header.safeDiagnostics : undefined,
+                  diagnosticsPresent: state.kind === "run" && header.diagnosticsPresent,
                   publicCasesPresent: present,
                   publicCaseCount: count,
                   channel,
@@ -176,6 +177,10 @@ export function postgresCompletionPromotion(run: Run) {
         await tx.execute(
           sql`INSERT INTO submission_result_headers(submission_id,header_data) VALUES(${job.submissionId}::uuid,${encoder.encode(JSON.stringify(resultHeader))})`,
         );
+        if (terminal === "completed" && state.kind === "run" && header.diagnosticsPresent)
+          await tx.execute(
+            sql`INSERT INTO submission_result_header_fields(submission_id,field,field_data) SELECT ${job.submissionId}::uuid,field,field_data FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid AND field='diagnostics'`,
+          );
         await tx.execute(
           sql`UPDATE submissions SET state=${terminal},result=${JSON.stringify(safe)}::jsonb,result_payload=NULL,updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
         );
@@ -190,6 +195,9 @@ export function postgresCompletionPromotion(run: Run) {
         );
         await tx.execute(
           sql`DELETE FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid`,
+        );
+        await tx.execute(
+          sql`DELETE FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid`,
         );
         await tx.execute(
           sql`UPDATE execution_jobs SET finished=true,lease_until=NULL WHERE id=${job.jobId}::uuid`,
