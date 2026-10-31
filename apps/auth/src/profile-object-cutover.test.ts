@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { test } from "node:test";
+import { test } from "vitest";
 import { copyProfilePhotoPage } from "./profile-object-cutover.ts";
 const key = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const digest = async (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
