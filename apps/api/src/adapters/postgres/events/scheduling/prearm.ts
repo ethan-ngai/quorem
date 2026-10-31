@@ -73,6 +73,9 @@ export async function consumePrearm(
   shard: number,
   purpose: ReceiptPurpose = "deadline",
 ): Promise<void> {
+  await tx.execute(
+    sql`SELECT id FROM deadline_prearms WHERE id=${id}::uuid AND purpose=${purpose} AND shard=${shard} FOR UPDATE`,
+  );
   const result = await tx.execute(
     sql`UPDATE deadline_prearms SET committed_at=clock_timestamp() WHERE id=${id}::uuid AND purpose=${purpose} AND shard=${shard} AND committed_at IS NULL AND expires_at > clock_timestamp() RETURNING id`,
   );

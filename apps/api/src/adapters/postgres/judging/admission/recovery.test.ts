@@ -38,6 +38,29 @@ describe.skipIf(!url)("execution receipt recovery", () => {
   afterAll(async () => {
     await pool.end();
   });
+  it("rejects a receipt that expires while waiting for its row lock", async () => {
+    const id = crypto.randomUUID();
+    await execution.create(id, 7);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "UPDATE deadline_prearms SET expires_at=clock_timestamp()+interval '150 milliseconds' WHERE id=$1",
+        [id],
+      );
+      const waiting = run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+          consumePrearm(tx, id, 7, "execution"),
+        ),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await client.query("COMMIT");
+      await expect(waiting).rejects.toThrow("prearm unavailable");
+    } finally {
+      client.release();
+      await pool.query("DELETE FROM deadline_prearms WHERE id=$1", [id]);
+    }
+  });
   it("routes purposes and retains recovery across a delayed commit", async () => {
     let alarm: number | null = null;
     const data = new Map<string, unknown>();
