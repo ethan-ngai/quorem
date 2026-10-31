@@ -2,13 +2,22 @@ import { APP_IDLE_MS, isSocketRequest } from "./policy.js";
 
 /** One cold readiness probe per boot; warm commands are forwarded exactly once. */
 export class ContainerLifecycle {
-  constructor(ctx, runtime, port, timeout = 60_000, idleMs = APP_IDLE_MS, instance) {
+  constructor(
+    ctx,
+    runtime,
+    port,
+    timeout = 60_000,
+    idleMs = APP_IDLE_MS,
+    instance,
+    readinessHeaders,
+  ) {
     this.ctx = ctx;
     this.runtime = runtime;
     this.port = port;
     this.timeout = timeout;
     this.idleMs = idleMs;
     this.instance = instance;
+    this.readinessHeaders = readinessHeaders;
     this.ready = false;
     this.boot = 0;
   }
@@ -61,7 +70,11 @@ export class ContainerLifecycle {
       try {
         const response = await container
           .getTcpPort(this.port)
-          .fetch("http://container/health", { signal: AbortSignal.timeout(2000) });
+          .fetch("http://container/health", {
+            signal: AbortSignal.timeout(2000),
+            headers: this.readinessHeaders,
+            redirect: "error",
+          });
         await response.body?.cancel();
         if (response.ok) {
           console.log(

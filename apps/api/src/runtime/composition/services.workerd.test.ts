@@ -42,6 +42,13 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       }),
     },
   };
+  const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", spki)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+  const scoped = new TextEncoder().encode(
+    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint]),
+  );
+  const scope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", scoped)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
   const body = "case bytes",
     bytes = new TextEncoder().encode(body);
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) =>
@@ -54,7 +61,7 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
       "cf-access-client-secret": "must-strip",
       "x-quorem-owner-nonce": nonce,
-      "x-quorem-owner-scope": `remote:${secret("0")}`,
+      "x-quorem-owner-scope": scope,
       "x-quorem-case-binding": secret("1"),
       "x-quorem-body-sha256": digest,
       "x-quorem-case-ordinal": "400",
@@ -68,7 +75,7 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
     c.charCodeAt(0),
   );
   const attested = JSON.stringify([
-    `remote:${secret("0")}`,
+    scope,
     secret("1"),
     "POST",
     "attempt-1",
@@ -109,13 +116,6 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       nonce: namespaceNonce,
     }),
   ).toEqual({ namespace: secret("1") });
-  const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", spki)), (b) =>
-    b.toString(16).padStart(2, "0"),
-  ).join("");
-  const scoped = new TextEncoder().encode(
-    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint]),
-  );
-  const scope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", scoped)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
   const probeNonce = crypto.randomUUID();
   const probe = await worker.fetch(
     new Request(`${env.CASE_ORIGIN}/internal/case/attempt-1`, {
@@ -187,4 +187,48 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       )
     ).status,
   ).toBe(404);
+});
+
+it("routes optional media with purpose bearer in workerd", async () => {
+  let forwarded: Request | undefined;
+  const env = {
+    DRAIN_ORIGIN: "https://runner-stage.example.test",
+    VERIFIER_ORIGIN: "https://verify-stage.example.test",
+    CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_CASE_ORIGIN: "https://case-stage.example.test",
+    QUOREM_RUNNER_COMMAND_SECRET: secret("a"),
+    QUOREM_RUNNER_DRAIN_SECRET: secret("b"),
+    QUOREM_CASE_SECRET: secret("c"),
+    QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
+    QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
+    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
+    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
+    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
+    RUNNER_API_ACCESS_CLIENT_ID: "runner",
+    VERIFIER_API_ACCESS_CLIENT_ID: "verifier",
+    QUOREM_CASE_ACCESS_CLIENT_ID: "case",
+    QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: "key",
+    QUOREM_VERIFICATION_SIGNING_KEY_PEM: "key",
+    CASE_OWNER_PRIVATE_KEY: "key",
+    IMAGE_SERVICE_ENABLED: "true",
+    IMAGE_ORIGIN: "https://image-stage.example.test",
+    IMAGE_SERVICE_TOKEN: secret("i"),
+    IMAGES: {
+      getByName: () => ({
+        fetch: async (request: Request) => {
+          forwarded = request;
+          return new Response("image", { headers: { "x-image-execution": "terminated" } });
+        },
+      }),
+    },
+  };
+  const request = (token: string) =>
+    new Request(env.IMAGE_ORIGIN, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "cf-access-client-secret": "discard" },
+    });
+  const response = await worker.fetch(request(env.IMAGE_SERVICE_TOKEN), env);
+  expect(response.headers.get("x-image-execution")).toBe("terminated");
+  expect(forwarded?.headers.get("cf-access-client-secret")).toBeNull();
+  expect((await worker.fetch(request(secret("z")), env)).status).toBe(404);
 });
