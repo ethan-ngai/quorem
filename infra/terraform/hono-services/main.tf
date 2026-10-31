@@ -27,6 +27,34 @@ variable "hostnames" {
     error_message = "Three distinct staged hostnames are required."
   }
 }
+variable "profile_media_enabled" {
+  type    = bool
+  default = false
+}
+variable "image_hostname" {
+  type    = string
+  default = ""
+  validation {
+    condition     = !var.profile_media_enabled || (can(regex("^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\\.[a-z0-9.-]+$", var.image_hostname)) && !contains(values(var.hostnames), var.image_hostname) && var.command_origin != "https://${var.image_hostname}" && var.source_origin != "https://${var.image_hostname}")
+    error_message = "Image service needs a distinct staged hostname."
+  }
+}
+variable "image_access_service_token_id" {
+  type    = string
+  default = ""
+  validation {
+    condition     = !var.profile_media_enabled || (can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.image_access_service_token_id)) && !contains(values(var.access_token_ids), var.image_access_service_token_id))
+    error_message = "Image service needs a distinct Access token."
+  }
+}
+variable "image_service_image" {
+  type    = string
+  default = ""
+  validation {
+    condition     = !var.profile_media_enabled || (startswith(var.image_service_image, "registry.cloudflare.com/${var.account_id}/") && can(regex("@sha256:[0-9a-f]{64}$", var.image_service_image)))
+    error_message = "Image service must use an account-local digest-pinned image."
+  }
+}
 variable "dns_target" { type = string }
 variable "access_token_ids" {
   type = object({ drain = string, verifier = string, case = string })
@@ -105,8 +133,12 @@ locals {
     "deploy/case-proof.js"           = "../../../deploy/case-proof.js"
     "deploy/case-sandbox.js"         = "../../../deploy/case-sandbox.js"
   }
-  secret_names = ["QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"]
+  service_hosts  = merge(var.hostnames, var.profile_media_enabled ? { image = var.image_hostname } : {})
+  service_tokens = merge(var.access_token_ids, var.profile_media_enabled ? { image = var.image_access_service_token_id } : {})
+  secret_names   = concat(var.profile_media_enabled ? ["IMAGE_SERVICE_TOKEN"] : [], ["QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"])
   public = {
+    IMAGE_SERVICE_ENABLED             = tostring(var.profile_media_enabled)
+    IMAGE_ORIGIN                      = var.profile_media_enabled ? "https://${var.image_hostname}" : ""
     CASE_DIAGNOSTICS                  = tostring(var.case_diagnostics)
     DRAIN_ORIGIN                      = "https://${var.hostnames.drain}"
     VERIFIER_ORIGIN                   = "https://${var.hostnames.verifier}"
@@ -118,11 +150,12 @@ locals {
   }
   bindings = concat(
     [{ type = "durable_object_namespace", name = "RUNNERS", class_name = "RunnerService" }, { type = "durable_object_namespace", name = "VERIFIERS", class_name = "VerifierService" }, { type = "durable_object_namespace", name = "CASES", class_name = "CaseSandbox" }],
+    var.profile_media_enabled ? [{ type = "durable_object_namespace", name = "IMAGES", class_name = "ImageService" }] : [],
     [for k, v in local.public : { type = "plain_text", name = k, text = v }],
     [for k in local.secret_names : { type = "secret_text", name = k, text = var.service_secrets[k] }]
   )
-  trusted = { runner = { class = "RunnerService", image = var.runner_image }, verifier = { class = "VerifierService", image = var.verifier_image } }
-  paths   = { drain = "/internal/drain", verifier = "/internal/results/verify", case = "/internal/case/*" }
+  trusted = merge({ runner = { class = "RunnerService", image = var.runner_image }, verifier = { class = "VerifierService", image = var.verifier_image } }, var.profile_media_enabled ? { image = { class = "ImageService", image = var.image_service_image } } : {})
+  paths   = { drain = "/internal/drain", verifier = "/internal/results/verify", case = "/internal/case/*", image = "" }
 }
 resource "cloudflare_worker" "services" {
   account_id = var.account_id
@@ -150,13 +183,17 @@ resource "cloudflare_worker_version" "services" {
   main_module        = "deploy/hono/services/worker.js"
   modules            = [for name, source in local.modules : { name = name, content_type = "application/javascript+module", content_base64 = filebase64("${path.module}/${source}") }]
   bindings           = local.bindings
-  containers         = [{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { class_name = "CaseSandbox" }]
-  migrations         = data.external.worker_migration.result.tag == "" ? { old_tag = "", new_tag = "v1", new_sqlite_classes = ["RunnerService", "VerifierService", "CaseSandbox"] } : null
+  containers         = concat([{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { class_name = "CaseSandbox" }], var.profile_media_enabled ? [{ class_name = "ImageService" }] : [])
+  migrations         = data.external.worker_migration.result.tag == "" ? { old_tag = "", new_tag = var.profile_media_enabled ? "v2" : "v1", new_sqlite_classes = concat(["RunnerService", "VerifierService", "CaseSandbox"], var.profile_media_enabled ? ["ImageService"] : []) } : data.external.worker_migration.result.tag == "v1" && var.profile_media_enabled ? { old_tag = "v1", new_tag = "v2", new_sqlite_classes = ["ImageService"] } : null
   deploy             = true
   lifecycle {
     precondition {
-      condition     = contains(["", "v1"], data.external.worker_migration.result.tag)
+      condition     = contains(["", "v1", "v2"], data.external.worker_migration.result.tag)
       error_message = "Unknown staged Worker migration history; refuse deployment."
+    }
+    precondition {
+      condition     = !var.profile_media_enabled || try(length(var.service_secrets["IMAGE_SERVICE_TOKEN"]) >= 32 && !can(regex("\\s", var.service_secrets["IMAGE_SERVICE_TOKEN"])) && !contains([for k in local.secret_names : k == "IMAGE_SERVICE_TOKEN" ? "" : var.service_secrets[k]], var.service_secrets["IMAGE_SERVICE_TOKEN"]), false)
+      error_message = "Image service requires a distinct strong bearer."
     }
     precondition {
       condition     = var.case_namespace_id == "0000000000000000000000000000000000000000000000000000000000000000" || try(terraform_data.case_namespace_pin[0].output == var.case_namespace_id, false)
@@ -197,20 +234,20 @@ resource "terraform_data" "case_images" {
     environment = {
       CLOUDFLARE_ACCOUNT_ID = var.account_id
       CLOUDFLARE_API_TOKEN  = var.cloudflare_api_token
-      QUOREM_WORKER_UPLOAD  = jsonencode({ worker = var.worker_name, deploy = true, modules = [for name, source in local.modules : { name = name, path = "${path.module}/${source}" }], metadata = { main_module = "deploy/hono/services/worker.js", compatibility_date = "2026-10-25", containers = [{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { name = "${var.worker_name}-case", class_name = "CaseSandbox", images = var.case_images }], bindings = local.bindings } })
+      QUOREM_WORKER_UPLOAD  = jsonencode({ worker = var.worker_name, deploy = true, modules = [for name, source in local.modules : { name = name, path = "${path.module}/${source}" }], metadata = { main_module = "deploy/hono/services/worker.js", compatibility_date = "2026-10-25", containers = concat([{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { name = "${var.worker_name}-case", class_name = "CaseSandbox", images = var.case_images }], var.profile_media_enabled ? [{ class_name = "ImageService" }] : []), bindings = local.bindings } })
     }
   }
   depends_on = [restapi_object.trusted_rollout, restapi_object.case]
 }
 resource "cloudflare_zero_trust_access_policy" "service" {
-  for_each   = var.hostnames
+  for_each   = local.service_hosts
   account_id = var.account_id
   name       = "${var.worker_name}-${each.key}"
   decision   = "non_identity"
-  include    = [{ service_token = { token_id = var.access_token_ids[each.key] } }]
+  include    = [{ service_token = { token_id = local.service_tokens[each.key] } }]
 }
 resource "cloudflare_zero_trust_access_application" "service" {
-  for_each                  = var.hostnames
+  for_each                  = local.service_hosts
   account_id                = var.account_id
   name                      = "${var.worker_name}-${each.key}"
   type                      = "self_hosted"
@@ -221,7 +258,7 @@ resource "cloudflare_zero_trust_access_application" "service" {
   service_auth_401_redirect = false
 }
 resource "cloudflare_dns_record" "service" {
-  for_each = var.hostnames
+  for_each = local.service_hosts
   zone_id  = var.zone_id
   name     = each.value
   type     = "CNAME"
@@ -230,7 +267,7 @@ resource "cloudflare_dns_record" "service" {
   ttl      = 1
 }
 resource "cloudflare_workers_route" "service" {
-  for_each   = var.hostnames
+  for_each   = local.service_hosts
   zone_id    = var.zone_id
   pattern    = "${each.value}/*"
   script     = cloudflare_worker.services.name
