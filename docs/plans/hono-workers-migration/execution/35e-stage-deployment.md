@@ -13,3 +13,5 @@ Namespace pin verification: local Terraform data-only state tested zeroâ†’A, Aâ†
 `scripts/hono-stage-deploy-images.mjs` builds the runner/verifier and case images from the checked-out revision, pushes their SHA tags and reads back matching Docker repository digests; it passes only registry credentials to Wrangler and does not log subprocess output. It is not yet wired to the stage action or exercised against a registry.
 
 `scripts/hono-stage-deploy-ingress.mjs` compares signed/valid-bearer Access controls to the same private requests without Access credentials; unknown paths or wrong bearer are not accepted as controls. Its fake-transport tests are not hosted proof.
+
+`scripts/hono-stage-deploy-queue.mjs` orders manual acceptance and Access controls before queue attachment, then requires an independent queue-only accepted submission. Failed or uncertain attachment/automatic proof triggers a detach attempt; inability to confirm detachment is surfaced explicitly. This is not wired to the disabled stage action, and tests use fake adapters.
