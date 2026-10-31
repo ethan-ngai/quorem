@@ -342,13 +342,15 @@ describe.skipIf(!url)("runner claim fences", () => {
       chunkOrdinal: 0,
       bytes: new TextEncoder().encode("123"),
     });
-    await staging.chunk(live!, {
-      channel: "public",
-      ordinal: 0,
-      field: "expected",
-      chunkOrdinal: 0,
-      bytes: new TextEncoder().encode("987655"),
-    });
+    await expect(
+      staging.chunk(live!, {
+        channel: "public",
+        ordinal: 0,
+        field: "expected",
+        chunkOrdinal: 0,
+        bytes: new TextEncoder().encode("987655"),
+      }),
+    ).rejects.toThrow("Invalid completion chunk");
     await staging.seal(live!, "public", 0, "executed");
     await staging.eof(live!, live!);
     await promote(live!, live!);
