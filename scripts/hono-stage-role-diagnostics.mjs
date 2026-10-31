@@ -1,8 +1,8 @@
-/** Read-only stage inspection; emit fixed privilege fields, never connection/provider payloads. */
+/** Stage inspection and rollback rehearsal; emit fixed fields, never credentials/provider payloads. */
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deriveStageRole } from "./hono-stage-database-role.mjs";
+import { deriveStageRole, rehearseStageRole } from "./hono-stage-database-role.mjs";
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { runStageCommand } from "./hono-stage-launch.mjs";
 
@@ -130,9 +130,36 @@ export async function inspectStageRole(env) {
     query_timeout: 7000,
   });
   client.on("error", () => {});
+  const role = deriveStageRole(env.HONO_DIAGNOSE_RELEASE_SHA, "1");
+  const action = env.HONO_STAGE_INSPECTION_ACTION ?? "diagnose";
+  if (!["diagnose", "rehearse-role"].includes(action))
+    throw new Error("Invalid role inspection action");
+  const password = saved.stage_secrets?.value?.STAGE_RUNTIME_DATABASE_PASSWORD;
+  if (action === "rehearse-role") {
+    if (!/^[a-f0-9]{64}$/.test(password ?? ""))
+      throw new Error("Invalid staged runtime credential");
+    const child = Object.fromEntries(
+      ["PATH", "HOME", "USER", "TMPDIR", "CI"]
+        .filter((name) => env[name] !== undefined)
+        .map((name) => [name, env[name]]),
+    );
+    child.DATABASE_URL = url.href;
+    for (const [owner, directory] of [
+      ["product", "apps/api/migrations"],
+      ["auth", "apps/auth/migrations"],
+    ])
+      runStageCommand(
+        "vp",
+        ["exec", "node", "packages/database/src/migrate.ts", owner, directory],
+        child,
+      );
+  }
   try {
     await client.connect();
-    return await diagnoseStageRole(client, deriveStageRole(env.HONO_DIAGNOSE_RELEASE_SHA, "1"));
+    const before = await diagnoseStageRole(client, role);
+    if (action === "diagnose") return before;
+    const rehearsal = await rehearseStageRole(client, role, password);
+    return { before, rehearsal, after: await diagnoseStageRole(client, role) };
   } finally {
     await client.end().catch(() => {});
   }
