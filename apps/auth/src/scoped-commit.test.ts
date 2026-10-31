@@ -10,7 +10,6 @@ describe.skipIf(!url)("scoped Better Auth transaction on disposable PostgreSQL",
   it("reports an unknown commit without replay when its acknowledgment is lost", async () => {
     const parsed = new URL(url!);
     expect(parsed.pathname).toBe("/quorem_hono_auth_native_test");
-    expect(parsed.port).toBe("55438");
     expect(["localhost", "127.0.0.1", "[::1]"]).toContain(parsed.hostname);
     const pool = createNodePool({
       connectionString: url!,

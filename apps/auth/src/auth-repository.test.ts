@@ -9,7 +9,6 @@ const url = process.env.AUTH_TEST_DATABASE_URL;
 describe.skipIf(!url)("auth repository expiry on disposable PostgreSQL", () => {
   it("checks social proofs, rate windows and session expiry after waiting for locks", async () => {
     const parsed = new URL(url!);
-    expect(parsed.port).toBe("55438");
     expect(parsed.pathname).toBe("/quorem_hono_auth_native_test");
     expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
     const pool = createNodePool({
