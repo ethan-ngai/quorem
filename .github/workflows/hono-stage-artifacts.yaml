@@ -26,3 +26,10 @@ jobs:
       - run: node scripts/hono-stage-config.mjs deploy/hono/stage.fixture.json deploy/hono/terraform-outputs.fixture.json "$RUNNER_TEMP/hono-stage.json"
       - run: vp -C apps/api exec wrangler deploy --dry-run --config "$RUNNER_TEMP/hono-stage.json" --outdir "$RUNNER_TEMP/hono-worker"
       - run: docker build -f deploy/hono/Dockerfile.api -t quorem-hono-api:validation .
+      - run: docker build -f deploy/hono/Dockerfile.runner --target runner -t quorem-hono-runner:validation .
+      - run: docker build -f deploy/hono/Dockerfile.runner --target verifier -t quorem-hono-verifier:validation .
+      - run: docker run --rm --network none --entrypoint docker quorem-hono-runner:validation --version
+      - name: Runner and verifier process contracts
+        env:
+          QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
+        run: vp -C apps/runner exec node --test src/runtime/runtime.test.ts
