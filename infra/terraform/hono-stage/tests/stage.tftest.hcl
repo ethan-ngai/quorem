@@ -1,9 +1,18 @@
-mock_provider "cloudflare" {}
+mock_provider "cloudflare" {
+  mock_resource "cloudflare_hyperdrive_config" {
+    defaults = { id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+  }
+}
 
 variables {
   account_id                    = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   worker_name                   = "quorem-hono-stage"
-  hyperdrive_id                 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  database_host                 = "db-stage.example.com"
+  database_port                 = 5432
+  database_name                 = "quorem_stage"
+  database_user                 = "fixture"
+  database_password             = "fixture-only"
+  database_connection_limit     = 10
   stage_hostname                = "stage.example.com"
   access_service_token_ids      = ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
   drain_hostname                = "runner-stage.example.com"
@@ -12,6 +21,10 @@ variables {
 
 run "bootstrap_without_consumer" {
   command = plan
+  assert {
+    condition     = cloudflare_hyperdrive_config.database.origin.database == "quorem_stage" && cloudflare_hyperdrive_config.database.origin.scheme == "postgres" && cloudflare_hyperdrive_config.database.caching.disabled && cloudflare_hyperdrive_config.database.mtls.sslmode == "require" && cloudflare_hyperdrive_config.database.origin_connection_limit == 10
+    error_message = "Hyperdrive must use the staged PostgreSQL origin with TLS, bounded connections and no query cache."
+  }
   assert {
     condition     = length(cloudflare_queue_consumer.execution) == 0
     error_message = "The queue consumer must wait until the staged Worker is deployed."
@@ -49,10 +62,10 @@ run "reject_live_worker_name" {
   expect_failures = [var.worker_name]
 }
 
-run "reject_missing_hyperdrive" {
+run "reject_missing_database_host" {
   command = plan
-  variables { hyperdrive_id = "placeholder" }
-  expect_failures = [var.hyperdrive_id]
+  variables { database_host = "" }
+  expect_failures = [var.database_host]
 }
 
 run "reject_missing_access_identity" {
@@ -65,4 +78,24 @@ run "reject_production_hostname" {
   command = plan
   variables { stage_hostname = "api.example.com" }
   expect_failures = [var.stage_hostname]
+}
+
+run "reject_unbounded_connections" {
+  command = plan
+  variables { database_connection_limit = 101 }
+  expect_failures = [var.database_connection_limit]
+}
+
+run "reject_empty_database_password" {
+  command = plan
+  variables { database_password = "" }
+  expect_failures = [var.database_password]
+}
+
+run "bind_provisioned_hyperdrive" {
+  command = apply
+  assert {
+    condition     = output.hyperdrive_id == cloudflare_hyperdrive_config.database.id && output.hyperdrive_id == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    error_message = "Generated bindings must use the provisioned Hyperdrive ID."
+  }
 }

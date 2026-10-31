@@ -14,13 +14,50 @@ variable "worker_name" {
     error_message = "Use a distinct staged Worker name ending in -hono-stage."
   }
 }
-variable "hyperdrive_id" {
+variable "database_host" {
   type = string
   validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.hyperdrive_id))
-    error_message = "A provisioned Hyperdrive configuration ID is required."
+    condition     = can(regex("^[a-zA-Z0-9.-]+$", var.database_host)) && length(var.database_host) > 0
+    error_message = "A database origin hostname is required."
   }
 }
+variable "database_port" {
+  type = number
+  validation {
+    condition     = var.database_port >= 1 && var.database_port <= 65535 && floor(var.database_port) == var.database_port
+    error_message = "A valid database origin port is required."
+  }
+}
+variable "database_name" {
+  type = string
+  validation {
+    condition     = length(trimspace(var.database_name)) > 0
+    error_message = "A database name is required."
+  }
+}
+variable "database_user" {
+  type = string
+  validation {
+    condition     = length(trimspace(var.database_user)) > 0
+    error_message = "A database user is required."
+  }
+}
+variable "database_password" {
+  type      = string
+  sensitive = true
+  validation {
+    condition     = length(var.database_password) > 0
+    error_message = "A database password is required."
+  }
+}
+variable "database_connection_limit" {
+  type = number
+  validation {
+    condition     = var.database_connection_limit >= 5 && var.database_connection_limit <= 100 && floor(var.database_connection_limit) == var.database_connection_limit
+    error_message = "Set a database connection budget between 5 and 100."
+  }
+}
+
 variable "stage_hostname" {
   type = string
   validation {
@@ -52,6 +89,22 @@ variable "drain_access_service_token_id" {
 variable "enable_queue_consumer" {
   type    = bool
   default = false
+}
+
+resource "cloudflare_hyperdrive_config" "database" {
+  account_id = var.account_id
+  name       = "${var.worker_name}-database"
+  origin = {
+    scheme   = "postgres"
+    host     = var.database_host
+    port     = var.database_port
+    database = var.database_name
+    user     = var.database_user
+    password = var.database_password
+  }
+  caching                 = { disabled = true }
+  mtls                    = { sslmode = "require" }
+  origin_connection_limit = var.database_connection_limit
 }
 
 resource "cloudflare_worker" "api" {
@@ -134,6 +187,6 @@ output "stage_hostname" { value = var.stage_hostname }
 output "internal_access_application_id" { value = cloudflare_zero_trust_access_application.internal.id }
 output "drain_hostname" { value = var.drain_hostname }
 output "drain_access_application_id" { value = cloudflare_zero_trust_access_application.drain.id }
-output "hyperdrive_id" { value = var.hyperdrive_id }
+output "hyperdrive_id" { value = cloudflare_hyperdrive_config.database.id }
 output "queue_name" { value = cloudflare_queue.execution.queue_name }
 output "dead_letter_queue_name" { value = cloudflare_queue.dead_letter.queue_name }
