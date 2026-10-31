@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { migrate } from "@quorem/database/migrations";
 import { languageRuntime } from "@quorem/execution";
 import { operatorQuestionAuthoring } from "../adapters/postgres/problems/authoring/repository.ts";
 import { readPublishedFixture } from "../adapters/postgres/problems/private-content.ts";
@@ -15,6 +16,55 @@ import { readFile, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 const url = process.env.QUOREM_CLI_TEST_DATABASE_URL;
+if (url) {
+  const fixture = new URL(url);
+  if (
+    !["postgres:", "postgresql:"].includes(fixture.protocol) ||
+    !["127.0.0.1", "localhost", "[::1]"].includes(fixture.hostname) ||
+    fixture.pathname !== "/quorem_hono_cli_test" ||
+    fixture.searchParams.has("host")
+  )
+    throw new Error("Named disposable CLI database required");
+}
+
+const previousOrigin = process.env.AUTH_ORIGIN;
+beforeAll(async () => {
+  if (!url) return;
+  const pool = createNodePool({
+    connectionString: url,
+    max: 1,
+    connectionTimeoutMs: 3000,
+    idleTimeoutMs: 1000,
+    onIdleError: () => {},
+  });
+  try {
+    await migrate(pool, "product", resolve("../../apps/api/migrations"));
+    await migrate(pool, "auth", resolve("../../apps/auth/migrations"));
+    if (process.env.QUOREM_CLI_GO_INTEROP === "true") {
+      process.env.AUTH_ORIGIN = "https://cli-fixture.test";
+      await pool.query(
+        "INSERT INTO users(id,display_name,role) VALUES('cli-test-operator','CLI fixture','admin') ON CONFLICT(id) DO NOTHING",
+      );
+      await pool.query(
+        `INSERT INTO quorem_auth."user"(id,name,email,"emailVerified",username,"createdAt","updatedAt") VALUES('cli-test-subject','CLI fixture','operator@cli-fixture.test',true,'cli-test-operator',NOW(),NOW()) ON CONFLICT(id) DO NOTHING`,
+      );
+      await pool.query(
+        "INSERT INTO identity_bindings(issuer,subject,user_id) VALUES($1,'cli-test-subject','cli-test-operator') ON CONFLICT DO NOTHING",
+        [process.env.AUTH_ORIGIN],
+      );
+      await pool.query(
+        "INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES('bootstrap:operator','fixture','cli-test-operator','operator.bootstrap','cli-test-subject','Disposable CLI fixture') ON CONFLICT DO NOTHING",
+      );
+    }
+  } finally {
+    await pool.end();
+  }
+});
+afterAll(() => {
+  if (previousOrigin === undefined) delete process.env.AUTH_ORIGIN;
+  else process.env.AUTH_ORIGIN = previousOrigin;
+});
+
 describe("operator CLI contracts", () => {
   it("keeps the historical Go access fingerprint", () => {
     expect(
@@ -96,9 +146,6 @@ describe("operator CLI contracts", () => {
   it.skipIf(!url)(
     "seeds idempotently and applies audited access with rollback and conflict",
     async () => {
-      const parsed = new URL(url!);
-      expect(parsed.port).toBe("55460");
-      expect(parsed.pathname).toBe("/quorem_hono_cli_test");
       const pool = createNodePool({
         connectionString: url!,
         max: 4,
