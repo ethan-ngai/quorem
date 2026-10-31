@@ -1,3 +1,5 @@
+import { stageControls } from "./hono-stage-controls.mjs";
+import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 import { provisionStageDatabaseRole, stageRoleCredentials } from "./hono-stage-database-role.mjs";
 /** First staged activation; existing database updates require a separate cutover contract. */
 import { spawnSync } from "node:child_process";
@@ -71,6 +73,8 @@ const stackNames = {
     "source_origin",
     "case_namespace_id",
     "case_diagnostics",
+    "release_sha",
+    "release_generation",
     "service_secrets",
   ],
 };
@@ -123,6 +127,15 @@ function terraformOutputs(env) {
     ),
   );
 }
+function servicesOutputs(env) {
+  return JSON.parse(
+    command(
+      "terraform",
+      ["-chdir=infra/terraform/hono-services", "output", "-json"],
+      tfEnv(env, "hono-services"),
+    ),
+  );
+}
 function migrate(env) {
   const child = {
     ...selected(env, ["PATH", "HOME", "USER", "TMPDIR", "CI", "NODE_EXTRA_CA_CERTS"]),
@@ -166,6 +179,7 @@ function remoteProof(env) {
   command("vp", ["exec", "node", "scripts/hono-remote-validation.mjs"], child);
 }
 const defaults = {
+  freshness: requireFreshStageResources,
   roleConfig: stageRoleCredentials,
   fresh: requireFreshStageDatabase,
   migrate,
@@ -173,6 +187,8 @@ const defaults = {
   images: publishImages,
   terraform,
   outputs: terraformOutputs,
+  servicesOutputs,
+  controls: stageControls,
   probe: stageNamespace,
   upload: uploadWorkerSecrets,
   deploy: workerDeploy,
@@ -225,6 +241,7 @@ export async function deployStage(original, operations = defaults) {
   };
   checkSecrets(preflightSecrets);
   const extra = [
+    services.RECOVERY_CONTROL_SECRET,
     services.QUOREM_CASE_SECRET,
     services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
     services.VERIFIER_API_ACCESS_CLIENT_SECRET,
@@ -241,7 +258,11 @@ export async function deployStage(original, operations = defaults) {
   if (
     extra.some((value) => typeof value !== "string" || !value || /\s/.test(value)) ||
     new Set(extra).size !== extra.length ||
+    Object.values(supplied).includes(services.RECOVERY_CONTROL_SECRET) ||
     new TextEncoder().encode(services.QUOREM_CASE_SECRET).length < 32 ||
+    new TextEncoder().encode(services.RECOVERY_CONTROL_SECRET).length < 32 ||
+    publicInput.vars.EXECUTION_DRAIN_ACCESS_MODE !== "cloudflare-access" ||
+    !supplied.EXECUTION_DRAIN_ACCESS_CLIENT_ID ||
     !services.QUOREM_CASE_ACCESS_CLIENT_ID ||
     !services.VERIFIER_API_ACCESS_CLIENT_ID
   )
@@ -267,19 +288,24 @@ export async function deployStage(original, operations = defaults) {
   } catch {
     throw new Error("Invalid staged signing keys");
   }
+  const freshResources = await operations.freshness(original);
   operations.roleConfig(original);
   await operations.fresh(original);
   const env = {
     ...original,
     TF_VAR_enable_queue_consumer: "false",
     TF_VAR_case_diagnostics: "true",
+    TF_VAR_release_sha: original.HONO_RELEASE_SHA,
+    TF_VAR_release_generation: "1",
   };
   const temp = await mkdtemp(join(tmpdir(), "quorem-stage-deploy-"));
   let actor,
     receipt,
     failure,
     cleanupFailed = false,
-    queueAttached = false;
+    queueAttached = false,
+    controlClient,
+    controlsAttempted = false;
   try {
     const keyFile = join(temp, "case-public.pem");
     await writeFile(keyFile, services.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
@@ -340,6 +366,34 @@ export async function deployStage(original, operations = defaults) {
     await Promise.resolve(operations.deploy(configFile, env));
     await Promise.resolve(operations.upload(publicInput, outputs, workerSecrets, env));
     await operations.subdomains(env);
+    const serviceOutput = await Promise.resolve(operations.servicesOutputs(env));
+    const controlVars = serviceOutput?.origins?.value;
+    if (
+      controlVars?.SERVICES_RELEASE !== env.HONO_RELEASE_SHA ||
+      String(controlVars?.SERVICES_GENERATION) !== "1" ||
+      !/^[a-f0-9]{64}$/.test(controlVars?.SERVICES_BINDINGS ?? "")
+    )
+      throw new Error("Invalid services control output");
+    controlClient = await operations.controls({
+      namespace: verified.namespace,
+      scope: verified.scope,
+      release: env.HONO_RELEASE_SHA,
+      bindings: controlVars.SERVICES_BINDINGS,
+      secret: services.RECOVERY_CONTROL_SECRET,
+      caseOrigin: `https://${hosts.case}`,
+      runnerOrigin: `https://${hosts.drain}`,
+      caseAccess: {
+        id: services.QUOREM_CASE_ACCESS_CLIENT_ID,
+        secret: services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
+      },
+      runnerAccess: {
+        id: supplied.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
+        secret: supplied.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
+      },
+      publicKeyFile: keyFile,
+    });
+    controlsAttempted = true;
+    const controlReceipt = await controlClient.activate();
     await Promise.resolve(operations.remote(caseEnv));
     actor = await operations.actor({
       databaseURL: env.HONO_STAGE_DATABASE_URL,
@@ -365,6 +419,8 @@ export async function deployStage(original, operations = defaults) {
     receipt = {
       release: env.HONO_RELEASE_SHA,
       database: "fresh",
+      freshResources,
+      controls: controlReceipt,
       namespace: verified.namespace,
       images,
       acceptance,
@@ -384,17 +440,33 @@ export async function deployStage(original, operations = defaults) {
       cleanupFailed = true;
     }
   }
-  if (cleanupFailed) {
-    if (queueAttached) {
+  if (failure || cleanupFailed) {
+    let detachFailed = false,
+      pauseFailed = false;
+    if (controlsAttempted || queueAttached) {
       try {
         await Promise.resolve(operations.detach(env));
       } catch {
-        throw new Error("Stage cleanup failed and queue detachment is unconfirmed");
+        detachFailed = true;
+      }
+      try {
+        await controlClient.pause();
+      } catch {
+        pauseFailed = true;
       }
     }
-    throw new Error("Stage cleanup failed; queue detached if previously attached");
+    if (detachFailed || pauseFailed)
+      throw new Error(
+        `Stage failure; ${detachFailed ? "queue detachment unconfirmed" : "queue detached"}; ${pauseFailed ? "control pause unconfirmed" : "controls paused"}`,
+      );
+    if (cleanupFailed)
+      throw new Error(
+        controlsAttempted
+          ? "Stage cleanup failed; controls paused and queue detached"
+          : "Stage cleanup failed before controls were activated",
+      );
+    throw failure;
   }
-  if (failure) throw failure;
   return receipt;
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
