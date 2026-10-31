@@ -1,5 +1,5 @@
 /** @file contracts.ts @description Private judge and repository contracts. @module execution */
-import type { ExecutionLimits, QuestionProblem } from "@quorem/questions";
+import type { ExecutionLimits } from "@quorem/questions";
 
 export interface AttemptFence {
   readonly attemptId: string;
@@ -53,9 +53,33 @@ export interface Completion {
   readonly hiddenCases?: readonly { readonly index: number; readonly status: Verdict }[];
   readonly engineFailure?: string;
 }
+/** Small terminal metadata; case bodies travel separately in bounded frames. */
+export interface CompletionHeader {
+  readonly submissionId: string;
+  readonly attemptId: string;
+  readonly verdict?: Verdict;
+  readonly score?: { readonly passed: number; readonly total: number };
+  readonly hiddenCases?: readonly { readonly index: number; readonly status: Verdict }[];
+  readonly engineFailure: boolean;
+  readonly diagnosticsPresent: boolean;
+  readonly publicPresent: boolean;
+  readonly samplePresent: boolean;
+  readonly privatePresent: boolean;
+  readonly publicCount: number;
+  readonly sampleCount: number;
+  readonly privateCount: number;
+}
+/** A raw JSON field is transported independently in bounded byte chunks. */
+export interface CompletionFieldChunk {
+  readonly channel: "public" | "sample" | "private" | "header";
+  readonly ordinal: number;
+  readonly field: "actual" | "expected" | "stdout" | "stderr" | "diagnostics" | "sqlTypes";
+  readonly chunkOrdinal: number;
+  readonly bytes: Uint8Array;
+}
 /** Case payloads are raw JSON so precision and private values survive transport. */
 export interface ExecutionSpec {
-  readonly problem: QuestionProblem;
+  readonly problemJson: string;
   readonly source: string;
   readonly kind: "run" | "submit";
   readonly cases: readonly string[];
@@ -108,8 +132,19 @@ export interface ExecutionRepository {
     signal?: AbortSignal,
   ): Promise<Job | null>;
   load(job: Job, signal?: AbortSignal): Promise<ExecutionSpec>;
-  lease(job: Job, resumable: boolean, signal?: AbortSignal): Promise<boolean>;
-  complete(job: Job, completion: Completion, signal?: AbortSignal): Promise<void>;
+  lease(job: Job, heartbeat: boolean, signal?: AbortSignal): Promise<boolean>;
+  beginCompletion(job: Job, header: CompletionHeader, signal?: AbortSignal): Promise<void>;
+  writeCompletionChunk(job: Job, chunk: CompletionFieldChunk, signal?: AbortSignal): Promise<void>;
+  sealCompletionFrame(
+    job: Job,
+    channel: "public" | "sample" | "private",
+    ordinal: number,
+    status: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  sealCompletionDiagnostics(job: Job, signal?: AbortSignal): Promise<void>;
+  finishCompletionStream(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
+  promoteCompletion(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   loadCheckpoint(job: Job, signal?: AbortSignal): Promise<Checkpoint>;
   replayCheckpoint(
     job: Job,
@@ -118,7 +153,7 @@ export interface ExecutionRepository {
     signal?: AbortSignal,
   ): Promise<void>;
   saveCheckpoint(job: Job, checkpoint: CheckpointCase, signal?: AbortSignal): Promise<void>;
-  yield(job: Job, signal?: AbortSignal): Promise<void>;
+  yield(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
 }
 
 /** Ensure completion belongs to the claimed submission and attempt. */

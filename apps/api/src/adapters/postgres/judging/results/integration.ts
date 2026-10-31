@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
 import { resolve } from "node:path";
+import { sql } from "drizzle-orm";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import type { LocalPrincipal, GuestPrincipal } from "../../../../modules/identity/model.ts";
@@ -9,8 +10,11 @@ import { submissionSnapshots } from "./repository.ts";
 const url = process.env.QUOREM_RESULTS_TEST_DATABASE_URL;
 if (
   !url ||
-  new URL(url).port !== "55459" ||
-  new URL(url).pathname !== "/quorem_hono_results_test" ||
+  !["/quorem_hono_results_test", "/quorem_hono_result_stream_test"].includes(
+    new URL(url).pathname,
+  ) ||
+  !["postgres:", "postgresql:"].includes(new URL(url).protocol) ||
+  new URL(url).searchParams.has("host") ||
   !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
 )
   throw new Error("Disposable results database required");
@@ -25,7 +29,17 @@ const pool = createNodePool({
 });
 const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
     withNodeConnection(pool, { lifetimeMs: 8000 }, fn),
-  repo = submissionSnapshots(run);
+  // Backfill locks one legacy result per offline operation, not an HTTP page.
+  operatorRun = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+    withNodeConnection(pool, { lifetimeMs: 120000 }, fn),
+  actual = submissionSnapshots(run),
+  repo = {
+    ...actual,
+    read: async (...args: Parameters<typeof actual.read>) =>
+      new Response(await actual.read(...args)).text(),
+    interview: async (...args: Parameters<typeof actual.interview>) =>
+      new Response(await actual.interview(...args)).text(),
+  };
 const principal = (userId: string): LocalPrincipal => ({
   kind: "local",
   userId,
@@ -179,6 +193,20 @@ before(async () => {
   } finally {
     client.release();
   }
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const { backfillSnapshotPublicExamples } =
+    await import("../../interviews/question/public-examples.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSnapshotPublicExamples(tx, interview, row.rows[0].id),
+    ),
+  );
+  for (const id of [done, interviewSubmission])
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillSubmissionResult(tx, id),
+      ),
+    );
 });
 after(async () => {
   await pool.end();
@@ -281,7 +309,7 @@ void test("real HTTP preserves result privacy, idempotency and shared errors", a
   const app = createApp({ allowedOrigins: [], requestId: () => "results-request" }).route(
     "/",
     submissionRoutes({
-      snapshots: repo,
+      snapshots: actual,
       identify: async (request) =>
         request.headers.get("authorization") === "missing" ? undefined : alice,
     }),
@@ -450,4 +478,519 @@ void test("concurrent retries produce one persisted cancellation response", asyn
     ),
     1,
   );
+});
+
+void test("private stream stops on revocation and cancellation releases the connection", async () => {
+  const stream = await actual.interview(host, interview, interviewSubmission);
+  const reader = stream.getReader();
+  for (let i = 0; i < 5; i++) await reader.read();
+  await pool.query(
+    "UPDATE interview_members SET removed_at=clock_timestamp() WHERE session_id=$1 AND user_id='results-host'",
+    [interview],
+  );
+  try {
+    await assert.rejects(async () => {
+      while (!(await reader.read()).done) {}
+    });
+  } finally {
+    await pool.query(
+      "UPDATE interview_members SET removed_at=NULL WHERE session_id=$1 AND user_id='results-host'",
+      [interview],
+    );
+  }
+  let transactions = 0;
+  const counted: typeof run = async (fn) => {
+    transactions++;
+    return run(fn);
+  };
+  const cancelled = (await submissionSnapshots(counted).read(alice, done)).getReader();
+  await cancelled.read();
+  const before = transactions;
+  await cancelled.cancel();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(transactions, before);
+  assert.equal(pool.waitingCount, 0);
+});
+
+void test("legacy backfill streams split UTF-8 and rejects nonterminal rows", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  const text = "x".repeat(65525) + "🐈\u0000";
+  const payload = JSON.stringify({
+    verdict: "accepted",
+    publicCases: [{ index: 0, status: "passed", actual: text }],
+    hiddenCases: [{ index: 0, status: "passed", expected: "secret" }],
+  });
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','hash','running','[]','{}',$3)",
+    [id, workspace, Buffer.from(payload)],
+  );
+  const backfill = () =>
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillSubmissionResult(tx, id),
+      ),
+    );
+  assert.equal(await backfill(), false);
+  await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [id]);
+  assert.equal(await backfill(), true);
+  assert.equal(await backfill(), true);
+  const output = await repo.read(alice, id);
+  assert.match(output, /🐈\\u0000/);
+  assert.doesNotMatch(output, /secret/);
+});
+void test("retention invalidates an in-flight result watermark", async () => {
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) SELECT $1,owner_id,workspace_id,kind,source,source_hash,'completed',cases,result,result_payload FROM submissions WHERE id=$2",
+    [id, done],
+  );
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, id),
+    ),
+  );
+  const reader = (await actual.read(alice, id)).getReader();
+  await reader.read();
+  await pool.query("UPDATE submissions SET result=NULL WHERE id=$1", [id]);
+  await assert.rejects(async () => {
+    while (!(await reader.read()).done) {}
+  }, /changed/);
+});
+void test("a database outage terminates a started stream", async () => {
+  let fail = false;
+  const flaky: typeof run = (fn) =>
+    fail ? Promise.reject(new Error("database offline")) : run(fn);
+  const reader = (await submissionSnapshots(flaky).read(alice, done)).getReader();
+  await reader.read();
+  fail = true;
+  await assert.rejects(async () => {
+    while (!(await reader.read()).done) {}
+  }, /database offline/);
+});
+void test("normalizes large legacy case and diagnostic fields through bounded source ranges", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','large-legacy','completed','[]','{}',convert_to('{"publicCases":[{"index":0,"status":"passed","actual":"'||repeat('x',16777216)||'","diagnostics":[{"message":"hi\\u0000","line":2,"ignored":"PRIVATE"}]}],"diagnostics":[{"message":"'||repeat('y',16777216)||'"}]}','UTF8'))`,
+    [id, workspace],
+  );
+  await assert.rejects(
+    withNodeConnection(pool, { lifetimeMs: 20 }, (scope) =>
+      scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillSubmissionResult(tx, id),
+      ),
+    ),
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT count(*)::int AS n FROM submission_result_headers WHERE submission_id=$1",
+        [id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await operatorRun(async (scope) => {
+    await scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, async (tx) => {
+      await backfillSubmissionResult(tx, id);
+      const spool = (
+        await tx.execute<{ uncompressed: boolean; size: number }>(
+          sql`SELECT pg_column_compression(raw) IS NULL AS uncompressed, pg_column_size(raw) AS size FROM quorem_legacy_source WHERE id=${id}::uuid AND kind='public'`,
+        )
+      ).rows[0];
+      assert.equal(spool.uncompressed, true);
+      assert.ok(spool.size > 32 * 1024 * 1024);
+    });
+    await scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, async (tx) => {
+      assert.equal(
+        (
+          await tx.execute<{ dropped: boolean }>(
+            sql`SELECT to_regclass('pg_temp.quorem_legacy_source') IS NULL AS dropped`,
+          )
+        ).rows[0].dropped,
+        true,
+      );
+    });
+  });
+  const reader = (await actual.read(alice, id)).getReader();
+  let total = 0,
+    max = 0;
+  for (;;) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    max = Math.max(max, part.value.byteLength);
+  }
+  assert.ok(total > 32 * 1024 * 1024);
+  assert.ok(max <= 65536);
+});
+void test("legacy case validation rolls back malformed and duplicate fields", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  for (const payload of [
+    '{"publicCases":[{"index":0,"status":"passed","status":"failed"}]}',
+    '{"publicCases":[{"index":0,"status":"passed","sqlTypes":[42]}]}',
+    '{"publicCases":[{"index":0,"status":"passed","diagnostics":[{"message":1}]}]}',
+  ]) {
+    const id = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','bad','completed','[]','{}',$3)",
+      [id, workspace, Buffer.from(payload)],
+    );
+    await assert.rejects(
+      run((scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+          backfillSubmissionResult(tx, id),
+        ),
+      ),
+    );
+    assert.equal(
+      (
+        await pool.query(
+          "SELECT count(*)::int AS n FROM submission_public_result_cases WHERE submission_id=$1",
+          [id],
+        )
+      ).rows[0].n,
+      0,
+    );
+  }
+});
+void test("empty header arrays survive normalization and missing fields fail before streaming", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','empty','completed','[]','{}',$3)",
+    [
+      id,
+      workspace,
+      Buffer.from('{"verdict":"accepted","publicCases":[],"hiddenCases":[],"diagnostics":[]}'),
+    ],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, id),
+    ),
+  );
+  const parsed = JSON.parse(await repo.read(alice, id));
+  assert.deepEqual(parsed.publicCases, []);
+  assert.deepEqual(parsed.hiddenCases, []);
+  assert.deepEqual(parsed.diagnostics, []);
+  const bad = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','bad-header','running','[]')",
+    [bad, workspace],
+  );
+  await pool.query(
+    "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+    [
+      bad,
+      Buffer.from(
+        '{"publicCasesPresent":false,"publicCaseCount":0,"channel":"public","diagnosticsPresent":true}',
+      ),
+    ],
+  );
+  await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [bad]);
+  await assert.rejects(actual.read(alice, bad), /Incomplete result header field/);
+});
+void test("legacy variable header strings stay bounded without an invented limit", async () => {
+  const { backfillSubmissionResult } = await import("./backfill.ts");
+  const id = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'results-alice',$2,'run','','large-header','completed','[]','{}',convert_to('{"verdict":"'||repeat('v',16777216)||'","hiddenCases":[{"index":0,"status":"'||repeat('s',16777216)||'"}]}','UTF8'))`,
+    [id, workspace],
+  );
+  await operatorRun((scope) =>
+    scope.transaction({ statementTimeoutMs: 30000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSubmissionResult(tx, id),
+    ),
+  );
+  const reader = (await actual.read(alice, id)).getReader();
+  let total = 0,
+    max = 0;
+  for (;;) {
+    const part = await reader.read();
+    if (part.done) break;
+    total += part.value.byteLength;
+    max = Math.max(max, part.value.byteLength);
+  }
+  assert.ok(total > 32 * 1024 * 1024);
+  assert.ok(max <= 65536);
+});
+async function legacyPrivateFixture(
+  payload: string,
+  initial: string[],
+  authoritative = false,
+): Promise<string> {
+  const id = crypto.randomUUID(),
+    client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result) VALUES($1,'results-alice',$2,'submit','','legacy-private','running','[]','{}')",
+      [id, interview],
+    );
+    await client.query(
+      "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results,private_results_payload) SELECT $1,session_id,document_version,document_epoch,question_epoch,fixture_id,level,$3::jsonb,$4 FROM interview_execution WHERE submission_id=$2",
+      [
+        id,
+        interviewSubmission,
+        JSON.stringify(initial.map((_, index) => ({ index, status: "passed" }))),
+        Buffer.from(payload),
+      ],
+    );
+    for (let i = 0; i < initial.length; i++)
+      await client.query(
+        "INSERT INTO interview_private_result_cases(submission_id,ordinal,result_data) VALUES($1,$2,$3)",
+        [id, i, Buffer.from(initial[i])],
+      );
+    if (authoritative)
+      await client.query(
+        "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+        [id, Buffer.from('{"publicCasesPresent":false,"publicCaseCount":0,"channel":"sample"}')],
+      );
+    await client.query("UPDATE submissions SET state='completed' WHERE id=$1", [id]);
+    await client.query("COMMIT");
+    return id;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+void test("legacy private sidecars rebuild atomically from the locked source", async () => {
+  const { backfillPrivateResultCases } =
+    await import("../../interviews/question/private-results.ts");
+  const raw = '[{"index":0,"status":"passed","actual":{"z":1,"a":2}}]';
+  const previous = '{"actual":{"a":2,"z":1},"index":0,"status":"passed"}';
+  const id = await legacyPrivateFixture(raw, [previous]);
+  assert.equal(
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, id),
+      ),
+    ),
+    true,
+  );
+  const data = (
+    await pool.query(
+      "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1",
+      [id],
+    )
+  ).rows[0].data;
+  assert.match(data, /"z":1,"a":2/);
+  const protectedId = await legacyPrivateFixture(raw, [previous], true);
+  await assert.rejects(
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, protectedId),
+      ),
+    ),
+    /Conflicting legacy case/,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1",
+        [protectedId],
+      )
+    ).rows[0].data,
+    previous,
+  );
+});
+void test("a failed legacy rebuild rolls back deleted sidecars", async () => {
+  const { backfillPrivateResultCases } =
+    await import("../../interviews/question/private-results.ts");
+  const previous = '{"index":0,"status":"passed","actual":1}';
+  const id = await legacyPrivateFixture(
+    '[{"index":0,"status":"passed","actual":2},{"index":1,"status":4}]',
+    [previous, '{"index":1,"status":"passed"}'],
+  );
+  await assert.rejects(
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, id),
+      ),
+    ),
+  );
+  const rows = await pool.query(
+    "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1 ORDER BY ordinal",
+    [id],
+  );
+  assert.equal(rows.rowCount, 2);
+  assert.equal(rows.rows[0].data, previous);
+});
+void test("legacy repair samples source only after acquiring the execution lock", async () => {
+  const { backfillPrivateResultCases } =
+    await import("../../interviews/question/private-results.ts");
+  const old = '{"index":0,"status":"passed","actual":1}',
+    id = await legacyPrivateFixture("[" + old + "]", [old]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "UPDATE interview_execution SET private_results_payload=$2 WHERE submission_id=$1",
+      [id, Buffer.from('[{"index":0,"status":"passed","actual":2}]')],
+    );
+    const pending = run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        backfillPrivateResultCases(tx, id),
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await client.query("COMMIT");
+    assert.equal(await pending, true);
+    const data = (
+      await pool.query(
+        "SELECT convert_from(result_data,'UTF8') AS data FROM interview_private_result_cases WHERE submission_id=$1",
+        [id],
+      )
+    ).rows[0].data;
+    assert.match(data, /"actual":2/);
+  } finally {
+    client.release();
+  }
+});
+void test("actual 27 interview promotion feeds authorized streamed results", async () => {
+  const { postgresCompletionStaging } = await import("../worker/staging.ts");
+  const { postgresCompletionPromotion } = await import("../worker/promote.ts");
+  const { backfillSnapshotPublicExamples } =
+    await import("../../interviews/question/public-examples.ts");
+  const session = crypto.randomUUID(),
+    questionEpoch = crypto.randomUUID(),
+    documentEpoch = crypto.randomUUID(),
+    submission = crypto.randomUUID(),
+    jobId = crypto.randomUUID(),
+    attemptId = crypto.randomUUID();
+  const fixture = JSON.stringify({
+    problem: {
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      constraints: [],
+      limits: {
+        wallTimeMs: 2000,
+        memoryBytes: 268435456,
+        outputBytes: 65536,
+        maxProcesses: 16,
+        maxCollectionElements: 10000,
+        maxNestingDepth: 100,
+      },
+      examples: [],
+    },
+    hiddenCases: [{ args: [], expected: 2 }],
+  });
+  await pool.query(
+    "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES($1,'results-host','promotion','{}','python','',$2,$3,$4,$4,$5,$5)",
+    [session, documentEpoch, questionEpoch, crypto.randomUUID(), crypto.randomUUID()],
+  );
+  await pool.query(
+    "INSERT INTO interview_members(session_id,user_id,role) VALUES($1,'results-host','interviewer'),($1,'results-alice','interviewee')",
+    [session],
+  );
+  const fixtureId = (
+    await pool.query(
+      "WITH f AS (SELECT $2::jsonb AS value) INSERT INTO interview_question_snapshots(session_id,id,fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value FROM f RETURNING id",
+      [session, fixture],
+    )
+  ).rows[0].id;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'submit','','hash','running','[{\"args\":[],\"expected\":2}]')",
+      [submission, session],
+    );
+    await client.query(
+      "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level) VALUES($1,$2,1,$3,$4,$5,1)",
+      [submission, session, documentEpoch, questionEpoch, fixtureId],
+    );
+    await client.query(
+      "INSERT INTO execution_jobs(id,submission_id,attempt_id,sandbox_scope,lease_until,attempts) VALUES($1,$2,$3,'promotion-test',clock_timestamp()+interval '1 minute',1)",
+      [jobId, submission, attemptId],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      backfillSnapshotPublicExamples(tx, session, fixtureId),
+    ),
+  );
+  const job = {
+    jobId,
+    submissionId: submission,
+    attemptId,
+    sandboxScope: "promotion-test",
+    language: "python",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    sourceRef: "",
+    suiteRef: "",
+    problemVersionId: version,
+    limits: {
+      wallTimeMs: 2000,
+      memoryBytes: 268435456,
+      outputBytes: 65536,
+      maxProcesses: 16,
+      maxCollectionElements: 10000,
+      maxNestingDepth: 100,
+    },
+  };
+  const staging = postgresCompletionStaging(run);
+  await staging.begin(job, {
+    submissionId: submission,
+    attemptId,
+    verdict: "wrong_answer",
+    score: { passed: 0, total: 1 },
+    hiddenCases: [{ index: 0, status: "wrong_answer" }],
+    engineFailure: false,
+    diagnosticsPresent: false,
+    publicPresent: false,
+    samplePresent: false,
+    privatePresent: true,
+    publicCount: 0,
+    sampleCount: 0,
+    privateCount: 1,
+  });
+  await staging.chunk(job, {
+    channel: "private",
+    ordinal: 0,
+    field: "actual",
+    chunkOrdinal: 0,
+    bytes: new TextEncoder().encode("1"),
+  });
+  await staging.chunk(job, {
+    channel: "private",
+    ordinal: 0,
+    field: "stdout",
+    chunkOrdinal: 0,
+    bytes: new TextEncoder().encode('"PRIVATE\\u0000OUTPUT"'),
+  });
+  await staging.seal(job, "private", 0, "executed");
+  await staging.eof(job, job);
+  const promote = postgresCompletionPromotion(run);
+  await promote(job, job);
+  await promote(job, job);
+  const cleanup = (
+    await pool.query(
+      "SELECT (SELECT count(*)::int FROM execution_completion_staging WHERE job_id=$1) AS stages,(SELECT count(*)::int FROM execution_completion_frames WHERE job_id=$1) AS frames,(SELECT count(*)::int FROM execution_completion_field_chunks WHERE job_id=$1) AS chunks,(SELECT count(*)::int FROM execution_completion_receipts WHERE job_id=$1 AND outcome='completed') AS receipts",
+      [jobId],
+    )
+  ).rows[0];
+  assert.deepEqual(cleanup, { stages: 0, frames: 0, chunks: 0, receipts: 1 });
+  const staff = await repo.interview(host, session, submission);
+  assert.match(staff, /PRIVATE\\u0000OUTPUT/);
+  assert.match(staff, /"expected":2/);
+  assert.doesNotMatch(await repo.interview(alice, session, submission), /PRIVATE|"expected":2/);
+  await pool.query(
+    "INSERT INTO interview_case_visibility(session_id,question_epoch,case_id) VALUES($1,$2,'hidden:0')",
+    [session, questionEpoch],
+  );
+  const revealed = await repo.interview(alice, session, submission);
+  assert.match(revealed, /PRIVATE\\u0000OUTPUT/);
+  assert.match(revealed, /"expected":2/);
 });
