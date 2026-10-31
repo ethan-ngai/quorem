@@ -1681,9 +1681,9 @@ export const execution_dispatch_intents = pgTable(
   },
   (table) => [
     foreignKey({
-      name: "execution_dispatch_intents_job_id_fkey",
       columns: [table.job_id],
       foreignColumns: [execution_jobs.id],
+      name: "execution_dispatch_intents_job_id_fkey",
     }).onDelete("cascade"),
     index("execution_dispatch_pending")
       .on(table.available_at, table.id)
@@ -1695,13 +1695,15 @@ export const deadline_prearms = pgTable(
   "deadline_prearms",
   {
     id: uuid().primaryKey().notNull(),
+    purpose: text().notNull(),
     shard: integer().notNull(),
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
     committed_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table) => [
+    check("deadline_prearms_purpose_check", sql`purpose IN ('deadline','execution')`),
     check("deadline_prearms_shard_check", sql`shard >= 0 AND shard < 256`),
-    index("deadline_prearms_shard").on(table.shard, table.expires_at, table.id),
+    index("deadline_prearms_shard").on(table.purpose, table.shard, table.expires_at, table.id),
   ],
 );
 
