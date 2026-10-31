@@ -13,6 +13,7 @@ import {
 } from "@quorem/execution";
 
 export interface RunnerPeer {
+  readonly inputProtocol: "manifest-v1";
   readonly secret: string;
   readonly scope: string;
   readonly resumable: boolean;
@@ -72,7 +73,13 @@ function str(value: unknown): string {
 export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
   if (
     !peers.length ||
-    peers.some((p) => encoder.encode(p.secret).length < 32 || /\s/.test(p.secret) || !p.scope)
+    peers.some(
+      (p) =>
+        encoder.encode(p.secret).length < 32 ||
+        /\s/.test(p.secret) ||
+        !p.scope ||
+        p.inputProtocol !== "manifest-v1",
+    )
   )
     throw new Error("Invalid runner peer configuration");
   const keys = await Promise.all(

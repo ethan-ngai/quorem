@@ -10,12 +10,13 @@ import {
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export interface RunnerCapabilities {
+  inputProtocol: "manifest-v1";
   resumable: boolean;
   losslessCases: boolean;
   losslessResults: boolean;
 }
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
-const eligible = sql`NOT j.finished AND s.state IN ('queued','running')`;
+const eligible = sql`NOT j.finished AND s.state IN ('queued','running') AND EXISTS(SELECT 1 FROM runner_job_inputs i WHERE i.job_id=j.id AND i.sealed)`;
 function scopeValid(scope: string): void {
   if (
     !scope ||
@@ -34,6 +35,7 @@ function lossless(cap: RunnerCapabilities) {
 }
 const joins = sql`FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id`;
 export function postgresClaims(run: Run, cap: RunnerCapabilities) {
+  if (cap.inputProtocol !== "manifest-v1") throw new Error("Runner input protocol required");
   return {
     async queueState() {
       return run((scopeDb) =>
@@ -97,6 +99,9 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
       assertClaimFence(scope, proof);
       return run((scopeDb) =>
         scopeDb.transaction(options, async (tx) => {
+          await tx.execute(
+            sql`SELECT set_config('quorem.runner_input_protocol','manifest-v1',true)`,
+          );
           if (cap.resumable)
             await tx.execute(sql`SELECT set_config('quorem.checkpoint_claim','v1',true)`);
           if (cap.losslessCases && cap.losslessResults)

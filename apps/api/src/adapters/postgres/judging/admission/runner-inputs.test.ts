@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
+import { setActiveRunnerFixture } from "../../interviews/runner-inputs/active.ts";
 import { saveInterviewFixture } from "../../interviews/execution/fixture.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
 import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
@@ -204,6 +205,29 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               )
             ).rows[0];
             expect(result).toEqual({ sealed: true, n: 2 });
+            await setActiveRunnerFixture(tx, session, epoch, first);
+            expect(
+              (
+                await tx.execute(
+                  sql`SELECT 1 FROM interview_active_runner_inputs WHERE session_id=${session}::uuid`,
+                )
+              ).rows,
+            ).toHaveLength(1);
+            await tx.execute(sql`SAVEPOINT bad_epoch`);
+            await expect(
+              setActiveRunnerFixture(tx, session, crypto.randomUUID(), first),
+            ).rejects.toThrow();
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT bad_epoch`);
+            await tx.execute(
+              sql`UPDATE interviews SET question_epoch=${crypto.randomUUID()}::uuid WHERE id=${session}::uuid`,
+            );
+            expect(
+              (
+                await tx.execute(
+                  sql`SELECT 1 FROM interview_active_runner_inputs WHERE session_id=${session}::uuid`,
+                )
+              ).rows,
+            ).toHaveLength(0);
             throw new Error("fixture rollback");
           }),
         ),
@@ -407,6 +431,16 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             await tx.execute(
               sql`UPDATE submissions SET state='running' WHERE id=${submission}::uuid`,
             );
+            await tx.execute(sql`SAVEPOINT legacy_claim`);
+            await expect(
+              tx.execute(
+                sql`UPDATE execution_jobs SET attempt_id=${attempt}::uuid WHERE id=${job}::uuid`,
+              ),
+            ).rejects.toThrow();
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT legacy_claim`);
+            await tx.execute(
+              sql`SELECT set_config('quorem.runner_input_protocol','manifest-v1',true)`,
+            );
             await tx.execute(sql`SELECT set_config('quorem.sandbox_scope','scope',true)`);
             await tx.execute(
               sql`UPDATE execution_jobs SET attempt_id=${attempt}::uuid,sandbox_scope='scope',lease_until=clock_timestamp()+interval '1 minute' WHERE id=${job}::uuid`,
@@ -445,9 +479,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
                 secret,
                 scope: "scope",
                 resumable: true,
+                inputProtocol: "manifest-v1",
                 repository: () =>
                   postgresExecutionCommands(scoped, {
                     resumable: true,
+                    inputProtocol: "manifest-v1",
                     losslessCases: true,
                     losslessResults: true,
                   }),

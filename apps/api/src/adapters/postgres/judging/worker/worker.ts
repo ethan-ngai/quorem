@@ -73,11 +73,22 @@ it("claims and fences a real attempt through workerd", async () => {
       postgresExecutionCommands(
         <T>(f: (scope: ConnectionScope) => Promise<T>) =>
           withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000, signal }, f),
-        { resumable: true, losslessCases: true, losslessResults: true },
+        {
+          inputProtocol: "manifest-v1",
+          resumable: true,
+          losslessCases: true,
+          losslessResults: true,
+        },
       );
     const secret = "fixture-only-worker-private-credential-12345";
     const handler = await createRunnerCommandHandler([
-      { secret, scope: "worker-scope", resumable: true, repository: commands },
+      {
+        inputProtocol: "manifest-v1",
+        secret,
+        scope: "worker-scope",
+        resumable: true,
+        repository: commands,
+      },
     ]);
     let dropPromotionAck = false,
       promotionCalls = 0;

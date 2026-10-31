@@ -13,7 +13,12 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { bytea } from "../../core/bytea.ts";
-import { problem_versions, interview_question_snapshots, execution_jobs } from "./index.ts";
+import {
+  interviews,
+  problem_versions,
+  interview_question_snapshots,
+  execution_jobs,
+} from "./index.ts";
 
 export const runner_input_blobs = pgTable(
   "runner_input_blobs",
@@ -216,5 +221,25 @@ export const runner_job_input_cases = pgTable(
     check("runner_job_input_cases_ordinal_check", sql`ordinal BETWEEN 0 AND 319`),
     check("runner_job_input_cases_channel_check", sql`channel IN ('public','sample','private')`),
     index("runner_job_input_cases_blob_hash_idx").on(t.blob_hash),
+  ],
+);
+export const interview_active_runner_inputs = pgTable(
+  "interview_active_runner_inputs",
+  {
+    session_id: uuid().primaryKey().notNull(),
+    question_epoch: uuid().notNull(),
+    fixture_id: bytea("fixture_id").notNull(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    foreignKey({
+      columns: [t.session_id],
+      foreignColumns: [interviews.id],
+      name: "interview_active_runner_inputs_session_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.session_id, t.fixture_id],
+      foreignColumns: [runner_snapshot_inputs.session_id, runner_snapshot_inputs.fixture_id],
+      name: "interview_active_runner_inputs_session_id_fixture_id_fkey",
+    }),
   ],
 );
