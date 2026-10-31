@@ -6,7 +6,7 @@ import {
   deriveStageRole,
 } from "./hono-stage-database-role.mjs";
 /** First staged activation; existing database updates require a separate cutover contract. */
-import { spawnSync } from "node:child_process";
+import { runStageCommand } from "./hono-stage-command.mjs";
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -83,16 +83,9 @@ function selected(env, names) {
   );
 }
 function command(cmd, args, env, input) {
-  const result = spawnSync(cmd, args, {
-    env,
-    input,
-    encoding: "utf8",
-    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (result.error || result.status !== 0) throw new Error("Stage command failed; output withheld");
-  return result.stdout ?? "";
+  return runStageCommand(cmd, args, env, undefined, input);
 }
+
 function tfEnv(env, stack) {
   const values = selected(env, [
     ...commonNames,

@@ -10,7 +10,7 @@ import {
 } from "./hono-stage-database-role.mjs";
 import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
-import { runStageCommand } from "./hono-stage-launch.mjs";
+import { runStageCommand } from "./hono-stage-command.mjs";
 import {
   requireInitializableStageDatabase,
   StageInitializationFailure,
@@ -191,6 +191,7 @@ export async function inspectStageRole(env) {
           phase: error.phase,
           code: error.code,
           flags: error.flags,
+          reason: error.reason,
         };
       }
       const inspector = new Client(options);
