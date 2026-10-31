@@ -1,0 +1,594 @@
+[
+  {
+    "name": "normalize",
+    "input": {
+      "json": "2147483647",
+      "type": "int"
+    },
+    "output": "2147483647"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "2147483648",
+      "type": "int"
+    },
+    "error": "expected signed 32-bit integer"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "1.0",
+      "type": "int"
+    },
+    "error": "expected signed 32-bit integer"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "9007199254740993",
+      "type": "long"
+    },
+    "error": "unknown or excessively nested type"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "-0.0",
+      "type": "float"
+    },
+    "output": "0"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "1e2",
+      "type": "float"
+    },
+    "output": "100"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "[1,null,2,null,null]",
+      "type": "TreeNode"
+    },
+    "output": "[1,null,2]"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "[]",
+      "type": "ListNode"
+    },
+    "output": "null"
+  },
+  {
+    "name": "normalize",
+    "input": {
+      "json": "\"a\\u0000b\"",
+      "type": "str"
+    },
+    "output": "\"a\\u0000b\""
+  },
+  {
+    "name": "starter",
+    "input": {
+      "language": "python",
+      "signature": {
+        "className": "Solution",
+        "methodName": "sum",
+        "parameters": [
+          {
+            "name": "values",
+            "type": "list\u003cint\u003e"
+          }
+        ],
+        "returnType": "int"
+      }
+    },
+    "output": "class Solution:\n    def sum(self, values):\n        raise NotImplementedError\n"
+  },
+  {
+    "name": "starter",
+    "input": {
+      "language": "java",
+      "signature": {
+        "className": "Solution",
+        "methodName": "sum",
+        "parameters": [
+          {
+            "name": "values",
+            "type": "list\u003cint\u003e"
+          }
+        ],
+        "returnType": "int"
+      }
+    },
+    "output": "class Solution {\n    public int sum(java.util.List\u003cInteger\u003e values) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n"
+  },
+  {
+    "name": "starter",
+    "input": {
+      "language": "typescript",
+      "signature": {
+        "className": "Solution",
+        "methodName": "sum",
+        "parameters": [
+          {
+            "name": "values",
+            "type": "list\u003cint\u003e"
+          }
+        ],
+        "returnType": "int"
+      }
+    },
+    "output": "class Solution {\n    sum(values: (number)[]): number {\n        throw new Error(\"Implement solution\");\n    }\n}\n"
+  },
+  {
+    "name": "starter",
+    "input": {
+      "language": "ocaml",
+      "signature": {
+        "className": "Solution",
+        "methodName": "sum",
+        "parameters": [
+          {
+            "name": "values",
+            "type": "list\u003cint\u003e"
+          }
+        ],
+        "returnType": "int"
+      }
+    },
+    "output": "let sum (values:(int) list) : int =\n    failwith \"Implement solution\"\n"
+  },
+  {
+    "name": "validateCase",
+    "input": {
+      "case": {
+        "args": [
+          [
+            1,
+            2
+          ]
+        ],
+        "expected": 3
+      },
+      "signature": {
+        "className": "Solution",
+        "methodName": "sum",
+        "parameters": [
+          {
+            "name": "values",
+            "type": "list\u003cint\u003e"
+          }
+        ],
+        "returnType": "int"
+      }
+    },
+    "output": true
+  },
+  {
+    "name": "validateCase",
+    "input": {
+      "case": {
+        "args": [
+          [
+            1,
+            2.0
+          ]
+        ],
+        "expected": 3
+      },
+      "signature": {
+        "className": "Solution",
+        "methodName": "sum",
+        "parameters": [
+          {
+            "name": "values",
+            "type": "list\u003cint\u003e"
+          }
+        ],
+        "returnType": "int"
+      }
+    },
+    "error": "argument values: expected signed 32-bit integer"
+  },
+  {
+    "name": "validateCase",
+    "input": {
+      "case": {
+        "args": [],
+        "expected": 3
+      },
+      "signature": {
+        "className": "Solution",
+        "methodName": "sum",
+        "parameters": [
+          {
+            "name": "values",
+            "type": "list\u003cint\u003e"
+          }
+        ],
+        "returnType": "int"
+      }
+    },
+    "error": "wrong argument count"
+  },
+  {
+    "name": "validateDraft",
+    "input": {
+      "problem": {
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      },
+      "hiddenCases": null,
+      "attribution": "",
+      "implementations": null,
+      "solutions": null
+    },
+    "output": true
+  },
+  {
+    "name": "validateDefinition",
+    "input": {
+      "problem": {
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      },
+      "hiddenCases": null,
+      "attribution": "",
+      "implementations": null,
+      "solutions": null
+    },
+    "error": "slug, title and statement required"
+  },
+  {
+    "name": "validateDraft",
+    "input": {
+      "problem": {
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": [
+          "Acme",
+          "acme"
+        ],
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      },
+      "hiddenCases": null,
+      "attribution": "",
+      "implementations": null,
+      "solutions": null
+    },
+    "error": "invalid or duplicate company"
+  },
+  {
+    "name": "validateDefinition",
+    "input": {
+      "problem": {
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": [
+          "Acme",
+          "acme"
+        ],
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      },
+      "hiddenCases": null,
+      "attribution": "",
+      "implementations": null,
+      "solutions": null
+    },
+    "error": "invalid or duplicate company"
+  },
+  {
+    "name": "validateDraft",
+    "input": {
+      "problem": {
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      },
+      "hiddenCases": null,
+      "attribution": "",
+      "implementations": [
+        {
+          "language": "",
+          "starterSource": "bad\u0000source",
+          "runtimeRevision": "",
+          "harnessRevision": "",
+          "referenceSource": ""
+        }
+      ],
+      "solutions": null
+    },
+    "error": "language source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters"
+  },
+  {
+    "name": "validateDefinition",
+    "input": {
+      "problem": {
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      },
+      "hiddenCases": null,
+      "attribution": "",
+      "implementations": [
+        {
+          "language": "",
+          "starterSource": "bad\u0000source",
+          "runtimeRevision": "",
+          "harnessRevision": "",
+          "referenceSource": ""
+        }
+      ],
+      "solutions": null
+    },
+    "error": "language source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[1,[2,\"x\"],1]",
+      "source": "a😀b"
+    },
+    "output": "axb"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[2,[1,\"x\"],1]",
+      "source": "a😀b"
+    },
+    "error": "split surrogate pair"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[2,[0,\"\"]]",
+      "source": "é"
+    },
+    "output": "é"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[[0,\"\\ud83d\\ude00\"]]",
+      "source": ""
+    },
+    "output": "😀"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[[0,\"\\ud800\"]]",
+      "source": ""
+    },
+    "error": "invalid inserted text"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[[0,\"\\udc00\"]]",
+      "source": ""
+    },
+    "error": "invalid inserted text"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[[0,\"\\u0000\"]]",
+      "source": ""
+    },
+    "error": "source cannot contain NUL characters"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[3]",
+      "source": "a\u0000b"
+    },
+    "error": "source cannot contain NUL characters"
+  },
+  {
+    "name": "changes",
+    "input": {
+      "changes": "[3]",
+      "source": "abc"
+    },
+    "output": "abc"
+  },
+  {
+    "name": "source",
+    "input": "",
+    "output": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "utf8Bytes": 0,
+      "valid": true
+    }
+  },
+  {
+    "name": "source",
+    "input": "a😀b",
+    "output": {
+      "sha256": "6fba5b2ea783ded096fc2444d540ffbdf49168df30993b155b7efb683313f110",
+      "utf8Bytes": 6,
+      "valid": true
+    }
+  },
+  {
+    "name": "source",
+    "input": "a\u0000b",
+    "output": {
+      "sha256": "59b271ae1bbcb1d31d41929817f4b16fb439eb4f31520b5ad1d5ce98920a7138",
+      "utf8Bytes": 3,
+      "valid": false
+    }
+  },
+  {
+    "name": "source",
+    "input": "\u003c\u0026\u003e\n",
+    "output": {
+      "sha256": "23860470de2a0fb2d8fc9d2ee605cb2127df0b923a223a704d7aa79989ad29d4",
+      "utf8Bytes": 4,
+      "valid": true
+    }
+  },
+  {
+    "name": "goJSONHash",
+    "input": {
+      "a": [],
+      "z": "\u003c\u0026\u003e"
+    },
+    "output": {
+      "json": "{\"a\":[],\"z\":\"\\u003c\\u0026\\u003e\"}",
+      "sha256": "01edca74b7a5593caba77bf06d33fe3201a14bb60a0acbb3880fec05e2be5b5e"
+    }
+  },
+  {
+    "name": "goJSONHash",
+    "input": {
+      "a": null
+    },
+    "output": {
+      "json": "{\"a\":null}",
+      "sha256": "d091f9c83c091f79652fe8786375b3fe4ce0861a56f5bfbafedbe431877ff0e8"
+    }
+  },
+  {
+    "name": "goJSONHash",
+    "input": {},
+    "output": {
+      "json": "{}",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    }
+  }
+]

@@ -1,0 +1,459 @@
+[
+  {
+    "name": "runtime",
+    "input": "python",
+    "output": {
+      "found": true,
+      "runtime": {
+        "Language": "python",
+        "Revision": "python-3.12-v1",
+        "Harness": "quorem-harness-v2",
+        "Image": "quorem-python:local"
+      }
+    }
+  },
+  {
+    "name": "runtime",
+    "input": "postgresql",
+    "output": {
+      "found": true,
+      "runtime": {
+        "Language": "postgresql",
+        "Revision": "postgresql-17.6-v1",
+        "Harness": "quorem-postgresql-v2",
+        "Image": "quorem-postgres:local"
+      }
+    }
+  },
+  {
+    "name": "runtime",
+    "input": "java",
+    "output": {
+      "found": true,
+      "runtime": {
+        "Language": "java",
+        "Revision": "java-21.0.9-v1",
+        "Harness": "quorem-java-v1",
+        "Image": "quorem-java:local"
+      }
+    }
+  },
+  {
+    "name": "runtime",
+    "input": "typescript",
+    "output": {
+      "found": true,
+      "runtime": {
+        "Language": "typescript",
+        "Revision": "typescript-5.9.3-node-22.21.1-v1",
+        "Harness": "quorem-typescript-v1",
+        "Image": "quorem-typescript:local"
+      }
+    }
+  },
+  {
+    "name": "runtime",
+    "input": "ocaml",
+    "output": {
+      "found": true,
+      "runtime": {
+        "Language": "ocaml",
+        "Revision": "ocaml-4.13.1-v1",
+        "Harness": "quorem-ocaml-v1",
+        "Image": "quorem-ocaml:local"
+      }
+    }
+  },
+  {
+    "name": "runtime",
+    "input": "unknown",
+    "output": {
+      "found": false,
+      "runtime": {
+        "Language": "",
+        "Revision": "",
+        "Harness": "",
+        "Image": ""
+      }
+    }
+  },
+  {
+    "name": "sqlNormalize",
+    "input": {
+      "json": "{\"rows\":[[{\"$numeric\":\"12345678901234567890.1200\"}],[{\"$numeric\":\"-0.00\"}]]}",
+      "problem": {
+        "sql": {
+          "dialect": "postgresql",
+          "outputOrder": "unordered",
+          "output": [
+            {
+              "name": "n",
+              "type": "numeric"
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": "{\"columns\":[\"n\"],\"rows\":[[{\"$numeric\":\"0\"}],[{\"$numeric\":\"12345678901234567890.12\"}]]}"
+  },
+  {
+    "name": "sqlNormalize",
+    "input": {
+      "json": "{\"rows\":[[{\"$numeric\":\"1e2\"}]]}",
+      "problem": {
+        "sql": {
+          "dialect": "postgresql",
+          "outputOrder": "unordered",
+          "output": [
+            {
+              "name": "n",
+              "type": "numeric"
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": "{\"columns\":[\"n\"],\"rows\":[[{\"$numeric\":\"100\"}]]}"
+  },
+  {
+    "name": "sqlNormalize",
+    "input": {
+      "json": "{\"rows\":[[\"123\"]]}",
+      "problem": {
+        "sql": {
+          "dialect": "postgresql",
+          "outputOrder": "unordered",
+          "output": [
+            {
+              "name": "n",
+              "type": "numeric"
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": "{\"columns\":[\"n\"],\"rows\":[[\"123\"]]}"
+  },
+  {
+    "name": "sqlTyped",
+    "input": {
+      "json": "{\"rows\":[[0.1],[10000000000]]}",
+      "problem": {
+        "sql": {
+          "dialect": "",
+          "outputOrder": "ordered",
+          "output": [
+            {
+              "name": "value",
+              "type": "real"
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": "{\"columns\":[\"value\"],\"rows\":[[1.0000000149011612e-01],[1e+10]]}"
+  },
+  {
+    "name": "sqlTyped",
+    "input": {
+      "json": "{\"rows\":[[-0.0],[1e2]]}",
+      "problem": {
+        "sql": {
+          "dialect": "",
+          "outputOrder": "ordered",
+          "output": [
+            {
+              "name": "value",
+              "type": "double precision"
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": "{\"columns\":[\"value\"],\"rows\":[[-0e+00],[1e+02]]}"
+  },
+  {
+    "name": "sqlTyped",
+    "input": {
+      "json": "{\"rows\":[[\"2024-01-01 12:00:00.1234565\"]]}",
+      "problem": {
+        "sql": {
+          "dialect": "",
+          "outputOrder": "ordered",
+          "output": [
+            {
+              "name": "value",
+              "type": "timestamp"
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": "{\"columns\":[\"value\"],\"rows\":[[\"2024-01-01T12:00:00.123456\"]]}"
+  },
+  {
+    "name": "sqlTyped",
+    "input": {
+      "json": "{\"rows\":[[\"2024-01-01T12:00:00+02:00\"]]}",
+      "problem": {
+        "sql": {
+          "dialect": "",
+          "outputOrder": "ordered",
+          "output": [
+            {
+              "name": "value",
+              "type": "timestamptz"
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": "{\"columns\":[\"value\"],\"rows\":[[\"2024-01-01T10:00:00Z\"]]}"
+  },
+  {
+    "name": "voidSequence",
+    "input": {
+      "case": {
+        "calls": [
+          {
+            "methodName": "clear",
+            "args": []
+          }
+        ],
+        "args": []
+      },
+      "json": "[42]",
+      "problem": {
+        "odyssey": {
+          "levels": [
+            {
+              "title": "",
+              "statementMarkdown": "",
+              "methods": [
+                {
+                  "className": "Solution",
+                  "methodName": "clear",
+                  "parameters": null,
+                  "returnType": "void"
+                }
+              ],
+              "examples": null
+            }
+          ]
+        },
+        "id": "",
+        "slug": "",
+        "version": "",
+        "title": "",
+        "difficulty": "",
+        "tags": null,
+        "companies": null,
+        "statementMarkdown": "",
+        "examples": null,
+        "constraints": null,
+        "signature": {
+          "className": "",
+          "methodName": "",
+          "parameters": null,
+          "returnType": ""
+        },
+        "limits": {
+          "wallTimeMs": 0,
+          "memoryBytes": 0,
+          "outputBytes": 0,
+          "maxProcesses": 0,
+          "maxCollectionElements": 0,
+          "maxNestingDepth": 0
+        }
+      }
+    },
+    "output": {
+      "actual": "[null]",
+      "expected": "[null]"
+    }
+  },
+  {
+    "name": "checkpointCaseJSON",
+    "input": {
+      "Ordinal": 2,
+      "Frame": {
+        "status": "executed",
+        "output": "private"
+      },
+      "Artifact": {
+        "kind": "compiled"
+      },
+      "CompilationNanos": 123456789,
+      "Fatal": null
+    },
+    "output": "{\"Ordinal\":2,\"Frame\":{\"status\":\"executed\",\"output\":\"private\"},\"Artifact\":{\"kind\":\"compiled\"},\"CompilationNanos\":123456789,\"Fatal\":null}"
+  }
+]
