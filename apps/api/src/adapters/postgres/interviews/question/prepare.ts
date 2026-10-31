@@ -9,6 +9,8 @@ import {
   interviewCreateFingerprint,
   losslessObject,
 } from "../../../../modules/interviews/question/fingerprint.ts";
+import { validateInterviewQuestionShape } from "../../../../modules/interviews/question/validation.ts";
+import { fingerprintQuestionInput } from "./fingerprint-input.ts";
 import { prepareCustomInterviewQuestion } from "./custom.ts";
 import { readPublishedFixture } from "../../problems/private-content.ts";
 import { object, storageProjection } from "../../problems/storage.ts";
@@ -19,13 +21,8 @@ export async function preparePublishedInterviewQuestion(
   actor: Principal,
   command: InterviewCreate,
 ): Promise<PreparedQuestion> {
-  if (!command.question || typeof command.question !== "object" || Array.isArray(command.question))
-    throw fail("Choose an existing question or custom question");
+  validateInterviewQuestionShape(command.question);
   const q = command.question as Record<string, unknown>;
-  if (
-    Object.keys(q).some((key) => !["hints", "problemVersionId", "custom", "language"].includes(key))
-  )
-    throw fail("Invalid question input");
   if (command.monitoring !== undefined && command.monitoring !== null) {
     if (
       typeof command.monitoring !== "object" ||
@@ -39,10 +36,12 @@ export async function preparePublishedInterviewQuestion(
   const published = typeof q.problemVersionId === "string" && q.problemVersionId !== "";
   if (custom === published || typeof q.language !== "string")
     throw fail("Choose an existing question or custom question");
+  const identity = fingerprintQuestionInput(command.question, command.rawBody, true);
   const fingerprint = await interviewCreateFingerprint(
     command.title,
-    command.question,
+    identity.question,
     command.monitoring,
+    identity.marks,
   );
   if (custom) {
     let value;

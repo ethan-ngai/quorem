@@ -85,8 +85,7 @@ function compact(raw: string): string {
   }
   return out;
 }
-/** Replace raw case values with opaque markers, restored after structural encoding. */
-export function markRawCases(raw: string, content: Obj): Map<string, string> {
+function markerContext(raw: string) {
   const root = scan(raw),
     marks = new Map<string, string>(),
     nonce = crypto.randomUUID();
@@ -107,10 +106,15 @@ export function markRawCases(raw: string, content: Obj): Map<string, string> {
     const calls = fields(node, "calls")?.items;
     array(c.calls).forEach((call, index) => caseValue(call, calls?.[index]));
   }
-  const sourceProblem = fields(root, "problem"),
-    p = object(content.problem);
   const cases = (values: JsonValue | undefined, nodes: Node[] | undefined) =>
     array(values).forEach((value, index) => caseValue(value, nodes?.[index]));
+  return { root, marks, fields, cases };
+}
+/** Replace raw case values with opaque markers, restored after structural encoding. */
+export function markRawCases(raw: string, content: Obj): Map<string, string> {
+  const { root, marks, fields, cases } = markerContext(raw),
+    p = object(content.problem),
+    sourceProblem = fields(root, "problem");
   cases(content.hiddenCases, fields(root, "hiddenCases")?.items);
   const suites = fields(root, "odysseyHiddenCases")?.items;
   array(content.odysseyHiddenCases).forEach((suite, index) => cases(suite, suites?.[index]?.items));
@@ -118,6 +122,27 @@ export function markRawCases(raw: string, content: Obj): Map<string, string> {
   const odyssey = object(p?.odyssey),
     levels = fields(fields(sourceProblem, "odyssey"), "levels")?.items;
   array(odyssey?.levels).forEach((level, index) =>
+    cases(object(level)?.examples, fields(levels?.[index], "examples")?.items),
+  );
+  return marks;
+}
+/** Interview custom cases have distinct public/private request paths. */
+export function markRawInterviewCases(
+  raw: string,
+  question: Obj,
+  wrapped: boolean,
+): Map<string, string> {
+  const { root, marks, fields, cases } = markerContext(raw),
+    questionNode = wrapped ? fields(root, "question") : root,
+    customNode = fields(questionNode, "custom"),
+    custom = object(question.custom);
+  if (!custom || !customNode) return marks;
+  cases(custom.publicCases, fields(customNode, "publicCases")?.items);
+  cases(custom.privateCases, fields(customNode, "privateCases")?.items);
+  const suites = fields(customNode, "odysseyHiddenCases")?.items;
+  array(custom.odysseyHiddenCases).forEach((suite, index) => cases(suite, suites?.[index]?.items));
+  const levels = fields(fields(customNode, "odyssey"), "levels")?.items;
+  array(object(custom.odyssey)?.levels).forEach((level, index) =>
     cases(object(level)?.examples, fields(levels?.[index], "examples")?.items),
   );
   return marks;
