@@ -56,7 +56,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       maxNestingDepth: 100,
     };
     await pool.query(
-      "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,'Fixture','easy','','{}'::jsonb,'[]'::jsonb,$3::jsonb,'')",
+      'INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,\'Fixture\',\'easy\',\'\',\'{"className":"Solution","methodName":"f","parameters":[],"returnType":"int"}\'::jsonb,\'[]\'::jsonb,$3::jsonb,\'\')',
       [version, problem, JSON.stringify(limits)],
     );
     await pool.query(
@@ -68,7 +68,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       [workspace, user, version],
     );
     await pool.query(
-      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[{}]'::jsonb)",
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[{\"expected\":2}]'::jsonb)",
       [submission, user, workspace],
     );
     await pool.query(
@@ -224,16 +224,13 @@ describe.skipIf(!url)("runner claim fences", () => {
     await expect(staging.eof(live!, live!)).rejects.toThrow("Unsealed");
     await pool.query("DELETE FROM execution_completion_field_chunks WHERE job_id=$1", [job]);
     await expect(staging.eof(live!, live!)).rejects.toThrow("Incomplete");
-    const resultFrame = {
-      channel: "public" as const,
-      ordinal: 0,
-      raw: '{"index":0,"status":"accepted","actual":9007199254740993}',
-    };
-    await staging.frame(live!, resultFrame);
-    await staging.frame(live!, resultFrame);
+    const actualChunk = { ...chunk, bytes: new TextEncoder().encode("123") };
+    await staging.chunk(live!, actualChunk);
+    await staging.seal(live!, "public", 0, "executed");
+    await staging.seal(live!, "public", 0, "executed");
     await expect(
-      staging.frame(live!, { ...resultFrame, raw: '{"index":0,"status":"wrong_answer"}' }),
-    ).rejects.toThrow("conflict");
+      staging.chunk(live!, { ...actualChunk, bytes: new TextEncoder().encode("456") }),
+    ).rejects.toThrow("sealed");
     await expect(staging.eof(live!, { ...live!, sandboxScope: "other" })).rejects.toThrow("fence");
     await staging.eof(live!, live!);
     await staging.eof(live!, live!);
@@ -278,11 +275,28 @@ describe.skipIf(!url)("runner claim fences", () => {
       (await pool.query("SELECT state FROM submissions WHERE id=$1", [submission])).rows[0].state,
     ).toBe("running");
     await staging.begin(live!, result);
-    await staging.frame(live!, {
+    await staging.chunk(live!, {
       channel: "public",
       ordinal: 0,
-      raw: '{"index":0,"status":"accepted","actual":"a\\u0000b"}',
+      field: "stdout",
+      chunkOrdinal: 0,
+      bytes: new TextEncoder().encode('"a\\u0000b"'),
     });
+    await staging.chunk(live!, {
+      channel: "public",
+      ordinal: 0,
+      field: "actual",
+      chunkOrdinal: 0,
+      bytes: new TextEncoder().encode("123"),
+    });
+    await staging.chunk(live!, {
+      channel: "public",
+      ordinal: 0,
+      field: "expected",
+      chunkOrdinal: 0,
+      bytes: new TextEncoder().encode("987655"),
+    });
+    await staging.seal(live!, "public", 0, "executed");
     await staging.eof(live!, live!);
     await promote(live!, live!);
     const row = (
@@ -292,8 +306,10 @@ describe.skipIf(!url)("runner claim fences", () => {
       )
     ).rows[0];
     expect(row.state).toBe("completed");
-    expect(row.result.publicCases).toEqual([{ index: 0, status: "accepted" }]);
+    expect(row.result.publicCases).toEqual([{ index: 0, status: "wrong_answer" }]);
     expect(row.payload).toContain("\\u0000");
+    expect(row.payload).toContain('"expected":2');
+    expect(row.payload).not.toContain("987655");
     await promote(live!, live!);
     await expect(
       pool.query(

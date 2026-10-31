@@ -23,7 +23,9 @@ export function postgresExecutionCommands(
     ...claims,
     load: postgresExecutionLoad(run, cap.losslessCases && cap.losslessResults),
     beginCompletion: (job, header) => staging.begin(job, header),
-    writeCompletionFrame: (job, frame) => staging.frame(job, frame),
+    writeCompletionChunk: (job, chunk) => staging.chunk(job, chunk),
+    sealCompletionFrame: (job, channel, ordinal, status) =>
+      staging.seal(job, channel, ordinal, status),
     finishCompletionStream: (job, proof) => staging.eof(job, proof),
     promoteCompletion: postgresCompletionPromotion(run),
     async loadCheckpoint(job) {

@@ -7,8 +7,7 @@ import {
   type CompletionHeader,
   type Job,
 } from "@quorem/execution";
-import { JsonNumber, parseLosslessJson } from "@quorem/questions";
-import { savePrivateResultCase } from "../../interviews/question/private-results.ts";
+import { savePrivateResultFrame } from "../../interviews/question/private-frame.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
 import { advanceOdyssey, validateSubmit } from "./complete.ts";
 
@@ -108,21 +107,12 @@ export function postgresCompletionPromotion(run: Run) {
         if (terminal === "completed") {
           for (let ordinal = 0; ordinal < count; ordinal++) {
             const row = (
-              await tx.execute<{ data: Uint8Array }>(
-                sql`SELECT frame_data AS data FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${ordinal}`,
+              await tx.execute<{ status: string }>(
+                sql`SELECT status FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${ordinal}`,
               )
             ).rows[0];
             if (!row) throw new Error("Incomplete completion");
-            const value = parseLosslessJson(decoder.decode(row.data));
-            if (
-              !value ||
-              typeof value !== "object" ||
-              Array.isArray(value) ||
-              value instanceof JsonNumber ||
-              typeof value.status !== "string"
-            )
-              throw new Error("Invalid result summary");
-            summary.push({ index: ordinal, status: value.status });
+            summary.push({ index: ordinal, status: row.status });
           }
           await tx.execute(
             sql`INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT ${job.submissionId}::uuid,channel,ordinal,frame_data FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${channel}`,
@@ -130,23 +120,20 @@ export function postgresCompletionPromotion(run: Run) {
           const privateSummary: { index: number; status: string }[] = [];
           for (let i = 0; i < header.privateCount; i++) {
             const row = (
-              await tx.execute<{ data: Uint8Array }>(
-                sql`SELECT frame_data AS data FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private' AND ordinal=${i}`,
+              await tx.execute<{ status: string }>(
+                sql`SELECT status FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private' AND ordinal=${i}`,
               )
             ).rows[0];
             if (!row) throw new Error("Incomplete private results");
-            const raw = decoder.decode(row.data),
-              value = parseLosslessJson(raw);
-            if (
-              !value ||
-              typeof value !== "object" ||
-              Array.isArray(value) ||
-              value instanceof JsonNumber ||
-              typeof value.status !== "string"
-            )
-              throw new Error("Invalid private result");
-            privateSummary.push({ index: i, status: value.status });
-            await savePrivateResultCase(tx, job.submissionId, i, raw);
+            privateSummary.push({ index: i, status: row.status });
+            await savePrivateResultFrame(
+              tx,
+              job.submissionId,
+              job.jobId,
+              job.attemptId,
+              job.sandboxScope,
+              i,
+            );
           }
           if (header.privatePresent)
             await tx.execute(

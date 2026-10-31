@@ -2,15 +2,15 @@
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
-  type CompletionFrame,
   type CompletionFieldChunk,
   type CompletionHeader,
   type Job,
   assertAttemptFence,
   encodeCompletion,
 } from "@quorem/execution";
-import { parseLosslessJson, stringifyLosslessJson, JsonNumber } from "@quorem/questions";
-import { resultCase } from "../results/projection.ts";
+import { postgresExecutionLoad } from "./load.ts";
+import { validateFieldChunks } from "./field-validation.ts";
+import { deriveResult } from "./provenance.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const encoder = new TextEncoder();
@@ -46,6 +46,63 @@ export function postgresCompletionStaging(run: Run) {
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, f));
   return {
+    async seal(
+      job: Job,
+      channel: "public" | "sample" | "private",
+      ordinal: number,
+      status: string,
+    ): Promise<void> {
+      if (
+        !["public", "sample", "private"].includes(channel) ||
+        !Number.isInteger(ordinal) ||
+        ordinal < 0 ||
+        ordinal >= 320
+      )
+        throw new Error("Invalid result frame");
+      const spec = await postgresExecutionLoad(run, true)(job);
+      const problem = JSON.parse(spec.problemJson) as { limits?: { outputBytes?: number } };
+      const outputLimit = problem.limits?.outputBytes;
+      if (!Number.isSafeInteger(outputLimit) || outputLimit! < 1)
+        throw new Error("Invalid persisted output limit");
+      await transact(async (tx) => {
+        if (!(await locked(tx, job))) throw new Error("Stale completion");
+        const stage = (
+          await tx.execute<{ eof: boolean }>(
+            sql`SELECT eof FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
+          )
+        ).rows[0];
+        if (!stage || stage.eof) throw new Error("Completion stream closed");
+        await validateFieldChunks(tx, job.jobId, channel, ordinal, outputLimit!);
+        const selected = await tx.execute<{ field: string; raw: string | null }>(
+          sql`WITH grouped AS (SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${ordinal} AND field IN ('actual','sqlTypes') GROUP BY field) SELECT field,CASE WHEN octet_length(data)<=${outputLimit! * 6 + 1024} THEN convert_from(data,'UTF8') ELSE NULL END AS raw FROM grouped`,
+        );
+        const values = new Map(selected.rows.map((row) => [row.field, row.raw]));
+        if (selected.rows.some((row) => row.raw === null))
+          throw new Error("Result field exceeds sandbox frame bound");
+        const typesRaw = values.get("sqlTypes");
+        const types: unknown = typesRaw === undefined ? [] : JSON.parse(typesRaw!);
+        if (!Array.isArray(types) || types.some((type) => typeof type !== "string"))
+          throw new Error("Invalid SQL types");
+        const derived = deriveResult(
+          spec,
+          channel,
+          ordinal,
+          status,
+          values.get("actual") ?? undefined,
+          types as string[],
+        );
+        const prefix = encoder.encode(
+          `{"index":${ordinal},"status":${JSON.stringify(derived.status)}`,
+        );
+        const suffix = encoder.encode(
+          `${derived.actual === undefined ? "" : `,"actual":${derived.actual}`}${derived.expected === undefined ? "" : `,"expected":${derived.expected}`}}`,
+        );
+        const result = await tx.execute(
+          sql`WITH grouped AS (SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${ordinal} AND field IN ('stdout','stderr','diagnostics','sqlTypes') GROUP BY field), assembled AS (SELECT ${prefix}::bytea || COALESCE(string_agg(convert_to(','||to_json(field)::text||':','UTF8')||data,''::bytea ORDER BY field),''::bytea) || ${suffix}::bytea AS data FROM grouped) INSERT INTO execution_completion_frames(job_id,channel,ordinal,status,frame_data,frame_hash) SELECT ${job.jobId}::uuid,${channel},${ordinal},${derived.status},data,sha256(data) FROM assembled ON CONFLICT(job_id,channel,ordinal) DO UPDATE SET frame_data=EXCLUDED.frame_data WHERE execution_completion_frames.status=EXCLUDED.status AND execution_completion_frames.frame_hash=EXCLUDED.frame_hash AND execution_completion_frames.frame_data=EXCLUDED.frame_data RETURNING ordinal`,
+        );
+        if (!result.rows.length) throw new Error("Completion frame conflict");
+      });
+    },
     async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
       if (
         !["public", "sample", "private"].includes(item.channel) ||
@@ -177,62 +234,6 @@ export function postgresCompletionStaging(run: Run) {
         );
       });
     },
-    async frame(job: Job, frame: CompletionFrame): Promise<void> {
-      if (
-        !["public", "sample", "private"].includes(frame.channel) ||
-        !Number.isInteger(frame.ordinal) ||
-        frame.ordinal < 0 ||
-        frame.ordinal >= 320
-      )
-        throw new Error("Invalid result frame");
-      const value = resultCase(parseLosslessJson(frame.raw), false);
-      if (!(value.index instanceof JsonNumber) || value.index.lexeme !== String(frame.ordinal))
-        throw new Error("Result ordinal mismatch");
-      const bytes = encoder.encode(stringifyLosslessJson(value)),
-        hash = await digest(bytes);
-      await transact(async (tx) => {
-        if (!(await locked(tx, job))) throw new Error("Stale completion");
-        const limits = (
-          await tx.execute<{ output: number }>(
-            sql`SELECT (COALESCE(q.fixture->'problem'->'limits',p.limits)->>'outputBytes')::int AS output FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE s.id=${job.submissionId}::uuid`,
-          )
-        ).rows[0];
-        if (!limits || !Number.isSafeInteger(limits.output) || limits.output < 1)
-          throw new Error("Invalid persisted output limit");
-        for (const key of ["stdout", "stderr", "actual"] as const) {
-          const part = value[key];
-          if (part === undefined) continue;
-          const raw = key === "actual" ? stringifyLosslessJson(part) : part;
-          if (typeof raw !== "string" || encoder.encode(raw).length > limits.output)
-            throw new Error("Result output exceeds limit");
-        }
-        const stage = (
-          await tx.execute<{ eof: boolean; header: Uint8Array }>(
-            sql`SELECT eof,header_data AS header FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
-          )
-        ).rows[0];
-        if (!stage || stage.eof) throw new Error("Completion stream closed");
-        const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
-        const limit =
-          frame.channel === "public"
-            ? header.publicCount
-            : frame.channel === "sample"
-              ? header.sampleCount
-              : header.privateCount;
-        if (frame.ordinal >= limit) throw new Error("Unexpected result frame");
-        const inserted = await tx.execute(
-          sql`INSERT INTO execution_completion_frames(job_id,channel,ordinal,frame_data,frame_hash) VALUES(${job.jobId}::uuid,${frame.channel},${frame.ordinal},${bytes},${hash}) ON CONFLICT DO NOTHING RETURNING ordinal`,
-        );
-        if (!inserted.rows.length) {
-          const same = (
-            await tx.execute<{ same: boolean }>(
-              sql`SELECT frame_hash=${hash} AND frame_data=${bytes} AS same FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${frame.channel} AND ordinal=${frame.ordinal}`,
-            )
-          ).rows[0]?.same;
-          if (!same) throw new Error("Result frame conflict");
-        }
-      });
-    },
     async eof(job: Job, proof: { attemptId: string; sandboxScope: string }): Promise<void> {
       assertAttemptFence(job, proof);
       await transact(async (tx) => {
@@ -246,7 +247,7 @@ export function postgresCompletionStaging(run: Run) {
         if (
           (
             await tx.execute(
-              sql`SELECT 1 FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid LIMIT 1`,
+              sql`SELECT 1 FROM execution_completion_field_chunks c WHERE c.job_id=${job.jobId}::uuid AND NOT EXISTS(SELECT 1 FROM execution_completion_frames f WHERE f.job_id=c.job_id AND f.channel=c.channel AND f.ordinal=c.ordinal) LIMIT 1`,
             )
           ).rows.length
         )

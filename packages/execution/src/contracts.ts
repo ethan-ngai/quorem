@@ -140,7 +140,14 @@ export interface ExecutionRepository {
   load(job: Job, signal?: AbortSignal): Promise<ExecutionSpec>;
   lease(job: Job, heartbeat: boolean, signal?: AbortSignal): Promise<boolean>;
   beginCompletion(job: Job, header: CompletionHeader, signal?: AbortSignal): Promise<void>;
-  writeCompletionFrame(job: Job, frame: CompletionFrame, signal?: AbortSignal): Promise<void>;
+  writeCompletionChunk(job: Job, chunk: CompletionFieldChunk, signal?: AbortSignal): Promise<void>;
+  sealCompletionFrame(
+    job: Job,
+    channel: CompletionFieldChunk["channel"],
+    ordinal: number,
+    status: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
   finishCompletionStream(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   promoteCompletion(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   loadCheckpoint(job: Job, signal?: AbortSignal): Promise<Checkpoint>;
