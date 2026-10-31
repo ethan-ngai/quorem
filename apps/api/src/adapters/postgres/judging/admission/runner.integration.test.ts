@@ -1,5 +1,8 @@
 /** @file runner.integration.test.ts @description Admitted work through the actual TypeScript runner. @module judging */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { setTimeout as sleep } from "node:timers/promises";
+import { claimNext } from "../../../../../../runner/src/queue/claim.ts";
 import { fileURLToPath } from "node:url";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -127,6 +130,7 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
       "DELETE FROM execution_dispatch_intents WHERE job_id IN (SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE s.owner_id=$1)",
       [owner],
     );
+    await pool.query("DELETE FROM cancellation_idempotency WHERE owner_id=$1", [owner]);
     await pool.query("DELETE FROM execution_idempotency WHERE owner_id=$1", [owner]);
     await pool.query(
       "DELETE FROM execution_attempt_usage WHERE submission_id IN (SELECT id FROM submissions WHERE owner_id=$1)",
@@ -211,5 +215,124 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         })
       ).status,
     ).toBe(404);
+  }, 40000);
+  it("cancels an actually running Docker case and reclaims only after teardown", async () => {
+    await pool.query(
+      "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+      [owner],
+    );
+    const response = await app.request("https://fixture.test/v1/submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "runner-cancel" },
+      body: JSON.stringify({
+        workspaceId: workspace,
+        kind: "run",
+        source: "class Solution:\n def f(self,x):\n  while True: pass",
+      }),
+    });
+    expect(response.status).toBe(202);
+    const id = (await response.json()).id as string;
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "admission-runner",
+      cleanupMs: 10000,
+    });
+    const secret = "fixture-only-private-runner-secret-123456";
+    const handler = await createRunnerCommandHandler([
+      {
+        secret,
+        scope: sandbox.scope,
+        resumable: true,
+        repository: () =>
+          postgresExecutionCommands(run, {
+            resumable: true,
+            losslessCases: true,
+            losslessResults: true,
+          }),
+      },
+    ]);
+    const repository = privateRunnerCommands({
+      origin: "https://fixture",
+      secret,
+      scope: sandbox.scope,
+      resumable: true,
+      timeoutMs: 5000,
+      fetch: async (input, init) => handler(new Request(input, init)),
+    });
+    const drain = drainer({
+      repository,
+      sandbox,
+      cancellations: controlPolling(25),
+      queue: queueControl(repository, sandbox.scope, 25),
+      engine: checkpointedEngine(repository, sandbox),
+      slots: 1,
+      resumable: true,
+      graceMs: 100,
+      claimWindowMs: 10000,
+    });
+    const execution = drain.drain(AbortSignal.timeout(30000));
+    let attempt = "",
+      running = "";
+    for (let i = 0; i < 100; i++) {
+      attempt =
+        (
+          await pool.query(
+            "SELECT j.attempt_id::text AS attempt FROM execution_jobs j WHERE j.submission_id=$1",
+            [id],
+          )
+        ).rows[0].attempt ?? "";
+      if (attempt)
+        running = execFileSync(
+          "docker",
+          [
+            "--config",
+            "/nonexistent",
+            "--host",
+            `unix://${socket}`,
+            "ps",
+            "-q",
+            "--filter",
+            `label=quorem.attempt=${attempt}`,
+          ],
+          { encoding: "utf8" },
+        ).trim();
+      if (running) break;
+      await sleep(30);
+    }
+    expect(running).not.toBe("");
+    const cancelled = await app.request(`https://fixture.test/v1/submissions/${id}/cancel`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "runner-cancel-request" },
+      body: "{}",
+    });
+    expect(cancelled.status).toBe(200);
+    await expect(execution).rejects.toThrow();
+    expect(
+      execFileSync(
+        "docker",
+        [
+          "--config",
+          "/nonexistent",
+          "--host",
+          `unix://${socket}`,
+          "ps",
+          "-aq",
+          "--filter",
+          `label=quorem.attempt=${attempt}`,
+        ],
+        { encoding: "utf8" },
+      ).trim(),
+    ).toBe("");
+    await pool.query(
+      "UPDATE execution_jobs SET lease_until=clock_timestamp()-interval '1 second' WHERE submission_id=$1",
+      [id],
+    );
+    expect(
+      await claimNext(repository, sandbox, { resumable: true, scope: sandbox.scope }),
+    ).toBeNull();
+    expect(
+      (await pool.query("SELECT state FROM submissions WHERE id=$1", [id])).rows[0].state,
+    ).toBe("cancelled");
   }, 40000);
 });
