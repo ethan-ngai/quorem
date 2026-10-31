@@ -12,6 +12,7 @@ CREATE TABLE execution_completion_frames (
  job_id uuid NOT NULL REFERENCES execution_completion_staging(job_id) ON DELETE CASCADE,
  channel text NOT NULL CHECK (channel IN ('public','sample','private')),
  ordinal integer NOT NULL CHECK (ordinal BETWEEN 0 AND 319),
+ status text NOT NULL,
  frame_data bytea NOT NULL,
  frame_hash bytea NOT NULL CHECK (octet_length(frame_hash)=32),
  PRIMARY KEY(job_id,channel,ordinal)
