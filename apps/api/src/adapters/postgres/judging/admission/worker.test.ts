@@ -1,4 +1,3 @@
-// @ts-expect-error Workerd test bindings are supplied by the test runtime.
 import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { expect, it } from "vitest";
 import { withWorkerConnection } from "@quorem/database/core";
