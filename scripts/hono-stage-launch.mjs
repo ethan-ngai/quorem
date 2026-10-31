@@ -22,7 +22,7 @@ const stageResources = [
   "neon_database.stage",
   "terraform_data.stage_secrets",
 ];
-function providerDiagnostics(text) {
+function providerDiagnostics(text, redactions) {
   // Non-color Terraform omits box borders; split its plain Error headings as well.
   return text
     .replace(/^[ \t]*[│╷╵][ \t]?/gm, "")
@@ -66,11 +66,38 @@ function providerDiagnostics(text) {
       const types = [...chunk.matchAll(/"code"\s*:\s*"([A-Za-z][A-Za-z0-9_]{1,79})"/g)].map(
         (match) => match[1],
       );
+      // Branch-create payloads contain no generated credentials; other resources stay opaque.
+      const messages =
+        resources.length === 1 && resources[0] === "restapi_object.stage_branch"
+          ? [...chunk.matchAll(/"message"\s*:\s*("(?:[^"\\]|\\.)*")/g)]
+              .slice(0, 4)
+              .flatMap((match) => {
+                let message;
+                try {
+                  message = JSON.parse(match[1]);
+                } catch {
+                  return [];
+                }
+                for (const value of redactions) message = message.replaceAll(value, "[redacted]");
+                return [
+                  message
+                    .replace(/-----BEGIN [\s\S]*?-----END [^-]+-----/g, "[redacted]")
+                    .replace(/(?:https?|postgres(?:ql)?):\/\/\S+/gi, "[redacted]")
+                    .replace(/\S*(?:secret|token|password|credential)\S*/gi, "[redacted]")
+                    .replace(/[A-Za-z0-9_+/=.:-]{24,}/g, "[redacted]")
+                    .replace(/\S+@\S+/g, "[redacted]")
+                    .replace(/\p{Cc}/gu, " ")
+                    .replace(/\s+/g, " ")
+                    .slice(0, 300),
+                ];
+              })
+          : [];
       return {
         resources,
         statuses: [...new Set(statuses)],
         codes: [...new Set(codes)],
         types: [...new Set(types)],
+        messages,
         flags,
       };
     })
@@ -84,9 +111,12 @@ function providerDiagnostics(text) {
     );
 }
 export class StageCommandFailure extends Error {
-  constructor(result) {
+  constructor(result, secrets = []) {
     const text = result.stderr ?? "";
-    const diagnostics = providerDiagnostics(text);
+    const redactions = secrets
+      .filter((value) => typeof value === "string" && value.length >= 4)
+      .sort((a, b) => b.length - a.length);
+    const diagnostics = providerDiagnostics(text, redactions);
     const category = diagnostics.some(
       ({ statuses, flags }) =>
         flags.authentication ||
@@ -111,7 +141,8 @@ export function runStageCommand(program, args, env, execute = spawnSync) {
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 16 * 1024 * 1024,
   });
-  if (result.error || result.status !== 0) throw new StageCommandFailure(result);
+  if (result.error || result.status !== 0)
+    throw new StageCommandFailure(result, Object.values(env));
   return result.stdout ?? "";
 }
 export function bootstrapEnvironment(env, secrets) {

@@ -266,7 +266,7 @@ with neon_database.stage,
   assert.deepEqual(error.diagnostics[1].resources, ["neon_database.stage"]);
   assert.equal(error.diagnostics[1].flags.project, true);
 });
-void test("REST diagnostic preserves only quoted status, symbolic code and fixed reason flags", () => {
+void test("REST diagnostic preserves scrubbed branch rejection details", () => {
   const error = new StageCommandFailure({
     stderr: `Error: Unexpected response code '400': {"code":"INVALID_REQUEST","message":"schema-only parent_id is required; opaque-secret-value https://private.example/secret"}
 with restapi_object.stage_branch,`,
@@ -275,6 +275,37 @@ with restapi_object.stage_branch,`,
   assert.deepEqual(error.diagnostics[0].types, ["INVALID_REQUEST"]);
   assert.equal(error.diagnostics[0].flags.schemaOnly, true);
   assert.equal(error.diagnostics[0].flags.parent, true);
-  for (const value of ["opaque-secret-value", "private.example", "message"])
+  assert.match(error.diagnostics[0].messages[0], /schema-only parent_id is required/);
+  for (const value of ["opaque-secret-value", "private.example"])
     assert.equal(JSON.stringify(error).includes(value), false);
+});
+
+void test("branch messages redact environment credentials and other resources remain opaque", () => {
+  const short = "key12345",
+    long = `${short}-suffix`;
+  const pem = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
+  const message = `schema-only requires a compute endpoint; ${short} ${long} ${pem} user@example.test postgres://user:pass@host/db`;
+  assert.throws(
+    () =>
+      runStageCommand("terraform", [], { KEY: short, LONG: long }, () => ({
+        status: 1,
+        stderr: `Error: response code '400': ${JSON.stringify({ message })}\nwith restapi_object.stage_branch,\n\nError: ${JSON.stringify({ message: "generated database password" })}\nwith neon_role.stage,`,
+      })),
+    (error) => {
+      const diagnostic = JSON.stringify(error.diagnostics);
+      assert.match(error.diagnostics[0].messages[0], /schema-only requires a compute endpoint/);
+      for (const value of [
+        short,
+        long,
+        "suffix",
+        "abc",
+        "user@example",
+        "postgres://",
+        "generated database",
+      ])
+        assert.equal(diagnostic.includes(value), false, value);
+      assert.deepEqual(error.diagnostics[1].messages, []);
+      return true;
+    },
+  );
 });
