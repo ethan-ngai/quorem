@@ -31,6 +31,7 @@ import type { Notice, NoticeStream } from "../modules/events/dispatch/ports.ts";
 import { ApplicationError } from "../application/error.ts";
 import { mapIdentityError } from "../modules/identity/routes.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
+import { socketTarget, type SocketTarget } from "./worker/socket/target.ts";
 import { browserSocketObject } from "./worker/socket/durable.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { composeHttp } from "./composition/http.ts";
@@ -245,36 +246,6 @@ export class ExecutionRecovery extends DurableObject {
   alarm() {
     return this.actor.alarm();
   }
-}
-type SocketTarget = {
-  stream: NoticeStream;
-  mode: "direct" | "membership" | "invite" | "invalid";
-  id?: string;
-};
-function socketTarget(path: string): SocketTarget | undefined {
-  if (path === "/v1/memberships/events") return { stream: "membership", mode: "membership" };
-  const match = /^\/v1\/(interviews|matches|match-invites|submissions)\/([^/]+)\/events$/.exec(
-    path,
-  );
-  if (!match) return;
-  const stream = (
-    {
-      interviews: "interview",
-      matches: "match",
-      "match-invites": "match",
-      submissions: "submission",
-    } as const
-  )[match[1] as "interviews" | "matches" | "match-invites" | "submissions"];
-  let id: string;
-  try {
-    id = decodeURIComponent(match[2]);
-  } catch {
-    return { stream, mode: "invalid" };
-  }
-  if (match[1] === "match-invites") return { stream, mode: "invite" };
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
-    return { stream, mode: "invalid" };
-  return { stream, mode: "direct", id: id.toLowerCase() };
 }
 async function routeSocket(env: Env, request: Request, target: SocketTarget): Promise<Response> {
   const rejected = socketHandshake(request, origins(env));

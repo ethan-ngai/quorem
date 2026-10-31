@@ -5,6 +5,7 @@ export default defineConfig({
     include: [
       "src/runtime/composition/budget.test.ts",
       "src/runtime/composition/config.test.ts",
+      "src/runtime/composition/inventory.test.ts",
       "src/runtime/composition/recovery.test.ts",
       "src/runtime/composition/wake-consumer.test.ts",
       "src/runtime/composition/node.integration.test.ts",
