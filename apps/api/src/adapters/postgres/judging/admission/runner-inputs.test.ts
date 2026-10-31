@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parseLosslessJson } from "@quorem/questions";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import {
   createActiveRunnerFixture,
@@ -801,6 +802,17 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             expect(new TextDecoder().decode(metadata)).toBe(
               '{"id":"v","signature":{"returnType":"int"}}',
             );
+            const metadataNumeric = await encodeFixtureMetadata(
+              tx,
+              parseLosslessJson('{"id":"v","constraints":[{"min":1e+30}],"sql":null}'),
+            );
+            const metadataCanonical = await encodeFixtureMetadata(
+              tx,
+              parseLosslessJson(
+                '{"constraints":[{"min":1000000000000000000000000000000}],"id":"v"}',
+              ),
+            );
+            expect(metadataNumeric).toEqual(metadataCanonical);
             const raw = String.raw` { "z": "λ\u0000", "n": 1e+30, "a": -0 } `;
             const losslessVersion = crypto.randomUUID();
             await tx.execute(
