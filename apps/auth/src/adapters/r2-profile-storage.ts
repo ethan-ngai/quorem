@@ -1,4 +1,5 @@
 import type { ProfileStorage } from "../profile-storage.ts";
+import { photoObjectPath } from "../profile-object-key.ts";
 
 export interface ProfileBucket {
   put(key: string, value: Uint8Array): Promise<unknown>;
@@ -9,7 +10,7 @@ export function r2BindingProfileStorage(bucket: ProfileBucket): ProfileStorage {
   const path = (key: string) => {
     if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(key))
       throw new Error("Invalid photo key");
-    return `avatars/${key}.webp`;
+    return photoObjectPath(key);
   };
   return {
     async put(key, image) {
