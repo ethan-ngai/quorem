@@ -7,6 +7,7 @@ import { postgresClaims } from "./claim.ts";
 import { postgresCheckpoints } from "./checkpoints.ts";
 import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
+import { validateFieldChunks } from "./field-validation.ts";
 import { submissionSnapshots } from "../results/repository.ts";
 const url = process.env.QUOREM_RUNNER_TEST_DATABASE_URL;
 const parsed = new URL(url ?? "postgres://127.0.0.1:55464/quorem_hono_runner_test");
@@ -181,10 +182,40 @@ describe.skipIf(!url)("runner claim fences", () => {
       ordinal: 0,
       field: "actual" as const,
       chunkOrdinal: 0,
-      bytes: new TextEncoder().encode("123"),
+      bytes: new TextEncoder().encode("1e309"),
     };
     await staging.chunk(live!, chunk);
     await staging.chunk(live!, chunk);
+    const output = {
+      ...chunk,
+      field: "stdout" as const,
+      bytes: new TextEncoder().encode('"a\\u00'),
+    };
+    await staging.chunk(live!, output);
+    await staging.chunk(live!, {
+      ...output,
+      chunkOrdinal: 1,
+      bytes: new TextEncoder().encode('00b"'),
+    });
+    await staging.chunk(live!, {
+      ...chunk,
+      field: "diagnostics",
+      bytes: new TextEncoder().encode('[{"message":"nul\\u0000","line":1}]'),
+    });
+    expect(
+      await run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+          validateFieldChunks(tx, job, "public", 0, 65536),
+        ),
+      ),
+    ).toEqual(new Set(["actual", "stdout", "diagnostics"]));
+    await expect(
+      run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+          validateFieldChunks(tx, job, "public", 0, 2),
+        ),
+      ),
+    ).rejects.toThrow("exceeds");
     await expect(
       staging.chunk(live!, { ...chunk, bytes: new TextEncoder().encode("456") }),
     ).rejects.toThrow("conflict");
@@ -370,6 +401,7 @@ describe.skipIf(!url)("runner claim fences", () => {
         "/* runner-guard-fixture */ INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
         [id, new Uint8Array([1])],
       );
+      const rejected = expect(pending).rejects.toThrow("immutable");
       let waiting = false;
       for (let i = 0; i < 100 && !waiting; i++) {
         waiting = (
@@ -381,7 +413,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       }
       expect(waiting).toBe(true);
       await client.query("COMMIT");
-      await expect(pending).rejects.toThrow("immutable");
+      await rejected;
     } finally {
       client.release();
       await pool.query("DELETE FROM submissions WHERE id=$1", [id]);
