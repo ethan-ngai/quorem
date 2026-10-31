@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
+import { sharpImageProcessor } from "./adapters/sharp-image";
 import { createProfileHandler, photoPrefix, type Profile } from "./profile";
 import { migrateAuth } from "./migrations";
 const origin = "http://127.0.0.1:5174";
@@ -20,6 +21,7 @@ function fixture(image: string | null = null) {
   let failUpdate = false;
   const handler = createProfileHandler({
     origin,
+    imageProcessor: sharpImageProcessor,
     session: async (headers) =>
       headers.get("cookie") === "session=alice" ? { user: { id: "alice" } } : null,
     repository: {
@@ -69,6 +71,11 @@ function fixture(image: string | null = null) {
   };
 }
 describe("profile photos", () => {
+  it("requires an image processor at composition", () => {
+    expect(() => createProfileHandler({} as Parameters<typeof createProfileHandler>[0])).toThrow(
+      "Profile image processor is required",
+    );
+  });
   it("identifies the cookie owner for matching speculative profile reads", async () => {
     const response = await fixture().handler(
       new Request(origin + "/api/auth/profile", { headers: { Cookie: "session=alice" } }),
@@ -79,6 +86,7 @@ describe("profile photos", () => {
     let color = 4;
     const handler = createProfileHandler({
       origin,
+      imageProcessor: sharpImageProcessor,
       session: async (headers) => (headers.get("cookie") ? { user: { id: "alice" } } : null),
       repository: {
         read: async () => ({
@@ -219,6 +227,7 @@ describe.skipIf(!databaseURL)("profile with real Better Auth session", () => {
       const objects = new Map<string, Uint8Array>();
       const handler = createProfileHandler({
         origin,
+        imageProcessor: sharpImageProcessor,
         session: (headers) => auth.api.getSession({ headers }),
         repository: {
           setColor: async (subject, color) => {

@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { toNodeHandler } from "better-auth/node";
 import { auth, config, database } from "./auth.ts";
 import { createProfileHandler } from "./profile.ts";
+import { sharpImageProcessor } from "./adapters/sharp-image.ts";
 import { createRegistrationHandler } from "./registration.ts";
 import { verificationMail, profileStorage } from "./infrastructure.ts";
 import { hostedSignIn } from "./hosted-sign-in.ts";
@@ -21,6 +22,7 @@ const profileHandler = createProfileHandler({
   origin: config.origin,
   session: (headers) => auth.api.getSession({ headers }),
   storage: profileStorage,
+  imageProcessor: sharpImageProcessor,
   repository: {
     async read(id) {
       const result = await database.query(
