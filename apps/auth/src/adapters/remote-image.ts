@@ -26,6 +26,7 @@ export function remoteImageProcessor(
         response = await fetcher(url, {
           method: "POST",
           redirect: "manual",
+          signal: AbortSignal.timeout(12000),
           headers: {
             authorization: `Bearer ${token}`,
             "content-type": "application/octet-stream",
@@ -37,7 +38,7 @@ export function remoteImageProcessor(
         throw new ImageExecutionUncertain("Image executor unavailable");
       }
       if (response.headers.get("x-image-execution") !== "terminated") {
-        await response.body?.cancel();
+        await response.body?.cancel().catch(() => {});
         throw new ImageExecutionUncertain("Image executor outcome unknown");
       }
       if (response.status === 415) {

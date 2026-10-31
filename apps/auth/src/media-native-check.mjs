@@ -28,6 +28,10 @@ try {
   const image = await sharp({ create: { width: 40, height: 20, channels: 3, background: "red" } })
     .png()
     .toBuffer();
+  const cookies = await request("/api/auth/fixture-cookies");
+  assert.equal(cookies.headers.get("x-request-id"), "fixture-id");
+  assert.equal(cookies.headers.get("cache-control"), "no-store");
+  assert.deepEqual(cookies.headers.getSetCookie(), ["one=1; Path=/", "two=2; Path=/"]);
   if (process.argv.includes("--outage")) {
     const unavailable = await request("/api/auth/profile-photo", {
       method: "PUT",
@@ -49,6 +53,8 @@ try {
       body: image,
     });
     assert.equal(uploaded.status, 200, await uploaded.clone().text());
+    assert.equal(uploaded.headers.get("x-request-id"), "fixture-id");
+    assert.equal(uploaded.headers.get("cache-control"), "no-store");
     const photo = (await uploaded.json()).image;
     const saved = await request(photo);
     assert.equal(saved.status, 200);

@@ -27,4 +27,12 @@ export async function startImageService(env: NodeJS.ProcessEnv) {
   });
   return server;
 }
-if (import.meta.main) await startImageService(process.env);
+if (import.meta.main) {
+  const server = await startImageService(process.env);
+  const shutdown = () => {
+    server.close();
+    server.closeAllConnections();
+  };
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
+}

@@ -1,7 +1,9 @@
+import { Hono } from "hono";
+import { createAuthApp } from "./http.ts";
 import { workerRuntime, type AuthWorkerEnv } from "./worker.ts";
 export default {
   fetch(request: Request, env: AuthWorkerEnv) {
-    return workerRuntime(
+    const runtime = workerRuntime(
       {
         ...env,
         APP_ENV: "local",
@@ -14,6 +16,28 @@ export default {
         PROFILE_IMAGE_SERVICE_TOKEN: "fixture-token-".repeat(3),
       },
       request.signal,
-    ).app.fetch(request);
+    );
+    const cookies = createAuthApp({
+      config: runtime.auth.options as never,
+      auth: {
+        async handler() {
+          const headers = new Headers();
+          headers.append("Set-Cookie", "one=1; Path=/");
+          headers.append("Set-Cookie", "two=2; Path=/");
+          return new Response("ok", { headers });
+        },
+      },
+    });
+    const parent = new Hono();
+    parent.use("*", async (context, next) => {
+      context.header("X-Request-ID", "fixture-id");
+      context.header("Cache-Control", "no-store");
+      await next();
+    });
+    parent.route(
+      "/",
+      new URL(request.url).pathname === "/api/auth/fixture-cookies" ? cookies : runtime.app,
+    );
+    return parent.fetch(request);
   },
 };

@@ -13,10 +13,10 @@ export function isolatedImageProcessor(timeoutMs = 10000): ImageProcessor {
       return new Promise((resolve, reject) => {
         const child = spawn(
           process.execPath,
-          [fileURLToPath(new URL("./image-child.ts", import.meta.url)), expected],
+          [fileURLToPath(new URL("./image-supervisor.ts", import.meta.url)), expected],
           {
             env: {},
-            stdio: ["pipe", "pipe", "ignore"],
+            stdio: ["pipe", "pipe", "ignore", "ipc"],
           },
         );
         const chunks: Buffer[] = [];
@@ -24,17 +24,17 @@ export function isolatedImageProcessor(timeoutMs = 10000): ImageProcessor {
         let failed = false;
         const stop = () => {
           failed = true;
-          child.kill("SIGKILL");
+          if (child.connected) child.send({ stop: true }, () => {});
         };
         const timer = setTimeout(stop, timeoutMs);
         signal?.addEventListener("abort", stop, { once: true });
         if (signal?.aborted) stop();
-        child.stdout.on("data", (chunk: Buffer) => {
+        child.stdout!.on("data", (chunk: Buffer) => {
           length += chunk.length;
           if (length > 8 * 1024 * 1024) stop();
           else chunks.push(chunk);
         });
-        child.stdin.on("error", () => {});
+        child.stdin!.on("error", () => {});
         child.on("error", () => {
           failed = true;
         });
@@ -56,7 +56,7 @@ export function isolatedImageProcessor(timeoutMs = 10000): ImageProcessor {
           }
           reject(new Error("Image execution failed"));
         });
-        child.stdin.end(bytes);
+        child.stdin!.end(bytes);
       });
     },
   };

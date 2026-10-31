@@ -46,6 +46,15 @@ describe("isolated media executor", () => {
       (await remoteImageProcessor(origin, token, fetch, true).process(input, "png")).kind,
     ).toBe("unsupported");
   });
+  it("rejects oversized input before starting an executor", async () => {
+    const response = await fetch(origin, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "x-image-format": "png" },
+      body: new Uint8Array(5 * 1024 * 1024 + 1),
+    });
+    expect(response.status).toBe(413);
+    expect(response.headers.get("x-image-execution")).toBe("terminated");
+  });
   it("authenticates over actual TLS", async () => {
     const dir = await mkdtemp(join(tmpdir(), "quorem-media-tls-"));
     const keyPath = join(dir, "key.pem"),
@@ -116,6 +125,48 @@ describe("isolated media executor", () => {
     setTimeout(() => signal.abort(), 20);
     await expect(result).rejects.toThrow();
   });
+  it("bounds responses, refuses redirects and sends authenticated manual requests", async () => {
+    let cancelled = 0;
+    const stream = () =>
+      new ReadableStream({
+        cancel() {
+          cancelled++;
+        },
+      });
+    const remote = remoteImageProcessor("https://media.example/", token, async (_url, init) => {
+      expect(init?.redirect).toBe("manual");
+      expect((init!.headers as Record<string, string>).authorization).toBe(`Bearer ${token}`);
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return new Response(stream(), { status: 302, headers: { Location: "https://evil.test/" } });
+    });
+    await expect(remote.process(new Uint8Array(), "png")).rejects.toBeInstanceOf(
+      ImageExecutionUncertain,
+    );
+    expect(cancelled).toBe(1);
+    const oversized = remoteImageProcessor(
+      "https://media.example/",
+      token,
+      async () =>
+        new Response(stream(), {
+          headers: { "x-image-execution": "terminated", "content-length": "5242881" },
+        }),
+    );
+    await expect(oversized.process(new Uint8Array(), "png")).rejects.toThrow();
+    expect(cancelled).toBe(2);
+  });
+  it("marks a timed out executor request uncertain", async () => {
+    const remote = remoteImageProcessor(
+      "https://media.example/",
+      token,
+      async (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init!.signal!.addEventListener("abort", () => reject(new Error("timeout")));
+        }),
+    );
+    await expect(remote.process(new Uint8Array(), "png")).rejects.toBeInstanceOf(
+      ImageExecutionUncertain,
+    );
+  }, 15000);
   it("keeps transport failures uncertain and rejects unsafe configuration", async () => {
     await expect(
       remoteImageProcessor(
