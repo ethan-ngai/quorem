@@ -1,0 +1,2256 @@
+{
+  "baseline": "57fd5db",
+  "umbrella": 335,
+  "http": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "packet": "04",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/question-drafts",
+      "packet": "14",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/admin_questions.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/question-drafts",
+      "packet": "14",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/admin_questions.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/question-drafts/{id}",
+      "packet": "14",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/admin_questions.go"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/admin/question-drafts/{id}",
+      "packet": "14",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/admin_questions.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/question-drafts/{id}/publish",
+      "packet": "14",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/admin_questions.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/capabilities",
+      "packet": "10",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/guest-sessions",
+      "packet": "10",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/guest-sessions/end",
+      "packet": "10",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interview-invites/{token}",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interview-invites/{token}/join",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interviews",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/interviews/{id}",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interviews/{id}",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/admission",
+      "packet": "23",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/cases/{caseId}/visibility",
+      "packet": "23",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/close",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interviews/{id}/document",
+      "packet": "24",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interviews/{id}/events",
+      "packet": "30",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/hints",
+      "packet": "23",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/language",
+      "packet": "24",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/members",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/members/{userId}/remove",
+      "packet": "22",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/monitoring",
+      "packet": "25",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/pass-stage",
+      "packet": "23",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interviews/{id}/presence",
+      "packet": "25",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/presence",
+      "packet": "25",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/interviews/{id}/question",
+      "packet": "23",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/rule-events",
+      "packet": "25",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/submissions",
+      "packet": "26",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interviews/{id}/submissions/{submissionId}",
+      "packet": "26",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/interviews/{id}/updates",
+      "packet": "24",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/interviews/{id}/updates",
+      "packet": "24",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/interviews.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/match-invites/{token}",
+      "packet": "21",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/match-invites/{token}/events",
+      "packet": "30",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/match-invites/{token}/guest",
+      "packet": "21",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/matches/current",
+      "packet": "21",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/join",
+      "packet": "21",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/matches/{id}",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/matches/{id}/events",
+      "packet": "30",
+      "registration": "apps/api/internal/httpapi/realtime.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/forfeit",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/guests/{guest}/remove",
+      "packet": "21",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/leave",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/ready",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/rotate-invite",
+      "packet": "21",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/rule-events",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/matches/{id}/settings",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/start",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/workspace-language",
+      "packet": "21",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/match_languages.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/memberships/events",
+      "packet": "30",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/problem-versions/{id}",
+      "packet": "13",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/problem-versions/{id}/complexity",
+      "packet": "13",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/editorials.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/problem-versions/{id}/solutions",
+      "packet": "13",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/editorials.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/problems",
+      "packet": "13",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/problems/{slug}",
+      "packet": "13",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/session",
+      "packet": "10",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/submissions",
+      "packet": "18",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/submissions/{id}",
+      "packet": "19",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/submissions/{id}/cancel",
+      "packet": "19",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/submissions/{id}/events",
+      "packet": "30",
+      "registration": "apps/api/internal/httpapi/realtime.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces",
+      "packet": "17",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/{id}",
+      "packet": "17",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/{id}/odyssey",
+      "packet": "17",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/odyssey.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces/{id}/odyssey/reset",
+      "packet": "17",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/internal/httpapi/odyssey.go"
+    }
+  ],
+  "websocketCommands": [
+    {
+      "command": "pull",
+      "packet": "24"
+    },
+    {
+      "command": "push",
+      "packet": "24"
+    },
+    {
+      "command": "presence",
+      "packet": "25"
+    },
+    {
+      "command": "peers",
+      "packet": "25"
+    },
+    {
+      "command": "rule-event",
+      "packet": "25"
+    },
+    {
+      "command": "submission",
+      "packet": "26"
+    },
+    {
+      "command": "snapshot",
+      "packet": "30"
+    }
+  ],
+  "delegatedAuth": [
+    {
+      "path": "/api/auth/*",
+      "packet": "11"
+    },
+    {
+      "path": "/api/auth/profile*",
+      "packet": "12"
+    },
+    {
+      "path": "/api/auth/registration/*",
+      "packet": "11"
+    },
+    {
+      "path": "/internal/session/*",
+      "packet": "11",
+      "exposure": "private"
+    }
+  ],
+  "internal": [
+    {
+      "path": "POST /internal/drain",
+      "packet": "29"
+    },
+    {
+      "path": "POST /internal/judge/wake",
+      "packet": "15"
+    },
+    {
+      "path": "/internal/case/{attempt}",
+      "packet": "28"
+    },
+    {
+      "path": "language WS /lsp",
+      "packet": "33",
+      "note": "verify exact gateway path in packet 33"
+    }
+  ],
+  "background": [
+    {
+      "name": "domain outbox dispatch",
+      "packet": "15"
+    },
+    {
+      "name": "match deadline recovery",
+      "packet": "16"
+    },
+    {
+      "name": "retention",
+      "packet": "16"
+    },
+    {
+      "name": "claim/lease/cancellation/reclaim",
+      "packet": "27"
+    },
+    {
+      "name": "checkpoint continuation",
+      "packet": "29"
+    }
+  ],
+  "cli": [
+    {
+      "source": "apps/runner/cmd/runner/main.go",
+      "packet": "29"
+    },
+    {
+      "source": "apps/language/cmd/language/main.go",
+      "packet": "33"
+    },
+    {
+      "source": "apps/api/cmd/provision/main.go",
+      "packet": "34"
+    },
+    {
+      "source": "apps/api/cmd/access/main.go",
+      "packet": "34"
+    },
+    {
+      "source": "apps/api/cmd/profile-reads/main.go",
+      "packet": "34"
+    },
+    {
+      "source": "apps/api/cmd/api/main.go",
+      "packet": "34"
+    }
+  ],
+  "embeddedGoTools": [
+    {
+      "source": "scripts/validate-leetcode-structure.py",
+      "packet": "34"
+    },
+    {
+      "source": "scripts/dev.py",
+      "packet": "34"
+    }
+  ],
+  "schemaObjects": [
+    {
+      "kind": "function",
+      "name": "guard_sealed_problem_child",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_sealed_problem_delete",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "immutable_access_audit",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "immutable_problem_content",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "interview_changed",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "meter_guest_execution",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "normalize_problem_children",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "normalize_problem_insert",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "access_audit",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "cancellation_idempotency",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "entitlement_grants",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "execution_attempt_usage",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "execution_idempotency",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "execution_jobs",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "guest_execution_usage",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "guest_request_buckets",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "guest_sessions",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "guest_sponsor_locks",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "identity_bindings",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_case_visibility",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_execution",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_guest_sessions",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_language_drafts",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_members",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_operations",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_outbox",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_presence",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_rule_events",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_updates",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interviews",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "match_idempotency",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "match_outbox",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "match_participants",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "match_reservations",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "match_rule_events",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "matches",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "odyssey_progress",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "outbox_events",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_examples",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_languages",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_solutions",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_tags",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_test_cases",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_versions",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problems",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "question_drafts",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quota_overrides",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "submissions",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "users",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "workspaces",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "guest_sessions_expiry",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "guest_usage_room",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "guest_usage_sponsor",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_execution_session",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_members_user",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_outbox_pending",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_rule_events_actor",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_rule_events_recent",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interviews_host_active",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "jobs_claim",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "match_reconciliation_order",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "match_rule_events_match",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "matches_reconcile",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "problem_versions_problem_id",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "problems_private_owner",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "question_drafts_created_by",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "question_drafts_private_owner",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "question_drafts_published_version",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "question_drafts_updated_at",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "question_drafts_updated_by",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "submission_quota",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "unpublished_match_events",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_access_audit",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_problem_case",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_problem_example",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_problem_language",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_problem_solution",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_problem_tag",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_problem_version",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_case_realtime",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_execution_realtime",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_member_realtime",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_presence_realtime",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_realtime",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_result_realtime",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "meter_guest_execution",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "normalize_problem_after",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "normalize_problem_before",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "sealed_problem_case",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "sealed_problem_delete",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "sealed_problem_example",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "sealed_problem_language",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "sealed_problem_solution",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "sealed_problem_tag",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "entitlement_grants_unrevoked",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_execution_question",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "notify_execution_jobs",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_jobs_wakeup",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "realtime_presence_leases",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "realtime_presence_subject",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "realtime_presence_expiry",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "notify_match_outbox",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "match_outbox_notification",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "maintenance_schedule",
+      "source": "apps/api/migrations/007_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "companies",
+      "source": "apps/api/migrations/009_company_tags.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_companies",
+      "source": "apps/api/migrations/009_company_tags.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "problem_companies_company_id",
+      "source": "apps/api/migrations/009_company_tags.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "normalize_problem_children",
+      "source": "apps/api/migrations/010_postgresql_problems.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "submission_outbox",
+      "source": "apps/api/migrations/011_submission_realtime.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "submission_outbox_pending",
+      "source": "apps/api/migrations/011_submission_realtime.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "queue_submission_notice",
+      "source": "apps/api/migrations/011_submission_realtime.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "submission_notice",
+      "source": "apps/api/migrations/011_submission_realtime.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "membership_outbox",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "unpublished_membership_events",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "notify_membership_outbox",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "membership_outbox_notification",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "queue_match_membership_reservation",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "match_membership_reservation",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "queue_match_membership_update",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "match_membership_update",
+      "source": "apps/api/migrations/012_match_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "queue_interview_membership_change",
+      "source": "apps/api/migrations/013_interview_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_membership_change",
+      "source": "apps/api/migrations/013_interview_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "queue_interview_hub_change",
+      "source": "apps/api/migrations/013_interview_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_hub_change",
+      "source": "apps/api/migrations/013_interview_membership_events.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "notify_execution_cancellation",
+      "source": "apps/api/migrations/014_execution_cancel_notifications.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_cancellation_notification",
+      "source": "apps/api/migrations/014_execution_cancel_notifications.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "notify_match_deadline_schedule",
+      "source": "apps/api/migrations/015_match_deadline_schedule.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "match_deadline_schedule",
+      "source": "apps/api/migrations/015_match_deadline_schedule.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "match_reconciliation_pending",
+      "source": "apps/api/migrations/015_match_deadline_schedule.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "queue_match_reconciliation",
+      "source": "apps/api/migrations/015_match_deadline_schedule.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "match_submission_reconciliation",
+      "source": "apps/api/migrations/015_match_deadline_schedule.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "clear_finished_match_reconciliation",
+      "source": "apps/api/migrations/015_match_deadline_schedule.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "finished_match_reconciliation",
+      "source": "apps/api/migrations/015_match_deadline_schedule.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_jobs_wakeup_insert",
+      "source": "apps/api/migrations/016_execution_queue_deadlines.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_jobs_wakeup_delete",
+      "source": "apps/api/migrations/016_execution_queue_deadlines.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_jobs_wakeup_update",
+      "source": "apps/api/migrations/016_execution_queue_deadlines.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "normalize_problem_insert",
+      "source": "apps/api/migrations/017_remove_problem_comparator.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "normalize_problem_children",
+      "source": "apps/api/migrations/021_problem_case_calls.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "match_reservations_match",
+      "source": "apps/api/migrations/022_match_reservation_lookup.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "normalize_problem_insert",
+      "source": "apps/api/migrations/023_problem_kind_config.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "problem_odyssey_cases",
+      "source": "apps/api/migrations/024_odyssey_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_problem_odyssey_case",
+      "source": "apps/api/migrations/024_odyssey_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "sealed_problem_odyssey_case",
+      "source": "apps/api/migrations/024_odyssey_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "normalize_problem_children",
+      "source": "apps/api/migrations/024_odyssey_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_guest_sessions_session",
+      "source": "apps/api/migrations/027_outbox_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "interview_outbox_retention",
+      "source": "apps/api/migrations/027_outbox_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "match_outbox_retention",
+      "source": "apps/api/migrations/027_outbox_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "membership_outbox_retention",
+      "source": "apps/api/migrations/027_outbox_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "submission_outbox_retention",
+      "source": "apps/api/migrations/027_outbox_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "submissions_interview",
+      "source": "apps/api/migrations/029_interview_submission_context.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "guest_request_buckets_window",
+      "source": "apps/api/migrations/030_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "execution_idempotency_expiry",
+      "source": "apps/api/migrations/030_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "cancellation_idempotency_expiry",
+      "source": "apps/api/migrations/030_retention_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "interview_question_snapshots",
+      "source": "apps/api/migrations/034_interview_question_snapshots.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "immutable_interview_question_snapshot",
+      "source": "apps/api/migrations/034_interview_question_snapshots.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_interview_question_snapshot",
+      "source": "apps/api/migrations/034_interview_question_snapshots.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "immutable_interview_execution_context",
+      "source": "apps/api/migrations/034_interview_question_snapshots.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_interview_execution_context",
+      "source": "apps/api/migrations/034_interview_question_snapshots.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "guest_usage_active_sponsor",
+      "source": "apps/api/migrations/035_guest_and_match_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "match_idempotency_expiry",
+      "source": "apps/api/migrations/035_guest_and_match_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_workspace_identity",
+      "source": "apps/api/migrations/037_workspace_context_integrity.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "immutable_workspace_identity",
+      "source": "apps/api/migrations/037_workspace_context_integrity.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_workspace_match_context",
+      "source": "apps/api/migrations/037_workspace_context_integrity.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "submission_workspace_match",
+      "source": "apps/api/migrations/037_workspace_context_integrity.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "participant_workspace_match",
+      "source": "apps/api/migrations/037_workspace_context_integrity.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "submission_odyssey_history",
+      "source": "apps/api/migrations/042_odyssey_submission_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "submission_workspace_active",
+      "source": "apps/api/migrations/042_odyssey_submission_indexes.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "match_submission_history",
+      "source": "apps/api/migrations/043_match_submission_history.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "execution_checkpoints",
+      "source": "apps/api/migrations/044_execution_checkpoints.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "execution_checkpoint_cases",
+      "source": "apps/api/migrations/044_execution_checkpoints.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "meter_guest_execution",
+      "source": "apps/api/migrations/044_execution_checkpoints.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_checkpoint_claim",
+      "source": "apps/api/migrations/044_execution_checkpoints.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_checkpoint_claim_guard",
+      "source": "apps/api/migrations/044_execution_checkpoints.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "cleanup_terminal_checkpoint",
+      "source": "apps/api/migrations/044_execution_checkpoints.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_checkpoint_terminal_cleanup",
+      "source": "apps/api/migrations/044_execution_checkpoints.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "immutable_interview_execution_context",
+      "source": "apps/api/migrations/045_lossless_results.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "clear_submission_result_payload",
+      "source": "apps/api/migrations/045_lossless_results.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "submission_result_payload_retention",
+      "source": "apps/api/migrations/045_lossless_results.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "clear_interview_result_payload",
+      "source": "apps/api/migrations/045_lossless_results.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_result_payload_retention",
+      "source": "apps/api/migrations/045_lossless_results.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "clear_legacy_private_result_payload",
+      "source": "apps/api/migrations/045_lossless_results.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_private_result_payload_consistency",
+      "source": "apps/api/migrations/045_lossless_results.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_lossless_case_claim",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "execution_lossless_case_claim_guard",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_lossless_draft_update",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "question_draft_lossless_guard",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_lossless_interview_update",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "interview_lossless_guard",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "function",
+      "name": "guard_lossless_case_cleanup",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "trigger",
+      "name": "submission_lossless_case_guard",
+      "source": "apps/api/migrations/047_lossless_cases.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.account",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.jwks",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.passkey",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.rate_limit",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.registration_email",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.session",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.session_assurance",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.social_email",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.\"user\"",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "table",
+      "name": "quorem_auth.verification",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "auth_passkey_user",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "auth_session_user",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "auth_verification_identifier",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "rate_limit_expiry",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "registration_email_expiry",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "social_email_identity",
+      "source": "apps/auth/migrations/001_schema.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "auth_account_user",
+      "source": "apps/auth/migrations/003_account_user_index.sql",
+      "packet": "05"
+    },
+    {
+      "kind": "index",
+      "name": "social_email_expiry",
+      "source": "apps/auth/migrations/004_social_email_expiry.sql",
+      "packet": "05"
+    }
+  ],
+  "environmentNames": {
+    "API_ADDR": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "API_IDENTITY_URL": [
+      "apps/language/src/identity.ts",
+      "apps/language/src/main.ts",
+      "apps/language/cmd/language/main.go"
+    ],
+    "APP_ENV": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "AUTH_BOOTSTRAP": [
+      "apps/auth/src/bootstrap.ts"
+    ],
+    "AUTH_BOOTSTRAP_EMAIL": [
+      "apps/auth/src/bootstrap.ts"
+    ],
+    "AUTH_BOOTSTRAP_NAME": [
+      "apps/auth/src/bootstrap.ts"
+    ],
+    "AUTH_BOOTSTRAP_PASSWORD": [
+      "apps/auth/src/bootstrap.ts"
+    ],
+    "AUTH_BOOTSTRAP_USERNAME": [
+      "apps/auth/src/bootstrap.ts"
+    ],
+    "AUTH_HOST": [
+      "apps/auth/src/server.ts"
+    ],
+    "AUTH_INTERNAL_SECRET": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "AUTH_ORIGIN": [
+      "apps/api/cmd/provision/main.go",
+      "apps/api/cmd/api/main.go",
+      "apps/language/src/identity.ts",
+      "apps/language/src/main.ts",
+      "apps/language/cmd/language/main.go"
+    ],
+    "AUTH_PORT": [
+      "apps/auth/src/server.ts"
+    ],
+    "AUTH_SEED_PASSWORD": [
+      "apps/auth/src/seed.ts"
+    ],
+    "AUTH_SERVICE_URL": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "DATABASE_URL": [
+      "apps/api/cmd/provision/main.go",
+      "apps/api/cmd/profile-reads/main.go",
+      "apps/api/cmd/api/main.go",
+      "apps/auth/src/seed.ts",
+      "apps/auth/src/bootstrap.ts",
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "DOCKER_HOST": [
+      "apps/runner/internal/engine/docker_client.go"
+    ],
+    "GITHUB_ENV": [
+      "scripts/configure-production-auth.ts"
+    ],
+    "GUEST_ADMISSION_ENABLED": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "GUEST_CREATION_ENABLED": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "GUEST_EXECUTION_ENABLED": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "LANGUAGE_ADDR": [
+      "apps/language/src/main.ts",
+      "apps/language/cmd/language/main.go"
+    ],
+    "LANGUAGE_IDLE_TIMEOUT": [
+      "apps/language/cmd/language/main.go"
+    ],
+    "LANGUAGE_MAX_SESSIONS": [
+      "apps/language/cmd/language/main.go"
+    ],
+    "NODE_ENV": [
+      "apps/language/src/main.ts",
+      "apps/language/cmd/language/main.go"
+    ],
+    "QUOREM_CASE_SANDBOX_ORIGIN": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "QUOREM_DATABASE_LISTEN_URL": [
+      "apps/api/internal/adapters/postgres/membership_events.go",
+      "apps/api/internal/adapters/postgres/match_deadlines.go",
+      "apps/api/internal/adapters/postgres/execution_wakeups.go",
+      "apps/api/internal/adapters/postgres/execution_cancellations.go",
+      "apps/api/internal/adapters/postgres/submission_events.go",
+      "apps/api/internal/adapters/postgres/interview_events.go"
+    ],
+    "QUOREM_DATABASE_MAX_CONNS": [
+      "apps/api/internal/adapters/postgres/store.go"
+    ],
+    "QUOREM_DEV_IDENTITY": [
+      "apps/api/cmd/api/main.go",
+      "apps/language/src/main.ts",
+      "apps/language/cmd/language/main.go"
+    ],
+    "QUOREM_HOSTED_INTELLIGENCE": [
+      "apps/language/src/main.ts",
+      "apps/language/cmd/language/main.go"
+    ],
+    "QUOREM_INVITE_KEY": [
+      "apps/api/internal/adapters/postgres/invite_key.go"
+    ],
+    "QUOREM_JUDGE_CONTROL_TOKEN": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "QUOREM_LOSSLESS_CASES": [
+      "apps/api/internal/adapters/postgres/lossless_cases.go"
+    ],
+    "QUOREM_LOSSLESS_RESULT_WRITES": [
+      "apps/api/internal/adapters/postgres/lossless_cases.go",
+      "apps/api/internal/adapters/postgres/runner_open.go",
+      "apps/api/internal/adapters/postgres/store.go"
+    ],
+    "QUOREM_OPERATOR_DATABASE_URL": [
+      "apps/api/cmd/access/main.go"
+    ],
+    "QUOREM_REALTIME_PROVIDER": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "QUOREM_REQUIRE_EXECUTION_WAKE": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "QUOREM_RESUMABLE_EXECUTION": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "QUOREM_ROUTING_TEST_ORIGIN": [
+      "deploy/routing-workerd-check.mjs"
+    ],
+    "QUOREM_SITE_URL": [
+      "scripts/prepare-pages.mjs"
+    ],
+    "QUOREM_SKIP_MIGRATIONS": [
+      "apps/api/cmd/api/main.go"
+    ],
+    "QUOREM_WORKER_TEST_ORIGIN": [
+      "deploy/workerd-check.mjs",
+      "deploy/workerd-case-check.mjs"
+    ],
+    "RUNNER_ADDR": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "RUNNER_CONCURRENCY": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "RUNNER_IMAGE": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "RUNNER_JAVA_IMAGE": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "RUNNER_OCAML_IMAGE": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "RUNNER_POSTGRES_IMAGE": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "RUNNER_TYPESCRIPT_IMAGE": [
+      "apps/runner/cmd/runner/main.go"
+    ],
+    "WEB_ORIGIN": [
+      "apps/language/src/main.ts",
+      "apps/language/cmd/language/main.go"
+    ]
+  },
+  "sqlWriterSources": {
+    "apps/api/internal/interviews/model.go": [
+      "struct"
+    ],
+    "apps/api/internal/adapters/postgres/guest_controls.go": [
+      "guest_sessions",
+      "match_participants",
+      "match_reservations",
+      "matches"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_presence.go": [
+      "SET",
+      "interview_presence"
+    ],
+    "apps/api/internal/adapters/postgres/question_seeds.go": [
+      "access_audit"
+    ],
+    "apps/api/internal/adapters/postgres/interview_fixtures.go": [
+      "interview_question_snapshots"
+    ],
+    "apps/api/internal/adapters/postgres/realtime_presence.go": [
+      "SET",
+      "SKIP",
+      "maintenance_schedule",
+      "realtime_presence_leases"
+    ],
+    "apps/api/internal/adapters/postgres/matches.go": [
+      "SET",
+      "guest_sessions",
+      "match_idempotency",
+      "match_outbox",
+      "match_participants",
+      "match_reservations",
+      "matches",
+      "workspaces"
+    ],
+    "apps/api/internal/adapters/postgres/match_rules.go": [
+      "match_participants",
+      "match_rule_events"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_execution.go": [
+      "execution_jobs",
+      "interview_execution",
+      "odyssey_progress",
+      "submissions",
+      "users"
+    ],
+    "apps/api/internal/adapters/postgres/store.go": [
+      "schema_migrations",
+      "users"
+    ],
+    "apps/api/internal/adapters/postgres/guests.go": [
+      "guest_sessions",
+      "match_participants",
+      "match_reservations",
+      "matches",
+      "users"
+    ],
+    "apps/api/internal/adapters/postgres/queue.go": [
+      "OF",
+      "execution_jobs",
+      "interview_execution",
+      "submissions"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_members.go": [
+      "SET",
+      "interview_guest_sessions",
+      "interview_members",
+      "interviews"
+    ],
+    "apps/api/internal/adapters/postgres/access.go": [
+      "SET",
+      "access_audit",
+      "entitlement_grants",
+      "quota_overrides",
+      "users"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_controls.go": [
+      "SET",
+      "interview_case_visibility",
+      "interview_language_drafts",
+      "interviews",
+      "odyssey_progress"
+    ],
+    "apps/api/internal/adapters/postgres/question_drafts.go": [
+      "access_audit",
+      "companies",
+      "problem_companies",
+      "problem_languages",
+      "problem_solutions",
+      "problem_versions",
+      "problems",
+      "question_drafts"
+    ],
+    "apps/api/internal/adapters/postgres/membership_events.go": [
+      "LIMIT",
+      "membership_outbox"
+    ],
+    "apps/api/internal/adapters/postgres/editorial_seeds.go": [
+      "problem_solutions"
+    ],
+    "apps/api/internal/adapters/postgres/guest_rate_limit.go": [
+      "SET",
+      "guest_request_buckets"
+    ],
+    "apps/api/internal/adapters/postgres/match_reconcile.go": [
+      "SKIP",
+      "match_participants",
+      "match_reconciliation_pending",
+      "matches"
+    ],
+    "apps/api/internal/adapters/postgres/problem_sealing.go": [
+      "problem_versions"
+    ],
+    "apps/api/internal/adapters/postgres/match_languages.go": [
+      "SET",
+      "match_idempotency",
+      "match_participants",
+      "workspaces"
+    ],
+    "apps/api/internal/adapters/postgres/interview_question_library.go": [
+      "problem_languages",
+      "problem_versions",
+      "problems"
+    ],
+    "apps/api/internal/adapters/postgres/problem_write.go": [
+      "SET",
+      "problem_examples",
+      "problem_languages",
+      "problem_odyssey_cases",
+      "problem_tags",
+      "problem_test_cases",
+      "problem_versions",
+      "problems"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_monitoring.go": [
+      "commits",
+      "interview_rule_events",
+      "interviews"
+    ],
+    "apps/api/internal/adapters/postgres/execution_checkpoints.go": [
+      "OF",
+      "execution_checkpoint_cases",
+      "execution_checkpoints",
+      "execution_jobs",
+      "submissions"
+    ],
+    "apps/api/internal/adapters/postgres/execution_admission.go": [
+      "guest_sponsor_locks"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_lifecycle.go": [
+      "interview_guest_sessions",
+      "interviews"
+    ],
+    "apps/api/internal/adapters/postgres/problem_content.go": [
+      "SET",
+      "problem_languages",
+      "problem_solutions"
+    ],
+    "apps/api/internal/adapters/postgres/submission_events.go": [
+      "LIMIT",
+      "submission_outbox"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_access.go": [
+      "interviews"
+    ],
+    "apps/api/internal/adapters/postgres/workspaces.go": [
+      "SET",
+      "workspaces"
+    ],
+    "apps/api/internal/adapters/postgres/identity.go": [
+      "identity_bindings",
+      "users"
+    ],
+    "apps/api/internal/adapters/postgres/interviews_document.go": [
+      "OF",
+      "if",
+      "interview_updates",
+      "interviews"
+    ],
+    "apps/api/internal/adapters/postgres/submissions.go": [
+      "SET",
+      "cancellation_idempotency",
+      "execution_checkpoints",
+      "execution_idempotency",
+      "execution_jobs",
+      "guest_execution_usage",
+      "guest_request_buckets",
+      "interview_execution",
+      "match_idempotency",
+      "matches",
+      "odyssey_progress",
+      "submissions",
+      "users"
+    ],
+    "apps/api/internal/adapters/postgres/odyssey.go": [
+      "SET",
+      "odyssey_progress"
+    ],
+    "apps/api/internal/adapters/postgres/interviews.go": [
+      "OF",
+      "interview_members",
+      "interview_operations",
+      "interviews"
+    ],
+    "apps/api/internal/adapters/postgres/match_events.go": [
+      "LIMIT",
+      "match_outbox"
+    ],
+    "apps/api/internal/adapters/postgres/interview_events.go": [
+      "LIMIT",
+      "interview_outbox"
+    ],
+    "apps/auth/src/migrations.ts": [
+      "quorem_auth"
+    ],
+    "apps/auth/src/social-email.ts": [
+      "social_email"
+    ],
+    "apps/auth/src/seed-product-user.ts": [
+      "access_audit",
+      "entitlement_grants",
+      "identity_bindings",
+      "users"
+    ],
+    "apps/auth/src/rate-limit.ts": [
+      "SET",
+      "rate_limit"
+    ],
+    "apps/auth/src/auth.ts": [
+      "SET",
+      "session_assurance"
+    ],
+    "apps/auth/src/bootstrap.ts": [
+      "access_audit",
+      "account"
+    ],
+    "apps/auth/src/registration.ts": [
+      "SET",
+      "account",
+      "passkey",
+      "rate_limit",
+      "registration_email"
+    ]
+  },
+  "notes": [
+    "Static source inventory; SQL strings and delegated/plugin routes require semantic review in each owning packet.",
+    "No values, credentials, source snapshots or private test data captured.",
+    "OpenAPI paths plus actual static registrations; dynamic match actions are covered by OpenAPI."
+  ]
+}

@@ -25,6 +25,7 @@ Status: original planning baseline with subsequent implementation updates. Confi
 | Spec | Scope |
 | --- | --- |
 | [Architecture](architecture.md) | Boundaries, contracts, storage, scaling |
+| [Hono and Workers migration](hono-workers-migration/README.md) | Drizzle/Hono migration, canonical modules, extension seams, agent packets and cutover |
 | [Provider adapters](../implementation/platform-adapters.md) | Current ports, AWS/Cloudflare capability matrix, configuration and validation gates |
 | [Contracts](contracts.md) | Wire schemas, HTTP errors, events, codec rules |
 | [Editor](editor.md) | First milestone, UI states, drafts, accessibility |
