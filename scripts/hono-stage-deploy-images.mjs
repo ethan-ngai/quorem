@@ -28,6 +28,7 @@ export function publishImages(env, run = spawnSync) {
     const result = run(cmd, args, {
       env: childEnv,
       encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
       stdio: ["ignore", "pipe", "pipe"],
     });
     if (result.error || result.status !== 0)

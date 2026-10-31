@@ -201,6 +201,7 @@ const defaults = {
 };
 
 export async function deployStage(original, operations = defaults) {
+  operations = { ...defaults, ...operations };
   validateStageRequest(original);
   if (original.HONO_STAGE_ACTION !== "stage") throw new Error("Explicit stage action required");
   const publicInput = JSON.parse(original.HONO_STAGE_PUBLIC_JSON),
