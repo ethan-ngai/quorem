@@ -168,6 +168,7 @@ overrides:
 
 patchedDependencies:
   monaco-pyright-lsp@0.1.7: c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c
+  pg-cloudflare@1.4.1: 1b88b6b5b4718165b27a1fa9ef18ea6578728a028c64aa089a7712c2112c3450
 
 importers:
 
@@ -8954,7 +8955,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pg-cloudflare@1.4.1:
+  pg-cloudflare@1.4.1(patch_hash=1b88b6b5b4718165b27a1fa9ef18ea6578728a028c64aa089a7712c2112c3450):
     optional: true
 
   pg-connection-string@2.14.1: {}
@@ -8983,7 +8984,7 @@ snapshots:
       pg-types: 2.2.0
       pgpass: 1.0.5
     optionalDependencies:
-      pg-cloudflare: 1.4.1
+      pg-cloudflare: 1.4.1(patch_hash=1b88b6b5b4718165b27a1fa9ef18ea6578728a028c64aa089a7712c2112c3450)
 
   pgpass@1.0.5:
     dependencies:
