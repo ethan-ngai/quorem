@@ -4,6 +4,8 @@ import { hostedAcceptance } from "./hono-stage-deploy-acceptance.mjs";
 const uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const env = () => ({
   HONO_STAGE_API_ORIGIN: "https://api-stage.example.com",
+  HONO_STAGE_BROWSER_ORIGIN: "https://web-stage.example.com",
+  ALLOWED_ORIGINS: "https://web-stage.example.com",
   HONO_DRAIN_ORIGIN: "https://drain-stage.example.com",
   HONO_STAGE_PROBLEM_VERSION_ID: uuid,
   HONO_STAGE_SESSION_COOKIE: "fixture=session",
@@ -26,6 +28,7 @@ void test("exchanges session, uses bearer, creates workspace, admits and drains"
   assert.equal((await hostedAcceptance(env(), send)).submission, uuid);
   assert.equal(calls.length, 5);
   assert.match(calls[0].url, /\/api\/auth\/token$/);
+  assert.equal(new Headers(calls[0].init.headers).get("origin"), env().HONO_STAGE_BROWSER_ORIGIN);
   for (const index of [1, 2, 4]) {
     const h = new Headers(calls[index].init.headers);
     assert.equal(h.get("authorization"), "Bearer fixture.jwt.token");
@@ -56,6 +59,11 @@ void test("queue mode never manually drains and polls until accepted", async () 
   assert.equal(calls, 5);
 });
 void test("rejects unsafe origin, unauthorized token and oversized responses", async () => {
+  await assert.rejects(
+    hostedAcceptance({ ...env(), ALLOWED_ORIGINS: "https://other-stage.example.com" }, async () => {
+      throw new Error("must not call");
+    }),
+  );
   await assert.rejects(
     hostedAcceptance({ ...env(), HONO_STAGE_API_ORIGIN: "https://prod.example.com" }, async () => {
       throw new Error("must not call");

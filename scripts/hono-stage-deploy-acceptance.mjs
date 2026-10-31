@@ -44,9 +44,11 @@ export async function hostedAcceptance(
   delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 ) {
   const api = stagedOrigin(env.HONO_STAGE_API_ORIGIN),
-    drain = stagedOrigin(env.HONO_DRAIN_ORIGIN);
+    drain = stagedOrigin(env.HONO_DRAIN_ORIGIN),
+    browser = stagedOrigin(env.HONO_STAGE_BROWSER_ORIGIN);
   if (
     api === drain ||
+    !env.ALLOWED_ORIGINS?.split(",").includes(browser) ||
     !/^[0-9a-f-]{36}$/.test(env.HONO_STAGE_PROBLEM_VERSION_ID ?? "") ||
     !["manual", "queue"].includes(env.HONO_STAGE_ACCEPTANCE_MODE) ||
     !env.HONO_STAGE_SESSION_COOKIE ||
@@ -69,7 +71,7 @@ export async function hostedAcceptance(
     throw new Error("Invalid staged drain credentials");
   const privateFetch = accessFetch(drain, { id, secret }, send);
   const tokenResponse = await send(`${api}/api/auth/token`, {
-    headers: { cookie: env.HONO_STAGE_SESSION_COOKIE, origin: api },
+    headers: { cookie: env.HONO_STAGE_SESSION_COOKIE, origin: browser },
     redirect: "error",
     signal: AbortSignal.timeout(30000),
   });
@@ -79,7 +81,7 @@ export async function hostedAcceptance(
     throw new Error("Invalid stage bearer");
   const headers = {
     authorization: `Bearer ${bearer}`,
-    origin: api,
+    origin: browser,
     "content-type": "application/json",
   };
   const workspaceResponse = await send(`${api}/v1/workspaces`, {
