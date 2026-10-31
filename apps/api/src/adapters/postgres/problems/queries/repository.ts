@@ -7,6 +7,7 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
+import { jsonObject as object, restorePublicExamples, visibleProblem as visible } from "./public-projection.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
   CandidateCriteria,
@@ -45,15 +46,6 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
   const who = owner(actor);
   return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${f.library}='' OR (${f.library}='global' AND p.owner_id IS NULL) OR (${f.library}='private' AND (${who}<>'' AND p.owner_id=${who}))) AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) AND (${f.topic}='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array(${f.topic},',')))) AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
 }
-function visible(actor: ProblemActor | undefined, match: boolean): SQL {
-  const who = owner(actor);
-  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who}) OR (${match} AND ${who}<>'' AND EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE ${who}<>'' AND mp.owner_id=${who} AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing'))))`;
-}
-function object(v: JsonValue | undefined): { [key: string]: JsonValue } {
-  if (!v || typeof v !== "object" || v instanceof JsonNumber || Array.isArray(v))
-    throw new Error("invalid public question");
-  return v;
-}
 type Projected = {
   data: string;
   lossless: Uint8Array | null;
@@ -63,37 +55,7 @@ type Projected = {
 };
 function projected(row: Projected): JsonValue {
   const value = object(parseLosslessJson(row.data));
-  if (row.lossless?.length) {
-    const raw = object(
-      parseLosslessJson(new TextDecoder("utf-8", { fatal: true }).decode(row.lossless)),
-    );
-    const p = object(raw.problem);
-    value.examples = p.examples ?? null;
-    if (value.odyssey && p.odyssey) {
-      const target = object(value.odyssey),
-        original = object(p.odyssey);
-      if (
-        Array.isArray(target.levels) &&
-        Array.isArray(original.levels) &&
-        target.levels.length &&
-        original.levels.length
-      )
-        object(target.levels[0]).examples = object(original.levels[0]).examples ?? null;
-    }
-  }
-  const cleanExamples = (examples: JsonValue | undefined) => {
-    if (!Array.isArray(examples)) return;
-    for (const example of examples) {
-      const item = object(example);
-      if (item.explanation === "") delete item.explanation;
-      if (Array.isArray(item.calls) && item.calls.length === 0) delete item.calls;
-    }
-  };
-  cleanExamples(value.examples);
-  if (value.odyssey) {
-    const levels = object(value.odyssey).levels;
-    if (Array.isArray(levels)) for (const level of levels) cleanExamples(object(level).examples);
-  }
+  restorePublicExamples(value, row.lossless);
   if (Array.isArray(value.constraints))
     value.constraints = value.constraints.map((rule) =>
       typeof rule === "string" ? { kind: "prose", text: rule } : rule,
