@@ -36,15 +36,29 @@ CREATE TABLE submission_public_result_cases (
 );
 -- Once published, readers can page without holding a database transaction open.
 CREATE FUNCTION guard_terminal_result_rows() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE current_state text; target uuid;
+DECLARE current_state text; result_retained boolean; target uuid;
 BEGIN
  target := CASE WHEN TG_OP='DELETE' THEN OLD.submission_id ELSE NEW.submission_id END;
- SELECT state INTO current_state FROM submissions WHERE id=target FOR UPDATE;
+ SELECT state,result IS NOT NULL INTO current_state,result_retained FROM submissions WHERE id=target FOR UPDATE;
  IF current_state IN ('completed','failed','cancelled') AND NOT
-    (TG_OP='INSERT' AND current_setting('quorem.result_backfill',true)='v1') THEN
+    ((TG_OP='INSERT' AND result_retained AND current_setting('quorem.result_backfill',true)='v1') OR
+     (TG_OP='DELETE' AND NOT result_retained)) THEN
   RAISE EXCEPTION 'terminal result rows are immutable' USING ERRCODE='55000';
  END IF;
  RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
 END $$;
 CREATE TRIGGER submission_result_headers_immutable BEFORE INSERT OR UPDATE OR DELETE ON submission_result_headers FOR EACH ROW EXECUTE FUNCTION guard_terminal_result_rows();
 CREATE TRIGGER submission_public_result_cases_immutable BEFORE INSERT OR UPDATE OR DELETE ON submission_public_result_cases FOR EACH ROW EXECUTE FUNCTION guard_terminal_result_rows();
+CREATE TRIGGER interview_private_result_cases_immutable BEFORE INSERT OR UPDATE OR DELETE ON interview_private_result_cases FOR EACH ROW EXECUTE FUNCTION guard_terminal_result_rows();
+
+CREATE FUNCTION clear_normalized_submission_results() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF OLD.result IS NOT NULL AND NEW.result IS NULL THEN
+  DELETE FROM submission_public_result_cases WHERE submission_id=NEW.id;
+  DELETE FROM submission_result_headers WHERE submission_id=NEW.id;
+  DELETE FROM interview_private_result_cases WHERE submission_id=NEW.id;
+ END IF;
+ RETURN NULL;
+END $$;
+CREATE TRIGGER normalized_submission_result_retention AFTER UPDATE OF result ON submissions
+ FOR EACH ROW EXECUTE FUNCTION clear_normalized_submission_results();
