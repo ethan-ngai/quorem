@@ -584,6 +584,12 @@ importers:
       '@quorem/contracts':
         specifier: workspace:*
         version: link:../contracts
+      ajv:
+        specifier: 8.18.0
+        version: 8.18.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.18.0)
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: 1.4.11

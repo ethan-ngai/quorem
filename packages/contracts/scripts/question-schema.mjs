@@ -1,5 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import Ajv2020 from "ajv/dist/2020.js";
+import standaloneCode from "ajv/dist/standalone/index.js";
 
 /** Extract reachable definitions; keep file imports aligned with the API contract. */
 export function questionSchema() {
@@ -24,6 +26,69 @@ export function questionSchema() {
     $defs: definitions,
   };
 }
+/** Generate a CSP-safe standalone validator from the canonical question schema. */
+export function questionValidator(draft = false) {
+  const schema = questionSchema();
+  if (draft) {
+    const relax = (value) => {
+      if (Array.isArray(value)) {
+        value.forEach(relax);
+        return;
+      }
+      if (!value || typeof value !== "object") return;
+      for (const key of [
+        "required",
+        "enum",
+        "const",
+        "minimum",
+        "maximum",
+        "minLength",
+        "maxLength",
+        "minItems",
+        "maxItems",
+        "uniqueItems",
+        "not",
+      ])
+        delete value[key];
+      if (value.oneOf) {
+        value.anyOf = value.oneOf;
+        delete value.oneOf;
+      }
+      Object.values(value).forEach(relax);
+    };
+    relax(schema);
+    schema.$defs.WireValue = {};
+    const constraintProperties = {};
+    const collect = (value) => {
+      if (Array.isArray(value)) return value.forEach(collect);
+      if (!value || typeof value !== "object") return;
+      if (value.properties)
+        for (const [key, property] of Object.entries(value.properties))
+          constraintProperties[key] ??= property;
+      Object.values(value).forEach(collect);
+    };
+    collect(schema.$defs.Constraint);
+    schema.$defs.Constraint = {
+      anyOf: [
+        { type: "string" },
+        { type: "object", properties: constraintProperties, additionalProperties: false },
+      ],
+    };
+  }
+  const ajv = new Ajv2020({ strict: true, code: { source: true, esm: true } });
+  const code = standaloneCode(ajv, ajv.compile(schema));
+  const required = 'require("ajv/dist/runtime/ucs2length").default';
+  const usesLength = code.includes(required);
+  const transformed = code.replaceAll(required, "ucs2length");
+  if (transformed.includes("require(")) throw new Error("Unexpected Ajv standalone require");
+  return (
+    "/* oxlint-disable */\n" +
+    (usesLength ? "const ucs2length = (value) => Array.from(value).length;\n" : "") +
+    transformed +
+    "\n"
+  );
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   writeFileSync(
     new URL("../questions/question-v1.schema.json", import.meta.url),

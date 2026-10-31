@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import openapiTS, { astToString, COMMENT_HEADER } from "openapi-typescript";
 import ts from "typescript";
-import { questionSchema } from "./question-schema.mjs";
+import { questionSchema, questionValidator } from "./question-schema.mjs";
 import { eventSchema } from "./event-schema.mjs";
 
 /** @returns Generated declarations derived entirely from the OpenAPI schema. */
@@ -49,6 +49,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   writeFileSync(
     new URL("../events/envelope.schema.json", import.meta.url),
     JSON.stringify(eventSchema(), null, 2) + "\n",
+  );
+  writeFileSync(
+    new URL("../../questions/src/question-validator.mjs", import.meta.url),
+    questionValidator(),
+  );
+  writeFileSync(
+    new URL("../../questions/src/draft-validator.mjs", import.meta.url),
+    questionValidator(true),
   );
   writeFileSync(
     new URL("../questions/question-v1.schema.json", import.meta.url),
