@@ -20,24 +20,25 @@ const stageResources = [
   "terraform_data.stage_secrets",
 ];
 function providerDiagnostics(text) {
-  // Terraform emits independent diagnostics between box borders; never forward their contents.
+  // Non-color Terraform omits box borders; split its plain Error headings as well.
   return text
-    .split(/(?:^|\n)\s*[╷╵]\s*(?:\n|$)/u)
+    .replace(/^[ \t]*[│╷╵][ \t]?/gm, "")
+    .split(/(?=^Error:)/m)
     .filter(Boolean)
     .map((chunk) => {
       const resources = stageResources.filter((name) => chunk.includes(name));
       const statuses = [
         ...chunk.matchAll(
-          /\b(?:HTTP(?:\s+status)?|status(?:\s+code)?)\s*[:=]?\s*(401|403|404|409|422|429|500|502|503|504)\b/gi,
+          /\b(?:HTTP(?:\s+status)?|status(?:\s+code)?)\s*[:=]?\s*(400|401|403|404|409|422|429|500|502|503|504)\b/gi,
         ),
       ].map((match) => Number(match[1]));
       const codes = resources.some((name) => name.startsWith("cloudflare_"))
-        ? [...chunk.matchAll(/(?:"code"\s*:\s*|\b(?:error\s+)?code\s*[:=]\s*)(\d{1,6})\b/gi)].map(
+        ? [...chunk.matchAll(/(?:"code"\s*:\s*|\berror\s+code\s*[:=]\s*)(\d{1,6})\b/gi)].map(
             (match) => Number(match[1]),
           )
         : [];
       const flags = {
-        organization: /\b(?:organization|organisation|org)[ -]scoped\b/i.test(chunk),
+        organization: /\b(?:(?:organization|organisation|org)[ -]scoped|org_id)\b/i.test(chunk),
         project: /\bproject[ -]scoped\b/i.test(chunk),
         authentication:
           /\b(?:unauthorized|unauthenticated|authentication failed|invalid (?:api )?(?:key|token))\b/i.test(

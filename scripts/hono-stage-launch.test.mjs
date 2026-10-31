@@ -251,3 +251,18 @@ void test("provider diagnostics separate errors and redact sensitive provider co
   const unrelated = new StageCommandFailure({ stderr: "Error: invalid permission configuration" });
   assert.equal(unrelated.category, "configuration/provider");
 });
+void test("plain Terraform diagnostics keep Neon scope failures separate from Cloudflare codes", () => {
+  const error = new StageCommandFailure({
+    stderr: `Error: create service token: status code: 403 {"code":1010}
+with cloudflare_zero_trust_access_service_token.stage["case"],
+
+Error: project-scoped key cannot create projects {"code":404}
+with neon_project.stage,
+`,
+  });
+  assert.equal(error.diagnostics.length, 2);
+  assert.deepEqual(error.diagnostics[0].codes, [1010]);
+  assert.deepEqual(error.diagnostics[1].codes, []);
+  assert.deepEqual(error.diagnostics[1].resources, ["neon_project.stage"]);
+  assert.equal(error.diagnostics[1].flags.project, true);
+});
