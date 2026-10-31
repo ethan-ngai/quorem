@@ -421,3 +421,60 @@ test("signed live case observation follows execution and confirmed attempt teard
   env.CASE_DIAGNOSTICS = "false";
   assert.equal((await probe(randomUUID())).status, 404);
 });
+
+test("execution requires pinned namespace and scope; cleanup remains available", async () => {
+  const env = base(),
+    keys = generateKeyPairSync("ed25519"),
+    namespace = secret("1");
+  env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM = keys.publicKey.export({ type: "spki", format: "pem" });
+  env.CASE_OWNER_PRIVATE_KEY = keys.privateKey
+    .export({ type: "pkcs8", format: "der" })
+    .toString("base64");
+  const fingerprint = createHash("sha256")
+    .update(keys.publicKey.export({ type: "spki", format: "der" }))
+    .digest("hex");
+  const scope = `remote:${createHash("sha256")
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
+    .digest("hex")}`;
+  let forwarded = 0;
+  env.CASES = {
+    idFromName: () => namespace,
+    getByName: () => ({
+      fetch: async (request) => {
+        forwarded++;
+        return new Response(null, { status: request.method === "DELETE" ? 204 : 200 });
+      },
+    }),
+  };
+  const request = (method, ownerScope = scope) =>
+    worker.fetch(
+      new Request(`${env.CASE_ORIGIN}/internal/case/pin-test`, {
+        method,
+        headers: {
+          authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+          "x-quorem-owner-scope": ownerScope,
+          "x-quorem-owner-nonce": randomUUID(),
+          "x-quorem-case-binding": secret("2"),
+          "x-quorem-body-sha256": createHash("sha256").update("fixture").digest("hex"),
+          "x-quorem-case-ordinal": "400",
+          "x-case-token": randomUUID(),
+          "x-case-language": "python",
+          "x-case-memory": "1024",
+          "x-case-processes": "1",
+        },
+        ...(method === "POST" ? { body: "fixture" } : {}),
+      }),
+      env,
+    );
+  env.QUOREM_CASE_NAMESPACE_ID = secret("0");
+  assert.equal((await request("POST")).status, 503);
+  assert.equal(forwarded, 0);
+  env.QUOREM_CASE_NAMESPACE_ID = namespace;
+  assert.equal((await request("POST", `remote:${secret("3")}`)).status, 503);
+  assert.equal(forwarded, 0);
+  assert.equal((await request("POST")).status, 200);
+  assert.equal(forwarded, 1);
+  env.QUOREM_CASE_NAMESPACE_ID = secret("0");
+  assert.equal((await request("DELETE")).status, 204);
+  assert.equal(forwarded, 2);
+});
