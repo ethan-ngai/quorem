@@ -1,7 +1,7 @@
 name: CI
 on:
   pull_request:
-    branches: [main, feat/hono-migration]
+    branches: [main, "feat/hono-*", "fix/hono-*", "test/hono-*", "refactor/hono-*"]
   push:
     branches: [feat/hono-migration]
   workflow_dispatch:
@@ -69,6 +69,9 @@ jobs:
           vp -C packages/questions run typecheck
           vp -C packages/questions run test
           vp -C packages/questions run test:workerd
+          vp -C packages/execution run typecheck
+          vp -C packages/execution run test
+          vp -C packages/execution run test:workerd
           vp -C apps/api run test:identity:node
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures

@@ -27,7 +27,7 @@ export default {
       identityDone = false,
       readAfterIdentity = false;
     const options = { connectionTimeoutMs: 1000, lifetimeMs: 4000 };
-    const run: ReadScope = <T>(read: (scope: ConnectionScope) => Promise<T>) =>
+    const run: ReadScope = <T>(read: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) =>
       withWorkerConnection(url.toString(), options, async (scope) =>
         read({
           transaction: (opts, action) =>
