@@ -11,6 +11,7 @@ import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { createNodeRuntime } from "@quorem/auth/node";
 import { seedAccounts } from "../../../../auth/src/seed-accounts.ts";
 import { applyAccess } from "../../cli/access.ts";
+import { seedQuestion } from "../../cli/seed-question.ts";
 import { dockerSandbox } from "../../../../runner/src/sandbox/docker.ts";
 import { bootstrapRuntimeFixture } from "./fixture.ts";
 import { assertRuntimeTestDatabase } from "./test-database.ts";
@@ -198,6 +199,12 @@ export async function startBrowserFixture(database: string, socket: string) {
       `SELECT 1 FROM access_audit a JOIN identity_bindings b ON b.user_id=a.user_id AND b.subject=a.scope JOIN quorem_auth."user" u ON u.id=b.subject JOIN users p ON p.id=b.user_id WHERE a.operation_id='bootstrap:operator' AND b.issuer='http://127.0.0.1:8765' AND u."emailVerified" AND p.role='admin' AND NOT p.disabled`,
     );
     if (operator.rowCount !== 1) throw new Error("Verified fixture operator required");
+    await seedQuestion(
+      pool,
+      "runtime-fixture-operator",
+      "global",
+      resolve(root, "fixtures/odyssey/balance-ledger.json"),
+    );
     for (const actor of actors) {
       const row = (
         await pool.query<{ user_id: string }>(
