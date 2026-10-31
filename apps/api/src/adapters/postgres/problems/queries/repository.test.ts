@@ -16,7 +16,7 @@ const url = process.env.QUOREM_CATALOG_TEST_DATABASE_URL;
 describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
   it("enforces visibility, redaction, filters, cursors, sidecars and editorial gates", async () => {
     const parsed = new URL(url!);
-    expect(parsed.port).toBe("55441");
+    expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
     expect(parsed.pathname).toBe("/quorem_hono_catalog_test");
     const pool = createNodePool({
       connectionString: url!,
@@ -132,7 +132,8 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         match,
       ]);
       const role = `catalog_${uid}`;
-      await pool.query(`CREATE ROLE ${role} LOGIN`);
+      const rolePassword = crypto.randomUUID();
+      await pool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${rolePassword}'`);
       await pool.query(`GRANT USAGE ON SCHEMA public TO ${role}`);
       for (const [table, columns] of Object.entries({
         problems: "id,slug,current_version_id,owner_id,leetcode_id",
@@ -152,6 +153,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         await pool.query(`GRANT SELECT(${columns}) ON ${table} TO ${role}`);
       const readURL = new URL(url!);
       readURL.username = role;
+      readURL.password = rolePassword;
       const limited = createNodePool({
         connectionString: readURL.toString(),
         max: 2,
@@ -162,10 +164,10 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       try {
         await expect(
           limited.query("SELECT reference_source FROM problem_languages LIMIT 1"),
-        ).rejects.toThrow();
+        ).rejects.toMatchObject({ code: "42501" });
         await expect(
           limited.query("SELECT lossless_fixture FROM problem_versions LIMIT 1"),
-        ).rejects.toThrow();
+        ).rejects.toMatchObject({ code: "42501" });
         const queries = problemQueries((read) =>
           withNodeConnection(limited, { lifetimeMs: 10000 }, read),
         );
