@@ -154,3 +154,84 @@ it("serializes simultaneous ready requests in workerd", async () => {
   });
   expect(finish.status).toBe(200);
 });
+
+it("projects live socket leases consistently in workerd HTTP and socket snapshots", async () => {
+  const { matchSocketLeases } = await import("../socket/leases.ts");
+  const { matchSocketSnapshot } = await import("../../../../modules/events/socket/match.ts");
+  const bindings = env as unknown as {
+    MATCH_LIFECYCLE_URL: string;
+    DEADLINES: {
+      idFromName(name: string): unknown;
+      get(id: unknown): { wake(n: number): Promise<void> };
+    };
+  };
+  assertRunnerFixture(bindings.MATCH_LIFECYCLE_URL, ["/quorem_hono_lifecycle_test"]);
+  const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
+    withWorkerConnection(
+      bindings.MATCH_LIFECYCLE_URL,
+      { connectionTimeoutMs: 3000, lifetimeMs: 10000 },
+      f,
+    );
+  const owner = `presence-${crypto.randomUUID()}`;
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+      tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${owner},'Worker')`),
+    ),
+  );
+  const who = await run((scope) => developmentIdentity(scope, owner));
+  const lifecycle = matchLifecycle(run, {
+    inviteKey: new Uint8Array(32).fill(3),
+    receipts: prearmReceipts(run),
+    coordinator: cloudflareCoordinator(bindings.DEADLINES),
+    shards: 1,
+    guestCreation: true,
+  });
+  const app = createApp({ allowedOrigins: [], requestId: () => "presence-worker" }).route(
+    "/",
+    matchLifecycleRoutes({ lifecycle, identify: async () => who }),
+  );
+  const created = await app.request("/v1/matches", {
+    method: "POST",
+    headers: { "content-type": "application/json", "idempotency-key": "presence-create" },
+    body: '{"difficulty":"easy"}',
+  });
+  expect(created.status).toBe(201);
+  const { id } = (await created.json()) as { id: string };
+  const read = async () =>
+    (await (await app.request(`/v1/matches/${id}`)).json()) as {
+      version: string;
+      participants: { presence: string }[];
+    };
+  const before = await read();
+  expect(before.participants[0].presence).toBe("offline");
+  const leases = matchSocketLeases(run),
+    first = await leases.acquire(who, id),
+    second = await leases.acquire(who, id);
+  expect((await read()).participants[0].presence).toBe("online");
+  const snapshot = await matchSocketSnapshot(id, lifecycle).read(who, AbortSignal.timeout(5000));
+  expect(JSON.parse(snapshot.body).payload.participants[0].presence).toBe("online");
+  const ready = await app.request(`/v1/matches/${id}/ready`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "idempotency-key": "presence-ready" },
+    body: '{"ready":true}',
+  });
+  expect(ready.status).toBe(200);
+  expect(
+    ((await ready.json()) as { participants: { presence: string }[] }).participants[0].presence,
+  ).toBe("online");
+  await leases.release(owner, id, first);
+  expect((await read()).participants[0].presence).toBe("online");
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+      tx.execute(
+        sql`UPDATE realtime_presence_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE id=${second}::uuid`,
+      ),
+    ),
+  );
+  expect((await read()).participants[0].presence).toBe("offline");
+  await leases.release(owner, id, second);
+  await app.request(`/v1/matches/${id}/leave`, {
+    method: "POST",
+    headers: { "idempotency-key": "presence-close" },
+  });
+});

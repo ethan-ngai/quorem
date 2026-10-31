@@ -362,6 +362,9 @@ it.skipIf(!database)(
 it.skipIf(!database)(
   "rejects untrusted origins, forged credentials and mismatched resources",
   async () => {
+    const { assertRunnerFixture } =
+      await import("../../../adapters/postgres/judging/worker/test-db.ts");
+    assertRunnerFixture(database!, ["/quorem_hono_do_sockets_test"]);
     const { SignJWT } = await import("jose");
     const host = `authority-${crypto.randomUUID()}`,
       id = crypto.randomUUID(),
@@ -413,6 +416,8 @@ it.skipIf(!database)(
     );
     const envelope = JSON.parse(message);
     expect(envelope.payload).toMatchObject({ type: "match.updated", aggregateId: id });
+    expect(envelope.payload.payload.participants[0]).toMatchObject({ presence: "online" });
+    expect(envelope.payload.payload.participants[0].userId).not.toBe(host);
     socket.send(JSON.stringify({ type: "receipt", id: envelope.receipt }));
     socket.close();
     await new Promise((resolve) => setTimeout(resolve, 50));
