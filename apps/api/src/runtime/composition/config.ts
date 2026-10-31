@@ -49,11 +49,32 @@ export function privateConfig(env: Record<string, unknown>): PrivateConfig {
       resumable: peer.resumable,
     };
   });
+  const verificationServiceOrigin = required(env.VERIFICATION_SERVICE_ORIGIN);
+  let origin: URL;
+  try {
+    origin = new URL(verificationServiceOrigin);
+  } catch {
+    throw new Error("Invalid verifier origin");
+  }
+  if (
+    origin.username ||
+    origin.password ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash ||
+    (origin.protocol !== "https:" &&
+      !(
+        env.APP_ENV === "local" &&
+        origin.protocol === "http:" &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname)
+      ))
+  )
+    throw new Error("Invalid verifier origin");
   return {
     runnerPeers,
     verificationSourceCredential: required(env.VERIFICATION_SOURCE_CREDENTIAL),
     verificationServiceCredential: required(env.VERIFICATION_SERVICE_CREDENTIAL),
-    verificationServiceOrigin: required(env.VERIFICATION_SERVICE_ORIGIN),
+    verificationServiceOrigin,
     verificationPublicKey: required(env.VERIFICATION_PUBLIC_KEY),
   };
 }

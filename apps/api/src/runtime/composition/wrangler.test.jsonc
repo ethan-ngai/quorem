@@ -1,0 +1,31 @@
+{
+  "name": "quorem-runtime-fixture",
+  "main": "../worker.ts",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "hyperdrive": [{ "binding": "DB", "id": "00000000000000000000000000000000" }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "SOCKETS", "class_name": "BrowserSockets" },
+      { "name": "DEADLINES", "class_name": "DeadlineCoordinator" },
+      { "name": "EXECUTION_RECOVERY", "class_name": "ExecutionRecovery" },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["BrowserSockets", "DeadlineCoordinator", "ExecutionRecovery"],
+    },
+  ],
+  "queues": { "producers": [{ "binding": "EXECUTION_QUEUE", "queue": "quorem-runtime-fixture" }] },
+  "vars": {
+    "APP_ENV": "local",
+    "AUTH_MODE": "password",
+    "AUTH_ORIGIN": "http://127.0.0.1:8765",
+    "BETTER_AUTH_SECRET": "local-runtime-fixture-secret-32-characters",
+    "AUTH_INTERNAL_SECRET": "local-test-internal",
+    "ALLOWED_ORIGINS": "http://127.0.0.1:5173",
+    "MATCH_INVITE_KEY": "abababababababababababababababababababababababababababababababab",
+    "EXECUTION_WAKE_PROVIDER": "cloudflare-binding",
+  },
+}

@@ -1,3 +1,4 @@
+import { authPeerRequest, cloudflarePeer } from "./peer.ts";
 import { r2BindingProfileStorage, type ProfileBucket } from "./adapters/r2-profile-storage.ts";
 import { remoteImageProcessor } from "./adapters/remote-image.ts";
 import { withWorkerConnection } from "@quorem/database/core";
@@ -72,6 +73,7 @@ export function workerRuntime(
 
 export default {
   fetch(request: Request, env: AuthWorkerEnv) {
-    return workerRuntime(env, request.signal).app.fetch(request);
+    const peer = cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER);
+    return workerRuntime(env, request.signal).app.fetch(authPeerRequest(request, peer));
   },
 };
