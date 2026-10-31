@@ -9,7 +9,7 @@
   "scripts": {
     "test": "vp test run && node test/node-import.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "test:workerd": "vp test run --config workerd.config.ts"
+    "test:workerd": "vp exec vitest run --config workerd.config.ts"
   },
   "dependencies": {
     "@quorem/questions": "workspace:*"

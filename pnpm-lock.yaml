@@ -541,6 +541,22 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  packages/execution:
+    dependencies:
+      '@quorem/questions':
+        specifier: workspace:*
+        version: link:../questions
+    devDependencies:
+      '@cloudflare/vitest-plugin':
+        specifier: 1.4.11
+        version: 1.4.11(@types/node@24.19.2)(vitest@5.0.3)
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      vitest:
+        specifier: 5.0.3
+        version: 5.0.3(@types/node@24.19.2)(@vitest/browser-preview@5.0.3)(@vitest/ui@5.0.3)(@voidzero-dev/vite-plus-core@1.1.0(@types/node@24.19.2)(esbuild@0.27.7)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1))(esbuild@0.27.7)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+
   packages/questions:
     dependencies:
       '@quorem/contracts':
