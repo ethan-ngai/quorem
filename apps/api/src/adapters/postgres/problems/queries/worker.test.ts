@@ -30,6 +30,8 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
             `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${role}') THEN CREATE ROLE ${role} LOGIN; END IF; END $$`,
           ),
         );
+        const fixturePassword = decodeURIComponent(parsed.password).replaceAll("'", "''");
+        await tx.execute(sql.raw(`ALTER ROLE ${role} PASSWORD '${fixturePassword}'`));
         await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
         const grants: Record<string, string> = {
           users: "id,display_name,role,disabled",
