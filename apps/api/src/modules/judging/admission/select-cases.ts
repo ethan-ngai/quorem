@@ -26,6 +26,18 @@ function wireCase(value: JsonValue): JsonValue {
   if (c.expected !== undefined) out.expected = c.expected;
   return out;
 }
+function validationCase(value: JsonValue): JsonValue {
+  const input = obj(value),
+    result = { ...input };
+  if (result.args === null || result.args === undefined) result.args = [];
+  if (Array.isArray(result.calls))
+    result.calls = result.calls.map((call) => {
+      const entry = { ...obj(call) };
+      if (entry.args === null || entry.args === undefined) entry.args = [];
+      return entry;
+    });
+  return result;
+}
 /** Compile only the admitted stage and validate custom cases with the shared question rules. */
 export function selectExecutionCases(
   fixtureRaw: string,
@@ -68,7 +80,7 @@ export function selectExecutionCases(
     Number.isInteger(configured) && configured > 0 && configured <= 100000 ? configured : 10000;
   try {
     for (const value of cases) {
-      const raw = stringifyLosslessJson(value),
+      const raw = stringifyLosslessJson(validationCase(value)),
         required = false;
       if (metadata.sql) validateSqlCase(metadata.sql, raw, required);
       else if (methods.length)

@@ -26,3 +26,15 @@ it("separates public run cases from private submit cases and validates custom in
   ]);
   expect(() => selectExecutionCases(fixture, "run", 0, ['{"args":["bad"]}'])).toThrow();
 });
+
+it("accepts omitted zero-argument lists as the Go decoder does", () => {
+  const zero = JSON.stringify({
+    problem: {
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+      constraints: [],
+      examples: [],
+    },
+    hiddenCases: [],
+  });
+  expect(selectExecutionCases(zero, "run", 0, ['{"args":null}'])).toBe('[{"args":null}]');
+});
