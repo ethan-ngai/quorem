@@ -6,7 +6,6 @@ import {
   type Transaction,
 } from "@quorem/database/core";
 import {
-  JsonNumber,
   normalizeQuestionDraft,
   parseLosslessJson,
   stringifyLosslessJson,
@@ -23,7 +22,9 @@ import type {
   AuthorActor,
   QuestionAuthoring,
 } from "../../../../modules/problems/authoring/ports.ts";
-import { object, storageProjection } from "./storage.ts";
+import { object, storageProjection } from "../storage.ts";
+import { persistQuestionVersion } from "../publication.ts";
+import { readAuthoringQuestion } from "../private-content.ts";
 
 type Obj = { [key: string]: JsonValue };
 export type AuthoringScope = <T>(action: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -60,9 +61,6 @@ function str(value: JsonValue | undefined): string {
 }
 function content(raw: string): Obj {
   return object(parseLosslessJson(raw));
-}
-function bytes(raw: Uint8Array | null): string | undefined {
-  return raw?.length ? new TextDecoder("utf-8", { fatal: true }).decode(raw) : undefined;
 }
 async function author(
   tx: Transaction,
@@ -140,62 +138,6 @@ async function hashPrefix(text: string): Promise<string> {
   return Array.from(new Uint8Array(h), (x) => x.toString(16).padStart(2, "0"))
     .join("")
     .slice(0, 16);
-}
-function fixture(contentValue: Obj): Obj {
-  const p = object(contentValue.problem),
-    implementations = list(contentValue.implementations).map(object),
-    primary = implementations.find((v) => v.language === (p.sql ? "postgresql" : "python"));
-  if (!primary) throw bad("primary implementation missing");
-  const languages = implementations.map((v) => ({
-    language: v.language,
-    starterSource: v.starterSource,
-    runtimeRevision: v.runtimeRevision,
-    harnessRevision: v.harnessRevision,
-  }));
-  return {
-    problem: {
-      ...p,
-      languages,
-      starterSource: primary.starterSource,
-      runtimeRevision: primary.runtimeRevision,
-    },
-    hiddenCases: contentValue.hiddenCases ?? [],
-    odysseyHiddenCases: contentValue.odysseyHiddenCases ?? [],
-    harnessRevision: primary.harnessRevision,
-    referenceSource: primary.referenceSource,
-    attribution: contentValue.attribution ?? "",
-  };
-}
-function sidecars(c: Obj): {
-  safeFixture: string;
-  fixture: Uint8Array | null;
-  public: Uint8Array | null;
-  stages: Uint8Array | null;
-} {
-  const f = fixture(c),
-    p = object(c.problem),
-    o = p.odyssey ? object(p.odyssey) : undefined,
-    levels = o ? list(o.levels) : [];
-  const pub: Obj = {
-    problem: {
-      examples: p.examples ?? [],
-      ...(levels.length
-        ? { odyssey: { levels: [{ examples: object(levels[0]).examples ?? [] }] } }
-        : {}),
-    },
-  };
-  const staged: Obj = {
-    problem: {
-      odyssey: { levels: levels.map((level) => ({ examples: object(level).examples ?? [] })) },
-    },
-  };
-  const whole = store(stringifyLosslessJson(f));
-  return {
-    safeFixture: whole.safe,
-    fixture: whole.lossless,
-    public: store(stringifyLosslessJson(pub)).lossless,
-    stages: levels.length ? store(stringifyLosslessJson(staged)).lossless : null,
-  };
 }
 async function publish(
   tx: Transaction,
@@ -275,59 +217,15 @@ async function publish(
   const versionId = crypto.randomUUID();
   p.id = versionId;
   p.version = String(next.version);
-  const side = sidecars(c),
-    safe = content(side.safeFixture),
-    safeProblem = object(safe.problem),
-    publicJSON = stringifyLosslessJson(safeProblem);
-  await tx.execute(
-    sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages) SELECT ${versionId}::uuid,${existing.id}::uuid,${next.version},doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',doc->'signature',COALESCE(doc->'constraints','[]'),doc->'limits',${str(c.attribution)},doc->'sql',doc->'odyssey',${side.fixture},${side.public},${side.stages} FROM (SELECT ${publicJSON}::jsonb AS doc) input`,
+  await persistQuestionVersion(
+    tx,
+    stringifyLosslessJson(c),
+    existing.id,
+    versionId,
+    next.version,
+    privateOwner,
+    runtime,
   );
-  for (const item of list(c.implementations)) {
-    const v = object(item);
-    await tx.execute(
-      sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${versionId}::uuid,${str(v.language)},${str(v.starterSource)},${str(v.runtimeRevision)},${str(v.harnessRevision)},${str(v.referenceSource)})`,
-    );
-  }
-  const hidden = stringifyLosslessJson(safe.hiddenCases ?? []),
-    staged = stringifyLosslessJson(safe.odysseyHiddenCases ?? []);
-  await tx.execute(
-    sql`INSERT INTO problem_examples(version_id,ordinal,args,expected,explanation,calls) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->>'explanation',''),COALESCE(value->'calls','[]') FROM jsonb_array_elements(${publicJSON}::jsonb->'examples') WITH ORDINALITY`,
-  );
-  await tx.execute(
-    sql`INSERT INTO problem_test_cases(version_id,ordinal,args,expected,calls) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->'calls','[]') FROM jsonb_array_elements(${hidden}::jsonb) WITH ORDINALITY`,
-  );
-  await tx.execute(
-    sql`INSERT INTO problem_odyssey_cases(version_id,level,ordinal,case_data) SELECT ${versionId}::uuid,stage.ordinality-1,c.ordinality-1,c.value FROM jsonb_array_elements(${staged}::jsonb) WITH ORDINALITY stage(value,ordinality),LATERAL jsonb_array_elements(stage.value) WITH ORDINALITY c(value,ordinality)`,
-  );
-  await tx.execute(
-    sql`INSERT INTO problem_tags(version_id,tag,ordinal) SELECT ${versionId}::uuid,value,ordinality-1 FROM jsonb_array_elements_text(${publicJSON}::jsonb->'tags') WITH ORDINALITY`,
-  );
-  if (!privateOwner) {
-    const leetcode = p.leetcodeId instanceof JsonNumber ? Number(p.leetcodeId.lexeme) : null;
-    await tx.execute(
-      sql`UPDATE problems SET leetcode_id=${leetcode} WHERE id=${existing.id}::uuid`,
-    );
-  }
-  await tx.execute(sql`DELETE FROM problem_companies WHERE problem_id=${existing.id}::uuid`);
-  for (const company of list(p.companies)) {
-    const name = str(company);
-    await tx.execute(
-      sql`INSERT INTO companies(name) VALUES(${name}) ON CONFLICT(lower(name)) DO NOTHING`,
-    );
-    await tx.execute(
-      sql`INSERT INTO problem_companies(problem_id,company_id) SELECT ${existing.id}::uuid,id FROM companies WHERE lower(name)=lower(${name})`,
-    );
-  }
-  for (const item of list(c.solutions)) {
-    const v = object(item);
-    await tx.execute(
-      sql`INSERT INTO problem_solutions(version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes) VALUES(${versionId}::uuid,${str(v.language)},${str(v.source)},${str(v.explanationMarkdown)},${str(v.timeComplexity)},${str(v.spaceComplexity)},${str(v.complexityNotes)})`,
-    );
-  }
-  await tx.execute(
-    sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${existing.id}::uuid`,
-  );
-  await tx.execute(sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid`);
   const updated = store(stringifyLosslessJson(c));
   const [saved] = (
     await tx.execute<DraftRow>(
@@ -345,52 +243,11 @@ async function cloneVersion(
   admin: boolean,
   id: string,
 ): Promise<string> {
-  const rows = (
-    await tx.execute<{
-      owner: string | null;
-      data: string;
-      lossless: Uint8Array | null;
-    }>(sql`SELECT p.owner_id AS owner,v.lossless_fixture AS lossless,jsonb_build_object(
- 'problem',jsonb_build_object('id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'odyssey',v.odyssey,'leetcodeId',p.leetcode_id,
- 'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'::jsonb),
- 'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
- 'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb)),
- 'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
- 'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END,
- 'attribution',v.attribution,
- 'implementations',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision,'referenceSource',reference_source) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'::jsonb),
- 'solutions',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'source',source,'explanationMarkdown',explanation_markdown,'timeComplexity',time_complexity,'spaceComplexity',space_complexity,'complexityNotes',complexity_notes) ORDER BY language) FROM problem_solutions WHERE version_id=v.id),'[]'::jsonb))::text AS data
- FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND (p.owner_id=${actor.userId} OR (${admin} AND p.owner_id IS NULL))`)
-  ).rows;
-  if (!rows.length) {
-    if (!admin)
-      throw new ApplicationError("forbidden", "Only your own private questions can be cloned", 403);
-    throw new ApplicationError("not_found", "Problem not found", 404);
-  }
-  const c = content(rows[0].data),
-    p = object(c.problem),
-    lossless = bytes(rows[0].lossless);
-  if (lossless) {
-    const f = content(lossless),
-      fp = object(f.problem);
-    p.examples = fp.examples ?? [];
-    c.hiddenCases = f.hiddenCases ?? [];
-    c.odysseyHiddenCases = f.odysseyHiddenCases ?? [];
-    if (p.odyssey && fp.odyssey) {
-      const target = list(object(p.odyssey).levels),
-        source = list(object(fp.odyssey).levels);
-      for (let i = 0; i < Math.min(target.length, source.length); i++)
-        object(target[i]).examples = object(source[i]).examples ?? [];
-    }
-  }
-  if (
-    p.odyssey &&
-    list(p.examples).length &&
-    stringifyLosslessJson(p.examples) ===
-      stringifyLosslessJson(object(list(object(p.odyssey).levels)[0]).examples ?? [])
-  )
-    p.examples = [];
-  return normal(stringifyLosslessJson(c));
+  const value = await readAuthoringQuestion(tx, actor.userId, id, admin);
+  if (value) return value;
+  if (!admin)
+    throw new ApplicationError("forbidden", "Only your own private questions can be cloned", 403);
+  throw new ApplicationError("not_found", "Problem not found", 404);
 }
 /** Open one bounded transaction per authoring operation; publication never leaves a partial version. */
 export function questionAuthoring(
