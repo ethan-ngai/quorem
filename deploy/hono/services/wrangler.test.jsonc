@@ -1,0 +1,11 @@
+{
+  "name": "quorem-private-services-fixture",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-23",
+  "durable_objects": { "bindings": [
+    { "name": "RUNNERS", "class_name": "RunnerService" },
+    { "name": "VERIFIERS", "class_name": "VerifierService" },
+    { "name": "CASES", "class_name": "CaseSandbox" }
+  ] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RunnerService", "VerifierService", "CaseSandbox"] }]
+}

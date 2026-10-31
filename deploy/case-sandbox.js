@@ -71,6 +71,29 @@ export class CaseSandbox extends DurableObject {
   }
 
   async fetch(request) {
+    if (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle") {
+      if (this.env.CASE_DIAGNOSTICS !== "true") return new Response(null, { status: 404 });
+      const running = this.ctx.container?.running === true;
+      const active =
+        running &&
+        this.phase === "exec-ready" &&
+        !!this.active?.token &&
+        Number.isSafeInteger(this.active.ordinal);
+      const tokenHash = active
+        ? Array.from(
+            new Uint8Array(
+              await crypto.subtle.digest("SHA-256", new TextEncoder().encode(this.active.token)),
+            ),
+            (b) => b.toString(16).padStart(2, "0"),
+          ).join("")
+        : null;
+      return Response.json({
+        active,
+        running,
+        ordinal: active ? this.active.ordinal : null,
+        tokenHash,
+      });
+    }
     if (request.method === "GET" && this.env.CASE_DIAGNOSTICS === "true")
       return Response.json({
         phase: this.phase ?? "idle",
@@ -109,7 +132,12 @@ export class CaseSandbox extends DurableObject {
       processes > 64
     )
       return new Response(null, { status: 400 });
-    const active = { token };
+    const rawOrdinal = request.headers.get("x-quorem-case-ordinal");
+    const ordinal =
+      /^(-1|0|[1-9][0-9]{0,9})$/.test(rawOrdinal ?? "") && Number(rawOrdinal) <= 2147483646
+        ? Number(rawOrdinal)
+        : undefined;
+    const active = { token, ordinal };
     this.phase = "admitted";
     this.failure = undefined;
     this.failureSource = undefined;
