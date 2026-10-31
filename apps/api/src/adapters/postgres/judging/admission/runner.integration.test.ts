@@ -558,6 +558,89 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
       await pool.query("DELETE FROM problems WHERE id=$1", [sqlProblem]);
     }
   }, 90000);
+  it("persists verified failure before the next sandbox case completes", async () => {
+    await pool.query(
+      "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+      [owner],
+    );
+    const response = await app.request("https://fixture.test/v1/submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "runner-early-failure" },
+      body: JSON.stringify({
+        workspaceId: workspace,
+        kind: "submit",
+        source: "class Solution:\n def f(self,x):\n  if x==3: return 0\n  while True: pass",
+      }),
+    });
+    expect(response.status).toBe(202);
+    const id = (await response.json()).id as string;
+    const sandbox = await dockerSandbox({
+      socket: socket!,
+      stateRoot,
+      namespace: "admission-runner-early",
+      cleanupMs: 10000,
+    });
+    const secret = "fixture-only-private-runner-early-123456";
+    const handler = await createRunnerCommandHandler([
+      {
+        secret,
+        scope: sandbox.scope,
+        resumable: true,
+        inputProtocol: "manifest-v1",
+        repository: () =>
+          postgresExecutionCommands(
+            run,
+            {
+              inputProtocol: "manifest-v1",
+              resumable: true,
+              losslessCases: true,
+              losslessResults: true,
+            },
+            { verifier, verificationPublicKey },
+          ),
+      },
+    ]);
+    const repository = privateRunnerCommands({
+      origin: "https://fixture",
+      secret,
+      scope: sandbox.scope,
+      resumable: true,
+      timeoutMs: 5000,
+      fetch: async (input, init) => handler(new Request(input, init)),
+    });
+    const drain = drainer({
+      repository,
+      sandbox,
+      cancellations: controlPolling(25),
+      queue: queueControl(repository, sandbox.scope, 25),
+      engine: checkpointedEngine(repository, sandbox),
+      slots: 1,
+      resumable: true,
+      graceMs: 100,
+      claimWindowMs: 10000,
+    });
+    const running = drain.drain(AbortSignal.timeout(30000));
+    let seen = false;
+    for (let i = 0; i < 250; i++) {
+      const row = (
+        await pool.query(
+          "SELECT v.status,j.finished FROM execution_jobs j JOIN execution_verified_cases v ON v.job_id=j.id AND v.attempt_id=j.attempt_id WHERE j.submission_id=$1 AND v.ordinal=0",
+          [id],
+        )
+      ).rows[0];
+      if (row) {
+        expect(row.status).toBe("wrong_answer");
+        expect(row.finished).toBe(false);
+        seen = true;
+        break;
+      }
+      await sleep(20);
+    }
+    expect(seen).toBe(true);
+    expect((await running).complete).toBe(true);
+    const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
+    expect((await result.json()).verdict).toBe("wrong_answer");
+  }, 40000);
   it("cancels an actually running Docker case and reclaims only after teardown", async () => {
     await pool.query(
       "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
