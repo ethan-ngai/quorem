@@ -185,6 +185,12 @@ export async function startBrowserFixture(database: string, socket: string) {
       "global",
       resolve(root, "fixtures/odyssey/balance-ledger.json"),
     );
+    await seedQuestion(
+      pool,
+      "runtime-fixture-operator",
+      "global",
+      resolve(root, "fixtures/migration/sql-positive-items.json"),
+    );
     for (const actor of actors) {
       const row = (
         await pool.query<{ user_id: string }>(
@@ -312,6 +318,7 @@ export async function startBrowserFixture(database: string, socket: string) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     if (!ready) throw new Error("Browser fixture frontend unavailable");
+    const bearers: Record<string, string> = {};
     for (const username of ["alice", "bob"]) {
       const signedIn = await fetch(`${webOrigin}/api/auth/sign-in/username`, {
         method: "POST",
@@ -337,6 +344,7 @@ export async function startBrowserFixture(database: string, socket: string) {
         signal: AbortSignal.timeout(5000),
       });
       if (!session.ok) throw new Error("Fixture session unavailable");
+      bearers[username] = token;
     }
     if (
       [runner, verifier, vite].some(
@@ -354,6 +362,7 @@ export async function startBrowserFixture(database: string, socket: string) {
       apiOrigin,
       webOrigin,
       credentialsFile: join(temp, "credentials.json"),
+      bearers,
       close: finish,
       failure,
     };

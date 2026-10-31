@@ -1,0 +1,55 @@
+{
+  "problem": {
+    "id": "00000000-0000-4000-8000-000000000116",
+    "slug": "sql-positive-items",
+    "version": "1",
+    "title": "Positive Items",
+    "difficulty": "easy",
+    "tags": ["Database"],
+    "statementMarkdown": "Return the positive item IDs in ascending order.",
+    "constraints": [],
+    "signature": {
+      "className": "Solution",
+      "methodName": "solve",
+      "parameters": [],
+      "returnType": "int"
+    },
+    "limits": {
+      "wallTimeMs": 2000,
+      "memoryBytes": 268435456,
+      "outputBytes": 65536,
+      "maxProcesses": 16,
+      "maxCollectionElements": 10000,
+      "maxNestingDepth": 100
+    },
+    "sql": {
+      "dialect": "postgresql",
+      "outputOrder": "ordered",
+      "tables": [{ "name": "items", "columns": [{ "name": "id", "type": "integer" }] }],
+      "output": [{ "name": "id", "type": "integer" }]
+    },
+    "examples": [
+      {
+        "args": [{ "tables": [{ "name": "items", "rows": [[2], [-1], [1]] }] }],
+        "expected": { "rows": [[1], [2]] }
+      }
+    ]
+  },
+  "hiddenCases": [
+    {
+      "args": [{ "tables": [{ "name": "items", "rows": [[-4], [3], [0]] }] }],
+      "expected": { "rows": [[3]] }
+    }
+  ],
+  "attribution": "Original Quorem fixture",
+  "implementations": [
+    {
+      "language": "postgresql",
+      "starterSource": "SELECT id FROM items;",
+      "referenceSource": "SELECT id FROM items WHERE id > 0 ORDER BY id;",
+      "runtimeRevision": "postgresql-17.6-v1",
+      "harnessRevision": "quorem-postgresql-v2"
+    }
+  ],
+  "solutions": []
+}
