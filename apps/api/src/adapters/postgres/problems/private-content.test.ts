@@ -43,6 +43,7 @@ describe.skipIf(!url)("private publication reader", () => {
         ),
       );
       fixture.problem.slug = `reader-${crypto.randomUUID().slice(0, 8)}`;
+      const multiRaw = JSON.stringify(fixture);
       fixture.problem.signature = {
         className: "Solution",
         methodName: "echo",
@@ -72,10 +73,12 @@ describe.skipIf(!url)("private publication reader", () => {
       expect(content.implementations).toHaveLength(1);
       expect(await read(other, published.publishedVersionId, "python")).toBeUndefined();
       expect(await read(owner, published.publishedVersionId, "postgresql")).toBeUndefined();
-      const globalDraft = JSON.parse(await author.create(actor, raw, undefined));
+      const globalDraft = JSON.parse(await author.create(actor, multiRaw, undefined));
       const global = JSON.parse(await author.publish(actor, globalDraft.id, "1", "global"));
-      expect(await read(other, global.publishedVersionId, "python")).toBeDefined();
-      const newerDraft = JSON.parse(await author.create(actor, raw, undefined));
+      const publicSnapshot = await read(other, global.publishedVersionId, "python");
+      expect(publicSnapshot).toBeDefined();
+      expect(JSON.parse(publicSnapshot!.content).implementations).toHaveLength(4);
+      const newerDraft = JSON.parse(await author.create(actor, multiRaw, undefined));
       await author.publish(actor, newerDraft.id, "1", "global");
       expect(await read(other, global.publishedVersionId, "python")).toBeUndefined();
     } finally {
