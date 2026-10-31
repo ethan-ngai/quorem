@@ -153,6 +153,28 @@ const safeFlags = (value) =>
       .filter((name) => typeof value?.[name] === "boolean")
       .map((name) => [name, value[name]]),
   );
+export class StageRoleFailure extends Error {
+  constructor(phase, error) {
+    super("Stage runtime provisioning or validation failed");
+    this.phase = [
+      "operator_connect",
+      "begin",
+      "timeouts",
+      "operator",
+      "create_role",
+      "database_grants",
+      "schema_grants",
+      "object_grants",
+      "boundary",
+      "commit",
+      "runtime_login",
+    ].includes(phase)
+      ? phase
+      : "unknown";
+    this.code = safeCode(error);
+    this.flags = safeFlags(error?.boundaryFlags);
+  }
+}
 
 /** Exercise the exact role transaction, then roll it back without logging in. */
 export async function rehearseStageRole(operator, role, password) {
@@ -206,11 +228,7 @@ export async function provisionStageRole(operator, runtime, role, password) {
       throw new Error("Stage runtime login mismatch");
   } catch (error) {
     await operator.query("ROLLBACK").catch(() => {});
-    const safe = new Error("Stage runtime provisioning or validation failed");
-    safe.phase = phase;
-    safe.code = safeCode(error);
-    safe.flags = safeFlags(error?.boundaryFlags);
-    throw safe;
+    throw new StageRoleFailure(phase, error);
   } finally {
     await runtime.end().catch(() => {});
   }
@@ -231,6 +249,9 @@ export async function provisionStageDatabaseRole(env) {
   try {
     await operator.connect();
     await provisionStageRole(operator, runtime, creds.role, creds.password);
+  } catch (error) {
+    if (error instanceof StageRoleFailure) throw error;
+    throw new StageRoleFailure("operator_connect", error);
   } finally {
     await operator.end();
   }

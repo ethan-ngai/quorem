@@ -2,7 +2,13 @@
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deriveStageRole, rehearseStageRole } from "./hono-stage-database-role.mjs";
+import {
+  deriveStageRole,
+  rehearseStageRole,
+  provisionStageDatabaseRole,
+  StageRoleFailure,
+} from "./hono-stage-database-role.mjs";
+import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { runStageCommand } from "./hono-stage-launch.mjs";
 import {
@@ -128,18 +134,19 @@ export async function inspectStageRole(env) {
   const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
     "pg",
   );
-  const client = new Client({
+  const options = {
     connectionString: url.href,
     connectionTimeoutMillis: 5000,
     query_timeout: 7000,
-  });
+  };
+  const client = new Client(options);
   client.on("error", () => {});
   const role = deriveStageRole(env.HONO_DIAGNOSE_RELEASE_SHA, "1");
   const action = env.HONO_STAGE_INSPECTION_ACTION ?? "diagnose";
-  if (!["diagnose", "rehearse-role"].includes(action))
+  if (!["diagnose", "rehearse-role", "probe-role"].includes(action))
     throw new Error("Invalid role inspection action");
   const password = saved.stage_secrets?.value?.STAGE_RUNTIME_DATABASE_PASSWORD;
-  if (action === "rehearse-role") {
+  if (["rehearse-role", "probe-role"].includes(action)) {
     if (!/^[a-f0-9]{64}$/.test(password ?? ""))
       throw new Error("Invalid staged runtime credential");
     const child = Object.fromEntries(
@@ -162,6 +169,50 @@ export async function inspectStageRole(env) {
   try {
     await client.connect();
     const before = await diagnoseStageRole(client, role);
+    if (action === "probe-role") {
+      if (before.runtimeExists) throw new Error("Probe role already exists");
+      await client.end();
+      closed = true;
+      let provision;
+      try {
+        await provisionStageDatabaseRole({
+          HONO_RELEASE_SHA: env.HONO_DIAGNOSE_RELEASE_SHA,
+          HONO_STAGE_DATABASE_URL: url.href,
+          TF_VAR_database_host: url.hostname,
+          TF_VAR_database_port: url.port || "5432",
+          TF_VAR_database_password: password,
+          TF_VAR_release_generation: "1",
+        });
+        provision = { status: "accepted" };
+      } catch (error) {
+        if (!(error instanceof StageRoleFailure)) throw error;
+        provision = {
+          status: "rejected",
+          phase: error.phase,
+          code: error.code,
+          flags: error.flags,
+        };
+      }
+      const inspector = new Client(options);
+      inspector.on("error", () => {});
+      try {
+        await inspector.connect();
+        let after = await diagnoseStageRole(inspector, role);
+        let containment = "role-absent";
+        if (after.runtimeExists) {
+          try {
+            await fenceStageRuntime(inspector, role);
+            containment = "fenced";
+          } catch {
+            containment = "unconfirmed";
+          }
+          after = await diagnoseStageRole(inspector, role);
+        }
+        return { before, provision, containment, after };
+      } finally {
+        await inspector.end().catch(() => {});
+      }
+    }
     if (action === "diagnose") {
       await client.end();
       closed = true;
