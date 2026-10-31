@@ -70,7 +70,14 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
     peers.some((p) => encoder.encode(p.secret).length < 32 || /\s/.test(p.secret) || !p.scope)
   )
     throw new Error("Invalid runner peer configuration");
-  const keys = await Promise.all(peers.map(async (p) => ({ ...p, hash: await sha(p.secret) })));
+  const keys = await Promise.all(
+    peers.map(async (p) => ({
+      scope: p.scope,
+      resumable: p.resumable,
+      repository: p.repository,
+      hash: await sha(p.secret),
+    })),
+  );
   for (let i = 0; i < keys.length; i++)
     for (let j = 0; j < i; j++)
       if (equal(keys[i].hash, keys[j].hash)) throw new Error("Duplicate runner credential");
