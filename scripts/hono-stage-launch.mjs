@@ -232,6 +232,18 @@ export async function launchStage(
     const view = JSON.parse(run("terraform", [...prefix, "show", "-json", plan], child));
     if (!Array.isArray(view.resource_changes)) throw new Error("Bootstrap plan unavailable");
     const allowed = new Set(stageResources);
+    const summary = (change) => ({
+      address: allowed.has(change.address) ? change.address : "unexpected",
+      actions: Array.isArray(change.change?.actions)
+        ? change.change.actions.map((action) =>
+            ["no-op", "create", "read", "update", "delete"].includes(action)
+              ? action
+              : "unexpected",
+          )
+        : [],
+    });
+    report("bootstrap-plan", view.resource_changes.map(summary));
+    report("bootstrap-drift", (view.resource_drift ?? []).map(summary));
     for (const change of [...view.resource_changes, ...(view.resource_drift ?? [])]) {
       if (
         !allowed.has(change.address) ||
@@ -242,13 +254,6 @@ export async function launchStage(
       )
         throw new Error("Bootstrap plan includes unrelated or destructive changes");
     }
-    report(
-      "bootstrap-plan",
-      view.resource_changes.map((change) => ({
-        address: change.address,
-        actions: change.change.actions,
-      })),
-    );
     if (action === "plan")
       return {
         status: "planned",
