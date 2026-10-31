@@ -1,0 +1,20 @@
+FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS dependencies
+WORKDIR /app
+RUN npm install --global vite-plus@1.1.0
+COPY . .
+RUN vp install -- --frozen-lockfile --filter @quorem/runner... --prod
+
+FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=dependencies --chown=node:node /app /app
+USER node
+
+FROM docker:29.8.2-cli@sha256:35cfcf893c20f2931f4909151b5407aaaeab711277de7ce8b8f521f095d54c32 AS dockercli
+
+FROM runtime AS runner
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+CMD ["node", "--experimental-strip-types", "apps/runner/src/runtime/runner.ts"]
+
+FROM runtime AS verifier
+CMD ["node", "--experimental-strip-types", "apps/runner/src/runtime/verifier.ts"]

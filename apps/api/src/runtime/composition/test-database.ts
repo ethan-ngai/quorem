@@ -5,7 +5,10 @@ export function assertRuntimeTestDatabase(value: string): void {
     !["postgres:", "postgresql:"].includes(url.protocol) ||
     url.hostname !== "127.0.0.1" ||
     url.pathname !== "/quorem_hono_runtime_test" ||
-    ["host", "hostaddr", "service"].some((key) => url.searchParams.has(key))
+    !!url.hash ||
+    [...url.searchParams.keys()].some((key) =>
+      ["host", "hostaddr", "service"].includes(key.toLowerCase()),
+    )
   ) {
     throw new Error("Runtime tests require the disposable loopback database");
   }

@@ -76,7 +76,7 @@ jobs:
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
-          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test; do
+          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test quorem_hono_runtime_test; do
             docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
           done
           # Match server-major archive tools; only disposable fixtures enter /tmp.
@@ -187,6 +187,12 @@ jobs:
           vp run --filter @quorem/language test
           vp -C apps/web test src/features/editor/languageIntegration.test.ts
       - run: python3 scripts/build-judge-images.py --base-only
+      - name: Mandatory composed runtime release validation
+        env:
+          QUOREM_RUNTIME_TEST_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_runtime_test?sslmode=disable
+          QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
+          WRANGLER_SEND_METRICS: "false"
+        run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
       - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'
       # Integration packages share one disposable database and reset its fixtures.
       - run: go test -p 1 ./...

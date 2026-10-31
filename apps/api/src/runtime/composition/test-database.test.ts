@@ -14,6 +14,8 @@ it("requires a disposable loopback database without connection overrides", () =>
     "postgres://127.0.0.1/quorem_hono_runtime_test?host=remote",
     "postgres://127.0.0.1/quorem_hono_runtime_test?hostaddr=10.0.0.1",
     "postgres://127.0.0.1/quorem_hono_runtime_test?service=production",
+    "postgres://127.0.0.1/quorem_hono_runtime_test?HOST=remote",
+    "postgres://127.0.0.1/quorem_hono_runtime_test#fragment",
   ])
     expect(() => assertRuntimeTestDatabase(url)).toThrow();
 });

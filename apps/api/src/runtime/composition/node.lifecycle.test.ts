@@ -1,14 +1,10 @@
+import { assertRuntimeTestDatabase } from "./test-database.ts";
 import { expect, it } from "vitest";
 import { createNodePool } from "@quorem/database/core";
 import { startNodeRuntime } from "../node.ts";
 const url = process.env.QUOREM_RUNTIME_TEST_URL;
 it.skipIf(!url)("releases all opened PostgreSQL sessions after startup failure", async () => {
-  const parsed = new URL(url!);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-    "127.0.0.1",
-    "55575",
-    "/quorem_hono_runtime_test",
-  ]);
+  assertRuntimeTestDatabase(url!);
   const pool = createNodePool({
     connectionString: url!,
     max: 1,
