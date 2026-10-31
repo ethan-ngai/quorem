@@ -34,6 +34,10 @@ export async function admitWithRecovery<T>(options: {
         );
       }),
     ]);
+  } catch (cause) {
+    const error = new ApplicationError("temporarily_unavailable", "Judge unavailable", 503);
+    Object.defineProperty(error, "cause", { value: cause });
+    throw error;
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
