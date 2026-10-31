@@ -1941,6 +1941,60 @@ export const submission_public_case_statuses = pgTable(
     ),
   ],
 );
+export const interview_private_status_headers = pgTable(
+  "interview_private_status_headers",
+  {
+    submission_id: uuid().primaryKey(),
+    status_count: integer().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "interview_private_status_headers_submission_id_fkey",
+      columns: [t.submission_id],
+      foreignColumns: [interview_execution.submission_id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "interview_private_status_headers_result_fkey",
+      columns: [t.submission_id],
+      foreignColumns: [submission_result_headers.submission_id],
+    }).onDelete("cascade"),
+    check("interview_private_status_headers_status_count_check", sql`status_count >= 0`),
+  ],
+);
+export const interview_private_case_statuses = pgTable(
+  "interview_private_case_statuses",
+  {
+    submission_id: uuid().notNull(),
+    ordinal: integer().notNull(),
+    case_id: text().notNull(),
+    status_json: bytea().notNull(),
+    status_hash: bytea().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "interview_private_case_statuses_submission_id_fkey",
+      columns: [t.submission_id],
+      foreignColumns: [interview_private_status_headers.submission_id],
+    }).onDelete("cascade"),
+    primaryKey({
+      name: "interview_private_case_statuses_pkey",
+      columns: [t.submission_id, t.ordinal],
+    }),
+    unique("interview_private_case_statuses_submission_id_case_id_key").on(
+      t.submission_id,
+      t.case_id,
+    ),
+    check("interview_private_case_statuses_ordinal_check", sql`ordinal >= 0`),
+    check(
+      "interview_private_case_statuses_status_json_check",
+      sql`json_typeof(convert_from(status_json,'UTF8')::json)='string'`,
+    ),
+    check(
+      "interview_private_case_statuses_status_hash_check",
+      sql`status_hash=sha256(status_json)`,
+    ),
+  ],
+);
 export const execution_completion_receipts = pgTable(
   "execution_completion_receipts",
   {

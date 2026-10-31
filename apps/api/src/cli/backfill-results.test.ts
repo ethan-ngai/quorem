@@ -156,6 +156,106 @@ void test(
         1,
       );
       await assert.rejects(cli(["--op-id", args[1], "--reason", "changed", "--legacy-drained"]));
+      const interview = crypto.randomUUID(),
+        epoch = crypto.randomUUID(),
+        document = crypto.randomUUID(),
+        privateSubmission = crypto.randomUUID();
+      const fixture = JSON.stringify({
+        problem: { id: version, examples: [] },
+        hiddenCases: [{ args: [], expected: 2 }],
+      });
+      await pool.query(
+        "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES($1,'owner','fixture','{}','python','',$2,$3,$4,$4,$5,$5)",
+        [interview, document, epoch, crypto.randomUUID(), crypto.randomUUID()],
+      );
+      const fixtureId = (
+        await pool.query(
+          "WITH f AS (SELECT $2::jsonb value) INSERT INTO interview_question_snapshots(session_id,id,fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value FROM f RETURNING id",
+          [interview, fixture],
+        )
+      ).rows[0].id;
+      await pool.query(
+        "INSERT INTO interview_question_private_cases(session_id,question_epoch,case_id,ordinal,case_data) VALUES($1,$2,'hidden:0',0,convert_to('{}','UTF8'))",
+        [interview, epoch],
+      );
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          "INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'owner',$2,'submit','','private','completed','[]','{}',convert_to($3,'UTF8'))",
+          [
+            privateSubmission,
+            interview,
+            JSON.stringify({ hiddenCases: [{ index: 0, status: "legacy\u0000private" }] }),
+          ],
+        );
+        await client.query(
+          "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level,private_results) VALUES($1,$2,1,$3,$4,$5,1,'[]')",
+          [privateSubmission, interview, document, epoch, fixtureId],
+        );
+        await client.query(
+          "INSERT INTO execution_jobs(id,submission_id,language,finished) VALUES($1,$2,'python',true)",
+          [crypto.randomUUID(), privateSubmission],
+        );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+      const privateArgs = [
+        "--op-id",
+        "private-backfill",
+        "--reason",
+        "fixture",
+        "--limit",
+        "1",
+        "--max-batches",
+        "1",
+      ];
+      const privateDry = JSON.parse((await cli([...privateArgs, "--dry-run"])).stdout);
+      assert.equal(privateDry.normalized, 1);
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT count(*)::int n FROM submission_result_headers WHERE submission_id=$1",
+            [privateSubmission],
+          )
+        ).rows[0].n,
+        0,
+      );
+      await assert.rejects(
+        cli([...privateArgs, "--legacy-drained"]),
+        (error: any) => error.code === 2,
+      );
+      const preview = JSON.parse(
+        (await cli(["--op-id", "private-preview", "--reason", "fixture", "--dry-run"])).stdout,
+      );
+      assert.equal(preview.privateStatuses, 1);
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT count(*)::int n FROM interview_private_status_headers WHERE submission_id=$1",
+            [privateSubmission],
+          )
+        ).rows[0].n,
+        0,
+      );
+      await assert.rejects(
+        cli([...privateArgs, "--legacy-drained"]),
+        (error: any) => error.code === 2,
+      );
+      const privateDone = JSON.parse((await cli([...privateArgs, "--legacy-drained"])).stdout);
+      assert.equal(privateDone.complete, true);
+      const privateRow = (
+        await pool.query(
+          "SELECT case_id,convert_from(status_json,'UTF8') status FROM interview_private_case_statuses WHERE submission_id=$1",
+          [privateSubmission],
+        )
+      ).rows[0];
+      assert.equal(privateRow.case_id, "hidden:0");
+      assert.equal(JSON.parse(privateRow.status), "legacy\u0000private");
       const malformed = crypto.randomUUID();
       await pool.query(
         "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases,result,result_payload) VALUES($1,'owner',$2,'run','','bad','completed','[]','{}',convert_to('{bad','UTF8'))",

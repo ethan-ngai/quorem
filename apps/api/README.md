@@ -44,7 +44,7 @@ including aggregate sums and level differences.
 
 ### Normalize retained result sidecars
 
-After applying product migrations through 059, stop and drain every legacy result writer and judge. Configure `QUOREM_OPERATOR_DATABASE_URL` with the privileged database connection and `AUTH_ORIGIN` with the issuer of the verified bootstrap administrator. Preview a bounded batch, then acknowledge the drain and repeat the same command until `complete` is `true`:
+After applying product migrations through 060, stop and drain every legacy result writer and judge. Configure `QUOREM_OPERATOR_DATABASE_URL` with the privileged database connection and `AUTH_ORIGIN` with the issuer of the verified bootstrap administrator. Preview a bounded batch, then acknowledge the drain and repeat the same command until `complete` is `true`:
 
 ```sh
 make backfill-results ARGS='--op-id result-cutover-1 --reason cutover --limit 16 --max-batches 100 --dry-run'

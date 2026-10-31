@@ -14,6 +14,12 @@ import {
   evaluatedStatusPlan,
   type EvaluatedStatusPlan,
 } from "../../judging/results/evaluated-status.ts";
+import {
+  privateStatusPlan,
+  privateStatusRef,
+  type PrivateStatusPlan,
+  type PrivateStatusRef,
+} from "./private-status-read.ts";
 import { lockInterview } from "../lifecycle/access.ts";
 type Obj = { [key: string]: JsonValue };
 /** Candidate reads never fetch the private question or its lossless fixture sidecar. */
@@ -27,6 +33,7 @@ export async function prepareInterviewSnapshot(
   version: string;
   role: string;
   statusPlan: EvaluatedStatusPlan | null;
+  privateStatusPlan: PrivateStatusPlan;
   markers: Record<
     string,
     | { kind: "statuses" }
@@ -39,7 +46,7 @@ export async function prepareInterviewSnapshot(
           ordinal: number;
           rowVersion: string;
           revealed: boolean;
-          status?: string;
+          status?: PrivateStatusRef;
         }[];
       }
   >;
@@ -81,7 +88,7 @@ export async function prepareInterviewSnapshot(
           ordinal: number;
           rowVersion: string;
           revealed: boolean;
-          status?: string;
+          status?: PrivateStatusRef;
         }[];
       }
   > = {};
@@ -144,23 +151,20 @@ export async function prepareInterviewSnapshot(
     privateMeta.ids.some((v, i) => v !== privateMeta.expected[i])
   )
     throw new Error("Interview private cases require backfill");
-  const statuses = (
-    await tx.execute<{ idx: number; status: string }>(
-      sql`SELECT DISTINCT ON ((c->>'index')::int) (c->>'index')::int AS idx,c->>'status' AS status FROM interview_execution_public e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id JOIN interviews i ON i.id=e.session_id CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(e.private_statuses)='array' AND jsonb_array_length(e.private_statuses)>0 THEN e.private_statuses WHEN jsonb_typeof(s.result->'hiddenCases')='array' THEN s.result->'hiddenCases' ELSE '[]'::jsonb END) c WHERE e.session_id=${id}::uuid AND e.question_epoch=${access.questionEpoch}::uuid AND j.language=i.language AND s.kind='submit' AND s.state='completed' AND c->>'status' IS NOT NULL AND (${access.role}='interviewer' OR EXISTS(SELECT 1 FROM interview_question_private_cases pc JOIN interview_case_visibility cv ON cv.session_id=pc.session_id AND cv.question_epoch=pc.question_epoch AND cv.case_id=pc.case_id WHERE pc.session_id=${id}::uuid AND pc.question_epoch=${access.questionEpoch}::uuid AND pc.ordinal=(c->>'index')::int)) ORDER BY (c->>'index')::int,s.admitted_at DESC,s.id DESC`,
-    )
-  ).rows;
-  const statusByIndex = new Map(statuses.map((v) => [v.idx, v.status]));
+  const privatePlan = await privateStatusPlan(tx, id, access.questionEpoch);
   const cases = (
     await tx.execute<{ id: string; ordinal: number; rowVersion: string; revealed: boolean }>(
       sql`SELECT c.case_id AS id,c.ordinal,c.xmin::text AS "rowVersion",(v.case_id IS NOT NULL) AS revealed FROM interview_question_private_cases c JOIN interview_members m ON m.session_id=c.session_id AND m.user_id=${actor.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE c.session_id=${id}::uuid AND c.question_epoch=${access.questionEpoch}::uuid AND (m.role='interviewer' OR v.case_id IS NOT NULL) ORDER BY c.ordinal`,
     )
-  ).rows.map((v) => ({
-    ...v,
-    ...(statusByIndex.has(v.ordinal) ? { status: statusByIndex.get(v.ordinal) } : {}),
-  }));
+  ).rows;
+  const casesWithStatus: Array<(typeof cases)[number] & { status?: PrivateStatusRef }> = [];
+  for (const value of cases) {
+    const status = await privateStatusRef(tx, id, access.questionEpoch, value.id);
+    casesWithStatus.push({ ...value, ...(status ? { status } : {}) });
+  }
   const marker = (revealedOnly: boolean) => {
     const key = `__quorem_stream_${nonce}_cases_${revealedOnly}__`;
-    markers[key] = { kind: "cases", revealedOnly, cases };
+    markers[key] = { kind: "cases", revealedOnly, cases: casesWithStatus };
     return key;
   };
   if (access.role === "interviewer" && cases.length) question.privateCaseDetails = marker(false);
@@ -210,5 +214,6 @@ export async function prepareInterviewSnapshot(
     role: access.role,
     markers,
     statusPlan,
+    privateStatusPlan: privatePlan,
   };
 }

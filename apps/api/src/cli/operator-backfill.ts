@@ -15,6 +15,7 @@ export class ResultBackfillFailure extends Error {
     completed: number;
     normalized: number;
     statuses: number;
+    privateStatuses: number;
     complete: false;
     outcomeUnknown: true;
   };
@@ -23,6 +24,7 @@ export class ResultBackfillFailure extends Error {
     completed: number;
     normalized: number;
     statuses: number;
+    privateStatuses: number;
     complete: false;
     outcomeUnknown: true;
   }) {
@@ -55,6 +57,7 @@ export async function runBackfill(args: string[]): Promise<{
   dryRun: boolean;
   normalized?: number;
   statuses?: number;
+  privateStatuses?: number;
 }> {
   const { values } = parseArgs({
     args,
@@ -175,9 +178,12 @@ export async function runBackfill(args: string[]): Promise<{
         await import("../adapters/postgres/judging/results/backfill.ts");
       const { backfillPublicStatusBatch, publicStatusBackfillPending } =
         await import("../adapters/postgres/judging/results/status-backfill.ts");
+      const { backfillOnePrivateStatusRun, privateStatusPending } =
+        await import("../adapters/postgres/interviews/question/private-status-backfill.ts");
       let normalized = 0,
         statuses = 0,
-        phase: "results" | "statuses" = "results";
+        privateStatuses = 0,
+        phase: "results" | "statuses" | "private" = "results";
       try {
         for (let i = 0; i < (values["dry-run"] ? 1 : maxBatches) && !complete; i++) {
           for (let j = 0; j < (values["dry-run"] ? 1 : limit); j++) {
@@ -190,20 +196,36 @@ export async function runBackfill(args: string[]): Promise<{
               if (batch.attempted) continue;
               phase = "statuses";
             }
-            const count = await backfillPublicStatusBatch(effective, 1);
-            attempted += count;
-            completed += count;
-            statuses += count;
-            if (!count) {
+            if (phase === "statuses") {
+              const count = await backfillPublicStatusBatch(effective, 1);
+              attempted += count;
+              completed += count;
+              statuses += count;
+              if (count) continue;
               const pending = await effective((scope) =>
                 scope.transaction(
                   { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
                   publicStatusBackfillPending,
                 ),
               );
-              if (!pending) complete = true;
-              break;
+              if (pending) break;
+              phase = "private";
             }
+            const found = await backfillOnePrivateStatusRun(effective);
+            if (found) {
+              attempted++;
+              completed++;
+              privateStatuses++;
+              continue;
+            }
+            const pending = await effective((scope) =>
+              scope.transaction(
+                { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
+                privateStatusPending,
+              ),
+            );
+            if (!pending) complete = true;
+            break;
           }
         }
       } catch {
@@ -212,11 +234,20 @@ export async function runBackfill(args: string[]): Promise<{
           completed,
           normalized,
           statuses,
+          privateStatuses,
           complete: false,
           outcomeUnknown: true,
         });
       }
-      return { attempted, completed, complete, dryRun: values["dry-run"]!, normalized, statuses };
+      return {
+        attempted,
+        completed,
+        complete,
+        dryRun: values["dry-run"]!,
+        normalized,
+        statuses,
+        privateStatuses,
+      };
     }
     for (let i = 0; i < (values["dry-run"] ? 1 : maxBatches); i++) {
       const batch = values["private-results"]
