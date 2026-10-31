@@ -5,9 +5,9 @@ import {
 } from "./image-processing.ts";
 import { profileMutationLifetimeMs, type ProfileMutationBudget } from "./profile-budget.ts";
 import type { ProfileStorage } from "./profile-storage.ts";
+import { photoPrefix, profilePhotoKey as storedKey, validPhotoKey } from "./profile-object-key.ts";
+export { photoPrefix } from "./profile-object-key.ts";
 
-export const photoPrefix = "/api/auth/profile-photos/";
-const keyPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const byteLimit = 5 * 1024 * 1024;
 export type Profile = {
   id: string;
@@ -38,11 +38,6 @@ const publicProfile = ({ id, name, email, username, image, profile_color }: Prof
   username,
   image: storedKey(image) ? image : null,
 });
-const storedKey = (image: string | null | undefined) => {
-  if (!image?.startsWith(photoPrefix)) return undefined;
-  const key = image.slice(photoPrefix.length);
-  return keyPattern.test(key) ? key : undefined;
-};
 
 async function boundedBody(request: Request, signal?: AbortSignal) {
   if (Number(request.headers.get("content-length")) > byteLimit) return undefined;
@@ -105,7 +100,7 @@ export function createProfileHandler(options: {
     const pathname = new URL(request.url).pathname;
     if (pathname.startsWith(photoPrefix) && request.method === "GET") {
       const key = pathname.slice(photoPrefix.length);
-      if (!keyPattern.test(key) || !(await options.repository.contains(photoPrefix + key)))
+      if (!validPhotoKey(key) || !(await options.repository.contains(photoPrefix + key)))
         return json(404, { error: "Photo not found" });
       if (!options.storage) return json(503, { error: "Photo storage unavailable" });
       const image = await options.storage.get(key);

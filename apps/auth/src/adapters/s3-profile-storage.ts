@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import type { S3ClientConfig } from "@aws-sdk/client-s3";
 import type { ProfileStorage } from "../profile-storage.ts";
+import { photoObjectPath } from "../profile-object-key.ts";
 
 export function s3ProfileStorage(bucket: string, config: S3ClientConfig): ProfileStorage {
   const client = new S3Client({
@@ -18,7 +19,7 @@ export function s3ProfileStorage(bucket: string, config: S3ClientConfig): Profil
   });
   const objectKey = (key: string) => {
     if (!/^[a-f0-9-]{36}$/.test(key)) throw new Error("Invalid photo key");
-    return `avatars/${key}.webp`;
+    return photoObjectPath(key);
   };
   return {
     async put(key, image) {
