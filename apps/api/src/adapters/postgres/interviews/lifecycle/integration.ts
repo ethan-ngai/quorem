@@ -729,7 +729,7 @@ void test("historical result reader fetches only revealed case and result bytes 
   await pool.query(
     "GRANT SELECT ON submission_result_headers,submission_result_header_fields,submission_public_result_cases,interview_execution_public,interview_snapshot_public,interview_snapshot_public_examples,interview_private_result_cases TO quorem_interview_public_test",
   );
-  const restrictedRun = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+  const restrictedRun = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) =>
     run((scope) =>
       fn({
         transaction: (options, action) =>

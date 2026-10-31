@@ -12,9 +12,11 @@ const url = (env as unknown as { RESULTS_TEST_URL: string }).RESULTS_TEST_URL;
 it("reads and cancels real owner submissions through workerd", async () => {
   const parsed = new URL(url);
   expect(["127.0.0.1", "localhost"]).toContain(parsed.hostname);
-  expect(["55459:/quorem_hono_results_test", "55465:/quorem_hono_result_stream_test"]).toContain(
-    `${parsed.port}:${parsed.pathname}`,
+  expect(["/quorem_hono_results_test", "/quorem_hono_result_stream_test"]).toContain(
+    parsed.pathname,
   );
+  expect(["postgres:", "postgresql:"]).toContain(parsed.protocol);
+  expect(parsed.searchParams.has("host")).toBe(false);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000 }, f);
   const owner = crypto.randomUUID(),

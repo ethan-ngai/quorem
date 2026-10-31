@@ -9,9 +9,11 @@ import { submissionSnapshots } from "./repository.ts";
 const url = process.env.QUOREM_RESULTS_TEST_DATABASE_URL;
 if (
   !url ||
-  !["55459:/quorem_hono_results_test", "55465:/quorem_hono_result_stream_test"].includes(
-    `${new URL(url).port}:${new URL(url).pathname}`,
+  !["/quorem_hono_results_test", "/quorem_hono_result_stream_test"].includes(
+    new URL(url).pathname,
   ) ||
+  !["postgres:", "postgresql:"].includes(new URL(url).protocol) ||
+  new URL(url).searchParams.has("host") ||
   !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
 )
   throw new Error("Disposable results database required");

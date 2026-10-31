@@ -17,7 +17,7 @@ import { resultCase } from "./projection.ts";
 import { projectedObject } from "./projected-stream.ts";
 import { LegacyJsonReader } from "./legacy-json.ts";
 import { interviewAccess } from "./interview.ts";
-type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
+type Run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) => Promise<T>;
 type Row = {
   id: string;
   workspace: string | null;
