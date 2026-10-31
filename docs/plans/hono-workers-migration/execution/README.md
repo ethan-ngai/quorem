@@ -9,18 +9,18 @@ Integration `b0597032`: [#437](https://github.com/ethan-ngai/quorem/pull/437), [
 - Node consumes SQS/Cloudflare wakes through the shared drain owner; HTTP runners no longer depend on a separate poller.
 - Native SQL practice Run/Submit and a selected two-account SQL match pass through Docker and independent verification; required CI, no skips. Browser interaction remains unverified.
 - Drain transport validation and Terraform Access have canonical owners; duplicate ingress resources removed.
-- Recovery controls, migration provenance/checksums, generation roles and failure fencing integrated. Full maintenance/resume orchestration remains unfinished.
+- Recovery controls, migration provenance/checksums, generation roles and failure fencing integrated. [Existing-stage maintenance](38g-stage-maintenance.md) now provides persisted operations, pinned pause, writer fencing and bounded known-attempt teardown. Full history proof and resume orchestration remain unfinished.
 - Disposable HTTP databases and scoped session-lifetime assertions replace invalid test isolation assumptions. Native Make targets and setup docs available.
 
 Remaining release work, in order:
 
-1. Configure isolated staging database, GitHub environments, DNS/Access and restricted Terraform state; authorize hosted invocation separately.
+1. Complete the authorized isolated staging activation; resolve bootstrap provider creation errors without resetting state.
 2. Execute hosted Workers/Hyperdrive/Queues/isolation/teardown and workload gates.
 3. Finish and rehearse maintenance/resume/update under #432.
 4. Verify old-writer drain, audited retained-data normalization, avatar copy and rollback.
 5. Authorize production cutover; retire Go and replace remaining default development/deployment consumers afterward.
 
-No cloud apply/deploy or dev/main promotion occurred. User `scripts/dev.py` edit preserved. Older sections below record evidence at their implementation checkpoints.
+Isolated staging provisioning/validation was authorized. Bootstrap apply was attempted; provider resource creation failed before image publication, database migration or Worker deployment. Plan-only inspection [41239493522](https://github.com/ethan-ngai/quorem/actions/runs/41239493522) found only the private generated-secret record in bootstrap state; preserve it. New provider diagnostics [#445](https://github.com/ethan-ngai/quorem/pull/445) expose fixed error metadata only. No dev/main or production promotion occurred. User `scripts/dev.py` edit preserved. Older sections below record evidence at their implementation checkpoints.
 
 ## Baseline 00
 
