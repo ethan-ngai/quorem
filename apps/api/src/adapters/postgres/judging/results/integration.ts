@@ -152,14 +152,14 @@ before(async () => {
     [interview],
   );
   const fixture = JSON.stringify({
-    problem: { odyssey: { levels: [{}, {}] } },
+    problem: { id: version, odyssey: { levels: [{}, {}] } },
     odysseyHiddenCases: [
       [{ args: [1], expected: "PRIVATE-FIRST" }],
       [{ args: [2], expected: "PRIVATE-FUTURE" }],
     ],
   });
   const lossless = Buffer.from(
-    '{"problem":{"odyssey":{"levels":[{},{}]}},"odysseyHiddenCases":[[{"args":[9007199254740993],"expected":"PRIVATE-FIRST\\u0000"}],[{"args":[2],"expected":"PRIVATE-FUTURE"}]]}',
+    `{"problem":{"id":"${version}","odyssey":{"levels":[{},{}]}},"odysseyHiddenCases":[[{"args":[9007199254740993],"expected":"PRIVATE-FIRST\\u0000"}],[{"args":[2],"expected":"PRIVATE-FUTURE"}]]}`,
   );
   const row = await pool.query(
     "WITH f AS (SELECT jsonb_set($2::jsonb,'{_lossless_sha256}',to_jsonb(encode(sha256($3::bytea),'hex'))) AS value) INSERT INTO interview_question_snapshots(session_id,id,fixture,lossless_fixture) SELECT $1,sha256(convert_to(value::text,'UTF8')),value,$3 FROM f RETURNING id",
@@ -194,11 +194,11 @@ before(async () => {
     client.release();
   }
   const { backfillSubmissionResult } = await import("./backfill.ts");
-  const { backfillSnapshotPublicExamples } =
-    await import("../../interviews/question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } =
+    await import("../../interviews/runner-inputs/legacy-backfill.ts");
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillSnapshotPublicExamples(tx, interview, row.rows[0].id),
+      backfillHistoricalRunnerInput(tx, interview, row.rows[0].id),
     ),
   );
   for (const id of [done, interviewSubmission])
@@ -855,8 +855,8 @@ void test("legacy repair samples source only after acquiring the execution lock"
 void test("actual 27 interview promotion feeds authorized streamed results", async () => {
   const { postgresCompletionStaging } = await import("../worker/staging.ts");
   const { postgresCompletionPromotion } = await import("../worker/promote.ts");
-  const { backfillSnapshotPublicExamples } =
-    await import("../../interviews/question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } =
+    await import("../../interviews/runner-inputs/legacy-backfill.ts");
   const session = crypto.randomUUID(),
     questionEpoch = crypto.randomUUID(),
     documentEpoch = crypto.randomUUID(),
@@ -918,7 +918,7 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   }
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillSnapshotPublicExamples(tx, session, fixtureId),
+      backfillHistoricalRunnerInput(tx, session, fixtureId),
     ),
   );
   const job = {

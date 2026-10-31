@@ -59,28 +59,18 @@ it.skipIf(!url)(
         [id, state.rows[0].question_epoch],
       );
       expect(mapping.rows).toEqual([{ sealed: true }]);
-      const { backfillInterviewPublicExamples, backfillSnapshotPublicExamples } =
-        await import("./public-examples.ts");
-      const fixtureId = (
-        await pool.query(
-          "SELECT fixture_id FROM interview_active_runner_inputs WHERE session_id=$1",
-          [id],
-        )
-      ).rows[0].fixture_id;
-      await expect(
-        run((scope) =>
+      const { backfillActiveRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
+      await pool.query(
+        "DELETE FROM interview_public_examples WHERE session_id=$1 AND question_epoch=$2 AND level=0",
+        [id, state.rows[0].question_epoch],
+      );
+      expect(
+        await run((scope) =>
           scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-            backfillInterviewPublicExamples(tx, id, state.rows[0].question_epoch),
+            backfillActiveRunnerInput(tx, id, state.rows[0].question_epoch),
           ),
         ),
-      ).rejects.toThrow("indexed repair");
-      await expect(
-        run((scope) =>
-          scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-            backfillSnapshotPublicExamples(tx, id, fixtureId),
-          ),
-        ),
-      ).rejects.toThrow("indexed repair");
+      ).toBe(true);
       const snapshot = JSON.parse(await new Response(await read(actor, id)).text());
       expect(snapshot.question.problem.examples.length).toBeGreaterThan(0);
       const question = interviewQuestionCommands(run);
@@ -143,6 +133,21 @@ it.skipIf(!url)(
       const after = JSON.parse(await new Response(await read(actor, id)).text());
       expect(after.question.problem.odyssey.levels).toHaveLength(2);
       expect(after.questionEpoch).toBe(before.questionEpoch);
+      await Promise.all([
+        question.select(actor, id, "race-one", {
+          problemVersionId: stagedVersion,
+          language: "python",
+        }),
+        question.select(actor, id, "race-two", {
+          problemVersionId: stagedVersion,
+          language: "java",
+        }),
+      ]);
+      const fenced = await pool.query(
+        "SELECT a.question_epoch=i.question_epoch AS current FROM interviews i JOIN interview_active_runner_inputs a ON a.session_id=i.id WHERE i.id=$1",
+        [id],
+      );
+      expect(fenced.rows).toEqual([{ current: true }]);
     } finally {
       await pool.end();
     }
@@ -189,6 +194,57 @@ it.skipIf(!url)(
       await expect(
         pool.query("UPDATE problem_examples SET expected='2'::jsonb WHERE version_id=$1", [id]),
       ).rejects.toMatchObject({ code: "23514" });
+    } finally {
+      await pool.end();
+    }
+  },
+);
+
+it.skipIf(!url)(
+  "scans a locked legacy fixture in pages and fences concurrent replacement",
+  async () => {
+    const { openLegacyFixtureRanges } = await import("../runner-inputs/legacy-ranges.ts");
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 3,
+      connectionTimeoutMs: 3000,
+      idleTimeoutMs: 5000,
+      onIdleError: () => {},
+    });
+    const host = `legacy-${crypto.randomUUID()}`,
+      id = crypto.randomUUID(),
+      epoch = crypto.randomUUID();
+    const raw =
+      '{"problem":{"examples":[{"args":["é\\u0000"],"expected":9007199254740993}]},"hiddenCases":[{"args":["private"],"expected":1}]}';
+    const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+      withNodeConnection(pool, { lifetimeMs: 10000 }, fn);
+    try {
+      await pool.query("INSERT INTO users(id,display_name) VALUES($1,$1)", [host]);
+      await pool.query(
+        "INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token,lossless_question) VALUES($1,$2,'Legacy','{}','python','',$3,$4,$5,'x',$6,'y',convert_to($7,'UTF8'))",
+        [id, host, crypto.randomUUID(), epoch, crypto.randomUUID(), crypto.randomUUID(), raw],
+      );
+      let update: Promise<unknown> | undefined;
+      await run((scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+          const opened = await openLegacyFixtureRanges(tx, { session: id, epoch });
+          expect(opened.ranges.cases).toHaveLength(2);
+          expect(await opened.readCase(opened.ranges.cases[0])).toContain("é\\u0000");
+          expect(await opened.readCase(opened.ranges.cases[1])).toContain("private");
+          let done = false;
+          update = pool
+            .query("UPDATE interviews SET lossless_question=convert_to('{}','UTF8') WHERE id=$1", [
+              id,
+            ])
+            .finally(() => {
+              done = true;
+            });
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          expect(done).toBe(false);
+          expect(await opened.verify()).toBe(true);
+        }),
+      );
+      await update;
     } finally {
       await pool.end();
     }

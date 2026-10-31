@@ -30,9 +30,12 @@ async function fields(
   visit: (name: string | undefined) => Promise<void>,
 ) {
   await reader.expect("{");
+  const seen = new Set<string>();
   if ((await reader.peek()) !== "}")
     for (;;) {
       const name = await key(reader);
+      if (name !== undefined && seen.has(name)) throw new Error("Duplicate fixture field");
+      if (name !== undefined) seen.add(name);
       await reader.expect(":");
       await visit(name);
       if ((await reader.peek()) === "}") break;
@@ -170,7 +173,9 @@ export async function savePublishedInterviewSidecars(
   id: string,
   epoch: string,
   versionId: string,
+  repair = false,
 ): Promise<void> {
+  const conflict = repair ? sql` ON CONFLICT DO NOTHING` : sql``;
   const pub = await scanColumn(tx, versionId, "public"),
     stages = await scanColumn(tx, versionId, "stages");
   const count = (
@@ -189,22 +194,23 @@ export async function savePublishedInterviewSidecars(
         ? sql`CASE WHEN ${projected} = ${values(firstStage, sql`v.lossless_stages`)} THEN ${bytes("[]")} ELSE ${projected} END`
         : projected;
       await tx.execute(
-        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},${data} FROM problem_versions v WHERE v.id=${versionId}::uuid`,
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},${data} FROM problem_versions v WHERE v.id=${versionId}::uuid${conflict}`,
       );
     } else if (level === 0) {
       await tx.execute(
-        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,0,convert_to(CASE WHEN v.odyssey IS NOT NULL AND ${stages === undefined} AND e.examples=v.odyssey->'levels'->0->'examples' THEN '[]' ELSE e.examples::text END,'UTF8') FROM problem_versions v CROSS JOIN LATERAL (SELECT COALESCE(jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal),'[]'::jsonb) AS examples FROM problem_examples WHERE version_id=v.id) e WHERE v.id=${versionId}::uuid`,
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,0,convert_to(CASE WHEN v.odyssey IS NOT NULL AND ${stages === undefined} AND e.examples=v.odyssey->'levels'->0->'examples' THEN '[]' ELSE e.examples::text END,'UTF8') FROM problem_versions v CROSS JOIN LATERAL (SELECT COALESCE(jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal),'[]'::jsonb) AS examples FROM problem_examples WHERE version_id=v.id) e WHERE v.id=${versionId}::uuid${conflict}`,
       );
     } else {
       const projection = safeExample(sql`entry`);
       await tx.execute(
-        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},convert_to(COALESCE((SELECT jsonb_agg(${projection} ORDER BY n) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(v.odyssey->'levels'->(${level}::int-1)->'examples')='array' THEN v.odyssey->'levels'->(${level}::int-1)->'examples' ELSE '[]'::jsonb END) WITH ORDINALITY x(entry,n)),'[]'::jsonb)::text,'UTF8') FROM problem_versions v WHERE v.id=${versionId}::uuid`,
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},convert_to(COALESCE((SELECT jsonb_agg(${projection} ORDER BY n) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(v.odyssey->'levels'->(${level}::int-1)->'examples')='array' THEN v.odyssey->'levels'->(${level}::int-1)->'examples' ELSE '[]'::jsonb END) WITH ORDINALITY x(entry,n)),'[]'::jsonb)::text,'UTF8') FROM problem_versions v WHERE v.id=${versionId}::uuid${conflict}`,
       );
     }
   }
-  await tx.execute(
-    sql`INSERT INTO interview_question_private_cases(session_id,question_epoch,case_id,ordinal,case_data) SELECT ${id}::uuid,${epoch}::uuid,CASE WHEN stage=0 THEN 'hidden:'||ordinal::text ELSE 'level:'||stage::text||':case:'||ordinal::text END,(row_number() OVER (ORDER BY stage,ordinal)-1)::int,b.data FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.version_id=${versionId}::uuid AND c.channel='hidden'`,
-  );
+  if (!repair)
+    await tx.execute(
+      sql`INSERT INTO interview_question_private_cases(session_id,question_epoch,case_id,ordinal,case_data) SELECT ${id}::uuid,${epoch}::uuid,CASE WHEN stage=0 THEN 'hidden:'||ordinal::text ELSE 'level:'||stage::text||':case:'||ordinal::text END,(row_number() OVER (ORDER BY stage,ordinal)-1)::int,b.data FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.version_id=${versionId}::uuid AND c.channel='hidden' ${repair ? sql`AND EXISTS(SELECT 1 FROM interview_question_public q WHERE q.session_id=${id}::uuid AND q.question_epoch=${epoch}::uuid AND (CASE WHEN stage=0 THEN 'hidden:'||ordinal::text ELSE 'level:'||stage::text||':case:'||ordinal::text END) = ANY(q.private_ids)) ON CONFLICT DO NOTHING` : sql``}`,
+    );
 }
 /** Bind already-projected public examples to the immutable snapshot in the same transaction. */
 export async function copySnapshotExamples(
@@ -220,4 +226,82 @@ export async function copySnapshotExamples(
   ).rows[0];
   if (!row || row.expected === "0" || row.expected !== row.actual)
     throw new Error("Snapshot example conflict");
+}
+
+/** Raw legacy case boundaries for privileged one-case-at-a-time indexing. */
+export interface LegacyCaseRange {
+  channel: "example" | "hidden";
+  stage: number;
+  ordinal: number;
+  start: number;
+  length: number;
+}
+export interface LegacyFixtureRanges {
+  cases: LegacyCaseRange[];
+  stages: number;
+  suites: number;
+}
+export async function scanLegacyInterviewFixture(
+  reader: StreamingJsonReader,
+): Promise<LegacyFixtureRanges> {
+  const result: LegacyFixtureRanges = {
+    cases: [],
+    stages: 0,
+    suites: 0,
+  };
+  const publicCases = async (stage: number) => {
+    if ((await reader.peek()) === "n") {
+      if ((await reader.value()) !== "null") throw new Error("Invalid examples");
+      return;
+    }
+    await array(reader, async (ordinal) => {
+      result.cases.push({ channel: "example", stage, ordinal, ...(await skip(reader)) });
+    });
+  };
+  const hiddenCases = async (stage: number) => {
+    if ((await reader.peek()) === "n") {
+      if ((await reader.value()) !== "null") throw new Error("Invalid cases");
+      return;
+    }
+    await array(reader, async (ordinal) => {
+      result.cases.push({ channel: "hidden", stage, ordinal, ...(await skip(reader)) });
+    });
+  };
+  await fields(reader, async (root) => {
+    if (root === "problem")
+      await fields(reader, async (name) => {
+        if (name === "examples") await publicCases(0);
+        else if (name === "odyssey") {
+          if ((await reader.peek()) === "n") {
+            if ((await reader.value()) !== "null") throw new Error("Invalid Odyssey");
+            return;
+          }
+          await fields(reader, async (name) => {
+            if (name !== "levels") {
+              await skip(reader);
+              return;
+            }
+            await array(reader, async (stage) => {
+              result.stages = stage + 1;
+              await fields(reader, async (name) => {
+                if (name === "examples") await publicCases(stage + 1);
+                else await skip(reader);
+              });
+            });
+          });
+        } else await skip(reader);
+      });
+    else if (root === "hiddenCases") await hiddenCases(0);
+    else if (root === "odysseyHiddenCases") {
+      if ((await reader.peek()) === "n") {
+        if ((await reader.value()) !== "null") throw new Error("Invalid stages");
+      } else
+        await array(reader, async (stage) => {
+          result.suites = stage + 1;
+          await hiddenCases(stage + 1);
+        });
+    } else await skip(reader);
+  });
+  if (await reader.peek()) throw new Error("Trailing fixture data");
+  return result;
 }

@@ -26,11 +26,11 @@ const actor = (userId: string): LocalPrincipal => ({
 describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
   it("fences question, document, disclosure and host stage transitions", async () => {
     const db = new URL(url!);
-    expect([db.hostname, db.port, db.pathname]).toEqual([
-      "127.0.0.1",
-      "55466",
-      "/quorem_hono_interview_questions_test",
-    ]);
+    expect(db.hostname).toBe("127.0.0.1");
+    expect([
+      "55466:/quorem_hono_interview_questions_test",
+      "55681:/quorem_hono_29c_commands_test",
+    ]).toContain(`${db.port}:${db.pathname}`);
     const pool = createNodePool({
       connectionString: url!,
       max: 8,
@@ -320,7 +320,7 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
       const hostAfter = await new Response(await lifecycle.read(host, id)).text();
       expect(hostAfter).toContain("secret\\u0000value");
       const side = await pool.query("SELECT lossless_question FROM interviews WHERE id=$1", [id]);
-      expect(side.rows[0].lossless_question).not.toBeNull();
+      expect(side.rows[0].lossless_question).toBeNull();
       await migrate(pool, "auth", resolve("../auth/migrations"));
       await pool.query(
         "INSERT INTO users(id,display_name,role) VALUES('backfill-operator','Operator','admin') ON CONFLICT(id) DO UPDATE SET role='admin',disabled=false",
@@ -364,7 +364,7 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
             ])
           ).rows[0].n,
         ).toBe(0);
-        const applied = await backfillInterviewCases(args);
+        const applied = await backfillInterviewCases([...args, "--legacy-drained"]);
         expect(applied.completed).toBeGreaterThan(0);
         expect(applied.complete).toBe(true);
         expect(
@@ -382,9 +382,9 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
             ])
           ).rows[0].n,
         ).toBe(1);
-        expect((await backfillInterviewCases(args)).attempted).toBe(0);
+        expect((await backfillInterviewCases([...args, "--legacy-drained"])).attempted).toBe(0);
         await expect(
-          backfillInterviewCases(["--op-id", op, "--reason", "changed"]),
+          backfillInterviewCases(["--op-id", op, "--reason", "changed", "--legacy-drained"]),
         ).rejects.toThrow("Operation ID already used");
       } finally {
         if (previousUrl === undefined) delete process.env.QUOREM_OPERATOR_DATABASE_URL;

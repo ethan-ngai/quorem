@@ -5,12 +5,12 @@ import { it, expect } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { developmentIdentity } from "../../identity/repository.ts";
-import { backfillInterviewPublicExamples } from "../question/public-examples.ts";
 import { interviewSnapshotStream } from "../question/stream.ts";
 const url = (env as unknown as { INTERVIEW_TEST_URL: string }).INTERVIEW_TEST_URL;
 it("reads a revealed private case without exposing other cases in workerd", async () => {
   const parsed = new URL(url);
   expect([
+    "55681:/quorem_hono_29c_lifecycle_test",
     "55462:/quorem_hono_interview_test",
     "55489:/quorem_hono_stream_lifecycle_test",
   ]).toContain(`${parsed.port}:${parsed.pathname}`);
@@ -23,20 +23,21 @@ it("reads a revealed private case without exposing other cases in workerd", asyn
       async (tx) =>
         (
           await tx.execute<{ id: string; epoch: string }>(
-            sql`SELECT id::text,question_epoch::text AS epoch FROM interviews WHERE title='Projection'`,
+            sql`SELECT i.id::text,p.question_epoch::text AS epoch FROM interviews i JOIN interview_public_examples p ON p.session_id=i.id WHERE i.title='Projection' AND p.level=1 AND position(convert_to('9007199254740993','UTF8') IN p.examples)>0 ORDER BY p.question_epoch LIMIT 1`,
           )
         ).rows[0],
     ),
   );
   await run((scope) =>
-    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillInterviewPublicExamples(tx, row.id, row.epoch),
-    ),
-  );
-  await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(
-        sql`INSERT INTO interview_case_visibility(session_id,question_epoch,case_id) VALUES(${row.id}::uuid,${row.epoch}::uuid,'level:1:case:0')`,
+        sql`UPDATE interviews SET question_epoch=${row.epoch}::uuid WHERE id=${row.id}::uuid`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT e.session_id,${row.epoch}::uuid,e.level,e.examples FROM interview_snapshot_public_examples e WHERE e.session_id=${row.id}::uuid AND EXISTS(SELECT 1 FROM interview_snapshot_public_examples first WHERE first.session_id=e.session_id AND first.fixture_id=e.fixture_id AND first.level=1 AND position(convert_to('9007199254740993','UTF8') IN first.examples)>0) ON CONFLICT DO NOTHING`,
+      );
+      await tx.execute(
+        sql`INSERT INTO interview_case_visibility(session_id,question_epoch,case_id) VALUES(${row.id}::uuid,${row.epoch}::uuid,'level:1:case:0') ON CONFLICT DO NOTHING`,
       );
     }),
   );

@@ -54,11 +54,23 @@ it.skipIf(!url)(
         await tx.execute(
           sql`INSERT INTO problem_examples(version_id,ordinal,args,expected,explanation,calls) VALUES(${version}::uuid,0,'["placeholder"]'::jsonb,'9007199254740993'::jsonb,'public explanation','[]'::jsonb)`,
         );
+        const { parseLosslessJson } = await import("@quorem/questions");
+        const { encodeFixtureMetadata, storeFixtureBlob } =
+          await import("../../judging/inputs/fixture.ts");
+        const { fixtureSourceHash } = await import("../../judging/inputs/source.ts");
+        const baseMetadata = (
+          await tx.execute<{ data: Uint8Array }>(
+            sql`SELECT b.data FROM runner_version_inputs r JOIN runner_input_blobs b ON b.hash=r.metadata_hash WHERE r.version_id=${base}::uuid`,
+          )
+        ).rows[0].data;
+        const problem = parseLosslessJson(new TextDecoder().decode(baseMetadata)) as {
+          [key: string]: import("@quorem/questions").JsonValue;
+        };
+        problem.id = version;
+        const metadataHash = await storeFixtureBlob(tx, await encodeFixtureMetadata(tx, problem));
+        const fixtureHash = await fixtureSourceHash(tx, { version });
         await tx.execute(
-          sql`WITH data AS (SELECT convert_to(jsonb_set(convert_from(b.data,'UTF8')::jsonb,'{id}',to_jsonb(${version}::text))::text,'UTF8') AS value FROM runner_version_inputs r JOIN runner_input_blobs b ON b.hash=r.metadata_hash WHERE r.version_id=${base}::uuid) INSERT INTO runner_input_blobs(hash,data) SELECT sha256(value),value FROM data ON CONFLICT DO NOTHING`,
-        );
-        await tx.execute(
-          sql`INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) SELECT ${version}::uuid,sha256(convert_to(jsonb_set(convert_from(b.data,'UTF8')::jsonb,'{id}',to_jsonb(${version}::text))::text,'UTF8')),sha256(convert_to('legacy fixture','UTF8')) FROM runner_version_inputs r JOIN runner_input_blobs b ON b.hash=r.metadata_hash WHERE r.version_id=${base}::uuid`,
+          sql`INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) VALUES(${version}::uuid,${metadataHash},${fixtureHash})`,
         );
         await tx.execute(
           sql`WITH input AS (SELECT convert_to('{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"calls":[{"args":[],"expected":1,"methodName":"safeCall","referenceSource":"NESTED_SECRET"}],"expected":9007199254740993}','UTF8') AS data) INSERT INTO runner_input_blobs(hash,data) SELECT sha256(data),data FROM input ON CONFLICT DO NOTHING`,
@@ -134,6 +146,55 @@ it.skipIf(!url)(
     );
     expect(info.size).toBeGreaterThan(64 * 1024 * 1024);
     await commands.language(actor, created.id, "large-language", "java", info.doc);
+    const current = await run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
+        async (tx) =>
+          (
+            await tx.execute<{ source: string; doc: string }>(
+              sql`SELECT source,document_epoch::text AS doc FROM interviews WHERE id=${created.id}::uuid`,
+            )
+          ).rows[0],
+      ),
+    );
+    const { sourceHash } = await import("@quorem/execution");
+    const { parseInterviewExecution } =
+      await import("../../../../modules/interviews/execution/command.ts");
+    const { postgresInterviewAdmission } = await import("../execution/repository.ts");
+    const { prearmReceipts } = await import("../../events/scheduling/prearm.ts");
+    const receiptId = crypto.randomUUID(),
+      jobId = crypto.randomUUID(),
+      shard = 21;
+    await prearmReceipts(run, "execution").create(receiptId, shard);
+    const execution = await parseInterviewExecution(
+      JSON.stringify({
+        kind: "submit",
+        level: 1,
+        questionEpoch: info.epoch,
+        documentEpoch: current.doc,
+        sourceHash: await sourceHash(current.source),
+      }),
+      "large",
+    );
+    await postgresInterviewAdmission(run, { losslessCases: true, guestExecution: true })(
+      readerActor,
+      created.id,
+      "large-submit",
+      execution,
+      { receiptId, jobId, shard },
+    );
+    const manifest = await run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
+        async (tx) =>
+          (
+            await tx.execute<{ sealed: boolean; count: number }>(
+              sql`SELECT i.sealed,count(c.ordinal)::int AS count FROM runner_job_inputs i JOIN runner_job_input_cases c ON c.job_id=i.job_id WHERE i.job_id=${jobId}::uuid GROUP BY i.job_id`,
+            )
+          ).rows[0],
+      ),
+    );
+    expect(manifest).toEqual({ sealed: true, count: 2 });
     const stream = (await read(readerActor, created.id)).getReader(),
       decoder = new TextDecoder();
     let length = 0,

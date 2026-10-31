@@ -6,12 +6,12 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import { migrate } from "@quorem/database/migrations";
 import { sql } from "drizzle-orm";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
-import { operationFingerprint } from "./operations.ts";
 import { interviewLifecycle } from "./repository.ts";
 const url = process.env.QUOREM_INTERVIEW_TEST_DATABASE_URL;
 if (
   !url ||
   ![
+    "55681:/quorem_hono_29c_lifecycle_test",
     "55462:/quorem_hono_interview_test",
     "55465:/quorem_hono_result_stream_test",
     "55489:/quorem_hono_stream_lifecycle_test",
@@ -43,17 +43,10 @@ const host = actor("interview-host"),
   member = actor("interview-member"),
   other = actor("interview-other");
 const repo = interviewLifecycle(run, {
-  // SQL-backed fixture collaborators isolate lifecycle behavior until 23a is composed.
-  question: async (_tx, _actor, c) => ({
-    safe: JSON.stringify({
-      problem: { title: "Public" },
-      hiddenCases: [{ expected: "PRIVATE FIXTURE" }],
-    }),
-    lossless: null,
-    source: "PRIVATE SOURCE",
-    language: "python",
-    fingerprint: await operationFingerprint("create", c.title),
-  }),
+  question: async (tx, actor, command) => {
+    const { preparePublishedInterviewQuestion } = await import("../question/prepare.ts");
+    return preparePublishedInterviewQuestion(tx, actor, command);
+  },
   snapshot: async (who, id) => {
     const value = await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
@@ -86,6 +79,7 @@ const repo = interviewLifecycle(run, {
     return new Response(value).body!;
   },
 });
+let fixtureVersion = "";
 let id = "",
   invite = "",
   interviewer = "";
@@ -99,12 +93,44 @@ before(async () => {
     "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,'interview-host','interviews.host','manual','test','test','test')",
     [crypto.randomUUID()],
   );
+  await pool.query(
+    "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,'interview-host','questions.custom','manual','fixture','test','test')",
+    [crypto.randomUUID()],
+  );
+  const { readFileSync } = await import("node:fs");
+  const { questionAuthoring } = await import("../../problems/authoring/repository.ts");
+  const runtime = (language: string) =>
+    (
+      ({
+        python: { revision: "python-3.12-v1", harness: "quorem-harness-v2" },
+        java: { revision: "java-21.0.9-v1", harness: "quorem-java-v1" },
+        typescript: {
+          revision: "typescript-5.9.3-node-22.21.1-v1",
+          harness: "quorem-typescript-v1",
+        },
+        ocaml: { revision: "ocaml-4.13.1-v1", harness: "quorem-ocaml-v1" },
+        postgresql: { revision: "postgresql-17.6-v1", harness: "quorem-postgresql-v2" },
+      }) as Record<string, { revision: string; harness: string }>
+    )[language];
+  const content = JSON.parse(
+    readFileSync(resolve("../../fixtures/problems/run-widths.json"), "utf8"),
+  );
+  content.problem.slug = `lifecycle-${crypto.randomUUID()}`;
+  const author = questionAuthoring(run, runtime),
+    actor = { userId: host.userId, admin: false };
+  const draft = JSON.parse(await author.create(actor, JSON.stringify(content), undefined));
+  fixtureVersion = JSON.parse(
+    await author.publish(actor, draft.id, draft.revision, "private"),
+  ).publishedVersionId;
 });
 after(async () => {
   await pool.end();
 });
 void test("creation serializes host capacity and preserves retry identity", async () => {
-  const input = { title: "Room", question: { problemVersionId: "fixture", language: "python" } };
+  const input = {
+    title: "Room",
+    question: { problemVersionId: fixtureVersion, language: "python" },
+  };
   const results = await Promise.allSettled(
     Array.from({ length: 3 }, (_, i) => repo.create(host, `create-${i}`, input)),
   );
@@ -200,7 +226,10 @@ void test("grant revocation freezes joins but still permits close/delete and pre
 void test("admission locking serializes close and concurrent joins", async () => {
   await pool.query("UPDATE entitlement_grants SET revoked_at=NULL WHERE user_id='interview-host'");
   const created = JSON.parse(
-    await repo.create(host, "race-create", { title: "Race", question: {} }),
+    await repo.create(host, "race-create", {
+      title: "Race",
+      question: { problemVersionId: fixtureVersion, language: "python" },
+    }),
   );
   const room = created.id as string,
     token = JSON.parse(await new Response(await repo.read(host, room)).text()).invites
@@ -226,7 +255,7 @@ void test("admission locking serializes close and concurrent joins", async () =>
 });
 void test("public snapshots read only unlocked examples and authorized revealed case bytes", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
-  const { backfillInterviewPublicExamples } = await import("../question/public-examples.ts");
+  const { backfillActiveRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
   const { interviewSnapshotStream } = await import("../question/stream.ts");
   const interviewSnapshot = interviewSnapshotStream(run);
   const id = crypto.randomUUID(),
@@ -248,7 +277,7 @@ void test("public snapshots read only unlocked examples and authorized revealed 
   assert.equal(
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillInterviewPublicExamples(tx, id, crypto.randomUUID()),
+        backfillActiveRunnerInput(tx, id, crypto.randomUUID()),
       ),
     ),
     false,
@@ -256,7 +285,7 @@ void test("public snapshots read only unlocked examples and authorized revealed 
   assert.equal(
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillInterviewPublicExamples(tx, id, epoch),
+        backfillActiveRunnerInput(tx, id, epoch),
       ),
     ),
     true,
@@ -339,7 +368,7 @@ void test("public snapshots read only unlocked examples and authorized revealed 
   await assert.rejects(read(member));
 });
 void test("backfill CAS rejects a changed question epoch after waiting for the lock", async () => {
-  const { backfillInterviewPublicExamples } = await import("../question/public-examples.ts");
+  const { backfillActiveRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
   const row = (
     await pool.query(
       "SELECT id::text,question_epoch::text FROM interviews WHERE title='Projection'",
@@ -351,7 +380,7 @@ void test("backfill CAS rejects a changed question epoch after waiting for the l
     await client.query("SELECT id FROM interviews WHERE id=$1 FOR UPDATE", [row.id]);
     const pending = run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillInterviewPublicExamples(tx, row.id, row.question_epoch),
+        backfillActiveRunnerInput(tx, row.id, row.question_epoch),
       ),
     );
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -550,12 +579,11 @@ void test("real HTTP guest join shares origin, budget, cookie and bearer precede
 });
 void test("immutable fixture backfill gates complete staged public sidecars", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
-  const { backfillSnapshotPublicExamples, readSnapshotPublicExamples } =
-    await import("../question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
+  const { readSnapshotPublicExamples } = await import("../question/public-examples.ts");
   const session = (await pool.query("SELECT id::text FROM interviews WHERE title='Projection'"))
     .rows[0].id as string;
-  const raw =
-    '{"problem":{"examples":[],"odyssey":{"levels":[{"examples":[{"args":[9007199254740993],"expected":"x\\u0000"}]},{"examples":[{"args":[],"expected":"future"}]}]}},"odysseyHiddenCases":[[],[]],"hiddenCases":[]}';
+  const raw = `{"problem":{"id":"${crypto.randomUUID()}","examples":[],"odyssey":{"levels":[{"examples":[{"args":[9007199254740993],"expected":"x\\u0000"}]},{"examples":[{"args":[],"expected":"future"}]}]}},"odysseyHiddenCases":[[],[]],"hiddenCases":[]}`;
   const safe = storageProjection(raw);
   assert.ok(safe.lossless);
   const row = (
@@ -575,7 +603,7 @@ void test("immutable fixture backfill gates complete staged public sidecars", as
   assert.equal(
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-        backfillSnapshotPublicExamples(tx, session, fixtureId),
+        backfillHistoricalRunnerInput(tx, session, fixtureId),
       ),
     ),
     true,
@@ -655,16 +683,16 @@ void test("HTTP custom creation preserves lossless numeric test cases", async ()
   assert.match(await (await app.request(`/v1/interviews/${ack.id}`)).text(), /9007199254740993/);
 });
 void test("privileged backfill runs in bounded batches", async () => {
-  const { backfillInterviewBatch } = await import("../question/backfill.ts");
-  const first = await backfillInterviewBatch(run, 1);
+  const { backfillRunnerInputsBatch } = await import("../runner-inputs/legacy-backfill.ts");
+  const first = await backfillRunnerInputsBatch(run, 1);
   assert.ok(first.attempted <= 1);
   assert.ok(first.completed <= first.attempted);
   assert.deepEqual(Object.keys(first).sort(), ["attempted", "completed"]);
-  await assert.rejects(backfillInterviewBatch(run, 65));
+  await assert.rejects(backfillRunnerInputsBatch(run, 65));
 });
 void test("historical result reader fetches only revealed case and result bytes under restricted role", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");
-  const { backfillSnapshotPublicExamples } = await import("../question/public-examples.ts");
+  const { backfillHistoricalRunnerInput } = await import("../runner-inputs/legacy-backfill.ts");
   const { backfillPrivateResultCases, savePrivateResultCase } =
     await import("../question/private-results.ts");
   const { submissionSnapshots } = await import("../../judging/results/repository.ts");
@@ -680,8 +708,7 @@ void test("historical result reader fetches only revealed case and result bytes 
   ]);
   const submission = crypto.randomUUID(),
     document = crypto.randomUUID();
-  const raw =
-    '{"problem":{"examples":[]},"hiddenCases":[{"args":[9007199254740993],"expected":"PRIVATE-A\\u0000"},{"args":[2],"expected":"PRIVATE-B"}]}';
+  const raw = `{"problem":{"id":"${crypto.randomUUID()}","examples":[]},"hiddenCases":[{"args":[9007199254740993],"expected":"PRIVATE-A\\u0000"},{"args":[2],"expected":"PRIVATE-B"}]}`;
   const fixture = storageProjection(raw);
   const q = (
     await pool.query(
@@ -731,7 +758,7 @@ void test("historical result reader fetches only revealed case and result bytes 
   );
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-      backfillSnapshotPublicExamples(tx, session.id, q),
+      backfillHistoricalRunnerInput(tx, session.id, q),
     ),
   );
   await run((scope) =>
