@@ -8,7 +8,6 @@ export type {
   Completion,
   CompletionHeader,
   CompletionFieldChunk,
-  ExecutionSpec,
   Checkpoint,
   CheckpointCase,
   SandboxControl,
@@ -44,14 +43,6 @@ export { encodeCompletion, decodeCompletion } from "./completion.ts";
 
 export { encodeJudgeFrame, decodeJudgeFrame } from "./judge-frame.ts";
 export type { JudgeFrame } from "./judge-frame.ts";
-export {
-  checkpointProvenance,
-  caseInvocationBinding,
-  encodeCheckpointFrame,
-  decodeCheckpointFrame,
-  assertCheckpointProvenance,
-} from "./checkpoint-provenance.ts";
-export type { CheckpointProvenance } from "./checkpoint-provenance.ts";
 export { compressCheckpointFrame, decompressCheckpointFrame } from "./checkpoint-compression.ts";
 export { validateCompiledArtifact } from "./artifact.ts";
 

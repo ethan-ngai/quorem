@@ -103,6 +103,69 @@ export async function executeAndStage(
       let artifact = checkpoint.artifact,
         compilation = checkpoint.compilationNanos,
         fatal = checkpoint.fatal ? decodeJudgeFrame(checkpoint.fatal) : undefined;
+      const publicCount = manifest.kind === "run" ? manifest.caseCount : 0,
+        sampleCount =
+          manifest.kind === "submit" && !manifest.submitCasesAreSamples ? manifest.sampleCount : 0,
+        privateCount = manifest.kind === "submit" ? manifest.caseCount : 0;
+      const header: CompletionHeader = {
+        submissionId: job.submissionId,
+        attemptId: job.attemptId,
+        engineFailure: false,
+        diagnosticsPresent: false,
+        publicPresent: publicCount > 0,
+        samplePresent: sampleCount > 0,
+        privatePresent: privateCount > 0,
+        publicCount,
+        sampleCount,
+        privateCount,
+      };
+      await repository.beginCompletion(job, header, signal);
+      async function stage(ordinal: number, frame: JudgeFrame): Promise<void> {
+        const sample = ordinal >= manifest.caseCount;
+        const channel = manifest.kind === "run" ? "public" : sample ? "sample" : "private",
+          index = sample ? ordinal - manifest.caseCount : ordinal;
+        if (frame.actual !== undefined && frame.status === "executed")
+          await field(repository, job, channel, index, "actual", frame.actual, signal);
+        if (frame.stdout)
+          await field(
+            repository,
+            job,
+            channel,
+            index,
+            "stdout",
+            JSON.stringify(frame.stdout),
+            signal,
+          );
+        let stderr = frame.stderr;
+        const diagnostics: { message: string; line?: number }[] = [];
+        if (job.language === "postgresql" && frame.status !== "executed" && stderr) {
+          diagnostics.push({ message: stderr, ...(frame.line ? { line: frame.line } : {}) });
+          stderr = "";
+        } else if (frame.line) diagnostics.push({ message: "Syntax error", line: frame.line });
+        if (stderr)
+          await field(repository, job, channel, index, "stderr", JSON.stringify(stderr), signal);
+        if (diagnostics.length)
+          await field(
+            repository,
+            job,
+            channel,
+            index,
+            "diagnostics",
+            JSON.stringify(diagnostics),
+            signal,
+          );
+        if (frame.sqlTypes?.length && frame.status === "executed")
+          await field(
+            repository,
+            job,
+            channel,
+            index,
+            "sqlTypes",
+            JSON.stringify(frame.sqlTypes),
+            signal,
+          );
+        await repository.sealCompletionFrame(job, channel, index, frame.status, signal);
+      }
       if (checkpoint.nextOrdinal > 0)
         await repository.replayCheckpoint(
           job,
@@ -122,6 +185,7 @@ export async function executeAndStage(
               envelope.frame,
               ordinal === checkpoint.nextOrdinal - 1 ? checkpoint : undefined,
             );
+            await stage(ordinal, envelope.frame);
           },
           signal,
         );
@@ -232,89 +296,8 @@ export async function executeAndStage(
           },
           signal,
         );
+        await stage(ordinal, stored);
       }
-      const publicCount = manifest.kind === "run" ? manifest.caseCount : 0,
-        sampleCount =
-          manifest.kind === "submit" && !manifest.submitCasesAreSamples ? manifest.sampleCount : 0,
-        privateCount = manifest.kind === "submit" ? manifest.caseCount : 0;
-      const header: CompletionHeader = {
-        submissionId: job.submissionId,
-        attemptId: job.attemptId,
-        engineFailure: false,
-        diagnosticsPresent: false,
-        publicPresent: publicCount > 0,
-        samplePresent: sampleCount > 0,
-        privatePresent: privateCount > 0,
-        publicCount,
-        sampleCount,
-        privateCount,
-      };
-      await repository.beginCompletion(job, header, signal);
-      await repository.replayCheckpoint(
-        job,
-        total,
-        async (ordinal, bytes) => {
-          const envelope = decodeManifestCheckpointFrame(
-            new TextDecoder("utf-8", { fatal: true }).decode(bytes),
-          );
-          const ref = await repository.inputCaseRef(job, ordinal, signal);
-          await assertManifestCheckpoint(
-            job,
-            manifest,
-            ref,
-            ordinal,
-            envelope.provenance,
-            false,
-            envelope.frame,
-          );
-          const frame = envelope.frame,
-            sample = ordinal >= manifest.caseCount;
-          const channel = manifest.kind === "run" ? "public" : sample ? "sample" : "private",
-            index = sample ? ordinal - manifest.caseCount : ordinal;
-          if (frame.actual !== undefined && frame.status === "executed")
-            await field(repository, job, channel, index, "actual", frame.actual, signal);
-          if (frame.stdout)
-            await field(
-              repository,
-              job,
-              channel,
-              index,
-              "stdout",
-              JSON.stringify(frame.stdout),
-              signal,
-            );
-          let stderr = frame.stderr;
-          const diagnostics: { message: string; line?: number }[] = [];
-          if (job.language === "postgresql" && frame.status !== "executed" && stderr) {
-            diagnostics.push({ message: stderr, ...(frame.line ? { line: frame.line } : {}) });
-            stderr = "";
-          } else if (frame.line) diagnostics.push({ message: "Syntax error", line: frame.line });
-          if (stderr)
-            await field(repository, job, channel, index, "stderr", JSON.stringify(stderr), signal);
-          if (diagnostics.length)
-            await field(
-              repository,
-              job,
-              channel,
-              index,
-              "diagnostics",
-              JSON.stringify(diagnostics),
-              signal,
-            );
-          if (frame.sqlTypes?.length && frame.status === "executed")
-            await field(
-              repository,
-              job,
-              channel,
-              index,
-              "sqlTypes",
-              JSON.stringify(frame.sqlTypes),
-              signal,
-            );
-          await repository.sealCompletionFrame(job, channel, index, frame.status, signal);
-        },
-        signal,
-      );
       return header;
     } finally {
       await metadata.dispose();

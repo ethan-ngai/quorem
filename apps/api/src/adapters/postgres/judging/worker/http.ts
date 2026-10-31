@@ -180,8 +180,6 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
         }
         case "lease":
           return Response.json(await repository.lease(job(), body.heartbeat === true));
-        case "load":
-          return Response.json(await repository.load(job()));
         case "begin":
           await repository.beginCompletion(
             job(),

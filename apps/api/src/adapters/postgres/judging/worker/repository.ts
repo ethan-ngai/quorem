@@ -9,7 +9,6 @@ import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
 import { postgresCheckpoints } from "./checkpoints.ts";
 import { postgresInputReader } from "../inputs/read.ts";
-import { postgresExecutionLoad } from "./load.ts";
 import type { ResultVerifier } from "./verification-client.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -35,7 +34,6 @@ export function postgresExecutionCommands(
   return {
     ...claims,
     ...postgresInputReader(run),
-    load: postgresExecutionLoad(run, cap.losslessCases && cap.losslessResults),
     beginCompletion: (job, header) => staging.begin(job, header),
     writeCompletionChunk: (job, chunk) => staging.chunk(job, chunk),
     sealCompletionFrame: (job, channel, ordinal, status) =>

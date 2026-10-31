@@ -857,6 +857,12 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   const { postgresCompletionPromotion } = await import("../worker/promote.ts");
   const { backfillHistoricalRunnerInput } =
     await import("../../interviews/runner-inputs/legacy-backfill.ts");
+  const { indexRunnerFixture } = await import("../inputs/fixture.ts");
+  const { bindJobInputs } = await import("../inputs/bind.ts");
+  const { postgresInputReader } = await import("../inputs/read.ts");
+  const { postgresVerificationSource } = await import("../worker/verification-source.ts");
+  const { nodeResultVerifier } =
+    await import("../../../../../../runner/src/verification/verifier.ts");
   const session = crypto.randomUUID(),
     questionEpoch = crypto.randomUUID(),
     documentEpoch = crypto.randomUUID(),
@@ -921,6 +927,23 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
       backfillHistoricalRunnerInput(tx, session, fixtureId),
     ),
   );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+      const owner = { session, fixture: fixtureId };
+      await indexRunnerFixture(tx, owner, fixture);
+      await bindJobInputs(tx, {
+        jobId,
+        owner,
+        level: 1,
+        primary: "hidden",
+        custom: [],
+        caseCount: 1,
+        sampleCount: 0,
+        privateDetails: true,
+        submitCasesAreSamples: false,
+      });
+    }),
+  );
   const job = {
     jobId,
     submissionId: submission,
@@ -941,7 +964,24 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
       maxNestingDepth: 100,
     },
   };
-  const staging = postgresCompletionStaging(run);
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const source = postgresVerificationSource(run);
+  const verifier = nodeResultVerifier(
+    {
+      inputs: postgresInputReader(run),
+      frozenCase: (id) => source.frozenCase(id),
+      fieldPage: (id, field, offset) => source.fieldPage(id, field, offset),
+      async putField(id, field, chunks) {
+        let ordinal = 0;
+        for await (const chunk of chunks) await source.putChunk(id, field, ordinal++, chunk);
+      },
+    },
+    keys.privateKey,
+  );
+  const staging = postgresCompletionStaging(run, {
+    verifier: { verify: verifier },
+    verificationPublicKey: keys.publicKey,
+  });
   await staging.begin(job, {
     submissionId: submission,
     attemptId,
@@ -994,4 +1034,28 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   const revealed = await repo.interview(alice, session, submission);
   assert.match(revealed, /PRIVATE\\u0000OUTPUT/);
   assert.match(revealed, /"expected":2/);
+});
+void test("streams a synthetic legacy-sized 408-case result without a Worker case plan", async () => {
+  const id = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','paged','running','[]')",
+    [id, workspace],
+  );
+  await pool.query(
+    "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+    [
+      id,
+      Buffer.from(
+        '{"verdict":"accepted","publicCasesPresent":true,"publicCaseCount":408,"channel":"public"}',
+      ),
+    ],
+  );
+  await pool.query(
+    "INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT $1,'public',n,convert_to(json_build_object('index',n,'status','accepted')::text,'UTF8') FROM generate_series(0,407) n",
+    [id],
+  );
+  await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
+  const value = JSON.parse(await repo.read(alice, id));
+  assert.equal(value.publicCases.length, 408);
+  assert.equal(value.publicCases[407].index, 407);
 });

@@ -3,7 +3,6 @@ import type { ConnectionScope } from "@quorem/database/core";
 import { postgresInputReader } from "../inputs/read.ts";
 import { postgresVerificationSource } from "./verification-source.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-const encoder = new TextEncoder();
 function base64(bytes: Uint8Array): string {
   let s = "";
   for (const value of bytes) s += String.fromCharCode(value);

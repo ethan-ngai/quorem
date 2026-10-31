@@ -10,6 +10,7 @@ export interface VerificationReceipt {
   readonly ordinal: number;
   readonly channel: "public" | "sample" | "private";
   readonly status: string;
+  readonly typeMismatch: boolean;
   readonly actualHash: string | null;
   readonly expectedHash: string | null;
 }
@@ -41,6 +42,7 @@ export function verificationReceiptBytes(value: VerificationReceipt): Uint8Array
     value.ordinal > 2147483646 ||
     !["public", "sample", "private"].includes(value.channel) ||
     !statuses.has(value.status) ||
+    typeof value.typeMismatch !== "boolean" ||
     (value.actualHash !== null && !hex.test(value.actualHash)) ||
     (value.expectedHash !== null && !hex.test(value.expectedHash))
   )
@@ -58,6 +60,7 @@ export function verificationReceiptBytes(value: VerificationReceipt): Uint8Array
       value.ordinal,
       value.channel,
       value.status,
+      value.typeMismatch,
       value.actualHash,
       value.expectedHash,
     ]),

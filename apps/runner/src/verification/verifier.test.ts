@@ -1,6 +1,8 @@
+/// <reference types="node" />
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
+import { once } from "node:events";
 import {
   defaultLimits,
   verifyResultReceipt,
@@ -89,7 +91,7 @@ function setup(actual = "8") {
   };
   return { source, fields, inputs };
 }
-test("compares admitted expected value and signs bound fields, rejecting forged outcomes", async () => {
+void test("compares admitted expected value and signs bound fields, rejecting forged outcomes", async () => {
   const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const { source, fields } = setup();
   const { receipt, signature } = await nodeResultVerifier(source, keys.privateKey)("challenge");
@@ -106,10 +108,10 @@ test("compares admitted expected value and signs bound fields, rejecting forged 
     false,
   );
 });
-test("refuses changed case bytes and source outages", async () => {
+void test("refuses changed case bytes and source outages", async () => {
   const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const { source, inputs } = setup();
-  const page = inputs.inputPage;
+  const page = inputs.inputPage.bind(inputs);
   inputs.inputPage = async (...args) => {
     const result = await page(...args);
     return args[1] === "case"
@@ -123,9 +125,8 @@ test("refuses changed case bytes and source outages", async () => {
   await assert.rejects(nodeResultVerifier(source, keys.privateKey)("challenge"), /offline/);
 });
 
-test("private HTTP service authenticates callers and returns a verifiable derived receipt", async () => {
+void test("private HTTP service authenticates callers and returns a verifiable derived receipt", async () => {
   const { createServer } = await import("node:http");
-  const { once } = await import("node:events");
   const { verificationHandler } = await import("./http.ts");
   const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const { source } = setup();
@@ -163,6 +164,92 @@ test("private HTTP service authenticates callers and returns a verifiable derive
       ),
       true,
     );
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});
+void test("SQL type mismatch is independently derived and signed", async () => {
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const { source, inputs } = setup('{"rows":[[{"$numeric":"1"}]]}');
+  const metadata = new TextEncoder().encode(
+    '{"signature":{"returnType":"int"},"sql":{"dialect":"postgresql","outputOrder":"ordered","output":[{"name":"n","type":"numeric"}]}}',
+  );
+  const testcase = new TextEncoder().encode('{"args":[],"expected":{"rows":[[{"$numeric":"1"}]]}}');
+  const previousManifest = inputs.inputManifest.bind(inputs);
+  inputs.inputManifest = async (job, signal) => ({
+    ...(await previousManifest(job, signal)),
+    metadata: { hash: hash(metadata), size: metadata.length },
+  });
+  inputs.inputCaseRef = async () => ({
+    hash: hash(testcase),
+    size: testcase.length,
+    channel: "public",
+  });
+  inputs.inputPage = async (_job, kind, _ordinal, offset) => {
+    const data = kind === "metadata" ? metadata : testcase;
+    return {
+      bytes: data.subarray(offset, offset + 65536),
+      hash: hash(data),
+      size: data.length,
+      channel: kind === "case" ? "public" : null,
+    };
+  };
+  const frozen = source.frozenCase.bind(source);
+  const sqlTypes = new TextEncoder().encode('["text"]');
+  source.frozenCase = async (id, signal) => ({
+    ...(await frozen(id, signal)),
+    sqlTypes: { hash: hash(sqlTypes), size: sqlTypes.length },
+  });
+  const field = source.fieldPage.bind(source);
+  source.fieldPage = async (id, name, offset, signal) =>
+    name === "sqlTypes"
+      ? {
+          bytes: sqlTypes.subarray(offset, offset + 65536),
+          hash: hash(sqlTypes),
+          size: sqlTypes.length,
+          channel: null,
+        }
+      : field(id, name, offset, signal);
+  const { receipt, signature } = await nodeResultVerifier(source, keys.privateKey)("challenge");
+  assert.equal(receipt.status, "wrong_answer");
+  assert.equal(receipt.typeMismatch, true);
+  assert.equal(
+    await verifyResultReceipt({ ...receipt, typeMismatch: false }, signature, keys.publicKey),
+    false,
+  );
+});
+void test("private verifier bounds stalled request bodies and verification time", async () => {
+  const { createServer } = await import("node:http"),
+    { connect } = await import("node:net"),
+    { verificationHandler } = await import("./http.ts");
+  const credential = new Uint8Array(32).fill(9);
+  const server = createServer(
+    verificationHandler({
+      credential,
+      timeoutMs: 50,
+      async verify() {
+        return await new Promise(() => {});
+      },
+    }),
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const socket = connect(address.port, "127.0.0.1");
+    await once(socket, "connect");
+    socket.write(
+      `POST /internal/results/verify HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${Buffer.from(credential).toString("hex")}\r\nContent-Length: 100\r\n\r\n{`,
+    );
+    await once(socket, "close");
+    const response = await fetch(`http://127.0.0.1:${address.port}/internal/results/verify`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${Buffer.from(credential).toString("hex")}` },
+      body: '{"challenge":"fixture"}',
+    });
+    assert.equal(response.status, 503);
   } finally {
     server.close();
     await once(server, "close");

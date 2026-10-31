@@ -77,16 +77,6 @@ export interface CompletionFieldChunk {
   readonly chunkOrdinal: number;
   readonly bytes: Uint8Array;
 }
-/** Case payloads are raw JSON so precision and private values survive transport. */
-export interface ExecutionSpec {
-  readonly problemJson: string;
-  readonly source: string;
-  readonly kind: "run" | "submit";
-  readonly cases: readonly string[];
-  readonly submitSamples: readonly string[];
-  readonly submitCasesAreSamples: boolean;
-  readonly privateDetails: boolean;
-}
 export interface Checkpoint {
   readonly nextOrdinal: number;
   readonly artifact?: string;
@@ -136,7 +126,6 @@ export interface ExecutionRepository {
     confirmed: AttemptFence | null,
     signal?: AbortSignal,
   ): Promise<Job | null>;
-  load(job: Job, signal?: AbortSignal): Promise<ExecutionSpec>;
   lease(job: Job, heartbeat: boolean, signal?: AbortSignal): Promise<boolean>;
   beginCompletion(job: Job, header: CompletionHeader, signal?: AbortSignal): Promise<void>;
   writeCompletionChunk(job: Job, chunk: CompletionFieldChunk, signal?: AbortSignal): Promise<void>;

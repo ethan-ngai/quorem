@@ -131,7 +131,7 @@ export function nodeResultVerifier(source: VerificationSource, privateKey: Crypt
             await spool.dispose();
           }
         }
-        let result: { status: string; actual?: string; expected?: string };
+        let result: { status: string; actual?: string; expected?: string; typeMismatch?: boolean };
         if (!["accepted", "wrong_answer", "executed"].includes(status)) result = { status };
         else {
           const actual = await frozenField("actual", frozen.actual);
@@ -186,6 +186,7 @@ export function nodeResultVerifier(source: VerificationSource, privateKey: Crypt
           ordinal,
           channel: ref.channel,
           status: result.status,
+          typeMismatch: result.typeMismatch ?? false,
           actualHash: await field("actual", result.actual),
           expectedHash: await field("expected", result.expected),
         };

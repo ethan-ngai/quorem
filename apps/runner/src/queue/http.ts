@@ -11,7 +11,6 @@ import {
   type ExecutionRepository,
   type ExecutionQueueControl,
   type ExecutionInputReader,
-  type ExecutionSpec,
   type Job,
 } from "@quorem/execution";
 
@@ -294,9 +293,6 @@ export function privateRunnerCommands(options: {
       const value = await json("lease", { job: j(job), heartbeat }, signal);
       if (typeof value !== "boolean") throw new RunnerCommandError("unknown");
       return value;
-    },
-    async load(job, signal) {
-      return (await json("load", { job: j(job) }, signal)) as ExecutionSpec;
     },
     async beginCompletion(job, header: CompletionHeader, signal) {
       await ack("begin", { job: j(job), header }, signal);

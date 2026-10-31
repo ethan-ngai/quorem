@@ -14,12 +14,20 @@ import {
   type CompletionFieldChunk,
   type CompletionHeader,
   type ExecutionRepository,
-  type ExecutionSpec,
   type ExecutionInputReader,
   type Job,
 } from "@quorem/execution";
 import { dockerSandbox } from "../sandbox/docker.ts";
 import { executeAndStage, ExecutionYield } from "./execute.ts";
+type ExecutionSpec = {
+  problemJson: string;
+  source: string;
+  kind: "run" | "submit";
+  cases: readonly string[];
+  submitSamples: readonly string[];
+  submitCasesAreSamples: boolean;
+  privateDetails: boolean;
+};
 const socket = process.env.QUOREM_TEST_DOCKER_SOCKET;
 function repository(spec: ExecutionSpec) {
   const frames: string[] = [],
@@ -93,8 +101,11 @@ function repository(spec: ExecutionSpec) {
     writeCompletionChunk: async (_job: Job, item: CompletionFieldChunk) => {
       const k = `${item.channel}:${item.ordinal}:${item.field}`,
         v = chunks.get(k) ?? [];
-      assert.equal(item.chunkOrdinal, v.length);
-      v.push(item.bytes);
+      if (item.chunkOrdinal < v.length) assert.deepEqual(v[item.chunkOrdinal], item.bytes);
+      else {
+        assert.equal(item.chunkOrdinal, v.length);
+        v.push(item.bytes);
+      }
       chunks.set(k, v);
     },
     sealCompletionFrame: async (_job: Job, channel: string, index: number, status: string) => {
