@@ -10,6 +10,10 @@ import {
 import type { Principal } from "../../../../modules/identity/model.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { jsonObject, restorePublicExamples } from "../../problems/queries/public-projection.ts";
+import {
+  evaluatedStatusPlan,
+  type EvaluatedStatusPlan,
+} from "../../judging/results/evaluated-status.ts";
 import { lockInterview } from "../lifecycle/access.ts";
 type Obj = { [key: string]: JsonValue };
 /** Candidate reads never fetch the private question or its lossless fixture sidecar. */
@@ -22,8 +26,10 @@ export async function prepareInterviewSnapshot(
   epoch: string;
   version: string;
   role: string;
+  statusPlan: EvaluatedStatusPlan | null;
   markers: Record<
     string,
+    | { kind: "statuses" }
     | { kind: "examples"; level: number; rowVersion: string }
     | {
         kind: "cases";
@@ -65,6 +71,7 @@ export async function prepareInterviewSnapshot(
   const nonce = crypto.randomUUID();
   const markers: Record<
     string,
+    | { kind: "statuses" }
     | { kind: "examples"; level: number; rowVersion: string }
     | {
         kind: "cases";
@@ -158,15 +165,17 @@ export async function prepareInterviewSnapshot(
   };
   if (access.role === "interviewer" && cases.length) question.privateCaseDetails = marker(false);
   if (cases.some((v) => v.revealed)) question.revealedCases = marker(true);
-  if (row.total) {
-    const status = (
-      await tx.execute<{ value: string }>(
-        sql`SELECT COALESCE(jsonb_agg(jsonb_build_object('index',idx,'status',status) ORDER BY idx),'[]'::jsonb)::text AS value FROM (SELECT DISTINCT ON ((c->>'index')::int) (c->>'index')::int AS idx,c->>'status' AS status FROM interview_execution_public e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id JOIN interviews i ON i.id=e.session_id CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(s.result->'publicCases')='array' THEN s.result->'publicCases' ELSE '[]'::jsonb END) c WHERE e.session_id=${id}::uuid AND e.question_epoch=${access.questionEpoch}::uuid AND j.language=i.language AND s.state='completed' AND NOT s.custom_run AND c->>'status' IS NOT NULL ORDER BY (c->>'index')::int,s.admitted_at DESC,s.id DESC) latest`,
-      )
-    ).rows[0];
-    const statuses = parseLosslessJson(status.value);
-    if (Array.isArray(statuses) && statuses.length)
-      jsonObject(question.progress).caseStatuses = statuses;
+  const statusPlan = row.total
+    ? await evaluatedStatusPlan(tx, {
+        kind: "interview",
+        sessionId: id,
+        epoch: access.questionEpoch,
+      })
+    : null;
+  if (statusPlan?.count) {
+    const key = `__quorem_stream_${nonce}_statuses__`;
+    markers[key] = { kind: "statuses" };
+    jsonObject(question.progress).caseStatuses = key;
   }
   if (access.role === "interviewer") {
     const events = (
@@ -200,5 +209,6 @@ export async function prepareInterviewSnapshot(
     version: access.version,
     role: access.role,
     markers,
+    statusPlan,
   };
 }

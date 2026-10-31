@@ -7,6 +7,10 @@ import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { readInterviewAccess } from "../lifecycle/access.ts";
 import { prepareInterviewSnapshot } from "./snapshot.ts";
 import { StreamingJsonReader } from "@quorem/questions";
+import {
+  evaluatedStatusBytes,
+  evaluatedStatusPlan,
+} from "../../judging/results/evaluated-status.ts";
 import { projectedObject } from "../../judging/results/projected-stream.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -17,7 +21,7 @@ const changed = () =>
 export function interviewSnapshotStream(run: Run) {
   return async (actor: Principal, id: string): Promise<ReadableStream<Uint8Array>> => {
     const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
-      run((scope) => scope.transaction(options, f));
+      run((scope) => scope.transaction({ ...options, isolation: "repeatable read" }, f));
     const plan = await transact((tx) => prepareInterviewSnapshot(tx, actor, id));
     async function* bytes(
       kind: "examples" | "case",
@@ -56,14 +60,31 @@ export function interviewSnapshotStream(run: Run) {
         yield data.subarray(offset, offset + 65536);
     }
     async function* content(): AsyncGenerator<Uint8Array> {
-      const pattern = /"(__quorem_stream_[0-9a-f-]+_(?:example_\d+|cases_(?:true|false))__)"/g;
+      const pattern =
+        /"(__quorem_stream_[0-9a-f-]+_(?:example_\d+|cases_(?:true|false)|statuses)__)"/g;
       let offset = 0,
         match: RegExpExecArray | null;
       while ((match = pattern.exec(plan.json))) {
         const marker = plan.markers[match[1]];
         if (!marker) throw new Error("Invalid snapshot marker");
         yield* text(plan.json.slice(offset, match.index));
-        if (marker.kind === "examples")
+        if (marker.kind === "statuses") {
+          if (!plan.statusPlan) throw changed();
+          yield* evaluatedStatusBytes(
+            run,
+            { kind: "interview", sessionId: id, epoch: plan.epoch },
+            plan.statusPlan,
+            async (tx) => {
+              const access = await readInterviewAccess(tx, actor, id, capabilitiesInTransaction);
+              if (
+                access.questionEpoch !== plan.epoch ||
+                access.version !== plan.version ||
+                access.role !== plan.role
+              )
+                throw changed();
+            },
+          );
+        } else if (marker.kind === "examples")
           yield* bytes("examples", marker.level, marker.rowVersion, false);
         else {
           yield* text("[");
@@ -125,6 +146,18 @@ export function interviewSnapshotStream(run: Run) {
             else {
               await transact(async (tx) => {
                 const access = await readInterviewAccess(tx, actor, id, capabilitiesInTransaction);
+                if (plan.statusPlan) {
+                  const current = await evaluatedStatusPlan(tx, {
+                    kind: "interview",
+                    sessionId: id,
+                    epoch: plan.epoch,
+                  });
+                  if (
+                    current.count !== plan.statusPlan.count ||
+                    current.digest !== plan.statusPlan.digest
+                  )
+                    throw changed();
+                }
                 if (
                   access.questionEpoch !== plan.epoch ||
                   access.version !== plan.version ||

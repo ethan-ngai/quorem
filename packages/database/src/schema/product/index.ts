@@ -1906,6 +1906,41 @@ export const submission_public_result_cases = pgTable(
     ),
   ],
 );
+export const submission_public_case_statuses = pgTable(
+  "submission_public_case_statuses",
+  {
+    submission_id: uuid().notNull(),
+    channel: text().notNull(),
+    ordinal: integer().notNull(),
+    case_index: integer().notNull(),
+    status_json: bytea().notNull(),
+    status_hash: bytea().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.submission_id, t.channel, t.ordinal],
+      name: "submission_public_case_statuses_pkey",
+    }),
+    foreignKey({
+      columns: [t.submission_id, t.channel, t.ordinal],
+      foreignColumns: [
+        submission_public_result_cases.submission_id,
+        submission_public_result_cases.channel,
+        submission_public_result_cases.ordinal,
+      ],
+      name: "submission_public_case_statuses_submission_id_channel_ord_fkey",
+    }).onDelete("cascade"),
+    check("submission_public_case_statuses_case_index_check", sql`case_index >= 0`),
+    check(
+      "submission_public_case_statuses_status_hash_check",
+      sql`status_hash=sha256(status_json)`,
+    ),
+    check(
+      "submission_public_case_statuses_status_json_check",
+      sql`json_typeof(convert_from(status_json,'UTF8')::json)='string'`,
+    ),
+  ],
+);
 export const execution_completion_receipts = pgTable(
   "execution_completion_receipts",
   {

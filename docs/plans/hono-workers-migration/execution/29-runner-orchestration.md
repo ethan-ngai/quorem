@@ -1,6 +1,6 @@
 # 29: runner orchestration
 
-Issue #402. Partial implementation; full packet remains open pending normalized bounded input, production composition, recovery and failure tests.
+Issue #402. Partial implementation; full packet remains open pending interview producer integration, production composition, legacy backfill/drain and remaining recovery validation.
 
 The private control API returns database-clock runnable deadlines, queue counts, and empty confirmation under the admission advisory lock. The Node runner claims through 27, performs live lease checks at one-second intervals and renews every 15 seconds. Failed checks or cancellation abort execution; no completion or yield occurs before confirmed sandbox teardown. Failure detection is bounded by the poll interval plus private command timeout, not instantaneous. Engine yields only at a persisted case boundary; the existing lease owner handles release.
 
@@ -23,3 +23,7 @@ Each case is now independently verified immediately after its durable checkpoint
 Further local end-to-end cases cover Python syntax, runtime, time and output failures, TypeScript compilation failure, NUL stdout, unordered PostgreSQL results and SQL output-type mismatch diagnostics. The private verifier closes stalled request bodies on deadline and rejects timed-out verification. These fixture results are not hosted capacity or failure-recovery evidence. Hidden status arrays are still assembled as one PostgreSQL bytea before paged reads, so they retain PostgreSQL's single-value and database memory costs.
 
 Run the native Worker verifier fixture with `QUOREM_RUNNER_TEST_DATABASE_URL=<disposable-loopback-url> vp -C apps/api exec node src/adapters/postgres/judging/worker/run-workerd.mjs`. It starts a separate ephemeral local Node verifier, injects its public key into workerd, and stops it after the suite; the URL must name `quorem_hono_engine_test` or `quorem_hono_runner_test`.
+
+### Evaluated status streaming (059)
+
+Promotion records each verified public case status and index in an immutable sidecar. The legacy operator backfill scans individual cases in bounded pages and stores the original JSON status bytes, including escaped NUL, without imposing a status length limit. The shared reader exposes a dataset digest, one latest status at a time, and bounded status pages; consumers must reauthorize and recheck the digest within each repeatable-read page transaction. Workspace and interview snapshots stream these statuses with renewed authorization and watermark checks. Actual admission, Docker execution, verified promotion and solo workspace feedback/reset passed; a verified interview fallback promotion was read through the current interview snapshot using a synthetic Odyssey question projection. The interview command suite also verified large NUL-bearing status paging and revocation. Match end-to-end validation is owned by 29f. Activation requires the privileged backfill for retained legacy results.
