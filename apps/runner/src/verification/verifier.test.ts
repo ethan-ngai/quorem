@@ -269,6 +269,9 @@ void test("verification service rejects unusable configuration before listening"
     () => createVerificationService({ ...base, sourceOrigin: "http://public.invalid" }),
     /Invalid verification source configuration/,
   );
+  assert.throws(() => createVerificationService({ ...base, sourceOrigin: "not-a-url-secret" }), {
+    message: "Invalid verification source configuration",
+  });
   assert.throws(
     () => createVerificationService({ ...base, serviceCredential: base.sourceCredential }),
     /Distinct verification credentials/,
