@@ -18,6 +18,6 @@ export function accessFetch(
       throw new Error("Private ingress headers already set");
     headers.set("CF-Access-Client-Id", credentials.id);
     headers.set("CF-Access-Client-Secret", credentials.secret);
-    return send(input, { ...init, headers });
+    return send(input, { ...init, headers, redirect: "error" });
   };
 }
