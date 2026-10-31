@@ -125,7 +125,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
           await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
           await tx.execute(
-            sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+            sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy',repeat('x',4194304),'{}','[]','{}','')`,
           );
           await indexRunnerFixture(tx, { version }, raw);
           await indexRunnerFixture(tx, { version }, raw);
@@ -752,17 +752,28 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
             );
             const canonical = (
-              await tx.execute<{ raw: string }>(
-                sql`SELECT jsonb_build_array(v.id,v.problem_id,v.version,v.title,v.difficulty,v.statement_markdown,v.signature,v.constraints,v.limits,v.attribution,v.sql_config,v.odyssey-'levels')::text AS raw FROM problem_versions v WHERE v.id=${version}::uuid`,
+              await tx.execute<{ fields: (string | null)[] }>(
+                sql`SELECT ARRAY[v.id::text,v.problem_id::text,v.version::text,v.title,v.difficulty,v.statement_markdown,v.signature::text,v.constraints::text,v.limits::text,v.attribution,v.sql_config::text,(v.odyssey-'levels')::text] AS fields FROM problem_versions v WHERE v.id=${version}::uuid`,
               )
-            ).rows[0].raw;
+            ).rows[0].fields;
             const hash = (value: Uint8Array | string) =>
               createHash("sha256").update(value).digest();
+            const metadataHash = hash(
+              Buffer.concat(
+                canonical.map((value) =>
+                  hash(
+                    value === null
+                      ? Buffer.from([0])
+                      : Buffer.concat([Buffer.from([1]), Buffer.from(value)]),
+                  ),
+                ),
+              ),
+            );
             const empty = hash(new Uint8Array());
             const expected = hash(
               Buffer.concat([
                 Buffer.from("quorem-version-fixture-v1"),
-                hash(canonical),
+                metadataHash,
                 empty,
                 empty,
                 empty,
