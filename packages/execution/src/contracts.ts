@@ -1,5 +1,5 @@
 /** @file contracts.ts @description Private judge and repository contracts. @module execution */
-import type { ExecutionLimits, QuestionProblem } from "@quorem/questions";
+import type { ExecutionLimits } from "@quorem/questions";
 
 export interface AttemptFence {
   readonly attemptId: string;
@@ -53,9 +53,31 @@ export interface Completion {
   readonly hiddenCases?: readonly { readonly index: number; readonly status: Verdict }[];
   readonly engineFailure?: string;
 }
+/** Small terminal metadata; case bodies travel separately in bounded frames. */
+export interface CompletionHeader {
+  readonly submissionId: string;
+  readonly attemptId: string;
+  readonly verdict?: Verdict;
+  readonly score?: { readonly passed: number; readonly total: number };
+  readonly safeDiagnostics?: readonly Diagnostic[];
+  readonly hiddenCases?: readonly { readonly index: number; readonly status: Verdict }[];
+  readonly engineFailure?: string;
+  readonly publicPresent: boolean;
+  readonly samplePresent: boolean;
+  readonly privatePresent: boolean;
+  readonly publicCount: number;
+  readonly sampleCount: number;
+  readonly privateCount: number;
+}
+/** Raw JSON preserves numeric lexemes; each ordinal is independently fenced. */
+export interface CompletionFrame {
+  readonly channel: "public" | "sample" | "private";
+  readonly ordinal: number;
+  readonly raw: string;
+}
 /** Case payloads are raw JSON so precision and private values survive transport. */
 export interface ExecutionSpec {
-  readonly problem: QuestionProblem;
+  readonly problemJson: string;
   readonly source: string;
   readonly kind: "run" | "submit";
   readonly cases: readonly string[];
@@ -108,8 +130,11 @@ export interface ExecutionRepository {
     signal?: AbortSignal,
   ): Promise<Job | null>;
   load(job: Job, signal?: AbortSignal): Promise<ExecutionSpec>;
-  lease(job: Job, resumable: boolean, signal?: AbortSignal): Promise<boolean>;
-  complete(job: Job, completion: Completion, signal?: AbortSignal): Promise<void>;
+  lease(job: Job, heartbeat: boolean, signal?: AbortSignal): Promise<boolean>;
+  beginCompletion(job: Job, header: CompletionHeader, signal?: AbortSignal): Promise<void>;
+  writeCompletionFrame(job: Job, frame: CompletionFrame, signal?: AbortSignal): Promise<void>;
+  finishCompletionStream(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
+  promoteCompletion(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   loadCheckpoint(job: Job, signal?: AbortSignal): Promise<Checkpoint>;
   replayCheckpoint(
     job: Job,

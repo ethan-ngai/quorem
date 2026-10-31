@@ -6,6 +6,8 @@ export type {
   Diagnostic,
   CaseResult,
   Completion,
+  CompletionHeader,
+  CompletionFrame,
   ExecutionSpec,
   Checkpoint,
   CheckpointCase,
