@@ -40,6 +40,11 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token)),
   );
   const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${btoa(String.fromCharCode(...signed))}`)}`;
+  const health = await SELF.fetch("http://127.0.0.1:8765/health", {
+    headers: { origin: "http://127.0.0.1:5173" },
+  });
+  expect(health.status).toBe(200);
+  expect(health.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:5173");
   const auth = await SELF.fetch("http://127.0.0.1:8765/api/auth/token", {
     headers: { cookie, origin: "http://127.0.0.1:5173" },
   });
@@ -152,7 +157,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       ),
     ]),
   ).toBeTruthy();
-  if ((env as unknown as { TEST_HIBERNATION: string }).TEST_HIBERNATION === "interview") {
+  {
     const namespaces = (
       env as unknown as {
         SOCKETS: {
@@ -169,6 +174,11 @@ it("runs native auth, catalog, workspace and durable socket through composition"
         setTimeout(() => reject(new Error("interview eviction timeout")), 5000),
       ),
     ]);
+    const resumed = new Promise<void>((resolve) =>
+      interviewSocket.addEventListener("message", () => resolve(), { once: true }),
+    );
+    expect(await runDurableObjectAlarm(interviewStub)).toBe(true);
+    await resumed;
   }
   interviewSocket.close();
 
@@ -250,15 +260,13 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     }
   ).SOCKETS;
   const socketStub = namespace.get(namespace.idFromName("socket:membership"));
-  if ((env as unknown as { TEST_HIBERNATION: string }).TEST_HIBERNATION === "true") {
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    await Promise.race([
-      evictDurableObject(socketStub),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("eviction timeout")), 35000),
-      ),
-    ]);
-  }
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  await Promise.race([
+    evictDurableObject(socketStub),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("eviction timeout")), 5000),
+    ),
+  ]);
   const closed = new Promise<number>((resolve) =>
     socket.addEventListener("close", (event: CloseEvent) => resolve(event.code), { once: true }),
   );

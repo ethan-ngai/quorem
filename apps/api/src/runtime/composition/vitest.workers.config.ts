@@ -20,7 +20,6 @@ export default defineConfig({
         queueProducers: { EXECUTION_QUEUE: "runtime-test-wakes" },
         bindings: {
           DATABASE_CHECK: process.env.QUOREM_RUNTIME_TEST_URL ?? "",
-          TEST_HIBERNATION: process.env.QUOREM_TEST_HIBERNATION ?? "false",
           APP_ENV: "local",
           AUTH_MODE: "password",
           AUTH_ORIGIN: "http://127.0.0.1:8765",
@@ -35,7 +34,7 @@ export default defineConfig({
   ],
   test: {
     fileParallelism: false,
-    testTimeout: 60000,
+    testTimeout: 30000,
     include: [
       "src/runtime/composition/worker.integration.test.ts",
       "src/runtime/composition/worker.queue.test.ts",

@@ -36,6 +36,7 @@ import { boundedInt, flag, keyBytes, privateConfig, required } from "./compositi
 import { requestBudget, unavailable } from "./composition/budget.ts";
 import { privateResponse } from "./composition/private-response.ts";
 import { recoverAll } from "./composition/recovery.ts";
+import { health } from "./composition/health.ts";
 import { consumeWakeBatch, type WakeMessage } from "./composition/wake-consumer.ts";
 
 interface SocketStub {
@@ -248,6 +249,8 @@ export default {
       if (stream && request.headers.get("upgrade")?.toLowerCase() === "websocket")
         return await socketStub(env, stream).fetch(request);
       budget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
+      if (path === "/health")
+        return await budget(request, async () => health(request, origins(env)));
       return await budget(request, async () => {
         const run = runFor(env, request.signal);
         if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
