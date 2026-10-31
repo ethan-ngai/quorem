@@ -5,7 +5,11 @@ import {
   validSource,
   type JsonValue,
 } from "@quorem/questions";
-import { sourceHash, workspaceCommandFingerprint } from "@quorem/execution";
+import {
+  canonicalWorkspaceCommand,
+  sourceHash,
+  workspaceCommandFingerprint,
+} from "@quorem/execution";
 import { ApplicationError } from "../../../application/error.ts";
 
 export interface WorkspaceCommand {
@@ -93,7 +97,14 @@ export async function parseWorkspaceCommand(raw: string, key: string): Promise<W
     )
       throw invalid();
     cases = c.customCases.map(goCase);
-    if (new TextEncoder().encode(`[${cases.join(",")}]`).length > 2 * 1024 * 1024) throw invalid();
+    const canonical = canonicalWorkspaceCommand(raw);
+    const start = canonical.indexOf(',"customCases":');
+    if (
+      start < 0 ||
+      new TextEncoder().encode(canonical.slice(start + ',"customCases":'.length, -1)).length >
+        2 * 1024 * 1024
+    )
+      throw invalid();
   }
   return {
     workspaceId,
