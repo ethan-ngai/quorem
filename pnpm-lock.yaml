@@ -265,6 +265,9 @@ importers:
       '@quorem/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@quorem/execution':
+        specifier: workspace:*
+        version: link:../../packages/execution
       better-auth:
         specifier: 1.7.7
         version: 1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(@cloudflare/workers-types@5.20261021.1)(@types/pg@8.15.6)(kysely@0.29.6)(pg@8.16.3))(pg@8.16.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3)
