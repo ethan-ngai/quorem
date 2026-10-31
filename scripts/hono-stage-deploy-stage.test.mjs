@@ -110,6 +110,7 @@ function operations(events, fail) {
     roleConfig: () => step("role-config"),
     fresh: async () => step("fresh"),
     databaseRole: async () => step("database-role"),
+    fenceRuntime: async () => step("runtime-fence"),
     migrate: () => step("migrate"),
     images: () =>
       step(
@@ -203,7 +204,13 @@ void test("fresh failure causes no later action; queue failure disposes fixture"
   assert.deepEqual(events, ["freshness", "role-config", "fresh"]);
   events = [];
   await assert.rejects(deployStage(env(), operations(events, "queue")));
-  assert.deepEqual(events.slice(-4), ["dispose", "cleanup", "detach", "controls-pause"]);
+  assert.deepEqual(events.slice(-5), [
+    "dispose",
+    "cleanup",
+    "detach",
+    "controls-pause",
+    "runtime-fence",
+  ]);
 });
 void test("existing pin is verified before service apply", async () => {
   const events = [],
@@ -255,7 +262,7 @@ void test("failure after queue attachment detaches and reports uncertain detach"
   for (const failure of ["dispose", "cleanup"]) {
     const events = [];
     await assert.rejects(deployStage(env(), operations(events, failure)), /cleanup failed/);
-    assert.deepEqual(events.slice(-2), ["detach", "controls-pause"]);
+    assert.deepEqual(events.slice(-3), ["detach", "controls-pause", "runtime-fence"]);
   }
   const events = [],
     ops = operations(events, "dispose");
@@ -314,7 +321,7 @@ void test("activation failure detaches queue and pauses controls; uncertain paus
   const events = [],
     ops = operations(events, "controls-activate");
   await assert.rejects(deployStage(env(), ops));
-  assert.deepEqual(events.slice(-2), ["detach", "controls-pause"]);
+  assert.deepEqual(events.slice(-3), ["detach", "controls-pause", "runtime-fence"]);
   const failing = operations([], "controls-activate");
   failing.controls = async () => ({
     activate: async () => {
@@ -325,4 +332,17 @@ void test("activation failure detaches queue and pauses controls; uncertain paus
     },
   });
   await assert.rejects(deployStage(env(), failing), /control pause unconfirmed/);
+});
+
+void test("uncertain role provisioning always attempts a writer fence", async () => {
+  const events = [],
+    ops = operations(events, "database-role");
+  await assert.rejects(deployStage(env(), ops), /fixture failure/);
+  assert.ok(events.includes("runtime-fence"));
+  assert.equal(events.includes("controls-activate"), false);
+  const failing = operations([], "database-role");
+  failing.fenceRuntime = async () => {
+    throw new Error("unknown role");
+  };
+  await assert.rejects(deployStage(env(), failing), /runtime writer fence unconfirmed/);
 });

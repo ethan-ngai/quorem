@@ -1,4 +1,4 @@
-import { stageControls } from "./hono-stage-controls.mjs";
+import { fenceFailedStageRuntime, stageControls } from "./hono-stage-controls.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 import { provisionStageDatabaseRole, stageRoleCredentials } from "./hono-stage-database-role.mjs";
 /** First staged activation; existing database updates require a separate cutover contract. */
@@ -189,6 +189,7 @@ const defaults = {
   outputs: terraformOutputs,
   servicesOutputs,
   controls: stageControls,
+  fenceRuntime: fenceFailedStageRuntime,
   probe: stageNamespace,
   upload: uploadWorkerSecrets,
   deploy: workerDeploy,
@@ -305,7 +306,8 @@ export async function deployStage(original, operations = defaults) {
     cleanupFailed = false,
     queueAttached = false,
     controlClient,
-    controlsAttempted = false;
+    controlsAttempted = false,
+    roleAttempted = false;
   try {
     const keyFile = join(temp, "case-public.pem");
     await writeFile(keyFile, services.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
@@ -323,6 +325,7 @@ export async function deployStage(original, operations = defaults) {
       await operations.probe(caseEnv, env.TF_VAR_case_namespace_id);
     await Promise.resolve(operations.terraform(env, "hono-stage", "init"));
     await Promise.resolve(operations.migrate(original));
+    roleAttempted = true;
     await operations.databaseRole(original);
     await Promise.resolve(operations.terraform(env, "hono-stage", "apply"));
     const images = await Promise.resolve(operations.images(original));
@@ -442,7 +445,8 @@ export async function deployStage(original, operations = defaults) {
   }
   if (failure || cleanupFailed) {
     let detachFailed = false,
-      pauseFailed = false;
+      pauseFailed = false,
+      fenceFailed = false;
     if (controlsAttempted || queueAttached) {
       try {
         await Promise.resolve(operations.detach(env));
@@ -455,9 +459,16 @@ export async function deployStage(original, operations = defaults) {
         pauseFailed = true;
       }
     }
-    if (detachFailed || pauseFailed)
+    if (roleAttempted) {
+      try {
+        await operations.fenceRuntime(original);
+      } catch {
+        fenceFailed = true;
+      }
+    }
+    if (detachFailed || pauseFailed || fenceFailed)
       throw new Error(
-        `Stage failure; ${detachFailed ? "queue detachment unconfirmed" : "queue detached"}; ${pauseFailed ? "control pause unconfirmed" : "controls paused"}`,
+        `Stage failure; ${controlsAttempted || queueAttached ? (detachFailed ? "queue detachment unconfirmed" : "queue detached") : "controls not activated"}; ${controlsAttempted || queueAttached ? (pauseFailed ? "control pause unconfirmed" : "controls paused") : "no control pause attempted"}; ${roleAttempted ? (fenceFailed ? "runtime writer fence unconfirmed" : "runtime writer fence confirmed") : "runtime writer fence not attempted"}`,
       );
     if (cleanupFailed)
       throw new Error(

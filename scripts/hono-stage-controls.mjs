@@ -1,6 +1,9 @@
 /** Initial control activation; signed observations fence every durable transition. */
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { stageRoleCredentials } from "./hono-stage-database-role.mjs";
+import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
 import { verifyCaseProbe } from "../deploy/case-proof.js";
 
 async function boundedJSON(response) {
@@ -227,4 +230,21 @@ export async function stageControls(options, send = fetch) {
     if (!confirmed) throw new Error("Control pause unconfirmed");
   };
   return { activate, pause };
+}
+
+/** Failure compensation never interprets an absent or unreachable role as fenced. */
+export async function fenceFailedStageRuntime(env) {
+  const { operator, role } = stageRoleCredentials(env);
+  const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
+    "pg",
+  );
+  const client = new Client({ connectionString: operator, connectionTimeoutMillis: 5000 });
+  try {
+    await client.connect();
+    return await fenceStageRuntime(client, role);
+  } catch {
+    throw new Error("Stage runtime writer fence unconfirmed");
+  } finally {
+    await client.end().catch(() => {});
+  }
 }
