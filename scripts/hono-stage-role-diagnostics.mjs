@@ -8,7 +8,7 @@ import {
   provisionStageDatabaseRole,
   StageRoleFailure,
 } from "./hono-stage-database-role.mjs";
-import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
+import { fenceStageRuntime, stageFenceOptions } from "./hono-stage-recovery-fence.mjs";
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 import {
@@ -143,7 +143,7 @@ export async function inspectStageRole(env) {
   client.on("error", () => {});
   const role = deriveStageRole(env.HONO_DIAGNOSE_RELEASE_SHA, "1");
   const action = env.HONO_STAGE_INSPECTION_ACTION ?? "diagnose";
-  if (!["diagnose", "rehearse-role", "probe-role"].includes(action))
+  if (!["diagnose", "rehearse-role", "probe-role", "fence-role"].includes(action))
     throw new Error("Invalid role inspection action");
   const password = saved.stage_secrets?.value?.STAGE_RUNTIME_DATABASE_PASSWORD;
   if (["rehearse-role", "probe-role"].includes(action)) {
@@ -169,6 +169,22 @@ export async function inspectStageRole(env) {
   try {
     await client.connect();
     const before = await diagnoseStageRole(client, role);
+    if (action === "fence-role") {
+      let containment, failure;
+      try {
+        await fenceStageRuntime(client, role, stageFenceOptions(url.href));
+        containment = "fenced";
+      } catch (error) {
+        containment = "unconfirmed";
+        failure = new StageRoleFailure("unknown", error);
+      }
+      return {
+        before,
+        containment,
+        ...(failure ? { failure } : {}),
+        after: await diagnoseStageRole(client, role),
+      };
+    }
     if (action === "probe-role") {
       if (before.runtimeExists) throw new Error("Probe role already exists");
       await client.end();
@@ -202,7 +218,7 @@ export async function inspectStageRole(env) {
         let containment = "role-absent";
         if (after.runtimeExists) {
           try {
-            await fenceStageRuntime(inspector, role);
+            await fenceStageRuntime(inspector, role, stageFenceOptions(url.href));
             containment = "fenced";
           } catch {
             containment = "unconfirmed";

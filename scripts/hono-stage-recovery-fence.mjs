@@ -2,6 +2,12 @@
 const rolePattern = /^quorem_stage_runtime_[a-f0-9]{12,32}$/;
 export const stageRecoveryLockKey = "quorem-stage-recovery-role-fence-v1";
 
+/** Neon owns this reserved superuser; application roles cannot revoke its CONNECT. */
+export function stageFenceOptions(databaseURL) {
+  const host = new URL(databaseURL).hostname;
+  return { trustedAdministrators: host.endsWith(".neon.tech") ? ["cloud_admin"] : [] };
+}
+
 async function inspect(client, role) {
   const result = await client.query(
     `WITH RECURSIVE inbound(oid) AS (

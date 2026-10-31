@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { stageRoleCredentials } from "./hono-stage-database-role.mjs";
-import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
+import { fenceStageRuntime, stageFenceOptions } from "./hono-stage-recovery-fence.mjs";
 import { readVerifiedCaseProbe } from "../deploy/case-proof.js";
 
 async function boundedJSON(response) {
@@ -461,7 +461,7 @@ export async function fenceFailedStageRuntime(env) {
   const client = new Client({ connectionString: operator, connectionTimeoutMillis: 5000 });
   try {
     await client.connect();
-    return await fenceStageRuntime(client, role);
+    return await fenceStageRuntime(client, role, stageFenceOptions(operator));
   } catch {
     throw new Error("Stage runtime writer fence unconfirmed");
   } finally {
