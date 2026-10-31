@@ -40,6 +40,7 @@ jobs:
       - name: Container runner release validation
         run: node scripts/hono-container-validation.mjs
       - run: node scripts/hono-stage-validation.mjs
+      - run: node scripts/hono-recovery-validation.mjs
       - run: node scripts/hono-stage-gate.mjs
       - run: terraform -chdir=infra/terraform/hono-stage fmt -check -recursive
       - run: terraform -chdir=infra/terraform/hono-stage init -backend=false -input=false
