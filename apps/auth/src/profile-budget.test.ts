@@ -8,8 +8,9 @@ const url = process.env.PROFILE_TEST_DATABASE_URL;
 describe.skipIf(!url)("profile mutation admission in PostgreSQL", () => {
   if (
     url &&
-    (new URL(url).hostname !== "127.0.0.1" ||
-      new URL(url).port !== "55449" ||
+    (!["postgres:", "postgresql:"].includes(new URL(url).protocol) ||
+      !["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname) ||
+      new URL(url).searchParams.has("host") ||
       new URL(url).pathname !== "/quorem_hono_profile_test")
   )
     throw new Error("Expected disposable profile database");
