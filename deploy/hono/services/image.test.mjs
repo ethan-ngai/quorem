@@ -31,7 +31,7 @@ function start(kind, env, port) {
   const mapping = docker(["port", name, `${port}/tcp`]);
   return { name, port: Number(mapping.slice(mapping.lastIndexOf(":") + 1)) };
 }
-test("staged image boots remote runner and separate verifier with private key files", async () => {
+void test("staged image boots remote runner and separate verifier with private key files", async () => {
   const caseKey = keys(),
     verifyKey = keys(),
     running = [];

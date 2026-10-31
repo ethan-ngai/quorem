@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { assertRunnerResult, assertSelectedReport } from "./hono-remote-validation.mjs";
 const name =
   "admission through TypeScript runner runs an admitted job through separate runner and verifier executables";
-test("accepts only the selected passing test, independent of unrelated skipped count", () => {
+void test("accepts only the selected passing test, independent of unrelated skipped count", () => {
   const report = (tests, passed = 1, failed = 0) =>
     JSON.stringify({
       numPassedTests: passed,
@@ -30,7 +30,7 @@ test("accepts only the selected passing test, independent of unrelated skipped c
     (error) => !String(error).includes("credential-sentinel-secret"),
   );
 });
-test("configuration failures suppress supplied credential values", () => {
+void test("configuration failures suppress supplied credential values", () => {
   const sentinel = "credential-sentinel-secret-0123456789";
   const child = spawnSync(process.execPath, ["scripts/hono-remote-validation.mjs"], {
     encoding: "utf8",
@@ -43,7 +43,7 @@ test("configuration failures suppress supplied credential values", () => {
   assert.notEqual(child.status, 0);
   assert.equal((child.stdout + child.stderr).includes(sentinel), false);
 });
-test("runner and malformed provider output never escape in errors", () => {
+void test("runner and malformed provider output never escape in errors", () => {
   const sentinel = "provider-credential-sentinel-0123456789";
   for (const result of [
     { status: 1, stdout: sentinel, stderr: sentinel },

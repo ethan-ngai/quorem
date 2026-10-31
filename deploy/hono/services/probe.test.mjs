@@ -7,7 +7,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { signedCaseProbe } from "../../case-proof.js";
 import { probeNamespace } from "./probe.mjs";
 
-test("namespace bootstrap pins Access, bearer, nonce, key and origin", async () => {
+void test("namespace bootstrap pins Access, bearer, nonce, key and origin", async () => {
   const directory = await mkdtemp(join(tmpdir(), "quorem-probe-test-"));
   try {
     const keys = generateKeyPairSync("ed25519"),

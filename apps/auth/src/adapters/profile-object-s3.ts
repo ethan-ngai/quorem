@@ -14,7 +14,7 @@ export function profileObjectS3(bucket: string, config: S3ClientConfig): PhotoCu
     responseChecksumValidation: "WHEN_REQUIRED",
   });
   return {
-    get: read.get,
+    get: (key) => read.get(key),
     async putIfAbsent(key, bytes) {
       if (!validPhotoKey(key) || bytes.byteLength > 5 * 1024 * 1024)
         throw new Error("Invalid photo");

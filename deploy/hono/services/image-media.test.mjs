@@ -8,7 +8,7 @@ const docker = (...args) =>
   execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 const sharp = createRequire(new URL("../../../apps/auth/package.json", import.meta.url))("sharp");
 
-test("private image container authenticates health and returns terminated Sharp output", async () => {
+void test("private image container authenticates health and returns terminated Sharp output", async () => {
   const token = randomBytes(32).toString("hex");
   const id = docker(
     "run",

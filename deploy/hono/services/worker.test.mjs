@@ -38,7 +38,7 @@ function target(name, seen) {
     },
   };
 }
-test("private ingress pins capability host, method, bearer and strips Access secrets", async () => {
+void test("private ingress pins capability host, method, bearer and strips Access secrets", async () => {
   const env = base(),
     seen = [];
   const keys = generateKeyPairSync("ed25519");
@@ -149,7 +149,7 @@ test("private ingress pins capability host, method, bearer and strips Access sec
     503,
   );
 });
-test("trusted container environment is purpose-scoped", () => {
+void test("trusted container environment is purpose-scoped", () => {
   const env = base(),
     ctx = { container: {}, waitUntil() {} };
   const runner = new RunnerService(ctx, env).lifecycle.runtime,
@@ -164,7 +164,7 @@ test("trusted container environment is purpose-scoped", () => {
   assert.equal(verifier.QUOREM_RUNNER_COMMAND_SECRET, undefined);
   assert.notEqual(runner.CLOUDFLARE_ACCESS_CLIENT_SECRET, verifier.CLOUDFLARE_ACCESS_CLIENT_SECRET);
 });
-test("service lifecycle starts once and forwards only the intended request", async () => {
+void test("service lifecycle starts once and forwards only the intended request", async () => {
   const env = base(),
     calls = [],
     running = { value: false };
@@ -210,7 +210,7 @@ test("service lifecycle starts once and forwards only the intended request", asy
   assert.equal(calls[0].env.QUOREM_VERIFICATION_SIGNING_KEY_PEM, undefined);
   assert.equal(calls[0].env.QUOREM_CASE_SECRET, env.QUOREM_CASE_SECRET);
 });
-test("signed live case observation follows execution and confirmed attempt teardown", async () => {
+void test("signed live case observation follows execution and confirmed attempt teardown", async () => {
   const env = base(),
     keys = generateKeyPairSync("ed25519"),
     namespace = secret("1"),
@@ -449,7 +449,7 @@ test("signed live case observation follows execution and confirmed attempt teard
   assert.equal((await probe(randomUUID())).status, 404);
 });
 
-test("execution and cleanup require the actual pinned namespace and scope", async () => {
+void test("execution and cleanup require the actual pinned namespace and scope", async () => {
   const env = base(),
     keys = generateKeyPairSync("ed25519"),
     namespace = secret("1");
@@ -519,7 +519,7 @@ test("execution and cleanup require the actual pinned namespace and scope", asyn
   assert.equal(forwarded, 2);
 });
 
-test("image ingress and authenticated local readiness are isolated", async () => {
+void test("image ingress and authenticated local readiness are isolated", async () => {
   const env = {
     ...base(),
     IMAGE_SERVICE_ENABLED: "true",
@@ -588,7 +588,7 @@ test("image ingress and authenticated local readiness are isolated", async () =>
   ]);
 });
 
-test("runner pause persists across instances and rejects subsequent drains", async () => {
+void test("runner pause persists across instances and rejects subsequent drains", async () => {
   const env = base(),
     state = new Map();
   const storage = {

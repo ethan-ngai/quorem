@@ -47,6 +47,8 @@ export async function provisionStageRole(operator, runtime, role, password) {
   const name = escapeIdentifier(role);
   try {
     await operator.query("BEGIN");
+    await operator.query("SET LOCAL lock_timeout = '5s'");
+    await operator.query("SET LOCAL statement_timeout = '15s'");
     const owner = (
       await operator.query("SELECT current_user AS name, current_database() AS database")
     ).rows[0];
@@ -109,8 +111,16 @@ export async function provisionStageRole(operator, runtime, role, password) {
 
 export async function provisionStageDatabaseRole(env) {
   const creds = stageRoleCredentials(env);
-  const operator = new Client({ connectionString: creds.operator, connectionTimeoutMillis: 5000 });
-  const runtime = new Client({ connectionString: creds.runtime, connectionTimeoutMillis: 5000 });
+  const operator = new Client({
+    connectionString: creds.operator,
+    connectionTimeoutMillis: 5000,
+    query_timeout: 15000,
+  });
+  const runtime = new Client({
+    connectionString: creds.runtime,
+    connectionTimeoutMillis: 5000,
+    query_timeout: 15000,
+  });
   try {
     await operator.connect();
     await provisionStageRole(operator, runtime, creds.role, creds.password);
