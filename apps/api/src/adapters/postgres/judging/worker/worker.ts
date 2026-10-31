@@ -134,7 +134,11 @@ it("claims and fences a real attempt through workerd", async () => {
     expect(firstPage.bytes.length).toBe(65536);
     expect(secondPage.bytes.length).toBe(65536);
     expect(firstPage.hash).toBe(manifest.metadata.hash);
-    expect((await claims.inputPage(claimed!, "case", 0, 0)).channel).toBe("public");
+    const ref = await claims.inputCaseRef(claimed!, 0);
+    const casePage = await claims.inputPage(claimed!, "case", 0, 0);
+    expect(casePage.channel).toBe("public");
+    expect(casePage.hash).toBe(ref.hash);
+    expect(manifest.suiteHash).toMatch(/^[0-9a-f]{64}$/);
     await expect(
       claims.inputPage({ ...claimed!, attemptId: crypto.randomUUID() }, "case", 0, 0),
     ).rejects.toThrow();

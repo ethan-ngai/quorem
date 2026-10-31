@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
@@ -465,6 +466,12 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               limits: defaultLimits(),
             };
             const manifest = await reader.inputManifest(fence);
+            const expectedSuite = createHash("sha256")
+              .update(
+                `private:${Buffer.from(hidden[0].hash).toString("hex")};sample:${Buffer.from(examples[0].hash).toString("hex")};`,
+              )
+              .digest("hex");
+            expect(manifest.suiteHash).toBe(expectedSuite);
             expect(manifest).toMatchObject({
               kind: "submit",
               caseCount: 1,
