@@ -84,6 +84,21 @@ export function postgresCompletionStaging(run: Run) {
               ? header.sampleCount
               : header.privateCount;
         if (item.ordinal >= count) throw new Error("Unexpected completion ordinal");
+        const sealed =
+          (
+            await tx.execute(
+              sql`SELECT 1 FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal}`,
+            )
+          ).rows.length > 0;
+        if (sealed) {
+          const same = (
+            await tx.execute<{ same: boolean }>(
+              sql`SELECT chunk_hash=${hash} AND chunk_data=${item.bytes} AS same FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal} AND field=${item.field} AND chunk_ordinal=${item.chunkOrdinal}`,
+            )
+          ).rows[0]?.same;
+          if (!same) throw new Error("Completion frame sealed");
+          return;
+        }
         const inserted = await tx.execute(
           sql`INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash) VALUES(${job.jobId}::uuid,${item.channel},${item.ordinal},${item.field},${item.chunkOrdinal},${item.bytes},${hash}) ON CONFLICT DO NOTHING RETURNING chunk_ordinal`,
         );
