@@ -11,7 +11,7 @@
 - Remove app-container routing/pool/lease/nginx/startup machinery only after API/auth native cutover. Keep judge/case container machinery that remains in use. Consolidate old relay/scheduler paths; preserve live DO migration history/resources until drainage permits retirement.
 - Search all workflows/scripts/docs/Dockerfiles for `go run`, `go build`, Go imports, embedded Go snippets, old API commands, obsolete flags and duplicate serializers/defaults. Replace consumers before deletion.
 - Update architecture, provider adapters, auth/API/runner READMEs, database operations, root plans/index, local `make dev`, configuration examples, deployment recovery, Terraform and runbooks to the final topology.
-- All work linked to migration issues; concurrent PRs merged into `dev`; no stale dependent branches/worktrees. Preserve unrelated `scripts/dev.py` changes throughout.
+- All work linked to migration issues; concurrent PRs merged into `feat/hono-migration`; no stale dependent branches/worktrees. Preserve unrelated `scripts/dev.py` changes throughout.
 
 The critical path is contracts/runtime proof -> transactional storage/codecs -> identity/durable work -> admission and interview consistency -> socket/runtime integration -> hosted cutover. Parallelism helps domain slices after those contracts stabilize; it cannot replace those gates.
 

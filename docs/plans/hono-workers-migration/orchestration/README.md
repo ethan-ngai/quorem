@@ -2,7 +2,7 @@
 
 [Plan index](../README.md)
 
-All execution subagents: `gpt-6.1-terra`, reasoning `medium`. One orchestrator; at most three concurrent workers/reviewers with the current four-slot budget. The active user goal authorizes implementation and orchestration on `dev`; production/main promotion remains separately gated.
+All execution subagents: `gpt-6.1-terra`, reasoning `medium`. One orchestrator; at most three concurrent workers/reviewers with the current four-slot budget. The active user goal authorizes implementation and orchestration on `feat/hono-migration`; production/main promotion remains separately gated.
 
 ## Read and dispatch
 

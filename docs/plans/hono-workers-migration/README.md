@@ -1,6 +1,6 @@
 # Hono and Workers migration
 
-Implementation authorized on `dev`; production/main promotion remains separately gated. Adopt Hono/TypeScript and Drizzle ORM; PostgreSQL remains authoritative. Workers hosts API/auth/socket coordination; isolated execution stays behind provider-neutral ports. Full scope includes Go API, trusted judge, language gateway and tooling retirement. The active implementation goal authorizes the migration. KV/cache/search features remain excluded.
+Implementation authorized on `feat/hono-migration`; production/main promotion remains separately gated. Adopt Hono/TypeScript and Drizzle ORM; PostgreSQL remains authoritative. Workers hosts API/auth/socket coordination; isolated execution stays behind provider-neutral ports. Full scope includes Go API, trusted judge, language gateway and tooling retirement. The active implementation goal authorizes the migration. KV/cache/search features remain excluded.
 
 ## Start here
 
