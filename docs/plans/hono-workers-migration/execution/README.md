@@ -37,7 +37,7 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 | 16 | Integrated | [#392](https://github.com/ethan-ngai/quorem/pull/392), `184ee74f`; 7 PostgreSQL and 3 real workerd/DO tests after rebase; transition binding and hosted delays remain |
 | 17 | Integrated | [#394](https://github.com/ethan-ngai/quorem/pull/394); scoped workspaces/Odyssey; 5 Node/PG and 2 workerd/PG tests after rebase; CI fixture wired |
 | 18 | Integrated | [#397](https://github.com/ethan-ngai/quorem/pull/397); admission, recovery and cancellation; includes actual Go judge differential execution; current shared-owner merges under validation |
-| 19a/19b | CI review | [#400](https://github.com/ethan-ngai/quorem/pull/400); bounded result/header streaming, current authorization per page, privileged legacy normalization; 23 PG and 6 workerd tests; final staging cleanup and lint passed |
+| 19a/19b | Integrated | [#400](https://github.com/ethan-ngai/quorem/pull/400); bounded result/header streaming, current authorization per page, privileged legacy normalization; 23 PG and 6 workerd tests; final staging cleanup and lint passed |
 | 20a | Local committed | Canonical pure/transactional reconciliation; full lifecycle belongs 20b |
 | 20b | Local committed | `123a66a2`, [#389](https://github.com/ethan-ngai/quorem/issues/389); lifecycle; 12 PG and 2 workerd tests; host revocation tightening continues in 21 |
 | 21 | Local committed | `d35593ab`, [#398](https://github.com/ethan-ngai/quorem/issues/398); invitations/join/removal/current-match and shared selection; 9 PG and 1 workerd tests |
@@ -60,10 +60,16 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 | 30a/30b/30c | Local committed | `9377130d` stack, [#399](https://github.com/ethan-ngai/quorem/issues/399); bounded socket notices/document pages and shared browser receipt credit; authorized HTTP snapshot/status streams |
 | 31 | Local committed | `14a9e506`, [#403](https://github.com/ethan-ngai/quorem/issues/403); real Node WebSocket/PG replicas, live authorization and shared protocol |
 | 32 | Local committed | `cc1a9191`, [#404](https://github.com/ethan-ngai/quorem/issues/404); actual workerd DO/PG opaque grants, quotas, revocation and receipt pressure; full managed-runtime hibernation remains blocked in 35a |
-| 35a | Running | [#410](https://github.com/ethan-ngai/quorem/issues/410); actual Node/Worker composition and real Docker/private HTTP verifier flow; managed DO hibernation and trusted client IP attribution unresolved |
-| 35b | Running | [#412](https://github.com/ethan-ngai/quorem/issues/412); staged Terraform and deployment artifacts; no apply/deploy |
-| 36a | Running | [#413](https://github.com/ethan-ngai/quorem/issues/413); executable trusted Node verifier and fenced HTTP/continuous runner composition |
-| 36b–39 | Pending | Hosted gates, full audit, cutover and verified Go retirement; no broad backend parity or deployment claim |
+| 35a | Draft review | [#415](https://github.com/ethan-ngai/quorem/pull/415); composed Node/Worker runtime, per-aggregate DO routing, mandatory managed hibernation, trusted peer attribution, scheduled repair and two-instance fanout proved locally |
+| 35b | Local committed | [#418](https://github.com/ethan-ngai/quorem/pull/418); staged Terraform, Access ingress and native artifacts now included in 415 review stack; no apply/deploy |
+| 36a | Local committed | `9c374b72`, [#413](https://github.com/ethan-ngai/quorem/issues/413); executable verifier and fenced HTTP/continuous runner; actual spawned-process Docker promotion and SIGTERM teardown |
+| 36b | Local committed | `04d57ea1`, [#417](https://github.com/ethan-ngai/quorem/issues/417); real staged runner/verifier containers, trusted host daemon, signed promotion, competing startup, held-fence refusal and SIGTERM teardown; local topology only |
+| 37a | Local committed | `6e07b5a9`, [#414](https://github.com/ethan-ngai/quorem/issues/414); canonical lifecycle fixtures and real verified late completion; Node 14/14 and workerd 2/2 |
+| 37b | Local committed | `452be536`, [#416](https://github.com/ethan-ngai/quorem/issues/416); self-contained mandatory release validation; named disposable database, both ledgers, canonical catalog, missing-prerequisite and skip refusal, CI wiring |
+| 37c/37d | In review | [#419](https://github.com/ethan-ngai/quorem/issues/419); independent guest creation, scheduled retention, normalized terminal input cleanup and protected shared blobs; measured orphan-GC scan requires bounded cursor follow-up |
+| 37e | Local committed | `e87c6438`, [#420](https://github.com/ethan-ngai/quorem/issues/420); profile settings independent of media; real Node/workerd PostgreSQL proof |
+| 37f | Running | [#421](https://github.com/ethan-ngai/quorem/issues/421); reconcile native admission fixture with sealed runner manifests after CI failure |
+| Hosted 36 / final 37 / 38–39 | Pending | Hosted gates, full audit, browser smoke, cutover and verified Go retirement; no production parity or deployment claim |
 
 
 Reports update here or link their issue/PR; no claimed runtime parity without executed tests. Independent agent worktrees start from current `origin/feat/hono-migration`; dependent packets use their assigned predecessor commit. Preserve branches until all dependent work is integrated. All migration PRs target `feat/hono-migration` or a predecessor feature branch; CI follows that integration target; production workflows remain main-only.
@@ -93,3 +99,9 @@ Socket integration decision: WebSockets carry bounded invalidations and document
 `feat/hono-migration` includes media #396 and admission #397 after exact-head CI passed. Result streaming #400 reruns with the database probe port outside the Linux ephemeral range; #406 passed its previous exact head and awaits that parent. Later local packets are assembled in the 35a review stack but are not integrated or active. Root owns integration; no migration commits enter dev/main.
 
 Production gates still include real managed DO hibernation, executable runner service composition, provisioned provider isolation/teardown equivalence, database/Worker budgets, load and rollback safety, old-writer drain, audited backfills, and complete entrypoint/consumer audit. Local workerd/Docker tests do not establish hosted capacity or production activation.
+
+## Combined local release validation
+
+Root independently ran the combined 415 review tree after 36b, 37b, 37c/37d and profile capability integration on fresh loopback PostgreSQL `55690/quorem_hono_runtime_test`. `vp -C apps/api exec node src/runtime/composition/run-validation.mjs` passed fixture bootstrap 1/1, Node 14/14 and native workerd 3/3 with zero skipped tests; the disposable container was removed. This includes actual Node and Wrangler admission → Docker → independent signed HTTP verifier → authorized result, mandatory managed socket eviction/rehydration, peer sanitization, recovery and route inventory. Merged result-stream regressions independently passed 26/26 on the root's separate named disposable database. These results establish local behavior only.
+
+CI is exposing older standalone fixtures that predate sealed inputs; fix their canonical publication fixtures rather than reintroducing old execution paths. Hosted ingress/Access denial, provider isolation, persistent-volume failure, real workload/query budgets, browser smoke, migration drain/backfill and rollback remain release gates. No production deployment, dev/main promotion or Go retirement occurred.
