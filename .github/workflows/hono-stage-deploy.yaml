@@ -75,7 +75,7 @@ jobs:
           HONO_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: node scripts/hono-stage-provider-check.mjs
   validate:
-    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && (github.event_name == 'push' || inputs.release_sha == github.sha)
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'plan' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && (github.event_name == 'push' || inputs.release_sha == github.sha)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -132,6 +132,7 @@ jobs:
           node --test infra/terraform/hono-bootstrap/tests/rest-identity.test.mjs
   bootstrap:
     needs: [validate, preflight]
+    if: always() && github.ref == 'refs/heads/feat/hono-migration' && needs.preflight.result == 'success' && (inputs.action == 'plan' || needs.validate.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: hono-stage
