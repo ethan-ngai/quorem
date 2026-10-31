@@ -73,7 +73,7 @@ jobs:
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
-          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test; do
+          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test; do
             docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
           done
           # Match server-major archive tools; only disposable fixtures enter /tmp.
@@ -91,11 +91,14 @@ jobs:
           QUOREM_SCHEMA_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_schema_test?sslmode=disable
           QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_primitives_test?sslmode=disable
           QUOREM_IDENTITY_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_identity_test?sslmode=disable
+          QUOREM_CATALOG_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_catalog_test?sslmode=disable
         run: |
           vp -C packages/database run typecheck
           vp -C packages/database run test
           vp -C packages/database run test:integration
           vp -C apps/api run test:identity
+          vp -C apps/api run test:catalog
+          vp -C apps/api run test:catalog:workers
       - name: Workerd PostgreSQL connection lifecycle
         env:
           WRANGLER_SEND_METRICS: "false"

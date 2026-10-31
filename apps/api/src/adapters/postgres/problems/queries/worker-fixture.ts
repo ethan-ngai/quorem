@@ -17,7 +17,6 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(env.CATALOG_TEST_DATABASE_URL);
     if (
-      url.port !== "55441" ||
       url.pathname !== "/quorem_hono_catalog_test" ||
       !["localhost", "127.0.0.1"].includes(url.hostname)
     )

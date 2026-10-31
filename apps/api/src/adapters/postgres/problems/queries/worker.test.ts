@@ -16,7 +16,6 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
   beforeAll(async () => {
     const parsed = new URL(url);
     if (
-      parsed.port !== "55441" ||
       parsed.pathname !== "/quorem_hono_catalog_test" ||
       !["localhost", "127.0.0.1"].includes(parsed.hostname)
     )

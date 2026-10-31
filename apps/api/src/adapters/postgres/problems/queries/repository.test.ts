@@ -16,7 +16,7 @@ const url = process.env.QUOREM_CATALOG_TEST_DATABASE_URL;
 describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
   it("enforces visibility, redaction, filters, cursors, sidecars and editorial gates", async () => {
     const parsed = new URL(url!);
-    expect(parsed.port).toBe("55441");
+    expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
     expect(parsed.pathname).toBe("/quorem_hono_catalog_test");
     const pool = createNodePool({
       connectionString: url!,
