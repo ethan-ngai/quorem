@@ -255,3 +255,26 @@ export const mail_intentInQuorem_auth = quorem_auth.table("mail_intent", {
   check("mail_intent_state_check", sql`state IN ('pending', 'sending', 'accepted', 'rejected', 'uncertain', 'cancelled')`),
   index("mail_intent_expiry").on(table.expires_at),
 ]);
+
+export const profile_mutation_windowInQuorem_auth = quorem_auth.table(
+  "profile_mutation_window",
+  {
+    owner_hash: text().primaryKey().notNull(),
+    used: integer().notNull(),
+    expires_at: timestamp({ withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    check("profile_mutation_window_used_check", sql`used >= 1 AND used <= 10`),
+    index("profile_mutation_window_expiry").on(table.expires_at),
+  ],
+);
+
+export const profile_mutation_leaseInQuorem_auth = quorem_auth.table("profile_mutation_lease", {
+  id: text().primaryKey().notNull(),
+  owner_hash: text().notNull(),
+  generation: text().notNull(),
+  deadline_at: timestamp({ withTimezone: true, mode: "date" }).notNull(),
+  created_at: timestamp({ withTimezone: true, mode: "date" })
+    .default(sql`clock_timestamp()`)
+    .notNull(),
+});

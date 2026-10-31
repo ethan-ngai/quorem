@@ -143,11 +143,14 @@ jobs:
           done
           vp -C packages/database run test:workers
       - name: Isolated auth fixture
-        run: docker exec "${{ job.services.postgres.id }}" createdb -U quorem quorem_hono_auth_native_test
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U quorem quorem_hono_auth_native_test
+          docker exec "${{ job.services.postgres.id }}" createdb -U quorem quorem_hono_profile_test
       - run: vp -C apps/auth run typecheck
       - run: vp -C apps/auth test
         env:
           AUTH_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_auth_native_test?sslmode=disable
+          PROFILE_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_profile_test?sslmode=disable
       - run: vp -C apps/web test
       - run: vp node --test scripts/marketing-dev.test.mjs
       - run: vp run build

@@ -1,8 +1,16 @@
-/** Distributed admission contract; limits count every photo mutation and leases bound concurrency. */
+export const profileMutationLifetimeMs = 15000;
+export interface ProfileMutationLease {
+  id: string;
+  ownerHash: string;
+  generation: string;
+  deadlineUnixMs: number;
+}
+/** Expired leases remain charged until the owner has stopped and releases them. */
 export interface ProfileMutationBudget {
-  acquire(userId: string): Promise<
-    | { allowed: true; leaseId: string; expiresAtUnixMs: number }
-    | { allowed: false; retryAfterSeconds: number }
+  acquire(
+    userId: string,
+  ): Promise<
+    { allowed: true; lease: ProfileMutationLease } | { allowed: false; retryAfterSeconds: number }
   >;
-  release(leaseId: string): Promise<void>;
+  release(lease: ProfileMutationLease): Promise<void>;
 }

@@ -1,51 +1,117 @@
+import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { createAuthApp } from "./http.ts";
 import type { configuration } from "./config.ts";
 
-const config = { method: "password", origin: "https://auth.test", passkey: true, registration: false, social: {} } as ReturnType<typeof configuration>;
+const config = {
+  method: "password",
+  origin: "https://auth.test",
+  passkey: true,
+  registration: false,
+  social: {},
+} as ReturnType<typeof configuration>;
 describe("native auth mount", () => {
-  it("preserves response cookies and keeps session authority private", async () => {
-    const app = createAuthApp({ config, auth: { async handler() {
-      const headers = new Headers();
-      headers.append("Set-Cookie", "first=one; Path=/; HttpOnly");
-      headers.append("Set-Cookie", "second=two; Path=/; HttpOnly");
+  it("adopts parent middleware headers and all auth/profile cookies", async () => {
+    const response = () => {
+      const headers = new Headers({ "cache-control": "public, max-age=60" });
+      headers.append("set-cookie", "one=1; Path=/");
+      headers.append("set-cookie", "two=2; Path=/");
       return new Response("ok", { headers });
-    } } });
-    const result=await app.request("https://auth.test/api/auth/get-session");
-    expect(result.headers.getSetCookie()).toEqual(["first=one; Path=/; HttpOnly", "second=two; Path=/; HttpOnly"]);
+    };
+    const sub = createAuthApp({
+      config,
+      auth: { handler: async () => response() },
+      profile: async () => response(),
+    });
+    const parent = new Hono();
+    parent.use("*", async (context, next) => {
+      context.header("X-Request-ID", "fixture-id");
+      context.header("Cache-Control", "no-store");
+      context.header("Set-Cookie", "parent=3; Path=/", { append: true });
+      await next();
+    });
+    parent.route("/", sub);
+    for (const path of ["/api/auth/get-session", "/api/auth/profile"]) {
+      const result = await parent.request(`https://auth.test${path}`);
+      expect(result.headers.get("x-request-id")).toBe("fixture-id");
+      expect(result.headers.get("cache-control")).toBe("no-store");
+      expect(result.headers.getSetCookie()).toEqual([
+        "one=1; Path=/",
+        "two=2; Path=/",
+        "parent=3; Path=/",
+      ]);
+      expect(await result.text()).toBe("ok");
+    }
+  });
+  it("preserves response cookies and keeps session authority private", async () => {
+    const app = createAuthApp({
+      config,
+      auth: {
+        async handler() {
+          const headers = new Headers();
+          headers.append("Set-Cookie", "first=one; Path=/; HttpOnly");
+          headers.append("Set-Cookie", "second=two; Path=/; HttpOnly");
+          return new Response("ok", { headers });
+        },
+      },
+    });
+    const result = await app.request("https://auth.test/api/auth/get-session");
+    expect(result.headers.getSetCookie()).toEqual([
+      "first=one; Path=/; HttpOnly",
+      "second=two; Path=/; HttpOnly",
+    ]);
     expect((await app.request("https://auth.test/internal/session/example")).status).toBe(404);
-    expect((await app.request("https://auth.test/api/auth/registration/start",{method:"POST"})).status).toBe(404);
+    expect(
+      (await app.request("https://auth.test/api/auth/registration/start", { method: "POST" }))
+        .status,
+    ).toBe(404);
   });
 });
 
 describe.skipIf(!process.env.AUTH_TEST_DATABASE_URL)("native auth mount with PostgreSQL", () => {
   it("serves real Better Auth sessions and preserves cookies", async () => {
     Object.assign(process.env, {
-      APP_ENV: "local", AUTH_MODE: "password", AUTH_ORIGIN: "http://localhost:5189",
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4), AUTH_DATABASE_URL: process.env.AUTH_TEST_DATABASE_URL,
+      APP_ENV: "local",
+      AUTH_MODE: "password",
+      AUTH_ORIGIN: "http://localhost:5189",
+      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      AUTH_DATABASE_URL: process.env.AUTH_TEST_DATABASE_URL,
       AUTH_INTERNAL_SECRET: "fixture-secret",
     });
-    const { auth, config, database, createAuth } = await (await import("./node-auth.ts")).createNodeRuntime(process.env);
+    const { auth, config, database, createAuth } = await (
+      await import("./node-auth.ts")
+    ).createNodeRuntime(process.env);
     const { migrateAuth } = await import("./migrations.ts");
     await migrateAuth(database);
     const name = crypto.randomUUID();
     try {
-      const signup = await createAuth(true).handler(new Request(`${config.origin}/api/auth/sign-up/email`, {
-        method: "POST", headers: { Origin: config.origin, "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email: `${name}@example.test`, username: name.replaceAll("-", "").slice(0, 16), password: "fixture password" }),
-      }));
+      const signup = await createAuth(true).handler(
+        new Request(`${config.origin}/api/auth/sign-up/email`, {
+          method: "POST",
+          headers: { Origin: config.origin, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            email: `${name}@example.test`,
+            username: name.replaceAll("-", "").slice(0, 16),
+            password: "fixture password",
+          }),
+        }),
+      );
       expect(signup.status).toBe(200);
       await database.query('UPDATE "user" SET "emailVerified"=true WHERE name=$1', [name]);
-      const app=createAuthApp({config,auth});
-      const response=await app.request(`${config.origin}/api/auth/sign-in/email`, {
-        method: "POST", headers: { Origin: config.origin, "Content-Type": "application/json" },
+      const app = createAuthApp({ config, auth });
+      const response = await app.request(`${config.origin}/api/auth/sign-in/email`, {
+        method: "POST",
+        headers: { Origin: config.origin, "Content-Type": "application/json" },
         body: JSON.stringify({ email: `${name}@example.test`, password: "fixture password" }),
       });
       expect(response.status).toBe(200);
-      const cookies=response.headers.getSetCookie();
+      const cookies = response.headers.getSetCookie();
       expect(cookies.length).toBeGreaterThan(0);
-      const cookie=cookies.map(value=>value.split(";")[0]).join("; ");
-      const session=await app.request(`${config.origin}/api/auth/get-session`, { headers: { cookie } });
+      const cookie = cookies.map((value) => value.split(";")[0]).join("; ");
+      const session = await app.request(`${config.origin}/api/auth/get-session`, {
+        headers: { cookie },
+      });
       expect((await session.json()).user.email).toBe(`${name}@example.test`);
       expect((await app.request(`${config.origin}/internal/session/example`)).status).toBe(404);
     } finally {
