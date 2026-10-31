@@ -77,7 +77,7 @@ try {
         }),
       ),
     );
-    assert.deepEqual(attempts.map((r) => r.status).sort(), [200, 409]);
+    assert.deepEqual(attempts.map((r) => r.status).sort((a, b) => a - b), [200, 409]);
     assert.equal((await request(photo)).status, 404);
     const current = (await (await request("/api/auth/profile")).json()).image;
     assert.equal((await request(current)).status, 200);
