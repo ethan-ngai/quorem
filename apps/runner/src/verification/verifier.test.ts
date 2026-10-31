@@ -168,3 +168,53 @@ test("private HTTP service authenticates callers and returns a verifiable derive
     await once(server, "close");
   }
 });
+test("SQL type mismatch is independently derived and signed", async () => {
+  const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const { source, inputs } = setup('{"rows":[[{"$numeric":"1"}]]}');
+  const metadata = new TextEncoder().encode(
+    '{"signature":{"returnType":"int"},"sql":{"dialect":"postgresql","outputOrder":"ordered","output":[{"name":"n","type":"numeric"}]}}',
+  );
+  const testcase = new TextEncoder().encode('{"args":[],"expected":{"rows":[[{"$numeric":"1"}]]}}');
+  const previousManifest = inputs.inputManifest;
+  inputs.inputManifest = async (job, signal) => ({
+    ...(await previousManifest(job, signal)),
+    metadata: { hash: hash(metadata), size: metadata.length },
+  });
+  inputs.inputCaseRef = async () => ({
+    hash: hash(testcase),
+    size: testcase.length,
+    channel: "public",
+  });
+  inputs.inputPage = async (_job, kind, _ordinal, offset) => {
+    const data = kind === "metadata" ? metadata : testcase;
+    return {
+      bytes: data.subarray(offset, offset + 65536),
+      hash: hash(data),
+      size: data.length,
+      channel: kind === "case" ? "public" : null,
+    };
+  };
+  const frozen = source.frozenCase;
+  const sqlTypes = new TextEncoder().encode('["text"]');
+  source.frozenCase = async (id, signal) => ({
+    ...(await frozen(id, signal)),
+    sqlTypes: { hash: hash(sqlTypes), size: sqlTypes.length },
+  });
+  const field = source.fieldPage;
+  source.fieldPage = async (id, name, offset, signal) =>
+    name === "sqlTypes"
+      ? {
+          bytes: sqlTypes.subarray(offset, offset + 65536),
+          hash: hash(sqlTypes),
+          size: sqlTypes.length,
+          channel: null,
+        }
+      : field(id, name, offset, signal);
+  const { receipt, signature } = await nodeResultVerifier(source, keys.privateKey)("challenge");
+  assert.equal(receipt.status, "wrong_answer");
+  assert.equal(receipt.typeMismatch, true);
+  assert.equal(
+    await verifyResultReceipt({ ...receipt, typeMismatch: false }, signature, keys.publicKey),
+    false,
+  );
+});

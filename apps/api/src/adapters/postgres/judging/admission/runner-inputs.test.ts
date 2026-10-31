@@ -24,7 +24,7 @@ import { httpVerificationSource } from "../../../../../../runner/src/verificatio
 import { verificationHandler } from "../../../../../../runner/src/verification/http.ts";
 import { verifiedMatchProgress } from "../worker/verified-progress.ts";
 import { nodeResultVerifier } from "../../../../../../runner/src/verification/verifier.ts";
-import { verifyResultReceipt } from "@quorem/execution";
+import { verificationReceiptBytes, verifyResultReceipt } from "@quorem/execution";
 import { postgresCompletionPromotion } from "../worker/promote.ts";
 import { postgresExecutionCommands } from "../worker/repository.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
@@ -644,6 +644,10 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             await tx.execute(
               sql`INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash) VALUES(${job}::uuid,'sample',0,'actual',0,${actual}::bytea,sha256(${actual}::bytea))`,
             );
+            const diagnostics = new TextEncoder().encode('[{"message":"n\\u0000l"}]');
+            await tx.execute(
+              sql`INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash) VALUES(${job}::uuid,'sample',0,'diagnostics',0,${diagnostics}::bytea,sha256(${diagnostics}::bytea))`,
+            );
             const challenge = await postgresVerificationPrepare(scoped)(
               fence,
               "sample",
@@ -688,6 +692,26 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
                 timeoutMs: 5000,
               });
               verified = await verifier.verify(challenge);
+              await tx.execute(sql`SAVEPOINT mismatch_assembly`);
+              const mismatch = { ...verified.receipt, typeMismatch: true };
+              const mismatchSignature = new Uint8Array(
+                await crypto.subtle.sign(
+                  "Ed25519",
+                  keys.privateKey,
+                  new Uint8Array(verificationReceiptBytes(mismatch)),
+                ),
+              );
+              await postgresVerificationCommit(scoped, keys.publicKey)(mismatch, mismatchSignature);
+              const diagnosticFrame = (
+                await tx.execute<{ raw: string }>(
+                  sql`SELECT convert_from(frame_data,'UTF8') AS raw FROM execution_completion_frames WHERE job_id=${job}::uuid AND channel='sample' AND ordinal=0`,
+                )
+              ).rows[0].raw;
+              expect(JSON.parse(diagnosticFrame).diagnostics).toEqual([
+                { message: "n\u0000l" },
+                { message: "Output column types do not match the SQL schema." },
+              ]);
+              await tx.execute(sql`ROLLBACK TO SAVEPOINT mismatch_assembly`);
               await postgresCompletionStaging(scoped, {
                 verifier,
                 verificationPublicKey: keys.publicKey,

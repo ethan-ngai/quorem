@@ -4,6 +4,7 @@ import {
   uuid,
   text,
   integer,
+  boolean,
   check,
   primaryKey,
   foreignKey,
@@ -96,6 +97,7 @@ export const execution_verified_cases = pgTable(
     frame_hash: bytea().notNull(),
     actual_hash: bytea(),
     expected_hash: bytea(),
+    type_mismatch: boolean().notNull(),
     status: text().notNull(),
   },
   (t) => [

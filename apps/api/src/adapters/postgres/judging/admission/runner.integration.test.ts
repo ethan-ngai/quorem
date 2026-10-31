@@ -1,6 +1,8 @@
 /** @file runner.integration.test.ts @description Admitted work through the actual TypeScript runner. @module judging */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
+import { createServer, type Server } from "node:http";
+import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { claimNext } from "../../../../../../runner/src/queue/claim.ts";
 import { fileURLToPath } from "node:url";
@@ -17,6 +19,10 @@ import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
 import { submissionSnapshots } from "../results/repository.ts";
 import { postgresExecutionCommands } from "../worker/repository.ts";
+import { indexRunnerFixture } from "../inputs/fixture.ts";
+import { createVerificationSourceHandler } from "../worker/verification-http.ts";
+import { httpResultVerifier, type ResultVerifier } from "../worker/verification-client.ts";
+import { createVerificationService } from "../../../../../../runner/src/verification/service.ts";
 import { createRunnerCommandHandler } from "../worker/http.ts";
 import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
@@ -77,7 +83,10 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
     }),
   );
   app.route("/", submissionRoutes({ identify, snapshots: submissionSnapshots(run) }));
-  let stateRoot: string;
+  let stateRoot: string,
+    verificationServer: Server,
+    verificationPublicKey: CryptoKey,
+    verifier: ResultVerifier;
   beforeAll(async () => {
     stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-admission-runner-")));
     await migrate(
@@ -120,6 +129,61 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
       "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,'[3]','4')",
       [version],
     );
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+        await indexRunnerFixture(
+          tx,
+          { version },
+          JSON.stringify({
+            problem: {
+              id: version,
+              signature: {
+                className: "Solution",
+                methodName: "f",
+                parameters: [{ name: "x", type: "int" }],
+                returnType: "int",
+              },
+              constraints: [],
+              limits: {
+                wallTimeMs: 2000,
+                memoryBytes: 268435456,
+                outputBytes: 65536,
+                maxProcesses: 16,
+                maxCollectionElements: 10000,
+                maxNestingDepth: 100,
+              },
+              examples: [{ args: [1], expected: 2 }],
+            },
+            hiddenCases: [{ args: [3], expected: 4 }],
+          }),
+        );
+      }),
+    );
+    const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+    verificationPublicKey = keys.publicKey;
+    const sourceCredential = new Uint8Array(32).fill(3),
+      serviceCredential = new Uint8Array(32).fill(4),
+      sourceHandler = createVerificationSourceHandler(run, sourceCredential);
+    verificationServer = createServer(
+      createVerificationService({
+        sourceOrigin: "https://fixture",
+        sourceCredential,
+        serviceCredential,
+        signingKey: keys.privateKey,
+        timeoutMs: 10000,
+        fetch: async (input, init) => sourceHandler(new Request(input, init)),
+      }),
+    );
+    verificationServer.listen(0, "127.0.0.1");
+    await once(verificationServer, "listening");
+    const verifierAddress = verificationServer.address();
+    if (!verifierAddress || typeof verifierAddress === "string")
+      throw new Error("Verifier listener unavailable");
+    verifier = httpResultVerifier({
+      origin: `http://127.0.0.1:${verifierAddress.port}`,
+      credential: serviceCredential,
+      timeoutMs: 10000,
+    });
     await pool.query(
       "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
       [workspace, owner, version],
@@ -145,6 +209,8 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
     await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=$1", [owner]);
+    verificationServer.close();
+    await once(verificationServer, "close");
     await pool.end();
     await rm(stateRoot, { recursive: true, force: true });
   });
@@ -172,12 +238,18 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         secret,
         scope: sandbox.scope,
         resumable: true,
+        inputProtocol: "manifest-v1",
         repository: () =>
-          postgresExecutionCommands(run, {
-            resumable: true,
-            losslessCases: true,
-            losslessResults: true,
-          }),
+          postgresExecutionCommands(
+            run,
+            {
+              inputProtocol: "manifest-v1",
+              resumable: true,
+              losslessCases: true,
+              losslessResults: true,
+            },
+            { verifier, verificationPublicKey },
+          ),
       },
     ]);
     const repository = privateRunnerCommands({
@@ -244,12 +316,18 @@ describe.skipIf(!url || !socket)("admission through TypeScript runner", () => {
         secret,
         scope: sandbox.scope,
         resumable: true,
+        inputProtocol: "manifest-v1",
         repository: () =>
-          postgresExecutionCommands(run, {
-            resumable: true,
-            losslessCases: true,
-            losslessResults: true,
-          }),
+          postgresExecutionCommands(
+            run,
+            {
+              inputProtocol: "manifest-v1",
+              resumable: true,
+              losslessCases: true,
+              losslessResults: true,
+            },
+            { verifier, verificationPublicKey },
+          ),
       },
     ]);
     const repository = privateRunnerCommands({

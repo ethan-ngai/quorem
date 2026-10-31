@@ -34,6 +34,7 @@ CREATE TABLE execution_verified_cases (
  frame_hash bytea NOT NULL CHECK (octet_length(frame_hash)=32),
  actual_hash bytea CHECK (actual_hash IS NULL OR octet_length(actual_hash)=32),
  expected_hash bytea CHECK (expected_hash IS NULL OR octet_length(expected_hash)=32),
+ type_mismatch boolean NOT NULL,
  status text NOT NULL CHECK (status IN ('accepted','wrong_answer','executed','syntax_error','runtime_error','time_limit','memory_limit','output_limit','invalid_output')),
  PRIMARY KEY(job_id,attempt_id,ordinal),
  FOREIGN KEY(job_id,ordinal) REFERENCES runner_job_input_cases(job_id,ordinal)

@@ -15,6 +15,7 @@ const receipt: VerificationReceipt = {
   ordinal: 0,
   channel: "private",
   status: "wrong_answer",
+  typeMismatch: false,
   actualHash: "c".repeat(64),
   expectedHash: "d".repeat(64),
 };
@@ -31,6 +32,7 @@ describe("verification receipt", () => {
     expect(await verifyResultReceipt(receipt, signature, keys.publicKey)).toBe(true);
     for (const altered of [
       { ...receipt, status: "accepted" },
+      { ...receipt, typeMismatch: true },
       { ...receipt, ordinal: 1 },
       { ...receipt, frameHash: "e".repeat(64) },
       { ...receipt, challenge: "other" },
