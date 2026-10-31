@@ -21,6 +21,11 @@ import { join } from "node:path";
 import { defaultLimits } from "@quorem/execution";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
+import { workspaceRepository } from "../../workspace/repository.ts";
+import { persistQuestionVersion } from "../../problems/publication.ts";
+import { languageRuntime } from "@quorem/execution";
+import { readFileSync } from "node:fs";
+import { sql } from "drizzle-orm";
 const url = process.env.QUOREM_MATCH_TEST_DATABASE_URL;
 if (!url) throw new Error("Disposable match database required");
 assertRunnerFixture(url, ["/quorem_hono_match_manifest_test"]);
@@ -93,7 +98,7 @@ before(async () => {
 after(async () => {
   await pool.end();
 });
-async function room(active = true) {
+async function room(active = true, selectedVersion = version) {
   const id = crypto.randomUUID(),
     a = `a-${id}`,
     b = `b-${id}`,
@@ -105,7 +110,7 @@ async function room(active = true) {
   );
   await pool.query(
     `INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES($1::uuid,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,${active ? "'active'" : "'waiting'"},ARRAY['easy'],${active ? "clock_timestamp()" : "NULL"},${active ? "clock_timestamp()+interval '1 hour'" : "NULL"},${active ? "$3" : "NULL"})`,
-    [id, a, ...(active ? [version] : [])],
+    [id, a, ...(active ? [selectedVersion] : [])],
   );
   await pool.query(
     "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1),($1,$3,2)",
@@ -123,7 +128,7 @@ async function room(active = true) {
   if (active) {
     await pool.query(
       "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$3,$5,'python','match',$6),($2,$4,$5,'python','match',$6)",
-      [wa, wb, a, b, version, id],
+      [wa, wb, a, b, selectedVersion, id],
     );
   }
   return { id, a, b, wa, wb };
@@ -398,6 +403,119 @@ void test("verified early failure permits guest winner and late completion canno
     await finishAfterTeardown(port, sandboxA, jobA!);
     match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
     assert.equal(match.outcome.winnerUserId, winner);
+  } finally {
+    await verifier.close();
+    await rm(stateRoot, { recursive: true, force: true });
+  }
+});
+void test("verified intermediate match result appears in workspace Odyssey feedback", async () => {
+  const socket = process.env.QUOREM_TEST_DOCKER_SOCKET;
+  if (!socket) throw new Error("Disposable Docker socket required");
+  const problemId = crypto.randomUUID(),
+    stageVersion = crypto.randomUUID();
+  const fixture = JSON.parse(
+    readFileSync(
+      new URL("../../../../../../../fixtures/odyssey/balance-ledger.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  fixture.problem.id = stageVersion;
+  fixture.problem.slug = `stage-${problemId.slice(0, 8)}`;
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(
+        sql`INSERT INTO problems(id,slug) VALUES(${problemId}::uuid,${fixture.problem.slug})`,
+      );
+      await persistQuestionVersion(
+        tx,
+        JSON.stringify(fixture),
+        problemId,
+        stageVersion,
+        1,
+        null,
+        (language) => {
+          const value = languageRuntime(language);
+          return value ? { revision: value.revision, harness: value.harness } : undefined;
+        },
+      );
+    }),
+  );
+  const r = await room(true, stageVersion),
+    key = crypto.randomUUID(),
+    fence = { receiptId: crypto.randomUUID(), jobId: crypto.randomUUID(), shard: 0 };
+  await prearmReceipts(run, "execution").create(fence.receiptId, 0);
+  const principal: Principal = {
+    kind: "local",
+    userId: r.a,
+    displayName: "A",
+    admin: false,
+    emailVerified: true,
+    sessionId: "fixture",
+    strongUntil: 0,
+  };
+  const command = await parseWorkspaceCommand(
+    JSON.stringify({
+      workspaceId: r.wa,
+      kind: "submit",
+      level: 1,
+      source:
+        "class Solution:\n def __init__(self): self.balance=0\n def deposit(self,amount):\n  self.balance+=amount\n  return self.balance",
+    }),
+    key,
+  );
+  const admission = await postgresWorkspaceAdmission(run, {
+    losslessCases: true,
+    guestExecution: true,
+  })(principal, key, command, fence);
+  const verifier = await localVerifier(run),
+    stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-match-feedback-")));
+  try {
+    const port = postgresExecutionCommands(
+      run,
+      { inputProtocol: "manifest-v1", resumable: true, losslessCases: true, losslessResults: true },
+      verifier.verification,
+    );
+    const sandbox = await dockerSandbox({
+      socket,
+      stateRoot,
+      namespace: "match-feedback",
+      cleanupMs: 10000,
+    });
+    const job = await port.claimAfterTeardown(true, sandbox.scope, null);
+    assert.equal(job?.jobId, fence.jobId);
+    await executeAndStage(job!, port, sandbox);
+    await finishAfterTeardown(port, sandbox, job!);
+    const result = (
+      await pool.query("SELECT state,result FROM submissions WHERE id=$1", [admission.id])
+    ).rows[0];
+    assert.equal(result.state, "completed");
+    assert.equal(result.result.verdict, "accepted");
+    const feedback = JSON.parse(
+      await new Response(await workspaceRepository(run).odyssey(principal, r.wa)).text(),
+    );
+    assert.deepEqual(feedback.caseStatuses, [{ index: 0, status: "accepted" }]);
+    const nextKey = crypto.randomUUID(),
+      nextFence = { receiptId: crypto.randomUUID(), jobId: crypto.randomUUID(), shard: 0 };
+    await prearmReceipts(run, "execution").create(nextFence.receiptId, 0);
+    const nextCommand = await parseWorkspaceCommand(
+      JSON.stringify({
+        workspaceId: r.wa,
+        kind: "run",
+        level: feedback.level,
+        source: "class Solution: pass",
+      }),
+      nextKey,
+    );
+    await postgresWorkspaceAdmission(run, { losslessCases: true, guestExecution: true })(
+      principal,
+      nextKey,
+      nextCommand,
+      nextFence,
+    );
+    const pendingFeedback = JSON.parse(
+      await new Response(await workspaceRepository(run).odyssey(principal, r.wa)).text(),
+    );
+    assert.deepEqual(pendingFeedback.caseStatuses, [{ index: 0, status: "accepted" }]);
   } finally {
     await verifier.close();
     await rm(stateRoot, { recursive: true, force: true });
