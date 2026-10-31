@@ -29,7 +29,7 @@ export interface PreparedQuestion {
 }
 export interface Dependencies {
   question(tx: Transaction, actor: Principal, command: InterviewCreate): Promise<PreparedQuestion>;
-  snapshot(tx: Transaction, actor: Principal, id: string): Promise<string>;
+  snapshot(actor: Principal, id: string): Promise<ReadableStream<Uint8Array>>;
 }
 const opts = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 const denied = () => new ApplicationError("not_found", "Invitation unavailable", 404);
@@ -157,10 +157,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
       });
     },
     async read(actor, id) {
-      return transact(async (tx) => {
-        await lockInterview(tx, actor, id, capabilitiesInTransaction);
-        return deps.snapshot(tx, actor, id);
-      });
+      return deps.snapshot(actor, id);
     },
     async preview(token) {
       if (!validGuestToken(token)) throw denied();
@@ -182,7 +179,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
       });
     },
     async join(actor, token, credential, name) {
-      return joinInterview(transact, deps, actor, token, credential, name);
+      return joinInterview(transact, actor, token, credential, name);
     },
     async setMember(actor, id, key, target, role) {
       if (role !== "interviewer" && role !== "interviewee")
@@ -256,7 +253,6 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
 type Transact = <T>(f: (tx: Transaction) => Promise<T>) => Promise<T>;
 async function joinInterview(
   transact: Transact,
-  deps: Dependencies,
   actor: Principal | undefined,
   token: string,
   credential: string | undefined,
@@ -379,7 +375,7 @@ async function joinInterview(
       sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${room.id}::uuid`,
     );
     return {
-      snapshot: JSON.stringify({ id: room.id }),
+      id: room.id,
       ...(guestCredential ? { credential: guestCredential } : {}),
     };
   });

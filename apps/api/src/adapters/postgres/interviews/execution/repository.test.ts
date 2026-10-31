@@ -5,7 +5,7 @@ import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { parseInterviewExecution } from "../../../../modules/interviews/execution/command.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 import { interviewDocumentCommands } from "../document/commands.ts";
 import { interviewQuestionCommands } from "../question/commands.ts";
 import { submissionSnapshots } from "../../judging/results/repository.ts";
@@ -57,24 +57,26 @@ it.skipIf(!url)("atomically admits locked source and replays after edits", async
       withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
     const lifecycle = interviewLifecycle(run, {
         question: preparePublishedInterviewQuestion,
-        snapshot: interviewSnapshot,
+        snapshot: interviewSnapshotStream(run),
       }),
       docs = interviewDocumentCommands(run),
       commands = interviewQuestionCommands(run),
       admit = postgresInterviewAdmission(run, { losslessCases: true, guestExecution: true });
     const room = JSON.parse(
-      await lifecycle.read(
-        host,
-        JSON.parse(
-          await lifecycle.create(host, "create", {
-            title: "Admission",
-            question: {
-              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-              language: "python",
-            },
-          }),
-        ).id,
-      ),
+      await new Response(
+        await lifecycle.read(
+          host,
+          JSON.parse(
+            await lifecycle.create(host, "create", {
+              title: "Admission",
+              question: {
+                problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                language: "python",
+              },
+            }),
+          ).id,
+        ),
+      ).text(),
     );
     const fixtureRaw = String.raw`{"problem":{"examples":[{"args":["a\u0000b"]}]}}`;
     const fixtureId = await run((scope) =>
@@ -177,23 +179,25 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
     const lifecycle = interviewLifecycle(run, {
         question: preparePublishedInterviewQuestion,
-        snapshot: interviewSnapshot,
+        snapshot: interviewSnapshotStream(run),
       }),
       questions = interviewQuestionCommands(run),
       admit = postgresInterviewAdmission(run, { losslessCases: true, guestExecution: true });
     const room = JSON.parse(
-      await lifecycle.read(
-        host,
-        JSON.parse(
-          await lifecycle.create(host, "create", {
-            title: "Stages",
-            question: {
-              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-              language: "python",
-            },
-          }),
-        ).id,
-      ),
+      await new Response(
+        await lifecycle.read(
+          host,
+          JSON.parse(
+            await lifecycle.create(host, "create", {
+              title: "Stages",
+              question: {
+                problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                language: "python",
+              },
+            }),
+          ).id,
+        ),
+      ).text(),
     );
     const sig = {
         className: "Solution",
@@ -220,12 +224,14 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       odysseyHiddenCases: [[one], [one]],
     };
     const selected = JSON.parse(
-      await lifecycle.read(
-        host,
-        JSON.parse(
-          await questions.select(host, room.id, "select", { language: "python", custom: staged }),
-        ).id,
-      ),
+      await new Response(
+        await lifecycle.read(
+          host,
+          JSON.parse(
+            await questions.select(host, room.id, "select", { language: "python", custom: staged }),
+          ).id,
+        ),
+      ).text(),
     );
     const raw = JSON.stringify({
       kind: "submit",
@@ -288,7 +294,10 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
     }
     await staging.eof(job!, job!);
     await postgresCompletionPromotion(run)(job!, job!);
-    expect(JSON.parse(await lifecycle.read(host, room.id)).question.progress.level).toBe(1);
+    expect(
+      JSON.parse(await new Response(await lifecycle.read(host, room.id)).text()).question.progress
+        .level,
+    ).toBe(1);
     const candidate = actor(`stage-candidate-${crypto.randomUUID()}`);
     await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Candidate')", [
       candidate.userId,
@@ -361,7 +370,10 @@ it.skipIf(!url)("accepted interview promotion cannot auto-advance a manual stage
       questions.passStage(host, room.id, "pass", selected.questionEpoch, 1),
     ]);
     expect(JSON.parse(passedRaw)).toEqual({ id: room.id });
-    expect(JSON.parse(await lifecycle.read(host, room.id)).question.progress.level).toBe(2);
+    expect(
+      JSON.parse(await new Response(await lifecycle.read(host, room.id)).text()).question.progress
+        .level,
+    ).toBe(2);
     const receipt3 = crypto.randomUUID();
     await pool.query(
       "INSERT INTO deadline_prearms(id,purpose,shard,expires_at) VALUES($1,'execution',0,clock_timestamp()+interval '1 minute')",

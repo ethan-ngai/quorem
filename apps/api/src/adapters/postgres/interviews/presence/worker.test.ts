@@ -6,7 +6,7 @@ import { createApp } from "../../../../app.ts";
 import { developmentIdentity } from "../../identity/repository.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 import { interviewPresence } from "./repository.ts";
 import { interviewMonitoring } from "../monitoring/repository.ts";
 import { interviewPresenceRoutes } from "../../../../modules/interviews/presence/routes.ts";
@@ -38,21 +38,23 @@ it("uses workerd PostgreSQL leases and private monitoring", async () => {
     candidateActor = (await identity(candidate))!;
   const lifecycle = interviewLifecycle(run, {
     question: preparePublishedInterviewQuestion,
-    snapshot: interviewSnapshot,
+    snapshot: interviewSnapshotStream(run),
   });
   const room = JSON.parse(
-    await lifecycle.read(
-      hostActor,
-      JSON.parse(
-        await lifecycle.create(hostActor, "create", {
-          title: "Worker",
-          question: {
-            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-            language: "python",
-          },
-        }),
-      ).id,
-    ),
+    await new Response(
+      await lifecycle.read(
+        hostActor,
+        JSON.parse(
+          await lifecycle.create(hostActor, "create", {
+            title: "Worker",
+            question: {
+              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+              language: "python",
+            },
+          }),
+        ).id,
+      ),
+    ).text(),
   );
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
@@ -132,8 +134,12 @@ it("uses workerd PostgreSQL leases and private monitoring", async () => {
     });
   expect((await rule()).status).toBe(200);
   expect((await rule()).status).toBe(200);
-  expect(JSON.parse(await lifecycle.read(hostActor, room.id)).ruleEvents).toHaveLength(1);
-  expect(JSON.parse(await lifecycle.read(candidateActor, room.id)).ruleEvents).toBeUndefined();
+  expect(
+    JSON.parse(await new Response(await lifecycle.read(hostActor, room.id)).text()).ruleEvents,
+  ).toHaveLength(1);
+  expect(
+    JSON.parse(await new Response(await lifecycle.read(candidateActor, room.id)).text()).ruleEvents,
+  ).toBeUndefined();
   const focus = await app.request(`${base}/rule-events`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": "focus" },
@@ -141,11 +147,13 @@ it("uses workerd PostgreSQL leases and private monitoring", async () => {
   });
   expect(focus.status).toBe(200);
   expect(
-    JSON.parse(await lifecycle.read(hostActor, room.id))
+    JSON.parse(await new Response(await lifecycle.read(hostActor, room.id)).text())
       .ruleEvents.map((e: { kind: string }) => e.kind)
       .sort(),
   ).toEqual(["focus", "paste"]);
-  expect(JSON.parse(await lifecycle.read(candidateActor, room.id)).ruleEvents).toBeUndefined();
+  expect(
+    JSON.parse(await new Response(await lifecycle.read(candidateActor, room.id)).text()).ruleEvents,
+  ).toBeUndefined();
 
   const bad = await app.request(`${base}/rule-events`, {
     method: "POST",

@@ -6,15 +6,15 @@ import { sql } from "drizzle-orm";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { developmentIdentity } from "../../identity/repository.ts";
 import { backfillInterviewPublicExamples } from "../question/public-examples.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 const url = (env as unknown as { INTERVIEW_TEST_URL: string }).INTERVIEW_TEST_URL;
 it("reads a revealed private case without exposing other cases in workerd", async () => {
   const parsed = new URL(url);
-  expect([parsed.hostname, parsed.port, parsed.pathname]).toEqual([
-    "127.0.0.1",
-    "55462",
-    "/quorem_hono_interview_test",
-  ]);
+  expect([
+    "55462:/quorem_hono_interview_test",
+    "55489:/quorem_hono_stream_lifecycle_test",
+  ]).toContain(`${parsed.port}:${parsed.pathname}`);
+  expect(parsed.hostname).toBe("127.0.0.1");
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 5000 }, f);
   const row = await run((scope) =>
@@ -41,11 +41,7 @@ it("reads a revealed private case without exposing other cases in workerd", asyn
     }),
   );
   const who = await run((scope) => developmentIdentity(scope, "interview-member"));
-  const output = await run((scope) =>
-    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
-      interviewSnapshot(tx, who!, row.id),
-    ),
-  );
+  const output = await new Response(await interviewSnapshotStream(run)(who!, row.id)).text();
   expect(output).toContain("9007199254740993");
   expect(output).toContain("PRIVATE-ONE\\u0000");
   expect(output).not.toContain("PRIVATE-TWO");
@@ -77,7 +73,7 @@ it("joins through workerd HTTP with shared origin, budget and guest cookie rules
     interviewLifecycleRoutes({
       lifecycle: interviewLifecycle(run, {
         question: preparePublishedInterviewQuestion,
-        snapshot: interviewSnapshot,
+        snapshot: interviewSnapshotStream(run),
       }),
       identify: async () => undefined,
       allowedOrigins: [origin],

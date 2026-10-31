@@ -4,7 +4,7 @@ import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { applyDocumentChanges } from "../../../../modules/interviews/document/changes.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 import { interviewQuestionCommands } from "../question/commands.ts";
 import { interviewDocumentCommands } from "./commands.ts";
 import { interviewCommandFingerprint } from "../../../../modules/interviews/question/fingerprint.ts";
@@ -91,23 +91,25 @@ describe.skipIf(!url)("document PostgreSQL", () => {
         withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
       const lifecycle = interviewLifecycle(run, {
           question: preparePublishedInterviewQuestion,
-          snapshot: interviewSnapshot,
+          snapshot: interviewSnapshotStream(run),
         }),
         docs = interviewDocumentCommands(run),
         questions = interviewQuestionCommands(run);
       const created = JSON.parse(
-        await lifecycle.read(
-          host,
-          JSON.parse(
-            await lifecycle.create(host, "create", {
-              title: "Document",
-              question: {
-                problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-                language: "python",
-              },
-            }),
-          ).id,
-        ),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await lifecycle.create(host, "create", {
+                title: "Document",
+                question: {
+                  problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                  language: "python",
+                },
+              }),
+            ).id,
+          ),
+        ).text(),
       );
       const id = created.id,
         initial = await docs.read(host, id),
@@ -129,21 +131,25 @@ describe.skipIf(!url)("document PostgreSQL", () => {
         code: "stale_version",
       });
       const switched = JSON.parse(
-        await lifecycle.read(
-          host,
-          JSON.parse(await questions.language(host, id, "java", "java", initial.epoch)).id,
-        ),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(await questions.language(host, id, "java", "java", initial.epoch)).id,
+          ),
+        ).text(),
       );
       await expect(docs.pull(host, id, initial.epoch, 0)).rejects.toMatchObject({
         code: "document_changed",
       });
       const restored = JSON.parse(
-        await lifecycle.read(
-          host,
-          JSON.parse(
-            await questions.language(host, id, "python", "python", switched.document.epoch),
-          ).id,
-        ),
+        await new Response(
+          await lifecycle.read(
+            host,
+            JSON.parse(
+              await questions.language(host, id, "python", "python", switched.document.epoch),
+            ).id,
+          ),
+        ).text(),
       );
       expect(restored.document.source).toBe("😀" + initial.source);
       expect(restored.document.version).toBe(0);

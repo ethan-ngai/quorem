@@ -82,40 +82,6 @@ export async function saveSnapshotPublicExamples(
     )
       throw new Error("Public example conflict");
 }
-/** Read only the authorized stage prefix; missing rows never fall back to private bytes. */
-export async function readPublicExamples(
-  tx: Transaction,
-  id: string,
-  epoch: string,
-  totalStages: number,
-  unlocked: number,
-): Promise<JsonValue[]> {
-  if (
-    !Number.isInteger(totalStages) ||
-    totalStages < 0 ||
-    !Number.isInteger(unlocked) ||
-    unlocked < 0 ||
-    unlocked > totalStages
-  )
-    throw new Error("Invalid stage range");
-  const count = (
-    await tx.execute<{ count: string }>(
-      sql`SELECT count(*)::text AS count FROM interview_public_examples WHERE session_id=${id}::uuid AND question_epoch=${epoch}::uuid AND level BETWEEN 0 AND ${totalStages}`,
-    )
-  ).rows[0];
-  if (Number(count.count) !== totalStages + 1)
-    throw new Error("Interview public examples require backfill");
-  const rows = (
-    await tx.execute<{ level: number; examples: Uint8Array }>(
-      sql`SELECT level,examples FROM interview_public_examples WHERE session_id=${id}::uuid AND question_epoch=${epoch}::uuid AND level BETWEEN 0 AND ${unlocked} ORDER BY level`,
-    )
-  ).rows;
-  if (rows.length !== unlocked + 1 || rows.some((row, index) => row.level !== index))
-    throw new Error("Interview public examples require backfill");
-  return rows.map((row) =>
-    parseLosslessJson(new TextDecoder("utf-8", { fatal: true }).decode(row.examples)),
-  );
-}
 /** Privileged operator primitive; caller supplies one observed epoch per bounded transaction. */
 export async function backfillInterviewPublicExamples(
   tx: Transaction,

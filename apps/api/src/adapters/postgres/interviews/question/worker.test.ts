@@ -7,7 +7,7 @@ import { developmentIdentity } from "../../identity/repository.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { interviewQuestionRoutes } from "../../../../modules/interviews/question/routes.ts";
 import { preparePublishedInterviewQuestion } from "./prepare.ts";
-import { interviewSnapshot } from "./snapshot.ts";
+import { interviewSnapshotStream } from "./stream.ts";
 import { interviewQuestionCommands } from "./commands.ts";
 const url = (env as unknown as { INTERVIEW_QUESTIONS_URL: string }).INTERVIEW_QUESTIONS_URL;
 describe("workerd interview question commands", () => {
@@ -33,21 +33,23 @@ describe("workerd interview question commands", () => {
     const actor = (await identify())!;
     const lifecycle = interviewLifecycle(run, {
       question: preparePublishedInterviewQuestion,
-      snapshot: interviewSnapshot,
+      snapshot: interviewSnapshotStream(run),
     });
     const created = JSON.parse(
-      await lifecycle.read(
-        actor,
-        JSON.parse(
-          await lifecycle.create(actor, "worker-create", {
-            title: "Worker",
-            question: {
-              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-              language: "python",
-            },
-          }),
-        ).id,
-      ),
+      await new Response(
+        await lifecycle.read(
+          actor,
+          JSON.parse(
+            await lifecycle.create(actor, "worker-create", {
+              title: "Worker",
+              question: {
+                problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+                language: "python",
+              },
+            }),
+          ).id,
+        ),
+      ).text(),
     );
     const app = createApp({ allowedOrigins: [], requestId: () => "worker" }).route(
       "/",
@@ -69,7 +71,9 @@ describe("workerd interview question commands", () => {
     );
     expect(switched.status).toBe(200);
     expect(await switched.json()).toEqual({ id: created.id });
-    const result = JSON.parse(await lifecycle.read(actor, created.id)) as {
+    const result = JSON.parse(
+      await new Response(await lifecycle.read(actor, created.id)).text(),
+    ) as {
       document: { epoch: string };
       question: { language: string };
     };
@@ -121,7 +125,9 @@ describe("workerd interview question commands", () => {
     const stageResponse = await select(staged, "stage-select");
     expect(stageResponse.status).toBe(200);
     expect(await stageResponse.json()).toEqual({ id: created.id });
-    const stage = JSON.parse(await lifecycle.read(actor, created.id)) as { questionEpoch: string };
+    const stage = JSON.parse(
+      await new Response(await lifecycle.read(actor, created.id)).text(),
+    ) as { questionEpoch: string };
     const [advance, reselect] = await Promise.all([
       request(
         "pass-stage",

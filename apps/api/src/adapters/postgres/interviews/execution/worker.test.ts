@@ -7,7 +7,7 @@ import { createApp } from "../../../../app.ts";
 import { developmentIdentity } from "../../identity/repository.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
-import { interviewSnapshot } from "../question/snapshot.ts";
+import { interviewSnapshotStream } from "../question/stream.ts";
 import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { interviewExecutionRoutes } from "../../../../modules/interviews/execution/routes.ts";
 import { postgresInterviewAdmission } from "./repository.ts";
@@ -34,21 +34,23 @@ it("admits and replays through workerd and real PostgreSQL", async () => {
     actor = (await identify())!;
   const lifecycle = interviewLifecycle(run, {
     question: preparePublishedInterviewQuestion,
-    snapshot: interviewSnapshot,
+    snapshot: interviewSnapshotStream(run),
   });
   const room = JSON.parse(
-    await lifecycle.read(
-      actor,
-      JSON.parse(
-        await lifecycle.create(actor, "create", {
-          title: "Worker",
-          question: {
-            problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
-            language: "python",
-          },
-        }),
-      ).id,
-    ),
+    await new Response(
+      await lifecycle.read(
+        actor,
+        JSON.parse(
+          await lifecycle.create(actor, "create", {
+            title: "Worker",
+            question: {
+              problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
+              language: "python",
+            },
+          }),
+        ).id,
+      ),
+    ).text(),
   );
   let sent = 0;
   const app = createApp({ allowedOrigins: [], requestId: () => "worker" }).route(
