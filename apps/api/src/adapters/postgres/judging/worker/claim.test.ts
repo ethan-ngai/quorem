@@ -341,6 +341,37 @@ describe.skipIf(!url)("runner claim fences", () => {
       await pool.query("DELETE FROM submissions WHERE id=$1", [s]);
     }
   });
+  it("serializes result insertion against concurrent terminal publication", async () => {
+    const id = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','running','[]')",
+      [id, user, workspace],
+    );
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
+      const pending = pool.query(
+        "/* runner-guard-fixture */ INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+        [id, new Uint8Array([1])],
+      );
+      let waiting = false;
+      for (let i = 0; i < 100 && !waiting; i++) {
+        waiting = (
+          await pool.query(
+            "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE query LIKE '/* runner-guard-fixture */%' AND wait_event_type='Lock') AS waiting",
+          )
+        ).rows[0].waiting;
+        if (!waiting) await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(waiting).toBe(true);
+      await client.query("COMMIT");
+      await expect(pending).rejects.toThrow("immutable");
+    } finally {
+      client.release();
+      await pool.query("DELETE FROM submissions WHERE id=$1", [id]);
+    }
+  });
   it("accepts and reclaims a real Go judge attempt with the same fences", async () => {
     const s = crypto.randomUUID(),
       j = crypto.randomUUID();
