@@ -67,7 +67,7 @@ export async function signedCaseProbe(env, { kind, scope, attempt, nonce, value 
  * @param {Response} response
  * @param {{publicKey: CryptoKey, kind: string, scope?: string, attempt: string, nonce: string, expectedNamespace?: string, expectedAfter?: string}} options
  */
-export async function verifyCaseProbe(
+export async function readVerifiedCaseProbe(
   response,
   { publicKey, kind, scope = "", attempt, nonce, expectedNamespace, expectedAfter },
 ) {
@@ -98,7 +98,7 @@ export async function verifyCaseProbe(
       if (part.done) break;
       size += part.value.byteLength;
       if (size > 1024) {
-        await reader.cancel();
+        void reader.cancel().catch(() => {});
         throw new Error("Invalid case probe");
       }
       parts.push(part.value);
@@ -195,5 +195,20 @@ export async function verifyCaseProbe(
               : true)
   )
     throw new Error("Invalid case probe");
-  return value;
+  return {
+    value,
+    envelope: {
+      kind,
+      scope,
+      attempt,
+      nonce,
+      namespace,
+      signature: raw,
+      body: btoa(String.fromCharCode(...body)),
+    },
+  };
+}
+
+export async function verifyCaseProbe(response, options) {
+  return (await readVerifiedCaseProbe(response, options)).value;
 }

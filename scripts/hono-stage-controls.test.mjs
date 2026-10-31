@@ -4,7 +4,7 @@ import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { signedCaseProbe } from "../deploy/case-proof.js";
+import { signedCaseProbe, readVerifiedCaseProbe, verifyCaseProbe } from "../deploy/case-proof.js";
 import { stageControls } from "./hono-stage-controls.mjs";
 async function fixture() {
   const keys = generateKeyPairSync("ed25519"),
@@ -144,6 +144,120 @@ void test("forged runner state fails closed", async () => {
     });
     await assert.rejects(control.activate(), /probe/);
     assert.deepEqual(f.calls, ["runner:state"]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("proof capture reads once, bounds cancellation and supports offline verification", async () => {
+  const keys = generateKeyPairSync("ed25519"),
+    namespace = "1".repeat(64),
+    nonce = randomUUID();
+  const env = {
+    CASES: { idFromName: () => namespace },
+    CASE_OWNER_PRIVATE_KEY: keys.privateKey
+      .export({ type: "pkcs8", format: "der" })
+      .toString("base64"),
+  };
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    keys.publicKey.export({ type: "spki", format: "der" }),
+    "Ed25519",
+    false,
+    ["verify"],
+  );
+  const options = {
+    publicKey,
+    kind: "namespace",
+    scope: "",
+    attempt: "namespace",
+    nonce,
+    expectedNamespace: namespace,
+  };
+  const signed = () =>
+    signedCaseProbe(env, {
+      kind: "namespace",
+      scope: "",
+      attempt: "namespace",
+      nonce,
+      value: { namespace },
+    });
+  const { value, envelope } = await readVerifiedCaseProbe(await signed(), options);
+  assert.deepEqual(value, { namespace });
+  const offline = new Response(Buffer.from(envelope.body, "base64"), {
+    headers: {
+      "x-quorem-owner-namespace": envelope.namespace,
+      "x-quorem-owner-signature": envelope.signature,
+    },
+  });
+  assert.deepEqual(
+    await verifyCaseProbe(offline, {
+      publicKey,
+      kind: envelope.kind,
+      scope: envelope.scope,
+      attempt: envelope.attempt,
+      nonce: envelope.nonce,
+      expectedNamespace: envelope.namespace,
+    }),
+    value,
+  );
+  const headers = (await signed()).headers;
+  let cancelled = 0;
+  const oversized = new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(1025));
+      },
+      cancel() {
+        cancelled++;
+        return new Promise(() => {});
+      },
+    }),
+    { headers },
+  );
+  await Promise.race([
+    assert.rejects(readVerifiedCaseProbe(oversized, options), /probe/),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("proof read did not terminate")), 1000),
+    ),
+  ]);
+  assert.equal(cancelled, 1);
+  const forgedHeaders = new Headers(headers);
+  forgedHeaders.set("x-quorem-owner-signature", `${"A".repeat(86)}==`);
+  await assert.rejects(
+    readVerifiedCaseProbe(
+      new Response(JSON.stringify({ namespace }), { headers: forgedHeaders }),
+      options,
+    ),
+    /probe/,
+  );
+});
+
+void test("stage control rejects an oversized nonending proof without waiting on a tee", async () => {
+  const f = await fixture();
+  let cancelled = 0;
+  try {
+    const control = await stageControls(f.options, async (url, init) => {
+      const response = await f.send(url, init);
+      if (!url.endsWith("/runner/state")) return response;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(1025));
+          },
+          cancel() {
+            cancelled++;
+            return new Promise(() => {});
+          },
+        }),
+        { headers: response.headers },
+      );
+    });
+    await Promise.race([
+      assert.rejects(control.activate(), /probe/),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("stage control hung")), 1000)),
+    ]);
+    assert.equal(cancelled, 1);
   } finally {
     await f.cleanup();
   }
