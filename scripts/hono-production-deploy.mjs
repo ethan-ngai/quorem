@@ -15,7 +15,7 @@ import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { checkWorkerAuth } from "./hono-stage-preflight.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { stageControls } from "./hono-stage-controls.mjs";
-import { transitionProductionDatabase } from "./hono-production-database.mjs";
+import { productionMigrationComplete, transitionProductionDatabase } from "./hono-production-database.mjs";
 import { workerDiagnostic } from "./hono-worker-diagnostic.mjs";
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
@@ -186,6 +186,8 @@ export async function deployProduction(env) {
     progress("snapshot-production-database");
     saved = await productionTerraform(bootstrap, "hono-production", "hono-production");
     keys = saved.secrets.value;
+    const migrationComplete = env.HONO_RESUME_PREPARED === "true" &&
+      await productionMigrationComplete(original.databaseURL, keys.RUNTIME_ROLE);
     console.log(JSON.stringify({ phase: "snapshot-preserved", branch: saved.backup_branch.value }));
     progress("resolve-validated-images");
     const images = productionImages(env);
@@ -227,7 +229,7 @@ export async function deployProduction(env) {
       }),
       { mode: 0o600 },
     );
-    runStageCommand(
+    if (!migrationComplete) runStageCommand(
         "vp",
         ["-C", "apps/api", "exec", "wrangler", "deploy", "--config", maintenance],
         env,
@@ -359,7 +361,8 @@ export async function deployProduction(env) {
       maintenanceCheck.status === 503 &&
       maintenanceCheck.headers.get("x-quorem-runtime") === "hono-maintenance";
     await maintenanceCheck.body?.cancel();
-    if (!fenced) throw new Error("Public maintenance route unconfirmed");
+    if (!fenced && !(migrationComplete && maintenanceCheck.status === 200))
+      throw new Error("Public maintenance route unconfirmed");
     progress("retire-go-runtime");
     if (env.HONO_RESUME_PREPARED !== "true")
       await productionTerraform(legacy, "app", "app", {
@@ -392,7 +395,7 @@ export async function deployProduction(env) {
     progress("migrate-retained-production-data");
     const operatorURL = new URL(original.databaseURL);
     operatorURL.search = "?sslmode=verify-full";
-    const database = await transitionProductionDatabase(
+    const database = migrationComplete ? { resumed: true } : await transitionProductionDatabase(
       {
         databaseURL: operatorURL.href,
         authOrigin: "https://quorem.app",
@@ -407,7 +410,7 @@ export async function deployProduction(env) {
     );
     console.log(
       JSON.stringify({
-        phase: "production-data-migrated",
+        phase: migrationComplete ? "production-data-migration-retained" : "production-data-migrated",
         versions: database.versions,
         batches: database.batches,
       }),

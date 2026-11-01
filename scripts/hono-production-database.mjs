@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { migrate } from "../packages/database/src/migrations.ts";
+import { migrate, verifyCompleteHistory } from "../packages/database/src/migrations.ts";
 import { runMigrationBaseline } from "../apps/api/src/cli/migration-baseline.ts";
 import { verifiedOperator } from "../apps/api/src/cli/operator-backfill.ts";
 import { operatorDatabaseIdentity } from "../apps/api/src/cli/operator-database.ts";
@@ -99,6 +99,24 @@ async function quiescent(client) {
   );
   if (result.rows[0]?.jobs !== true || result.rows[0]?.prepared !== true)
     throw new Error("Legacy database is not quiescent");
+}
+/** Resume activation only after the audited transition and exact current schema are present. */
+export async function productionMigrationComplete(databaseURL, runtimeRole) {
+  const client = new Client({ connectionString: databaseURL, connectionTimeoutMillis: 5000, query_timeout: 10000 });
+  try {
+    await client.connect();
+    await client.query("BEGIN READ ONLY");
+    const receipt = await client.query(
+      "SELECT 1 FROM public.access_audit WHERE action='runtime.provision' AND scope=$1 AND reason='Production migration' AND actor=user_id",
+      [runtimeRole],
+    );
+    if (receipt.rows.length !== 1) return false;
+    await verifyCompleteHistory(client, "product", `${root}apps/api/migrations`);
+    await verifyCompleteHistory(client, "auth", `${root}apps/auth/migrations`);
+    return true;
+  } finally {
+    await client.end().catch(() => {});
+  }
 }
 export async function transitionProductionDatabase(options, dependencies = {}) {
   const {
