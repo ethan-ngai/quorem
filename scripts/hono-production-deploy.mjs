@@ -16,6 +16,7 @@ import { checkWorkerAuth } from "./hono-stage-preflight.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { stageControls } from "./hono-stage-controls.mjs";
 import { transitionProductionDatabase } from "./hono-production-database.mjs";
+import { workerDiagnostic } from "./hono-worker-diagnostic.mjs";
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
 );
@@ -201,7 +202,7 @@ export async function deployProduction(env) {
       database_password: keys.RUNTIME_PASSWORD,
       database_connection_limit: "10",
       profile_media_enabled: "true",
-      enable_queue_consumer: "false",
+      enable_queue_consumer: env.HONO_RESUME_PREPARED === "true" ? "true" : "false",
     }))
       tf(native, key, value);
     progress("provision-native-api-shell");
@@ -226,8 +227,7 @@ export async function deployProduction(env) {
       }),
       { mode: 0o600 },
     );
-    if (env.HONO_RESUME_PREPARED !== "true")
-      runStageCommand(
+    runStageCommand(
         "vp",
         ["-C", "apps/api", "exec", "wrangler", "deploy", "--config", maintenance],
         env,
@@ -495,7 +495,16 @@ export async function deployProduction(env) {
       env,
     );
     await waitHTTP("https://quorem.app/health", 200);
-    await waitHTTP("https://quorem.app/api/auth/quorem-config", 200);
+    const authReady = await fetch("https://quorem.app/api/auth/quorem-config", {
+      signal: AbortSignal.timeout(15000),
+    });
+    const ready = authReady.status === 200;
+    await authReady.body?.cancel();
+    if (!ready) {
+      const error = new Error("Native auth unavailable");
+      error.diagnostic = await workerDiagnostic(env, "quorem-hono-production", "https://quorem.app");
+      throw error;
+    }
     progress("record-native-activation");
     tf(bootstrap, "phase", "active");
     await productionTerraform(bootstrap, "hono-production", "hono-production");

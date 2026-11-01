@@ -321,7 +321,15 @@ export default {
         }
         return response;
       });
-    } catch {
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "runtime-composition-failed",
+        kind: error instanceof Error ? error.name : "unknown",
+        frames: error instanceof Error ? error.stack?.split("\n").slice(1, 7)
+          .map((line) => line.match(/at ([A-Za-z0-9_.]+)/)?.[1]).filter(Boolean) : [],
+        reason: error instanceof Error && /^(?:Invalid runtime (?:key|flag|limit)|Missing runtime configuration)$/.test(error.message)
+          ? error.message : undefined,
+      }));
       return unavailable();
     }
   },
