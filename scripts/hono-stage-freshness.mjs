@@ -119,9 +119,12 @@ export async function requireFreshStageResources(env, send = fetch, report = () 
       new Set(namespaces.map((row) => row.id)).size !== namespaces.length
     )
       throw new Error("Duplicate provider inventory");
+    // A failed first apply may leave shells; the separate database gate still requires
+    // exact migration-only contents and no genesis, jobs or live runtime login.
     if (
-      workers.some((row) => row.name === service || row.name === api) ||
-      namespaces.some((row) => row.script === service || row.script === api)
+      env.HONO_STAGE_INITIALIZATION_RESUME !== "true" &&
+      (workers.some((row) => row.name === service || row.name === api) ||
+        namespaces.some((row) => row.script === service || row.script === api))
     )
       throw new Error("Stage resources already exist");
     return {
