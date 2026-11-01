@@ -167,6 +167,12 @@ export async function diagnoseStageRole(client, role) {
        AND has_database_privilege(r.oid,current_database(),'CONNECT')) AS other_connect_logins,
       (SELECT count(*)::int FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()) AS other_sessions,
       (SELECT count(*)::int FROM public.schema_migrations) AS product_migrations,
+      (SELECT count(*)::int FROM public.users) AS users,
+      (SELECT count(*)::int FROM public.workspaces) AS workspaces,
+      (SELECT count(*)::int FROM public.submissions) AS submissions,
+      (SELECT count(*)::int FROM public.submissions WHERE state='completed') AS completed_submissions,
+      (SELECT count(*)::int FROM public.submissions WHERE result->>'verdict'='accepted') AS accepted_submissions,
+      (SELECT count(*)::int FROM public.execution_jobs WHERE NOT finished) AS unfinished_jobs,
       to_regclass('public.stage_genesis') IS NOT NULL AS genesis_table
     `,
         [role],
@@ -214,6 +220,12 @@ export async function diagnoseStageRole(client, role) {
         "other_sessions",
         "product_migrations",
         "genesis_table",
+        "users",
+        "workspaces",
+        "submissions",
+        "completed_submissions",
+        "accepted_submissions",
+        "unfinished_jobs",
       ]),
     };
   } finally {

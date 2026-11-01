@@ -336,3 +336,15 @@ void test("branch messages redact environment credentials and other resources re
     },
   );
 });
+
+void test("acceptance diagnostics expose only fixed failure names", async () => {
+  const { stageAcceptanceReason } = await import("./hono-stage-launch.mjs");
+  assert.equal(stageAcceptanceReason(new Error("Stage drain failed")), "Stage drain failed");
+  assert.equal(
+    stageAcceptanceReason(
+      new Error("wrapper", { cause: new Error("Authenticated ingress control failed") }),
+    ),
+    "Authenticated ingress control failed",
+  );
+  assert.equal(stageAcceptanceReason(new Error("credential fixture-sensitive-token")), undefined);
+});
