@@ -134,7 +134,7 @@ async function fixtureTables(client) {
   );
   checks.set(
     "public.runner_input_blobs",
-    `NOT EXISTS (SELECT 1 FROM runner_input_blobs b WHERE NOT EXISTS (SELECT 1 FROM runner_version_inputs v WHERE b.hash IN (v.metadata_hash,v.fixture_hash)) AND NOT EXISTS (SELECT 1 FROM runner_version_input_cases c WHERE c.blob_hash=b.hash) AND NOT EXISTS (SELECT 1 FROM runner_job_inputs j WHERE b.hash=j.metadata_hash) AND NOT EXISTS (SELECT 1 FROM runner_job_input_cases c WHERE c.blob_hash=b.hash))`,
+    `NOT EXISTS (SELECT 1 FROM runner_input_blobs b WHERE NOT EXISTS (SELECT 1 FROM runner_version_inputs v WHERE b.hash IN (v.metadata_hash,v.fixture_hash)) AND NOT EXISTS (SELECT 1 FROM runner_version_input_cases c WHERE c.blob_hash=b.hash) AND NOT EXISTS (SELECT 1 FROM runner_job_inputs j WHERE b.hash IN (j.metadata_hash,j.source_hash)) AND NOT EXISTS (SELECT 1 FROM runner_job_input_cases c WHERE c.blob_hash=b.hash))`,
   );
   for (const name of [
     "problems",
@@ -146,7 +146,8 @@ async function fixtureTables(client) {
     "deadline_prearms",
   ])
     checks.set(`public.${name}`, "true");
-  for (const name of ["user", "session", "jwks"]) checks.set(`quorem_auth.${name}`, "true");
+  for (const name of ["user", "session", "jwks", "rate_limit"])
+    checks.set(`quorem_auth.${name}`, "true");
   return checks;
 }
 

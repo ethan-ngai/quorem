@@ -5,6 +5,7 @@ import { withDisposablePostgres } from "./hono-disposable-postgres.mjs";
 import { provisionStageRole } from "./hono-stage-database-role.mjs";
 import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
 import { lockEmptyStage, validateResetPlan } from "./hono-stage-reset.mjs";
+import { bindJobInputs } from "../apps/api/src/adapters/postgres/judging/inputs/bind.ts";
 import { seedCatalog } from "../apps/api/src/cli/seed.ts";
 const { Client, Pool } = createRequire(
   new URL("../packages/database/package.json", import.meta.url),
@@ -104,6 +105,39 @@ void test(
           await client.query(
             "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'submit','fixture','fixture','queued','[]')",
             [submission, user, workspace],
+          );
+          await client.query(
+            "INSERT INTO quorem_auth.rate_limit(bucket,used,expires_at) VALUES('fixture-token',1,now()+interval '1 minute')",
+          );
+          const job = "00000000-0000-4000-8000-000000000005";
+          await client.query("INSERT INTO execution_jobs(id,submission_id) VALUES($1,$2)", [
+            job,
+            submission,
+          ]);
+          const { drizzle } = createRequire(
+            new URL("../packages/database/package.json", import.meta.url),
+          )("drizzle-orm/node-postgres");
+          const version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7";
+          const cases = Number(
+            (
+              await client.query(
+                "SELECT count(*) FROM runner_version_input_cases WHERE version_id=$1 AND channel='example'",
+                [version],
+              )
+            ).rows[0].count,
+          );
+          await drizzle(client).transaction((tx) =>
+            bindJobInputs(tx, {
+              jobId: job,
+              owner: { version },
+              level: 0,
+              primary: "example",
+              custom: [],
+              caseCount: cases,
+              sampleCount: 0,
+              privateDetails: false,
+              submitCasesAreSamples: false,
+            }),
           );
           await assert.rejects(lockEmptyStage(client, binding), /contains data/);
           await lockEmptyStage(client, { ...binding, allowFixtures: true });
