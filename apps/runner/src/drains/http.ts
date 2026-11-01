@@ -29,7 +29,6 @@ export function drainHandler(options: {
     const supplied = new TextEncoder().encode(request.headers.get("authorization") ?? "");
     if (supplied.length !== secret.length || !timingSafeEqual(supplied, secret))
       return new Response(null, { status: 401 });
-    options.drainer.refresh();
     const headers = { "cache-control": "no-store", "content-type": "application/json" };
     if (options.background) {
       const state = await options.background.state(request.signal).catch((error) => {
@@ -46,6 +45,7 @@ export function drainHandler(options: {
       )
         return new Response(JSON.stringify(state), { status: 200, headers });
       if (state && !active && !failure) {
+        options.drainer.refresh();
         active = true;
         // Request cancellation must not kill a fenced attempt owned by this process.
         const signal = AbortSignal.any([
@@ -68,6 +68,7 @@ export function drainHandler(options: {
       }
       if (!failure) return new Response(JSON.stringify(state), { status: 202, headers });
     }
+    if (!options.background) options.drainer.refresh();
     if (active)
       return new Response(JSON.stringify({ queued: 0, running: 0 }), { status: 202, headers });
     active = true;

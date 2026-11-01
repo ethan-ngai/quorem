@@ -15,12 +15,15 @@ test("background attempt survives caller cancellation, never overlaps, confirms 
   let finish!: (state: DrainState) => void;
   let live!: AbortSignal;
   let calls = 0;
+  let refreshes = 0;
   let queued = 1;
   const handler = drainHandler({
     secret,
     background: { signal: shutdown.signal, state: async () => ({ queued, running: 0 }) },
     drainer: {
-      refresh() {},
+      refresh() {
+        refreshes++;
+      },
       drain(signal) {
         calls++;
         live = signal;
@@ -36,6 +39,7 @@ test("background attempt survives caller cancellation, never overlaps, confirms 
   assert.equal(live.aborted, false);
   assert.equal((await handler(request())).status, 202);
   assert.equal(calls, 1);
+  assert.equal(refreshes, 1);
   finish({ queued: 0, running: 0, complete: true });
   await handler.settled();
   // A completed drain cannot acknowledge work admitted since its empty confirmation.
