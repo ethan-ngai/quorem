@@ -17,9 +17,15 @@ import {
 /** A failed mutation may have committed; callers must resolve its receipt, not blindly replay. */
 export class RunnerCommandError extends Error {
   readonly outcome: "unknown" | "unavailable";
-  constructor(outcome: "unknown" | "unavailable") {
+  readonly diagnostic?: {
+    operation: string;
+    status: number;
+    failure: "http" | "timeout" | "transport" | "decode";
+  };
+  constructor(outcome: "unknown" | "unavailable", diagnostic?: RunnerCommandError["diagnostic"]) {
     super(outcome === "unknown" ? "Runner command outcome unknown" : "Runner command unavailable");
     this.outcome = outcome;
+    this.diagnostic = diagnostic;
   }
 }
 
@@ -90,11 +96,22 @@ export function privateRunnerCommands(options: {
       });
       if (!result.ok) {
         await result.body?.cancel();
-        throw new RunnerCommandError(outcome);
+        throw new RunnerCommandError(outcome, {
+          operation: op,
+          status: result.status,
+          failure: "http",
+        });
       }
       return result;
-    } catch {
-      throw new RunnerCommandError(outcome);
+    } catch (error) {
+      if (error instanceof RunnerCommandError) throw error;
+      throw new RunnerCommandError(outcome, {
+        operation: op,
+        status: 0,
+        failure: ["TimeoutError", "AbortError"].includes((error as Error)?.name)
+          ? "timeout"
+          : "transport",
+      });
     }
   }
   async function json(

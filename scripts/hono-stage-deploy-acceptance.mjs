@@ -142,6 +142,23 @@ export async function hostedAcceptance(
               running: value.running,
             };
           }
+          if (
+            value.error === "unavailable" &&
+            value.command &&
+            /^[a-z]{1,20}$/.test(value.command.operation ?? "") &&
+            Number.isInteger(value.command.status) &&
+            value.command.status >= 0 &&
+            value.command.status <= 599 &&
+            ["http", "timeout", "transport", "decode"].includes(value.command.failure)
+          ) {
+            diagnostic = {
+              command: {
+                operation: value.command.operation,
+                status: value.command.status,
+                failure: value.command.failure,
+              },
+            };
+          }
         } catch {
           /* Untrusted response content stays private. */
         }

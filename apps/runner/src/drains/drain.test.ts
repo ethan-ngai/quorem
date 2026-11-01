@@ -208,3 +208,31 @@ void test("cancelled attempt tears down before draining the next job", async () 
   assert.equal((await result).complete, true);
   assert.deepEqual(events, ["teardown:attempt-1", "teardown:attempt-2", "promote:job-2"]);
 });
+
+void test("private drain returns bounded command diagnostics", async () => {
+  const { RunnerCommandError } = await import("../queue/http.ts");
+  const handler = drainHandler({
+    secret: "fixture-drain-secret-1234567890123456",
+    drainer: {
+      refresh() {},
+      async drain() {
+        throw new RunnerCommandError("unknown", {
+          operation: "seal",
+          status: 0,
+          failure: "timeout",
+        });
+      },
+    },
+  });
+  const response = await handler(
+    new Request("https://runner.invalid/internal/drain", {
+      method: "POST",
+      headers: { authorization: "Bearer fixture-drain-secret-1234567890123456" },
+    }),
+  );
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    error: "unavailable",
+    command: { operation: "seal", status: 0, failure: "timeout" },
+  });
+});

@@ -1,5 +1,6 @@
 /** @file http.ts @description Authenticated bounded drain request handling. @module runner */
 import { timingSafeEqual } from "node:crypto";
+import { RunnerCommandError } from "../queue/http.ts";
 import type { Drainer } from "./drain.ts";
 
 /** A 202 requires the caller to persist a continuation before acknowledging its wake. */
@@ -29,8 +30,16 @@ export function drainHandler(options: { drainer: Drainer; secret: string; timeou
         status: state.complete ? 200 : 202,
         headers,
       });
-    } catch {
-      return new Response(JSON.stringify({ error: "unavailable" }), { status: 503, headers });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({
+          error: "unavailable",
+          ...(error instanceof RunnerCommandError && error.diagnostic
+            ? { command: error.diagnostic }
+            : {}),
+        }),
+        { status: 503, headers },
+      );
     } finally {
       active = false;
     }

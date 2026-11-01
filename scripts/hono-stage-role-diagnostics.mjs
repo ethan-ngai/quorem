@@ -174,6 +174,8 @@ export async function diagnoseStageRole(client, role) {
       (SELECT count(*)::int FROM public.submissions WHERE result->>'verdict'='accepted') AS accepted_submissions,
       (SELECT count(*)::int FROM public.execution_jobs WHERE NOT finished) AS unfinished_jobs,
       (SELECT COALESCE(sum(attempts),0)::int FROM public.execution_jobs) AS claimed_attempts,
+      (SELECT count(*)::int FROM public.execution_verification_challenges) AS verification_challenges,
+      (SELECT count(*)::int FROM public.execution_verified_cases) AS verified_cases,
       to_regclass('public.stage_genesis') IS NOT NULL AS genesis_table
     `,
         [role],
@@ -228,6 +230,8 @@ export async function diagnoseStageRole(client, role) {
         "accepted_submissions",
         "unfinished_jobs",
         "claimed_attempts",
+        "verification_challenges",
+        "verified_cases",
       ]),
     };
   } finally {
