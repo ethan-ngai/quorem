@@ -223,6 +223,7 @@ export function remoteSandbox(config: {
             }
           },
           combined,
+          budget.close,
         );
         if (!budget.ready()) throw new Error("Sandbox did not become ready");
         complete = true;
