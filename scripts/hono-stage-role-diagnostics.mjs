@@ -168,6 +168,30 @@ export async function inspectStageRole(env) {
   let closed = false;
   try {
     await client.connect();
+    let provider;
+    if (env.CLOUDFLARE_API_TOKEN && action === "diagnose") {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/containers/applications`,
+        {
+          headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      const result = await response.json();
+      provider = {
+        status: response.status,
+        errors: (result.errors ?? []).map((item) => item.code),
+        applications: Array.isArray(result.result)
+          ? result.result
+              .filter((item) => item.name?.startsWith("quorem-hono-services-stage-"))
+              .map((item) => ({
+                name: item.name,
+                scheduling: item.scheduling_policy,
+                idPresent: typeof item.id === "string",
+              }))
+          : [],
+      };
+    }
     const before = await diagnoseStageRole(client, role);
     if (action === "fence-role") {
       let containment, failure;
@@ -291,7 +315,7 @@ export async function inspectStageRole(env) {
         );
         return { ...before, initialization, apiShell: "removed" };
       }
-      return { ...before, initialization };
+      return { ...before, initialization, ...(provider ? { provider } : {}) };
     }
     const rehearsal = await rehearseStageRole(client, role, password);
     return { before, rehearsal, after: await diagnoseStageRole(client, role) };

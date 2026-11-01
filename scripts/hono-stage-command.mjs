@@ -69,9 +69,17 @@ function providerDiagnostics(text, redactions) {
       const types = [...chunk.matchAll(/"code"\s*:\s*"([A-Za-z][A-Za-z0-9_]{1,79})"/g)].map(
         (match) => match[1],
       );
-      // Branch-create payloads contain no generated credentials; other resources stay opaque.
+      // Only bounded server messages are exposed; resource payloads remain private.
       const messages =
-        resources.length === 1 && resources[0] === "restapi_object.stage_branch"
+        resources.length > 0 &&
+        resources.every((name) =>
+          [
+            "restapi_object.stage_branch",
+            "restapi_object.trusted",
+            "restapi_object.trusted_rollout",
+            "restapi_object.case",
+          ].includes(name),
+        )
           ? [...chunk.matchAll(/"message"\s*:\s*("(?:[^"\\]|\\.)*")/g)]
               .slice(0, 4)
               .flatMap((match) => {
