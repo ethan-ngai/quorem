@@ -4,26 +4,15 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 
 ## Current checkpoint — 2026-10-31
 
-Integration includes [#447](https://github.com/ethan-ngai/quorem/pull/447) (existing Neon project, no Access), [#450](https://github.com/ethan-ngai/quorem/pull/450) (scrubbed provider diagnostics), [#451](https://github.com/ethan-ngai/quorem/pull/451) (workload gate), and [#452](https://github.com/ethan-ngai/quorem/pull/452) (schema-only branch and compute in one request). The earlier full source run [41243736481](https://github.com/ethan-ngai/quorem/actions/runs/41243736481) passed; later platform checks and local tests do not establish hosted deployment.
+The functional Hono/Drizzle port is integrated on `feat/hono-migration`. [#460](https://github.com/ethan-ngai/quorem/pull/460) retired all 296 compiled Go sources and module files, switched local development/Make/CI to native TypeScript, and removed the obsolete Go release workflow. Production/main traffic is unchanged.
 
-- Node consumes SQS/Cloudflare wakes through the shared drain owner; HTTP runners no longer depend on a separate poller.
-- Native SQL practice Run/Submit and a selected two-account SQL match pass through Docker and independent verification; required CI, no skips. Browser interaction remains unverified.
-- Drain transport validation has a canonical owner; duplicate ingress resources removed. Staging uses distinct application bearers and signed proofs, without Cloudflare Access.
-- Recovery controls, migration provenance/checksums, generation roles and failure fencing integrated. [Existing-stage maintenance](38g-stage-maintenance.md) now provides persisted operations, pinned pause, writer fencing and bounded known-attempt teardown. Full history proof and resume orchestration remain unfinished.
-- Disposable HTTP databases and scoped session-lifetime assertions replace invalid test isolation assumptions. Native Make targets and setup docs available.
-- [Staged workload](37m-hosted-workload.md): 20 matches, 40 authenticated sessions/sockets and 40 paced runs; signed control checks bracket the baseline. Mandatory disposable actor and real HTTP/WebSocket/runner/verifier fixtures pass locally. Hosted baseline remains pending.
+- Full native CI [41254328875](https://github.com/ethan-ngai/quorem/actions/runs/41254328875) passed both jobs on deployment source `f51658d7`. Native API image build/import, SQL practice/match, HTTP/WebSocket/runner/verifier workload, Node language gateway and CLI suites passed.
+- Actual isolated `make dev` topology completed seeded login → workspace → Python Run → automatic local queue/runner/Docker/verifier → accepted result. Default development data and the user's `scripts/dev.py` host edit were preserved.
+- Hosted stage [41252212186](https://github.com/ethan-ngai/quorem/actions/runs/41252212186) passed preflight/full validation, bootstrap, image publication and migrations; failed runtime-role commit before API/private-service provisioning.
+- [#462](https://github.com/ethan-ngai/quorem/pull/462) corrected Neon’s documented requirement for plaintext role passwords over TLS with server-side SCRAM. Hosted probe [41254166995](https://github.com/ethan-ngai/quorem/actions/runs/41254166995) confirmed actual role creation and login. Its initial cleanup was unconfirmed; [#463](https://github.com/ethan-ngai/quorem/pull/463) accounts explicitly for Neon’s reserved provider superuser. Hosted cleanup [41254329268](https://github.com/ethan-ngai/quorem/actions/runs/41254329268) confirmed disabled login and zero remaining sessions. Full activation retry [41254374611](https://github.com/ethan-ngai/quorem/actions/runs/41254374611) on `f51658d7` passed all validation, image publication, migrations and role creation/login; Cloudflare then denied Hyperdrive creation (permission code `10000`). API Terraform may contain partially created resources; inspect its state before retrying. Hosted acceptance has not run. The existing deployment token needs account-level Hyperdrive Edit/Write, or an explicitly selected alternative database transport. No new Neon key or Access token is needed.
+- Staging reuses the existing Neon project and an independent schema-only branch/database. Cloudflare Access is omitted; application credentials and signed execution proofs remain.
 
-User deployment corrections: reuse the existing Neon project with an independent schema-only stage branch and empty dedicated database; no new Neon project or Cloudflare Access token resources. Existing scoped application credentials and signed proofs remain mandatory.
-
-Remaining release work, in order:
-
-1. Complete the authorized isolated staging activation; resolve bootstrap provider creation errors without resetting state.
-2. Execute hosted Workers/Hyperdrive/Queues/isolation/teardown and workload gates.
-3. Finish and rehearse maintenance/resume/update under #432.
-4. Verify old-writer drain, audited retained-data normalization, avatar copy and rollback.
-5. Authorize production cutover; retire Go and replace remaining default development/deployment consumers afterward.
-
-Isolated staging provisioning/validation was authorized. [41247560549](https://github.com/ethan-ngai/quorem/actions/runs/41247560549) passed preflight/validation, then Neon rejected schema-only creation without a read-write endpoint. #452 fixes that request and removes duplicate endpoint creation. Retry [41248206497](https://github.com/ethan-ngai/quorem/actions/runs/41248206497) targets source `519bc2df`; inspect its live result before claiming provisioning or deployment. Preserve existing bootstrap credential state. No dev/main or production promotion occurred. User `scripts/dev.py` edit preserved. Older sections below record evidence at their implementation checkpoints.
+Remaining completion work: finish isolated Workers/Hyperdrive/Queues/private-service activation and hosted acceptance/workload checks. Resolve functional provider failures as encountered. Further recovery-history/resume hardening, retained production-data cutover and production promotion are deferred; no KV or semantic-search feature is implemented. Earlier sections below record evidence at their implementation checkpoints, not current release state.
 
 ## Baseline 00
 
@@ -143,7 +132,7 @@ Standalone fixtures use canonical sealed publication inputs. Hosted application 
 
 The shared [stage contract validator](../../../../scripts/hono-stage-validation.mjs) starts and removes only its own disposable PostgreSQL container; it ran 58/58 contracts without skips before the inventory addition. Normal PR CI now includes staged orchestration, private service images/contracts and both Terraform modules. Exact-head CI for the latest combined tree is still required; the earlier run is not evidence for subsequent commits.
 
-The combined stage validator subsequently passed 62 contracts without skips, including an actual non-owner Better Auth → JWT → Hono admission → Drizzle claim → protected inventory path. Provisioning checks separate SHA-bound runtime credentials, generates a PostgreSQL SCRAM verifier client-side, denies ledger/inventory/DDL/ownership privileges and precedes Hyperdrive application. Local schema/privilege evidence does not establish managed-provider permissions. Full affected Go PostgreSQL adapter/worker suites and six HTTP/socket regressions passed after replacing legacy unscoped test claims; production Go already uses engine-derived scopes. Migration 062 still requires older unscoped writers to drain.
+The combined stage validator subsequently passed 62 contracts without skips, including an actual non-owner Better Auth → JWT → Hono admission → Drizzle claim → protected inventory path. Provisioning checks separate SHA-bound runtime credentials, uses server-side SCRAM storage (client-side prehashing was removed in #462 for Neon compatibility), denies ledger/inventory/DDL/ownership privileges and precedes Hyperdrive application. Local schema/privilege evidence does not establish managed-provider permissions. Full affected Go PostgreSQL adapter/worker suites and six HTTP/socket regressions passed after replacing legacy unscoped test claims; production Go already uses engine-derived scopes. Migration 062 still requires older unscoped writers to drain.
 
 ## Resumed completion scope
 
