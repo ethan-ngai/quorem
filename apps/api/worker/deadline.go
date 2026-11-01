@@ -47,11 +47,11 @@ func (q *queueTimer) resetBackoff() { q.retry = 200 * time.Millisecond }
 func (q *queueTimer) stop()         { q.timer.Stop() }
 
 // Ignore deadlines for jobs this judge cannot claim.
-func (s *Service) nextExecutionDeadline(ctx context.Context, deadlines executionDeadline) (time.Duration, bool, error) {
+func (s *Service) nextExecutionDeadline(ctx context.Context, deadlines executionDeadline, scope string) (time.Duration, bool, error) {
 	if filtered, ok := deadlines.(interface {
-		NextRunnableExecutionDeadline(context.Context, bool) (time.Duration, bool, error)
+		NextRunnableExecutionDeadline(context.Context, bool, string) (time.Duration, bool, error)
 	}); ok {
-		return filtered.NextRunnableExecutionDeadline(ctx, s.resumable)
+		return filtered.NextRunnableExecutionDeadline(ctx, s.resumable, scope)
 	}
 	return deadlines.NextExecutionDeadline(ctx)
 }

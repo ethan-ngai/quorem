@@ -53,6 +53,7 @@ export const execution_jobs = pgTable(
     id: uuid().primaryKey().notNull(),
     submission_id: uuid().notNull(),
     attempt_id: uuid(),
+    sandbox_scope: text(),
     attempts: integer().default(0).notNull(),
     available_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)

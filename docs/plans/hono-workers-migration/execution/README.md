@@ -6,7 +6,7 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 
 - Checkout `dev` at `57fd5db`; fetched `origin/main` at `2be21ba`. Exact tracked trees match (`git diff --exit-code dev origin/main`); main is ahead only by release merge commits. User correction: migration belongs on `feat/hono-migration`; local/remote `dev` restored to `57fd5db`. The migration documentation commit `d2c86b5` is preserved on the dedicated branch.
 - Preserve user modification in `scripts/dev.py`. Plan documentation belongs to this conversation and can be committed separately.
-- PR #322 is still open, head `27b09e27ea034dc5853ab5edb2a5e80c3197bbf5`. Do not alter another task's PR/worktree. Freeze its exact attempt/sandbox-scope teardown contract as mandatory input to packet 27; current Go baseline lacks migration 048. TS migration must preserve the stronger fence and supply additive schema guards before activation.
+- PR #322 is still open, head `27b09e27ea034dc5853ab5edb2a5e80c3197bbf5`. Do not alter another task's PR/worktree. Freeze its exact attempt/sandbox-scope teardown contract as mandatory input to packet 27; initial Go baseline lacked migration 048. [Reclaim prerequisite](27-reclaim-baseline.md) adopts the frozen guard and regression oracle on the migration branch; TypeScript runner port remains packet 27.
 - Docker server, PostgreSQL CLI, Go 1.27.3 and Vite+ available. Existing local PostgreSQL container serves development data; all migration tests receive separately named disposable databases/schemas.
 - [Source inventory](inventory.json): 66 HTTP operations, delegated auth/internal/socket commands, background work, 208 schema declarations, configuration names, SQL writer sources and six Go CLIs. Every entrypoint has a packet owner. Inventory includes source pointers; each packet must review dynamic/delegated behavior before replacing it.
 
@@ -19,12 +19,16 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 | 02 | Integrated | [#341](https://github.com/ethan-ngai/quorem/pull/341); real auth runtime probes; full WebAuthn/social/image/mail gates remain |
 | 03 | Integrated | [#344](https://github.com/ethan-ngai/quorem/pull/344); deterministic public/private Go vectors and owner-package hashes/frames |
 | 04 | Integrated | [#345](https://github.com/ethan-ngai/quorem/pull/345), integration commit `344ca41`; Node/workerd/type/boundary tests and CI passed |
-| 05 | Review | [#350](https://github.com/ethan-ngai/quorem/pull/350); local PG catalog, repeat/upgrade/restore fixtures and counter checks passed |
-| 06 | Review | [#351](https://github.com/ethan-ngai/quorem/issues/351); connection/transaction primitives; owned-client disconnect audit underway |
-| 07 | Review | [#348](https://github.com/ethan-ngai/quorem/pull/348); model/metadata/starters, Node smoke; full publication belongs to 08 |
-| 08 | Review | [#349](https://github.com/ethan-ngai/quorem/issues/349); lossless codecs, publication, Node/workerd Go differential vectors; not activated |
-| 10a | Running | [#353](https://github.com/ethan-ngai/quorem/issues/353); managed identity/access slice; guest lifecycle follows separately |
-| 12a | Review | [#352](https://github.com/ethan-ngai/quorem/issues/352); portable image port and explicit sharp adapter; hosted capability remains separate |
+| 05 | Integrated | [#350](https://github.com/ethan-ngai/quorem/pull/350); PG catalog, repeat/upgrade/restore fixtures and counter checks passed |
+| 06 | Integrated | [#355](https://github.com/ethan-ngai/quorem/pull/355); bounded connection/transaction primitives and borrowed-client disconnect tests; native Vitest socket-close investigation remains open |
+| 07 | Integrated | [#348](https://github.com/ethan-ngai/quorem/pull/348); model/metadata/starters, direct Node smoke |
+| 08 | Integrated | [#357](https://github.com/ethan-ngai/quorem/pull/357); lossless codecs, publication, Node/workerd Go differential vectors; not activated |
+| 09 | Review | [#362](https://github.com/ethan-ngai/quorem/pull/362); private execution contracts and bounded codecs; Node/workerd tests passed |
+| 10a | Integrated | [#358](https://github.com/ethan-ngai/quorem/pull/358); managed identity/access slice; guest lifecycle and actual route composition remain |
+| 11 | Running | [#359](https://github.com/ethan-ngai/quorem/issues/359); scoped Better Auth/Drizzle factory and signed passkey tests; final Node/Worker composition under review |
+| 12a | Integrated | [#354](https://github.com/ethan-ngai/quorem/pull/354); portable image port and explicit sharp adapter; Worker upload processor/budget and hosted capability remain |
+| 12b | Review | [#361](https://github.com/ethan-ngai/quorem/issues/361); encrypted durable mail intents, fenced compensation and lock-expiry tests; composition under review |
+| 13 | Running | [#360](https://github.com/ethan-ngai/quorem/issues/360); restricted-role catalog projections; actual Worker-to-PG and contract validation underway |
 | Other packets | Pending | Follow prerequisite graph and empirical gates; no broad backend parity claim |
 
 

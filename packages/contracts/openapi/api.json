@@ -850,6 +850,7 @@
                       "minimum": 0
                     },
                     "companies": { "type": "array", "items": { "type": "string" } },
+                    "nextCursor": { "type": "string", "description": "Opaque continuation for the same filters and ordering." },
                     "topics": {
                       "type": "array",
                       "items": {
@@ -933,6 +934,12 @@
               "maximum": 10000,
               "default": 1
             }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque continuation returned by the preceding page; use with page 1 or omit page.",
+            "schema": { "type": "string", "maxLength": 32768 }
           },
           {
             "name": "limit",

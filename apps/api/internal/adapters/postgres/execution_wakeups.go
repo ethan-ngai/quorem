@@ -20,12 +20,12 @@ func (s *Store) ExecutionNotifications(ctx context.Context) (<-chan struct{}, fu
 
 // NextExecutionDeadline uses the database clock for retry and abandoned-lease eligibility.
 func (s *Store) NextExecutionDeadline(ctx context.Context) (time.Duration, bool, error) {
-	return s.NextRunnableExecutionDeadline(ctx, true)
+	return s.NextRunnableExecutionDeadline(ctx, true, "")
 }
 
-func (s *Store) NextRunnableExecutionDeadline(ctx context.Context, resumable bool) (time.Duration, bool, error) {
+func (s *Store) NextRunnableExecutionDeadline(ctx context.Context, resumable bool, scope string) (time.Duration, bool, error) {
 	var milliseconds int64
-	err := s.Pool.QueryRow(ctx, `SELECT CASE WHEN count(*)=0 THEN -1 ELSE GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,COALESCE(j.lease_until,'-infinity'::timestamptz))) - clock_timestamp()))*1000)) END::bigint FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE `+runnableExecutionPredicate, resumable, losslessCasesEnabled()).Scan(&milliseconds)
+	err := s.Pool.QueryRow(ctx, `SELECT CASE WHEN count(*)=0 THEN -1 ELSE GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,COALESCE(j.lease_until,'-infinity'::timestamptz))) - clock_timestamp()))*1000)) END::bigint FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id WHERE `+runnableExecutionPredicate+` AND (j.attempt_id IS NULL OR (j.sandbox_scope=$3 AND $3<>''))`, resumable, losslessCasesEnabled(), scope).Scan(&milliseconds)
 	if err != nil || milliseconds < 0 {
 		return 0, false, err
 	}

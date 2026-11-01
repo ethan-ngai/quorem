@@ -6,7 +6,10 @@ import { classifyDatabaseError, DatabaseFailure, isDefinitiveServerError } from 
 
 export type Transaction = Pick<NodePgDatabase, 'select' | 'selectDistinct' | 'insert' | 'update' | 'delete' | 'execute' | 'with' | '$with'>;
 export interface TransactionOptions { statementTimeoutMs: number; lockTimeoutMs: number; isolation?: 'read committed' | 'repeatable read' | 'serializable'; readOnly?: boolean }
-export interface ConnectionScope { transaction<T>(options: TransactionOptions, callback: (tx: Transaction) => Promise<T>): Promise<T> }
+export interface ConnectionScope {
+  transaction<T>(options: TransactionOptions, callback: (tx: Transaction) => Promise<T>): Promise<T>;
+  withDatabase<T>(callback: (db: NodePgDatabase) => Promise<T>): Promise<T>;
+}
 export interface ScopeOptions { signal?: AbortSignal; lifetimeMs: number }
 export interface ConnectionOptions extends ScopeOptions { connectionTimeoutMs: number }
 export interface NodePoolOptions { connectionString: string; max: number; connectionTimeoutMs: number; idleTimeoutMs: number; onIdleError: (error: Error) => void }
@@ -33,6 +36,7 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
   let closing: Promise<void> | undefined;
   let active = true;
   let inTransaction = false;
+  let inDatabase = false;
   let committing = false;
   let broken = false;
   const close = (destroy: boolean): Promise<void> => {
@@ -46,8 +50,84 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
     execute: db.execute.bind(db), with: db.with.bind(db), $with: db.$with.bind(db),
   };
   const scope: ConnectionScope = {
+    async withDatabase(action) {
+      if (!active || inTransaction || inDatabase) throw new Error('Connection scope is unavailable');
+      inDatabase = true;
+      let open = true;
+      let pending = 0;
+      const check = () => { if (!active || !open) throw new Error('Database scope is no longer active'); };
+      const guard = <T extends object>(target: T, verify = check): T => new Proxy(target, {
+        get(object, key) {
+          verify();
+          if (key === '$client' || key === 'session' || key === 'query') throw new Error('Raw database client is unavailable');
+          const value = Reflect.get(object, key, object);
+          if (key === '_' && value && typeof value === 'object') {
+            const { schema, fullSchema, tableNamesMap } = value as {schema?: unknown; fullSchema?: unknown; tableNamesMap?: unknown};
+            return {schema, fullSchema, tableNamesMap};
+          }
+          if (typeof value !== 'function') return value;
+          return (...args: unknown[]) => {
+            verify();
+            if (key === 'then') {
+              pending++;
+              let settled = false;
+              const settle = () => { if (!settled) { settled = true; pending--; } };
+              for (let i = 0; i < 2; i++) {
+                if (typeof args[i] !== 'function') continue;
+                const callback = args[i] as (...values: unknown[]) => unknown;
+                args[i] = (...values: unknown[]) => { settle(); return callback(...values); };
+              }
+              try {
+                const result = Reflect.apply(value, object, args) as Promise<unknown>;
+                return result.finally(settle);
+              } catch (error) { settle(); throw error; }
+            }
+            let completedTransaction = false;
+            if (key === 'transaction' && typeof args[0] === 'function') {
+              const callback = args[0] as (tx: object) => unknown;
+              args[0] = async (tx: object) => {
+                let txOpen = true;
+                const checkTransaction = () => {
+                  verify();
+                  if (!txOpen) throw new Error('Database transaction is no longer active');
+                };
+                try {
+                  const output = await callback(guard(tx, checkTransaction));
+                  completedTransaction = true;
+                  committing = true;
+                  return output;
+                } finally { txOpen = false; }
+              };
+            }
+            const result: unknown = Reflect.apply(value, object, args);
+            if (result instanceof Promise) {
+              pending++;
+              return result.catch(error => {
+                if (completedTransaction) {
+                  broken = true;
+                  if (!isDefinitiveServerError(error)) throw new DatabaseFailure('unknown_commit', error);
+                }
+                throw error;
+              }).finally(() => { pending--; if (completedTransaction) committing = false; });
+            }
+            if (result && typeof result === 'object' && ['then','execute','from','values','set','where'].some(name => name in result)) return guard(result, verify);
+            return result;
+          };
+        },
+      });
+      try {
+        const value = await action(guard(db as NodePgDatabase));
+        if (!active) throw new DatabaseFailure('aborted');
+        if (pending) { broken = true; throw new Error('Database query outlived callback'); }
+        return value;
+      } finally {
+        if (pending) broken = true;
+        open = false;
+        inDatabase = false;
+      }
+    },
     async transaction(options, action) {
-      if (!active || inTransaction) throw new Error('Connection scope is unavailable');
+      if (!active || inTransaction || inDatabase) throw new Error('Connection scope is unavailable');
       positive(options.statementTimeoutMs, 'statementTimeoutMs');
       positive(options.lockTimeoutMs, 'lockTimeoutMs');
       const begin = { 'read committed': 'BEGIN ISOLATION LEVEL READ COMMITTED', 'repeatable read': 'BEGIN ISOLATION LEVEL REPEATABLE READ', serializable: 'BEGIN ISOLATION LEVEL SERIALIZABLE' }[options.isolation ?? 'read committed'];
@@ -117,7 +197,7 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
   let outcome: { ok: true; value: T } | { ok: false; error: unknown };
   try {
     const value = await Promise.race([callback(scope), cancelled, failed]);
-    if (inTransaction) { broken = true; throw new Error('Transaction outlived connection scope'); }
+    if (inTransaction || inDatabase) { broken = true; throw new Error('Database operation outlived connection scope'); }
     outcome = { ok: true, value };
   } catch (error) {
     if (classifyDatabaseError(error) === 'connection') broken = true;
@@ -126,7 +206,7 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
   active = false;
   if (abort) signal?.removeEventListener('abort', abort);
   let cleanupError: unknown;
-  try { await close(broken || inTransaction); } catch (error) { cleanupError = error; }
+  try { await close(broken || inTransaction || inDatabase); } catch (error) { cleanupError = error; }
   client.removeListener('error', onClientError);
   if (!outcome.ok) throw outcome.error;
   if (clientFailure) throw clientFailure;

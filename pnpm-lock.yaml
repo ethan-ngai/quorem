@@ -168,6 +168,7 @@ overrides:
 
 patchedDependencies:
   monaco-pyright-lsp@0.1.7: c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c
+  pg-cloudflare@1.4.1: 1b88b6b5b4718165b27a1fa9ef18ea6578728a028c64aa089a7712c2112c3450
 
 importers:
 
@@ -185,9 +186,21 @@ importers:
       '@hono/node-server':
         specifier: 2.1.5
         version: 2.1.5(hono@4.13.14)
+      '@quorem/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@quorem/questions':
+        specifier: workspace:*
+        version: link:../../packages/questions
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@cloudflare/workers-types@5.20261021.1)(@types/pg@8.15.6)(kysely@0.29.6)(pg@8.16.3)
       hono:
         specifier: 4.13.14
         version: 4.13.14
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: 1.4.11
@@ -216,9 +229,18 @@ importers:
       '@quorem/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@quorem/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       better-auth:
         specifier: 1.7.7
         version: 1.7.7(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(@cloudflare/workers-types@5.20261021.1)(@types/pg@8.15.6)(kysely@0.29.6)(pg@8.16.3))(pg@8.16.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3)
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@cloudflare/workers-types@5.20261021.1)(@types/pg@8.15.6)(kysely@0.29.6)(pg@8.16.3)
+      hono:
+        specifier: 4.13.14
+        version: 4.13.14
       nodemailer:
         specifier: 8.0.3
         version: 8.0.3
@@ -531,6 +553,22 @@ importers:
       typescript:
         specifier: 6.0.3
         version: 6.0.3
+
+  packages/execution:
+    dependencies:
+      '@quorem/questions':
+        specifier: workspace:*
+        version: link:../questions
+    devDependencies:
+      '@cloudflare/vitest-plugin':
+        specifier: 1.4.11
+        version: 1.4.11(@types/node@24.19.2)(vitest@5.0.3)
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      vitest:
+        specifier: 5.0.3
+        version: 5.0.3(@types/node@24.19.2)(@vitest/browser-preview@5.0.3)(@vitest/ui@5.0.3)(@voidzero-dev/vite-plus-core@1.1.0(@types/node@24.19.2)(esbuild@0.27.7)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1))(esbuild@0.27.7)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
 
   packages/questions:
     dependencies:
@@ -8929,7 +8967,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pg-cloudflare@1.4.1:
+  pg-cloudflare@1.4.1(patch_hash=1b88b6b5b4718165b27a1fa9ef18ea6578728a028c64aa089a7712c2112c3450):
     optional: true
 
   pg-connection-string@2.14.1: {}
@@ -8958,7 +8996,7 @@ snapshots:
       pg-types: 2.2.0
       pgpass: 1.0.5
     optionalDependencies:
-      pg-cloudflare: 1.4.1
+      pg-cloudflare: 1.4.1(patch_hash=1b88b6b5b4718165b27a1fa9ef18ea6578728a028c64aa089a7712c2112c3450)
 
   pgpass@1.0.5:
     dependencies:
