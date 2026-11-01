@@ -43,24 +43,33 @@ export function stageRoleCredentials(env) {
 }
 
 // Both provisioning and rehearsal execute this exact transaction body.
-async function configureStageRole(operator, role, password, setPhase) {
+export async function configureRestrictedRole(
+  operator,
+  role,
+  password,
+  setPhase,
+  { databaseName = "quorem_hono_stage", isolateConnections = true, existing = false } = {},
+) {
   const name = escapeIdentifier(role);
   setPhase("operator");
   const owner = (
     await operator.query("SELECT current_user AS name, current_database() AS database")
   ).rows[0];
-  if (owner.database !== "quorem_hono_stage" || owner.name === role)
+  if (owner.database !== databaseName || owner.name === role)
     throw new Error("Invalid migration operator");
   setPhase("create_role");
   if (!validPassword(password)) throw new Error("Invalid runtime credential");
   // Neon forwards role DDL at commit and rejects prehashed password values.
   await operator.query("SET LOCAL password_encryption='scram-sha-256'");
-  await operator.query(
-    `CREATE ROLE ${name} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD ${escapeLiteral(password)}`,
-  );
+  if (!existing)
+    await operator.query(
+      `CREATE ROLE ${name} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD ${escapeLiteral(password)}`,
+    );
   setPhase("database_grants");
-  await operator.query("REVOKE CONNECT ON DATABASE quorem_hono_stage FROM PUBLIC");
-  await operator.query(`GRANT CONNECT ON DATABASE quorem_hono_stage TO ${name}`);
+  const database = escapeIdentifier(databaseName);
+  if (isolateConnections)
+    await operator.query(`REVOKE CONNECT ON DATABASE ${database} FROM PUBLIC`);
+  await operator.query(`GRANT CONNECT ON DATABASE ${database} TO ${name}`);
   // Managed databases may grant CONNECT to shared groups independently of PUBLIC.
   const connected = await operator.query(
     `SELECT DISTINCT r.rolname AS name FROM pg_database d,
@@ -70,10 +79,11 @@ async function configureStageRole(operator, role, password, setPhase) {
         AND r.rolname NOT IN(current_user,$1) ORDER BY r.rolname`,
     [role],
   );
-  for (const row of connected.rows)
-    await operator.query(
-      `REVOKE CONNECT ON DATABASE quorem_hono_stage FROM ${escapeIdentifier(row.name)}`,
-    );
+  if (isolateConnections)
+    for (const row of connected.rows)
+      await operator.query(
+        `REVOKE CONNECT ON DATABASE ${database} FROM ${escapeIdentifier(row.name)}`,
+      );
   setPhase("schema_grants");
   await operator.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
   await operator.query(`GRANT USAGE ON SCHEMA public, quorem_auth TO ${name}`);
@@ -107,9 +117,9 @@ async function configureStageRole(operator, role, password, setPhase) {
       NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','quorem_auth') AND pg_has_role(r.oid,c.relowner,'USAGE')) AS no_ownership,
       EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='execution_jobs' AND t.tgname='execution_attempt_inventory_record' AND t.tgenabled='O' AND p.oid='public.record_execution_attempt()'::regprocedure AND p.prosecdef AND p.proowner=c.relowner AND NOT pg_has_role(r.oid,p.proowner,'USAGE')) AS trigger_safe,
       EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='execution_attempt_inventory' AND t.tgname='execution_attempt_inventory_immutable' AND t.tgenabled='O' AND p.oid='public.guard_execution_attempt_inventory()'::regprocedure AND NOT pg_has_role(r.oid,c.relowner,'USAGE')) AS inventory_guard_safe,
-      NOT EXISTS (SELECT 1 FROM pg_roles x WHERE x.rolcanlogin AND NOT x.rolsuper AND x.rolname NOT IN (current_user,$1) AND has_database_privilege(x.oid,current_database(),'CONNECT')) AS connections_safe
+      ($2::boolean = false OR NOT EXISTS (SELECT 1 FROM pg_roles x WHERE x.rolcanlogin AND NOT x.rolsuper AND x.rolname NOT IN (current_user,$1) AND has_database_privilege(x.oid,current_database(),'CONNECT'))) AS connections_safe
       FROM pg_roles r WHERE r.rolname=$1`,
-    [role],
+    [role, isolateConnections],
   );
   const flags = check.rows[0] ?? {};
   if (Object.values(flags).some((value) => value !== true) || Object.keys(flags).length !== 11)
@@ -182,7 +192,7 @@ export async function rehearseStageRole(operator, role, password) {
     phase = "timeouts";
     await operator.query("SET LOCAL lock_timeout = '5s'");
     await operator.query("SET LOCAL statement_timeout = '15s'");
-    const flags = await configureStageRole(operator, role, password, (next) => {
+    const flags = await configureRestrictedRole(operator, role, password, (next) => {
       phase = next;
     });
     result = { status: "accepted", phase: "boundary", code: null, flags: safeFlags(flags) };
@@ -211,7 +221,7 @@ export async function provisionStageRole(operator, runtime, role, password) {
     phase = "timeouts";
     await operator.query("SET LOCAL lock_timeout = '5s'");
     await operator.query("SET LOCAL statement_timeout = '15s'");
-    await configureStageRole(operator, role, password, (next) => {
+    await configureRestrictedRole(operator, role, password, (next) => {
       phase = next;
     });
     phase = "commit";
