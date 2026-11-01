@@ -114,6 +114,7 @@ try {
   console.error(
     JSON.stringify({
       error: "production-inspection-failed",
+      diagnostic: error.diagnostic,
       code: /^[A-Z0-9]{5}$/.test(error?.code ?? "") ? error.code : undefined,
       reason: ["Invalid production backend", "Production identity mismatch"].includes(error.message)
         ? error.message

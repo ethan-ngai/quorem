@@ -47,7 +47,18 @@ export function productionState(env) {
     runtime.AUTH_ORIGIN !== "https://quorem.app" ||
     url.pathname !== "/quorem" ||
     runtime.DATABASE_URL !== databaseURL
-  )
-    throw new Error("Production identity mismatch");
+  ) {
+    const error = new Error("Production identity mismatch");
+    error.diagnostic = {
+      workerMatches: worker?.name === "quorem-production",
+      originMatches: runtime.AUTH_ORIGIN === "https://quorem.app",
+      databaseMatches: url.pathname === "/quorem",
+      runtimeDatabaseMatches: runtime.DATABASE_URL === databaseURL,
+      bindingNames: bindings.map((item) => item.name),
+      runtimeKeys: Object.keys(runtime),
+      resourceNames: (states.app.resources ?? []).map((item) => `${item.type}.${item.name}`),
+    };
+    throw error;
+  }
   return { states, resource, worker, runtime, databaseURL, binding };
 }
