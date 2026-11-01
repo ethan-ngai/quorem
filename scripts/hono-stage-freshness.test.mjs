@@ -121,3 +121,23 @@ void test("derives omitted page count and rejects malformed present counts", asy
     );
   }
 });
+
+void test("explicit first-initialization retry permits partially provisioned stage shells", async () => {
+  const inventory = list(
+    [
+      { id: "stage-api", name: env.TF_VAR_worker_name },
+      { id: "stage-services", name: env.HONO_SERVICES_WORKER_NAME },
+    ],
+    [{ id: "namespace", script: env.HONO_SERVICES_WORKER_NAME }],
+  );
+  await assert.rejects(requireFreshStageResources(env, inventory), /freshness/);
+  assert.equal(
+    (
+      await requireFreshStageResources(
+        { ...env, HONO_STAGE_INITIALIZATION_RESUME: "true" },
+        inventory,
+      )
+    ).workersChecked,
+    2,
+  );
+});
