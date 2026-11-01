@@ -149,6 +149,10 @@ async function fixtureTables(client) {
     checks.set(`public.${name}`, "true");
   for (const name of ["user", "session", "jwks", "rate_limit"])
     checks.set(`quorem_auth.${name}`, "true");
+  checks.set(
+    "quorem_auth.profile_mutation_window",
+    `NOT EXISTS (SELECT 1 FROM quorem_auth.profile_mutation_window w WHERE NOT EXISTS (SELECT 1 FROM quorem_auth."user" u WHERE w.owner_hash=encode(sha256(convert_to(u.id,'UTF8')),'hex')))`,
+  );
   return checks;
 }
 

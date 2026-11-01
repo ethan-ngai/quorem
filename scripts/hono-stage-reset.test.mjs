@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { withDisposablePostgres } from "./hono-disposable-postgres.mjs";
@@ -164,6 +165,22 @@ void test(
           await assert.rejects(lockEmptyStage(client, binding), /contains data/);
           await lockEmptyStage(client, { ...binding, allowFixtures: true });
           await client.query("ROLLBACK");
+          await client.query(
+            "INSERT INTO quorem_auth.profile_mutation_window VALUES($1,2,now()+interval '1 minute')",
+            [createHash("sha256").update(subject).digest("hex")],
+          );
+          await lockEmptyStage(client, { ...binding, allowFixtures: true });
+          await client.query("ROLLBACK");
+          await client.query(
+            "INSERT INTO quorem_auth.profile_mutation_window VALUES('foreign-owner',1,now()+interval '1 minute')",
+          );
+          await assert.rejects(
+            lockEmptyStage(client, { ...binding, allowFixtures: true }),
+            /contains data/,
+          );
+          await client.query(
+            "DELETE FROM quorem_auth.profile_mutation_window WHERE owner_hash='foreign-owner'",
+          );
           await client.query(
             `INSERT INTO quorem_auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES('real-user','real','real@example.test',true,now(),now())`,
           );
