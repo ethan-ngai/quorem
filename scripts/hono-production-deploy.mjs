@@ -480,8 +480,8 @@ export async function deployProduction(env) {
       runnerOrigin: `https://${hosts.drain}`,
       publicKeyFile: publicKey,
     });
-    const observed = await controls.observe();
-    if (observed.runner.status === "active") await controls.requireActive(1);
+    const runner = await controls.runnerState();
+    if (runner.status === "active") await controls.requireActive(1);
     else await controls.activate();
     progress("attach-native-execution-queue");
     tf(native, "enable_queue_consumer", "true");

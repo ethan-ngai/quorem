@@ -479,6 +479,7 @@ export async function stageControls(options, send = fetch) {
     activate,
     pause,
     observe,
+    runnerState: () => request("runner", "state"),
     requireActive,
     inventoryPage,
     pausePinned,
