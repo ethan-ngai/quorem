@@ -143,6 +143,16 @@ export class StageCommandFailure extends Error {
     this.diagnostics = diagnostics;
     this.resources = commandResources.filter((name) => text.includes(name));
     this.noState = /No state file was found/i.test(text);
+    for (const line of text.split("\n")) {
+      try {
+        const record = JSON.parse(line);
+        if (record.error === "remote-validation" && typeof record.reason === "string") {
+          let reason = record.reason;
+          for (const value of redactions) reason = reason.replaceAll(value, "[redacted]");
+          this.validation = reason.replace(/\p{Cc}/gu, " ").slice(0, 2000);
+        }
+      } catch {}
+    }
   }
 }
 export function runStageCommand(program, args, env, execute = spawnSync, input) {

@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { assertRunnerResult, assertSelectedReport } from "./hono-remote-validation.mjs";
+import {
+  assertRunnerResult,
+  assertSelectedReport,
+  remoteFailureReason,
+} from "./hono-remote-validation.mjs";
 const name =
   "admission through TypeScript runner runs an admitted job through separate runner and verifier executables";
 void test("accepts only the selected passing test, independent of unrelated skipped count", () => {
@@ -53,4 +57,26 @@ void test("runner and malformed provider output never escape in errors", () => {
       () => assertRunnerResult(result),
       (error) => !String(error).includes(sentinel),
     );
+});
+
+void test("remote assertion diagnostics retain cause while scrubbing credentials", () => {
+  const secret = "fixture-sensitive-value-123456789";
+  const result = {
+    stdout: JSON.stringify({
+      testResults: [
+        {
+          assertionResults: [
+            {
+              failureMessages: [
+                `Expected accepted, received infrastructure_error; ${secret}; https://example.com/private`,
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  };
+  const reason = remoteFailureReason(result, [secret]);
+  assert.match(reason, /Expected accepted, received/);
+  assert.doesNotMatch(reason, /fixture-sensitive|example.com/);
 });

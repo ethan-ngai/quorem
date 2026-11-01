@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { createPublicKey } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { stripVTControlCharacters } from "node:util";
 
 function fail(message) {
   throw new Error(message);
@@ -28,14 +29,41 @@ export function assertSelectedReport(raw) {
   )
     throw new Error("Remote test selection mismatch");
 }
+export function remoteFailureReason(result, secrets = Object.values(process.env)) {
+  let details = [];
+  try {
+    const report = JSON.parse(result.stdout);
+    details = (report.testResults ?? []).flatMap((file) => [
+      file.message ?? "",
+      ...(file.assertionResults ?? []).flatMap((item) => item.failureMessages ?? []),
+    ]);
+  } catch {}
+  let reason =
+    details.filter(Boolean).join(" ") ||
+    "Remote execution validation failed before a test report was available";
+  for (const value of secrets
+    .filter((value) => typeof value === "string" && value.length >= 8)
+    .sort((a, b) => b.length - a.length))
+    reason = reason.replaceAll(value, "[redacted]");
+  return stripVTControlCharacters(reason)
+    .replace(/(?:https?|postgres(?:ql)?):\/\/\S+/gi, "[redacted]")
+    .replace(/[A-Za-z0-9_+/=.:-]{24,}/g, "[redacted]")
+    .replace(/\S*(?:secret|token|password|credential)\S*/gi, "[redacted]")
+    .replace(/\p{Cc}/gu, " ")
+    .replace(/\s+/g, " ")
+    .slice(0, 2000);
+}
 export function assertRunnerResult(result) {
   try {
     if (result.error || result.status !== 0) fail("Remote execution validation failed");
     assertSelectedReport(result.stdout);
   } catch {
-    throw new Error("Remote execution validation failed");
+    const error = new Error("Remote execution validation failed");
+    error.reason = remoteFailureReason(result);
+    throw error;
   }
 }
+
 async function main() {
   try {
     const database = required("QUOREM_REMOTE_VALIDATION_DATABASE_URL");
@@ -147,8 +175,13 @@ async function main() {
     );
     assertRunnerResult(result);
     console.log("Remote execution validation passed");
-  } catch {
-    console.error("Remote validation configuration or execution failed");
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        error: "remote-validation",
+        reason: error.reason ?? "Remote validation configuration failed",
+      }),
+    );
     process.exitCode = 1;
   }
 }
