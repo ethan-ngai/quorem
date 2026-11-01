@@ -45,6 +45,13 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
         return await runner.drain.drain(signal);
       } catch (error) {
         if (error instanceof UnconfirmedTeardown) teardownFailure = error;
+        console.error(
+          JSON.stringify({
+            event: "runner-drain-failed",
+            kind: error instanceof UnconfirmedTeardown ? "teardown" : "drain",
+            ...(error instanceof UnconfirmedTeardown ? { diagnostic: error.diagnostic } : {}),
+          }),
+        );
         throw error;
       }
     },

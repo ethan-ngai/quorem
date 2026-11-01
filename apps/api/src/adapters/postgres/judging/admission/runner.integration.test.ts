@@ -337,12 +337,18 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         }
       };
       const containerMode = process.env.QUOREM_CONTAINER_FIXTURE === "1";
+      let serviceDiagnostics = "";
       const service = (kind: "runner" | "verifier", script: string, env: NodeJS.ProcessEnv) => {
-        if (!containerMode)
-          return spawn(process.execPath, [script], {
-            stdio: "ignore",
+        if (!containerMode) {
+          const child = spawn(process.execPath, [script], {
+            stdio: ["ignore", "ignore", "pipe"],
             env: { ...process.env, ...env },
           });
+          child.stderr?.on("data", (data) => {
+            serviceDiagnostics = (serviceDiagnostics + String(data)).slice(-4096);
+          });
+          return child;
+        }
         const volume = process.env.QUOREM_CONTAINER_FENCE_VOLUME;
         const namespace = process.env.HOSTNAME;
         if (!volume || !namespace || !work.startsWith("/quorem-36b/"))
@@ -494,7 +500,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           headers: { authorization: `Bearer ${drainSecret}` },
           signal: AbortSignal.timeout(drainTimeoutMs),
         });
-        expect(drain.status, await drain.clone().text()).toBe(200);
+        expect(drain.status, `${await drain.clone().text()} ${serviceDiagnostics}`).toBe(200);
         const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
         expect(result.status).toBe(200);
         expect((await result.json()).verdict).toBe("accepted");

@@ -23,10 +23,17 @@ export interface IsolatedSandbox {
   teardownAttempt(fence: AttemptFence, signal?: AbortSignal): Promise<void>;
 }
 export class UnconfirmedTeardown extends Error {
-  constructor() {
+  readonly diagnostic?: {
+    httpStatus?: number;
+    signatureValid?: boolean;
+    transport?: "timeout" | "error";
+  };
+  constructor(diagnostic?: UnconfirmedTeardown["diagnostic"]) {
     super("Sandbox teardown unconfirmed");
+    this.diagnostic = diagnostic;
   }
 }
+
 export function validateCaseRequest(request: CaseRequest, scope: string): void {
   if (
     request.fence.sandboxScope !== scope ||

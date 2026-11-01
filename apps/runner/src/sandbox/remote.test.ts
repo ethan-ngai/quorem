@@ -127,6 +127,10 @@ void test("ambiguous 404 is never teardown proof", async () => {
   });
   await assert.rejects(
     sandbox.teardownAttempt({ attemptId: "attempt", sandboxScope: sandbox.scope }),
-    /unconfirmed/,
+    (error: unknown) =>
+      error instanceof Error &&
+      "diagnostic" in error &&
+      JSON.stringify(error.diagnostic) ===
+        JSON.stringify({ httpStatus: 404, signatureValid: false }),
   );
 });
