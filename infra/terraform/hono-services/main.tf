@@ -7,6 +7,14 @@ terraform {
     external   = { source = "hashicorp/external", version = "2.3.5" }
   }
 }
+variable "deployment_scope" {
+  type    = string
+  default = "stage"
+  validation {
+    condition     = contains(["stage", "production"], var.deployment_scope)
+    error_message = "Select an explicit deployment scope."
+  }
+}
 variable "account_id" { type = string }
 variable "zone_id" { type = string }
 variable "cloudflare_api_token" {
@@ -16,14 +24,14 @@ variable "cloudflare_api_token" {
 variable "worker_name" {
   type = string
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]*-hono-services-stage$", var.worker_name))
+    condition     = var.deployment_scope == "production" ? var.worker_name == "quorem-hono-services-production" : can(regex("^[a-z][a-z0-9-]*-hono-services-stage$", var.worker_name))
     error_message = "Use an isolated staged service Worker name."
   }
 }
 variable "hostnames" {
   type = object({ drain = string, verifier = string, case = string })
   validation {
-    condition     = length(toset(values(var.hostnames))) == 3 && alltrue([for h in values(var.hostnames) : can(regex("^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\\.[a-z0-9.-]+$", h))])
+    condition     = length(toset(values(var.hostnames))) == 3 && alltrue([for h in values(var.hostnames) : var.deployment_scope == "production" ? contains(["runner-hono.quorem.app", "verifier-hono.quorem.app", "case-hono.quorem.app"], h) : can(regex("^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\\.[a-z0-9.-]+$", h))])
     error_message = "Three distinct staged hostnames are required."
   }
 }
@@ -50,7 +58,7 @@ variable "image_hostname" {
   type    = string
   default = ""
   validation {
-    condition     = !var.profile_media_enabled || (can(regex("^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\\.[a-z0-9.-]+$", var.image_hostname)) && !contains(values(var.hostnames), var.image_hostname) && var.command_origin != "https://${var.image_hostname}" && var.source_origin != "https://${var.image_hostname}")
+    condition     = !var.profile_media_enabled || ((var.deployment_scope == "production" ? var.image_hostname == "image-hono.quorem.app" : can(regex("^[a-z0-9-]*stag(e|ing)[a-z0-9-]*\\.[a-z0-9.-]+$", var.image_hostname))) && !contains(values(var.hostnames), var.image_hostname) && var.command_origin != "https://${var.image_hostname}" && var.source_origin != "https://${var.image_hostname}")
     error_message = "Image service needs a distinct staged hostname."
   }
 }
@@ -60,6 +68,26 @@ variable "image_service_image" {
   validation {
     condition     = !var.profile_media_enabled || (startswith(var.image_service_image, "registry.cloudflare.com/${var.account_id}/") && can(regex("@sha256:[0-9a-f]{64}$", var.image_service_image)))
     error_message = "Image service must use an account-local digest-pinned image."
+  }
+}
+variable "mail_relay_enabled" {
+  type    = bool
+  default = false
+}
+variable "mail_relay_hostname" {
+  type    = string
+  default = ""
+  validation {
+    condition     = !var.mail_relay_enabled || (var.deployment_scope == "production" && var.mail_relay_hostname == "mail-hono.quorem.app" && !contains(values(var.hostnames), var.mail_relay_hostname))
+    error_message = "Mail relay requires its distinct production hostname."
+  }
+}
+variable "mail_relay_image" {
+  type    = string
+  default = ""
+  validation {
+    condition     = !var.mail_relay_enabled || (startswith(var.mail_relay_image, "registry.cloudflare.com/${var.account_id}/") && can(regex("@sha256:[0-9a-f]{64}$", var.mail_relay_image)))
+    error_message = "Mail relay requires an account-local digest."
   }
 }
 variable "case_diagnostics" {
@@ -135,19 +163,21 @@ locals {
     "deploy/case-proof.js"                   = "../../../deploy/case-proof.js"
     "deploy/case-sandbox.js"                 = "../../../deploy/case-sandbox.js"
   }
-  service_hosts   = merge(var.hostnames, var.profile_media_enabled ? { image = var.image_hostname } : {})
-  secret_names    = concat(var.profile_media_enabled ? ["IMAGE_SERVICE_TOKEN"] : [], ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "CASE_OWNER_PRIVATE_KEY"])
+  service_hosts   = merge(var.hostnames, var.profile_media_enabled ? { image = var.image_hostname } : {}, var.mail_relay_enabled ? { mail = var.mail_relay_hostname } : {})
+  secret_names    = concat(var.mail_relay_enabled ? ["MAIL_RELAY_TOKEN", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "AUTH_EMAIL_FROM"] : [], var.profile_media_enabled ? ["IMAGE_SERVICE_TOKEN"] : [], ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "CASE_OWNER_PRIVATE_KEY"])
   prior_tag       = data.external.worker_migration.result.tag
   control_classes = ["CaseControl", "RunnerReleaseControl"]
-  new_classes     = local.prior_tag == "" ? concat(["RunnerService", "VerifierService", "CaseSandbox"], local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v1" ? concat(local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v2" ? local.control_classes : local.prior_tag == "v3" && var.profile_media_enabled ? ["ImageService"] : []
-  target_tag      = var.profile_media_enabled || contains(["v2", "v4"], local.prior_tag) ? "v4" : "v3"
+  base_classes    = local.prior_tag == "" ? concat(["RunnerService", "VerifierService", "CaseSandbox"], local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v1" ? concat(local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v2" ? local.control_classes : contains(["v3", "v5"], local.prior_tag) && var.profile_media_enabled ? ["ImageService"] : []
+  new_classes     = concat(local.base_classes, var.mail_relay_enabled && !contains(["v5", "v6"], local.prior_tag) ? ["MailRelayService"] : [])
+  base_tag        = var.profile_media_enabled || contains(["v2", "v4"], local.prior_tag) ? "v4" : "v3"
+  target_tag      = var.mail_relay_enabled || contains(["v5", "v6"], local.prior_tag) ? (var.profile_media_enabled || local.prior_tag == "v6" ? "v6" : "v5") : local.base_tag
   control_digest = sha256(jsonencode({
     release        = var.release_sha
     generation     = var.release_generation
     namespace      = var.case_namespace_id
     command_origin = var.command_origin
     source_origin  = var.source_origin
-    images         = merge(var.case_images, { runner = var.runner_image, verifier = var.verifier_image, image = var.profile_media_enabled ? var.image_service_image : "" })
+    images         = merge(var.case_images, { runner = var.runner_image, verifier = var.verifier_image, image = var.profile_media_enabled ? var.image_service_image : "", mail = var.mail_relay_enabled ? var.mail_relay_image : "" })
     secrets        = nonsensitive(sha256(jsonencode({ for name in local.secret_names : name => var.service_secrets[name] })))
     modules        = { for name, source in local.modules : name => filesha256("${path.module}/${source}") }
   }))
@@ -155,6 +185,8 @@ locals {
     SERVICES_RELEASE                  = var.release_sha
     SERVICES_GENERATION               = tostring(var.release_generation)
     SERVICES_BINDINGS                 = local.control_digest
+    MAIL_RELAY_ENABLED                = tostring(var.mail_relay_enabled)
+    MAIL_RELAY_ORIGIN                 = var.mail_relay_enabled ? "https://${var.mail_relay_hostname}" : ""
     IMAGE_SERVICE_ENABLED             = tostring(var.profile_media_enabled)
     IMAGE_ORIGIN                      = var.profile_media_enabled ? "https://${var.image_hostname}" : ""
     CASE_DIAGNOSTICS                  = tostring(var.case_diagnostics)
@@ -169,10 +201,11 @@ locals {
   bindings = concat(
     [{ type = "durable_object_namespace", name = "CASE_CONTROL", class_name = "CaseControl" }, { type = "durable_object_namespace", name = "RUNNER_CONTROL", class_name = "RunnerReleaseControl" }, { type = "durable_object_namespace", name = "RUNNERS", class_name = "RunnerService" }, { type = "durable_object_namespace", name = "VERIFIERS", class_name = "VerifierService" }, { type = "durable_object_namespace", name = "CASES", class_name = "CaseSandbox" }],
     var.profile_media_enabled ? [{ type = "durable_object_namespace", name = "IMAGES", class_name = "ImageService" }] : [],
+    var.mail_relay_enabled ? [{ type = "durable_object_namespace", name = "MAIL", class_name = "MailRelayService" }] : [],
     [for k, v in local.public : { type = "plain_text", name = k, text = v }],
     [for k in local.secret_names : { type = "secret_text", name = k, text = var.service_secrets[k] }]
   )
-  trusted = merge({ runner = { class = "RunnerService", image = var.runner_image }, verifier = { class = "VerifierService", image = var.verifier_image } }, var.profile_media_enabled ? { image = { class = "ImageService", image = var.image_service_image } } : {})
+  trusted = merge(var.mail_relay_enabled ? { mail = { class = "MailRelayService", image = var.mail_relay_image } } : {}, { runner = { class = "RunnerService", image = var.runner_image }, verifier = { class = "VerifierService", image = var.verifier_image } }, var.profile_media_enabled ? { image = { class = "ImageService", image = var.image_service_image } } : {})
 }
 resource "cloudflare_worker" "services" {
   account_id = var.account_id
@@ -200,12 +233,12 @@ resource "cloudflare_worker_version" "services" {
   main_module        = "deploy/hono/services/worker.js"
   modules            = [for name, source in local.modules : { name = name, content_type = "application/javascript+module", content_base64 = filebase64("${path.module}/${source}") }]
   bindings           = local.bindings
-  containers         = concat([{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { class_name = "CaseSandbox" }], var.profile_media_enabled ? [{ class_name = "ImageService" }] : [])
+  containers         = concat([{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { class_name = "CaseSandbox" }], var.profile_media_enabled ? [{ class_name = "ImageService" }] : [], var.mail_relay_enabled ? [{ class_name = "MailRelayService" }] : [])
   migrations         = length(local.new_classes) > 0 ? { old_tag = local.prior_tag, new_tag = local.target_tag, new_sqlite_classes = local.new_classes } : null
   deploy             = true
   lifecycle {
     precondition {
-      condition     = contains(["", "v1", "v2", "v3", "v4"], data.external.worker_migration.result.tag)
+      condition     = contains(["", "v1", "v2", "v3", "v4", "v5", "v6"], data.external.worker_migration.result.tag)
       error_message = "Unknown staged Worker migration history; refuse deployment."
     }
     precondition {
@@ -255,7 +288,7 @@ resource "terraform_data" "case_images" {
     environment = {
       CLOUDFLARE_ACCOUNT_ID = var.account_id
       CLOUDFLARE_API_TOKEN  = var.cloudflare_api_token
-      QUOREM_WORKER_UPLOAD  = jsonencode({ worker = var.worker_name, deploy = true, modules = [for name, source in local.modules : { name = name, path = "${path.module}/${source}" }], metadata = { main_module = "deploy/hono/services/worker.js", compatibility_date = "2026-10-25", containers = concat([{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { name = "${var.worker_name}-case", class_name = "CaseSandbox", images = var.case_images }], var.profile_media_enabled ? [{ class_name = "ImageService" }] : []), bindings = local.bindings } })
+      QUOREM_WORKER_UPLOAD  = jsonencode({ worker = var.worker_name, deploy = true, modules = [for name, source in local.modules : { name = name, path = "${path.module}/${source}" }], metadata = { main_module = "deploy/hono/services/worker.js", compatibility_date = "2026-10-25", containers = concat([{ class_name = "RunnerService" }, { class_name = "VerifierService" }, { name = "${var.worker_name}-case", class_name = "CaseSandbox", images = var.case_images }], var.profile_media_enabled ? [{ class_name = "ImageService" }] : [], var.mail_relay_enabled ? [{ class_name = "MailRelayService" }] : []), bindings = local.bindings } })
     }
   }
   depends_on = [restapi_object.trusted_rollout, restapi_object.case]

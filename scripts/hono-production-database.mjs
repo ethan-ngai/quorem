@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { migrate } from "../packages/database/src/migrations.ts";
+import { migrate, verifyCompleteHistory } from "../packages/database/src/migrations.ts";
 import { runMigrationBaseline } from "../apps/api/src/cli/migration-baseline.ts";
 import { verifiedOperator } from "../apps/api/src/cli/operator-backfill.ts";
 import { operatorDatabaseIdentity } from "../apps/api/src/cli/operator-database.ts";
@@ -42,7 +42,11 @@ async function backfill(env, operation, mode) {
     const child = spawn(process.execPath, args, {
       cwd: root,
       env,
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      if (stderr.length < 8192) stderr += chunk;
     });
     let output = "",
       failed = false,
@@ -76,7 +80,15 @@ async function backfill(env, operation, mode) {
           throw new Error();
         resolve({ attempted: value.attempted, completed: value.completed });
       } catch {
-        reject(new Error("Backfill incomplete"));
+        const error = new Error("Backfill incomplete");
+        try {
+          const record = stderr
+            .split("\n")
+            .filter((line) => line.startsWith('{"error":"backfill-failed"'))
+            .map((line) => JSON.parse(line))[0];
+          if (record) error.diagnostic = record;
+        } catch {}
+        reject(error);
       }
     });
   });
@@ -88,6 +100,24 @@ async function quiescent(client) {
   if (result.rows[0]?.jobs !== true || result.rows[0]?.prepared !== true)
     throw new Error("Legacy database is not quiescent");
 }
+/** Resume activation only after the audited transition and exact current schema are present. */
+export async function productionMigrationComplete(databaseURL, runtimeRole) {
+  const client = new Client({ connectionString: databaseURL, connectionTimeoutMillis: 5000, query_timeout: 10000 });
+  try {
+    await client.connect();
+    await client.query("BEGIN READ ONLY");
+    const receipt = await client.query(
+      "SELECT 1 FROM public.access_audit WHERE action='runtime.provision' AND scope=$1 AND reason='Production migration' AND actor=user_id",
+      [runtimeRole],
+    );
+    if (receipt.rows.length !== 1) return false;
+    await verifyCompleteHistory(client, "product", `${root}apps/api/migrations`);
+    await verifyCompleteHistory(client, "auth", `${root}apps/auth/migrations`);
+    return true;
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
 export async function transitionProductionDatabase(options, dependencies = {}) {
   const {
     databaseURL,
@@ -97,6 +127,8 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
     runtimePassword,
     assertLegacyStopped,
   } = options;
+  const report = (step, owner) => options.report?.({ step, ...(owner ? { owner } : {}) });
+  report("validate-configuration");
   const identity = operatorDatabaseIdentity(databaseURL);
   const url = new URL(databaseURL),
     auth = new URL(authOrigin);
@@ -131,6 +163,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
   });
   let pool;
   try {
+    report("connect");
     await control.connect();
     const locked = await control.query(
       "SELECT pg_try_advisory_lock(hashtextextended('quorem-production-transition-v1',0)) AS ok",
@@ -150,6 +183,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
       idleTimeoutMillis: 5000,
     });
     pool.on("error", () => {});
+    report("verify-operator");
     const operator = await verifiedOperator(drizzle(pool), authOrigin);
     for (const owner of ["product", "auth"]) {
       if ((await assertLegacyStopped()) === false) throw new Error("Legacy shutdown unconfirmed");
@@ -165,7 +199,8 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
             `SELECT EXISTS(SELECT 1 FROM ${schema}.schema_migrations WHERE checksum IS NULL) AS pending`,
           )
         ).rows[0].pending;
-      if (legacy)
+      if (legacy) {
+        report("baseline", owner);
         await runMigrationBaseline(
           {
             pool,
@@ -184,8 +219,11 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
             ...(dependencies.request ? { request: dependencies.request } : {}),
           },
         );
+      }
+      report("migrate", owner);
       await migrate(pool, owner, `${root}apps/${owner === "product" ? "api" : "auth"}/migrations`);
     }
+    report("backfill");
     const env = { ...process.env, QUOREM_OPERATOR_DATABASE_URL: url.href, AUTH_ORIGIN: authOrigin };
     const batches = {};
     for (const [name, mode] of [
@@ -195,6 +233,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
     ]) {
       if ((await assertLegacyStopped()) === false) throw new Error("Legacy shutdown unconfirmed");
       await quiescent(control);
+      report("backfill", name);
       batches[name] = await (dependencies.backfill ?? backfill)(env, op(seed, name), mode);
       if (
         !batches[name] ||
@@ -208,6 +247,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
     }
     if ((await assertLegacyStopped()) === false) throw new Error("Legacy shutdown unconfirmed");
     await quiescent(control);
+    report("backfill-versions");
     const versions = await dependencies.backfillProblemVersions({
       pool,
       databaseURL: url.href,
@@ -243,7 +283,8 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
           prior.rows[0].scope !== runtimeRole)
       )
         throw new Error("Runtime role operation conflict");
-      await configureRestrictedRole(control, runtimeRole, runtimePassword, () => {}, {
+      report("runtime-role");
+      await configureRestrictedRole(control, runtimeRole, runtimePassword, (step) => report(step), {
         databaseName: "neondb",
         isolateConnections: false,
         existing: prior.rows.length === 1,

@@ -52,6 +52,7 @@ function config(env) {
     env.QUOREM_VERIFICATION_SOURCE_KEY,
     env.QUOREM_VERIFICATION_SERVICE_KEY,
     ...(imageEnabled ? [env.IMAGE_SERVICE_TOKEN] : []),
+    ...(env.MAIL_RELAY_ENABLED === "true" ? [env.MAIL_RELAY_TOKEN] : []),
   ];
   if (
     secrets.some((value) => typeof value !== "string" || value.length < 32 || /\s/.test(value)) ||
@@ -84,6 +85,16 @@ function config(env) {
   });
   if (new Set(origins).size !== origins.length || origins[2] !== env.QUOREM_CASE_ORIGIN)
     throw new Error("Distinct private origins required");
+  if (env.MAIL_RELAY_ENABLED === "true") {
+    const mail = new URL(env.MAIL_RELAY_ORIGIN);
+    if (
+      mail.protocol !== "https:" ||
+      mail.origin !== env.MAIL_RELAY_ORIGIN ||
+      origins.includes(mail.origin)
+    )
+      throw new Error("Invalid mail relay origin");
+  } else if (env.MAIL_RELAY_ENABLED && env.MAIL_RELAY_ENABLED !== "false")
+    throw new Error("Invalid mail relay mode");
   return origins;
 }
 async function caseScope(env) {
@@ -190,11 +201,53 @@ export class ImageService extends DurableObject {
     return this.lifecycle.forward(cleanImage(request), 15000);
   }
 }
+/** SMTP credentials stay in the trusted relay container. */
+export class MailRelayService extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.lifecycle = new ContainerLifecycle(
+      ctx,
+      {
+        ...selected(env, [
+          "MAIL_RELAY_TOKEN",
+          "AUTH_EMAIL_FROM",
+          "SMTP_HOST",
+          "SMTP_PORT",
+          "SMTP_USERNAME",
+          "SMTP_PASSWORD",
+        ]),
+        APP_ENV: "production",
+        MAIL_RELAY_LISTEN: "0.0.0.0:8092",
+      },
+      8092,
+      60000,
+      120000,
+    );
+  }
+  fetch(request) {
+    const target =
+      new URL(request.url).pathname === "/internal/mail/health"
+        ? new Request("https://mail.internal/health", { headers: request.headers })
+        : clean(request);
+    return this.lifecycle.forward(target, 30000);
+  }
+}
 export default {
   async fetch(request, env) {
     try {
       const [drain, verifier, cases, image] = config(env),
         url = new URL(request.url);
+      if (
+        env.MAIL_RELAY_ENABLED === "true" &&
+        url.origin === env.MAIL_RELAY_ORIGIN &&
+        ["/internal/mail/send", "/internal/mail/health"].includes(url.pathname) &&
+        !url.search &&
+        !url.hash &&
+        ((url.pathname === "/internal/mail/send" && request.method === "POST") ||
+          (url.pathname === "/internal/mail/health" && request.method === "GET")) &&
+        request.headers.get("authorization") === `Bearer ${env.MAIL_RELAY_TOKEN}`
+      )
+        return env.MAIL.getByName("mail").fetch(clean(request));
       if (url.hash) return new Response(null, { status: 404 });
       const caseControl =
         url.origin === cases &&

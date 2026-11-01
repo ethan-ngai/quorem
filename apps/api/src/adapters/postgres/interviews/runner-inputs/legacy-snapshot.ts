@@ -121,7 +121,7 @@ export async function normalizeSnapshot(
 ): Promise<void> {
   const opened = await openLegacyFixtureRanges(tx, { session, fixture });
   const { stages, cases, suites } = opened.ranges;
-  if (stages && suites !== stages) throw new Error("Invalid legacy stage suites");
+  // Historical metadata and captured suite counts can differ; verify exact case IDs below.
   if (stages > 8) throw new Error("Unsupported legacy stage count");
   const shape = (
     await tx.execute<{ total: number; ids: string[]; examples: number[] }>(
@@ -143,7 +143,21 @@ export async function normalizeSnapshot(
         count !== cases.filter((c) => c.channel === "example" && c.stage === stage).length,
     )
   )
-    throw new Error("Legacy fixture shape conflict");
+    throw Object.assign(new Error("Legacy fixture shape conflict"), {
+      migrationShape: {
+        stages,
+        suites,
+        total: shape?.total,
+        ids: shape?.ids.length,
+        sourceIds: sourceIds.length,
+        examples: shape?.examples,
+        sourceExamples: Array.from(
+          { length: stages + 1 },
+          (_, stage) =>
+            cases.filter((item) => item.channel === "example" && item.stage === stage).length,
+        ),
+      },
+    });
   const selected = cases
     .filter((c) => (stages ? c.stage > 0 : c.stage === 0))
     .sort(

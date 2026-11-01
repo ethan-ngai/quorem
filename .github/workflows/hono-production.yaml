@@ -7,9 +7,13 @@ on:
     inputs:
       action:
         type: choice
-        options: [inspect]
+        options: [inspect, deploy]
         default: inspect
         required: true
+      resume_prepared:
+        description: Resume the already fenced native production setup
+        type: boolean
+        default: false
       release_sha:
         type: string
         required: true
@@ -19,22 +23,22 @@ permissions:
 concurrency:
   group: hono-production-cutover
   cancel-in-progress: false
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+  AUTH_INTERNAL_SECRET: ${{ secrets.AUTH_INTERNAL_SECRET }}
+  QUOREM_INVITE_KEY: ${{ secrets.QUOREM_INVITE_KEY }}
+  GH_TOKEN: ${{ github.token }}
 jobs:
   inspect:
-    if: (github.event_name == 'push' || inputs.release_sha == github.sha) && (github.ref == 'refs/heads/feat/hono-migration' || github.ref == 'refs/heads/main')
+    if: (github.event_name == 'push' || (inputs.action == 'inspect' && inputs.release_sha == github.sha)) && (github.ref == 'refs/heads/feat/hono-migration' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-      AUTH_INTERNAL_SECRET: ${{ secrets.AUTH_INTERNAL_SECRET }}
-      QUOREM_INVITE_KEY: ${{ secrets.QUOREM_INVITE_KEY }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
@@ -48,3 +52,29 @@ jobs:
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - run: vp exec node scripts/hono-production-inspect.mjs
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'deploy' && inputs.release_sha == github.sha && (github.ref == 'refs/heads/feat/hono-migration' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HONO_RELEASE_SHA: ${{ inputs.release_sha }}
+      HONO_RESUME_PREPARED: ${{ inputs.resume_prepared && 'true' || 'false' }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - name: Snapshot and directly cut over production
+        run: vp exec node scripts/hono-production-deploy.mjs

@@ -16,6 +16,11 @@ on:
       - scripts/prepare-pages.test.mjs
       - .github/workflows/frontend.yaml
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: Publish directly without the optional pre-publish checks
+        type: boolean
+        default: false
   workflow_call:
 permissions:
   contents: read
@@ -59,9 +64,12 @@ jobs:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
-      - run: vp check --no-fmt
-      - run: vp -C apps/web test
-      - run: vp node --test scripts/prepare-pages.test.mjs
+      - if: ${{ !inputs.skip_tests }}
+        run: vp check --no-fmt
+      - if: ${{ !inputs.skip_tests }}
+        run: vp -C apps/web test
+      - if: ${{ !inputs.skip_tests }}
+        run: vp node --test scripts/prepare-pages.test.mjs
       - name: Build static frontend
         run: |
           export QUOREM_SITE_URL="https://$TF_VAR_domain"

@@ -14,6 +14,7 @@ const allowed = new Set([
   "AUTH_PASSKEYS",
   "AUTH_EMAIL_DRIVER",
   "AUTH_EMAIL_FROM",
+  "AUTH_EMAIL_RELAY_ORIGIN",
   "AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID",
   "COGNITO_CLIENT_ID",
   "COGNITO_DOMAIN",
@@ -39,6 +40,12 @@ const allowed = new Set([
   "EXECUTION_DRAIN_ACCESS_MODE",
 ]);
 export function stageConfig(input, outputs, output) {
+  return workerConfig(input, outputs, output, "stage");
+}
+
+/** Shared native Worker composition; deployment scope fixes its allowed identities. */
+export function workerConfig(input, outputs, output, scope) {
+  if (!["stage", "production"].includes(scope)) throw new Error("Invalid deployment scope");
   const { stageZone, vars } = input;
   const profileBucket = outputs?.profile_bucket_name?.value;
   const workerName = outputs?.worker_name?.value;
@@ -47,7 +54,9 @@ export function stageConfig(input, outputs, output) {
   const stageHostname = outputs?.stage_hostname?.value;
   const drainOrigin = outputs?.services?.origins?.value?.DRAIN_ORIGIN;
   if (
-    !/^[a-z][a-z0-9-]*-hono-stage$/.test(workerName) ||
+    (scope === "stage"
+      ? !/^[a-z][a-z0-9-]*-hono-stage$/.test(workerName)
+      : workerName !== "quorem-hono-production") ||
     !/^[0-9a-f]{32}$/.test(hyperdriveId) ||
     queueName !== `${workerName}-execution`
   )
@@ -85,10 +94,12 @@ export function stageConfig(input, outputs, output) {
   const host = new URL(vars.AUTH_ORIGIN).hostname;
   if (
     typeof stageZone !== "string" ||
-    stageHostname !== host ||
+    (scope === "stage"
+      ? stageHostname !== host
+      : stageHostname !== "api-hono.quorem.app" || host !== "quorem.app") ||
     !/^[a-z0-9.-]+$/.test(stageZone) ||
-    !host.endsWith(`.${stageZone}`) ||
-    !/(^|-)stag(e|ing)(-|$)/.test(host.split(".")[0])
+    !(host === stageZone || host.endsWith(`.${stageZone}`)) ||
+    (scope === "stage" && !/(^|-)stag(e|ing)(-|$)/.test(host.split(".")[0]))
   )
     throw new Error("A distinct staged hostname and zone are required");
   const bounded = (value, min, max) =>
@@ -160,7 +171,7 @@ export function stageConfig(input, outputs, output) {
     compatibility_flags: ["nodejs_compat"],
     workers_dev: false,
     preview_urls: false,
-    routes: [{ pattern: host, zone_name: stageZone, custom_domain: true }],
+    routes: [{ pattern: stageHostname, zone_name: stageZone, custom_domain: true }],
     vars: { ...vars, EXECUTION_WAKE_PROVIDER: "cloudflare-binding" },
     hyperdrive: [{ binding: "DB", id: hyperdriveId }],
     queues: { producers: [{ binding: "EXECUTION_QUEUE", queue: queueName }] },

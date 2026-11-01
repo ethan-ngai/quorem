@@ -1,10 +1,12 @@
 # Migration execution ledger
 
-Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implementation authorized; production/main promotion remains separately gated.
+Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Implementation, staging and explicitly authorized production cutover complete.
 
 ## Current checkpoint — 2026-11-01
 
-Implementation and isolated staging validation are complete on `feat/hono-migration`. Deployed runtime: `333e4c79b06f9b074b13ae4891a6df65f32bcc8f`. Hono/TypeScript and Drizzle run through shared application/domain owners with native Node and Cloudflare Workers composition. Go sources and module files are retired. Production/main traffic is unchanged.
+Production runs Hono/TypeScript and Drizzle on Cloudflare Workers at `https://quorem.app`, release `a04c73d03498499d520198d40db6140df39da3bb`. [Production cutover 41340327464](https://github.com/ethan-ngai/quorem/actions/runs/41340327464) succeeded; existing PostgreSQL/auth data and configuration were retained, Go runtime retired, native queue attached. Basic health and auth configuration returned 200. Additional production tests were skipped at the user's request. [Cutover evidence](production-cutover.md).
+
+Prior isolated staging runtime: `333e4c79b06f9b074b13ae4891a6df65f32bcc8f`. Shared application/domain owners retain native Node and Cloudflare Workers composition. Go sources and module files are retired.
 
 - Full CI [41285813149](https://github.com/ethan-ngai/quorem/actions/runs/41285813149) passed both jobs on that runtime SHA: native contracts, PostgreSQL, Node/workerd protocols, SQL practice/matches, socket workload, language service and real runner/verifier containers.
 - Hosted stage [41285899439](https://github.com/ethan-ngai/quorem/actions/runs/41285899439) passed provisioning, signed activation/genesis, sandbox verdict/isolation/cancellation proofs, manual accepted submission, authenticated ingress, profile upload/read/delete, automatic queue acceptance and the two-match smoke workload.
@@ -14,7 +16,7 @@ Implementation and isolated staging validation are complete on `feat/hono-migrat
 
 Implemented runner fixes include process-owned bounded attempts across short HTTP polls, shutdown cleanup joins, exact checkpoint-prefix replay, reader closure, contestant timing separated from signed teardown, and fixture bearer refresh. Shared Terraform plan validation checks applied actions separately from observational drift. Fixture reset validates retention cursors and profile-budget ownership while retaining schema, genesis, runtime fencing and synthetic-data guards.
 
-Deferred: twenty-match capacity, retained production-data migration/recovery, referenced profile-media cutover and production/main promotion. The hosted receipt explicitly reports `cutoverReady: false`; no production readiness or traffic cutover is claimed. No KV cache or semantic-search implementation was added.
+Deferred: twenty-match capacity, production recovery rehearsal and broader production behavioral validation. Production had no referenced profile objects to copy. The earlier staging receipt's `cutoverReady: false` predates the separately authorized production cutover above. No KV cache or semantic-search implementation was added.
 
 Detailed provider/runtime evidence: [staging bring-up](staging-bringup.md). Large-input cleanup: [stream reader lifetimes](stream-reader-lifetimes.md).
 

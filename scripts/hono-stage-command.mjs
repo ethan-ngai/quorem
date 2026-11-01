@@ -140,6 +140,9 @@ export class StageCommandFailure extends Error {
         : "configuration/provider";
     super(`Stage command failed (${category}); output withheld`);
     this.category = category;
+    this.spawnCode = ["E2BIG", "ENOENT", "ENOBUFS", "ETIMEDOUT"].includes(result.error?.code)
+      ? result.error.code
+      : undefined;
     this.diagnostics = diagnostics;
     this.resources = commandResources.filter((name) => text.includes(name));
     this.noState = /No state file was found/i.test(text);
