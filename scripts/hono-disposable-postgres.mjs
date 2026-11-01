@@ -4,7 +4,10 @@ import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 
 const execute = promisify(execFile);
-export async function withDisposablePostgres({ prefix, port, database }, action) {
+export async function withDisposablePostgres(
+  { prefix, port, database, automaticPort = Boolean(process.env.CI) },
+  action,
+) {
   if (
     !/^[a-z0-9-]+$/.test(prefix) ||
     !/^quorem_hono_[a-z0-9_]+$/.test(database) ||
@@ -50,7 +53,7 @@ export async function withDisposablePostgres({ prefix, port, database }, action)
         "--name",
         name,
         "--publish",
-        `127.0.0.1:${port}:5432`,
+        `127.0.0.1:${automaticPort ? "" : port}:5432`,
         "--env",
         "POSTGRES_USER=fixture",
         "--env",
@@ -64,6 +67,12 @@ export async function withDisposablePostgres({ prefix, port, database }, action)
       { timeout: 120000 },
     );
     if (interrupted) throw new Error("Validation interrupted");
+    // CI outbound sockets can occupy fixed ephemeral-range fixture ports.
+    const published = (await execute("docker", ["port", name, "5432/tcp"])).stdout.trim();
+    const match = /^127\.0\.0\.1:(\d+)$/.exec(published);
+    if (!match || Number(match[1]) < 1024 || Number(match[1]) > 65535)
+      throw new Error("Invalid disposable database binding");
+    const actualPort = Number(match[1]);
     let ready = false;
     for (let attempt = 0; attempt < 100 && !interrupted; attempt++) {
       if (
@@ -82,7 +91,7 @@ export async function withDisposablePostgres({ prefix, port, database }, action)
     }
     if (!ready) throw new Error("Disposable PostgreSQL unavailable");
     await action({
-      url: `postgres://fixture:fixture@127.0.0.1:${port}/${database}?sslmode=disable`,
+      url: `postgres://fixture:fixture@127.0.0.1:${actualPort}/${database}?sslmode=disable`,
       run,
     });
   } catch (error) {
