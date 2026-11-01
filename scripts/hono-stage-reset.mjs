@@ -15,7 +15,7 @@ import {
   stageFenceOptions,
   stageRecoveryLockKey,
 } from "./hono-stage-recovery-fence.mjs";
-import { deriveStageRole } from "./hono-stage-database-role.mjs";
+import { deriveStageRole, StageRoleFailure } from "./hono-stage-database-role.mjs";
 import { verifyCompleteHistory } from "../packages/database/src/migrations.ts";
 import * as schema from "../packages/database/src/schema/index.ts";
 const require = createRequire(new URL("../packages/database/package.json", import.meta.url));
@@ -64,7 +64,7 @@ async function fixtureTables(client) {
       AND NOT EXISTS (SELECT 1 FROM quorem_auth."session" s LEFT JOIN quorem_auth."user" u ON u.id=s."userId" WHERE u.id IS NULL)
       AND NOT EXISTS (SELECT 1 FROM workspaces w LEFT JOIN users u ON u.id=w.owner_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id WHERE u.id IS NULL OR v.id IS NULL OR w.kind<>'solo' OR w.match_id IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE w.id IS NULL OR w.owner_id<>s.owner_id OR s.match_id IS NOT NULL OR s.interview_id IS NOT NULL)
-      AND NOT EXISTS (SELECT 1 FROM deadline_prearms WHERE purpose<>'execution' OR shard<>0)
+      AND NOT EXISTS (SELECT 1 FROM deadline_prearms WHERE purpose<>'execution' OR shard<0)
       AND (NOT EXISTS (SELECT 1 FROM quorem_auth.jwks) OR EXISTS (SELECT 1 FROM quorem_auth."user")) AS valid`,
       [JSON.stringify(pairs)],
     )
@@ -219,7 +219,7 @@ export async function lockEmptyStage(
       if (fixtureChecks.has(`${table.namespace}.${table.name}`))
         query = `SELECT ${fixtureChecks.get(`${table.namespace}.${table.name}`)} AS valid`;
       if (!(await client.query(query, args)).rows[0]?.valid)
-        throw new Error("Stage contains data or mismatched genesis");
+        throw new Error(`Unexpected stage rows: ${table.namespace}.${table.name}`);
     }
     await assertStageRuntimeFenced(client, role, fenceOptions);
   } catch (error) {
@@ -380,7 +380,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stdout.write(`${JSON.stringify(receipt)}\n`);
   } catch (error) {
     process.stderr.write(
-      `${JSON.stringify({ error: "stage-reset-incomplete", ...(error instanceof StageCommandFailure ? { category: error.category, diagnostics: error.diagnostics } : {}) })}\n`,
+      `${JSON.stringify({ error: "stage-reset-incomplete", ...(error instanceof StageCommandFailure ? { category: error.category, diagnostics: error.diagnostics } : { reason: new StageRoleFailure("unknown", error).reason, code: /^[A-Z0-9]{5}$/.test(error?.code ?? "") ? error.code : null }) })}\n`,
     );
     process.exitCode = 1;
   }
