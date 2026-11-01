@@ -362,6 +362,8 @@ export function privateRunnerCommands(options: {
       await ack("yield", { job: j(job), attemptId: proof(options.scope, fence) }, signal);
     },
     async replayCheckpoint(job, count, consume, signal) {
+      if (!Number.isInteger(count) || count < 0 || count > 2147483647)
+        throw new Error("Invalid checkpoint prefix");
       const response = await call("replay", { job: j(job), count }, signal);
       if (!response.body) throw new Error("Missing checkpoint stream");
       const reader = response.body.getReader();
@@ -390,9 +392,9 @@ export function privateRunnerCommands(options: {
       };
       try {
         let ordinal = 0;
-        while (true) {
+        while (ordinal < count) {
           const header = await read(8);
-          if (!header) break;
+          if (!header) throw new Error("Incomplete checkpoint stream");
           const v = new DataView(header.buffer),
             index = v.getUint32(0),
             length = v.getUint32(4);
@@ -403,7 +405,8 @@ export function privateRunnerCommands(options: {
           await consume(index, frame);
           ordinal++;
         }
-        if (ordinal !== count) throw new Error("Incomplete checkpoint stream");
+        // The fenced prefix count is the boundary; an HTTP producer need not close yet.
+        if (offset < pending.length) throw new Error("Unexpected checkpoint stream data");
       } finally {
         await reader.cancel();
         reader.releaseLock();

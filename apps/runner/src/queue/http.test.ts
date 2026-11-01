@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { defaultLimits } from "@quorem/execution";
 import { runnerConfig } from "../runtime/config.ts";
 import { privateRunnerCommands, RunnerCommandError } from "./http.ts";
 const secret = "fixture-only-private-runner-token-123456";
@@ -84,7 +85,6 @@ void test("input pages enforce exact bounded response and cancel malformed bodie
     timeoutMs: 500,
     fetch: fetcher,
   });
-  const { defaultLimits } = await import("@quorem/execution");
   const job = {
     jobId: "j",
     submissionId: "s",
@@ -159,4 +159,54 @@ void test("private command failures retain only operation, status and outcome", 
     assert.equal(JSON.stringify(error).includes("private SQL"), false);
     return true;
   });
+});
+
+void test("checkpoint replay consumes its declared prefix and cancels an open producer", async () => {
+  let cancelled = false;
+  const header = new Uint8Array(9);
+  new DataView(header.buffer).setUint32(4, 1);
+  header[8] = 65;
+  const client = privateRunnerCommands({
+    origin: "https://private.invalid",
+    secret,
+    scope: "fixture",
+    resumable: true,
+    timeoutMs: 500,
+    fetch: async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(header);
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+      ),
+  });
+  const job: import("@quorem/execution").Job = {
+    jobId: "j",
+    submissionId: "s",
+    attemptId: "a",
+    sandboxScope: "fixture",
+    problemVersionId: "p",
+    sourceRef: "source",
+    suiteRef: "suite",
+    language: "python",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    limits: defaultLimits(),
+  };
+  const received: number[] = [];
+  await Promise.race([
+    client.replayCheckpoint(job, 1, async (ordinal, frame) => {
+      assert.equal(ordinal, 0);
+      received.push(...frame);
+    }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Replay waited for undeclared EOF")), 100),
+    ),
+  ]);
+  assert.deepEqual(received, [65]);
+  assert.equal(cancelled, true);
 });
