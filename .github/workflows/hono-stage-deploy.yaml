@@ -69,6 +69,7 @@ jobs:
           ref: ${{ github.sha }}
       - name: Read-only provider prerequisites
         env:
+          HONO_STAGE_INITIALIZATION_RESUME: ${{ inputs.resume_initialization && 'true' || 'false' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
