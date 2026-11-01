@@ -499,6 +499,7 @@ if (import.meta.main) {
           error instanceof StageCommandFailure
             ? {
                 category: error.category,
+                spawnCode: error.spawnCode,
                 resources: error.resources,
                 diagnostics: error.diagnostics,
               }

@@ -1,5 +1,5 @@
 /** @file hono-production-terraform.mjs @description Reviewed production Terraform mutations. @module deployment */
-import { mkdtemp, chmod, rm } from "node:fs/promises";
+import { mkdtemp, chmod, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
@@ -45,10 +45,21 @@ export function inspectProductionPlan(plan, mode) {
 }
 
 export async function productionTerraform(env, directory, key, options = {}) {
-  runStageCommand("terraform", terraformBackendArgs(env, directory, key), env);
   const temporary = await mkdtemp(join(tmpdir(), "quorem-production-plan-"));
   const plan = join(temporary, "reviewed.tfplan");
+  const child = { ...env },
+    variables = {};
   try {
+    // Linux limits each environment entry; retained state belongs in a private var file.
+    for (const [name, value] of Object.entries(child)) {
+      if (name.startsWith("TF_VAR_") && Buffer.byteLength(value) > 32768) {
+        variables[name.slice(7)] = JSON.parse(value);
+        delete child[name];
+      }
+    }
+    const file = join(temporary, "inputs.tfvars.json");
+    await writeFile(file, JSON.stringify(variables), { mode: 0o600 });
+    runStageCommand("terraform", terraformBackendArgs(child, directory, key), child);
     runStageCommand(
       "terraform",
       [
@@ -57,18 +68,19 @@ export async function productionTerraform(env, directory, key, options = {}) {
         "-input=false",
         "-no-color",
         "-lock-timeout=5m",
+        `-var-file=${file}`,
         ...(options.destroy ? ["-destroy"] : []),
         ...(options.targets ?? []).map((name) => `-target=${name}`),
         `-out=${plan}`,
       ],
-      env,
+      child,
     );
     await chmod(plan, 0o600);
     const value = JSON.parse(
       runStageCommand(
         "terraform",
         [`-chdir=infra/terraform/${directory}`, "show", "-json", plan],
-        env,
+        child,
       ),
     );
     const changes = inspectProductionPlan(value, options.mode ?? "provision");
@@ -83,10 +95,14 @@ export async function productionTerraform(env, directory, key, options = {}) {
         "-lock-timeout=5m",
         plan,
       ],
-      env,
+      child,
     );
     return JSON.parse(
-      runStageCommand("terraform", [`-chdir=infra/terraform/${directory}`, "output", "-json"], env),
+      runStageCommand(
+        "terraform",
+        [`-chdir=infra/terraform/${directory}`, "output", "-json"],
+        child,
+      ),
     );
   } finally {
     await rm(temporary, { recursive: true, force: true });
