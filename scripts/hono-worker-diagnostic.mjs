@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 export async function workerDiagnostic(env, name, origin) {
   const child = spawn("vp", ["-C", "apps/api", "exec", "wrangler", "tail", name, "--format", "json"], {
     env,
+    detached: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
@@ -37,7 +38,9 @@ export async function workerDiagnostic(env, name, origin) {
     }
     return { event: "runtime-diagnostic-unavailable" };
   } finally {
-    child.kill("SIGTERM");
-    setTimeout(() => child.kill("SIGKILL"), 1000).unref();
+    try { process.kill(-child.pid, "SIGKILL"); } catch {}
+    child.stdout.destroy();
+    child.stderr.destroy();
+    child.unref();
   }
 }

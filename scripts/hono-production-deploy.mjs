@@ -126,6 +126,11 @@ export async function deployProduction(env) {
       old.QUOREM_INVITE_KEY !== env.QUOREM_INVITE_KEY
     )
       throw new Error("Production key continuity mismatch");
+    const inviteBytes = Buffer.from(old.QUOREM_INVITE_KEY, "base64url");
+    if (inviteBytes.length !== 32 || inviteBytes.toString("base64url") !== old.QUOREM_INVITE_KEY)
+      throw new Error("Production key continuity mismatch");
+    // Preserve the Go AES key bytes in the native runtime's canonical hex encoding.
+    const inviteKey = inviteBytes.toString("hex");
     const pending = await databaseRead(
       original.databaseURL,
       "SELECT count(*)::int AS n FROM execution_jobs WHERE NOT finished",
@@ -162,7 +167,7 @@ export async function deployProduction(env) {
         ...createStageSecrets(),
         BETTER_AUTH_SECRET: old.BETTER_AUTH_SECRET,
         AUTH_INTERNAL_SECRET: old.AUTH_INTERNAL_SECRET,
-        MATCH_INVITE_KEY: old.QUOREM_INVITE_KEY,
+        MATCH_INVITE_KEY: inviteKey,
         MAIL_RELAY_TOKEN: hex(),
         AUTH_MAIL_INTENT_KEY: hex(),
         RUNTIME_ROLE: `quorem_hono_runtime_${env.GITHUB_SHA.slice(0, 24)}`,
@@ -447,7 +452,7 @@ export async function deployProduction(env) {
       GITHUB_CLIENT_ID: old.GITHUB_CLIENT_ID,
     };
     const secrets = {
-      MATCH_INVITE_KEY: keys.MATCH_INVITE_KEY,
+      MATCH_INVITE_KEY: inviteKey,
       BETTER_AUTH_SECRET: keys.BETTER_AUTH_SECRET,
       AUTH_INTERNAL_SECRET: keys.AUTH_INTERNAL_SECRET,
       AUTH_MAIL_INTENT_KEY: keys.AUTH_MAIL_INTENT_KEY,
