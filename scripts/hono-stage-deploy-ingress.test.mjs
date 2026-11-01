@@ -10,38 +10,50 @@ const env = () => ({
   VERIFICATION_SERVICE_CREDENTIAL: "a".repeat(64),
   VERIFICATION_SOURCE_CREDENTIAL: "b".repeat(64),
   EXECUTION_DRAIN_SECRET: "d".repeat(32),
-  VERIFICATION_ACCESS_CLIENT_ID: "v-id",
-  VERIFICATION_ACCESS_CLIENT_SECRET: "v-secret",
-  CLOUDFLARE_ACCESS_CLIENT_ID: "a-id",
-  CLOUDFLARE_ACCESS_CLIENT_SECRET: "a-secret",
-  EXECUTION_DRAIN_ACCESS_CLIENT_ID: "d-id",
-  EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "d-secret",
 });
-void test("uses valid controls before rejecting identical bearer requests without Access", async () => {
+void test("requires valid bearer on every private origin", async () => {
   const calls = [];
-  const send = async (url, init) => {
-    calls.push({ url: String(url), init });
-    const n = calls.length;
-    return new Response(null, { status: n === 2 || n === 4 ? 503 : n === 6 ? 200 : 403 });
-  };
-  await verifyPrivateIngress(env(), "a".repeat(64), send, async () => ({
-    namespace: "a".repeat(64),
-  }));
-  assert.equal(calls.length, 7);
-  for (const [control, negative] of [
-    [1, 2],
-    [3, 4],
-    [5, 6],
-  ]) {
-    const a = new Headers(calls[control].init.headers),
-      b = new Headers(calls[negative].init.headers);
-    assert.equal(a.get("authorization"), b.get("authorization"));
-    assert.ok(a.get("cf-access-client-id"));
-    assert.equal(b.get("cf-access-client-id"), null);
-    assert.equal(calls[control].url, calls[negative].url);
-  }
+  const input = env();
+  const valid = new Set([
+    input.VERIFICATION_SERVICE_CREDENTIAL,
+    input.VERIFICATION_SOURCE_CREDENTIAL,
+    input.EXECUTION_DRAIN_SECRET,
+  ]);
+  await verifyPrivateIngress(
+    input,
+    "a".repeat(64),
+    async (url, init) => {
+      const headers = new Headers(init.headers),
+        token = headers.get("authorization")?.replace("Bearer ", "");
+      calls.push({
+        url: typeof url === "string" ? url : url instanceof URL ? url.href : url.url,
+        headers,
+      });
+      if (!valid.has(token)) return new Response(null, { status: 404 });
+      return new Response(null, {
+        status: (typeof url === "string" ? url : url instanceof URL ? url.href : url.url).includes(
+          "/internal/drain",
+        )
+          ? 200
+          : 503,
+      });
+    },
+    async () => ({ namespace: "a".repeat(64) }),
+  );
+  assert.equal(calls.length, 11);
+  assert.ok(calls.every(({ headers }) => !headers.has("cf-access-client-id")));
+  assert.equal(calls.filter(({ headers }) => !headers.has("authorization")).length, 4);
 });
-void test("rejects unexpected control responses, missing Access and namespace drift", async () => {
+void test("rejects a private endpoint accepting wrong credentials or changed namespace", async () => {
+  await assert.rejects(
+    verifyPrivateIngress(
+      env(),
+      "a".repeat(64),
+      async () => new Response(null, { status: 404 }),
+      async () => ({ namespace: "a".repeat(64) }),
+    ),
+    /Authenticated ingress control failed/,
+  );
   await assert.rejects(
     verifyPrivateIngress(
       env(),
@@ -62,28 +74,41 @@ void test("rejects unexpected control responses, missing Access and namespace dr
     /changed/,
   );
 });
-
-void test("optional image service requires terminated Access control and denies bypass", async () => {
+void test("image requires terminated authenticated processing and denies missing and wrong credentials", async () => {
   const input = {
     ...env(),
     PROFILE_MEDIA_ENABLED: "true",
     PROFILE_IMAGE_SERVICE_URL: "https://image-stage.example.com",
     PROFILE_IMAGE_SERVICE_TOKEN: "i".repeat(32),
-    PROFILE_IMAGE_ACCESS_CLIENT_ID: "image-id",
-    PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "image-secret",
   };
-  let n = 0;
   await verifyPrivateIngress(
     input,
     "a".repeat(64),
-    async () => {
-      n++;
-      if (n === 2) return new Response("ok", { headers: { "x-image-execution": "terminated" } });
-      if (n === 4 || n === 6) return new Response(null, { status: 503 });
-      if (n === 8) return new Response(null, { status: 200 });
-      return new Response(null, { status: 403 });
+    async (url, init) => {
+      const token = new Headers(init.headers).get("authorization")?.replace("Bearer ", "");
+      if (
+        ![
+          input.VERIFICATION_SERVICE_CREDENTIAL,
+          input.VERIFICATION_SOURCE_CREDENTIAL,
+          input.EXECUTION_DRAIN_SECRET,
+          input.PROFILE_IMAGE_SERVICE_TOKEN,
+        ].includes(token)
+      )
+        return new Response(null, { status: 403 });
+      if (
+        (typeof url === "string" ? url : url instanceof URL ? url.href : url.url).includes(
+          "image-stage",
+        )
+      )
+        return new Response("ok", { headers: { "x-image-execution": "terminated" } });
+      return new Response(null, {
+        status: (typeof url === "string" ? url : url instanceof URL ? url.href : url.url).includes(
+          "/internal/drain",
+        )
+          ? 200
+          : 503,
+      });
     },
     async () => ({ namespace: "a".repeat(64) }),
   );
-  assert.equal(n, 9);
 });

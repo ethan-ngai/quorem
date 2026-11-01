@@ -79,6 +79,30 @@ function prefix(files: Migration[], rows: LedgerRow[], owner: MigrationOwner): v
     else if (missing) throw new Error(`${owner} migration history is not a contiguous prefix`);
   }
 }
+function checkedHistory(files: Migration[], rows: LedgerRow[], owner: MigrationOwner) {
+  prefix(files, rows, owner);
+  const applied = new Map(rows.map((row) => [row.name, row.checksum]));
+  for (const file of files)
+    if (applied.has(file.name)) {
+      const prior = applied.get(file.name);
+      if (!prior) throw new Error(`${owner} migration history requires an audited baseline`);
+      if (prior !== file.checksum)
+        throw new Error(`${owner} migration checksum mismatch: ${file.name}`);
+    }
+  return applied;
+}
+/** Caller holds the migration locks and transaction throughout verification. */
+export async function verifyCompleteHistory(
+  client: PoolClient,
+  owner: MigrationOwner,
+  directory: string,
+): Promise<void> {
+  const files = await source(directory, owner);
+  const ledger = owner === "auth" ? "quorem_auth.schema_migrations" : "public.schema_migrations";
+  const rows = (await client.query<LedgerRow>(`SELECT name,checksum FROM ${ledger}`)).rows;
+  checkedHistory(files, rows, owner);
+  if (rows.length !== files.length) throw new Error(`Incomplete ${owner} migration history`);
+}
 /** Hash and verify all committed history before executing any pending SQL. */
 export async function migrate(pool: Pool, owner: MigrationOwner, directory: string): Promise<void> {
   const files = await source(directory, owner);
@@ -88,15 +112,7 @@ export async function migrate(pool: Pool, owner: MigrationOwner, directory: stri
     const ledger = await prepare(client, owner);
     const rows = (await client.query<LedgerRow>(`SELECT name,checksum FROM ${ledger} FOR UPDATE`))
       .rows;
-    prefix(files, rows, owner);
-    const applied = new Map(rows.map((row) => [row.name, row.checksum]));
-    for (const file of files)
-      if (applied.has(file.name)) {
-        const prior = applied.get(file.name);
-        if (!prior) throw new Error(`${owner} migration history requires an audited baseline`);
-        if (prior !== file.checksum)
-          throw new Error(`${owner} migration checksum mismatch: ${file.name}`);
-      }
+    const applied = checkedHistory(files, rows, owner);
     for (const file of files) {
       if (applied.has(file.name)) continue;
       try {

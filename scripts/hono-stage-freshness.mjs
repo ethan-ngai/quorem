@@ -20,38 +20,59 @@ async function body(response) {
   }
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
 }
-async function inventory(account, token, path, send) {
+async function inventory(account, token, path, phase, send, report) {
   let total, pages;
   const entries = [];
   for (let page = 1; page <= 1000; page++) {
     const url = new URL(`https://api.cloudflare.com/client/v4/accounts/${account}/${path}`);
     url.searchParams.set("page", String(page));
     url.searchParams.set("per_page", "100");
-    const result = await body(
-      await send(url, {
-        headers: { authorization: `Bearer ${token}` },
-        redirect: "error",
-        signal: AbortSignal.timeout(10000),
-      }),
-    );
+    const response = await send(url, {
+      headers: { authorization: `Bearer ${token}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(10000),
+    });
+    report(phase, { status: response.status, page });
+    const result = await body(response);
     const info = result.result_info;
+    const numeric = (value) => (Number.isSafeInteger(value) && value >= 0 ? value : null);
+    report(phase, {
+      success: result.success === true,
+      resultArray: Array.isArray(result.result),
+      resultInfo: !!info && typeof info === "object",
+      page: numeric(info?.page),
+      perPage: numeric(info?.per_page),
+      count: numeric(info?.count),
+      totalCount: numeric(info?.total_count),
+      totalPages: numeric(info?.total_pages),
+      resultCount: Array.isArray(result.result) ? result.result.length : null,
+      idPresent:
+        Array.isArray(result.result) && result.result.every((row) => typeof row?.id === "string"),
+      ownerPresent:
+        Array.isArray(result.result) &&
+        result.result.every(
+          (row) => typeof row?.[phase === "workers" ? "name" : "script"] === "string",
+        ),
+    });
     if (
       result.success !== true ||
       !Array.isArray(result.result) ||
       !info ||
       info.page !== page ||
       info.per_page !== 100 ||
-      !Number.isSafeInteger(info.total_pages) ||
+      (info.total_pages !== undefined &&
+        (!Number.isSafeInteger(info.total_pages) || info.total_pages < 0)) ||
       !Number.isSafeInteger(info.total_count) ||
-      info.total_pages < 0 ||
       info.total_count < 0 ||
       info.count !== result.result.length ||
       result.result.length > 100 ||
-      (total !== undefined && (total !== info.total_count || pages !== info.total_pages))
+      (total !== undefined &&
+        (total !== info.total_count ||
+          pages !== (info.total_pages ?? Math.ceil(info.total_count / info.per_page))))
     )
       throw new Error("Ambiguous provider inventory");
     total = info.total_count;
-    pages = info.total_pages;
+    pages = info.total_pages ?? Math.ceil(info.total_count / info.per_page);
     entries.push(...result.result);
     if (page >= Math.max(1, pages)) {
       if (
@@ -64,7 +85,7 @@ async function inventory(account, token, path, send) {
   }
   throw new Error("Provider inventory page limit exceeded");
 }
-export async function requireFreshStageResources(env, send = fetch) {
+export async function requireFreshStageResources(env, send = fetch, report = () => {}) {
   const account = env.CLOUDFLARE_ACCOUNT_ID,
     token = env.CLOUDFLARE_API_TOKEN;
   const service = env.HONO_SERVICES_WORKER_NAME,
@@ -79,8 +100,15 @@ export async function requireFreshStageResources(env, send = fetch) {
   )
     throw new Error("Invalid staged provider inventory request");
   try {
-    const workers = await inventory(account, token, "workers/workers", send);
-    const namespaces = await inventory(account, token, "workers/durable_objects/namespaces", send);
+    const workers = await inventory(account, token, "workers/workers", "workers", send, report);
+    const namespaces = await inventory(
+      account,
+      token,
+      "workers/durable_objects/namespaces",
+      "namespaces",
+      send,
+      report,
+    );
     if (
       workers.some((row) => typeof row?.name !== "string" || typeof row?.id !== "string") ||
       namespaces.some((row) => typeof row?.id !== "string" || typeof row?.script !== "string")
@@ -103,7 +131,17 @@ export async function requireFreshStageResources(env, send = fetch) {
       workersChecked: workers.length,
       namespacesChecked: namespaces.length,
     };
-  } catch {
+  } catch (error) {
+    const reasons = new Map([
+      ["Provider inventory unavailable", "unavailable"],
+      ["Provider inventory too large", "too_large"],
+      ["Ambiguous provider inventory", "ambiguous"],
+      ["Incomplete provider inventory", "incomplete"],
+      ["Provider inventory page limit exceeded", "page_limit"],
+      ["Duplicate provider inventory", "duplicate"],
+      ["Stage resources already exist", "exists"],
+    ]);
+    report("failure", { reason: reasons.get(error?.message) ?? "unexpected" });
     throw new Error("Stage resource freshness could not be established");
   }
 }

@@ -7,20 +7,6 @@ terraform {
 }
 
 variable "account_id" { type = string }
-variable "zone_id" {
-  type = string
-  validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.zone_id))
-    error_message = "A Cloudflare zone ID is required."
-  }
-}
-variable "dns_target" {
-  type = string
-  validation {
-    condition     = can(regex("^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\\.[a-z0-9-]+)+$", var.dns_target))
-    error_message = "A distinct staged DNS target is required."
-  }
-}
 variable "worker_name" {
   type = string
   validation {
@@ -79,13 +65,6 @@ variable "stage_hostname" {
     error_message = "Use a distinct staged hostname."
   }
 }
-variable "access_service_token_ids" {
-  type = set(string)
-  validation {
-    condition     = length(var.access_service_token_ids) > 0 && alltrue([for id in var.access_service_token_ids : can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", id))])
-    error_message = "At least one existing Access service token ID is required."
-  }
-}
 variable "enable_queue_consumer" {
   type    = bool
   default = false
@@ -107,47 +86,11 @@ resource "cloudflare_hyperdrive_config" "database" {
   origin_connection_limit = var.database_connection_limit
 }
 
-resource "cloudflare_dns_record" "api" {
-  zone_id = var.zone_id
-  name    = var.stage_hostname
-  type    = "CNAME"
-  content = var.dns_target
-  proxied = true
-  ttl     = 1
-  lifecycle {
-    precondition {
-      condition     = var.dns_target != var.stage_hostname
-      error_message = "The staged DNS target must differ from its hostname."
-    }
-  }
-}
-
 resource "cloudflare_worker" "api" {
   account_id    = var.account_id
   name          = var.worker_name
   subdomain     = { enabled = false, previews_enabled = false }
   observability = { enabled = true }
-}
-
-resource "cloudflare_zero_trust_access_policy" "internal" {
-  account_id = var.account_id
-  name       = "${var.worker_name}-internal-service"
-  decision   = "non_identity"
-  include    = [for id in var.access_service_token_ids : { service_token = { token_id = id } }]
-}
-
-resource "cloudflare_zero_trust_access_application" "internal" {
-  account_id = var.account_id
-  name       = "${var.worker_name}-internal"
-  type       = "self_hosted"
-  domain     = "${var.stage_hostname}/internal/*"
-  destinations = [{
-    type = "public"
-    uri  = "${var.stage_hostname}/internal/*"
-  }]
-  policies                  = [{ id = cloudflare_zero_trust_access_policy.internal.id, precedence = 1 }]
-  app_launcher_visible      = false
-  service_auth_401_redirect = false
 }
 
 resource "cloudflare_queue" "execution" {
@@ -181,7 +124,6 @@ resource "cloudflare_queue_consumer" "execution" {
 
 output "worker_name" { value = cloudflare_worker.api.name }
 output "stage_hostname" { value = var.stage_hostname }
-output "internal_access_application_id" { value = cloudflare_zero_trust_access_application.internal.id }
 output "hyperdrive_id" { value = cloudflare_hyperdrive_config.database.id }
 output "queue_name" { value = cloudflare_queue.execution.queue_name }
 output "dead_letter_queue_name" { value = cloudflare_queue.dead_letter.queue_name }

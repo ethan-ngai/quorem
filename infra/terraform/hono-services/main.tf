@@ -54,28 +54,12 @@ variable "image_hostname" {
     error_message = "Image service needs a distinct staged hostname."
   }
 }
-variable "image_access_service_token_id" {
-  type    = string
-  default = ""
-  validation {
-    condition     = !var.profile_media_enabled || (can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.image_access_service_token_id)) && !contains(values(var.access_token_ids), var.image_access_service_token_id))
-    error_message = "Image service needs a distinct Access token."
-  }
-}
 variable "image_service_image" {
   type    = string
   default = ""
   validation {
     condition     = !var.profile_media_enabled || (startswith(var.image_service_image, "registry.cloudflare.com/${var.account_id}/") && can(regex("@sha256:[0-9a-f]{64}$", var.image_service_image)))
     error_message = "Image service must use an account-local digest-pinned image."
-  }
-}
-variable "dns_target" { type = string }
-variable "access_token_ids" {
-  type = object({ drain = string, verifier = string, case = string })
-  validation {
-    condition     = length(toset(values(var.access_token_ids))) == 3 && alltrue([for id in values(var.access_token_ids) : can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", id))])
-    error_message = "Each capability requires a distinct Access service token ID."
   }
 }
 variable "case_diagnostics" {
@@ -128,7 +112,7 @@ variable "service_secrets" {
   type      = map(string)
   sensitive = true
   validation {
-    condition     = alltrue([for k in ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"] : try(length(var.service_secrets[k]) > 0, false)])
+    condition     = alltrue([for k in ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "CASE_OWNER_PRIVATE_KEY"] : try(length(var.service_secrets[k]) > 0, false)])
     error_message = "All purpose-scoped service credentials and keys are required."
   }
 }
@@ -152,8 +136,7 @@ locals {
     "deploy/case-sandbox.js"                 = "../../../deploy/case-sandbox.js"
   }
   service_hosts   = merge(var.hostnames, var.profile_media_enabled ? { image = var.image_hostname } : {})
-  service_tokens  = merge(var.access_token_ids, var.profile_media_enabled ? { image = var.image_access_service_token_id } : {})
-  secret_names    = concat(var.profile_media_enabled ? ["IMAGE_SERVICE_TOKEN"] : [], ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "RUNNER_API_ACCESS_CLIENT_ID", "RUNNER_API_ACCESS_CLIENT_SECRET", "VERIFIER_API_ACCESS_CLIENT_ID", "VERIFIER_API_ACCESS_CLIENT_SECRET", "QUOREM_CASE_ACCESS_CLIENT_ID", "QUOREM_CASE_ACCESS_CLIENT_SECRET", "CASE_OWNER_PRIVATE_KEY"])
+  secret_names    = concat(var.profile_media_enabled ? ["IMAGE_SERVICE_TOKEN"] : [], ["RECOVERY_CONTROL_SECRET", "QUOREM_RUNNER_COMMAND_SECRET", "QUOREM_RUNNER_DRAIN_SECRET", "QUOREM_CASE_SECRET", "QUOREM_VERIFICATION_SOURCE_KEY", "QUOREM_VERIFICATION_SERVICE_KEY", "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM", "QUOREM_VERIFICATION_SIGNING_KEY_PEM", "CASE_OWNER_PRIVATE_KEY"])
   prior_tag       = data.external.worker_migration.result.tag
   control_classes = ["CaseControl", "RunnerReleaseControl"]
   new_classes     = local.prior_tag == "" ? concat(["RunnerService", "VerifierService", "CaseSandbox"], local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v1" ? concat(local.control_classes, var.profile_media_enabled ? ["ImageService"] : []) : local.prior_tag == "v2" ? local.control_classes : local.prior_tag == "v3" && var.profile_media_enabled ? ["ImageService"] : []
@@ -190,7 +173,6 @@ locals {
     [for k in local.secret_names : { type = "secret_text", name = k, text = var.service_secrets[k] }]
   )
   trusted = merge({ runner = { class = "RunnerService", image = var.runner_image }, verifier = { class = "VerifierService", image = var.verifier_image } }, var.profile_media_enabled ? { image = { class = "ImageService", image = var.image_service_image } } : {})
-  paths   = { drain = "/internal/*", verifier = "/internal/results/verify", case = "/internal/*", image = "" }
 }
 resource "cloudflare_worker" "services" {
   account_id = var.account_id
@@ -278,40 +260,12 @@ resource "terraform_data" "case_images" {
   }
   depends_on = [restapi_object.trusted_rollout, restapi_object.case]
 }
-resource "cloudflare_zero_trust_access_policy" "service" {
+resource "cloudflare_workers_custom_domain" "service" {
   for_each   = local.service_hosts
   account_id = var.account_id
-  name       = "${var.worker_name}-${each.key}"
-  decision   = "non_identity"
-  include    = [{ service_token = { token_id = local.service_tokens[each.key] } }]
-}
-resource "cloudflare_zero_trust_access_application" "service" {
-  for_each                  = local.service_hosts
-  account_id                = var.account_id
-  name                      = "${var.worker_name}-${each.key}"
-  type                      = "self_hosted"
-  domain                    = "${each.value}${local.paths[each.key]}"
-  destinations              = [{ type = "public", uri = "${each.value}${local.paths[each.key]}" }]
-  policies                  = [{ id = cloudflare_zero_trust_access_policy.service[each.key].id, precedence = 1 }]
-  app_launcher_visible      = false
-  service_auth_401_redirect = false
-}
-resource "cloudflare_dns_record" "service" {
-  for_each = local.service_hosts
-  zone_id  = var.zone_id
-  name     = each.value
-  type     = "CNAME"
-  content  = var.dns_target
-  proxied  = true
-  ttl      = 1
-}
-resource "cloudflare_workers_route" "service" {
-  for_each   = local.service_hosts
   zone_id    = var.zone_id
-  pattern    = "${each.value}/*"
-  script     = cloudflare_worker.services.name
-  depends_on = [cloudflare_dns_record.service, cloudflare_zero_trust_access_application.service, terraform_data.case_images]
+  hostname   = each.value
+  service    = cloudflare_worker.services.name
+  depends_on = [terraform_data.case_images]
 }
 output "origins" { value = local.public }
-
-output "drain_access_application_id" { value = cloudflare_zero_trust_access_application.service["drain"].id }

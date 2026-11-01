@@ -24,8 +24,6 @@ async function fixture() {
     secret: "s".repeat(64),
     caseOrigin: "https://case-stage.example.com",
     runnerOrigin: "https://runner-stage.example.com",
-    caseAccess: { id: "case", secret: "case-secret" },
-    runnerAccess: { id: "runner", secret: "runner-secret" },
     publicKeyFile,
   };
   const env = {
@@ -92,8 +90,10 @@ async function fixture() {
   };
   return {
     options,
+    signer: env,
     send,
     calls,
+    change: (kind, patch) => Object.assign(kind === "runner" ? runner : cases, patch),
     fail: (action) => {
       failAction = action;
     },
@@ -110,9 +110,261 @@ void test("activates and checks signed state after each step without disclosing 
     assert.equal(receipt.proofs.length, 8);
     assert.ok(receipt.proofs.every((proof) => proof.signature && proof.body && proof.nonce));
     assert.equal(JSON.stringify(receipt).includes(f.options.secret), false);
+    assert.equal((await control.requireActive(1)).proofs.length, 2);
     await control.pause();
+    await assert.rejects(control.requireActive(1), /Unexpected active release/);
     assert.ok(f.calls.includes("case:pause"));
     assert.ok(f.calls.includes("runner:pause"));
+  } finally {
+    await f.cleanup();
+  }
+});
+void test("persists verified genesis before either authority activates", async () => {
+  const f = await fixture();
+  try {
+    const control = await stageControls(f.options, f.send);
+    let observed;
+    const receipt = await control.activate({
+      beforeActivation: async (value) => {
+        observed = value;
+        assert.equal(value.runner.status, "prepared");
+        assert.equal(value.runner.generation, 1);
+        assert.equal(value.cases.paused, true);
+        assert.equal(value.cases.generation, 0);
+        assert.deepEqual(value.proofs.map((proof) => proof.kind).sort(), [
+          "control-state",
+          "runner-control-state",
+        ]);
+        assert.ok(value.proofs.every((proof) => proof.signature && proof.body && proof.nonce));
+        assert.equal(f.calls.includes("case:activate"), false);
+        assert.equal(f.calls.includes("runner:activate"), false);
+      },
+    });
+    assert.deepEqual(receipt.proofs.slice(2, 4), observed.proofs);
+    assert.equal(receipt.proofs.length, 8);
+  } finally {
+    await f.cleanup();
+  }
+});
+void test("genesis persistence failure prevents activation", async () => {
+  const f = await fixture();
+  try {
+    const control = await stageControls(f.options, f.send);
+    await assert.rejects(
+      control.activate({
+        beforeActivation: async () => {
+          throw new Error("persist failed");
+        },
+      }),
+      /persist failed/,
+    );
+    assert.equal(f.calls.includes("case:activate"), false);
+    assert.equal(f.calls.includes("runner:activate"), false);
+    assert.equal(f.calls.at(-1), "case:state");
+  } finally {
+    await f.cleanup();
+  }
+});
+void test("active observations reject signed state from a changed release, binding or generation", async () => {
+  for (const kind of ["runner", "case"]) {
+    for (const patch of [
+      { release: "c".repeat(40) },
+      { bindings: "d".repeat(64) },
+      { generation: 2 },
+    ]) {
+      const f = await fixture();
+      try {
+        const control = await stageControls(f.options, f.send);
+        await control.activate();
+        f.change(kind, patch);
+        await assert.rejects(control.requireActive(1), /Unexpected active release/);
+      } finally {
+        await f.cleanup();
+      }
+    }
+  }
+});
+
+void test("pinned recovery controls replay lost acknowledgments across generations", async () => {
+  const f = await fixture();
+  try {
+    const initialOperation = randomUUID(),
+      initialRelease = "1".repeat(40),
+      oldRelease = "2".repeat(40),
+      oldBindings = "3".repeat(64),
+      token = randomUUID();
+    const prior = {
+      generation: 2,
+      release: oldRelease,
+      bindings: oldBindings,
+      initialOperation,
+      initialRelease,
+    };
+    let runner = { generation: 2, status: "active", release: oldRelease, bindings: oldBindings };
+    let cases = {
+      namespace: f.options.namespace,
+      scope: f.options.scope,
+      initialOperation,
+      initialRelease,
+      generation: 2,
+      release: oldRelease,
+      bindings: oldBindings,
+      activationOperation: randomUUID(),
+      pauseOperation: null,
+      paused: false,
+    };
+    const operations = new Map(),
+      lost = new Set([
+        "runner:pause",
+        "case:pause",
+        "runner:prepare",
+        "case:activate",
+        "runner:activate",
+      ]);
+    const send = async (raw, init) => {
+      const url = new URL(raw),
+        parts = url.pathname.split("/"),
+        kind = parts[3],
+        action = parts[4],
+        nonce = init.headers["x-quorem-owner-nonce"];
+      if (action === "state")
+        return signedCaseProbe(f.signer, {
+          kind: kind === "case" ? "control-state" : "runner-control-state",
+          scope: f.options.scope,
+          attempt: kind === "case" ? "control" : "runner-control",
+          nonce,
+          value: kind === "case" ? cases : runner,
+        });
+      if (action === "inventory")
+        return signedCaseProbe(f.signer, {
+          kind: "control-inventory",
+          scope: f.options.scope,
+          attempt: "control",
+          nonce,
+          value: {
+            after: url.searchParams.get("after") ?? "",
+            attempts: ["attempt-1"],
+            next: null,
+          },
+        });
+      const body = JSON.parse(init.body),
+        id = body.operationId ?? body.operation,
+        name = `${kind}:${action}`,
+        fingerprint = JSON.stringify([name, body]);
+      let receipt = operations.get(id);
+      if (receipt) {
+        assert.equal(receipt.fingerprint, fingerprint);
+        return receipt.response();
+      }
+      let response = () => new Response(null, { status: 204 });
+      if (name === "runner:pause") runner = { ...runner, status: "paused" };
+      if (name === "case:pause") cases = { ...cases, paused: true, pauseOperation: id };
+      if (name === "runner:prepare") {
+        runner = {
+          generation: body.expectedGeneration + 1,
+          status: "prepared",
+          release: body.release,
+          bindings: body.bindings,
+        };
+        const preparedReceipt = { ...runner, token };
+        response = () => Response.json(preparedReceipt);
+      }
+      if (name === "case:activate")
+        cases = {
+          ...cases,
+          generation: body.expectedGeneration + 1,
+          paused: false,
+          release: body.release,
+          bindings: body.bindings,
+          activationOperation: id,
+          pauseOperation: null,
+        };
+      if (name === "runner:activate") {
+        assert.equal(body.token, token);
+        runner = { ...runner, status: "active" };
+      }
+      operations.set(id, { fingerprint, response });
+      if (lost.delete(name)) throw new Error("fixture lost acknowledgment");
+      return response();
+    };
+    const controls = await stageControls(f.options, send),
+      runnerOperation = randomUUID(),
+      caseOperation = randomUUID();
+    f.signer.CASES = { idFromName: () => "f".repeat(64) };
+    await assert.rejects(controls.observe(), /probe/);
+    f.signer.CASES = { idFromName: () => f.options.namespace };
+    assert.equal((await controls.observe()).runner.generation, 2);
+    assert.deepEqual((await controls.inventoryPage()).attempts, ["attempt-1"]);
+    await assert.rejects(controls.pausePinned({ prior, runnerOperation, caseOperation }));
+    assert.equal((await controls.observe()).cases.paused, true);
+    assert.equal(
+      (await controls.pausePinned({ prior, runnerOperation, caseOperation })).cases.paused,
+      true,
+    );
+    await assert.rejects(controls.prepareResume({ prior, operation: "bad" }), /operation/);
+    await assert.rejects(
+      controls.prepareResume({
+        prior: { ...prior, release: "f".repeat(40) },
+        operation: randomUUID(),
+      }),
+      /state/,
+    );
+    const prepare = randomUUID();
+    await assert.rejects(controls.prepareResume({ prior, operation: prepare }));
+    const prepared = await controls.prepareResume({ prior, operation: prepare });
+    assert.equal(prepared.token, token);
+    const caseActivate = randomUUID();
+    await assert.rejects(controls.activateCaseResume({ prior, operation: caseActivate }));
+    assert.equal(
+      (await controls.activateCaseResume({ prior, operation: caseActivate })).cases.generation,
+      3,
+    );
+    assert.equal(
+      (await controls.prepareResume({ prior, operation: prepare, caseOperation: caseActivate }))
+        .token,
+      token,
+    );
+    const runnerActivate = randomUUID();
+    await assert.rejects(
+      controls.activateRunnerResume({
+        prior,
+        operation: runnerActivate,
+        caseOperation: caseActivate,
+        token,
+      }),
+    );
+    assert.equal(
+      (
+        await controls.activateRunnerResume({
+          prior,
+          operation: runnerActivate,
+          caseOperation: caseActivate,
+          token,
+        })
+      ).runner.generation,
+      3,
+    );
+    const replay = await controls.prepareResume({
+      prior,
+      operation: prepare,
+      caseOperation: caseActivate,
+    });
+    await controls.activateCaseResume({ prior, operation: caseActivate });
+    assert.equal(
+      (
+        await controls.activateRunnerResume({
+          prior,
+          operation: runnerActivate,
+          caseOperation: caseActivate,
+          token: replay.token,
+        })
+      ).runner.status,
+      "active",
+    );
+    await assert.rejects(
+      controls.pausePinned({ prior, runnerOperation, caseOperation }),
+      /unconfirmed/,
+    );
   } finally {
     await f.cleanup();
   }
@@ -125,6 +377,59 @@ void test("failed activation never returns a receipt and uncertain pause fails c
     await assert.rejects(control.activate());
     f.fail("case:state");
     await assert.rejects(control.pause(), /unconfirmed/);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("unavailable runner state does not prevent independently pausing the case authority", async () => {
+  const f = await fixture();
+  try {
+    const prior = {
+      generation: 2,
+      release: "2".repeat(40),
+      bindings: "3".repeat(64),
+      initialOperation: randomUUID(),
+      initialRelease: "1".repeat(40),
+    };
+    let paused = false,
+      calls = 0;
+    const caseOperation = randomUUID();
+    const controls = await stageControls(f.options, async (raw, init) => {
+      const parts = new URL(raw).pathname.split("/"),
+        kind = parts[3],
+        action = parts[4];
+      if (kind === "runner") throw new Error("runner unavailable");
+      if (action === "pause") {
+        calls++;
+        paused = true;
+        return new Response(null, { status: 204 });
+      }
+      return signedCaseProbe(f.signer, {
+        kind: "control-state",
+        scope: f.options.scope,
+        attempt: "control",
+        nonce: init.headers["x-quorem-owner-nonce"],
+        value: {
+          namespace: f.options.namespace,
+          scope: f.options.scope,
+          initialOperation: prior.initialOperation,
+          initialRelease: prior.initialRelease,
+          generation: prior.generation,
+          release: prior.release,
+          bindings: prior.bindings,
+          activationOperation: randomUUID(),
+          pauseOperation: paused ? caseOperation : null,
+          paused,
+        },
+      });
+    });
+    await assert.rejects(
+      controls.pausePinned({ prior, runnerOperation: randomUUID(), caseOperation }),
+      /unconfirmed/,
+    );
+    assert.equal(paused, true);
+    assert.equal(calls, 1);
   } finally {
     await f.cleanup();
   }

@@ -38,12 +38,6 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
     QUOREM_CASE_SECRET: secret("c"),
     QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
     QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
-    RUNNER_API_ACCESS_CLIENT_ID: "runner-id",
-    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
-    VERIFIER_API_ACCESS_CLIENT_ID: "verifier-id",
-    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
-    QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
-    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
     QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: `-----BEGIN PUBLIC KEY-----\n${btoa(String.fromCharCode(...spki))}\n-----END PUBLIC KEY-----`,
     QUOREM_CASE_NAMESPACE_ID: secret("1"),
     CASE_DIAGNOSTICS: "true",
@@ -317,12 +311,6 @@ it("real control objects block paused case posts and unactivated drains", async 
     QUOREM_CASE_SECRET: secret("c"),
     QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
     QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
-    RUNNER_API_ACCESS_CLIENT_ID: "runner-id",
-    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
-    VERIFIER_API_ACCESS_CLIENT_ID: "verify-id",
-    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
-    QUOREM_CASE_ACCESS_CLIENT_ID: "case-id",
-    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
     QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: `-----BEGIN PUBLIC KEY-----\n${btoa(String.fromCharCode(...spki))}\n-----END PUBLIC KEY-----`,
     QUOREM_CASE_NAMESPACE_ID: namespace,
     QUOREM_VERIFICATION_SIGNING_KEY_PEM: "key",
@@ -341,12 +329,12 @@ it("real control objects block paused case posts and unactivated drains", async 
   };
   const body = "fixture",
     bodyHash = await digestHex(new TextEncoder().encode(body));
-  const post = () =>
+  const post = (token: string | null = env.QUOREM_CASE_SECRET) =>
     worker.fetch(
       new Request(`${origin}/internal/case/attempt-1`, {
         method: "POST",
         headers: {
-          authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+          ...(token === null ? {} : { authorization: `Bearer ${token}` }),
           "x-quorem-owner-scope": scope,
           "x-quorem-owner-nonce": crypto.randomUUID(),
           "x-quorem-case-binding": secret("2"),
@@ -357,6 +345,9 @@ it("real control objects block paused case posts and unactivated drains", async 
       }),
       env,
     );
+  expect((await post(null)).status).toBe(404);
+  expect((await post(secret("z"))).status).toBe(404);
+  expect(forwarded).toBe(0);
   expect((await post()).status).toBe(200);
   expect(forwarded).toBe(1);
   expect(
@@ -435,12 +426,6 @@ it("routes optional media with purpose bearer in workerd", async () => {
     QUOREM_CASE_SECRET: secret("c"),
     QUOREM_VERIFICATION_SOURCE_KEY: secret("d"),
     QUOREM_VERIFICATION_SERVICE_KEY: secret("e"),
-    RUNNER_API_ACCESS_CLIENT_SECRET: secret("f"),
-    VERIFIER_API_ACCESS_CLIENT_SECRET: secret("g"),
-    QUOREM_CASE_ACCESS_CLIENT_SECRET: secret("h"),
-    RUNNER_API_ACCESS_CLIENT_ID: "runner",
-    VERIFIER_API_ACCESS_CLIENT_ID: "verifier",
-    QUOREM_CASE_ACCESS_CLIENT_ID: "case",
     QUOREM_CASE_OWNER_PUBLIC_KEY_PEM: "key",
     QUOREM_VERIFICATION_SIGNING_KEY_PEM: "key",
     CASE_OWNER_PRIVATE_KEY: "key",

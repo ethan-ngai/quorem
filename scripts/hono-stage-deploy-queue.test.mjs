@@ -12,12 +12,6 @@ const env = () => ({
   TF_VAR_case_namespace_id: "a".repeat(64),
   TF_VAR_worker_name: "quorem-hono-stage",
   HONO_SERVICES_WORKER_NAME: "quorem-hono-services-stage",
-  TF_VAR_access_service_token_ids: JSON.stringify(["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]),
-  TF_VAR_access_token_ids: JSON.stringify({
-    drain: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-    verifier: "cccccccc-cccc-cccc-cccc-cccccccccccc",
-    case: "dddddddd-dddd-dddd-dddd-dddddddddddd",
-  }),
   TF_VAR_enable_queue_consumer: "false",
   CLOUDFLARE_ACCOUNT_ID: "b".repeat(32),
   TF_STATE_BUCKET: "fixture-state",

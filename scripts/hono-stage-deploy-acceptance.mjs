@@ -1,8 +1,7 @@
 /** Exercise a real staged submission through the deployed Worker and drain. */
 import { randomUUID } from "node:crypto";
-import { accessFetch } from "../packages/execution/src/transport/access.ts";
 
-function stagedOrigin(value) {
+export function stagedOrigin(value) {
   const url = new URL(value);
   if (
     url.protocol !== "https:" ||
@@ -16,7 +15,7 @@ function stagedOrigin(value) {
     throw new Error("Invalid staged origin");
   return url.origin;
 }
-async function json(response) {
+export async function json(response) {
   if (!response.body) throw new Error("Missing stage response");
   const reader = response.body.getReader();
   const chunks = [];
@@ -57,19 +56,9 @@ export async function hostedAcceptance(
     new TextEncoder().encode(env.HONO_STAGE_ACCEPT_SOURCE).length > 65536
   )
     throw new Error("Invalid staged acceptance fixture");
-  const token = env.EXECUTION_DRAIN_SECRET,
-    id = env.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
-    secret = env.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET;
-  if (
-    !token ||
-    token.length < 32 ||
-    !id ||
-    !secret ||
-    id === secret ||
-    /\s/.test(token + id + secret)
-  )
+  const token = env.EXECUTION_DRAIN_SECRET;
+  if (!token || token.length < 32 || /\s/.test(token))
     throw new Error("Invalid staged drain credentials");
-  const privateFetch = accessFetch(drain, { id, secret }, send);
   const tokenResponse = await send(`${api}/api/auth/token`, {
     headers: { cookie: env.HONO_STAGE_SESSION_COOKIE, origin: browser },
     redirect: "error",
@@ -112,7 +101,7 @@ export async function hostedAcceptance(
   const submission = (await json(admission)).id;
   if (!/^[0-9a-f-]{36}$/.test(submission ?? "")) throw new Error("Invalid stage submission");
   if (env.HONO_STAGE_ACCEPTANCE_MODE === "manual") {
-    const drained = await privateFetch(`${drain}/internal/drain`, {
+    const drained = await send(`${drain}/internal/drain`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}` },
       redirect: "error",

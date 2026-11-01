@@ -13,9 +13,9 @@
     "GUEST_ADMISSION": "false",
     "GUEST_EXECUTION": "false",
     "VERIFICATION_SERVICE_ORIGIN": "https://verify.example",
-    "VERIFICATION_ACCESS_MODE": "cloudflare-access",
+    "VERIFICATION_ACCESS_MODE": "none",
     "VERIFICATION_PUBLIC_KEY": "MCowBQYDK2VwAyEAtnR6Tl2sbDUoUU1629wFNWRHL+Y/6q19G/75ULZd7Kw=",
     "EXECUTION_DRAIN_URL": "https://runner-stage.example/internal/drain",
-    "EXECUTION_DRAIN_ACCESS_MODE": "cloudflare-access"
+    "EXECUTION_DRAIN_ACCESS_MODE": "none"
   }
 }

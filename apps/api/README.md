@@ -1,15 +1,8 @@
 # API development
 
-From the repository root, `make api` and `make runner` start the existing Go API and runner. `make language` starts the Go language gateway; `make dev` uses the existing local supervisor. These commands are retained during migration.
+`make dev` starts the integrated native Hono/TypeScript stack with embedded Better Auth, runner, verifier, local queue, fixtures and live Vite/Astro HMR. It uses the dedicated `quorem_hono_dev` database and preserves older local databases.
 
-The native Node runtimes have separate entry points:
-
-```sh
-make api-hono
-make runner-hono
-make verifier-hono
-make language-hono
-```
+Individual configured entrypoints are `make api`, `make runner`, `make verifier` and `make language`. The Workers entrypoint is `src/runtime/worker.ts`; the portable Node entrypoint is `src/runtime/node.ts`.
 
 Configure each service before starting it. The API runtime settings are defined in [Node composition](src/runtime/node.ts) and [runtime configuration](src/runtime/composition/config.ts); auth settings are defined in [auth configuration](../auth/src/config.ts) and [platform configuration](../auth/src/platform-config.ts). Runner and verifier settings are defined in [runner configuration](../runner/src/runtime/config.ts); language settings are defined in [the language gateway](../language/src/main.ts). Managed identity uses Better Auth sessions and verified tokens. Local development identity is an explicit Node-only configuration, not the default or a public Worker fallback.
 

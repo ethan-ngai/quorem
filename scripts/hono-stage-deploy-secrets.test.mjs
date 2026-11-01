@@ -16,12 +16,6 @@ const secrets = () => ({
   VERIFICATION_SOURCE_CREDENTIAL: "a".repeat(64),
   VERIFICATION_SERVICE_CREDENTIAL: "b".repeat(64),
   EXECUTION_DRAIN_SECRET: "d".repeat(32),
-  CLOUDFLARE_ACCESS_CLIENT_ID: "api-id",
-  CLOUDFLARE_ACCESS_CLIENT_SECRET: "api-secret",
-  VERIFICATION_ACCESS_CLIENT_ID: "verifier-id",
-  VERIFICATION_ACCESS_CLIENT_SECRET: "verifier-secret",
-  EXECUTION_DRAIN_ACCESS_CLIENT_ID: "drain-id",
-  EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "drain-secret",
   CASE_OWNER_PRIVATE_KEY: "private-fixture",
 });
 void test("uploads validated Worker-only secrets on stdin", () => {

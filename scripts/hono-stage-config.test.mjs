@@ -14,10 +14,10 @@ const input = () => ({
     GUEST_ADMISSION: "true",
     GUEST_EXECUTION: "false",
     VERIFICATION_SERVICE_ORIGIN: "https://verify.example",
-    VERIFICATION_ACCESS_MODE: "cloudflare-access",
+    VERIFICATION_ACCESS_MODE: "none",
     VERIFICATION_PUBLIC_KEY: "MCowBQYDK2VwAyEAtnR6Tl2sbDUoUU1629wFNWRHL+Y/6q19G/75ULZd7Kw=",
     EXECUTION_DRAIN_URL: "https://runner-stage.example/internal/drain",
-    EXECUTION_DRAIN_ACCESS_MODE: "cloudflare-access",
+    EXECUTION_DRAIN_ACCESS_MODE: "none",
   },
 });
 const outputs = () => ({
@@ -25,10 +25,8 @@ const outputs = () => ({
   stage_hostname: { value: "stage.example" },
   hyperdrive_id: { value: "a".repeat(32) },
   queue_name: { value: "quorem-hono-stage-execution" },
-  internal_access_application_id: { value: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
   services: {
     origins: { value: { DRAIN_ORIGIN: "https://runner-stage.example" } },
-    drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
   },
 });
 void test("stage binds actual runtime classes, queue and scheduled recovery without secrets", () => {
@@ -48,15 +46,9 @@ void test("stage binds actual runtime classes, queue and scheduled recovery with
     producers: [{ binding: "EXECUTION_QUEUE", queue: "quorem-hono-stage-execution" }],
   });
   assert.deepEqual(config.triggers.crons, ["* * * * *"]);
-  assert.deepEqual(
-    config.routes.map((route) => route.pattern),
-    [
-      "stage.example/v1/*",
-      "stage.example/api/auth/*",
-      "stage.example/health",
-      "stage.example/internal/*",
-    ],
-  );
+  assert.deepEqual(config.routes, [
+    { pattern: "stage.example", zone_name: "example", custom_domain: true },
+  ]);
   assert.equal(config.vars.EXECUTION_WAKE_PROVIDER, "cloudflare-binding");
   assert.equal(config.vars.GUEST_CREATION, "false");
   assert.equal(config.vars.GUEST_ADMISSION, "true");
@@ -73,8 +65,8 @@ void test("rejects live names, non-stage queue, insecure private endpoints and s
     { vars: { ...input().vars, APP_ENV: "local" } },
     { vars: { ...input().vars, AUTH_MODE: "" } },
     { vars: { ...input().vars, AUTH_MODE: "invalid" } },
-    { vars: { ...input().vars, EXECUTION_DRAIN_ACCESS_MODE: "none" } },
-    { vars: { ...input().vars, VERIFICATION_ACCESS_MODE: "none" } },
+    { vars: { ...input().vars, EXECUTION_DRAIN_ACCESS_MODE: "cloudflare-access" } },
+    { vars: { ...input().vars, VERIFICATION_ACCESS_MODE: "cloudflare-access" } },
     { vars: { ...input().vars, ALLOWED_ORIGINS: "https://stage.example/path" } },
     { vars: { ...input().vars, PROFILE_MEDIA_ENABLED: "true" } },
     { vars: { ...input().vars, AUTH_ORIGIN: "https://www.example" } },
@@ -89,24 +81,10 @@ void test("resources must match Terraform outputs", () => {
     { worker_name: { value: "quorem-production" } },
     { queue_name: { value: "production" } },
     { hyperdrive_id: { value: "placeholder" } },
-    { internal_access_application_id: { value: "" } },
     { services: undefined },
     {
       services: {
-        origins: { value: { DRAIN_ORIGIN: "https://runner-stage.example" } },
-        drain_access_application_id: { value: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" },
-      },
-    },
-    {
-      services: {
-        origins: { value: { DRAIN_ORIGIN: "https://runner-stage.example" } },
-        drain_access_application_id: { value: "" },
-      },
-    },
-    {
-      services: {
         origins: { value: { DRAIN_ORIGIN: "https://other.example" } },
-        drain_access_application_id: { value: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" },
       },
     },
   ])
@@ -118,7 +96,7 @@ void test("profile binding must use the actual provisioned bucket and explicit p
   Object.assign(i.vars, {
     PROFILE_MEDIA_ENABLED: "true",
     PROFILE_IMAGE_SERVICE_URL: "https://image-stage.example",
-    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
+    PROFILE_IMAGE_ACCESS_MODE: "none",
   });
   const o = { ...outputs(), profile_bucket_name: { value: "quorem-hono-stage-profile" } };
   assert.equal(
@@ -131,7 +109,7 @@ void test("profile binding must use the actual provisioned bucket and explicit p
   assert.throws(() => stageConfig(i, outputs(), "/tmp/wrangler.json"));
   assert.throws(() =>
     stageConfig(
-      { ...i, vars: { ...i.vars, PROFILE_IMAGE_ACCESS_MODE: "none" } },
+      { ...i, vars: { ...i.vars, PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access" } },
       o,
       "/tmp/wrangler.json",
     ),

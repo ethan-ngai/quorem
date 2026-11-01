@@ -80,11 +80,15 @@ void test(
         bytes = await readFile(
           resolve(
             root,
-            name === "apps/auth/src/migrations.ts"
-              ? "apps/api/src/cli/fixtures/deployed-auth-migrations.ts.txt"
-              : name === "apps/api/internal/adapters/postgres/store.go"
-                ? "apps/api/src/cli/fixtures/deployed-postgres-store.go.txt"
-                : name,
+            name === ".github/workflows/deploy.yaml"
+              ? "apps/api/src/cli/fixtures/deployed-workflow.yaml.txt"
+              : name === "apps/api/cmd/provision/main.go"
+                ? "apps/api/src/cli/fixtures/deployed-provision.go.txt"
+                : name === "apps/auth/src/migrations.ts"
+                  ? "apps/api/src/cli/fixtures/deployed-auth-migrations.ts.txt"
+                  : name === "apps/api/internal/adapters/postgres/store.go"
+                    ? "apps/api/src/cli/fixtures/deployed-postgres-store.go.txt"
+                    : name,
           ),
         );
       return {

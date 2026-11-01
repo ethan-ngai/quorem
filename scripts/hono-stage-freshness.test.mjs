@@ -63,3 +63,61 @@ void test("fails closed on missing metadata, duplicate entries and provider erro
     /Invalid/,
   );
 });
+void test("reports only redacted provider status and inventory metadata", async () => {
+  const reports = [];
+  await requireFreshStageResources(
+    env,
+    list([{ id: "private-id", name: "private-name" }], []),
+    (phase, metadata) => reports.push({ phase, metadata }),
+  );
+  assert.deepEqual(reports[0], { phase: "workers", metadata: { status: 200, page: 1 } });
+  assert.deepEqual(reports[1].metadata, {
+    success: true,
+    resultArray: true,
+    resultInfo: true,
+    page: 1,
+    perPage: 100,
+    count: 1,
+    totalCount: 1,
+    totalPages: 1,
+    resultCount: 1,
+    idPresent: true,
+    ownerPresent: true,
+  });
+  assert.equal(reports[2].phase, "namespaces");
+  assert.doesNotMatch(JSON.stringify(reports), /private-id|private-name|fixture-token/);
+  reports.length = 0;
+  await assert.rejects(
+    requireFreshStageResources(
+      env,
+      async () => new Response("private-body", { status: 403 }),
+      (phase, metadata) => reports.push({ phase, metadata }),
+    ),
+    /freshness/,
+  );
+  assert.deepEqual(reports, [
+    { phase: "workers", metadata: { status: 403, page: 1 } },
+    { phase: "failure", metadata: { reason: "unavailable" } },
+  ]);
+});
+void test("derives omitted page count and rejects malformed present counts", async () => {
+  const workers = Array.from({ length: 101 }, (_, i) => ({ id: String(i), name: `worker-${i}` }));
+  const original = list(workers, []);
+  const withoutPages = async (url, init) => {
+    const response = await original(url, init);
+    const data = await response.json();
+    delete data.result_info.total_pages;
+    return Response.json(data);
+  };
+  assert.equal((await requireFreshStageResources(env, withoutPages)).workersChecked, 101);
+  for (const value of [null, -1, "2", 1.5, 1]) {
+    await assert.rejects(
+      requireFreshStageResources(env, async (url, init) => {
+        const data = await (await original(url, init)).json();
+        data.result_info.total_pages = value;
+        return Response.json(data);
+      }),
+      /freshness/,
+    );
+  }
+});

@@ -20,7 +20,6 @@ Private coding matches, solo practice, and collaborative interviews.
 </p>
 
 <p>
-  <img src="https://img.shields.io/badge/Go-00ADD8?style=flat&amp;logo=go&amp;logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&amp;logo=typescript&amp;logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-20232A?style=flat&amp;logo=react&amp;logoColor=61DAFB" alt="React" />
   <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&amp;logo=postgresql&amp;logoColor=white" alt="PostgreSQL" />
@@ -79,7 +78,7 @@ Hosting, guest admission and authoring depend on [account permissions](docs/impl
 
 ## Run locally
 
-Requires **[Vite+](https://viteplus.dev) (`vp`), Node.js 24.21.0, Go 1.27.1, Python 3, and Docker with Compose**. Keep Docker running. Local development uses fixtures and requires no cloud provider credentials.
+Requires **[Vite+](https://viteplus.dev) (`vp`), Node.js 24.21.0, Python 3, and Docker with Compose**. Keep Docker running. Local development uses fixtures and requires no cloud provider credentials.
 
 ```sh
 git clone https://github.com/ethan-ngai/quorem.git
@@ -88,7 +87,7 @@ make install
 make dev
 ```
 
-Open **[http://localhost:5173](http://localhost:5173)**. The supervisor builds judge images, starts local services, applies migrations, seeds problems and accounts, and runs the marketing site and workspace with live HMR. The first startup includes container builds.
+Open **[http://localhost:5173](http://localhost:5173)**. The supervisor builds judge images, starts local services, applies migrations, seeds problems and accounts, and runs the marketing site and workspace with live HMR. The first startup includes container builds. Native development uses `quorem_hono_dev`; the previous `quorem` database is preserved. API and Better Auth share the Hono process.
 
 Sign in as `alice` (admin) or `bob` using the generated `AUTH_SEED_PASSWORD` in ignored `.local/auth-preview.json`. Keep this file private; these accounts are local fixtures.
 
@@ -97,10 +96,10 @@ Sign in as `alice` (admin) or `bob` using the generated `AUTH_SEED_PASSWORD` in 
 | `make dev` | Run the integrated local stack with live HMR |
 | `vp -C apps/web dev` | Run workspace Vite against existing local services |
 | `vp -C apps/marketing run dev` | Run marketing Astro with live HMR |
-| `make check` | Check types, contracts, tests and Go vet |
-| `make build` | Build the site and Go services |
+| `make check` | Check types, contracts and tests |
+| `make build` | Build the site and check native services |
 | `make seed` | Seed the local problem catalog |
-| `make reset` | Delete local Compose volumes and reseed |
+| `make reset` | Recreate only the native local database and reseed |
 
 PostgreSQL integration tests require `QUOREM_TEST_DATABASE_URL` pointing to a **separate disposable database**. Tests truncate data; never point them at your running development database.
 

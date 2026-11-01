@@ -6,8 +6,6 @@ mock_provider "cloudflare" {
 
 variables {
   account_id                = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  zone_id                   = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-  dns_target                = "origin-stage.example.com"
   worker_name               = "quorem-hono-stage"
   database_host             = "db-stage.example.com"
   database_port             = 5432
@@ -16,7 +14,6 @@ variables {
   database_password         = "fixture-only"
   database_connection_limit = 10
   stage_hostname            = "stage.example.com"
-  access_service_token_ids  = ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]
 }
 
 run "bootstrap_without_consumer" {
@@ -30,21 +27,14 @@ run "bootstrap_without_consumer" {
     error_message = "The queue consumer must wait until the staged Worker is deployed."
   }
   assert {
-    condition     = cloudflare_dns_record.api.name == "stage.example.com" && cloudflare_dns_record.api.proxied && cloudflare_dns_record.api.content == "origin-stage.example.com"
-    error_message = "Stage API DNS must be proxied and use its staged origin."
-  }
-  assert {
-    condition     = cloudflare_worker.api.name == "quorem-hono-stage" && cloudflare_worker.api.subdomain.enabled == false
+    condition     = cloudflare_worker.api.name == "quorem-hono-stage" && cloudflare_worker.api.subdomain.enabled == false && cloudflare_worker.api.subdomain.previews_enabled == false
     error_message = "The staged Worker must be isolated and have no workers.dev route."
   }
   assert {
     condition     = cloudflare_queue.execution.queue_name == "quorem-hono-stage-execution" && cloudflare_queue.dead_letter.queue_name == "quorem-hono-stage-dead-letter"
     error_message = "Queues must be scoped to the staged Worker."
   }
-  assert {
-    condition     = cloudflare_zero_trust_access_application.internal.domain == "stage.example.com/internal/*" && cloudflare_zero_trust_access_policy.internal.decision == "non_identity" && one(cloudflare_zero_trust_access_policy.internal.include).service_token.token_id == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    error_message = "The complete internal path requires an explicit service token policy."
-  }
+
 }
 
 run "attach_consumer_after_deployment" {
@@ -66,12 +56,6 @@ run "reject_missing_database_host" {
   command = plan
   variables { database_host = "" }
   expect_failures = [var.database_host]
-}
-
-run "reject_missing_access_identity" {
-  command = plan
-  variables { access_service_token_ids = [] }
-  expect_failures = [var.access_service_token_ids]
 }
 
 run "reject_production_hostname" {
@@ -109,11 +93,7 @@ run "optional_profile_bucket" {
   }
 }
 
-run "reject_live_dns_target" {
-  command = plan
-  variables { dns_target = "production.example.com" }
-  expect_failures = [var.dns_target]
-}
+
 
 run "reject_stage_substring_in_live_label" {
   command = plan

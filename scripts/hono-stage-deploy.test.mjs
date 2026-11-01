@@ -10,12 +10,6 @@ const env = () => ({
   TF_VAR_case_namespace_id: "0".repeat(64),
   TF_VAR_worker_name: "quorem-hono-stage",
   HONO_SERVICES_WORKER_NAME: "quorem-hono-services-stage",
-  TF_VAR_access_service_token_ids: JSON.stringify(["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]),
-  TF_VAR_access_token_ids: JSON.stringify({
-    drain: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-    verifier: "cccccccc-cccc-cccc-cccc-cccccccccccc",
-    case: "dddddddd-dddd-dddd-dddd-dddddddddddd",
-  }),
   TF_VAR_enable_queue_consumer: "false",
   CLOUDFLARE_ACCOUNT_ID: "b".repeat(32),
   TF_STATE_BUCKET: "fixture-state",
@@ -63,7 +57,6 @@ void test("rejects branch, revision, database and queue drift before executing",
     { TF_VAR_case_namespace_id: "" },
     { TF_VAR_worker_name: "quorem" },
     { TF_VAR_enable_queue_consumer: "true" },
-    { TF_VAR_access_token_ids: JSON.stringify({ drain: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" }) },
     { TF_VAR_runner_image: "registry.cloudflare.com/example:latest" },
   ])
     assert.throws(() => validateStageRequest({ ...env(), ...patch }));
@@ -90,9 +83,11 @@ void test("summarizes keyed resource actions without exposing provider values", 
     status: 0,
     stdout:
       args[1] === "plan"
-        ? '  # cloudflare_workers_route.service["case"] will be created\n  secret fixture-secret\nPlan: 1 to add, 0 to change, 0 to destroy.\n'
+        ? '  # cloudflare_workers_custom_domain.service["case"] will be created\n  secret fixture-secret\nPlan: 1 to add, 0 to change, 0 to destroy.\n'
         : "",
   }));
-  assert.deepEqual(result[0].actions, ['cloudflare_workers_route.service["case"] will be created']);
+  assert.deepEqual(result[0].actions, [
+    'cloudflare_workers_custom_domain.service["case"] will be created',
+  ]);
   assert.doesNotMatch(JSON.stringify(result), /fixture-secret/);
 });

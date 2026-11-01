@@ -58,7 +58,7 @@ export function workerRuntime(
             secret = values.PROFILE_IMAGE_ACCESS_CLIENT_SECRET;
           if (
             mode === "none"
-              ? values.APP_ENV !== "local" || id || secret
+              ? Boolean(id || secret)
               : mode !== "cloudflare-access" ||
                 !id ||
                 !secret ||
@@ -69,6 +69,12 @@ export function workerRuntime(
                 [id, secret].includes(values.PROFILE_IMAGE_SERVICE_TOKEN)
           )
             throw new Error("Invalid image ingress configuration");
+          if (
+            [values.AUTH_INTERNAL_SECRET, values.BETTER_AUTH_SECRET].includes(
+              values.PROFILE_IMAGE_SERVICE_TOKEN,
+            )
+          )
+            throw new Error("Distinct image service credential required");
           const client =
             mode === "cloudflare-access"
               ? accessFetch(values.PROFILE_IMAGE_SERVICE_URL, { id: id!, secret: secret! })

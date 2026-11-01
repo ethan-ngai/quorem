@@ -6,7 +6,7 @@ import {
   deriveStageRole,
 } from "./hono-stage-database-role.mjs";
 /** First staged activation; existing database updates require a separate cutover contract. */
-import { spawnSync } from "node:child_process";
+import { runStageCommand } from "./hono-stage-command.mjs";
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -25,6 +25,9 @@ import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { uploadWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { releaseQueue, setQueue } from "./hono-stage-deploy-queue.mjs";
 import { verifyNoAlternateIngress } from "./hono-stage-deploy-subdomains.mjs";
+import { runStageWorkload } from "./hono-stage-workload.mjs";
+import { provisionStageGenesis } from "./hono-stage-genesis.mjs";
+import { requireInitializableStageDatabase } from "./hono-stage-initialization.mjs";
 
 const commonNames = [
   "PATH",
@@ -42,11 +45,8 @@ const commonNames = [
 const stackNames = {
   "hono-stage": [
     "account_id",
-    "zone_id",
-    "dns_target",
     "worker_name",
     "stage_hostname",
-    "access_service_token_ids",
     "database_host",
     "database_port",
     "database_name",
@@ -62,12 +62,9 @@ const stackNames = {
     "cloudflare_api_token",
     "worker_name",
     "hostnames",
-    "dns_target",
     "profile_media_enabled",
     "image_hostname",
-    "image_access_service_token_id",
     "image_service_image",
-    "access_token_ids",
     "runner_image",
     "verifier_image",
     "case_images",
@@ -86,16 +83,9 @@ function selected(env, names) {
   );
 }
 function command(cmd, args, env, input) {
-  const result = spawnSync(cmd, args, {
-    env,
-    input,
-    encoding: "utf8",
-    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (result.error || result.status !== 0) throw new Error("Stage command failed; output withheld");
-  return result.stdout ?? "";
+  return runStageCommand(cmd, args, env, undefined, input);
 }
+
 function tfEnv(env, stack) {
   const values = selected(env, [
     ...commonNames,
@@ -175,15 +165,19 @@ function remoteProof(env) {
     "QUOREM_CASE_SECRET",
     "QUOREM_CASE_NAMESPACE_ID",
     "QUOREM_CASE_OWNER_PUBLIC_KEY_FILE",
-    "QUOREM_CASE_ACCESS_CLIENT_ID",
-    "QUOREM_CASE_ACCESS_CLIENT_SECRET",
   ]);
   command("vp", ["exec", "node", "scripts/hono-remote-validation.mjs"], child);
 }
 const defaults = {
   freshness: requireFreshStageResources,
   roleConfig: stageRoleCredentials,
-  fresh: requireFreshStageDatabase,
+  fresh: (env) => {
+    const resume = env.HONO_STAGE_INITIALIZATION_RESUME ?? "false";
+    if (!["true", "false"].includes(resume)) throw new Error("Invalid initialization opt-in");
+    return resume === "true"
+      ? requireInitializableStageDatabase(env)
+      : requireFreshStageDatabase(env);
+  },
   migrate,
   databaseRole: provisionStageDatabaseRole,
   images: publishImages,
@@ -197,6 +191,8 @@ const defaults = {
   deploy: workerDeploy,
   remote: remoteProof,
   actor: createStagedActor,
+  workload: runStageWorkload,
+  genesis: provisionStageGenesis,
   queue: releaseQueue,
   subdomains: verifyNoAlternateIngress,
   detach: (env) => setQueue(env, false),
@@ -204,8 +200,10 @@ const defaults = {
 };
 
 export async function deployStage(original, operations = defaults) {
+  operations = { ...defaults, ...operations };
   validateStageRequest(original);
   if (original.HONO_STAGE_ACTION !== "stage") throw new Error("Explicit stage action required");
+  if (!original.HONO_STAGE_DATABASE_IDENTITY) throw new Error("Stage database identity required");
   const publicInput = JSON.parse(original.HONO_STAGE_PUBLIC_JSON),
     services = JSON.parse(original.TF_VAR_service_secrets),
     supplied = JSON.parse(original.HONO_WORKER_SECRETS_JSON),
@@ -222,7 +220,7 @@ export async function deployStage(original, operations = defaults) {
   if (
     profileEnabled &&
     (publicInput.vars.PROFILE_IMAGE_SERVICE_URL !== `https://${original.TF_VAR_image_hostname}` ||
-      publicInput.vars.PROFILE_IMAGE_ACCESS_MODE !== "cloudflare-access" ||
+      publicInput.vars.PROFILE_IMAGE_ACCESS_MODE !== "none" ||
       supplied.PROFILE_IMAGE_SERVICE_TOKEN !== services.IMAGE_SERVICE_TOKEN)
   )
     throw new Error("Image service configuration differs");
@@ -239,35 +237,24 @@ export async function deployStage(original, operations = defaults) {
     VERIFICATION_SOURCE_CREDENTIAL: services.QUOREM_VERIFICATION_SOURCE_KEY,
     VERIFICATION_SERVICE_CREDENTIAL: services.QUOREM_VERIFICATION_SERVICE_KEY,
     EXECUTION_DRAIN_SECRET: services.QUOREM_RUNNER_DRAIN_SECRET,
-    CLOUDFLARE_ACCESS_CLIENT_ID: services.RUNNER_API_ACCESS_CLIENT_ID,
-    CLOUDFLARE_ACCESS_CLIENT_SECRET: services.RUNNER_API_ACCESS_CLIENT_SECRET,
   };
   checkSecrets(preflightSecrets);
   const extra = [
     services.RECOVERY_CONTROL_SECRET,
     services.QUOREM_CASE_SECRET,
-    services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
-    services.VERIFIER_API_ACCESS_CLIENT_SECRET,
-    services.RUNNER_API_ACCESS_CLIENT_SECRET,
     services.QUOREM_RUNNER_COMMAND_SECRET,
     services.QUOREM_VERIFICATION_SOURCE_KEY,
     services.QUOREM_VERIFICATION_SERVICE_KEY,
     services.QUOREM_RUNNER_DRAIN_SECRET,
-    supplied.VERIFICATION_ACCESS_CLIENT_SECRET,
-    supplied.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
   ];
-  if (profileEnabled)
-    extra.push(services.IMAGE_SERVICE_TOKEN, supplied.PROFILE_IMAGE_ACCESS_CLIENT_SECRET);
+  if (profileEnabled) extra.push(services.IMAGE_SERVICE_TOKEN);
   if (
     extra.some((value) => typeof value !== "string" || !value || /\s/.test(value)) ||
     new Set(extra).size !== extra.length ||
     Object.values(supplied).includes(services.RECOVERY_CONTROL_SECRET) ||
     new TextEncoder().encode(services.QUOREM_CASE_SECRET).length < 32 ||
     new TextEncoder().encode(services.RECOVERY_CONTROL_SECRET).length < 32 ||
-    publicInput.vars.EXECUTION_DRAIN_ACCESS_MODE !== "cloudflare-access" ||
-    !supplied.EXECUTION_DRAIN_ACCESS_CLIENT_ID ||
-    !services.QUOREM_CASE_ACCESS_CLIENT_ID ||
-    !services.VERIFIER_API_ACCESS_CLIENT_ID
+    publicInput.vars.EXECUTION_DRAIN_ACCESS_MODE !== "none"
   )
     throw new Error("Invalid private service credentials");
   try {
@@ -296,9 +283,11 @@ export async function deployStage(original, operations = defaults) {
     original.TF_VAR_release_generation !== "1"
   )
     throw new Error("First activation requires generation one");
+  operations.phase?.("check-stage-freshness");
   const freshResources = await operations.freshness(original);
   operations.roleConfig(original);
-  await operations.fresh(original);
+  operations.phase?.("check-stage-database");
+  const initialDatabase = await operations.fresh(original);
   const env = {
     ...original,
     TF_VAR_database_user: deriveStageRole(original.HONO_RELEASE_SHA, "1"),
@@ -323,8 +312,6 @@ export async function deployStage(original, operations = defaults) {
       ...env,
       QUOREM_CASE_ORIGIN: `https://${hosts.case}`,
       QUOREM_CASE_SECRET: services.QUOREM_CASE_SECRET,
-      QUOREM_CASE_ACCESS_CLIENT_ID: services.QUOREM_CASE_ACCESS_CLIENT_ID,
-      QUOREM_CASE_ACCESS_CLIENT_SECRET: services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
       QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: keyFile,
     };
     await Promise.resolve(operations.terraform(env, "hono-services", "init"));
@@ -332,9 +319,12 @@ export async function deployStage(original, operations = defaults) {
     if (env.TF_VAR_case_namespace_id !== "0".repeat(64))
       await operations.probe(caseEnv, env.TF_VAR_case_namespace_id);
     await Promise.resolve(operations.terraform(env, "hono-stage", "init"));
+    operations.phase?.("migrate-stage-database");
     await Promise.resolve(operations.migrate(original));
     roleAttempted = true;
+    operations.phase?.("provision-runtime-role");
     await operations.databaseRole(original);
+    operations.phase?.("provision-api-resources");
     await Promise.resolve(operations.terraform(env, "hono-stage", "apply"));
     const images = await Promise.resolve(operations.images(original));
     env.TF_VAR_runner_image = images.runner;
@@ -352,11 +342,13 @@ export async function deployStage(original, operations = defaults) {
       TF_VAR_case_images: env.TF_VAR_case_images,
     });
     validateStageRequest(env);
+    operations.phase?.("provision-private-services");
     await Promise.resolve(operations.terraform(env, "hono-services", "apply"));
     const verified = await operations.probe(caseEnv, env.TF_VAR_case_namespace_id);
     env.TF_VAR_case_namespace_id = verified.namespace;
     caseEnv.TF_VAR_case_namespace_id = verified.namespace;
     caseEnv.QUOREM_CASE_NAMESPACE_ID = verified.namespace;
+    operations.phase?.("provision-private-services");
     await Promise.resolve(operations.terraform(env, "hono-services", "apply"));
     const workerSecrets = {
       ...supplied,
@@ -366,8 +358,6 @@ export async function deployStage(original, operations = defaults) {
       VERIFICATION_SOURCE_CREDENTIAL: services.QUOREM_VERIFICATION_SOURCE_KEY,
       VERIFICATION_SERVICE_CREDENTIAL: services.QUOREM_VERIFICATION_SERVICE_KEY,
       EXECUTION_DRAIN_SECRET: services.QUOREM_RUNNER_DRAIN_SECRET,
-      CLOUDFLARE_ACCESS_CLIENT_ID: services.RUNNER_API_ACCESS_CLIENT_ID,
-      CLOUDFLARE_ACCESS_CLIENT_SECRET: services.RUNNER_API_ACCESS_CLIENT_SECRET,
     };
     const serviceOutput = await Promise.resolve(operations.servicesOutputs(env));
     const controlVars = serviceOutput?.origins?.value;
@@ -385,7 +375,9 @@ export async function deployStage(original, operations = defaults) {
     const config = stageConfig(publicInput, outputs, configFile);
     await writeFile(configFile, JSON.stringify(config), { mode: 0o600 });
     checkStagePreflight(publicInput, outputs, workerSecrets);
+    operations.phase?.("deploy-api-worker");
     await Promise.resolve(operations.deploy(configFile, env));
+    operations.phase?.("upload-api-secrets");
     await Promise.resolve(operations.upload(publicInput, outputs, workerSecrets, env));
     await operations.subdomains(env);
     controlClient = await operations.controls({
@@ -396,18 +388,24 @@ export async function deployStage(original, operations = defaults) {
       secret: services.RECOVERY_CONTROL_SECRET,
       caseOrigin: `https://${hosts.case}`,
       runnerOrigin: `https://${hosts.drain}`,
-      caseAccess: {
-        id: services.QUOREM_CASE_ACCESS_CLIENT_ID,
-        secret: services.QUOREM_CASE_ACCESS_CLIENT_SECRET,
-      },
-      runnerAccess: {
-        id: supplied.EXECUTION_DRAIN_ACCESS_CLIENT_ID,
-        secret: supplied.EXECUTION_DRAIN_ACCESS_CLIENT_SECRET,
-      },
       publicKeyFile: keyFile,
     });
     controlsAttempted = true;
-    const controlReceipt = await controlClient.activate();
+    operations.phase?.("activate-release-controls");
+    let genesis;
+    const controlReceipt = await controlClient.activate({
+      beforeActivation: async (observation) => {
+        operations.phase?.("persist-stage-genesis");
+        genesis = await operations.genesis(env, {
+          namespace: verified.namespace,
+          scope: verified.scope,
+          bindings: controlVars.SERVICES_BINDINGS,
+          observation,
+        });
+        if (!genesis) throw new Error("Stage genesis was not persisted");
+      },
+    });
+    operations.phase?.("hosted-sandbox-proof");
     await Promise.resolve(operations.remote(caseEnv));
     actor = await operations.actor({
       databaseURL: env.HONO_STAGE_DATABASE_URL,
@@ -415,6 +413,7 @@ export async function deployStage(original, operations = defaults) {
       authSecret: workerSecrets.BETTER_AUTH_SECRET,
       mode: "stage",
     });
+    operations.phase?.("hosted-application-acceptance");
     const acceptance = await operations.queue(
       {
         ...env,
@@ -430,14 +429,26 @@ export async function deployStage(original, operations = defaults) {
       verified.namespace,
     );
     queueAttached = true;
+    operations.phase?.("hosted-workload");
+    const workloadBefore = await controlClient.requireActive(1);
+    const workload = await operations.workload({
+      HONO_STAGE_API_ORIGIN: publicInput.vars.AUTH_ORIGIN,
+      HONO_STAGE_BROWSER_ORIGIN: env.HONO_STAGE_BROWSER_ORIGIN,
+      ALLOWED_ORIGINS: publicInput.vars.ALLOWED_ORIGINS,
+      QUOREM_STAGE_DATABASE_URL: env.HONO_STAGE_DATABASE_URL,
+      BETTER_AUTH_SECRET: workerSecrets.BETTER_AUTH_SECRET,
+    });
+    const workloadAfter = await controlClient.requireActive(1);
     receipt = {
       release: env.HONO_RELEASE_SHA,
-      database: "fresh",
+      database: initialDatabase?.kind ?? "fresh",
       freshResources,
       controls: controlReceipt,
+      genesis,
       namespace: verified.namespace,
       images,
       acceptance,
+      workload: { ...workload, controls: { before: workloadBefore, after: workloadAfter } },
       cutoverReady: false,
     };
   } catch (error) {
@@ -480,6 +491,7 @@ export async function deployStage(original, operations = defaults) {
     if (detachFailed || pauseFailed || fenceFailed)
       throw new Error(
         `Stage failure; ${controlsAttempted || queueAttached ? (detachFailed ? "queue detachment unconfirmed" : "queue detached") : "controls not activated"}; ${controlsAttempted || queueAttached ? (pauseFailed ? "control pause unconfirmed" : "controls paused") : "no control pause attempted"}; ${roleAttempted ? (fenceFailed ? "runtime writer fence unconfirmed" : "runtime writer fence confirmed") : "runtime writer fence not attempted"}`,
+        { cause: failure },
       );
     if (cleanupFailed)
       throw new Error(

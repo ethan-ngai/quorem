@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { checkStagePreflight, validatedWorkerSecrets } from "./hono-stage-preflight.mjs";
 const input = () =>
-  JSON.parse(readFileSync(new URL("../deploy/hono/stage.fixture.json", import.meta.url)));
+  (() => {
+    const value = JSON.parse(
+      readFileSync(new URL("../deploy/hono/stage.fixture.json", import.meta.url)),
+    );
+    return value;
+  })();
 const outputs = () =>
   JSON.parse(
     readFileSync(new URL("../deploy/hono/terraform-outputs.fixture.json", import.meta.url)),
@@ -16,12 +21,6 @@ const secrets = () => ({
   VERIFICATION_SOURCE_CREDENTIAL: "a".repeat(64),
   VERIFICATION_SERVICE_CREDENTIAL: "b".repeat(64),
   EXECUTION_DRAIN_SECRET: "d".repeat(32),
-  CLOUDFLARE_ACCESS_CLIENT_ID: "fixture-id",
-  CLOUDFLARE_ACCESS_CLIENT_SECRET: "fixture-secret",
-  VERIFICATION_ACCESS_CLIENT_ID: "verifier-id",
-  VERIFICATION_ACCESS_CLIENT_SECRET: "verifier-secret",
-  EXECUTION_DRAIN_ACCESS_CLIENT_ID: "drain-id",
-  EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "drain-secret",
 });
 const login = () => {
   const i = input();
@@ -103,15 +102,13 @@ void test("uses actual Worker restrictions for mail, encryption key, and profile
   Object.assign(profile.vars, {
     PROFILE_MEDIA_ENABLED: "true",
     PROFILE_IMAGE_SERVICE_URL: "https://images.example",
-    PROFILE_IMAGE_ACCESS_MODE: "cloudflare-access",
+    PROFILE_IMAGE_ACCESS_MODE: "none",
   });
   assert.throws(() => checkStagePreflight(profile, profileOutputs, secrets()), /image service/);
   assert.doesNotThrow(() =>
     checkStagePreflight(profile, profileOutputs, {
       ...secrets(),
       PROFILE_IMAGE_SERVICE_TOKEN: "x".repeat(32),
-      PROFILE_IMAGE_ACCESS_CLIENT_ID: "profile-id",
-      PROFILE_IMAGE_ACCESS_CLIENT_SECRET: "profile-secret",
     }),
   );
 });
@@ -141,10 +138,6 @@ void test("secret upload projection omits private signing and host-only credenti
     QUOREM_CASE_SECRET: "fixture-case-secret",
   });
   assert.equal(projected.MATCH_INVITE_KEY, secrets().MATCH_INVITE_KEY);
-  assert.equal(
-    projected.VERIFICATION_ACCESS_CLIENT_SECRET,
-    secrets().VERIFICATION_ACCESS_CLIENT_SECRET,
-  );
   for (const key of [
     "PROFILE_IMAGE_SERVICE_TOKEN",
     "CASE_OWNER_PRIVATE_KEY",

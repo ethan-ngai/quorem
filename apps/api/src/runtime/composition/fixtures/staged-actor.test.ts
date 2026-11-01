@@ -9,7 +9,22 @@ import { createNodePool } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import { assertStageDatabase, createStagedActor } from "./staged-actor.ts";
 import { startNodeRuntime } from "../../node.ts";
+import { seedCatalog } from "../../../cli/seed.ts";
+import type { Pool } from "pg";
 
+void test("aborted actor and seed stop before database work", async () => {
+  const signal = AbortSignal.abort();
+  await assert.rejects(seedCatalog({} as Pool, false, signal));
+  await assert.rejects(
+    createStagedActor({
+      databaseURL: "postgres://localhost/quorem_hono_stage_fixture_test",
+      authOrigin: "http://localhost",
+      authSecret: "x".repeat(32),
+      mode: "local-test",
+      signal,
+    }),
+  );
+});
 void test("stage database guard rejects unsafe names, overrides and unverified TLS", () => {
   for (const value of [
     "postgres://localhost/production",
@@ -96,6 +111,49 @@ void test(
         "auth",
         fileURLToPath(new URL("../../../../../auth/migrations/", import.meta.url)),
       );
+      await pool.query(`CREATE TABLE public.fixture_cleanup_audit (n integer);
+        CREATE FUNCTION public.fixture_delay_session() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(5); RETURN NEW; END $$;
+        CREATE FUNCTION public.fixture_audit_session_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO public.fixture_cleanup_audit VALUES (1); RETURN NULL; END $$;
+        CREATE TRIGGER fixture_delay_session BEFORE INSERT ON quorem_auth."session" FOR EACH ROW EXECUTE FUNCTION public.fixture_delay_session();
+        CREATE TRIGGER fixture_audit_session_delete AFTER DELETE ON quorem_auth."session" FOR EACH STATEMENT EXECUTE FUNCTION public.fixture_audit_session_delete()`);
+      const interrupted = new AbortController();
+      const interruptedActor = createStagedActor({
+        databaseURL: url!,
+        authOrigin: origin,
+        authSecret: secret,
+        mode: "local-test",
+        signal: interrupted.signal,
+      });
+      void interruptedActor.catch(() => {});
+      let sawInsert = false;
+      for (let i = 0; i < 200; i++) {
+        const activity = await pool.query(
+          `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND state='active' AND query ILIKE '%INSERT INTO quorem_auth.%session%') AS active`,
+        );
+        if (activity.rows[0].active) {
+          sawInsert = true;
+          break;
+        }
+        await sleep(50);
+      }
+      interrupted.abort();
+      await assert.rejects(interruptedActor);
+      assert.equal(sawInsert, true);
+      assert.equal(
+        (await pool.query("SELECT count(*)::int AS n FROM public.fixture_cleanup_audit")).rows[0].n,
+        1,
+      );
+      assert.equal(
+        (
+          await pool.query(
+            `SELECT count(*)::int AS n FROM quorem_auth."session" WHERE "userId" LIKE 'stage-fixture-%'`,
+          )
+        ).rows[0].n,
+        0,
+      );
+      await pool.query(
+        `DROP TRIGGER fixture_delay_session ON quorem_auth."session"; DROP TRIGGER fixture_audit_session_delete ON quorem_auth."session"; DROP FUNCTION public.fixture_delay_session(); DROP FUNCTION public.fixture_audit_session_delete(); DROP TABLE public.fixture_cleanup_audit`,
+      );
       const sentinel = `stage-sentinel-${crypto.randomUUID()}`;
       await pool.query("INSERT INTO users(id,display_name) VALUES($1,$1)", [sentinel]);
       const secure = await createStagedActor({
@@ -106,11 +164,13 @@ void test(
       });
       assert.ok(secure.sessionCookie.startsWith("__Secure-better-auth.session_token="));
       await secure.dispose();
+      const actorAbort = new AbortController();
       actor = await createStagedActor({
         databaseURL: url!,
         authOrigin: origin,
         authSecret: secret,
         mode: "local-test",
+        signal: actorAbort.signal,
       });
       const sessionToken = decodeURIComponent(
         actor.sessionCookie.split("=").slice(1).join("="),
@@ -164,6 +224,7 @@ void test(
         {
           cwd: fileURLToPath(new URL("../../../../", import.meta.url)),
           stdio: "ignore",
+          detached: true,
           env: { ...process.env, CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB: url! },
         },
       );
@@ -202,6 +263,7 @@ void test(
         });
         assert.equal(workspace.status, 201);
       }
+      actorAbort.abort();
       await actor.dispose();
       actor = undefined;
       await sleep(3000);
@@ -224,7 +286,7 @@ void test(
       await actor?.dispose();
       if (worker && worker.exitCode === null) {
         const done = once(worker, "exit");
-        worker.kill("SIGTERM");
+        process.kill(-worker.pid!, "SIGTERM");
         await done;
       }
       await runtime?.close();

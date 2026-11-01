@@ -12,8 +12,6 @@ const env = () => ({
   HONO_STAGE_ACCEPT_SOURCE: "fixture",
   HONO_STAGE_ACCEPTANCE_MODE: "manual",
   EXECUTION_DRAIN_SECRET: "d".repeat(32),
-  EXECUTION_DRAIN_ACCESS_CLIENT_ID: "fixture-id",
-  EXECUTION_DRAIN_ACCESS_CLIENT_SECRET: "fixture-secret",
 });
 void test("exchanges session, uses bearer, creates workspace, admits and drains", async () => {
   const calls = [];
@@ -34,7 +32,7 @@ void test("exchanges session, uses bearer, creates workspace, admits and drains"
     assert.equal(h.get("authorization"), "Bearer fixture.jwt.token");
     assert.equal(h.get("cookie"), null);
   }
-  assert.equal(new Headers(calls[3].init.headers).get("cf-access-client-id"), "fixture-id");
+  assert.equal(new Headers(calls[3].init.headers).get("cf-access-client-id"), null);
 });
 void test("queue mode never manually drains and polls until accepted", async () => {
   let calls = 0;
