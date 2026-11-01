@@ -145,6 +145,9 @@ void test(
               submitCasesAreSamples: false,
             }),
           );
+          await client.query(
+            "UPDATE runner_input_gc_state SET cursor=decode(repeat('ab',32),'hex') WHERE id=1",
+          );
           await assert.rejects(lockEmptyStage(client, binding), /contains data/);
           await lockEmptyStage(client, { ...binding, allowFixtures: true });
           await client.query("ROLLBACK");

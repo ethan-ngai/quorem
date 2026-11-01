@@ -212,7 +212,8 @@ export async function lockEmptyStage(
       let query = `SELECT NOT EXISTS(SELECT 1 FROM ${target} LIMIT 1) AS valid`,
         args = [];
       if (table.namespace === "public" && table.name === "runner_input_gc_state")
-        query = `SELECT count(*)=1 AND bool_and(id=1 AND cursor IS NULL) AS valid FROM ${target}`;
+        // Scheduled retention advances this singleton even in a fixture-only stage.
+        query = `SELECT count(*)=1 AND bool_and(id=1 AND ${allowFixtures ? "(cursor IS NULL OR octet_length(cursor)=32)" : "cursor IS NULL"}) AS valid FROM ${target}`;
       if (table.namespace === "public" && table.name === "stage_genesis") {
         query = `SELECT ${allowFixtures ? "" : "count(*)=0 OR "}(count(*)=1 AND bool_and(database_identity=$1 AND namespace=$2)) AS valid FROM ${target}`;
         args = [databaseIdentity, namespace];
