@@ -10,7 +10,7 @@ export function checkpointedEngine(
   sandbox: IsolatedSandbox,
   sliceMs = 50000,
 ): AttemptEngine {
-  if (!Number.isSafeInteger(sliceMs) || sliceMs < 1 || sliceMs >= 120000)
+  if (!Number.isSafeInteger(sliceMs) || sliceMs < 1 || sliceMs > 600000)
     throw new Error("Invalid execution slice");
   return {
     async execute(job: Job, signal: AbortSignal): Promise<AttemptOutcome> {

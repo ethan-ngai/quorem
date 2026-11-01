@@ -134,3 +134,24 @@ void test("manual drain exposes only bounded readiness diagnostic fields", async
     return true;
   });
 });
+
+void test("expired bearer refreshes through the fixture session without readmitting work", async () => {
+  let tokens = 0,
+    admissions = 0,
+    polls = 0;
+  const send = async (url, init) => {
+    if (url.endsWith("/api/auth/token")) return Response.json({ token: `fixture.${++tokens}` });
+    if (url.endsWith("/v1/workspaces")) return Response.json({ id: uuid }, { status: 201 });
+    if (url.endsWith("/v1/submissions")) {
+      admissions++;
+      return Response.json({ id: uuid }, { status: 202 });
+    }
+    if (url.endsWith("/internal/drain")) return new Response(null, { status: 202 });
+    if (++polls === 1) return new Response(null, { status: 401 });
+    assert.equal(init.headers.authorization, "Bearer fixture.2");
+    return Response.json({ verdict: "accepted" });
+  };
+  assert.equal((await hostedAcceptance(env(), send)).submission, uuid);
+  assert.equal(tokens, 2);
+  assert.equal(admissions, 1);
+});

@@ -16,6 +16,7 @@ export function createRunner(options: {
   slots: number;
   resumable: boolean;
   commandTimeoutMs: number;
+  attemptMs?: number;
   engine: (
     repository: ExecutionRepository & ExecutionInputReader,
     sandbox: IsolatedSandbox,
@@ -43,6 +44,11 @@ export function createRunner(options: {
     engine,
     slots: options.slots,
     resumable: options.resumable,
+    attemptMs: options.attemptMs,
   });
-  return { drain, handler: drainHandler({ drainer: drain, secret: options.drainSecret }) };
+  return {
+    drain,
+    queueState: (signal: AbortSignal) => repository.queueState(signal),
+    handler: drainHandler({ drainer: drain, secret: options.drainSecret }),
+  };
 }

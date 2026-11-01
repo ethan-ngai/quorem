@@ -123,6 +123,7 @@ class Service extends DurableObject {
       runner
         ? {
             QUOREM_RUNNER_MODE: "http",
+            QUOREM_RUNNER_BACKGROUND: "true",
             QUOREM_RUNNER_LISTEN: "0.0.0.0:8090",
             QUOREM_SANDBOX_PROVIDER: "remote",
             QUOREM_PRIVATE_SERVICE: "runner",
@@ -134,7 +135,7 @@ class Service extends DurableObject {
       values,
       runner ? 8090 : 8091,
       60000,
-      runner ? 300000 : 120000,
+      runner ? 900000 : 120000,
     );
   }
   async fetch(request) {

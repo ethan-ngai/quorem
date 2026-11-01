@@ -78,6 +78,12 @@ export function runnerConfig(env: Env) {
   if (commandSecret === drainSecret) throw new Error("Distinct runner credentials required");
   const mode = required(env, "QUOREM_RUNNER_MODE");
   if (mode !== "http" && mode !== "continuous") throw new Error("Invalid runner mode");
+  if (
+    env.QUOREM_RUNNER_BACKGROUND !== undefined &&
+    !["true", "false"].includes(env.QUOREM_RUNNER_BACKGROUND)
+  )
+    throw new Error("Invalid runner background mode");
+  const background = env.QUOREM_RUNNER_BACKGROUND !== "false";
   const commandOrigin = origin(env, "QUOREM_RUNNER_COMMAND_ORIGIN");
   const ingress = access(env, commandOrigin);
   if (ingress && [commandSecret, drainSecret].includes(ingress.secret))
@@ -137,6 +143,9 @@ export function runnerConfig(env: Env) {
       access: caseAccess,
     };
   } else throw new Error("Invalid sandbox provider");
+  const attemptMs = integer(env, "QUOREM_RUNNER_ATTEMPT_MS", background ? 600000 : 120000, 600000);
+  const sliceMs = integer(env, "QUOREM_RUNNER_SLICE_MS", background ? 480000 : 100000, 600000);
+  if (sliceMs >= attemptMs) throw new Error("Execution slice must leave time for attempt cleanup");
   return {
     mode,
     sandbox,
@@ -146,7 +155,9 @@ export function runnerConfig(env: Env) {
     access: ingress,
     listen: listen(env, "QUOREM_RUNNER_LISTEN"),
     slots: integer(env, "QUOREM_RUNNER_SLOTS", 1, 8),
-    sliceMs: integer(env, "QUOREM_RUNNER_SLICE_MS", 100000, 110000),
+    background,
+    attemptMs,
+    sliceMs,
     commandTimeoutMs: integer(env, "QUOREM_RUNNER_COMMAND_TIMEOUT_MS", 60000, 120000),
     cleanupMs: integer(env, "QUOREM_SANDBOX_CLEANUP_MS", 30000, 120000),
     pollMs: integer(env, "QUOREM_RUNNER_RECOVERY_POLL_MS", 1000, 60000),

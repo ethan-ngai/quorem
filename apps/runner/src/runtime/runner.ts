@@ -30,6 +30,7 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
     slots: config.slots,
     resumable: true,
     commandTimeoutMs: config.commandTimeoutMs,
+    attemptMs: config.attemptMs,
     fetch: accessFetch(config.commandOrigin, config.access),
     engine: (repository, isolated) => ({
       ...checkpointedEngine(repository, isolated, config.sliceMs),
@@ -56,8 +57,14 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
       }
     },
   };
-  const handleDrain = drainHandler({ drainer: supervised, secret: config.drainSecret });
   const shutdown = new AbortController();
+  const handleDrain = drainHandler({
+    drainer: supervised,
+    secret: config.drainSecret,
+    ...(config.background
+      ? { background: { signal: shutdown.signal, state: runner.queueState } }
+      : {}),
+  });
   const server = await listenPrivate(config.listen, async (incoming, outgoing) => {
     if (teardownFailure) {
       outgoing.writeHead(503).end();
@@ -117,7 +124,7 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
     scope: sandbox.scope,
     async close() {
       shutdown.abort();
-      await Promise.all([server.close(), continuous]);
+      await Promise.all([server.close(), continuous, handleDrain.settled()]);
       if (teardownFailure) throw teardownFailure;
     },
   };

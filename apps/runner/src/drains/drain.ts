@@ -40,6 +40,7 @@ export function drainer(options: {
   resumable: boolean;
   graceMs?: number;
   claimWindowMs?: number;
+  attemptMs?: number;
 }): Drainer {
   const { repository, sandbox, cancellations, engine, queue } = options;
   if (!Number.isInteger(options.slots) || options.slots < 1 || options.slots > 8)
@@ -102,6 +103,7 @@ export function drainer(options: {
                     engine,
                     job,
                     signal: live,
+                    attemptMs: options.attemptMs,
                   });
                 } catch (error) {
                   if (!(error instanceof LostLease)) throw error;
