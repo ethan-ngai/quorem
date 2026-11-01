@@ -1,7 +1,7 @@
 /** Stage inspection and rollback rehearsal; emit fixed fields, never credentials/provider payloads. */
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stageControls } from "./hono-stage-controls.mjs";
@@ -21,6 +21,80 @@ import {
   requireInitializableStageDatabase,
   StageInitializationFailure,
 } from "./hono-stage-initialization.mjs";
+
+/** Read queue dependency changes without applying or exposing Terraform values. */
+async function inspectQueuePlans(env, url, role, password) {
+  const directory = await mkdtemp(join(tmpdir(), "quorem-queue-inspection-"));
+  const child = {
+    ...env,
+    TF_IN_AUTOMATION: "true",
+    TF_VAR_account_id: env.CLOUDFLARE_ACCOUNT_ID,
+    TF_VAR_worker_name: "quorem-hono-stage",
+    TF_VAR_stage_hostname: "hono-stage.quorem.app",
+    TF_VAR_database_host: url.hostname,
+    TF_VAR_database_port: url.port || "5432",
+    TF_VAR_database_name: "quorem_hono_stage",
+    TF_VAR_database_user: role,
+    TF_VAR_database_password: password,
+    TF_VAR_database_connection_limit: "5",
+    TF_VAR_profile_media_enabled: "false",
+  };
+  try {
+    runStageCommand("terraform", terraformInitArgs(env, "hono-stage"), child);
+    const plans = [];
+    for (const enabled of [true, false]) {
+      const file = join(directory, `${enabled}.tfplan`);
+      const selected = { ...child, TF_VAR_enable_queue_consumer: String(enabled) };
+      runStageCommand(
+        "terraform",
+        [
+          "-chdir=infra/terraform/hono-stage",
+          "plan",
+          "-input=false",
+          "-no-color",
+          "-lock-timeout=30s",
+          "-target=cloudflare_queue_consumer.execution",
+          `-out=${file}`,
+        ],
+        selected,
+      );
+      await chmod(file, 0o600);
+      const plan = JSON.parse(
+        runStageCommand(
+          "terraform",
+          ["-chdir=infra/terraform/hono-stage", "show", "-json", file],
+          selected,
+        ),
+      );
+      const project = (entry) => ({
+        address: /^[a-zA-Z0-9_.[\]"-]{1,200}$/.test(entry.address ?? "")
+          ? entry.address
+          : "unknown",
+        actions: entry.change.actions,
+        fields: Object.keys({ ...entry.change.before, ...entry.change.after }).filter(
+          (key) =>
+            JSON.stringify(entry.change.before?.[key]) !==
+            JSON.stringify(entry.change.after?.[key]),
+        ),
+      });
+      plans.push({
+        enabled,
+        changes: (plan.resource_changes ?? []).map(project),
+        drift: (plan.resource_drift ?? []).map(project),
+      });
+    }
+    return plans;
+  } catch (error) {
+    return {
+      unavailable: true,
+      ...(error instanceof StageCommandFailure
+        ? { category: error.category, resources: error.resources, diagnostics: error.diagnostics }
+        : {}),
+    };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
 
 /** Signed inventory identifies attempts; phase output is observational only. */
 export async function caseDiagnostics(controls, origin, secret, scope, send = fetch) {
@@ -498,7 +572,13 @@ export async function inspectStageRole(env) {
       } catch {
         cases = { unavailable: true };
       }
-      return { ...before, initialization, ...(provider ? { provider } : {}), cases };
+      return {
+        ...before,
+        initialization,
+        ...(provider ? { provider } : {}),
+        cases,
+        queuePlans: await inspectQueuePlans(env, url, role, password),
+      };
     }
     const rehearsal = await rehearseStageRole(client, role, password);
     return { before, rehearsal, after: await diagnoseStageRole(client, role) };
