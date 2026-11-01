@@ -218,8 +218,11 @@ export async function lockEmptyStage(
       }
       if (fixtureChecks.has(`${table.namespace}.${table.name}`))
         query = `SELECT ${fixtureChecks.get(`${table.namespace}.${table.name}`)} AS valid`;
-      if (!(await client.query(query, args)).rows[0]?.valid)
-        throw new Error(`Unexpected stage rows: ${table.namespace}.${table.name}`);
+      if (!(await client.query(query, args)).rows[0]?.valid) {
+        const error = new Error("Stage contains data or mismatched genesis");
+        error.table = `${table.namespace}.${table.name}`;
+        throw error;
+      }
     }
     await assertStageRuntimeFenced(client, role, fenceOptions);
   } catch (error) {
@@ -380,7 +383,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.stdout.write(`${JSON.stringify(receipt)}\n`);
   } catch (error) {
     process.stderr.write(
-      `${JSON.stringify({ error: "stage-reset-incomplete", ...(error instanceof StageCommandFailure ? { category: error.category, diagnostics: error.diagnostics } : { reason: new StageRoleFailure("unknown", error).reason, code: /^[A-Z0-9]{5}$/.test(error?.code ?? "") ? error.code : null }) })}\n`,
+      `${JSON.stringify({ error: "stage-reset-incomplete", ...(error instanceof StageCommandFailure ? { category: error.category, diagnostics: error.diagnostics } : { reason: new StageRoleFailure("unknown", error).reason, table: expected.some((item) => `${item.namespace}.${item.name}` === error.table) ? error.table : undefined, code: /^[A-Z0-9]{5}$/.test(error?.code ?? "") ? error.code : null }) })}\n`,
     );
     process.exitCode = 1;
   }
