@@ -226,11 +226,12 @@ export async function deployProduction(env) {
       }),
       { mode: 0o600 },
     );
-    runStageCommand(
-      "vp",
-      ["-C", "apps/api", "exec", "wrangler", "deploy", "--config", maintenance],
-      env,
-    );
+    if (env.HONO_RESUME_PREPARED !== "true")
+      runStageCommand(
+        "vp",
+        ["-C", "apps/api", "exec", "wrangler", "deploy", "--config", maintenance],
+        env,
+      );
     const services = { ...env };
     const serviceSecrets = Object.fromEntries(
       [
@@ -295,7 +296,8 @@ export async function deployProduction(env) {
     const pinned = priorServices.origins?.value?.QUOREM_CASE_NAMESPACE_ID;
     if (/^[a-f0-9]{64}$/.test(pinned ?? "") && pinned !== "0".repeat(64))
       tf(services, "case_namespace_id", pinned);
-    await productionTerraform(services, "hono-services", "hono-production-services");
+    if (env.HONO_RESUME_PREPARED !== "true")
+      await productionTerraform(services, "hono-services", "hono-production-services");
     const publicKey = join(temporary, "case-owner.pem");
     await writeFile(publicKey, keys.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
     let namespace;
@@ -313,11 +315,10 @@ export async function deployProduction(env) {
     }
     if (!namespace) throw new Error("Production namespace unavailable");
     tf(services, "case_namespace_id", namespace.namespace);
-    const privateOutput = await productionTerraform(
-      services,
-      "hono-services",
-      "hono-production-services",
-    );
+    const privateOutput =
+      env.HONO_RESUME_PREPARED === "true"
+        ? priorServices
+        : await productionTerraform(services, "hono-services", "hono-production-services");
     progress("mail-service-readiness");
     await waitHTTP(`https://${hosts.mail}/internal/mail/health`, 204, {
       authorization: `Bearer ${keys.MAIL_RELAY_TOKEN}`,
@@ -342,10 +343,11 @@ export async function deployProduction(env) {
     }))
       tf(legacy, key, value);
     progress("switch-public-api-to-maintenance");
-    await productionTerraform(legacy, "app", "app", {
-      mode: "routes",
-      targets: ["cloudflare_workers_route.api"],
-    });
+    if (env.HONO_RESUME_PREPARED !== "true")
+      await productionTerraform(legacy, "app", "app", {
+        mode: "routes",
+        targets: ["cloudflare_workers_route.api"],
+      });
     const maintenanceCheck = await fetch("https://quorem.app/health", {
       redirect: "error",
       signal: AbortSignal.timeout(15000),
@@ -356,18 +358,19 @@ export async function deployProduction(env) {
     await maintenanceCheck.body?.cancel();
     if (!fenced) throw new Error("Public maintenance route unconfirmed");
     progress("retire-go-runtime");
-    await productionTerraform(legacy, "app", "app", {
-      mode: "legacy-stop",
-      destroy: true,
-      targets: [
-        "cloudflare_worker.app",
-        "restapi_object.container",
-        "restapi_object.judge_container",
-        "restapi_object.fast_judge_container",
-        "restapi_object.case_container",
-        "cloudflare_queue_consumer.judge",
-      ],
-    });
+    if (env.HONO_RESUME_PREPARED !== "true")
+      await productionTerraform(legacy, "app", "app", {
+        mode: "legacy-stop",
+        destroy: true,
+        targets: [
+          "cloudflare_worker.app",
+          "restapi_object.container",
+          "restapi_object.judge_container",
+          "restapi_object.fast_judge_container",
+          "restapi_object.case_container",
+          "cloudflare_queue_consumer.judge",
+        ],
+      });
     const assertLegacyStopped = async () => {
       for (const path of [
         "/workers/scripts/quorem-production",
@@ -467,7 +470,7 @@ export async function deployProduction(env) {
     const controls = await stageControls({
       namespace: namespace.namespace,
       scope: namespace.scope,
-      release: env.GITHUB_SHA,
+      release: privateOutput.origins.value.SERVICES_RELEASE,
       bindings: privateOutput.origins.value.SERVICES_BINDINGS,
       secret: keys.RECOVERY_CONTROL_SECRET,
       caseOrigin: `https://${hosts.case}`,

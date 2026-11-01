@@ -11,6 +11,8 @@ if (import.meta.main)
       code?: string;
       cause?: { code?: string; table?: string; column?: string; constraint?: string };
       stack?: string;
+      message?: string;
+      migrationShape?: unknown;
     };
     const cause = failure.cause ?? failure;
     const identifier = (value: unknown) =>
@@ -18,6 +20,20 @@ if (import.meta.main)
     console.error(
       JSON.stringify({
         error: "backfill-failed",
+        reason: [
+          "Invalid legacy stage suites",
+          "Unsupported legacy stage count",
+          "Legacy fixture shape conflict",
+          "Conflicting snapshot input",
+          "Conflicting snapshot cases",
+          "Private case conflict",
+          "Private case set conflict",
+          "Public example set conflict",
+          "Snapshot changed",
+        ].includes(failure.message ?? "")
+          ? failure.message
+          : undefined,
+        shape: failure.migrationShape,
         code: /^[A-Z0-9]{5}$/.test(cause.code ?? "") ? cause.code : undefined,
         table: identifier("table" in cause ? cause.table : undefined),
         column: identifier("column" in cause ? cause.column : undefined),

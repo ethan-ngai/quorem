@@ -10,6 +10,10 @@ on:
         options: [inspect, deploy]
         default: inspect
         required: true
+      resume_prepared:
+        description: Resume the already fenced native production setup
+        type: boolean
+        default: false
       release_sha:
         type: string
         required: true
@@ -54,6 +58,7 @@ jobs:
     timeout-minutes: 60
     env:
       HONO_RELEASE_SHA: ${{ inputs.release_sha }}
+      HONO_RESUME_PREPARED: ${{ inputs.resume_prepared && 'true' || 'false' }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       WRANGLER_SEND_METRICS: "false"
