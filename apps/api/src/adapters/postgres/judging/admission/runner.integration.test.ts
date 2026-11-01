@@ -487,12 +487,14 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         });
         expect(admitted.status).toBe(202);
         const id = (await admitted.json()).id as string;
+        // Hosted cold start includes a 60s readiness budget plus execution and teardown.
+        const drainTimeoutMs = remote ? 180000 : 60000;
         const drain = await fetch(`${runnerOrigin}/internal/drain`, {
           method: "POST",
           headers: { authorization: `Bearer ${drainSecret}` },
-          signal: AbortSignal.timeout(60000),
+          signal: AbortSignal.timeout(drainTimeoutMs),
         });
-        expect(drain.status).toBe(200);
+        expect(drain.status, await drain.clone().text()).toBe(200);
         const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
         expect(result.status).toBe(200);
         expect((await result.json()).verdict).toBe("accepted");
@@ -523,7 +525,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
                 await fetch(`${runnerOrigin}/internal/drain`, {
                   method: "POST",
                   headers: { authorization: `Bearer ${drainSecret}` },
-                  signal: AbortSignal.timeout(180000),
+                  signal: AbortSignal.timeout(drainTimeoutMs),
                 })
               ).status,
             ).toBe(200);
@@ -558,7 +560,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
               await fetch(`${runnerOrigin}/internal/drain`, {
                 method: "POST",
                 headers: { authorization: `Bearer ${drainSecret}` },
-                signal: AbortSignal.timeout(180000),
+                signal: AbortSignal.timeout(drainTimeoutMs),
               })
             ).status,
           ).toBe(200);
@@ -584,7 +586,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           const pending = fetch(`${runnerOrigin}/internal/drain`, {
             method: "POST",
             headers: { authorization: `Bearer ${drainSecret}` },
-            signal: AbortSignal.timeout(180000),
+            signal: AbortSignal.timeout(drainTimeoutMs),
           });
           const ownerKey = await readFile(process.env.QUOREM_CASE_OWNER_PUBLIC_KEY_FILE!, "utf8");
           const probeKey = await crypto.subtle.importKey(
