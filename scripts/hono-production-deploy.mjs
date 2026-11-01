@@ -280,6 +280,21 @@ export async function deployProduction(env) {
     }))
       tf(services, key, value);
     progress("provision-native-private-services");
+    runStageCommand(
+      "terraform",
+      terraformBackendArgs(env, "hono-services", "hono-production-services"),
+      services,
+    );
+    const priorServices = JSON.parse(
+      runStageCommand(
+        "terraform",
+        ["-chdir=infra/terraform/hono-services", "output", "-json"],
+        services,
+      ),
+    );
+    const pinned = priorServices.origins?.value?.QUOREM_CASE_NAMESPACE_ID;
+    if (/^[a-f0-9]{64}$/.test(pinned ?? "") && pinned !== "0".repeat(64))
+      tf(services, "case_namespace_id", pinned);
     await productionTerraform(services, "hono-services", "hono-production-services");
     const publicKey = join(temporary, "case-owner.pem");
     await writeFile(publicKey, keys.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
@@ -369,9 +384,11 @@ export async function deployProduction(env) {
     };
     await assertLegacyStopped();
     progress("migrate-retained-production-data");
+    const operatorURL = new URL(original.databaseURL);
+    operatorURL.search = "?sslmode=verify-full";
     const database = await transitionProductionDatabase(
       {
-        databaseURL: original.databaseURL,
+        databaseURL: operatorURL.href,
         authOrigin: "https://quorem.app",
         productionRunId: "41134339533",
         runtimeRole: keys.RUNTIME_ROLE,
