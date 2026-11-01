@@ -13,7 +13,7 @@ import { productionImages } from "./hono-production-images.mjs";
 import { workerConfig } from "./hono-stage-config.mjs";
 import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { checkWorkerAuth } from "./hono-stage-preflight.mjs";
-import { probeNamespace } from "../deploy/hono/services/probe.mjs";
+import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { stageControls } from "./hono-stage-controls.mjs";
 import { transitionProductionDatabase } from "./hono-production-database.mjs";
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
@@ -304,11 +304,14 @@ export async function deployProduction(env) {
     const deadline = Date.now() + 180000;
     while (!namespace && Date.now() < deadline) {
       try {
-        namespace = await probeNamespace({
-          QUOREM_CASE_ORIGIN: `https://${hosts.case}`,
-          QUOREM_CASE_SECRET: keys.QUOREM_CASE_SECRET,
-          QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: publicKey,
-        });
+        namespace = await stageNamespace(
+          {
+            QUOREM_CASE_ORIGIN: `https://${hosts.case}`,
+            QUOREM_CASE_SECRET: keys.QUOREM_CASE_SECRET,
+            QUOREM_CASE_OWNER_PUBLIC_KEY_FILE: publicKey,
+          },
+          pinned ?? "0".repeat(64),
+        );
       } catch {
         await pause(2000);
       }
@@ -477,7 +480,9 @@ export async function deployProduction(env) {
       runnerOrigin: `https://${hosts.drain}`,
       publicKeyFile: publicKey,
     });
-    await controls.activate();
+    const observed = await controls.observe();
+    if (observed.runner.status === "active") await controls.requireActive(1);
+    else await controls.activate();
     progress("attach-native-execution-queue");
     tf(native, "enable_queue_consumer", "true");
     await productionTerraform(native, "hono-stage", "hono-production-api", {
