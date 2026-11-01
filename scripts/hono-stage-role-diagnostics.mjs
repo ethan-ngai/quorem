@@ -176,6 +176,10 @@ export async function diagnoseStageRole(client, role) {
       (SELECT COALESCE(sum(attempts),0)::int FROM public.execution_jobs) AS claimed_attempts,
       (SELECT count(*)::int FROM public.execution_verification_challenges) AS verification_challenges,
       (SELECT count(*)::int FROM public.execution_verified_cases) AS verified_cases,
+      (SELECT count(*)::int FROM public.execution_completion_staging) AS completion_streams,
+      (SELECT count(*)::int FROM public.execution_completion_staging WHERE eof) AS eof_streams,
+      (SELECT count(*)::int FROM public.execution_completion_receipts) AS completion_receipts,
+      (SELECT COALESCE(sum(case_count+CASE WHEN submit_cases_are_samples THEN 0 ELSE sample_count END),0)::int FROM public.runner_job_inputs) AS expected_cases,
       to_regclass('public.stage_genesis') IS NOT NULL AS genesis_table
     `,
         [role],
@@ -232,6 +236,10 @@ export async function diagnoseStageRole(client, role) {
         "claimed_attempts",
         "verification_challenges",
         "verified_cases",
+        "completion_streams",
+        "eof_streams",
+        "completion_receipts",
+        "expected_cases",
       ]),
     };
   } finally {
