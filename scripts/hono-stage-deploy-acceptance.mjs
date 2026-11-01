@@ -159,6 +159,39 @@ export async function hostedAcceptance(
               },
             };
           }
+          if (
+            value.error === "unavailable" &&
+            value.failure &&
+            ["command", "teardown", "other"].includes(value.failure.kind) &&
+            /^[a-f0-9]{64}$/.test(value.failure.fingerprint ?? "")
+          ) {
+            diagnostic = {
+              ...diagnostic,
+              failure: {
+                kind: value.failure.kind,
+                fingerprint: value.failure.fingerprint,
+                ...(value.failure.kind === "teardown" && value.failure.teardown
+                  ? {
+                      teardown: {
+                        httpStatus:
+                          Number.isInteger(value.failure.teardown.httpStatus) &&
+                          value.failure.teardown.httpStatus >= 0 &&
+                          value.failure.teardown.httpStatus <= 599
+                            ? value.failure.teardown.httpStatus
+                            : undefined,
+                        signatureValid:
+                          typeof value.failure.teardown.signatureValid === "boolean"
+                            ? value.failure.teardown.signatureValid
+                            : undefined,
+                        transport: ["timeout", "error"].includes(value.failure.teardown.transport)
+                          ? value.failure.teardown.transport
+                          : undefined,
+                      },
+                    }
+                  : {}),
+              },
+            };
+          }
         } catch {
           /* Untrusted response content stays private. */
         }

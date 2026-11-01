@@ -231,8 +231,11 @@ void test("private drain returns bounded command diagnostics", async () => {
     }),
   );
   assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), {
-    error: "unavailable",
-    command: { operation: "seal", status: 0, failure: "timeout" },
-  });
+  const body = (await response.json()) as {
+    command: unknown;
+    failure: { kind: string; fingerprint: string };
+  };
+  assert.deepEqual(body.command, { operation: "seal", status: 0, failure: "timeout" });
+  assert.equal(body.failure.kind, "command");
+  assert.match(body.failure.fingerprint, /^[a-f0-9]{64}$/);
 });

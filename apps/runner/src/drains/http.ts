@@ -1,5 +1,6 @@
 /** @file http.ts @description Authenticated bounded drain request handling. @module runner */
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, createHash } from "node:crypto";
+import { UnconfirmedTeardown } from "../sandbox/types.ts";
 import { RunnerCommandError } from "../queue/http.ts";
 import type { Drainer } from "./drain.ts";
 
@@ -34,6 +35,18 @@ export function drainHandler(options: { drainer: Drainer; secret: string; timeou
       return new Response(
         JSON.stringify({
           error: "unavailable",
+          failure: {
+            kind:
+              error instanceof RunnerCommandError
+                ? "command"
+                : error instanceof UnconfirmedTeardown
+                  ? "teardown"
+                  : "other",
+            fingerprint: createHash("sha256")
+              .update(error instanceof Error ? error.message : "unknown")
+              .digest("hex"),
+            ...(error instanceof UnconfirmedTeardown ? { teardown: error.diagnostic } : {}),
+          },
           ...(error instanceof RunnerCommandError && error.diagnostic
             ? { command: error.diagnostic }
             : {}),
