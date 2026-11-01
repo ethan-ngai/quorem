@@ -9,6 +9,17 @@ export async function listenPrivate(
   const active = new Set<Promise<void>>();
   let closing = false;
   const server = createServer((request, response) => {
+    // Container proxies may use the RFC absolute-form request target.
+    if (/^https?:\/\//i.test(request.url ?? "")) {
+      try {
+        const target = new URL(request.url!);
+        if (target.username || target.password) throw new Error("Invalid request target");
+        request.url = target.pathname + target.search;
+      } catch {
+        response.writeHead(400).end();
+        return;
+      }
+    }
     if (closing) {
       response.writeHead(503).end();
       return;

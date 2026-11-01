@@ -1,8 +1,10 @@
+/// <reference types="node" />
 /** @file runtime.test.ts @description Spawned private service lifecycle tests. @module runner */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
+import { request as httpRequest } from "node:http";
 import { once } from "node:events";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
@@ -31,6 +33,20 @@ async function healthy(url: string, child: ChildProcess) {
     await sleep(50);
   }
   throw new Error("service did not start");
+}
+async function absoluteHealth(base: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(base);
+    const request = httpRequest(
+      { hostname: url.hostname, port: url.port, path: "http://container/health", method: "GET" },
+      (response) => {
+        response.resume();
+        response.once("end", () => resolve(response.statusCode ?? 0));
+      },
+    );
+    request.once("error", reject);
+    request.end();
+  });
 }
 async function stop(child: ChildProcess) {
   if (child.exitCode !== null) return child.exitCode;
@@ -65,6 +81,7 @@ void test("verifier process validates credentials, serves privately, and stops",
   });
   try {
     await healthy(base, child);
+    assert.equal(await absoluteHealth(base), 200);
     assert.equal(
       (
         await fetch(`${base}/internal/results/verify`, {
@@ -122,6 +139,7 @@ void test(
     });
     try {
       await healthy(base, child);
+      assert.equal(await absoluteHealth(base), 200);
       assert.equal(
         (
           await fetch(`${base}/internal/drain`, {
@@ -180,6 +198,7 @@ void test(
     });
     try {
       await healthy(base, child);
+      assert.equal(await absoluteHealth(base), 200);
       for (let i = 0; i < 100 && !checks; i++) await sleep(50);
       assert.ok(checks > 0);
       assert.equal(await stop(child), 0);
@@ -299,6 +318,7 @@ void test("remote runner process validates owner key before listening", async ()
   });
   try {
     await healthy(base, child);
+    assert.equal(await absoluteHealth(base), 200);
     assert.equal(
       (
         await fetch(`${base}/internal/drain`, {
