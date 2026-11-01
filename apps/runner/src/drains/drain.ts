@@ -5,6 +5,7 @@ import { UnconfirmedTeardown } from "../sandbox/types.ts";
 import { claimNext } from "../queue/claim.ts";
 import {
   runAttempt,
+  LostLease,
   type AttemptEngine,
   type CancellationSource,
 } from "../orchestration/attempt.ts";
@@ -93,7 +94,18 @@ export function drainer(options: {
                 });
                 if (!job) break;
                 worked = true;
-                await runAttempt({ repository, sandbox, cancellations, engine, job, signal: live });
+                try {
+                  await runAttempt({
+                    repository,
+                    sandbox,
+                    cancellations,
+                    engine,
+                    job,
+                    signal: live,
+                  });
+                } catch (error) {
+                  if (!(error instanceof LostLease)) throw error;
+                }
               }
             } catch (error) {
               if (error instanceof UnconfirmedTeardown) teardownFailure = error;

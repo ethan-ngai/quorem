@@ -143,3 +143,68 @@ void test("shutdown reports unconfirmed teardown while leaving the attempt fence
   stop.abort();
   await assert.rejects(pending, UnconfirmedTeardown);
 });
+
+void test("cancelled attempt tears down before draining the next job", async () => {
+  const f = fixture();
+  f.add();
+  f.add();
+  const originalClaim = f.repository.claimAfterTeardown.bind(f.repository);
+  let sequence = 0,
+    cancelled = false,
+    wake!: () => void,
+    started!: () => void;
+  const running = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const events: string[] = [];
+  f.repository.claimAfterTeardown = async (...args) => {
+    const job = await originalClaim(...args);
+    return job
+      ? {
+          ...job,
+          jobId: `job-${++sequence}`,
+          submissionId: `submission-${sequence}`,
+          attemptId: `attempt-${sequence}`,
+        }
+      : null;
+  };
+  f.repository.lease = async (job) => job.jobId !== "job-1" || !cancelled;
+  f.repository.promoteCompletion = async (job) => {
+    events.push(`promote:${job.jobId}`);
+  };
+  f.sandbox.teardownAttempt = async (job) => {
+    events.push(`teardown:${job.attemptId}`);
+  };
+  f.cancellations.subscribe = async () => ({
+    next: (signal) =>
+      new Promise((resolve, reject) => {
+        wake = () => resolve("changed");
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }),
+    close: async () => {},
+  });
+  const d = drainer({
+    ...f,
+    slots: 1,
+    resumable: true,
+    graceMs: 10,
+    claimWindowMs: 1000,
+    engine: {
+      execute: async (job, signal) => {
+        if (job.jobId === "job-1") {
+          started();
+          await new Promise<void>((_resolve, reject) =>
+            signal.addEventListener("abort", () => reject(signal.reason), { once: true }),
+          );
+        }
+        return "complete";
+      },
+    },
+  });
+  const result = d.drain(AbortSignal.timeout(3000));
+  await running;
+  cancelled = true;
+  wake();
+  assert.equal((await result).complete, true);
+  assert.deepEqual(events, ["teardown:attempt-1", "teardown:attempt-2", "promote:job-2"]);
+});
