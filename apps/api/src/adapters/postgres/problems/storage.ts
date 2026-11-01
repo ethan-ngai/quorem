@@ -65,3 +65,14 @@ export function storageProjection(raw: string): { safe: string; lossless: Uint8A
     lossless: changed ? new TextEncoder().encode(raw) : null,
   };
 }
+
+/** Execution cases use the same JSONB-safe projection and exact sidecar. */
+export function caseStorageProjection(raw: string): { safe: string; lossless: Uint8Array | null } {
+  const value = parseLosslessJson(raw);
+  if (!Array.isArray(value)) throw new Error("invalid execution cases");
+  const changed = containsNul(value) || needsRaw(value);
+  return {
+    safe: stringifyLosslessJson(changed ? clean(value) : value),
+    lossless: changed ? new TextEncoder().encode(raw) : null,
+  };
+}

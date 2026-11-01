@@ -192,6 +192,9 @@ importers:
       '@quorem/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@quorem/execution':
+        specifier: workspace:*
+        version: link:../../packages/execution
       '@quorem/questions':
         specifier: workspace:*
         version: link:../../packages/questions
@@ -340,6 +343,19 @@ importers:
       wrangler:
         specifier: ^4.151.3
         version: 4.151.3(@cloudflare/workers-types@5.20261021.1)(@types/node@24.19.2)
+
+  apps/runner:
+    dependencies:
+      '@quorem/execution':
+        specifier: workspace:*
+        version: link:../../packages/execution
+    devDependencies:
+      '@types/node':
+        specifier: 24.19.2
+        version: 24.19.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
   apps/web:
     dependencies:
