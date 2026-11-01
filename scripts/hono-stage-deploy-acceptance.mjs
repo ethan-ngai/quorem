@@ -41,10 +41,12 @@ export async function hostedAcceptance(
   env,
   send = fetch,
   delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  origin = stagedOrigin,
+  verifyResult = () => {},
 ) {
-  const api = stagedOrigin(env.HONO_STAGE_API_ORIGIN),
-    drain = stagedOrigin(env.HONO_DRAIN_ORIGIN),
-    browser = stagedOrigin(env.HONO_STAGE_BROWSER_ORIGIN);
+  const api = origin(env.HONO_STAGE_API_ORIGIN),
+    drain = origin(env.HONO_DRAIN_ORIGIN),
+    browser = origin(env.HONO_STAGE_BROWSER_ORIGIN);
   if (
     api === drain ||
     !env.ALLOWED_ORIGINS?.split(",").includes(browser) ||
@@ -223,7 +225,10 @@ export async function hostedAcceptance(
       throw error;
     }
     const result = await json(response);
-    if (result.verdict === "accepted") return { submission };
+    if (result.verdict === "accepted") {
+      verifyResult(result);
+      return { submission };
+    }
     if (result.verdict || Date.now() >= deadline) throw new Error("Stage submission not accepted");
     await delay(1000);
   }
