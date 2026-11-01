@@ -182,13 +182,32 @@ export async function inspectStageRole(env) {
         status: response.status,
         errors: (result.errors ?? []).map((item) => item.code),
         applications: Array.isArray(result.result)
-          ? result.result
-              .filter((item) => item.name?.startsWith("quorem-hono-services-stage-"))
-              .map((item) => ({
-                name: item.name,
-                scheduling: item.scheduling_policy,
-                idPresent: typeof item.id === "string",
-              }))
+          ? await Promise.all(
+              result.result
+                .filter((item) => item.name?.startsWith("quorem-hono-services-stage-"))
+                .map(async (item) => {
+                  const detail = await fetch(
+                    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/containers/applications/${item.id}`,
+                    {
+                      headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+                      signal: AbortSignal.timeout(15000),
+                    },
+                  );
+                  const body = await detail.json();
+                  return {
+                    name: item.name,
+                    scheduling: item.scheduling_policy,
+                    status: detail.status,
+                    errors: (body.result?.errors ?? []).slice(0, 8).map((entry) => ({
+                      name: /^[A-Za-z]{1,40}$/.test(entry.event?.name ?? "")
+                        ? entry.event.name
+                        : "unknown",
+                      reason: new StageRoleFailure("unknown", { message: entry.event?.message })
+                        .reason,
+                    })),
+                  };
+                }),
+            )
           : [],
       };
     }
