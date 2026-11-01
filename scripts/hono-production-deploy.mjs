@@ -514,6 +514,7 @@ if (import.meta.main) {
         error: "production-cutover-failed",
         phase,
         code: /^[A-Z0-9]{5}$/.test(error?.code ?? "") ? error.code : undefined,
+        diagnostic: error.diagnostic,
         frames: error.stack
           ?.split("\n")
           .slice(1, 6)

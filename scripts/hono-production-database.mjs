@@ -42,7 +42,11 @@ async function backfill(env, operation, mode) {
     const child = spawn(process.execPath, args, {
       cwd: root,
       env,
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      if (stderr.length < 8192) stderr += chunk;
     });
     let output = "",
       failed = false,
@@ -76,7 +80,15 @@ async function backfill(env, operation, mode) {
           throw new Error();
         resolve({ attempted: value.attempted, completed: value.completed });
       } catch {
-        reject(new Error("Backfill incomplete"));
+        const error = new Error("Backfill incomplete");
+        try {
+          const record = stderr
+            .split("\n")
+            .filter((line) => line.startsWith('{"error":"backfill-failed"'))
+            .map((line) => JSON.parse(line))[0];
+          if (record) error.diagnostic = record;
+        } catch {}
+        reject(error);
       }
     });
   });
