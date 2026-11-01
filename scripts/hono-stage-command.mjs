@@ -143,6 +143,12 @@ export class StageCommandFailure extends Error {
     this.diagnostics = diagnostics;
     this.resources = commandResources.filter((name) => text.includes(name));
     this.noState = /No state file was found/i.test(text);
+    this.uploadPhase = [
+      "image digest resolution",
+      "image preparation",
+      "Worker version upload",
+      "Worker deployment",
+    ].find((phase) => text.includes(`${phase} failed`));
     for (const line of text.split("\n")) {
       try {
         const record = JSON.parse(line);

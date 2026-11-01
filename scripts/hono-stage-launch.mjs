@@ -247,7 +247,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
           : undefined;
     const acceptance = stageAcceptanceReason(error);
     process.stderr.write(
-      `${acceptance ? JSON.stringify({ error: "stage-acceptance", reason: acceptance }) : role ? JSON.stringify({ error: "stage-runtime-role", phase: role.phase, code: role.code, flags: role.flags, reason: role.reason }) : command ? JSON.stringify({ error: "stage-command", category: command.category, resources: command.resources, diagnostics: command.diagnostics, validation: command.validation }) : error instanceof StageInitializationFailure ? JSON.stringify({ error: "stage-initialization", reason: error.reason }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
+      `${acceptance ? JSON.stringify({ error: "stage-acceptance", reason: acceptance }) : role ? JSON.stringify({ error: "stage-runtime-role", phase: role.phase, code: role.code, flags: role.flags, reason: role.reason }) : command ? JSON.stringify({ error: "stage-command", category: command.category, resources: command.resources, diagnostics: command.diagnostics, validation: command.validation, uploadPhase: command.uploadPhase }) : error instanceof StageInitializationFailure ? JSON.stringify({ error: "stage-initialization", reason: error.reason }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
     );
     process.exitCode = 1;
   }
