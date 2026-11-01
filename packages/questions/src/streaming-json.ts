@@ -17,6 +17,12 @@ export class StreamingJsonReader {
   constructor(chunks: AsyncIterator<string>) {
     this.chunks = chunks;
   }
+  async close(): Promise<void> {
+    if (this.done) return;
+    this.done = true;
+    this.buffer = "";
+    await this.chunks.return?.();
+  }
   private async ensure(): Promise<boolean> {
     while (this.index === this.buffer.length && !this.done) {
       const next = await this.chunks.next();
@@ -112,6 +118,17 @@ export class StreamingJsonReader {
   }
 }
 
+/** Release the source even when a projection reads only a prefix or rejects input. */
+export async function withStreamingJsonReader<T>(
+  input: StreamingJsonReader,
+  read: (input: StreamingJsonReader) => Promise<T>,
+): Promise<T> {
+  try {
+    return await read(input);
+  } finally {
+    await input.close();
+  }
+}
 /** Decode each chunk without accepting malformed or incomplete UTF-8. */
 export async function* decodeUtf8Chunks(chunks: AsyncIterable<Uint8Array>): AsyncGenerator<string> {
   const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -135,39 +152,43 @@ export async function readAllowedObjectSpans(
   allowed: ReadonlySet<string>,
   requireEnd = true,
 ): Promise<Map<string, JsonSpan>> {
-  const result = new Map<string, JsonSpan>();
-  const keyLimit = Math.max(0, ...Array.from(allowed, (key) => key.length)) * 6 + 2;
-  await input.expect("{");
-  if ((await input.peek()) !== "}")
-    for (;;) {
-      let encoded = "";
-      for await (const fragment of input.valueChunks()) {
-        encoded += fragment;
-        if (encoded.length > keyLimit) throw new Error("Invalid JSON object key");
+  try {
+    const result = new Map<string, JsonSpan>();
+    const keyLimit = Math.max(0, ...Array.from(allowed, (key) => key.length)) * 6 + 2;
+    await input.expect("{");
+    if ((await input.peek()) !== "}")
+      for (;;) {
+        let encoded = "";
+        for await (const fragment of input.valueChunks()) {
+          encoded += fragment;
+          if (encoded.length > keyLimit) throw new Error("Invalid JSON object key");
+        }
+        let key: unknown;
+        try {
+          key = JSON.parse(encoded);
+        } catch {
+          throw new Error("Invalid JSON object key");
+        }
+        if (typeof key !== "string" || !allowed.has(key) || result.has(key))
+          throw new Error("Invalid JSON object key");
+        await input.expect(":");
+        await input.peek();
+        const start = input.byteOffset;
+        for await (const _ of input.valueChunks()) {
+          /* retain only byte ranges */
+        }
+        result.set(key, { start, length: input.byteOffset - start });
+        const separator = await input.peek();
+        if (separator === "}") break;
+        await input.expect(",");
+        if ((await input.peek()) === "}") throw new Error("Invalid JSON object separator");
       }
-      let key: unknown;
-      try {
-        key = JSON.parse(encoded);
-      } catch {
-        throw new Error("Invalid JSON object key");
-      }
-      if (typeof key !== "string" || !allowed.has(key) || result.has(key))
-        throw new Error("Invalid JSON object key");
-      await input.expect(":");
-      await input.peek();
-      const start = input.byteOffset;
-      for await (const _ of input.valueChunks()) {
-        /* retain only byte ranges */
-      }
-      result.set(key, { start, length: input.byteOffset - start });
-      const separator = await input.peek();
-      if (separator === "}") break;
-      await input.expect(",");
-      if ((await input.peek()) === "}") throw new Error("Invalid JSON object separator");
-    }
-  await input.expect("}");
-  if (requireEnd && (await input.peek())) throw new Error("Trailing JSON input");
-  return result;
+    await input.expect("}");
+    if (requireEnd && (await input.peek())) throw new Error("Trailing JSON input");
+    return result;
+  } finally {
+    if (requireEnd) await input.close();
+  }
 }
 /** Encode verified UTF-8 text as one canonical JSON string without materializing it. */
 export async function* encodeJsonStringChunks(
