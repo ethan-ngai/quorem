@@ -6,7 +6,8 @@ import {
   deriveStageRole,
 } from "./hono-stage-database-role.mjs";
 /** First staged activation; existing database updates require a separate cutover contract. */
-import { runStageCommand } from "./hono-stage-command.mjs";
+import { runStageCommand, StageCommandFailure } from "./hono-stage-command.mjs";
+import { setTimeout as sleep } from "node:timers/promises";
 import { createPrivateKey, createPublicKey } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -94,7 +95,12 @@ function tfEnv(env, stack) {
   if (stack === "hono-services") values.TF_VAR_worker_name = env.HONO_SERVICES_WORKER_NAME;
   return values;
 }
-function terraform(env, stack, operation) {
+export async function terraformStageStack(
+  env,
+  stack,
+  operation,
+  { execute = command, delay = sleep } = {},
+) {
   const args =
     operation === "init"
       ? terraformInitArgs(env, stack)
@@ -108,7 +114,24 @@ function terraform(env, stack, operation) {
               ? ["-no-color", "-lock-timeout=5m"]
               : []),
         ];
-  return command("terraform", args, tfEnv(env, stack));
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return execute("terraform", args, tfEnv(env, stack));
+    } catch (error) {
+      // Newly created container applications can lag rollout API visibility.
+      const pendingApplication =
+        error instanceof StageCommandFailure &&
+        error.diagnostics.some(
+          (item) =>
+            item.resources.includes("restapi_object.trusted_rollout") &&
+            item.statuses.includes(404) &&
+            item.codes.includes(1609),
+        );
+      if (stack !== "hono-services" || operation !== "apply" || !pendingApplication || attempt >= 3)
+        throw error;
+      await delay(2000 * 2 ** attempt);
+    }
+  }
 }
 function terraformOutputs(env) {
   return JSON.parse(
@@ -181,7 +204,7 @@ const defaults = {
   migrate,
   databaseRole: provisionStageDatabaseRole,
   images: publishImages,
-  terraform,
+  terraform: terraformStageStack,
   outputs: terraformOutputs,
   servicesOutputs,
   controls: stageControls,
