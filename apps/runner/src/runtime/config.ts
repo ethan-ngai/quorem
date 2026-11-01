@@ -146,6 +146,7 @@ export function runnerConfig(env: Env) {
     access: ingress,
     listen: listen(env, "QUOREM_RUNNER_LISTEN"),
     slots: integer(env, "QUOREM_RUNNER_SLOTS", 1, 8),
+    sliceMs: integer(env, "QUOREM_RUNNER_SLICE_MS", 100000, 110000),
     commandTimeoutMs: integer(env, "QUOREM_RUNNER_COMMAND_TIMEOUT_MS", 60000, 120000),
     cleanupMs: integer(env, "QUOREM_SANDBOX_CLEANUP_MS", 30000, 120000),
     pollMs: integer(env, "QUOREM_RUNNER_RECOVERY_POLL_MS", 1000, 60000),

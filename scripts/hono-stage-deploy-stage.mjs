@@ -459,6 +459,7 @@ export async function deployStage(original, operations = defaults) {
       HONO_STAGE_BROWSER_ORIGIN: env.HONO_STAGE_BROWSER_ORIGIN,
       ALLOWED_ORIGINS: publicInput.vars.ALLOWED_ORIGINS,
       QUOREM_STAGE_DATABASE_URL: env.HONO_STAGE_DATABASE_URL,
+      HONO_STAGE_WORKLOAD_MATCHES: env.HONO_STAGE_WORKLOAD_MATCHES ?? "2",
       BETTER_AUTH_SECRET: workerSecrets.BETTER_AUTH_SECRET,
     });
     const workloadAfter = await controlClient.requireActive(1);

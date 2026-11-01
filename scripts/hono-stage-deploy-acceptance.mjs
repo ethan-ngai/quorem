@@ -100,14 +100,14 @@ export async function hostedAcceptance(
   if (admission.status !== 202) throw new Error("Stage admission failed");
   const submission = (await json(admission)).id;
   if (!/^[0-9a-f-]{36}$/.test(submission ?? "")) throw new Error("Invalid stage submission");
-  const deadline = Date.now() + 210000;
+  const deadline = Date.now() + 600000;
   for (;;) {
     if (env.HONO_STAGE_ACCEPTANCE_MODE === "manual") {
       const drained = await send(`${drain}/internal/drain`, {
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
         redirect: "error",
-        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(210000, deadline - Date.now()))),
       });
       if (![200, 202].includes(drained.status)) {
         let diagnostic;

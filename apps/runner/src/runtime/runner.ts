@@ -32,7 +32,7 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
     commandTimeoutMs: config.commandTimeoutMs,
     fetch: accessFetch(config.commandOrigin, config.access),
     engine: (repository, isolated) => ({
-      ...checkpointedEngine(repository, isolated),
+      ...checkpointedEngine(repository, isolated, config.sliceMs),
       inputProtocol: "manifest-v1",
     }),
   });

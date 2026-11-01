@@ -8,7 +8,8 @@ on:
       action:
         description: Plan bootstrap or provision and activate a fresh isolated stage
         type: choice
-        options: [plan, stage, diagnose, rehearse-role, probe-role, fence-role, reset-api, reset-stage]
+        options:
+          [plan, stage, diagnose, rehearse-role, probe-role, fence-role, reset-api, reset-stage]
         default: plan
         required: true
       release_sha:
@@ -23,6 +24,12 @@ on:
         description: Allow only verified generated staging fixtures during disposable reset
         type: boolean
         default: false
+        required: false
+      workload_matches:
+        description: Hosted socket/queue smoke size; 20 selects the capacity baseline
+        type: choice
+        options: ["2", "20"]
+        default: "2"
         required: false
       resume_initialization:
         description: Allow verified empty migration-only database after a failed first initialization
@@ -107,6 +114,7 @@ jobs:
           ref: ${{ github.sha }}
       - name: Read-only provider prerequisites
         env:
+          HONO_STAGE_WORKLOAD_MATCHES: ${{ inputs.workload_matches || '2' }}
           HONO_STAGE_INITIALIZATION_RESUME: ${{ inputs.resume_initialization && 'true' || 'false' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

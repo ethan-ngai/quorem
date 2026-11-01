@@ -127,7 +127,7 @@ void test("drives public match, receipt acknowledgements, paced runs and cleanup
   const f = fixture(),
     result = await runStageWorkload(env, f.deps),
     state = f.state();
-  assert.equal(result.profile, "fixture");
+  assert.equal(result.profile, "smoke");
   assert.equal(result.sessions, 2);
   assert.equal(result.admissions, 2);
   assert.equal(state.admissions[1].at - state.admissions[0].at, 500);
