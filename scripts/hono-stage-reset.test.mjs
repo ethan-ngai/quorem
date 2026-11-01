@@ -57,6 +57,15 @@ void test(
           );
           const namespace = "1".repeat(64),
             databaseIdentity = "project:branch:quorem_hono_stage";
+          const binding = { role, namespace, databaseIdentity };
+          await assert.rejects(lockEmptyStage(client, binding), /enabled/);
+          await fenceStageRuntime(client, role);
+          await lockEmptyStage(client, binding);
+          await client.query("ROLLBACK");
+          await assert.rejects(
+            lockEmptyStage(client, { ...binding, allowFixtures: true }),
+            /contains data/,
+          );
           await client.query(
             "INSERT INTO stage_genesis(database_identity,namespace,scope,initial_operation,initial_release,initial_bindings,owner_key_sha256,genesis_envelope,migration_062_sha256) VALUES($1,$2,$3,$4,$5,$6,$7,'{}',$8)",
             [
@@ -70,9 +79,6 @@ void test(
               "6".repeat(64),
             ],
           );
-          const binding = { role, namespace, databaseIdentity };
-          await assert.rejects(lockEmptyStage(client, binding), /enabled/);
-          await fenceStageRuntime(client, role);
           await assert.rejects(
             lockEmptyStage(client, { ...binding, namespace: "8".repeat(64) }),
             /mismatched genesis/,

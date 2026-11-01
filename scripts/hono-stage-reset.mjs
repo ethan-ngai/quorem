@@ -214,7 +214,7 @@ export async function lockEmptyStage(
       if (table.namespace === "public" && table.name === "runner_input_gc_state")
         query = `SELECT count(*)=1 AND bool_and(id=1 AND cursor IS NULL) AS valid FROM ${target}`;
       if (table.namespace === "public" && table.name === "stage_genesis") {
-        query = `SELECT count(*)=1 AND bool_and(database_identity=$1 AND namespace=$2) AS valid FROM ${target}`;
+        query = `SELECT ${allowFixtures ? "" : "count(*)=0 OR "}(count(*)=1 AND bool_and(database_identity=$1 AND namespace=$2)) AS valid FROM ${target}`;
         args = [databaseIdentity, namespace];
       }
       if (fixtureChecks.has(`${table.namespace}.${table.name}`))
