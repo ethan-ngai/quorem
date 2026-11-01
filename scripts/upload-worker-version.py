@@ -100,7 +100,7 @@ def multipart(metadata, modules, boundary):
     result = bytearray()
 
     def part(name, content_type, value, filename=False):
-        if not re.fullmatch(r"[a-zA-Z0-9._-]+", name):
+        if not isinstance(name, str) or any(not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9._-]*", segment) for segment in name.split("/")):
             raise ValueError("Invalid multipart part name")
         disposition = f'form-data; name="{name}"'
         if filename:
@@ -110,9 +110,11 @@ def multipart(metadata, modules, boundary):
         result.extend(b"\r\n")
 
     part("metadata", "application/json", json.dumps(metadata, separators=(",", ":")).encode())
+    names = {"metadata"}
     for module in modules:
-        if set(module) != {"name", "path"}:
+        if set(module) != {"name", "path"} or not isinstance(module["name"], str) or module["name"] in names:
             raise ValueError("Invalid module configuration")
+        names.add(module["name"])
         part(module["name"], "application/javascript+module", Path(module["path"]).read_bytes(), filename=True)
     result.extend(f"--{boundary}--\r\n".encode())
     return bytes(result)

@@ -227,12 +227,15 @@ func TestReclaimRequiresMatchingRecordedSandboxScope(t *testing.T) {
 	if _, err = s.Pool.Exec(ctx, `UPDATE execution_jobs SET attempt_id=NULL,lease_until=NULL WHERE id=$1`, original.JobID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.Pool.Exec(ctx, `UPDATE execution_jobs SET attempt_id=$2,lease_until=clock_timestamp()-interval '1 second' WHERE id=$1`, original.JobID, ID()); err != nil {
-		t.Fatal(err)
+	if _, err = s.Claim(ctx); err == nil {
+		t.Fatal("unscoped legacy claim API was accepted")
+	}
+	if _, err = s.Pool.Exec(ctx, `UPDATE execution_jobs SET attempt_id=$2,lease_until=clock_timestamp()-interval '1 second' WHERE id=$1`, original.JobID, ID()); err == nil {
+		t.Fatal("unscoped legacy claim was accepted")
 	}
 	var scope *string
-	if err = s.Pool.QueryRow(ctx, `SELECT sandbox_scope FROM execution_jobs WHERE id=$1`, original.JobID).Scan(&scope); err != nil || scope != nil {
-		t.Fatalf("legacy scope inherited: %v %v", scope, err)
+	if err = s.Pool.QueryRow(ctx, `SELECT sandbox_scope FROM execution_jobs WHERE id=$1`, original.JobID).Scan(&scope); err != nil || scope == nil || *scope != original.SandboxScope {
+		t.Fatalf("rejected legacy claim changed scope: %v %v", scope, err)
 	}
 	attempt, err = s.NextExpiredAttempt(ctx, false, "docker:v1:daemon-a")
 	if err != nil || attempt != "" {

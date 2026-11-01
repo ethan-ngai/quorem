@@ -135,7 +135,7 @@ func TestPrivateCustomStagesCreationCumulativeJudgingAndLanguageDrafts(t *testin
 			t.Fatal("same question stored a new snapshot after stage advancement")
 		}
 		snapshotID = storedID
-		job, e := s.Claim(ctx)
+		job, e := claimTestJob(ctx, s, false)
 		if e != nil || job.SubmissionID != sub.ID {
 			t.Fatal(job, e)
 		}

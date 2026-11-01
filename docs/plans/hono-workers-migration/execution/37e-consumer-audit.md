@@ -1,0 +1,7 @@
+# 37e: Consumer audit and profile capability
+
+Issue #420. Account settings call profile GET/PATCH regardless of photo configuration. Auth composition now mounts the profile handler independently; missing media returns 503 for authenticated photo PUT/DELETE. Session, origin, repository and media budget policies remain in their existing owners. A selected storage adapter still requires an image processor.
+
+Source audit also compared browser receipt acknowledgments with the socket session, interview mutation acknowledgments with the client's snapshot refetch, and registration capability with configured mail. No additional concrete mismatch was established in those checks. This is not a full browser or hosted-provider validation; guest, match, interview, social and mail flows still require their end-to-end smoke gates.
+
+Validation: auth typecheck; profile and Worker-composition tests (16 passed, one existing skip); the native auth fixture against isolated PostgreSQL and local Wrangler/workerd, with both Node and Worker compositions performing authenticated profile GET/PATCH, rejected unauthenticated/cross-origin access and disabled photo PUT/DELETE. The native fixture also exercised session revocation, assurance and shared rate limits. To reproduce, use the isolated setup in [11](11-auth-factory.md), set `AUTH_TEST_DATABASE_URL` to the named disposable `quorem_hono_auth_native_test` database, then run `vp -C apps/auth exec node src/native-worker-check.mjs` against the local Wrangler fixture. No hosted provider calls were made.

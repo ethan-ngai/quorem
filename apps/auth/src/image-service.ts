@@ -12,15 +12,23 @@ export function createImageService(options: {
   token: string;
   tls?: { key: string | Buffer; cert: string | Buffer };
   local: boolean;
+  transport?: "cloudflare-container";
   timeoutMs?: number;
 }) {
-  if (options.token.length < 32 || /[\r\n]/.test(options.token) || (!options.local && !options.tls))
+  if (
+    options.token.length < 32 ||
+    /\s/.test(options.token) ||
+    (options.transport !== undefined && options.transport !== "cloudflare-container") ||
+    (options.transport === "cloudflare-container" && (options.local || options.tls)) ||
+    (!options.local && !options.tls && options.transport !== "cloudflare-container")
+  )
     throw new Error("Invalid image service configuration");
   const processor = isolatedImageProcessor(options.timeoutMs);
   let active = 0;
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
     if (
       !options.tls &&
+      options.transport !== "cloudflare-container" &&
       !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.localAddress ?? "")
     ) {
       res.writeHead(403).end();
@@ -30,6 +38,10 @@ export function createImageService(options: {
     const expected = Buffer.from(`Bearer ${options.token}`);
     if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
       res.writeHead(401).end();
+      return;
+    }
+    if (req.method === "GET" && req.url === "/health") {
+      res.writeHead(200, { "cache-control": "no-store" }).end();
       return;
     }
     if (req.method !== "POST" || req.url !== "/") {

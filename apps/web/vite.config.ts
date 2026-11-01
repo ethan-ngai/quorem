@@ -72,6 +72,7 @@ const marketingOrigin = process.env.QUOREM_MARKETING_DEV_ORIGIN ?? "http://127.0
 const marketingEntry = marketingDevBase(process.env.QUOREM_MARKETING_BASE);
 
 export default defineConfig({
+  cacheDir: process.env.QUOREM_VITE_CACHE_DIR,
   plugins: [marketingPages(), react()],
   server: {
     host: "127.0.0.1",

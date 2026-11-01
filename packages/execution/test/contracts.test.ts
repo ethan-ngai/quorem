@@ -17,6 +17,8 @@ import {
   decodeCompletion,
   decodeJob,
   encodeCheckpointCase,
+  manifestCheckpointProvenance,
+  encodeManifestCheckpointFrame,
   encodeCompletion,
   encodeJob,
   languageRuntime,
@@ -83,21 +85,47 @@ it("matches stored Go runtime registry vectors", () => {
       });
   }
 });
-it("preserves raw checkpoint JSON and exact timing", () => {
-  const cp = {
-    ordinal: 2,
-    frame: '{ "status":"executed","actual":9007199254740993,"stdout":"a\\u0000b" }',
+it("preserves manifest checkpoint JSON and rejects legacy frames", async () => {
+  const manifest = {
+    kind: "run" as const,
+    level: null,
+    caseCount: 3,
+    sampleCount: 0,
+    privateDetails: false,
+    submitCasesAreSamples: false,
+    source: { hash: "a".repeat(64), size: 1 },
+    metadata: { hash: "b".repeat(64), size: 1 },
+    suiteHash: "c".repeat(64),
+  };
+  const ref = { channel: "public" as const, hash: "d".repeat(64), size: 1 };
+  const frame = {
+    status: "executed",
+    actual: "9007199254740993",
+    stdout: "a\u0000b",
+    stderr: "",
+    line: 0,
+  };
+  const metadata = {
     artifact: '{"file":"AA=="}',
     compilationNanos: 123456789n,
     fatal: '{"status":"syntax_error"}',
   };
+  const provenance = await manifestCheckpointProvenance(
+    job,
+    manifest,
+    ref,
+    2,
+    job,
+    metadata,
+    frame,
+  );
+  const cp = { ordinal: 2, frame: encodeManifestCheckpointFrame(frame, provenance), ...metadata };
   expect(decodeCheckpointCase(encodeCheckpointCase(cp))).toEqual(cp);
-  expect(() => encodeCheckpointCase({ ...cp, ordinal: 320 })).toThrow();
+  expect(() => encodeCheckpointCase({ ...cp, ordinal: 2147483647 })).toThrow();
   expect(() => encodeCheckpointCase({ ...cp, compilationNanos: 120000000001n })).toThrow();
   expect(() => decodeCheckpointCase('{"Ordinal":0,"Frame":{},"CompilationNanos":1.0}')).toThrow();
   const go = oracle.find((v) => v.name === "checkpointCaseJSON")!;
-  const decoded = decodeCheckpointCase(go.output as string);
-  expect(encodeCheckpointCase(decoded)).toBe(go.output);
+  expect(() => decodeCheckpointCase(go.output as string)).toThrow();
 });
 it("maps completion raw values without leaking hidden fields", () => {
   const value = {

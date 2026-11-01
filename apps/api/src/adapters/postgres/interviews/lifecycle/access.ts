@@ -23,17 +23,18 @@ export function unavailable(): ApplicationError {
   return new ApplicationError("not_found", "Interview unavailable", 404);
 }
 /** The interview lock serializes membership, join, close and question changes. */
-export async function lockInterview(
+async function interviewAccess(
   tx: Transaction,
   actor: Principal,
   id: string,
   capabilities: CapabilityLookup,
-  opts: { manage?: boolean; active?: boolean } = {},
+  opts: { manage?: boolean; active?: boolean },
+  lock: boolean,
 ): Promise<InterviewAccess> {
   if (!uuid.test(id)) throw unavailable();
   const row = (
     await tx.execute<InterviewAccess & { hostDisabled: boolean } & Record<string, unknown>>(
-      sql`SELECT i.id::text,i.host_id AS host,i.state,m.role,i.version::text,i.question_epoch::text AS "questionEpoch",i.document_epoch::text AS "documentEpoch",i.admission_locked AS "admissionLocked",h.disabled AS "hostDisabled" FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${actor.userId} AND m.removed_at IS NULL JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id WHERE i.id=${id}::uuid AND i.deleted_at IS NULL FOR NO KEY UPDATE OF i`,
+      sql`SELECT i.id::text,i.host_id AS host,i.state,m.role,i.version::text,i.question_epoch::text AS "questionEpoch",i.document_epoch::text AS "documentEpoch",i.admission_locked AS "admissionLocked",h.disabled AS "hostDisabled" FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${actor.userId} AND m.removed_at IS NULL JOIN users u ON u.id=m.user_id AND NOT u.disabled JOIN users h ON h.id=i.host_id WHERE i.id=${id}::uuid AND i.deleted_at IS NULL ${lock ? sql`FOR NO KEY UPDATE OF i` : sql``}`,
     )
   ).rows[0];
   if (!row) throw unavailable();
@@ -57,4 +58,25 @@ export async function lockInterview(
       throw new ApplicationError("entitlement_required", "Interview access is disabled", 403);
   }
   return row;
+}
+
+/** Serialize room mutations with membership and question transitions. */
+export function lockInterview(
+  tx: Transaction,
+  actor: Principal,
+  id: string,
+  capabilities: CapabilityLookup,
+  opts: { manage?: boolean; active?: boolean } = {},
+): Promise<InterviewAccess> {
+  return interviewAccess(tx, actor, id, capabilities, opts, true);
+}
+/** Observe current authority without blocking document writes. */
+export function readInterviewAccess(
+  tx: Transaction,
+  actor: Principal,
+  id: string,
+  capabilities: CapabilityLookup,
+  opts: { manage?: boolean; active?: boolean } = {},
+): Promise<InterviewAccess> {
+  return interviewAccess(tx, actor, id, capabilities, opts, false);
 }

@@ -2,7 +2,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { legacyRaw, legacyKind, legacyInteger, legacySource } from "./legacy-sql.ts";
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 export class LegacyCaseConflict extends Error {}
 export type Span = { start: number; length: number };
 export type Fields = Map<string, Span>;
@@ -16,7 +16,7 @@ const names = new Set([
   "sqlTypes",
   "diagnostics",
 ]);
-export async function legacyKey(input: LegacyJsonReader): Promise<string> {
+export async function legacyKey(input: StreamingJsonReader): Promise<string> {
   let text = "",
     large = false;
   for await (const part of input.valueChunks()) {
@@ -25,7 +25,7 @@ export async function legacyKey(input: LegacyJsonReader): Promise<string> {
   }
   return large ? "" : (JSON.parse(text) as string);
 }
-export async function legacySpan(input: LegacyJsonReader): Promise<Span> {
+export async function legacySpan(input: StreamingJsonReader): Promise<Span> {
   await input.peek();
   const start = input.byteOffset;
   for await (const _ of input.valueChunks()) {
@@ -34,7 +34,7 @@ export async function legacySpan(input: LegacyJsonReader): Promise<Span> {
   return { start, length: input.byteOffset - start };
 }
 export async function legacyFields(
-  input: LegacyJsonReader,
+  input: StreamingJsonReader,
   accepted: Set<string>,
   diagnostics?: (item: Fields, ordinal: number) => Promise<void>,
 ): Promise<Fields> {
@@ -72,7 +72,7 @@ export type LegacyCase = { start: number; length: number; fields: Fields };
 /** Captures offsets only; diagnostic offsets are spooled in a transaction-local table. */
 export async function scanLegacyCase(
   tx: Transaction,
-  input: LegacyJsonReader,
+  input: StreamingJsonReader,
 ): Promise<LegacyCase> {
   await tx.execute(
     sql`CREATE TEMP TABLE IF NOT EXISTS quorem_legacy_case_diagnostics(ordinal integer,a integer,al integer,b integer,bl integer,c integer,cl integer) ON COMMIT DROP`,
@@ -179,4 +179,12 @@ export async function writeLegacyCase(
   );
   if (!result.rows[0]?.valid) throw new Error("Invalid legacy case");
   if (!result.rows[0]?.ok) throw new LegacyCaseConflict("Conflicting legacy case");
+  if (channel !== "private") {
+    const status = raw(item.fields.get("status")!),
+      index = text(item.fields.get("index")!);
+    const stored = await tx.execute<{ ok: boolean }>(
+      sql`WITH source AS (${source}), input AS (SELECT ${status} AS value FROM source), inserted AS (INSERT INTO submission_public_case_statuses(submission_id,channel,ordinal,case_index,status_json,status_hash) SELECT ${id}::uuid,${channel},${ordinal},${index}::integer,value,sha256(value) FROM input,source ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM inserted) OR EXISTS(SELECT 1 FROM submission_public_case_statuses s,input,source WHERE s.submission_id=${id}::uuid AND s.channel=${channel} AND s.ordinal=${ordinal} AND s.status_json=input.value AND s.case_index=${index}::integer) AS ok`,
+    );
+    if (!stored.rows[0]?.ok) throw new LegacyCaseConflict("Conflicting legacy case status");
+  }
 }

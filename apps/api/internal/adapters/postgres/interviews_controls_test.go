@@ -130,7 +130,7 @@ func TestInterviewPrivateCaseDetailsRevealHideAndResultRedaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != sub.ID {
 		t.Fatal("claim", job, err)
 	}
@@ -270,7 +270,7 @@ func TestInterviewLanguageSwitchRetainsOdysseyProgressAndExplicitFutureVisibilit
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.Claim(ctx)
+	job, err := claimTestJob(ctx, s, false)
 	if err != nil || job.SubmissionID != sub.ID {
 		t.Fatal(job, err)
 	}

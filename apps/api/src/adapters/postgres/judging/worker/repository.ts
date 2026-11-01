@@ -1,27 +1,39 @@
 import type { ConnectionScope } from "@quorem/database/core";
-import type { ExecutionRepository } from "@quorem/execution";
+import type {
+  ExecutionQueueControl,
+  ExecutionRepository,
+  ExecutionInputReader,
+} from "@quorem/execution";
 import { postgresClaims, type RunnerCapabilities } from "./claim.ts";
 import { postgresCompletionStaging } from "./staging.ts";
 import { postgresCompletionPromotion } from "./promote.ts";
 import { postgresCheckpoints } from "./checkpoints.ts";
-import { postgresExecutionLoad } from "./load.ts";
+import { postgresInputReader } from "../inputs/read.ts";
+import type { ResultVerifier } from "./verification-client.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 /** Private command owner; runner callers never receive a database handle. */
 export function postgresExecutionCommands(
   run: Run,
   capabilities: RunnerCapabilities,
-): ExecutionRepository {
+  verification: { verifier: ResultVerifier; verificationPublicKey: CryptoKey },
+): ExecutionRepository & ExecutionQueueControl & ExecutionInputReader {
+  if (
+    !verification?.verifier ||
+    verification.verificationPublicKey?.algorithm.name !== "Ed25519" ||
+    verification.verificationPublicKey.type !== "public"
+  )
+    throw new Error("Result verifier required");
   const cap = Object.freeze({ ...capabilities }),
     claims = postgresClaims(run, cap),
     checkpoints = postgresCheckpoints(run),
-    staging = postgresCompletionStaging(run);
+    staging = postgresCompletionStaging(run, verification);
   const resumable = () => {
     if (!cap.resumable) throw new Error("Checkpoint capability unavailable");
   };
   return {
     ...claims,
-    load: postgresExecutionLoad(run, cap.losslessCases && cap.losslessResults),
+    ...postgresInputReader(run),
     beginCompletion: (job, header) => staging.begin(job, header),
     writeCompletionChunk: (job, chunk) => staging.chunk(job, chunk),
     sealCompletionFrame: (job, channel, ordinal, status) =>

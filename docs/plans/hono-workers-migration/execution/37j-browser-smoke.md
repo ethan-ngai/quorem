@@ -1,0 +1,25 @@
+# 37j local browser fixture
+
+Issue #429. The fixture runs the actual Hono Node API/auth, Vite HMR, local SQS protocol endpoint, separate Node Docker runner and independent signed verifier. It uses Better Auth's existing local seed owner to create verified Alice and Bob with real password login. Entitlement grants use the canonical audited operator command. No production route, identity bypass, cloud credentials or Go runtime is involved.
+
+Prerequisites: Node 24+, `vp` dependencies installed, a reachable Docker socket and the five local images `quorem-{python,java,typescript,ocaml,postgres}:local`. Provision a separate local PostgreSQL server on 127.0.0.1:55701 and create its disposable `quorem_hono_runtime_test` database. The command refuses any other host, port or database and resets that database under an exclusive advisory lock:
+
+```sh
+QUOREM_BROWSER_FIXTURE_DATABASE_URL='postgres://USER@127.0.0.1:55701/quorem_hono_runtime_test?sslmode=disable' \
+QUOREM_TEST_DOCKER_SOCKET='/var/run/docker.sock' \
+node --experimental-strip-types apps/api/src/runtime/composition/browser-fixture.ts
+```
+
+It reports the frontend and API origins and a 0600 local credentials file path; do not print or share that file. Frontend: http://127.0.0.1:5187/practice. API/auth: http://127.0.0.1:8765. Vite runs from the invoking checkout, proxying `/v1` and `/api/auth` to the API. The local SQS fixture acknowledges supported wake publication; continuous runner polling supplies local queue recovery. It does not model hosted SQS durability or Access.
+
+Stop the fixture with SIGINT or SIGTERM. It stops Vite, asks the runner to drain and confirm shutdown, then closes the API/verifier, drops the disposable schemas and removes its temporary credentials and fence only after successful teardown. If runner teardown is uncertain it retains the database and fence and reports failure; it does not remove unrelated Docker containers. Missing prerequisites fail startup.
+
+On the assigned checkout, real browser sessions used the local Hono stack. Practice completed an accepted submission; a two-user match produced a 20/20 winner, and a separate forfeit produced the expected terminal state. Presence showed Bob online immediately and after 24 seconds of heartbeats, and Alice offline after logout. In an interview, Run accepted 3/3 public cases and Submit accepted 20/20. On Balance Ledger, the host manually unlocked the next stage, generated `withdraw` and `clear` source was preserved, cumulative stage-two Submit passed, clicking stage one did not navigate, final advancement removed the pass control, and ending the interview left it read-only. This verifies those local user flows, not all modes or hosted behavior.
+
+`node --experimental-strip-types --test apps/api/src/runtime/composition/browser-fixture.test.ts` passed 3/3, including simultaneous Vite servers with distinct optimizer caches and interview/editor dependency graph requests. After browser release, fixture shutdown stopped owned processes, removed the fixture directory and disposable product/auth schemas, and left no fixture case containers. A clean committed restart verified both logins, isolated cache, 0600 credentials, and the seeded Balance Ledger question; its subsequent shutdown repeated those cleanup checks. An earlier fixture parent ignored SIGTERM and required forced termination after its children stopped; all five jobs were terminal, no fixture sandbox containers remained, and its prior fence directory was retained. During the browser fixture's shutdown, the API logged `ERR_INVALID_STATE` at `budget.ts` stream reader; the triggering request/cancellation timing remains unproven and needs separate investigation. The Better Auth seed process also reported missing trusted client IP and used its shared fallback bucket. Neither observation establishes hosted execution, queue delivery, production data migration, or timing.
+
+## Native SQL regression
+
+`node scripts/hono-sql-validation.mjs` owns a disposable PostgreSQL container on 55701 and runs the same fixture from the invoking checkout. It requires the five local judge images, Docker, `vp`, and free ports 5187/8765. The fixture publishes the original `fixtures/migration/sql-positive-items.json` through canonical authoring. Required CI runs it after building judge images.
+
+The regression passed without skips: authenticated HTTP through Vite to native Hono, practice Run and Submit accepted through the PostgreSQL sandbox and independent verifier, then a two-account selected SQL match completed with the submitting account as winner. It reuses the fixture's real login bearers only in memory. The fixture and owned database were removed. No browser provider was available; this result proves HTTP/runtime behavior, not SQL editor interaction.

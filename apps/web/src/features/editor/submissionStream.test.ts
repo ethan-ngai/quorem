@@ -16,6 +16,7 @@ class Socket {
   ) {
     Socket.instances.push(this);
   }
+  send = vi.fn();
   close() {
     this.onclose?.();
   }
@@ -31,37 +32,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("rejects other workspaces and restores the current snapshot after reconnect", async () => {
-  const snapshots = vi.fn();
-  const stream = submissionStream("alice", "submission", "workspace", snapshots);
+it("invalidates on open and change, ignoring stale sockets after reconnect", async () => {
+  const changed = vi.fn();
+  const stream = submissionStream("alice", "submission", changed);
   stream.start();
   await Promise.resolve();
   const first = Socket.instances[0]!;
   expect(first.protocols).toEqual(["quorem", "bearer.token"]);
   first.onopen?.();
-  const snapshot = {
-    id: "submission",
-    workspaceId: "workspace",
-    state: "queued",
-    kind: "run",
-    sourceHash: "hash",
-    admittedAt: "date",
-    updatedAt: "date",
-  };
+  expect(changed).toHaveBeenCalledTimes(1);
   first.onmessage?.({
-    data: JSON.stringify({ ...snapshot, workspaceId: "other" }),
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "heartbeat" },
+    }),
   } as MessageEvent);
-  expect(snapshots).not.toHaveBeenCalled();
-  first.onmessage?.({ data: JSON.stringify(snapshot) } as MessageEvent);
-  expect(snapshots).toHaveBeenCalledWith(snapshot);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
+  expect(changed).toHaveBeenCalledTimes(2);
   first.onclose?.();
   await vi.advanceTimersByTimeAsync(600);
   const second = Socket.instances[1]!;
   second.onopen?.();
-  first.onmessage?.({ data: JSON.stringify(snapshot) } as MessageEvent);
-  const completed = { ...snapshot, state: "completed" };
-  second.onmessage?.({ data: JSON.stringify(completed) } as MessageEvent);
-  expect(snapshots).toHaveBeenCalledTimes(2);
-  expect(snapshots).toHaveBeenLastCalledWith(completed);
+  first.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
+  second.onmessage?.({
+    data: JSON.stringify({
+      receipt: "12345678-1234-4123-8123-123456789012",
+      payload: { type: "changed" },
+    }),
+  } as MessageEvent);
+  expect(changed).toHaveBeenCalledTimes(4);
   stream.stop();
 });

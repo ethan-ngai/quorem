@@ -16,7 +16,7 @@ export function remoteImageProcessor(
     url.search ||
     url.pathname !== "/" ||
     token.length < 32 ||
-    /[\r\n]/.test(token)
+    /\s/.test(token)
   )
     throw new Error("Invalid image service configuration");
   return {

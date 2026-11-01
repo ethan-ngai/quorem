@@ -55,16 +55,14 @@ export function composeAuth(options: {
     config.registration && mail
       ? createRegistrationHandler({ repository: mailRepository, mail, origin: config.origin })
       : undefined;
-  const profile = options.media
-    ? createProfileHandler({
-        origin: config.origin,
-        session: (headers) => auth.api.getSession({ headers }),
-        repository: drizzleProfileRepository(run),
-        budget: drizzleProfileBudget(run),
-        storage: options.media.storage,
-        imageProcessor: options.media.processor,
-      })
-    : undefined;
+  const profile = createProfileHandler({
+    origin: config.origin,
+    session: (headers) => auth.api.getSession({ headers }),
+    repository: drizzleProfileRepository(run),
+    budget: drizzleProfileBudget(run),
+    storage: options.media?.storage,
+    imageProcessor: options.media?.processor,
+  });
   return {
     auth,
     makeAuth,

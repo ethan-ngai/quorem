@@ -125,15 +125,59 @@ function custom(v: unknown): Obj {
       : {}),
   };
 }
+function questionBody(question: unknown): Obj {
+  const q = obj(question),
+    h = obj(q.hints);
+  return {
+    ...(q.hints != null
+      ? {
+          hints: {
+            ...(h.topics != null ? { topics: h.topics } : {}),
+            ...(h.complexity != null ? { complexity: h.complexity } : {}),
+          },
+        }
+      : {}),
+    ...(opt(q, "problemVersionId") ? { problemVersionId: q.problemVersionId } : {}),
+    ...(q.custom != null ? { custom: custom(q.custom) } : {}),
+    language: q.language ?? "",
+  };
+}
+export async function interviewQuestionOperationFingerprint(
+  scope: string,
+  question: unknown,
+  rawCases?: ReadonlyMap<string, string>,
+): Promise<string> {
+  return interviewCommandFingerprint(scope, questionBody(question), rawCases);
+}
+export async function interviewCommandFingerprint(
+  scope: string,
+  body: unknown,
+  rawCases?: ReadonlyMap<string, string>,
+): Promise<string> {
+  let payload = ordered(body);
+  if (rawCases)
+    payload = payload.replace(
+      /"__quorem_raw_[0-9a-f-]+_\d+__"/g,
+      (marker) => rawCases.get(marker) ?? marker,
+    );
+  payload = payload.replace(
+    /[<>&\u2028\u2029]/g,
+    (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`${scope}:${payload}`),
+  );
+  return Array.from(new Uint8Array(digest), (v) => v.toString(16).padStart(2, "0")).join("");
+}
 /** Produce the exact persisted operation fingerprint used by the Go create command. */
 export async function interviewCreateFingerprint(
   title: string,
   question: unknown,
   monitoring: unknown,
+  rawCases?: ReadonlyMap<string, string>,
 ): Promise<string> {
-  const q = obj(question),
-    h = obj(q.hints),
-    m = obj(monitoring);
+  const m = obj(monitoring);
   const body = {
     ...(monitoring != null
       ? {
@@ -144,25 +188,9 @@ export async function interviewCreateFingerprint(
         }
       : {}),
     title,
-    question: {
-      ...(q.hints != null
-        ? {
-            hints: {
-              ...(h.topics != null ? { topics: h.topics } : {}),
-              ...(h.complexity != null ? { complexity: h.complexity } : {}),
-            },
-          }
-        : {}),
-      ...(opt(q, "problemVersionId") ? { problemVersionId: q.problemVersionId } : {}),
-      ...(q.custom != null ? { custom: custom(q.custom) } : {}),
-      language: q.language ?? "",
-    },
+    question: questionBody(question),
   };
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(`create:${ordered(body)}`),
-  );
-  return Array.from(new Uint8Array(digest), (v) => v.toString(16).padStart(2, "0")).join("");
+  return interviewCommandFingerprint("create", body, rawCases);
 }
 function lossless(value: unknown): JsonValue {
   if (value instanceof JsonNumber) return value;

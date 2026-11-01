@@ -1,6 +1,6 @@
 /** @file checkpoint-compression.ts @description Bounded gzip checkpoint frame storage. @module execution */
 import { parseLosslessJson } from "@quorem/questions";
-const maxFrame = 2 << 20;
+const maxFrame = (2 << 20) + 4096;
 function validFrame(data: Uint8Array): void {
   if (data.byteLength > maxFrame) throw new Error("invalid checkpoint frame");
   try {
@@ -48,7 +48,7 @@ export async function compressCheckpointFrame(frame: Uint8Array): Promise<Uint8A
   validFrame(frame);
   return transform(frame, new CompressionStream("gzip"), 4 << 20);
 }
-/** Decompress one gzip frame with the Go-compatible 2 MiB output bound. */
+/** Decompress one bounded envelope; the inner frame retains the 2 MiB limit. */
 export async function decompressCheckpointFrame(frame: Uint8Array): Promise<Uint8Array> {
   if (frame.byteLength > 4 << 20) throw new Error("invalid checkpoint frame");
   const decoded = await transform(frame, new DecompressionStream("gzip"), maxFrame);

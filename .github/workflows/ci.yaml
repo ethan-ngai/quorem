@@ -76,7 +76,7 @@ jobs:
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
-          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test; do
+          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test quorem_hono_runtime_test; do
             docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
           done
           # Match server-major archive tools; only disposable fixtures enter /tmp.
@@ -158,6 +158,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Canonical operator and mixed-seeder fixtures
+        env:
+          QUOREM_CLI_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_cli_test?sslmode=disable
+          QUOREM_CLI_GO_INTEROP: "true"
+        run: |
+          go build -o /tmp/quorem-cli-go-oracle ./apps/api/cmd/provision
+          vp -C apps/api exec vitest run --config src/cli/vitest.config.ts
       - run: go test -race ./apps/language/...
       - run: go build -o /tmp/quorem-language ./apps/language/cmd/language
       - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
@@ -180,6 +187,16 @@ jobs:
           vp run --filter @quorem/language test
           vp -C apps/web test src/features/editor/languageIntegration.test.ts
       - run: python3 scripts/build-judge-images.py --base-only
+      - name: Mandatory composed runtime release validation
+        env:
+          QUOREM_RUNTIME_TEST_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_runtime_test?sslmode=disable
+          QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
+          WRANGLER_SEND_METRICS: "false"
+        run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
+      - name: Native SQL practice and selected-match execution
+        run: node scripts/hono-sql-validation.mjs
+      - name: Mandatory container runner release validation
+        run: node scripts/hono-container-validation.mjs
       - run: QUOREM_TEST_POSTGRES_DOCKER=1 go test ./apps/runner/internal/engine -run '^TestPostgres'
       # Integration packages share one disposable database and reset its fixtures.
       - run: go test -p 1 ./...
@@ -199,3 +216,35 @@ jobs:
           done
           go test -race ./apps/api/internal/adapters/eventbus
       - run: go vet ./...
+
+  hono-platform-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - name: Build private service fixture images
+        run: |
+          docker build -f deploy/hono/services/Dockerfile -t quorem-35d-private-fixture:local .
+          docker build -f deploy/hono/services/Dockerfile.image -t quorem-35f-image-fixture:local .
+      - name: Staged orchestration and private service contracts
+        run: |
+          node scripts/hono-stage-validation.mjs
+          node scripts/hono-recovery-validation.mjs
+          node --import ./deploy/test-register.mjs --test deploy/hono/services/*.test.mjs
+      - name: Isolated Terraform module contracts
+        run: |
+          for stack in hono-stage hono-services; do
+            terraform -chdir=infra/terraform/$stack fmt -check -recursive
+            terraform -chdir=infra/terraform/$stack init -backend=false -input=false
+            terraform -chdir=infra/terraform/$stack validate
+            terraform -chdir=infra/terraform/$stack test
+          done

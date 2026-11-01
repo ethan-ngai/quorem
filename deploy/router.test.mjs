@@ -1106,3 +1106,84 @@ void test("case diagnostics require both authentication and the validation bindi
     "diagnostic",
   );
 });
+
+void test("case owner signs the actual namespace and confirmed delete response", async () => {
+  const { generateKeyPairSync, verify } = await import("node:crypto");
+  const key = generateKeyPairSync("ed25519"),
+    namespace = "b".repeat(64),
+    scope = `remote:${"a".repeat(64)}`,
+    nonce = "12345678-1234-1234-1234-123456789abc";
+  const configuration = {
+    ...env,
+    CASE_OWNER_PRIVATE_KEY: key.privateKey
+      .export({ type: "pkcs8", format: "der" })
+      .toString("base64"),
+    CASES: {
+      idFromName(name) {
+        assert.equal(name, "quorem-sandbox-namespace-v1");
+        return { toString: () => namespace };
+      },
+      getByName(name) {
+        assert.equal(name, "attempt-123");
+        return {
+          async fetch() {
+            return new Response(null, { status: 204 });
+          },
+        };
+      },
+    },
+  };
+  const token = "fixture-case-token-12345";
+  const result = await worker.fetch(
+    new Request(`${env.APP_ORIGIN}/internal/case/attempt-123`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${env.JUDGE_CONTROL_TOKEN}`,
+        "x-case-token": token,
+        "x-quorem-owner-nonce": nonce,
+        "x-quorem-owner-scope": scope,
+      },
+    }),
+    configuration,
+  );
+  assert.equal(result.status, 204);
+  assert.equal(result.headers.get("x-quorem-owner-namespace"), namespace);
+  const message = Buffer.from(
+    JSON.stringify([
+      scope,
+      namespace,
+      "DELETE",
+      "attempt-123",
+      token,
+      204,
+      nonce,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]),
+  );
+  assert.equal(
+    verify(
+      null,
+      message,
+      key.publicKey,
+      Buffer.from(result.headers.get("x-quorem-owner-signature"), "base64"),
+    ),
+    true,
+  );
+  const missing = await worker.fetch(
+    new Request(`${env.APP_ORIGIN}/internal/case/attempt-123`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${env.JUDGE_CONTROL_TOKEN}`,
+        "x-quorem-owner-nonce": nonce,
+        "x-quorem-owner-scope": scope,
+      },
+    }),
+    { ...configuration, CASE_OWNER_PRIVATE_KEY: undefined },
+  );
+  assert.equal(missing.status, 503);
+});

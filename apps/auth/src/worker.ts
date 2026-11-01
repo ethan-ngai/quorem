@@ -1,3 +1,4 @@
+import { authPeerRequest, cloudflarePeer } from "./peer.ts";
 import { r2BindingProfileStorage, type ProfileBucket } from "./adapters/r2-profile-storage.ts";
 import { remoteImageProcessor } from "./adapters/remote-image.ts";
 import { withWorkerConnection } from "@quorem/database/core";
@@ -8,6 +9,7 @@ import { verificationMailer } from "./mailer.ts";
 import { cloudflareEmail } from "./adapters/cloudflare-email.ts";
 import type { VerificationSender } from "./email-delivery.ts";
 import type { MailConfiguration } from "./platform-config.ts";
+import { accessFetch } from "@quorem/execution/transport/access";
 
 export interface AuthWorkerEnv {
   DB: { connectionString: string };
@@ -50,12 +52,33 @@ export function workerRuntime(
             !values.PROFILE_IMAGE_SERVICE_TOKEN
           )
             throw new Error("Profile media requires R2 and image service");
+          const mode =
+            values.PROFILE_IMAGE_ACCESS_MODE ?? (values.APP_ENV === "local" ? "none" : "");
+          const id = values.PROFILE_IMAGE_ACCESS_CLIENT_ID,
+            secret = values.PROFILE_IMAGE_ACCESS_CLIENT_SECRET;
+          if (
+            mode === "none"
+              ? values.APP_ENV !== "local" || id || secret
+              : mode !== "cloudflare-access" ||
+                !id ||
+                !secret ||
+                id === secret ||
+                /\s/.test(id + secret) ||
+                id.length > 256 ||
+                secret.length > 256 ||
+                [id, secret].includes(values.PROFILE_IMAGE_SERVICE_TOKEN)
+          )
+            throw new Error("Invalid image ingress configuration");
+          const client =
+            mode === "cloudflare-access"
+              ? accessFetch(values.PROFILE_IMAGE_SERVICE_URL, { id: id!, secret: secret! })
+              : undefined;
           return {
             storage: r2BindingProfileStorage(env.PROFILE_BUCKET),
             processor: remoteImageProcessor(
               values.PROFILE_IMAGE_SERVICE_URL,
               values.PROFILE_IMAGE_SERVICE_TOKEN,
-              fetch,
+              client ?? fetch,
               values.APP_ENV === "local",
             ),
           };
@@ -72,6 +95,7 @@ export function workerRuntime(
 
 export default {
   fetch(request: Request, env: AuthWorkerEnv) {
-    return workerRuntime(env, request.signal).app.fetch(request);
+    const peer = cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER);
+    return workerRuntime(env, request.signal).app.fetch(authPeerRequest(request, peer));
   },
 };

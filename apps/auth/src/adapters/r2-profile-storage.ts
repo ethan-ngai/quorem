@@ -1,4 +1,5 @@
 import type { ProfileStorage } from "../profile-storage.ts";
+import { photoObjectPath } from "../profile-object-key.ts";
 
 export interface ProfileBucket {
   put(key: string, value: Uint8Array): Promise<unknown>;
@@ -6,18 +7,13 @@ export interface ProfileBucket {
   delete(key: string): Promise<void>;
 }
 export function r2BindingProfileStorage(bucket: ProfileBucket): ProfileStorage {
-  const path = (key: string) => {
-    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(key))
-      throw new Error("Invalid photo key");
-    return `avatars/${key}.webp`;
-  };
   return {
     async put(key, image) {
       if (image.byteLength > 5 * 1024 * 1024) throw new Error("Photo too large");
-      await bucket.put(path(key), image);
+      await bucket.put(photoObjectPath(key), image);
     },
     async get(key) {
-      const object = await bucket.get(path(key));
+      const object = await bucket.get(photoObjectPath(key));
       if (!object) return undefined;
       if (object.size > 5 * 1024 * 1024) throw new Error("Photo too large");
       const data = new Uint8Array(await object.arrayBuffer());
@@ -25,7 +21,7 @@ export function r2BindingProfileStorage(bucket: ProfileBucket): ProfileStorage {
       return data;
     },
     async remove(key) {
-      await bucket.delete(path(key));
+      await bucket.delete(photoObjectPath(key));
     },
   };
 }

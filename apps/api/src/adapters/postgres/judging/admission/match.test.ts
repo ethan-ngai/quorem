@@ -5,13 +5,14 @@ import { migrate } from "@quorem/database/migrations";
 import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
 import { admitWithRecovery } from "../../../../modules/judging/admission/admit.ts";
+import { indexRunnerFixture } from "../inputs/fixture.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
 import type { GuestPrincipal } from "../../../../modules/identity/model.ts";
 const url = process.env.QUOREM_ADMISSION_TEST_DATABASE_URL;
 const parsed = new URL(url ?? "postgres://127.0.0.1:55458/quorem_hono_admission_test");
 if (
   !["postgres:", "postgresql:"].includes(parsed.protocol) ||
-    parsed.searchParams.has("host") ||
+  parsed.searchParams.has("host") ||
   parsed.pathname !== "/quorem_hono_admission_test" ||
   !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname)
 )
@@ -81,6 +82,28 @@ beforeAll(async () => {
   await pool.query(
     "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,'[3]'::jsonb,'4'::jsonb)",
     [version],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      indexRunnerFixture(
+        tx,
+        { version },
+        JSON.stringify({
+          problem: {
+            signature: {
+              className: "Solution",
+              methodName: "f",
+              parameters: [{ name: "x", type: "int" }],
+              returnType: "int",
+            },
+            constraints: [],
+            limits: {},
+            examples: [{ args: [1], expected: 2 }],
+          },
+          hiddenCases: [{ args: [3], expected: 4 }],
+        }),
+      ),
+    ),
   );
   await pool.query(
     "INSERT INTO quota_overrides(user_id,resource,value,actor,reason) VALUES($1,'guest_concurrency',1,'fixture','test')",

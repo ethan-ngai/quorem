@@ -4,6 +4,7 @@ import type { Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { SubmissionProgress } from "../../../../modules/matches/model.ts";
 import { reconcile } from "../../../../modules/matches/reconcile.ts";
+import { verifiedMatchProgress } from "../../judging/worker/verified-progress.ts";
 type MatchRow = {
   id: string;
   state: string;
@@ -18,22 +19,12 @@ type Person = { owner: string; state: string; best: number };
 type Submission = {
   owner: string;
   state: string;
-  verdict: string;
-  passed: string | null;
-  total: string | null;
-  intermediate: boolean;
-  max: number | null;
+  job: string | null;
+  intermediate: boolean | null;
 };
 const timestamp = (expr: ReturnType<typeof sql>) =>
   sql`floor(extract(epoch FROM ${expr})*1000000)::bigint::text`;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function count(value: string | null): number | null {
-  if (value === null) return null;
-  const n = Number(value);
-  if (!/^-?\d+$/.test(value) || !Number.isSafeInteger(n))
-    throw new Error("Invalid persisted match score");
-  return n;
-}
 /** Caller owns the transaction; admission locks owner first, then this match. */
 export async function reconcileMatch(tx: Transaction, id: string): Promise<void> {
   if (!uuid.test(id)) throw new ApplicationError("not_found", "Match not found", 404);
@@ -48,8 +39,8 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
   if (!match || match.outcome !== null) return;
   if (!match.started) {
     if (match.expired) {
-      await finish(tx, id, "cancelled", null, "invite_expired");
-      await event(tx, id, "match.completed");
+      await finishMatch(tx, id, "cancelled", null, "invite_expired");
+      await matchEvent(tx, id, "match.completed");
     }
     return;
   }
@@ -61,23 +52,47 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
   ).rows;
   const rows = (
     await tx.execute<Submission>(
-      sql`SELECT s.owner_id AS owner,s.state,COALESCE(s.result->>'verdict','') AS verdict,s.result->'score'->>'passed' AS passed,s.result->'score'->>'total' AS total,COALESCE(s.odyssey_level < jsonb_array_length(p.odyssey->'levels'),false) AS intermediate,CASE WHEN c.definite_failures>0 AND c.definite_failures<=c.next_ordinal AND c.definite_failures<=jsonb_array_length(s.cases) THEN jsonb_array_length(s.cases)-c.definite_failures END AS max FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id LEFT JOIN execution_checkpoints c ON c.job_id=j.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
+      sql`SELECT s.owner_id AS owner,s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
     )
   ).rows;
-  const submissions: SubmissionProgress[] = rows.map((row) => {
-    const passed = count(row.passed),
-      total = count(row.total);
-    if ((passed === null) !== (total === null)) throw new Error("Invalid persisted match score");
-    return {
+  const submissions: SubmissionProgress[] = [];
+  for (const row of rows) {
+    const evidence =
+      row.job && row.intermediate !== null
+        ? await verifiedMatchProgress(tx, row.job)
+        : { kind: "unavailable" as const };
+    const verified =
+      evidence.kind === "verified" &&
+      Number.isSafeInteger(evidence.caseCount) &&
+      evidence.caseCount > 0 &&
+      Number.isSafeInteger(evidence.definiteFailures) &&
+      evidence.definiteFailures >= 0 &&
+      evidence.definiteFailures <= evidence.caseCount
+        ? evidence
+        : null;
+    const terminal =
+      row.state === "completed" &&
+      verified?.terminal &&
+      Number.isSafeInteger(verified.terminal.passed) &&
+      verified.terminal.passed >= 0 &&
+      verified.terminal.passed + verified.definiteFailures === verified.caseCount &&
+      (verified.terminal.verdict === "accepted") === (verified.definiteFailures === 0)
+        ? verified.terminal
+        : null;
+    const max =
+      verified && verified.definiteFailures > 0
+        ? verified.caseCount - verified.definiteFailures
+        : null;
+    submissions.push({
       owner: row.owner,
       state: row.state,
-      verdict: row.verdict,
-      score: passed === null || total === null ? null : { passed, total },
-      intermediate: row.intermediate,
-      maxPossible: row.max,
-      cannotPass: row.max !== null,
-    };
-  });
+      verdict: terminal?.verdict ?? "",
+      score: terminal && verified ? { passed: terminal.passed, total: verified.caseCount } : null,
+      intermediate: row.intermediate ?? false,
+      maxPossible: max,
+      cannotPass: max !== null,
+    });
+  }
   const decision = reconcile(
     BigInt(match.now),
     BigInt(match.deadline),
@@ -102,7 +117,7 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
     changed = true;
   }
   if (decision.outcome) {
-    await finish(
+    await finishMatch(
       tx,
       id,
       decision.outcome.kind,
@@ -111,9 +126,10 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
     );
     changed = true;
   }
-  if (changed) await event(tx, id, decision.outcome ? "match.completed" : "match.updated");
+  if (changed) await matchEvent(tx, id, decision.outcome ? "match.completed" : "match.updated");
 }
-async function finish(
+/** Caller holds the match lock and emits the versioned notice. */
+export async function finishMatch(
   tx: Transaction,
   id: string,
   kind: string,
@@ -134,7 +150,8 @@ async function finish(
   );
   await tx.execute(sql`DELETE FROM match_reservations WHERE match_id=${id}::uuid`);
 }
-async function event(
+/** Caller holds the match lock; increments the aggregate version once. */
+export async function matchEvent(
   tx: Transaction,
   id: string,
   type: "match.updated" | "match.completed",

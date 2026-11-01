@@ -1,7 +1,7 @@
 /** @file projected-stream.ts @description Incremental public projection of private test inputs. @module judging */
-import { LegacyJsonReader } from "./legacy-json.ts";
+import { StreamingJsonReader } from "@quorem/questions";
 export async function* projectedObject(
-  input: LegacyJsonReader,
+  input: StreamingJsonReader,
   allowed: Set<string>,
   calls = false,
 ): AsyncGenerator<string> {

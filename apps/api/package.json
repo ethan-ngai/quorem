@@ -15,20 +15,27 @@
     "test:catalog:workers": "vp exec vitest run --config src/adapters/postgres/problems/queries/vitest.workers.config.ts"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-sqs": "3.1150.0",
+    "@codemirror/state": "^6.5.2",
     "@hono/node-server": "2.1.5",
+    "@quorem/auth": "workspace:*",
     "@quorem/database": "workspace:*",
     "@quorem/execution": "workspace:*",
     "@quorem/questions": "workspace:*",
+    "@smithy/protocol-http": "5.6.2",
+    "@smithy/signature-v4": "5.7.5",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.14",
     "jose": "6.2.12",
-    "pg": "8.16.3"
+    "pg": "8.16.3",
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.11",
     "@types/node": "24.19.2",
     "@types/pg": "8.15.6",
+    "@types/ws": "8.18.2",
     "typescript": "6.0.3",
     "vitest": "5.0.3",
     "wrangler": "4.156.0"

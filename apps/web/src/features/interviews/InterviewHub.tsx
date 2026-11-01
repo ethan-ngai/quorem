@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
   InterviewSnapshot,
+  InterviewSummary,
+  InterviewCommandAck,
   InterviewQuestionInput,
   InterviewMonitoring,
 } from "@quorem/contracts";
@@ -39,7 +41,7 @@ export function InterviewHub() {
   const [created, setCreated] = useState<InterviewSnapshot>();
   const [busy, setBusy] = useState(false);
   const [lifecycle, setLifecycle] = useState<{
-    session: InterviewSnapshot;
+    session: InterviewSummary;
     action: "end" | "delete";
   }>();
   const [error, setError] = useState<string>();
@@ -49,7 +51,7 @@ export function InterviewHub() {
   const sessions = useQuery({
     queryKey: ["interviews", account.data?.user.id],
     queryFn: ({ signal }) =>
-      interviewRequest<InterviewSnapshot[]>("/v1/interviews", "GET", undefined, undefined, signal),
+      interviewRequest<InterviewSummary[]>("/v1/interviews", "GET", undefined, undefined, signal),
     enabled: false,
   });
   const identity = account.data?.user.id as DevelopmentIdentity | undefined;
@@ -80,12 +82,13 @@ export function InterviewHub() {
     setBusy(true);
     setError(undefined);
     try {
-      const session = await interviewRequest<InterviewSnapshot>(
+      const created = await interviewRequest<InterviewCommandAck>(
         "/v1/interviews",
         "POST",
         { title, question, monitoring },
         randomUUID(),
       );
+      const session = await interviewRequest<InterviewSnapshot>(`/v1/interviews/${created.id}`);
       setCreated(session);
       await sessions.refetch();
     } catch (cause) {
@@ -218,21 +221,17 @@ export function InterviewHub() {
                             {session.title}
                           </Link>
                         </div>
-                        <span className="interview-row-detail">
-                          {session.question.problem.title}
-                        </span>
+                        <span className="interview-row-detail">{session.problemTitle}</span>
                         <span className="interview-mobile-meta">
                           {session.role === "interviewer" ? "Interviewer" : "Interviewee"} ·{" "}
-                          {session.members.length}{" "}
-                          {session.members.length === 1 ? "member" : "members"}
+                          {session.memberCount} {session.memberCount === 1 ? "member" : "members"}
                         </span>
                       </td>
                       <td className="interview-role-column">
                         {session.role === "interviewer" ? "Interviewer" : "Interviewee"}
                         <span className="interview-row-detail interview-member-count">
                           <Users size={13} aria-hidden="true" />
-                          {session.members.length}{" "}
-                          {session.members.length === 1 ? "member" : "members"}
+                          {session.memberCount} {session.memberCount === 1 ? "member" : "members"}
                         </span>
                       </td>
                       <td className="catalog-actions">

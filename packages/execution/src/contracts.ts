@@ -73,19 +73,9 @@ export interface CompletionHeader {
 export interface CompletionFieldChunk {
   readonly channel: "public" | "sample" | "private" | "header";
   readonly ordinal: number;
-  readonly field: "actual" | "expected" | "stdout" | "stderr" | "diagnostics" | "sqlTypes";
+  readonly field: "actual" | "stdout" | "stderr" | "diagnostics" | "sqlTypes";
   readonly chunkOrdinal: number;
   readonly bytes: Uint8Array;
-}
-/** Case payloads are raw JSON so precision and private values survive transport. */
-export interface ExecutionSpec {
-  readonly problemJson: string;
-  readonly source: string;
-  readonly kind: "run" | "submit";
-  readonly cases: readonly string[];
-  readonly submitSamples: readonly string[];
-  readonly submitCasesAreSamples: boolean;
-  readonly privateDetails: boolean;
 }
 export interface Checkpoint {
   readonly nextOrdinal: number;
@@ -119,6 +109,11 @@ export interface SandboxControl {
 export interface ExecutionEngine {
   execute(job: Job, signal?: AbortSignal): Promise<Completion>;
 }
+export interface ExecutionQueueControl {
+  queueState(signal?: AbortSignal): Promise<{ queued: number; running: number }>;
+  confirmQueueEmpty(signal?: AbortSignal): Promise<boolean>;
+  nextRunnableDeadline(scope: string, signal?: AbortSignal): Promise<number | null>;
+}
 export interface ExecutionRepository {
   nextExpiredAttempt(
     resumable: boolean,
@@ -131,7 +126,6 @@ export interface ExecutionRepository {
     confirmed: AttemptFence | null,
     signal?: AbortSignal,
   ): Promise<Job | null>;
-  load(job: Job, signal?: AbortSignal): Promise<ExecutionSpec>;
   lease(job: Job, heartbeat: boolean, signal?: AbortSignal): Promise<boolean>;
   beginCompletion(job: Job, header: CompletionHeader, signal?: AbortSignal): Promise<void>;
   writeCompletionChunk(job: Job, chunk: CompletionFieldChunk, signal?: AbortSignal): Promise<void>;
@@ -171,4 +165,39 @@ export function assertCompletion(job: Job, completion: Completion): void {
 export function assertClaimFence(scope: string, confirmed: AttemptFence | null): void {
   if (!scope || (confirmed !== null && (!confirmed.attemptId || confirmed.sandboxScope !== scope)))
     throw new Error("claim fence mismatch");
+}
+/** Fixed-size identity and counts; values are fetched in bounded pages. */
+export interface InputBlobRef {
+  readonly hash: string;
+  readonly size: number;
+}
+export interface InputManifest {
+  readonly kind: "run" | "submit";
+  readonly level: number | null;
+  readonly caseCount: number;
+  readonly sampleCount: number;
+  readonly privateDetails: boolean;
+  readonly submitCasesAreSamples: boolean;
+  readonly suiteHash: string;
+  readonly source: InputBlobRef;
+  readonly metadata: InputBlobRef;
+}
+export type InputKind = "source" | "metadata" | "case";
+export interface InputCaseRef extends InputBlobRef {
+  readonly channel: "public" | "sample" | "private";
+}
+export interface InputPage extends InputBlobRef {
+  readonly bytes: Uint8Array;
+  readonly channel: "public" | "sample" | "private" | null;
+}
+export interface ExecutionInputReader {
+  inputManifest(job: Job, signal?: AbortSignal): Promise<InputManifest>;
+  inputCaseRef(job: Job, ordinal: number, signal?: AbortSignal): Promise<InputCaseRef>;
+  inputPage(
+    job: Job,
+    kind: InputKind,
+    ordinal: number,
+    offset: number,
+    signal?: AbortSignal,
+  ): Promise<InputPage>;
 }

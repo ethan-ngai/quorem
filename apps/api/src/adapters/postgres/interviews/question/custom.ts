@@ -14,6 +14,7 @@ import {
 } from "@quorem/questions";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
+import { validateCustomQuestionShape } from "../../../../modules/interviews/question/validation.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { object, storageProjection } from "../../problems/storage.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
@@ -37,21 +38,7 @@ export async function prepareCustomInterviewQuestion(
   language: string,
   fingerprint: string,
 ): Promise<PreparedQuestion> {
-  if (
-    Object.keys(custom).some(
-      (key) =>
-        ![
-          "odyssey",
-          "odysseyHiddenCases",
-          "title",
-          "statementMarkdown",
-          "signature",
-          "publicCases",
-          "privateCases",
-        ].includes(key),
-    )
-  )
-    throw bad("Invalid custom question");
+  validateCustomQuestionShape(custom);
   if (language === "postgresql")
     throw bad("Custom SQL interviews require a published SQL question");
   if (!(await capabilitiesInTransaction(tx, actor.userId)).authorCustomQuestions)
@@ -159,6 +146,7 @@ export async function prepareCustomInterviewQuestion(
     source: string(selected.starterSource),
     language,
     fingerprint,
+    versionId: id,
     persist: async (inner) => {
       await inner.execute(
         sql`INSERT INTO problems(id,slug,owner_id) VALUES(${parent}::uuid,${`private-${id}`},${actor.userId})`,

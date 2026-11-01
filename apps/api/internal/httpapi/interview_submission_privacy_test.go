@@ -38,7 +38,7 @@ func TestInterviewSubmissionPrivateVerdictsStayOutOfGenericEndpoints(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := store.Claim(ctx)
+	job, err := claimStreamTestJob(ctx, store)
 	if err != nil {
 		t.Fatal(err)
 	}

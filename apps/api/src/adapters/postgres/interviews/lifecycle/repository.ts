@@ -18,6 +18,12 @@ import { lockInterview, unavailable } from "./access.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { operationFingerprint, priorOperation, saveOperation } from "./operations.ts";
 import { savePublicExamples, savePrivateCases } from "../question/public-examples.ts";
+import { writePublishedInterviewQuestion } from "../question/prepare.ts";
+import {
+  copySnapshotExamples,
+  savePublishedInterviewSidecars,
+} from "../question/published-sidecars.ts";
+import { createActiveRunnerFixture } from "../runner-inputs/active.ts";
 type Run = <T>(action: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export interface PreparedQuestion {
   safe: string;
@@ -25,11 +31,13 @@ export interface PreparedQuestion {
   source: string;
   language: string;
   fingerprint: string;
+  versionId?: string;
+  published?: boolean;
   persist?(tx: Transaction): Promise<void>;
 }
 export interface Dependencies {
   question(tx: Transaction, actor: Principal, command: InterviewCreate): Promise<PreparedQuestion>;
-  snapshot(tx: Transaction, actor: Principal, id: string): Promise<string>;
+  snapshot(actor: Principal, id: string): Promise<ReadableStream<Uint8Array>>;
 }
 const opts = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 const denied = () => new ApplicationError("not_found", "Invitation unavailable", 404);
@@ -50,7 +58,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
       const access = await lockInterview(tx, actor, id, capabilitiesInTransaction, {
         manage: true,
       });
-      if (prior) return deps.snapshot(tx, actor, id);
+      if (prior) return JSON.stringify({ id });
       if (action === "close") {
         if (access.state !== "active")
           throw new ApplicationError("invalid_transition", "Interview is closed", 409);
@@ -64,7 +72,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
       );
       await saveOperation(tx, actor.userId, key, hash, id);
-      return deps.snapshot(tx, actor, id);
+      return JSON.stringify({ id });
     });
   return {
     async create(actor, key, command) {
@@ -94,7 +102,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         const prior = await priorOperation(tx, actor.userId, key, prepared.fingerprint);
         if (prior) {
           await lockInterview(tx, actor, prior, capabilitiesInTransaction);
-          return deps.snapshot(tx, actor, prior);
+          return JSON.stringify({ id: prior });
         }
         const count = (
           await tx.execute<{ count: string }>(
@@ -121,38 +129,63 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         await tx.execute(
           sql`INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token,monitoring,lossless_question) VALUES(${id}::uuid,${actor.userId},${title},${prepared.safe}::jsonb,${prepared.language},${prepared.source},${crypto.randomUUID()}::uuid,${candidateHash},${candidate},${questionEpoch}::uuid,${interviewerHash},${interviewer},${monitoring}::jsonb,${prepared.lossless})`,
         );
-        const rawFixture = prepared.lossless
-          ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
-          : prepared.safe;
-        await savePublicExamples(tx, id, questionEpoch, rawFixture);
-        await savePrivateCases(tx, id, questionEpoch, rawFixture);
+        if (prepared.published && prepared.versionId) {
+          await writePublishedInterviewQuestion(
+            tx,
+            id,
+            prepared.versionId,
+            prepared.language,
+            (command.question as Record<string, unknown>).hints,
+          );
+          await savePublishedInterviewSidecars(tx, id, questionEpoch, prepared.versionId);
+        } else {
+          const rawFixture = prepared.lossless
+            ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
+            : prepared.safe;
+          await savePublicExamples(tx, id, questionEpoch, rawFixture);
+          await savePrivateCases(tx, id, questionEpoch, rawFixture);
+          await tx.execute(sql`UPDATE interviews SET lossless_question=NULL WHERE id=${id}::uuid`);
+        }
+        if (!prepared.versionId) throw new Error("Indexed question version required");
+        const fixtureId = await createActiveRunnerFixture(
+          tx,
+          id,
+          questionEpoch,
+          prepared.versionId,
+        );
+        await copySnapshotExamples(tx, id, questionEpoch, fixtureId);
         await tx.execute(
           sql`INSERT INTO interview_members(session_id,user_id,role) VALUES(${id}::uuid,${actor.userId},'interviewer')`,
         );
         await saveOperation(tx, actor.userId, key, prepared.fingerprint, id);
-        return deps.snapshot(tx, actor, id);
+        return JSON.stringify({ id });
       });
     },
     async list(actor) {
       return transact(async (tx) => {
         const rows = (
-          await tx.execute<{ id: string }>(
-            sql`SELECT i.id::text FROM interviews i JOIN interview_members m ON m.session_id=i.id WHERE m.user_id=${actor.userId} AND m.removed_at IS NULL AND i.deleted_at IS NULL ORDER BY i.updated_at DESC LIMIT 50`,
+          await tx.execute<{
+            id: string;
+            title: string;
+            state: string;
+            hostId: string;
+            role: string;
+            problemTitle: string;
+            memberCount: number;
+          }>(
+            sql`SELECT i.id::text,i.title,i.state,i.host_id AS "hostId",m.role,COALESCE(q.metadata->'problem'->>'title','') AS "problemTitle",(SELECT count(*)::int FROM interview_members p WHERE p.session_id=i.id AND p.removed_at IS NULL) AS "memberCount" FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${actor.userId} AND m.removed_at IS NULL JOIN interview_question_public q ON q.session_id=i.id AND q.question_epoch=i.question_epoch WHERE i.deleted_at IS NULL ORDER BY i.updated_at DESC LIMIT 50`,
           )
         ).rows;
         const result: string[] = [];
         for (const row of rows) {
           await lockInterview(tx, actor, row.id, capabilitiesInTransaction);
-          result.push(await deps.snapshot(tx, actor, row.id));
+          result.push(JSON.stringify(row));
         }
         return result;
       });
     },
     async read(actor, id) {
-      return transact(async (tx) => {
-        await lockInterview(tx, actor, id, capabilitiesInTransaction);
-        return deps.snapshot(tx, actor, id);
-      });
+      return deps.snapshot(actor, id);
     },
     async preview(token) {
       if (!validGuestToken(token)) throw denied();
@@ -174,7 +207,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
       });
     },
     async join(actor, token, credential, name) {
-      return joinInterview(transact, deps, actor, token, credential, name);
+      return joinInterview(transact, actor, token, credential, name);
     },
     async setMember(actor, id, key, target, role) {
       if (role !== "interviewer" && role !== "interviewee")
@@ -248,7 +281,6 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
 type Transact = <T>(f: (tx: Transaction) => Promise<T>) => Promise<T>;
 async function joinInterview(
   transact: Transact,
-  deps: Dependencies,
   actor: Principal | undefined,
   token: string,
   credential: string | undefined,
@@ -370,21 +402,8 @@ async function joinInterview(
     await tx.execute(
       sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${room.id}::uuid`,
     );
-    const who: Principal = guestCredential
-      ? {
-          kind: "guest",
-          userId: user,
-          displayName: guestDisplay,
-          admin: false,
-          emailVerified: false,
-          sessionId: await guestTokenHash(guestCredential),
-          strongUntil: 0,
-          credentialExpiresAt: 0,
-          scope: { kind: "interview", interviewId: room.id },
-        }
-      : actor!;
     return {
-      snapshot: await deps.snapshot(tx, who, room.id),
+      id: room.id,
       ...(guestCredential ? { credential: guestCredential } : {}),
     };
   });
