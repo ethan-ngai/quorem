@@ -14,6 +14,29 @@ const fixture = {
   AUTH_EMAIL_FROM: "fixture@example.test",
 };
 describe("Worker auth composition", () => {
+  it("requires a distinct HTTPS relay and preserves private credentials", async () => {
+    const config = {
+      ...fixture,
+      APP_ENV: "stage",
+      AUTH_ORIGIN: "https://auth.example",
+      AUTH_PASSWORD_PRODUCTION: "true",
+      AUTH_EMAIL_DRIVER: "relay",
+      AUTH_EMAIL_RELAY_ORIGIN: "https://mail.example",
+      AUTH_EMAIL_RELAY_TOKEN: "relay-fixture-".repeat(4),
+      AUTH_MAIL_INTENT_KEY: "07".repeat(32),
+    };
+    const runtime = workerRuntime(config);
+    const publicConfig = await (
+      await runtime.app.request("https://auth.example/api/auth/quorem-config")
+    ).text();
+    expect(publicConfig).not.toContain(config.AUTH_EMAIL_RELAY_TOKEN);
+    expect(() =>
+      workerRuntime({ ...config, AUTH_EMAIL_RELAY_ORIGIN: "http://mail.example" }),
+    ).toThrow();
+    expect(() =>
+      workerRuntime({ ...config, AUTH_EMAIL_RELAY_TOKEN: config.BETTER_AUTH_SECRET }),
+    ).toThrow();
+  });
   it("requires a dedicated bearer and HTTPS for stage media", () => {
     const stage = {
       ...fixture,

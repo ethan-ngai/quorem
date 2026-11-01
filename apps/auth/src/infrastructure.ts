@@ -7,7 +7,9 @@ export async function createInfrastructure(config: ReturnType<typeof configurati
     ? verificationMailer(
         mail.driver === "cloudflare"
           ? (await import("./adapters/cloudflare-email.ts")).cloudflareEmail(mail)
-          : (await import("./adapters/smtp-email.ts")).smtpEmail(mail),
+          : mail.driver === "relay"
+            ? (await import("./adapters/relay-email.ts")).relayEmail(mail)
+            : (await import("./adapters/smtp-email.ts")).smtpEmail(mail),
       )
     : undefined;
   const avatars = config.avatars;
