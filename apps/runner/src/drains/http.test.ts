@@ -10,7 +10,7 @@ const request = (signal?: AbortSignal) =>
     signal,
   });
 
-test("background attempt survives caller cancellation, never overlaps, confirms current queue", async () => {
+void test("background attempt survives caller cancellation, never overlaps, confirms current queue", async () => {
   const shutdown = new AbortController();
   let finish!: (state: DrainState) => void;
   let live!: AbortSignal;
@@ -51,7 +51,7 @@ test("background attempt survives caller cancellation, never overlaps, confirms 
   assert.equal((await handler(request())).status, 200);
 });
 
-test("process shutdown aborts work and joins its cleanup; next poll reports bounded failure", async () => {
+void test("process shutdown aborts work and joins its cleanup; next poll reports bounded failure", async () => {
   const shutdown = new AbortController();
   let cleanup!: () => void;
   let cancelled = false;
@@ -90,7 +90,7 @@ test("process shutdown aborts work and joins its cleanup; next poll reports boun
   assert.doesNotMatch(await response.text(), /private failure detail/);
 });
 
-test("queue authority failure returns unavailable without starting work", async () => {
+void test("queue authority failure returns unavailable without starting work", async () => {
   let calls = 0;
   const handler = drainHandler({
     secret,

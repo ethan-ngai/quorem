@@ -25,6 +25,19 @@ void test("only explicitly allowed deletions can be applied", () => {
     ),
   );
 });
+void test("reset validates applied actions independently of observational drift", () => {
+  assert.doesNotThrow(() =>
+    validateResetPlan(
+      {
+        resource_changes: [{ address: "cloudflare_worker.api", change: { actions: ["delete"] } }],
+        resource_drift: [
+          { address: "cloudflare_queue.execution", change: { actions: ["update"] } },
+        ],
+      },
+      /^cloudflare_worker\.api$/,
+    ),
+  );
+});
 void test(
   "real migrated stage requires fenced writer, matching genesis and no application data",
   { timeout: 120000 },

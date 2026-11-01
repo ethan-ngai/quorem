@@ -1,5 +1,7 @@
 /** Attach only after manual acceptance and detach on any uncertain automatic proof. */
 import { spawnSync } from "node:child_process";
+import { plannedResourceChanges } from "./hono-terraform-plan.mjs";
+import { runStageCommand } from "./hono-stage-command.mjs";
 import { chmodSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -38,17 +40,7 @@ export function setQueue(env, enabled, run = spawnSync) {
   childEnv.TF_VAR_enable_queue_consumer = String(enabled);
   const directory = mkdtempSync(join(tmpdir(), "quorem-stage-queue-"));
   const plan = join(directory, "consumer.tfplan");
-  const execute = (args) => {
-    const result = run("terraform", args, {
-      env: childEnv,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    if (result.error || result.status !== 0)
-      throw new Error("Queue change failed; provider output withheld");
-    return result.stdout ?? "";
-  };
+  const execute = (args) => runStageCommand("terraform", args, childEnv, run);
   try {
     chmodSync(directory, 0o700);
     execute([
@@ -68,9 +60,13 @@ export function setQueue(env, enabled, run = spawnSync) {
       throw new Error("Queue plan cannot be validated");
     }
     const address = "cloudflare_queue_consumer.execution[0]";
-    if (!Array.isArray(view.resource_changes) || !view.planned_values?.root_module)
+    if (
+      !view.planned_values?.root_module ||
+      typeof view.planned_values.root_module !== "object" ||
+      Array.isArray(view.planned_values.root_module)
+    )
       throw new Error("Queue plan cannot be validated");
-    for (const change of [...view.resource_changes, ...(view.resource_drift ?? [])]) {
+    for (const change of plannedResourceChanges(view)) {
       const actions = change.change?.actions;
       if (!Array.isArray(actions)) throw new Error("Queue plan cannot be validated");
       if (actions.length === 1 && actions[0] === "no-op") continue;

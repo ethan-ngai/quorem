@@ -1,4 +1,5 @@
 /** Destructive reset of an unused isolated stage; never touches production state. */
+import { plannedResourceChanges } from "./hono-terraform-plan.mjs";
 import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -238,9 +239,7 @@ const serviceAllowed =
 const stageAllowed =
   /^(?:cloudflare_worker\.api|cloudflare_hyperdrive_config\.database|cloudflare_queue_consumer\.execution\[0\])$/;
 export function validateResetPlan(plan, allowed) {
-  if (!Array.isArray(plan.resource_changes) || !Array.isArray(plan.resource_drift ?? []))
-    throw new Error("Invalid reset plan");
-  for (const change of [...plan.resource_changes, ...(plan.resource_drift ?? [])]) {
+  for (const change of plannedResourceChanges(plan)) {
     const actions = change.change?.actions;
     if (
       !Array.isArray(actions) ||
