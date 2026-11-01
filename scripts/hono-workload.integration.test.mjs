@@ -63,7 +63,7 @@ void test(
               },
             },
           );
-          assert.equal(result.profile, "fixture");
+          assert.equal(result.profile, "smoke");
           assert.equal(result.sessions, 2);
           assert.equal(result.jobs.count, 2);
           assert.equal(result.errors, 0);
