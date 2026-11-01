@@ -23,6 +23,13 @@ export function configuration(env: NodeJS.ProcessEnv) {
   const method = env.AUTH_MODE ?? "cognito";
   if (method !== "cognito" && method !== "password") throw new Error("Invalid AUTH_MODE");
   const platform = platformConfiguration(env);
+  if (
+    platform.mail?.driver === "relay" &&
+    [env.BETTER_AUTH_SECRET, env.AUTH_INTERNAL_SECRET, env.AUTH_MAIL_INTENT_KEY].includes(
+      platform.mail.token,
+    )
+  )
+    throw new Error("Distinct mail relay credential required");
   if (platform.mail && !env.AUTH_EMAIL_DRIVER && method !== "password")
     throw new Error("Legacy local SMTP requires password mode");
   const localPassword =
@@ -44,7 +51,10 @@ export function configuration(env: NodeJS.ProcessEnv) {
       env.AUTH_PASSWORD_PRODUCTION === "true" &&
       url.protocol === "https:" &&
       (loginOnly ||
-        (platform.mail && (platform.mail.driver === "cloudflare" || platform.mail.requireTLS)))
+        (platform.mail &&
+          (platform.mail.driver === "cloudflare" ||
+            platform.mail.driver === "relay" ||
+            platform.mail.requireTLS)))
     )
   )
     throw new Error(

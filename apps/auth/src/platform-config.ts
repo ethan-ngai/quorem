@@ -2,6 +2,7 @@ import type { SMTPConfiguration } from "./adapters/smtp-email.ts";
 
 export type MailConfiguration =
   | ({ driver: "smtp" | "ses-smtp" } & SMTPConfiguration)
+  | { driver: "relay"; origin: string; token: string; from: string }
   | { driver: "cloudflare"; accountId: string; apiToken: string; from: string };
 export type AvatarConfiguration =
   | {
@@ -34,7 +35,29 @@ export function platformConfiguration(env: NodeJS.ProcessEnv) {
   const loopback = (host: string) => ["localhost", "127.0.0.1"].includes(host);
   let mail: MailConfiguration | undefined;
   const driver = env.AUTH_EMAIL_DRIVER ?? (env.SMTP_HOST ? "smtp" : undefined);
-  if (driver === "cloudflare") {
+  if (driver === "relay") {
+    const origin = required("AUTH_EMAIL_RELAY_ORIGIN"),
+      token = required("AUTH_EMAIL_RELAY_TOKEN");
+    let url: URL;
+    try {
+      url = new URL(origin);
+    } catch {
+      throw new Error("Invalid email relay origin");
+    }
+    if (
+      url.origin !== origin ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (url.protocol !== "https:" &&
+        !(local && url.protocol === "http:" && loopback(url.hostname))) ||
+      new TextEncoder().encode(token).length < 32 ||
+      /\s/.test(token)
+    )
+      throw new Error("Invalid email relay configuration");
+    mail = { driver, origin, token, from: required("AUTH_EMAIL_FROM") };
+  } else if (driver === "cloudflare") {
     mail = {
       driver,
       accountId: account("AUTH_EMAIL_CLOUDFLARE_ACCOUNT_ID"),

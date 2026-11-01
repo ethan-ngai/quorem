@@ -7,6 +7,7 @@ import { composeAuth } from "./composition.ts";
 import { mailIntentKey } from "./mail-key.ts";
 import { verificationMailer } from "./mailer.ts";
 import { cloudflareEmail } from "./adapters/cloudflare-email.ts";
+import { relayEmail } from "./adapters/relay-email.ts";
 import type { VerificationSender } from "./email-delivery.ts";
 import type { MailConfiguration } from "./platform-config.ts";
 import { accessFetch } from "@quorem/execution/transport/access";
@@ -21,14 +22,15 @@ export function workerRuntime(
   env: AuthWorkerEnv,
   signal?: AbortSignal,
   transportFactory: (
-    config: Extract<MailConfiguration, { driver: "cloudflare" }>,
-  ) => VerificationSender = (config) => verificationMailer(cloudflareEmail(config)),
+    config: Extract<MailConfiguration, { driver: "cloudflare" | "relay" }>,
+  ) => VerificationSender = (config) =>
+    verificationMailer(config.driver === "relay" ? relayEmail(config) : cloudflareEmail(config)),
 ) {
   const values = Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
   const config = configuration({ ...values, AUTH_DATABASE_URL: env.DB.connectionString });
-  if (config.mail && config.mail.driver !== "cloudflare")
+  if (config.mail && config.mail.driver !== "cloudflare" && config.mail.driver !== "relay")
     throw new Error("Worker mail requires the configured HTTPS adapter");
   const transport = config.mail ? transportFactory(config.mail) : undefined;
   const run = <T>(callback: Parameters<typeof withWorkerConnection<T>>[2]) =>
