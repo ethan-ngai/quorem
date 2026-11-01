@@ -101,7 +101,7 @@ func encode(v []vector) ([]byte, error) {
 }
 func main() {
 	pub, priv := vectors()
-	for path, v := range map[string][]vector{"fixtures/migration/public/go-oracle.json": pub, "fixtures/migration/private/go-oracle.json": priv} {
+	for path, v := range map[string][]vector{"fixtures/migration/public/go-oracle.json": pub, "fixtures/migration/private/go-oracle.json": priv, "fixtures/migration/private/question-edge-oracle.json": questionVectors()} {
 		b, err := encode(v)
 		if err == nil {
 			err = os.MkdirAll(filepath.Dir(path), 0755)
