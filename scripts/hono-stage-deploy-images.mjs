@@ -35,17 +35,16 @@ export function publishImages(env, run = spawnSync) {
       throw new Error("Staged image operation failed; output withheld");
     return result.stdout ?? "";
   };
-  for (const role of ["runner", "verifier"])
-    call("docker", [
-      "build",
-      "-f",
-      "deploy/hono/Dockerfile.runner",
-      "--target",
-      role,
-      "-t",
-      `quorem-hono-${role}:stage-build`,
-      ".",
-    ]);
+  call("docker", [
+    "build",
+    "-f",
+    "deploy/hono/Dockerfile.runner",
+    "--target",
+    "private-service",
+    "-t",
+    "quorem-hono-private:stage-build",
+    ".",
+  ]);
   const profile = env.TF_VAR_profile_media_enabled ?? "false";
   if (!["true", "false"].includes(profile)) throw new Error("Invalid profile media flag");
   if (profile === "true")
@@ -69,9 +68,11 @@ export function publishImages(env, run = spawnSync) {
     "postgresql",
     ...(profile === "true" ? ["image"] : []),
   ]) {
-    const source = ["runner", "verifier", "image"].includes(role)
-      ? `quorem-hono-${role}:stage-build`
-      : `quorem-case-${role}:local`;
+    const source = ["runner", "verifier"].includes(role)
+      ? "quorem-hono-private:stage-build"
+      : role === "image"
+        ? "quorem-hono-image:stage-build"
+        : `quorem-case-${role}:local`;
     const repository = `registry.cloudflare.com/${account}/quorem-hono-stage-${role}`;
     const tag = `${repository}:${revision}`;
     call("docker", ["tag", source, tag]);
