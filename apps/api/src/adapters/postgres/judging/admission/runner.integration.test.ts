@@ -501,19 +501,22 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           signal: AbortSignal.timeout(drainTimeoutMs),
         });
         const requireDrained = async (response: Response, scenario: string) => {
-          // A bounded drain can yield while a cancelled attempt's lease expires.
-          for (let continuation = 0; response.status === 202 && continuation < 3; continuation++) {
+          // Background drains report progress promptly; completion remains authoritative.
+          const deadline = Date.now() + drainTimeoutMs;
+          while (response.status === 202 && Date.now() < deadline) {
             await response.body?.cancel();
+            await sleep(250);
             response = await fetch(`${runnerOrigin}/internal/drain`, {
               method: "POST",
               headers: { authorization: `Bearer ${drainSecret}` },
-              signal: AbortSignal.timeout(drainTimeoutMs),
+              signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
             });
           }
           if (response.status !== 200)
             throw new Error(
               `Hosted ${scenario} drain HTTP ${response.status}: ${await response.text()} ${serviceDiagnostics}`,
             );
+          await response.body?.cancel();
         };
         await requireDrained(drain, "accepted");
         const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
