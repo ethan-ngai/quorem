@@ -14,7 +14,7 @@ Each row is one small task packet, not an agent permanently assigned to a domain
 | [05 Drizzle schema and migration mapping](tasks/05-schema.md) | 04 |
 | [06 Transaction and persistence primitives](tasks/06-db-primitives.md) | 05 |
 | [07 Canonical question model and starters](tasks/07-question-model.md) | 04, 03 |
-| [08 Exact case codecs and comparisons](tasks/08-question-codecs.md) | 07, 06 |
+| [08 Exact case codecs and comparisons](tasks/08-question-codecs.md) | 07, 03 |
 | [09 Private execution contracts](tasks/09-execution-contracts.md) | 08 |
 | [10 Product identity and access policy](tasks/10-identity-access.md) | 06, 07 |
 | [11 Better Auth Drizzle persistence](tasks/11-auth-db.md) | 06, 10, 02 |
@@ -59,3 +59,5 @@ Each row is one small task packet, not an agent permanently assigned to a domain
 Start eligible work across ranges when contracts are ready; numeric order is not a single serial queue. Example: 07 can overlap 05; 15 can overlap catalog work; 33 can run while interview packets progress. Ownership takes precedence over apparent parallelism.
 
 Schema/contract changes produce predecessor patches. No tasks mutate the same paths concurrently. If a packet needs subdivision, preserve its acceptance criteria and update this graph plus the ledger before dispatch.
+
+Pure question codecs (08) depend on canonical values and exact oracles, not database transactions (06). Persistence uses those pure codecs through backend mappings; this removes an unnecessary dependency without changing acceptance.

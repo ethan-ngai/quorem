@@ -15,13 +15,28 @@ Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implem
 | Packet | State | Evidence |
 | --- | --- | --- |
 | 00 | Complete for dispatch | Exact baseline-tree comparison and source inventory; reclaim contract frozen above |
-| 01 | Running | [#336](https://github.com/ethan-ngai/quorem/issues/336), Terra medium; isolated workerd + Drizzle probe |
-| 02 | Running | [#337](https://github.com/ethan-ngai/quorem/issues/337), Terra medium; auth runtime probe |
-| 03 | Running | [#338](https://github.com/ethan-ngai/quorem/issues/338), Terra medium; exact-value vectors |
-| 04-39 | Pending | Follow prerequisite graph and runtime evidence |
+| 01 | Integrated | [#340](https://github.com/ethan-ngai/quorem/pull/340); actual workerd/PG probes; hosted Hyperdrive remains unverified |
+| 02 | Integrated | [#341](https://github.com/ethan-ngai/quorem/pull/341); real auth runtime probes; full WebAuthn/social/image/mail gates remain |
+| 03 | Integrated | [#344](https://github.com/ethan-ngai/quorem/pull/344); deterministic public/private Go vectors and owner-package hashes/frames |
+| 04 | Integrated | [#345](https://github.com/ethan-ngai/quorem/pull/345), integration commit `344ca41`; Node/workerd/type/boundary tests and CI passed |
+| 05 | Review | [#350](https://github.com/ethan-ngai/quorem/pull/350); local PG catalog, repeat/upgrade/restore fixtures and counter checks passed |
+| 06 | Review | [#351](https://github.com/ethan-ngai/quorem/issues/351); connection/transaction primitives; owned-client disconnect audit underway |
+| 07 | Review | [#348](https://github.com/ethan-ngai/quorem/pull/348); model/metadata/starters, Node smoke; full publication belongs to 08 |
+| 08 | Review | [#349](https://github.com/ethan-ngai/quorem/issues/349); lossless codecs, publication, Node/workerd Go differential vectors; not activated |
+| 10a | Running | [#353](https://github.com/ethan-ngai/quorem/issues/353); managed identity/access slice; guest lifecycle follows separately |
+| 12a | Review | [#352](https://github.com/ethan-ngai/quorem/issues/352); portable image port and explicit sharp adapter; hosted capability remains separate |
+| Other packets | Pending | Follow prerequisite graph and empirical gates; no broad backend parity claim |
+
 
 Reports update here or link their issue/PR; no claimed runtime parity without executed tests. Agent worktrees start from committed baseline `d2c86b5` on dedicated `origin/feat/hono-migration`. All migration PRs target `feat/hono-migration` or a predecessor feature branch; CI follows that integration target; production workflows remain main-only.
 
 ## Branch correction
 
 Migration commits and child PRs moved off dev at the user's request. `feat/hono-migration` is the sole integration target; dev/main merges require a new instruction. Existing agent commits remain isolated on their feature branches.
+
+## Validation and scheduling
+
+- [#347](https://github.com/ethan-ngai/quorem/pull/347) adds native API Node/workerd/type/import checks to CI and integration-push checks. Existing Go/auth/browser checks remain until verified retirement.
+- Pure question codecs depend on model/oracles, not database runtime. Packet 08 scheduling reflects that dependency direction.
+- Image-port extraction (12a) is a bounded precursor independent of the later auth factory. It does not satisfy Worker image processing or hosted mail.
+- Local root review reran schema restore/catalog tests against a separate loopback database on port 55435; development database untouched. Node/workerd API tests passed on the integration-shaped tree.
