@@ -75,7 +75,7 @@ export class ContainerLifecycle {
         const response = await container.getTcpPort(this.port).fetch("http://container/health", {
           signal: AbortSignal.timeout(2000),
           headers: this.readinessHeaders,
-          redirect: "error",
+          redirect: "manual",
         });
         status = response.status;
         failure = "http";

@@ -855,7 +855,7 @@ void test("image ingress and authenticated local readiness are isolated", async 
           assert.equal(port, 8083);
           if (typeof request === "string") {
             assert.equal(options.headers.authorization, `Bearer ${env.IMAGE_SERVICE_TOKEN}`);
-            assert.equal(options.redirect, "error");
+            assert.equal(options.redirect, "manual");
             return new Response(null, { status: 200 });
           }
           return new Response("image", { headers: { "x-image-execution": "terminated" } });

@@ -469,3 +469,55 @@ it("persists runner pause in Durable Object storage", async () => {
     503,
   );
 });
+
+it("uses native workerd Request options for private container readiness", async () => {
+  const { ContainerLifecycle } = await import("../../../../../deploy/container.js");
+  const paths: string[] = [];
+  const lifecycle = new ContainerLifecycle(
+    {
+      waitUntil() {},
+      container: {
+        running: true,
+        setInactivityTimeout: async () => {},
+        monitor: () => new Promise(() => {}),
+        getTcpPort: () => ({
+          async fetch(input: string | Request, init?: RequestInit) {
+            const request = new Request(input, init);
+            paths.push(new URL(request.url).pathname);
+            return new Response(null, { status: paths.length === 1 ? 200 : 204 });
+          },
+        }),
+      },
+    },
+    {},
+    8090,
+    1,
+  );
+  const response = await lifecycle.forward(
+    new Request("https://runner-stage.example.test/internal/drain", { method: "POST" }),
+  );
+  expect(response.status).toBe(204);
+  expect(paths).toEqual(["/health", "/internal/drain"]);
+});
+
+it("pins Access credentials and rejects redirects with native workerd requests", async () => {
+  const { accessFetch } = await import("@quorem/execution/transport/access");
+  let calls = 0;
+  const send: typeof fetch = async (input, init) => {
+    const request = new Request(input, init);
+    expect(request.redirect).toBe("manual");
+    expect(request.headers.get("CF-Access-Client-Secret")).toBe("fixture-access-secret");
+    return new Response(null, {
+      status: ++calls === 1 ? 204 : 302,
+      headers: { location: "https://other.example" },
+    });
+  };
+  const wrapped = accessFetch(
+    "https://private.example",
+    { id: "fixture-access-id", secret: "fixture-access-secret" },
+    send,
+  )!;
+  expect((await wrapped("https://private.example/internal")).status).toBe(204);
+  await expect(wrapped("https://private.example/internal")).rejects.toThrow("redirect rejected");
+  expect(calls).toBe(2);
+});

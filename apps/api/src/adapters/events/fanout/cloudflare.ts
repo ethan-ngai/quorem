@@ -24,7 +24,7 @@ export class CloudflareFanout {
         method: "POST",
         headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
         body,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(5000),
       });
       await res.body?.cancel();

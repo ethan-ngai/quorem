@@ -41,6 +41,11 @@ export function accessFetch(
       throw new Error("Private ingress headers already set");
     headers.set("CF-Access-Client-Id", credentials.id);
     headers.set("CF-Access-Client-Secret", credentials.secret);
-    return send(input, { ...init, headers, redirect: "error" });
+    const response = await send(input, { ...init, headers, redirect: "manual" });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new Error("Private ingress redirect rejected");
+    }
+    return response;
   };
 }

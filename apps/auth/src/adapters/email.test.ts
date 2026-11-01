@@ -56,9 +56,13 @@ describe("email adapters", () => {
   it("distinguishes SMTP rejection from ambiguous connection loss", async () => {
     createTransport.mockReturnValue({ sendMail });
     const mail = smtpEmail({ host: "localhost", port: 25, from: "accounts@example.com" });
-    sendMail.mockRejectedValueOnce(Object.assign(new Error("private SMTP response"), { responseCode: 550 }));
+    sendMail.mockRejectedValueOnce(
+      Object.assign(new Error("private SMTP response"), { responseCode: 550 }),
+    );
     await expect(mail.send(message)).rejects.toBeInstanceOf(MailRejected);
-    sendMail.mockRejectedValueOnce(Object.assign(new Error("private socket error"), { code: "ECONNRESET" }));
+    sendMail.mockRejectedValueOnce(
+      Object.assign(new Error("private socket error"), { code: "ECONNRESET" }),
+    );
     await expect(mail.send(message)).rejects.toThrow("Email delivery unavailable");
   });
   it.each(["delivered", "queued"])(
@@ -77,7 +81,7 @@ describe("email adapters", () => {
         `https://api.cloudflare.com/client/v4/accounts/${"a".repeat(32)}/email/sending/send`,
       );
       expect(options.method).toBe("POST");
-      expect(options.redirect).toBe("error");
+      expect(options.redirect).toBe("manual");
       expect(options.headers.Authorization).toBe("Bearer secret");
       expect(JSON.parse(options.body)).toEqual({ from: "accounts@example.com", ...message });
       expect(options.signal).toBeInstanceOf(AbortSignal);
