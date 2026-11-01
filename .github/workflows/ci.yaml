@@ -64,6 +64,8 @@ jobs:
       - run: vp -C apps/api run check:boundaries
       - run: vp -C apps/api run test
       - run: vp -C apps/api run test:workers
+      - name: Portable runner transport and stream lifetimes
+        run: vp -C apps/runner exec node --test src/queue/http.test.ts src/sandbox/remote.test.ts src/engine/stream-lifetime.test.ts
       - name: Canonical questions and identity runtime tests
         run: |
           vp -C packages/questions run typecheck
