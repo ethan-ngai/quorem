@@ -1,0 +1,1 @@
+{"name":"quorem-drizzle-spike","main":"worker.ts","compatibility_date":"2026-03-17","compatibility_flags":["nodejs_compat"],"hyperdrive":[{"binding":"DB","id":"00000000000000000000000000000000"}]}

@@ -1,0 +1,1 @@
+{"name":"quorem-migration-runtime-spike","private":true,"type":"module","scripts":{"test":"node test.mjs"},"dependencies":{"drizzle-orm":"0.45.4","pg":"8.16.3"},"devDependencies":{"@cloudflare/vitest-plugin":"1.4.11","drizzle-kit":"0.31.11","vite-plus":"1.4.0","vitest":"5.0.5","wrangler":"4.156.0"}}

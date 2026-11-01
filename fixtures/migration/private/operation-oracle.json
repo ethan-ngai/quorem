@@ -1,0 +1,120 @@
+[
+  {
+    "name": "create",
+    "route": "POST /v1/interviews",
+    "scope": "owner + key",
+    "action": "create",
+    "body": {
+      "title": "\u003c\u0026\u003e",
+      "question": {
+        "problemVersionId": "11111111-1111-4111-8111-111111111111",
+        "language": "python"
+      }
+    },
+    "bodyJson": "{\"title\":\"\\u003c\\u0026\\u003e\",\"question\":{\"problemVersionId\":\"11111111-1111-4111-8111-111111111111\",\"language\":\"python\"}}",
+    "hash": "c22c27c9658f89a5a2cac11a318d5a5b930db0d812f95663ce07c8c0e1610f5d"
+  },
+  {
+    "name": "create-monitoring",
+    "route": "POST /v1/interviews",
+    "scope": "owner + key",
+    "action": "create",
+    "body": {
+      "monitoring": {},
+      "title": "\u003c\u0026\u003e",
+      "question": {
+        "problemVersionId": "11111111-1111-4111-8111-111111111111",
+        "language": "python"
+      }
+    },
+    "bodyJson": "{\"monitoring\":{},\"title\":\"\\u003c\\u0026\\u003e\",\"question\":{\"problemVersionId\":\"11111111-1111-4111-8111-111111111111\",\"language\":\"python\"}}",
+    "hash": "54bbdea77fd88d7a45abb5bf13015989d6f9172efd2cc6cccd2af772725df8a8"
+  },
+  {
+    "name": "updates",
+    "route": "POST /v1/interviews/{id}/updates",
+    "scope": "owner + key",
+    "action": "11111111-1111-4111-8111-111111111111:updates",
+    "body": {
+      "version": 9007199254740993,
+      "epoch": "11111111-1111-4111-8111-111111111111",
+      "updates": [
+        {
+          "clientID": "client",
+          "changes": [
+            [
+              0,
+              "😀"
+            ]
+          ]
+        }
+      ]
+    },
+    "bodyJson": "{\"version\":9007199254740993,\"epoch\":\"11111111-1111-4111-8111-111111111111\",\"updates\":[{\"clientID\":\"client\",\"changes\":[[0,\"😀\"]]}]}",
+    "hash": "aeeafbc25b0a007a69c53eda3c202494429f71045acb78dbd0f1d59a19bfe53e"
+  },
+  {
+    "name": "language",
+    "route": "POST /v1/interviews/{id}/language",
+    "scope": "owner + key",
+    "action": "11111111-1111-4111-8111-111111111111:language",
+    "body": [
+      "python",
+      "11111111-1111-4111-8111-111111111111"
+    ],
+    "bodyJson": "[\"python\",\"11111111-1111-4111-8111-111111111111\"]",
+    "hash": "7a65662f7b9c3a2ebc3c7be81583fc818b6c215691726749e2c265efb63a41a3"
+  },
+  {
+    "name": "submission-omitted",
+    "route": "POST /v1/interviews/{id}/submissions",
+    "scope": "owner + key",
+    "action": "11111111-1111-4111-8111-111111111111:submission",
+    "body": {
+      "kind": "run",
+      "level": 0,
+      "questionEpoch": "11111111-1111-4111-8111-111111111111",
+      "documentEpoch": "11111111-1111-4111-8111-111111111111",
+      "sourceHash": "abc"
+    },
+    "bodyJson": "{\"kind\":\"run\",\"level\":0,\"questionEpoch\":\"11111111-1111-4111-8111-111111111111\",\"documentEpoch\":\"11111111-1111-4111-8111-111111111111\",\"sourceHash\":\"abc\"}",
+    "hash": "2093d10492ded23686f0092ff376c0cc50dc3559c74ed7960116a3573bf9e814"
+  },
+  {
+    "name": "submission-empty",
+    "route": "POST /v1/interviews/{id}/submissions",
+    "scope": "owner + key",
+    "action": "11111111-1111-4111-8111-111111111111:submission",
+    "body": {
+      "kind": "run",
+      "level": 0,
+      "questionEpoch": "11111111-1111-4111-8111-111111111111",
+      "documentEpoch": "11111111-1111-4111-8111-111111111111",
+      "sourceHash": "abc"
+    },
+    "bodyJson": "{\"kind\":\"run\",\"level\":0,\"questionEpoch\":\"11111111-1111-4111-8111-111111111111\",\"documentEpoch\":\"11111111-1111-4111-8111-111111111111\",\"sourceHash\":\"abc\"}",
+    "hash": "2093d10492ded23686f0092ff376c0cc50dc3559c74ed7960116a3573bf9e814"
+  },
+  {
+    "name": "submission-case",
+    "route": "POST /v1/interviews/{id}/submissions",
+    "scope": "owner + key",
+    "action": "11111111-1111-4111-8111-111111111111:submission",
+    "body": {
+      "kind": "run",
+      "level": 0,
+      "customCases": [
+        {
+          "args": [
+            1e2
+          ]
+        }
+      ],
+      "questionEpoch": "11111111-1111-4111-8111-111111111111",
+      "documentEpoch": "11111111-1111-4111-8111-111111111111",
+      "sourceHash": "abc"
+    },
+    "bodyJson": "{\"kind\":\"run\",\"level\":0,\"customCases\":[{\"args\":[1e2]}],\"questionEpoch\":\"11111111-1111-4111-8111-111111111111\",\"documentEpoch\":\"11111111-1111-4111-8111-111111111111\",\"sourceHash\":\"abc\"}",
+    "hash": "2641f9fd0b3e55eee65211f933ea74e6f2ca87a86aebb9014e38d693b65b8c59"
+  }
+]

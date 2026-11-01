@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "types": ["node"], "noEmit": true },
+  "include": ["src/**/*.ts", "vitest*.config.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/test/**"]
+}

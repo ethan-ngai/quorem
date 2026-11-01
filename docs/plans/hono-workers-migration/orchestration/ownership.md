@@ -24,6 +24,6 @@ Record API/DTO, question value, exact codec/hash, transaction operation, project
 
 ## Branch policy
 
-Refresh GitHub issues/PRs, status and worktrees before execution. Resolve the observed missing `origin/dev` and main-only branch filters deliberately; do not guess the baseline. Independent agents start fresh `origin/dev`; dependents use an assigned predecessor commit and stacked PR base. Merge bottom-up, retarget descendants, then delete unused branches/worktrees. No main promotion without explicit authorization.
+Refresh GitHub issues/PRs, status and worktrees before execution. The user explicitly overrides the normal dev integration workflow for this migration. Independent agents start fresh `origin/feat/hono-migration`; dependents use an assigned predecessor commit and stacked PR base. Merge bottom-up, retarget descendants, then delete unused branches/worktrees. No main promotion without explicit authorization.
 
 Solo documentation work uses the existing checkout. Do not create agent worktrees merely to edit this plan. Preserve `scripts/dev.py`; no staging unrelated changes.
