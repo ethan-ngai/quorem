@@ -127,7 +127,7 @@ export async function releaseQueue(
     await Promise.resolve(change(env, true));
     const automatic = await accept({ ...env, HONO_STAGE_ACCEPTANCE_MODE: "queue" });
     return { manual: manual.submission, automatic: automatic.submission };
-  } catch {
+  } catch (error) {
     if (attempted) {
       try {
         await Promise.resolve(change(env, false));
@@ -135,6 +135,6 @@ export async function releaseQueue(
         throw new Error("Queue proof failed and detachment is unconfirmed");
       }
     }
-    throw new Error("Queue proof failed; consumer detached");
+    throw new Error("Queue proof failed; consumer detached", { cause: error });
   }
 }

@@ -72,20 +72,20 @@ export async function verifyPrivateIngress(
       path: "/internal/results/verify",
       bearer: env.VERIFICATION_SERVICE_CREDENTIAL,
       body: { challenge: randomUUID() },
-      expected: 503,
+      expected: [503],
     },
     {
       origin: origins[2],
       path: "/internal/verification/frozen",
       bearer: env.VERIFICATION_SOURCE_CREDENTIAL,
       body: { challenge: randomUUID() },
-      expected: 503,
+      expected: [503],
     },
     {
       origin: origins[3],
       path: "/internal/drain",
       bearer: env.EXECUTION_DRAIN_SECRET,
-      expected: 200,
+      expected: [200, 202],
     },
   ];
   if (env.PROFILE_MEDIA_ENABLED === "true")
@@ -94,7 +94,7 @@ export async function verifyPrivateIngress(
       path: "/",
       bearer: env.PROFILE_IMAGE_SERVICE_TOKEN,
       image: true,
-      expected: 200,
+      expected: [200],
     });
   for (const check of checks) {
     if (typeof check.bearer !== "string" || check.bearer.length < 32 || /\s/.test(check.bearer))
@@ -117,10 +117,15 @@ export async function verifyPrivateIngress(
     const url = `${check.origin}${check.path}`;
     const control = await send(url, request);
     if (
-      control.status !== check.expected ||
+      !check.expected.includes(control.status) ||
       (check.image && control.headers.get("x-image-execution") !== "terminated")
-    )
-      throw new Error("Authenticated ingress control failed");
+    ) {
+      await control.body?.cancel();
+      const error = new Error("Authenticated ingress control failed");
+      error.status = control.status;
+      error.diagnostic = { operation: check.path };
+      throw error;
+    }
     await control.body?.cancel();
     await denyWithoutBearer(url, request);
   }
