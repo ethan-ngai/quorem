@@ -173,6 +173,7 @@ export async function diagnoseStageRole(client, role) {
       (SELECT count(*)::int FROM public.submissions WHERE state='completed') AS completed_submissions,
       (SELECT count(*)::int FROM public.submissions WHERE result->>'verdict'='accepted') AS accepted_submissions,
       (SELECT count(*)::int FROM public.execution_jobs WHERE NOT finished) AS unfinished_jobs,
+      (SELECT COALESCE(sum(attempts),0)::int FROM public.execution_jobs) AS claimed_attempts,
       to_regclass('public.stage_genesis') IS NOT NULL AS genesis_table
     `,
         [role],
@@ -226,6 +227,7 @@ export async function diagnoseStageRole(client, role) {
         "completed_submissions",
         "accepted_submissions",
         "unfinished_jobs",
+        "claimed_attempts",
       ]),
     };
   } finally {
@@ -318,10 +320,30 @@ export async function inspectStageRole(env) {
                     },
                   );
                   const body = await detail.json();
+                  const instancesResponse = await fetch(
+                    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/containers/applications/${item.id}/instances`,
+                    {
+                      headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+                      signal: AbortSignal.timeout(15000),
+                    },
+                  );
+                  const instanceBody = await instancesResponse.json();
+                  const instances = Array.isArray(instanceBody.result)
+                    ? instanceBody.result
+                    : (instanceBody.result?.instances ?? []);
                   return {
                     name: item.name,
                     scheduling: item.scheduling_policy,
                     status: detail.status,
+                    instancesStatus: instancesResponse.status,
+                    instances: instances.slice(0, 8).map((instance) => ({
+                      state: /^[a-z_]{1,30}$/.test(instance.status?.state ?? "")
+                        ? instance.status.state
+                        : "unknown",
+                      exitCode: Number.isInteger(instance.status?.exit_code)
+                        ? instance.status.exit_code
+                        : null,
+                    })),
                     errors: (body.result?.errors ?? []).slice(0, 8).map((entry) => ({
                       name: /^[A-Za-z]{1,40}$/.test(entry.event?.name ?? "")
                         ? entry.event.name
