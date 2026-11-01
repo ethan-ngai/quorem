@@ -76,3 +76,29 @@ void test("rejects unsafe origin, unauthorized token and oversized responses", a
     /Oversized/,
   );
 });
+
+void test("manual acceptance follows 202 continuations and requires the accepted result", async () => {
+  let drains = 0,
+    polls = 0,
+    delays = 0;
+  const send = async (url) => {
+    if (url.endsWith("/api/auth/token")) return Response.json({ token: "fixture.jwt" });
+    if (url.endsWith("/v1/workspaces")) return Response.json({ id: uuid }, { status: 201 });
+    if (url.endsWith("/v1/submissions")) return Response.json({ id: uuid }, { status: 202 });
+    if (url.endsWith("/internal/drain"))
+      return new Response(null, { status: ++drains === 1 ? 202 : 200 });
+    polls++;
+    return Response.json({ verdict: polls === 1 ? null : "accepted" });
+  };
+  assert.equal(
+    (
+      await hostedAcceptance(env(), send, async () => {
+        delays++;
+      })
+    ).submission,
+    uuid,
+  );
+  assert.equal(drains, 2);
+  assert.equal(polls, 2);
+  assert.equal(delays, 1);
+});

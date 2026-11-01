@@ -100,17 +100,22 @@ export async function hostedAcceptance(
   if (admission.status !== 202) throw new Error("Stage admission failed");
   const submission = (await json(admission)).id;
   if (!/^[0-9a-f-]{36}$/.test(submission ?? "")) throw new Error("Invalid stage submission");
-  if (env.HONO_STAGE_ACCEPTANCE_MODE === "manual") {
-    const drained = await send(`${drain}/internal/drain`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}` },
-      redirect: "error",
-      signal: AbortSignal.timeout(210000),
-    });
-    if (drained.status !== 200) throw new Error("Stage drain failed");
-  }
   const deadline = Date.now() + 210000;
   for (;;) {
+    if (env.HONO_STAGE_ACCEPTANCE_MODE === "manual") {
+      const drained = await send(`${drain}/internal/drain`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+        redirect: "error",
+        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+      });
+      await drained.body?.cancel();
+      if (![200, 202].includes(drained.status)) {
+        const error = new Error("Stage drain failed");
+        error.status = drained.status;
+        throw error;
+      }
+    }
     const response = await send(`${api}/v1/submissions/${submission}`, {
       headers,
       redirect: "error",
