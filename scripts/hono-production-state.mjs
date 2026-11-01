@@ -42,17 +42,22 @@ export function productionState(env) {
   const runtime = JSON.parse(binding("APP_RUNTIME_ENV") ?? "{}");
   const databaseURL = states.database.outputs?.database_url?.value;
   const url = new URL(databaseURL);
+  const project = states.database.resources?.find(
+    (item) => item.type === "neon_project" && item.name === "production",
+  )?.instances?.[0]?.attributes?.id;
   if (
     worker?.name !== "quorem-production" ||
     runtime.AUTH_ORIGIN !== "https://quorem.app" ||
-    url.pathname !== "/quorem" ||
+    project !== env.NEON_PROJECT_ID ||
+    !url.pathname ||
+    url.pathname === "/quorem_hono_stage" ||
     runtime.DATABASE_URL !== databaseURL
   ) {
     const error = new Error("Production identity mismatch");
     error.diagnostic = {
       workerMatches: worker?.name === "quorem-production",
       originMatches: runtime.AUTH_ORIGIN === "https://quorem.app",
-      databaseMatches: url.pathname === "/quorem",
+      databaseMatches: project === env.NEON_PROJECT_ID,
       runtimeDatabaseMatches: runtime.DATABASE_URL === databaseURL,
       bindingNames: bindings.map((item) => item.name),
       runtimeKeys: Object.keys(runtime),

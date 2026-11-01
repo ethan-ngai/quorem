@@ -88,6 +88,7 @@ try {
     console.log(
       JSON.stringify({
         worker: worker.name,
+        database: new URL(databaseURL).pathname.slice(1),
         counts,
         migrations,
         jobs,
