@@ -11,6 +11,10 @@ terraform {
 variable "account_id" { type = string }
 variable "zone_id" { type = string }
 variable "domain" { type = string }
+variable "api_worker_name" {
+  type    = string
+  default = ""
+}
 variable "image" { type = string }
 variable "judge_image" { type = string }
 variable "case_image_revision" { type = string }
@@ -514,7 +518,7 @@ resource "cloudflare_workers_route" "api" {
   for_each = toset(["/v1/*", "/api/auth/*", "/health*", "/internal*"])
   zone_id  = var.zone_id
   pattern  = "${var.domain}${each.value}"
-  script   = var.worker_name
+  script   = var.api_worker_name != "" ? var.api_worker_name : var.worker_name
 }
 output "frontend_project" { value = cloudflare_pages_project.frontend.name }
 output "frontend_url" { value = "https://${cloudflare_pages_project.frontend.subdomain}" }

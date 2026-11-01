@@ -6,11 +6,19 @@ terraform {
   }
 }
 
+variable "deployment_scope" {
+  type    = string
+  default = "stage"
+  validation {
+    condition     = contains(["stage", "production"], var.deployment_scope)
+    error_message = "Select an explicit deployment scope."
+  }
+}
 variable "account_id" { type = string }
 variable "worker_name" {
   type = string
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]*-hono-stage$", var.worker_name))
+    condition     = var.deployment_scope == "production" ? var.worker_name == "quorem-hono-production" : can(regex("^[a-z][a-z0-9-]*-hono-stage$", var.worker_name))
     error_message = "Use a distinct staged Worker name ending in -hono-stage."
   }
 }
@@ -61,7 +69,7 @@ variable "database_connection_limit" {
 variable "stage_hostname" {
   type = string
   validation {
-    condition     = can(regex("^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\\.[a-z0-9-]+)+$", var.stage_hostname))
+    condition     = var.deployment_scope == "production" ? var.stage_hostname == "api-hono.quorem.app" : can(regex("^([a-z0-9]+-)*stag(e|ing)(-[a-z0-9]+)*(\\.[a-z0-9-]+)+$", var.stage_hostname))
     error_message = "Use a distinct staged hostname."
   }
 }

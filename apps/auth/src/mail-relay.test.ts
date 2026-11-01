@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { request as httpRequest } from "node:http";
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
@@ -71,6 +72,20 @@ void test("SMTP relay preserves accepted, rejected and uncertain outcomes", asyn
     msg = { to: "user@example.test", subject: "Verify", text: "fixture" };
   try {
     assert.equal((await fetch(`${origin}/health`)).status, 204);
+    assert.equal(
+      await new Promise<number>((resolve, reject) => {
+        const req = httpRequest(
+          { hostname: "127.0.0.1", port, path: "http://container/health" },
+          (res) => {
+            res.resume();
+            res.once("end", () => resolve(res.statusCode ?? 0));
+          },
+        );
+        req.once("error", reject);
+        req.end();
+      }),
+      204,
+    );
     assert.equal(
       (
         await fetch(`${origin}/internal/mail/send`, {

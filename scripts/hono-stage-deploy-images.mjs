@@ -8,7 +8,10 @@ export function publishImages(env, run = spawnSync) {
     !/^[a-f0-9]{32}$/.test(account ?? "") ||
     !/^[a-f0-9]{40}$/.test(revision ?? "") ||
     revision !== env.GITHUB_SHA ||
-    env.GITHUB_REF !== "refs/heads/feat/hono-migration"
+    ![
+      "refs/heads/feat/hono-migration",
+      ...(env.HONO_DEPLOYMENT_SCOPE === "production" ? ["refs/heads/main"] : []),
+    ].includes(env.GITHUB_REF)
   )
     throw new Error("Invalid staged image revision");
   const common = Object.fromEntries(
@@ -56,6 +59,16 @@ export function publishImages(env, run = spawnSync) {
       "quorem-hono-image:stage-build",
       ".",
     ]);
+  const mail = env.HONO_MAIL_RELAY_ENABLED === "true";
+  if (mail)
+    call("docker", [
+      "build",
+      "-f",
+      "deploy/hono/services/Dockerfile.mail",
+      "-t",
+      "quorem-hono-mail:stage-build",
+      ".",
+    ]);
   call("python3", ["scripts/build-judge-images.py"]);
   const result = {};
   for (const role of [
@@ -67,13 +80,16 @@ export function publishImages(env, run = spawnSync) {
     "ocaml",
     "postgresql",
     ...(profile === "true" ? ["image"] : []),
+    ...(mail ? ["mail"] : []),
   ]) {
     const source = ["runner", "verifier"].includes(role)
       ? "quorem-hono-private:stage-build"
-      : role === "image"
-        ? "quorem-hono-image:stage-build"
-        : `quorem-case-${role}:local`;
-    const repository = `registry.cloudflare.com/${account}/quorem-hono-stage-${role}`;
+      : role === "mail"
+        ? "quorem-hono-mail:stage-build"
+        : role === "image"
+          ? "quorem-hono-image:stage-build"
+          : `quorem-case-${role}:local`;
+    const repository = `registry.cloudflare.com/${account}/quorem-hono-${env.HONO_DEPLOYMENT_SCOPE === "production" ? "production" : "stage"}-${role}`;
     const tag = `${repository}:${revision}`;
     call("docker", ["tag", source, tag]);
     call("vp", ["-C", "apps/api", "exec", "wrangler", "containers", "push", tag]);

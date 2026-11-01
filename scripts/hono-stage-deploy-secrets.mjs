@@ -6,6 +6,17 @@ export function uploadWorkerSecrets(input, outputs, secrets, env, run = spawnSyn
   const name = outputs?.worker_name?.value;
   if (!/^[a-z][a-z0-9-]*-hono-stage$/.test(name ?? "")) throw new Error("Invalid staged Worker");
   const values = validatedWorkerSecrets(input, outputs, secrets);
+  return putWorkerSecrets(name, values, env, run);
+}
+
+/** One provider owner; callers validate the selected runtime's credential contract. */
+export function putWorkerSecrets(name, values, env, run = spawnSync) {
+  if (
+    !/^[a-z][a-z0-9-]{1,62}$/.test(name) ||
+    !values ||
+    Object.values(values).some((value) => typeof value !== "string" || !value)
+  )
+    throw new Error("Invalid Worker secret upload");
   const childEnv = Object.fromEntries(
     [
       "PATH",

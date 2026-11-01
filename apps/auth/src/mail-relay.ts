@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { normalizeHttpTarget } from "@quorem/execution/transport/http-target";
 import { timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
 import { smtpEmail } from "./adapters/smtp-email.ts";
@@ -51,23 +52,29 @@ export async function startMailRelay(env: NodeJS.ProcessEnv, delivery?: EmailDel
       if (!config || config.driver !== "smtp") throw new Error("SMTP configuration required");
       return smtpEmail(config);
     })();
+  if (!delivery && "verify" in smtp && typeof smtp.verify === "function") await smtp.verify();
   const expected = Buffer.from(`Bearer ${token}`),
     active = new Set<Promise<void>>();
   let closing = false;
   const server = createServer((req, res) => {
     const task = (async () => {
+      const target = normalizeHttpTarget(req.url);
+      if (!target) {
+        res.writeHead(400).end();
+        return;
+      }
       if (closing) {
         res.writeHead(503).end();
         return;
       }
-      if (req.method === "GET" && req.url === "/health") {
+      if (req.method === "GET" && target === "/health") {
         res.writeHead(204).end();
         return;
       }
       const supplied = Buffer.from(req.headers.authorization ?? "");
       if (
         req.method !== "POST" ||
-        req.url !== "/internal/mail/send" ||
+        target !== "/internal/mail/send" ||
         supplied.length !== expected.length ||
         !timingSafeEqual(supplied, expected)
       ) {

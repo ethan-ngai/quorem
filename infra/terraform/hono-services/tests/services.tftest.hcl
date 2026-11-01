@@ -109,7 +109,7 @@ run "reject_unknown_migration" {
   command = plan
   override_data {
     target          = data.external.worker_migration
-    values          = { result = { tag = "v5" } }
+    values          = { result = { tag = "v99" } }
     override_during = plan
   }
   expect_failures = [cloudflare_worker_version.services]
