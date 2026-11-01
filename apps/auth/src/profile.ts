@@ -1,4 +1,5 @@
 import type { ImageFormat, ImageProcessor } from "./image-processing.ts";
+import { profileMutationLifetimeMs, type ProfileMutationBudget } from "./profile-budget.ts";
 import type { ProfileStorage } from "./profile-storage.ts";
 
 export const photoPrefix = "/api/auth/profile-photos/";
@@ -12,6 +13,7 @@ export type Profile = {
   image?: string | null;
   profile_color?: number;
 };
+export class ProfileWriteUncertain extends Error {}
 export interface ProfileRepository {
   read(id: string): Promise<Profile | undefined>;
   replace(id: string, previous: string | null, next: string | null): Promise<boolean>;
@@ -38,15 +40,22 @@ const storedKey = (image: string | null | undefined) => {
   return keyPattern.test(key) ? key : undefined;
 };
 
-async function boundedBody(request: Request) {
+async function boundedBody(request: Request, signal?: AbortSignal) {
   if (Number(request.headers.get("content-length")) > byteLimit) return undefined;
   const reader = request.body?.getReader();
   if (!reader) return undefined;
+  const cancel = () => {
+    void reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
     for (;;) {
+      signal?.throwIfAborted();
       const next = await reader.read();
+      signal?.throwIfAborted();
       if (next.done) break;
       size += next.value.length;
       if (size > byteLimit) {
@@ -56,6 +65,7 @@ async function boundedBody(request: Request) {
       chunks.push(next.value);
     }
   } finally {
+    signal?.removeEventListener("abort", cancel);
     reader.releaseLock();
   }
   if (!size) return undefined;
@@ -74,10 +84,10 @@ export function createProfileHandler(options: {
   repository: ProfileRepository;
   storage?: ProfileStorage;
   imageProcessor: ImageProcessor;
+  budget: ProfileMutationBudget;
 }) {
   if (!options.imageProcessor) throw new Error("Profile image processor is required");
-  let processing = 0;
-  const attempts = new Map<string, { starts: number; count: number }>();
+  if (!options.budget) throw new Error("Profile mutation budget is required");
   const cleanup = async (key: string | undefined) => {
     if (!key) return;
     try {
@@ -134,20 +144,20 @@ export function createProfileHandler(options: {
       return json(200, publicProfile({ ...profile, profile_color: color as number }));
     }
     if (!options.storage) return json(503, { error: "Photo storage unavailable" });
-    const now = Date.now();
-    for (const [id, window] of attempts) if (now - window.starts >= 60000) attempts.delete(id);
-    const window = attempts.get(profile.id) ?? { starts: now, count: 0 };
-    if (
-      window.count >= 10 ||
-      (!attempts.has(profile.id) && attempts.size >= 10000) ||
-      processing >= 4
-    )
-      return json(429, { error: "Try again shortly" });
-    window.count++;
-    attempts.set(profile.id, window);
-    processing++;
+    const admission = await options.budget.acquire(profile.id);
+    if (!admission.allowed) return json(429, { error: "Try again shortly" });
+    const signal = AbortSignal.any([
+      request.signal,
+      AbortSignal.timeout(
+        Math.max(
+          1,
+          Math.min(profileMutationLifetimeMs, admission.lease.deadlineUnixMs - Date.now()),
+        ),
+      ),
+    ]);
     let nextKey: string | undefined;
     try {
+      signal.throwIfAborted();
       if (request.method === "PUT") {
         const format = (
           { "image/png": "png", "image/jpeg": "jpeg", "image/webp": "webp" } as Record<
@@ -156,20 +166,23 @@ export function createProfileHandler(options: {
           >
         )[request.headers.get("content-type") ?? ""];
         if (!format) return json(415, { error: "Choose a PNG, JPEG or WebP image" });
-        const bytes = await boundedBody(request);
+        const bytes = await boundedBody(request, signal);
         if (!bytes) return json(413, { error: "Choose an image smaller than 5 MiB" });
         const image = await options.imageProcessor.process(bytes, format);
+        signal.throwIfAborted();
         if (image.kind === "unsupported")
           return json(415, { error: "Choose a static PNG, JPEG or WebP image" });
         if (image.kind === "invalid") return json(422, { error: "Image could not be decoded" });
         nextKey = crypto.randomUUID();
         await options.storage.put(nextKey, image.bytes);
+        signal.throwIfAborted();
       }
       const nextImage = nextKey ? photoPrefix + nextKey : null;
       if (!(await options.session(request.headers))) {
         await cleanup(nextKey);
         return json(401, { error: "Sign in required" });
       }
+      signal.throwIfAborted();
       // Compare-and-set prevents parallel replacements from leaking orphaned objects.
       if (!(await options.repository.replace(profile.id, profile.image ?? null, nextImage))) {
         await cleanup(nextKey);
@@ -178,10 +191,10 @@ export function createProfileHandler(options: {
       await cleanup(storedKey(profile.image));
       return json(200, publicProfile({ ...profile, image: nextImage }));
     } catch (error) {
-      await cleanup(nextKey);
+      if (!(error instanceof ProfileWriteUncertain)) await cleanup(nextKey);
       throw error;
     } finally {
-      processing--;
+      await options.budget.release(admission.lease);
     }
   };
 }

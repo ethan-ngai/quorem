@@ -115,6 +115,7 @@ void test(
       await initialized;
       const priorId = (await containers())[0];
       replacement.client.close();
+      await replacement.closed;
       const reopened = await connect("alice");
       await until(async () => {
         const ids = await containers();
