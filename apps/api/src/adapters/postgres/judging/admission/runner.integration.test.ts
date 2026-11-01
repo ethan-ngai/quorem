@@ -501,6 +501,15 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           signal: AbortSignal.timeout(drainTimeoutMs),
         });
         const requireDrained = async (response: Response, scenario: string) => {
+          // A bounded drain can yield while a cancelled attempt's lease expires.
+          for (let continuation = 0; response.status === 202 && continuation < 3; continuation++) {
+            await response.body?.cancel();
+            response = await fetch(`${runnerOrigin}/internal/drain`, {
+              method: "POST",
+              headers: { authorization: `Bearer ${drainSecret}` },
+              signal: AbortSignal.timeout(drainTimeoutMs),
+            });
+          }
           if (response.status !== 200)
             throw new Error(
               `Hosted ${scenario} drain HTTP ${response.status}: ${await response.text()} ${serviceDiagnostics}`,
@@ -532,15 +541,14 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
             });
             expect(submitted.status).toBe(202);
             const submittedId = (await submitted.json()).id as string;
-            expect(
-              (
-                await fetch(`${runnerOrigin}/internal/drain`, {
-                  method: "POST",
-                  headers: { authorization: `Bearer ${drainSecret}` },
-                  signal: AbortSignal.timeout(drainTimeoutMs),
-                })
-              ).status,
-            ).toBe(200);
+            await requireDrained(
+              await fetch(`${runnerOrigin}/internal/drain`, {
+                method: "POST",
+                headers: { authorization: `Bearer ${drainSecret}` },
+                signal: AbortSignal.timeout(drainTimeoutMs),
+              }),
+              name,
+            );
             const response = await app.request(
               `https://fixture.test/v1/submissions/${submittedId}`,
             );
@@ -567,15 +575,14 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           });
           expect(compile.status).toBe(202);
           const compileId = (await compile.json()).id as string;
-          expect(
-            (
-              await fetch(`${runnerOrigin}/internal/drain`, {
-                method: "POST",
-                headers: { authorization: `Bearer ${drainSecret}` },
-                signal: AbortSignal.timeout(drainTimeoutMs),
-              })
-            ).status,
-          ).toBe(200);
+          await requireDrained(
+            await fetch(`${runnerOrigin}/internal/drain`, {
+              method: "POST",
+              headers: { authorization: `Bearer ${drainSecret}` },
+              signal: AbortSignal.timeout(drainTimeoutMs),
+            }),
+            "compile",
+          );
           expect(
             (await (await app.request(`https://fixture.test/v1/submissions/${compileId}`)).json())
               .verdict,
