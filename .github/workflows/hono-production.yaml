@@ -1,5 +1,8 @@
 name: Hono production cutover
 on:
+  push:
+    branches: [feat/hono-migration]
+    paths: [.github/workflows/hono-production.yaml, scripts/hono-production-inspect.mjs]
   workflow_dispatch:
     inputs:
       action:
@@ -18,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   inspect:
-    if: inputs.release_sha == github.sha && (github.ref == 'refs/heads/feat/hono-migration' || github.ref == 'refs/heads/main')
+    if: (github.event_name == 'push' || inputs.release_sha == github.sha) && (github.ref == 'refs/heads/feat/hono-migration' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

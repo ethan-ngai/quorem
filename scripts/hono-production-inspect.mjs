@@ -52,7 +52,7 @@ try {
     }
     const jobs = (
       await client.query(
-        "SELECT state,count(*)::int AS count FROM execution_jobs GROUP BY state ORDER BY state",
+        "SELECT finished,count(*)::int AS count FROM execution_jobs GROUP BY finished ORDER BY finished",
       )
     ).rows;
     const photos = (
