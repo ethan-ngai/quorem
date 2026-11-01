@@ -393,6 +393,8 @@ export async function deployProduction(env) {
         productionRunId: "41134339533",
         runtimeRole: keys.RUNTIME_ROLE,
         runtimePassword: keys.RUNTIME_PASSWORD,
+        report: (record) =>
+          console.log(JSON.stringify({ phase: "production-database-step", ...record })),
         assertLegacyStopped,
       },
       { backfillProblemVersions: operatorInputs },
@@ -512,6 +514,11 @@ if (import.meta.main) {
         error: "production-cutover-failed",
         phase,
         code: /^[A-Z0-9]{5}$/.test(error?.code ?? "") ? error.code : undefined,
+        frames: error.stack
+          ?.split("\n")
+          .slice(1, 6)
+          .map((line) => line.match(/at ([A-Za-z0-9_.]+)/)?.[1])
+          .filter(Boolean),
         provider:
           error instanceof StageCommandFailure
             ? {
@@ -528,6 +535,13 @@ if (import.meta.main) {
           "Referenced production photos require object copy",
           "Public maintenance route unconfirmed",
           "Legacy runtime remains reachable",
+          "Migration artifact verification failed",
+          "GitHub verification unavailable",
+          "Local migration artifact mismatch",
+          "Verified operator binding required",
+          "Operator mismatch",
+          "Backfill incomplete",
+          "Problem version backfill incomplete",
         ].includes(error.message)
           ? error.message
           : undefined,

@@ -97,6 +97,8 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
     runtimePassword,
     assertLegacyStopped,
   } = options;
+  const report = (step, owner) => options.report?.({ step, ...(owner ? { owner } : {}) });
+  report("validate-configuration");
   const identity = operatorDatabaseIdentity(databaseURL);
   const url = new URL(databaseURL),
     auth = new URL(authOrigin);
@@ -131,6 +133,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
   });
   let pool;
   try {
+    report("connect");
     await control.connect();
     const locked = await control.query(
       "SELECT pg_try_advisory_lock(hashtextextended('quorem-production-transition-v1',0)) AS ok",
@@ -150,6 +153,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
       idleTimeoutMillis: 5000,
     });
     pool.on("error", () => {});
+    report("verify-operator");
     const operator = await verifiedOperator(drizzle(pool), authOrigin);
     for (const owner of ["product", "auth"]) {
       if ((await assertLegacyStopped()) === false) throw new Error("Legacy shutdown unconfirmed");
@@ -165,7 +169,8 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
             `SELECT EXISTS(SELECT 1 FROM ${schema}.schema_migrations WHERE checksum IS NULL) AS pending`,
           )
         ).rows[0].pending;
-      if (legacy)
+      if (legacy) {
+        report("baseline", owner);
         await runMigrationBaseline(
           {
             pool,
@@ -184,8 +189,11 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
             ...(dependencies.request ? { request: dependencies.request } : {}),
           },
         );
+      }
+      report("migrate", owner);
       await migrate(pool, owner, `${root}apps/${owner === "product" ? "api" : "auth"}/migrations`);
     }
+    report("backfill");
     const env = { ...process.env, QUOREM_OPERATOR_DATABASE_URL: url.href, AUTH_ORIGIN: authOrigin };
     const batches = {};
     for (const [name, mode] of [
@@ -195,6 +203,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
     ]) {
       if ((await assertLegacyStopped()) === false) throw new Error("Legacy shutdown unconfirmed");
       await quiescent(control);
+      report("backfill", name);
       batches[name] = await (dependencies.backfill ?? backfill)(env, op(seed, name), mode);
       if (
         !batches[name] ||
@@ -208,6 +217,7 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
     }
     if ((await assertLegacyStopped()) === false) throw new Error("Legacy shutdown unconfirmed");
     await quiescent(control);
+    report("backfill-versions");
     const versions = await dependencies.backfillProblemVersions({
       pool,
       databaseURL: url.href,
@@ -243,7 +253,8 @@ export async function transitionProductionDatabase(options, dependencies = {}) {
           prior.rows[0].scope !== runtimeRole)
       )
         throw new Error("Runtime role operation conflict");
-      await configureRestrictedRole(control, runtimeRole, runtimePassword, () => {}, {
+      report("runtime-role");
+      await configureRestrictedRole(control, runtimeRole, runtimePassword, (step) => report(step), {
         databaseName: "neondb",
         isolateConnections: false,
         existing: prior.rows.length === 1,

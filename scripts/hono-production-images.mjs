@@ -1,4 +1,5 @@
 /** @file hono-production-images.mjs @description Reuse verified immutable runtime images. @module deployment */
+import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 const source = "333e4c79b06f9b074b13ae4891a6df65f32bcc8f";
 const runId = "41285899439";
@@ -68,6 +69,44 @@ export function productionImages(env) {
     )
       throw new Error("Validated runtime image missing");
     images[role] = value;
+  }
+  try {
+    runStageCommand(
+      "git",
+      [
+        "diff",
+        "--exit-code",
+        "a45a709096827b908dcb82f9ce6ab1b26e0729ec",
+        "--",
+        "apps/auth/src",
+        "apps/auth/package.json",
+        "pnpm-lock.yaml",
+        "deploy/hono/services/Dockerfile.mail",
+        "packages/database",
+        "packages/execution",
+      ],
+      env,
+    );
+    runStageCommand(
+      "terraform",
+      terraformBackendArgs(env, "hono-services", "hono-production-services"),
+      env,
+    );
+    const state = JSON.parse(
+      runStageCommand("terraform", ["-chdir=infra/terraform/hono-services", "state", "pull"], env),
+    );
+    const mail = state.resources
+      ?.find((item) => item.type === "restapi_object" && item.name === "trusted")
+      ?.instances?.find((item) => item.index_key === "mail");
+    const value = mail && JSON.parse(mail.attributes.data).configuration.image;
+    if (
+      typeof value === "string" &&
+      value.startsWith(`registry.cloudflare.com/${env.CLOUDFLARE_ACCOUNT_ID}/`) &&
+      /@sha256:[a-f0-9]{64}$/.test(value)
+    )
+      return { ...images, mail: value };
+  } catch {
+    /* A changed or absent relay needs a new image. */
   }
   const repository = `registry.cloudflare.com/${env.CLOUDFLARE_ACCOUNT_ID}/quorem-hono-production-mail`;
   const tag = `${repository}:${env.GITHUB_SHA}`;
