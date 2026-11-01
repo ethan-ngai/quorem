@@ -1,5 +1,11 @@
 /** Stage inspection and rollback rehearsal; emit fixed fields, never credentials/provider payloads. */
 import { createRequire } from "node:module";
+import { randomUUID } from "node:crypto";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stageControls } from "./hono-stage-controls.mjs";
+import { remoteSandbox } from "../apps/runner/src/sandbox/remote.ts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -15,6 +21,112 @@ import {
   requireInitializableStageDatabase,
   StageInitializationFailure,
 } from "./hono-stage-initialization.mjs";
+
+/** Signed inventory identifies attempts; phase output is observational only. */
+export async function caseDiagnostics(controls, origin, secret, scope, send = fetch) {
+  const output = [];
+  let after = "";
+  const safe = (v) => (typeof v === "string" && /^[a-z-]{1,40}$/.test(v) ? v : "unknown");
+  for (let pageNumber = 0; pageNumber < 16; pageNumber++) {
+    const page = await controls.inventoryPage(after);
+    if (page.after !== after || !Array.isArray(page.attempts) || page.attempts.length > 4)
+      throw new Error("Invalid signed inventory");
+    for (const attempt of page.attempts) {
+      if (typeof attempt !== "string" || !/^[A-Za-z0-9-]{1,128}$/.test(attempt) || attempt <= after)
+        throw new Error("Invalid signed inventory");
+      after = attempt;
+      const response = await send(`${origin}/internal/case/${attempt}`, {
+        headers: {
+          authorization: `Bearer ${secret}`,
+          "x-quorem-owner-nonce": randomUUID(),
+          "x-quorem-owner-scope": scope,
+          "x-quorem-case-probe": "diagnostics",
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      });
+      let data = {};
+      if (response.status === 200 && response.body) {
+        const reader = response.body.getReader();
+        let size = 0;
+        const chunks = [];
+        try {
+          for (;;) {
+            const part = await reader.read();
+            if (part.done) break;
+            size += part.value.length;
+            if (size > 1024) throw new Error("Oversized case diagnostic");
+            chunks.push(part.value);
+          }
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+        try {
+          data = JSON.parse(
+            new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
+          );
+        } catch {
+          data = {};
+        }
+      } else await response.body?.cancel();
+      output.push({
+        index: output.length,
+        status: response.status,
+        phase: safe(data.phase),
+        failure: safe(data.failure),
+        source: safe(data.source),
+      });
+    }
+    if (page.next === null) return { attempts: output, complete: true };
+    if (!page.attempts.length || page.next !== after)
+      throw new Error("Invalid signed inventory cursor");
+  }
+  return { attempts: output, complete: false };
+}
+
+async function inspectCases(env, saved) {
+  const secrets = saved.stage_secrets?.value;
+  if (!secrets) throw new Error("Stage secrets unavailable");
+  runStageCommand("terraform", terraformInitArgs(env, "hono-services"), env);
+  const data = JSON.parse(
+    runStageCommand("terraform", ["-chdir=infra/terraform/hono-services", "output", "-json"], env),
+  ).origins?.value;
+  const origin = data?.CASE_ORIGIN,
+    runnerOrigin = data?.DRAIN_ORIGIN,
+    namespace = data?.QUOREM_CASE_NAMESPACE_ID;
+  if (
+    origin !== "https://case-hono-stage.quorem.app" ||
+    runnerOrigin !== "https://runner-hono-stage.quorem.app" ||
+    data.CASE_DIAGNOSTICS !== "true"
+  )
+    throw new Error("Stage case diagnostics unavailable");
+  const sandbox = remoteSandbox({
+    origin,
+    namespaceId: namespace,
+    secret: secrets.QUOREM_CASE_SECRET,
+    ownerPublicKey: secrets.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM,
+    cleanupMs: 30000,
+  });
+  const dir = await mkdtemp(join(tmpdir(), "quorem-case-diagnostics-"));
+  try {
+    const key = join(dir, "public.pem");
+    await writeFile(key, secrets.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
+    const controls = await stageControls({
+      namespace,
+      scope: sandbox.scope,
+      release: data.SERVICES_RELEASE,
+      bindings: data.SERVICES_BINDINGS,
+      secret: secrets.RECOVERY_CONTROL_SECRET,
+      caseOrigin: origin,
+      runnerOrigin,
+      publicKeyFile: key,
+    });
+    return await caseDiagnostics(controls, origin, secrets.QUOREM_CASE_SECRET, sandbox.scope);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 export async function diagnoseStageRole(client, role) {
   if (!/^quorem_stage_runtime_[a-f0-9]{32}$/.test(role)) throw new Error("Invalid runtime role");
@@ -334,7 +446,13 @@ export async function inspectStageRole(env) {
         );
         return { ...before, initialization, apiShell: "removed" };
       }
-      return { ...before, initialization, ...(provider ? { provider } : {}) };
+      let cases;
+      try {
+        cases = await inspectCases(env, saved);
+      } catch {
+        cases = { unavailable: true };
+      }
+      return { ...before, initialization, ...(provider ? { provider } : {}), cases };
     }
     const rehearsal = await rehearseStageRole(client, role, password);
     return { before, rehearsal, after: await diagnoseStageRole(client, role) };

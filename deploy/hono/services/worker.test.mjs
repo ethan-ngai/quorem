@@ -574,6 +574,32 @@ void test("signed live case observation follows execution and confirmed attempt 
       }),
       env,
     );
+  const diagnostic = async (overrides = {}) =>
+    worker.fetch(
+      new Request(`${env.CASE_ORIGIN}/internal/case/${attempt}`, {
+        headers: {
+          authorization: `Bearer ${env.QUOREM_CASE_SECRET}`,
+          "x-quorem-owner-nonce": randomUUID(),
+          "x-quorem-owner-scope": scope,
+          "x-quorem-case-probe": "diagnostics",
+          ...overrides,
+        },
+      }),
+      env,
+    );
+  const diagnosticResponse = await diagnostic();
+  assert.equal(diagnosticResponse.status, 200);
+  assert.deepEqual(await diagnosticResponse.json(), {
+    phase: "exec-ready",
+    failure: "none",
+    source: "none",
+  });
+  assert.equal((await diagnostic({ authorization: "Bearer wrong" })).status, 404);
+  assert.equal((await diagnostic({ "x-quorem-owner-scope": `remote:${secret("0")}` })).status, 404);
+  assert.equal((await diagnostic({ "x-case-token": randomUUID() })).status, 404);
+  env.CASE_DIAGNOSTICS = "false";
+  assert.equal((await diagnostic()).status, 404);
+  env.CASE_DIAGNOSTICS = "true";
   const nonce = randomUUID(),
     response = await probe(nonce);
   const proof = await verifyCaseProbe(response.clone(), {
@@ -865,4 +891,44 @@ void test("runner pause persists across instances and rejects subsequent drains"
   assert.equal((await new RunnerService(context, env).fetch(pause())).status, 204);
   assert.equal((await new RunnerService(context, env).fetch(drain())).status, 503);
   assert.equal((await new RunnerService(context, env).fetch(pause())).status, 204);
+});
+
+void test("case diagnostic inventory is bounded and emits only safe metadata", async () => {
+  const { caseDiagnostics } = await import("../../../scripts/hono-stage-role-diagnostics.mjs");
+  let pages = 0;
+  const controls = {
+    inventoryPage: async (after) => {
+      pages++;
+      return {
+        after,
+        attempts: [`attempt-${String(pages).padStart(3, "0")}`],
+        next: `attempt-${String(pages).padStart(3, "0")}`,
+      };
+    },
+  };
+  const out = await caseDiagnostics(
+    controls,
+    "https://case-stage.example.test",
+    secret("c"),
+    `remote:${secret("1")}`,
+    async (_url, request) => {
+      assert.equal(request.headers["x-quorem-case-probe"], "diagnostics");
+      return Response.json({
+        phase: "exec-ready",
+        failure: "secret-token-value-123",
+        source: "setup",
+      });
+    },
+  );
+  assert.equal(pages, 16);
+  assert.equal(out.complete, false);
+  assert.equal(out.attempts.length, 16);
+  assert.deepEqual(out.attempts[0], {
+    index: 0,
+    status: 200,
+    phase: "exec-ready",
+    failure: "unknown",
+    source: "setup",
+  });
+  assert.ok(!JSON.stringify(out).includes("attempt-"));
 });

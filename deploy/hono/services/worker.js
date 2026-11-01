@@ -312,7 +312,7 @@ export default {
           request.method === "GET" &&
           attempt !== "ready" &&
           (env.CASE_DIAGNOSTICS !== "true" ||
-            request.headers.get("x-quorem-case-probe") !== "lifecycle" ||
+            !["lifecycle", "diagnostics"].includes(request.headers.get("x-quorem-case-probe")) ||
             !request.headers.get("x-quorem-owner-nonce") ||
             !request.headers.get("x-quorem-owner-scope"))
         )
@@ -326,7 +326,8 @@ export default {
         if (
           request.method === "POST" ||
           request.method === "DELETE" ||
-          (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle")
+          (request.method === "GET" &&
+            ["lifecycle", "diagnostics"].includes(request.headers.get("x-quorem-case-probe")))
         ) {
           if (request.method === "GET" && request.headers.has("x-case-token"))
             return new Response(null, { status: 404 });
