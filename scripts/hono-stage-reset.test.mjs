@@ -5,9 +5,10 @@ import { withDisposablePostgres } from "./hono-disposable-postgres.mjs";
 import { provisionStageRole } from "./hono-stage-database-role.mjs";
 import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
 import { lockEmptyStage, validateResetPlan } from "./hono-stage-reset.mjs";
-const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
-  "pg",
-);
+import { seedCatalog } from "../apps/api/src/cli/seed.ts";
+const { Client, Pool } = createRequire(
+  new URL("../packages/database/package.json", import.meta.url),
+)("pg");
 void test("only explicitly allowed deletions can be applied", () => {
   const plan = (address, actions) => ({ resource_changes: [{ address, change: { actions } }] });
   assert.doesNotThrow(() =>
@@ -77,6 +78,44 @@ void test(
           );
           await lockEmptyStage(client, binding);
           await client.query("ROLLBACK");
+          const pool = new Pool({ connectionString: url });
+          try {
+            await seedCatalog(pool, false);
+          } finally {
+            await pool.end();
+          }
+          const subject = "stage-fixture-00000000-0000-4000-8000-000000000001",
+            user = "00000000-0000-4000-8000-000000000002";
+          await client.query(
+            `INSERT INTO quorem_auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES($1,$1,$1||'@example.test',true,now(),now())`,
+            [subject],
+          );
+          await client.query("INSERT INTO users(id,display_name) VALUES($1,'Fixture')", [user]);
+          await client.query(
+            "INSERT INTO identity_bindings(issuer,subject,user_id) VALUES('https://hono-stage.quorem.app',$1,$2)",
+            [subject, user],
+          );
+          const workspace = "00000000-0000-4000-8000-000000000003",
+            submission = "00000000-0000-4000-8000-000000000004";
+          await client.query(
+            "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,'e91ec728-4597-5dfb-9d19-7c4ba17138b7','python')",
+            [workspace, user],
+          );
+          await client.query(
+            "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'submit','fixture','fixture','queued','[]')",
+            [submission, user, workspace],
+          );
+          await assert.rejects(lockEmptyStage(client, binding), /contains data/);
+          await lockEmptyStage(client, { ...binding, allowFixtures: true });
+          await client.query("ROLLBACK");
+          await client.query(
+            `INSERT INTO quorem_auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES('real-user','real','real@example.test',true,now(),now())`,
+          );
+          await assert.rejects(
+            lockEmptyStage(client, { ...binding, allowFixtures: true }),
+            /non-fixture/,
+          );
+          await client.query(`DELETE FROM quorem_auth."user" WHERE id='real-user'`);
           await client.query(
             "INSERT INTO users(id,display_name) VALUES('unexpected','Unexpected')",
           );

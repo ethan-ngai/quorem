@@ -19,6 +19,11 @@ on:
         description: Failed staged release to inspect (diagnose only)
         type: string
         required: false
+      reset_fixtures:
+        description: Allow only verified generated staging fixtures during disposable reset
+        type: boolean
+        default: false
+        required: false
       resume_initialization:
         description: Allow verified empty migration-only database after a failed first initialization
         type: boolean
@@ -51,6 +56,7 @@ jobs:
       - run: vp install --frozen-lockfile
       - name: Reset unused isolated stage
         env:
+          HONO_STAGE_RESET_FIXTURES: ${{ inputs.reset_fixtures && 'true' || 'false' }}
           HONO_RELEASE_SHA: ${{ inputs.release_sha }}
           HONO_RESET_TARGET_RELEASE: ${{ inputs.target_release }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
