@@ -10,7 +10,7 @@ import {
 } from "./hono-stage-database-role.mjs";
 import { fenceStageRuntime, stageFenceOptions } from "./hono-stage-recovery-fence.mjs";
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
-import { runStageCommand } from "./hono-stage-command.mjs";
+import { runStageCommand, StageCommandFailure } from "./hono-stage-command.mjs";
 import {
   requireInitializableStageDatabase,
   StageInitializationFailure,
@@ -143,7 +143,7 @@ export async function inspectStageRole(env) {
   client.on("error", () => {});
   const role = deriveStageRole(env.HONO_DIAGNOSE_RELEASE_SHA, "1");
   const action = env.HONO_STAGE_INSPECTION_ACTION ?? "diagnose";
-  if (!["diagnose", "rehearse-role", "probe-role", "fence-role"].includes(action))
+  if (!["diagnose", "rehearse-role", "probe-role", "fence-role", "reset-api"].includes(action))
     throw new Error("Invalid role inspection action");
   const password = saved.stage_secrets?.value?.STAGE_RUNTIME_DATABASE_PASSWORD;
   if (["rehearse-role", "probe-role"].includes(action)) {
@@ -230,7 +230,7 @@ export async function inspectStageRole(env) {
         await inspector.end().catch(() => {});
       }
     }
-    if (action === "diagnose") {
+    if (action === "diagnose" || action === "reset-api") {
       await client.end();
       closed = true;
       let initialization;
@@ -243,6 +243,53 @@ export async function inspectStageRole(env) {
       } catch (error) {
         if (!(error instanceof StageInitializationFailure)) throw error;
         initialization = { refused: error.reason };
+      }
+      if (action === "reset-api") {
+        if (initialization.kind !== "migrated-empty")
+          throw new Error("Stage initialization is not empty");
+        const child = {
+          ...env,
+          TF_IN_AUTOMATION: "true",
+          TF_VAR_account_id: env.CLOUDFLARE_ACCOUNT_ID,
+          TF_VAR_worker_name: "quorem-hono-stage",
+          TF_VAR_stage_hostname: "hono-stage.quorem.app",
+          TF_VAR_database_host: url.hostname,
+          TF_VAR_database_port: url.port || "5432",
+          TF_VAR_database_name: "quorem_hono_stage",
+          TF_VAR_database_user: role,
+          TF_VAR_database_password: password,
+          TF_VAR_database_connection_limit: "5",
+          TF_VAR_profile_media_enabled: "true",
+          TF_VAR_enable_queue_consumer: "false",
+        };
+        runStageCommand("terraform", terraformInitArgs(env, "hono-services"), child);
+        let services = "";
+        try {
+          services = runStageCommand(
+            "terraform",
+            ["-chdir=infra/terraform/hono-services", "state", "list"],
+            child,
+          );
+        } catch (error) {
+          if (!(error instanceof StageCommandFailure) || !error.noState) throw error;
+        }
+        if (services.trim()) throw new Error("Private stage services already provisioned");
+        runStageCommand("terraform", terraformInitArgs(env, "hono-stage"), child);
+        // Remove only the failed API shell; retain the database, bucket and queue state.
+        runStageCommand(
+          "terraform",
+          [
+            "-chdir=infra/terraform/hono-stage",
+            "destroy",
+            "-target=cloudflare_worker.api",
+            "-auto-approve",
+            "-input=false",
+            "-no-color",
+            "-lock-timeout=5m",
+          ],
+          child,
+        );
+        return { ...before, initialization, apiShell: "removed" };
       }
       return { ...before, initialization };
     }
