@@ -1,0 +1,90 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { withDisposablePostgres } from "./hono-disposable-postgres.mjs";
+import { provisionStageRole } from "./hono-stage-database-role.mjs";
+import { fenceStageRuntime } from "./hono-stage-recovery-fence.mjs";
+import { lockEmptyStage, validateResetPlan } from "./hono-stage-reset.mjs";
+const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
+  "pg",
+);
+void test("only explicitly allowed deletions can be applied", () => {
+  const plan = (address, actions) => ({ resource_changes: [{ address, change: { actions } }] });
+  assert.doesNotThrow(() =>
+    validateResetPlan(plan("cloudflare_worker.api", ["delete"]), /^cloudflare_worker\.api$/),
+  );
+  assert.throws(() =>
+    validateResetPlan(plan("cloudflare_queue.execution", ["delete"]), /^cloudflare_worker\.api$/),
+  );
+  assert.throws(() =>
+    validateResetPlan(
+      plan("cloudflare_worker.api", ["delete", "create"]),
+      /^cloudflare_worker\.api$/,
+    ),
+  );
+});
+void test(
+  "real migrated stage requires fenced writer, matching genesis and no application data",
+  { timeout: 120000 },
+  async () => {
+    await withDisposablePostgres(
+      { prefix: "quorem-stage-reset", port: 55716, database: "quorem_hono_stage" },
+      async ({ url, run }) => {
+        for (const [owner, dir] of [
+          ["product", "apps/api/migrations"],
+          ["auth", "apps/auth/migrations"],
+        ])
+          await run(
+            process.execPath,
+            ["--experimental-strip-types", "packages/database/src/migrate.ts", owner, dir],
+            { env: { ...process.env, DATABASE_URL: url } },
+          );
+        const client = new Client({ connectionString: url });
+        await client.connect();
+        const role = "quorem_stage_runtime_" + "a".repeat(32),
+          password = "fixture-password-with-at-least-32-characters",
+          runtimeURL = new URL(url);
+        runtimeURL.username = role;
+        runtimeURL.password = password;
+        try {
+          await provisionStageRole(
+            client,
+            new Client({ connectionString: runtimeURL.href }),
+            role,
+            password,
+          );
+          const namespace = "1".repeat(64),
+            databaseIdentity = "project:branch:quorem_hono_stage";
+          await client.query(
+            "INSERT INTO stage_genesis(database_identity,namespace,scope,initial_operation,initial_release,initial_bindings,owner_key_sha256,genesis_envelope,migration_062_sha256) VALUES($1,$2,$3,$4,$5,$6,$7,'{}',$8)",
+            [
+              databaseIdentity,
+              namespace,
+              `remote:${"2".repeat(64)}`,
+              "00000000-0000-4000-8000-000000000001",
+              "3".repeat(40),
+              "4".repeat(64),
+              "5".repeat(64),
+              "6".repeat(64),
+            ],
+          );
+          const binding = { role, namespace, databaseIdentity };
+          await assert.rejects(lockEmptyStage(client, binding), /enabled/);
+          await fenceStageRuntime(client, role);
+          await assert.rejects(
+            lockEmptyStage(client, { ...binding, namespace: "8".repeat(64) }),
+            /mismatched genesis/,
+          );
+          await lockEmptyStage(client, binding);
+          await client.query("ROLLBACK");
+          await client.query(
+            "INSERT INTO users(id,display_name) VALUES('unexpected','Unexpected')",
+          );
+          await assert.rejects(lockEmptyStage(client, binding), /contains data/);
+        } finally {
+          await client.end();
+        }
+      },
+    );
+  },
+);

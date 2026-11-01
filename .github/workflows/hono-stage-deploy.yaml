@@ -8,7 +8,7 @@ on:
       action:
         description: Plan bootstrap or provision and activate a fresh isolated stage
         type: choice
-        options: [plan, stage, diagnose, rehearse-role, probe-role, fence-role, reset-api]
+        options: [plan, stage, diagnose, rehearse-role, probe-role, fence-role, reset-api, reset-stage]
         default: plan
         required: true
       release_sha:
@@ -30,6 +30,38 @@ concurrency:
   group: hono-stage-deployment
   cancel-in-progress: false
 jobs:
+  reset-stage:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/feat/hono-migration' && inputs.action == 'reset-stage' && inputs.release_sha == github.sha
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: hono-stage
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - name: Reset unused isolated stage
+        env:
+          HONO_RELEASE_SHA: ${{ inputs.release_sha }}
+          HONO_RESET_TARGET_RELEASE: ${{ inputs.target_release }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: vp exec node scripts/hono-stage-reset.mjs
   diagnose:
     if: github.ref == 'refs/heads/feat/hono-migration' && (inputs.action == 'diagnose' || inputs.action == 'rehearse-role' || inputs.action == 'probe-role' || inputs.action == 'fence-role' || inputs.action == 'reset-api') && inputs.release_sha == github.sha
     runs-on: ubuntu-latest
@@ -61,7 +93,7 @@ jobs:
           TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
         run: vp exec node scripts/hono-stage-role-diagnostics.mjs
   preflight:
-    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role' && inputs.action != 'fence-role' && inputs.action != 'reset-api'
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role' && inputs.action != 'fence-role' && inputs.action != 'reset-api' && inputs.action != 'reset-stage'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -77,7 +109,7 @@ jobs:
           HONO_RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
         run: node scripts/hono-stage-provider-check.mjs
   validate:
-    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'plan' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role' && inputs.action != 'fence-role' && inputs.action != 'reset-api' && (github.event_name == 'push' || inputs.release_sha == github.sha)
+    if: github.ref == 'refs/heads/feat/hono-migration' && inputs.action != 'plan' && inputs.action != 'diagnose' && inputs.action != 'rehearse-role' && inputs.action != 'probe-role' && inputs.action != 'fence-role' && inputs.action != 'reset-api' && inputs.action != 'reset-stage' && (github.event_name == 'push' || inputs.release_sha == github.sha)
     runs-on: ubuntu-latest
     services:
       postgres:
