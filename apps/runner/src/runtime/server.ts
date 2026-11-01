@@ -1,6 +1,7 @@
 /** @file server.ts @description Private HTTP listener with bounded graceful shutdown. @module runner */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { once } from "node:events";
+import { normalizeHttpTarget } from "@quorem/execution/transport/http-target";
 
 export async function listenPrivate(
   address: { host: string; port: number },
@@ -9,16 +10,11 @@ export async function listenPrivate(
   const active = new Set<Promise<void>>();
   let closing = false;
   const server = createServer((request, response) => {
-    // Container proxies may use the RFC absolute-form request target.
-    if (/^https?:\/\//i.test(request.url ?? "")) {
-      try {
-        const target = new URL(request.url!);
-        if (target.username || target.password) throw new Error("Invalid request target");
-        request.url = target.pathname + target.search;
-      } catch {
-        response.writeHead(400).end();
-        return;
-      }
+    try {
+      request.url = normalizeHttpTarget(request.url);
+    } catch {
+      response.writeHead(400).end();
+      return;
     }
     if (closing) {
       response.writeHead(503).end();
