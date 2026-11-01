@@ -70,7 +70,7 @@ def prepare_image(account, token, image, opener=None, sleep=time.sleep, clock=ti
             with opener(request, timeout=30) as response:
                 raw = response.read(1048577)
         except HTTPError as error:
-            if error.code not in (429, 502, 503, 504) or failures >= 5:
+            if error.code not in (429, 500, 502, 503, 504) or failures >= 5:
                 raise
             error.close()
             failures += 1

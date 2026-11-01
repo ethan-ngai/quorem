@@ -6,7 +6,7 @@ test("private ingress attaches credentials only to the pinned HTTPS origin", asy
   let sent = 0;
   const send: typeof fetch = async (_input, init) => {
     sent++;
-    assert.equal(init?.redirect, "error");
+    assert.equal(init?.redirect, "manual");
     const headers = new Headers(init?.headers);
     assert.equal(headers.get("authorization"), "Bearer application");
     assert.equal(headers.get("cf-access-client-id"), "fixture-id");

@@ -29,6 +29,7 @@ export { normalizeQuestionDraft } from "./draft-normalize.ts";
 
 export {
   StreamingJsonReader,
+  withStreamingJsonReader,
   decodeUtf8Chunks,
   encodeJsonStringChunks,
   readAllowedObjectSpans,

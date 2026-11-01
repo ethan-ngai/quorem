@@ -337,12 +337,18 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         }
       };
       const containerMode = process.env.QUOREM_CONTAINER_FIXTURE === "1";
+      let serviceDiagnostics = "";
       const service = (kind: "runner" | "verifier", script: string, env: NodeJS.ProcessEnv) => {
-        if (!containerMode)
-          return spawn(process.execPath, [script], {
-            stdio: "ignore",
+        if (!containerMode) {
+          const child = spawn(process.execPath, [script], {
+            stdio: ["ignore", "ignore", "pipe"],
             env: { ...process.env, ...env },
           });
+          child.stderr?.on("data", (data) => {
+            serviceDiagnostics = (serviceDiagnostics + String(data)).slice(-4096);
+          });
+          return child;
+        }
         const volume = process.env.QUOREM_CONTAINER_FENCE_VOLUME;
         const namespace = process.env.HOSTNAME;
         if (!volume || !namespace || !work.startsWith("/quorem-36b/"))
@@ -487,12 +493,32 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         });
         expect(admitted.status).toBe(202);
         const id = (await admitted.json()).id as string;
+        // Hosted cold start includes a 60s readiness budget plus execution and teardown.
+        const drainTimeoutMs = remote ? 180000 : 60000;
         const drain = await fetch(`${runnerOrigin}/internal/drain`, {
           method: "POST",
           headers: { authorization: `Bearer ${drainSecret}` },
-          signal: AbortSignal.timeout(60000),
+          signal: AbortSignal.timeout(drainTimeoutMs),
         });
-        expect(drain.status).toBe(200);
+        const requireDrained = async (response: Response, scenario: string) => {
+          // Background drains report progress promptly; completion remains authoritative.
+          const deadline = Date.now() + drainTimeoutMs;
+          while (response.status === 202 && Date.now() < deadline) {
+            await response.body?.cancel();
+            await sleep(250);
+            response = await fetch(`${runnerOrigin}/internal/drain`, {
+              method: "POST",
+              headers: { authorization: `Bearer ${drainSecret}` },
+              signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+            });
+          }
+          if (response.status !== 200)
+            throw new Error(
+              `Hosted ${scenario} drain HTTP ${response.status}: ${await response.text()} ${serviceDiagnostics}`,
+            );
+          await response.body?.cancel();
+        };
+        await requireDrained(drain, "accepted");
         const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
         expect(result.status).toBe(200);
         expect((await result.json()).verdict).toBe("accepted");
@@ -518,15 +544,14 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
             });
             expect(submitted.status).toBe(202);
             const submittedId = (await submitted.json()).id as string;
-            expect(
-              (
-                await fetch(`${runnerOrigin}/internal/drain`, {
-                  method: "POST",
-                  headers: { authorization: `Bearer ${drainSecret}` },
-                  signal: AbortSignal.timeout(180000),
-                })
-              ).status,
-            ).toBe(200);
+            await requireDrained(
+              await fetch(`${runnerOrigin}/internal/drain`, {
+                method: "POST",
+                headers: { authorization: `Bearer ${drainSecret}` },
+                signal: AbortSignal.timeout(drainTimeoutMs),
+              }),
+              name,
+            );
             const response = await app.request(
               `https://fixture.test/v1/submissions/${submittedId}`,
             );
@@ -553,15 +578,14 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           });
           expect(compile.status).toBe(202);
           const compileId = (await compile.json()).id as string;
-          expect(
-            (
-              await fetch(`${runnerOrigin}/internal/drain`, {
-                method: "POST",
-                headers: { authorization: `Bearer ${drainSecret}` },
-                signal: AbortSignal.timeout(180000),
-              })
-            ).status,
-          ).toBe(200);
+          await requireDrained(
+            await fetch(`${runnerOrigin}/internal/drain`, {
+              method: "POST",
+              headers: { authorization: `Bearer ${drainSecret}` },
+              signal: AbortSignal.timeout(drainTimeoutMs),
+            }),
+            "compile",
+          );
           expect(
             (await (await app.request(`https://fixture.test/v1/submissions/${compileId}`)).json())
               .verdict,
@@ -584,7 +608,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           const pending = fetch(`${runnerOrigin}/internal/drain`, {
             method: "POST",
             headers: { authorization: `Bearer ${drainSecret}` },
-            signal: AbortSignal.timeout(180000),
+            signal: AbortSignal.timeout(drainTimeoutMs),
           });
           const ownerKey = await readFile(process.env.QUOREM_CASE_OWNER_PUBLIC_KEY_FILE!, "utf8");
           const probeKey = await crypto.subtle.importKey(
@@ -647,7 +671,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
               })
             ).status,
           ).toBe(200);
-          expect((await pending).status).toBe(200);
+          await requireDrained(await pending, "cancellation");
           expect(
             (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0].state,
           ).toBe("cancelled");

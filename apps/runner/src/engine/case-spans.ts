@@ -3,6 +3,7 @@ import {
   decodeUtf8Chunks,
   readAllowedObjectSpans,
   StreamingJsonReader,
+  withStreamingJsonReader,
   type StreamingJsonSpan,
 } from "@quorem/questions";
 import type { spoolInput } from "../checkpoints/input-spool.ts";
@@ -15,17 +16,18 @@ const reader = (spool: Spool, span: StreamingJsonSpan) =>
     decodeUtf8Chunks(spool.stream(span.start, span.length))[Symbol.asyncIterator](),
   );
 async function kind(spool: Spool, span: StreamingJsonSpan): Promise<string> {
-  return reader(spool, span).peek();
+  return withStreamingJsonReader(reader(spool, span), (input) => input.peek());
 }
 async function* raw(spool: Spool, span: StreamingJsonSpan): AsyncGenerator<Uint8Array> {
   for await (const part of spool.stream(span.start, span.length)) yield part as Uint8Array;
 }
 async function* arrayOrEmpty(spool: Spool, span?: StreamingJsonSpan): AsyncGenerator<Uint8Array> {
-  if (!span || (await kind(spool, span)) === "n") {
+  const token = span ? await kind(spool, span) : undefined;
+  if (!span || token === "n") {
     yield encoder.encode("[]");
     return;
   }
-  if ((await kind(spool, span)) !== "[") throw new Error("Invalid case arguments");
+  if (token !== "[") throw new Error("Invalid case arguments");
   yield* raw(spool, span);
 }
 /** Case input is already SHA-verified and grammar-validated by the input owner. */
@@ -38,21 +40,23 @@ export async function caseSpans(spool: Spool) {
     callsSpan = top.get("calls");
   if (callsSpan && (await kind(spool, callsSpan)) !== "n") {
     const input = reader(spool, callsSpan);
-    await input.expect("[");
-    if ((await input.peek()) !== "]")
-      for (;;) {
-        if (calls.length >= 100) throw new Error("Invalid case sequence");
-        const fields = await readAllowedObjectSpans(input, callNames, false);
-        const absolute = new Map<string, StreamingJsonSpan>();
-        for (const [name, span] of fields)
-          absolute.set(name, { start: callsSpan.start + span.start, length: span.length });
-        calls.push(absolute);
-        if ((await input.peek()) === "]") break;
-        await input.expect(",");
-        if ((await input.peek()) === "]") throw new Error("Invalid case sequence");
-      }
-    await input.expect("]");
-    if (await input.peek()) throw new Error("Invalid case sequence");
+    await withStreamingJsonReader(input, async () => {
+      await input.expect("[");
+      if ((await input.peek()) !== "]")
+        for (;;) {
+          if (calls.length >= 100) throw new Error("Invalid case sequence");
+          const fields = await readAllowedObjectSpans(input, callNames, false);
+          const absolute = new Map<string, StreamingJsonSpan>();
+          for (const [name, span] of fields)
+            absolute.set(name, { start: callsSpan.start + span.start, length: span.length });
+          calls.push(absolute);
+          if ((await input.peek()) === "]") break;
+          await input.expect(",");
+          if ((await input.peek()) === "]") throw new Error("Invalid case sequence");
+        }
+      await input.expect("]");
+      if (await input.peek()) throw new Error("Invalid case sequence");
+    });
   }
   return {
     expected: top.get("expected"),

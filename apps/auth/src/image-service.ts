@@ -5,6 +5,7 @@ import {
 } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { timingSafeEqual } from "node:crypto";
+import { normalizeHttpTarget } from "@quorem/execution/transport/http-target";
 import { isolatedImageProcessor } from "./adapters/isolated-image.ts";
 import { ImageExecutionUncertain, type ImageFormat } from "./image-processing.ts";
 
@@ -40,11 +41,18 @@ export function createImageService(options: {
       res.writeHead(401).end();
       return;
     }
-    if (req.method === "GET" && req.url === "/health") {
+    let target: string;
+    try {
+      target = normalizeHttpTarget(req.url);
+    } catch {
+      res.writeHead(400).end();
+      return;
+    }
+    if (req.method === "GET" && target === "/health") {
       res.writeHead(200, { "cache-control": "no-store" }).end();
       return;
     }
-    if (req.method !== "POST" || req.url !== "/") {
+    if (req.method !== "POST" || target !== "/") {
       res.writeHead(404).end();
       return;
     }

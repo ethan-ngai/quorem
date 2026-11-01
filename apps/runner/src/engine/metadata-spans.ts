@@ -3,6 +3,7 @@ import {
   decodeUtf8Chunks,
   readAllowedObjectSpans,
   StreamingJsonReader,
+  withStreamingJsonReader,
   type StreamingJsonSpan,
 } from "@quorem/questions";
 import type { spoolInput } from "../checkpoints/input-spool.ts";
@@ -67,7 +68,10 @@ export async function metadataSpans(spool: Spool, level: number | null) {
   const methods: { name: string; span: StreamingJsonSpan }[] = [],
     names = new Set<string>(),
     odyssey = fields.get("odyssey");
-  if (odyssey && (await reader(spool, odyssey).peek()) !== "n") {
+  if (
+    odyssey &&
+    (await withStreamingJsonReader(reader(spool, odyssey), (input) => input.peek())) !== "n"
+  ) {
     if (!Number.isInteger(level) || level! < 1 || level! > 8)
       throw new Error("Invalid Odyssey level");
     const odysseyFields = await readAllowedObjectSpans(reader(spool, odyssey), new Set(["levels"]));
@@ -75,48 +79,57 @@ export async function metadataSpans(spool: Spool, level: number | null) {
     if (!levels) throw new Error("Missing Odyssey levels");
     const levelsAbsolute = absolute(odyssey.start, levels),
       input = reader(spool, levelsAbsolute);
-    await input.expect("[");
-    let stage = 0;
-    if ((await input.peek()) !== "]")
-      for (;;) {
-        stage++;
-        if (stage > 8) throw new Error("Invalid Odyssey levels");
-        const fields = await readAllowedObjectSpans(input, levelNames, false),
-          rawMethods = fields.get("methods");
-        if (!rawMethods) throw new Error("Missing Odyssey methods");
-        if (stage <= level!) {
-          const methodsAbsolute = absolute(levelsAbsolute.start, rawMethods),
-            stream = reader(spool, methodsAbsolute);
-          let count = 0;
-          await stream.expect("[");
-          if ((await stream.peek()) !== "]")
-            for (;;) {
-              if (++count > 16) throw new Error("Invalid Odyssey methods");
-              await stream.peek();
-              const start = stream.byteOffset;
-              const item = await readAllowedObjectSpans(stream, methodNames, false),
-                nameSpan = item.get("methodName");
-              if (!nameSpan) throw new Error("Missing method name");
-              const name = await methodName(spool, absolute(methodsAbsolute.start, nameSpan));
-              if (names.has(name)) throw new Error("Duplicate method name");
-              names.add(name);
-              methods.push({
-                name,
-                span: { start: methodsAbsolute.start + start, length: stream.byteOffset - start },
-              });
-              if ((await stream.peek()) === "]") break;
-              await stream.expect(",");
-              if ((await stream.peek()) === "]") throw new Error("Invalid Odyssey methods");
+    await withStreamingJsonReader(input, async () => {
+      await input.expect("[");
+      let stage = 0;
+      if ((await input.peek()) !== "]")
+        for (;;) {
+          stage++;
+          if (stage > 8) throw new Error("Invalid Odyssey levels");
+          const fields = await readAllowedObjectSpans(input, levelNames, false),
+            rawMethods = fields.get("methods");
+          if (!rawMethods) throw new Error("Missing Odyssey methods");
+          if (stage <= level!) {
+            const methodsAbsolute = absolute(levelsAbsolute.start, rawMethods),
+              stream = reader(spool, methodsAbsolute);
+            try {
+              let count = 0;
+              await stream.expect("[");
+              if ((await stream.peek()) !== "]")
+                for (;;) {
+                  if (++count > 16) throw new Error("Invalid Odyssey methods");
+                  await stream.peek();
+                  const start = stream.byteOffset;
+                  const item = await readAllowedObjectSpans(stream, methodNames, false),
+                    nameSpan = item.get("methodName");
+                  if (!nameSpan) throw new Error("Missing method name");
+                  const name = await methodName(spool, absolute(methodsAbsolute.start, nameSpan));
+                  if (names.has(name)) throw new Error("Duplicate method name");
+                  names.add(name);
+                  methods.push({
+                    name,
+                    span: {
+                      start: methodsAbsolute.start + start,
+                      length: stream.byteOffset - start,
+                    },
+                  });
+                  if ((await stream.peek()) === "]") break;
+                  await stream.expect(",");
+                  if ((await stream.peek()) === "]") throw new Error("Invalid Odyssey methods");
+                }
+              await stream.expect("]");
+              if (await stream.peek()) throw new Error("Invalid Odyssey methods");
+            } finally {
+              await stream.close();
             }
-          await stream.expect("]");
-          if (await stream.peek()) throw new Error("Invalid Odyssey methods");
+          }
+          if ((await input.peek()) === "]") break;
+          await input.expect(",");
+          if ((await input.peek()) === "]") throw new Error("Invalid Odyssey levels");
         }
-        if ((await input.peek()) === "]") break;
-        await input.expect(",");
-        if ((await input.peek()) === "]") throw new Error("Invalid Odyssey levels");
-      }
-    await input.expect("]");
-    if ((await input.peek()) || stage < level!) throw new Error("Invalid Odyssey levels");
+      await input.expect("]");
+      if ((await input.peek()) || stage < level!) throw new Error("Invalid Odyssey levels");
+    });
   }
   return { signature, sql: fields.get("sql"), methods };
 }

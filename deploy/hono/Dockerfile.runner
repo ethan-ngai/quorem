@@ -18,3 +18,6 @@ CMD ["node", "--experimental-strip-types", "apps/runner/src/runtime/runner.ts"]
 
 FROM runtime AS verifier
 CMD ["node", "--experimental-strip-types", "apps/runner/src/runtime/verifier.ts"]
+
+FROM runtime AS private-service
+CMD ["node", "--experimental-strip-types", "deploy/hono/services/start.mjs"]

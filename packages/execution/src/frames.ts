@@ -10,6 +10,7 @@ export async function decodeCaseFrames(
   limits: FrameLimits,
   write: (channel: OutputChannel, data: Uint8Array) => Promise<void>,
   signal?: AbortSignal,
+  onExit?: () => void,
 ): Promise<number> {
   for (const n of [limits.stdoutBytes, limits.stderrBytes])
     if (!Number.isSafeInteger(n) || n < 0) throw new Error("invalid output limit");
@@ -78,6 +79,7 @@ export async function decodeCaseFrames(
         if (data === null) throw new Error("truncated before exit");
         code = new DataView(data.buffer, data.byteOffset, 4).getInt32(0, false);
         exited = true;
+        onExit?.();
         continue;
       }
       if (channel === 4) {

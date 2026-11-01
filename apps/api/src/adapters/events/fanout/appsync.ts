@@ -58,7 +58,7 @@ export class AppSyncFanout {
         method: "POST",
         headers,
         body,
-        redirect: "error",
+        redirect: "manual",
         signal: deadline,
       });
       const result = (await responseJson(response)) as {

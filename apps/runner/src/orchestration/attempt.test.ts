@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ExecutionRepository, Job, SandboxControl } from "@quorem/execution";
-import { runAttempt, type CancellationSource } from "./attempt.ts";
+import { LostLease, runAttempt, type CancellationSource } from "./attempt.ts";
 const job = { jobId: "j", submissionId: "s", attemptId: "a", sandboxScope: "scope" } as Job;
 function fixture() {
   const events: string[] = [];
@@ -81,7 +81,7 @@ void test("revoked lease aborts execution and cannot publish", async () => {
   });
   await sleep(10);
   f.revoke();
-  await assert.rejects(running);
+  await assert.rejects(running, LostLease);
   assert.deepEqual(f.events, ["lease", "lease", "teardown"]);
 });
 void test("heartbeat failure cancels execution and teardown failure cannot publish", async () => {
@@ -107,4 +107,61 @@ void test("heartbeat failure cancels execution and teardown failure cannot publi
     /unconfirmed/,
   );
   assert.ok(!f.events.includes("promote"));
+});
+
+void test("engine errors remain failures even when a watcher also loses authority", async () => {
+  const f = fixture();
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const pending = runAttempt({
+    ...f,
+    job,
+    engine: {
+      execute: async (_job, signal) => {
+        started();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener("abort", () => resolve(), { once: true }),
+        );
+        throw new Error("engine failure");
+      },
+    },
+  });
+  await ready;
+  f.revoke();
+  await assert.rejects(pending, /engine failure/);
+  assert.ok(!f.events.includes("promote"));
+});
+void test("closed cancellation watcher tears down and never publishes", async () => {
+  const f = fixture();
+  let closeWatch!: () => void;
+  f.cancellations.subscribe = async () => ({
+    next: async () =>
+      new Promise((resolve) => {
+        closeWatch = () => resolve("closed");
+      }),
+    close: async () => {},
+  });
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const running = runAttempt({
+    ...f,
+    job,
+    engine: {
+      execute: async (_job, signal) => {
+        started();
+        await new Promise<void>((_resolve, reject) =>
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true }),
+        );
+        return "complete";
+      },
+    },
+  });
+  await ready;
+  closeWatch();
+  await assert.rejects(running, LostLease);
+  assert.deepEqual(f.events, ["lease", "teardown"]);
 });

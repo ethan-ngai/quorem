@@ -11,7 +11,7 @@ const env = () => ({
   VERIFICATION_SOURCE_CREDENTIAL: "b".repeat(64),
   EXECUTION_DRAIN_SECRET: "d".repeat(32),
 });
-void test("requires valid bearer on every private origin", async () => {
+void test("requires valid bearer on every private origin, including a background drain", async () => {
   const calls = [];
   const input = env();
   const valid = new Set([
@@ -34,7 +34,7 @@ void test("requires valid bearer on every private origin", async () => {
         status: (typeof url === "string" ? url : url instanceof URL ? url.href : url.url).includes(
           "/internal/drain",
         )
-          ? 200
+          ? 202
           : 503,
       });
     },

@@ -1,5 +1,11 @@
 /** Stage inspection and rollback rehearsal; emit fixed fields, never credentials/provider payloads. */
 import { createRequire } from "node:module";
+import { randomUUID } from "node:crypto";
+import { mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stageControls } from "./hono-stage-controls.mjs";
+import { remoteSandbox } from "../apps/runner/src/sandbox/remote.ts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -15,6 +21,186 @@ import {
   requireInitializableStageDatabase,
   StageInitializationFailure,
 } from "./hono-stage-initialization.mjs";
+
+/** Read queue dependency changes without applying or exposing Terraform values. */
+async function inspectQueuePlans(env, url, role, password) {
+  const directory = await mkdtemp(join(tmpdir(), "quorem-queue-inspection-"));
+  const child = {
+    ...env,
+    TF_IN_AUTOMATION: "true",
+    TF_VAR_account_id: env.CLOUDFLARE_ACCOUNT_ID,
+    TF_VAR_worker_name: "quorem-hono-stage",
+    TF_VAR_stage_hostname: "hono-stage.quorem.app",
+    TF_VAR_database_host: url.hostname,
+    TF_VAR_database_port: url.port || "5432",
+    TF_VAR_database_name: "quorem_hono_stage",
+    TF_VAR_database_user: role,
+    TF_VAR_database_password: password,
+    TF_VAR_database_connection_limit: "5",
+    TF_VAR_profile_media_enabled: "false",
+  };
+  try {
+    runStageCommand("terraform", terraformInitArgs(env, "hono-stage"), child);
+    const plans = [];
+    for (const enabled of [true, false]) {
+      const file = join(directory, `${enabled}.tfplan`);
+      const selected = { ...child, TF_VAR_enable_queue_consumer: String(enabled) };
+      runStageCommand(
+        "terraform",
+        [
+          "-chdir=infra/terraform/hono-stage",
+          "plan",
+          "-input=false",
+          "-no-color",
+          "-lock-timeout=30s",
+          "-target=cloudflare_queue_consumer.execution",
+          `-out=${file}`,
+        ],
+        selected,
+      );
+      await chmod(file, 0o600);
+      const plan = JSON.parse(
+        runStageCommand(
+          "terraform",
+          ["-chdir=infra/terraform/hono-stage", "show", "-json", file],
+          selected,
+        ),
+      );
+      const project = (entry) => ({
+        address: /^[a-zA-Z0-9_.[\]"-]{1,200}$/.test(entry.address ?? "")
+          ? entry.address
+          : "unknown",
+        actions: entry.change.actions,
+        fields: Object.keys({ ...entry.change.before, ...entry.change.after }).filter(
+          (key) =>
+            JSON.stringify(entry.change.before?.[key]) !==
+            JSON.stringify(entry.change.after?.[key]),
+        ),
+      });
+      plans.push({
+        enabled,
+        changes: (plan.resource_changes ?? []).map(project),
+        drift: (plan.resource_drift ?? []).map(project),
+      });
+    }
+    return plans;
+  } catch (error) {
+    return {
+      unavailable: true,
+      ...(error instanceof StageCommandFailure
+        ? { category: error.category, resources: error.resources, diagnostics: error.diagnostics }
+        : {}),
+    };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+/** Signed inventory identifies attempts; phase output is observational only. */
+export async function caseDiagnostics(controls, origin, secret, scope, send = fetch) {
+  const output = [];
+  let after = "";
+  const safe = (v) => (typeof v === "string" && /^[a-z-]{1,40}$/.test(v) ? v : "unknown");
+  for (let pageNumber = 0; pageNumber < 16; pageNumber++) {
+    const page = await controls.inventoryPage(after);
+    if (page.after !== after || !Array.isArray(page.attempts) || page.attempts.length > 4)
+      throw new Error("Invalid signed inventory");
+    for (const attempt of page.attempts) {
+      if (typeof attempt !== "string" || !/^[A-Za-z0-9-]{1,128}$/.test(attempt) || attempt <= after)
+        throw new Error("Invalid signed inventory");
+      after = attempt;
+      const response = await send(`${origin}/internal/case/${attempt}`, {
+        headers: {
+          authorization: `Bearer ${secret}`,
+          "x-quorem-owner-nonce": randomUUID(),
+          "x-quorem-owner-scope": scope,
+          "x-quorem-case-probe": "diagnostics",
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      });
+      let data = {};
+      if (response.status === 200 && response.body) {
+        const reader = response.body.getReader();
+        let size = 0;
+        const chunks = [];
+        try {
+          for (;;) {
+            const part = await reader.read();
+            if (part.done) break;
+            size += part.value.length;
+            if (size > 1024) throw new Error("Oversized case diagnostic");
+            chunks.push(part.value);
+          }
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+        try {
+          data = JSON.parse(
+            new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
+          );
+        } catch {
+          data = {};
+        }
+      } else await response.body?.cancel();
+      output.push({
+        index: output.length,
+        status: response.status,
+        phase: safe(data.phase),
+        failure: safe(data.failure),
+        source: safe(data.source),
+      });
+    }
+    if (page.next === null) return { attempts: output, complete: true };
+    if (!page.attempts.length || page.next !== after)
+      throw new Error("Invalid signed inventory cursor");
+  }
+  return { attempts: output, complete: false };
+}
+
+async function inspectCases(env, saved) {
+  const secrets = saved.stage_secrets?.value;
+  if (!secrets) throw new Error("Stage secrets unavailable");
+  runStageCommand("terraform", terraformInitArgs(env, "hono-services"), env);
+  const data = JSON.parse(
+    runStageCommand("terraform", ["-chdir=infra/terraform/hono-services", "output", "-json"], env),
+  ).origins?.value;
+  const origin = data?.CASE_ORIGIN,
+    runnerOrigin = data?.DRAIN_ORIGIN,
+    namespace = data?.QUOREM_CASE_NAMESPACE_ID;
+  if (
+    origin !== "https://case-hono-stage.quorem.app" ||
+    runnerOrigin !== "https://runner-hono-stage.quorem.app" ||
+    data.CASE_DIAGNOSTICS !== "true"
+  )
+    throw new Error("Stage case diagnostics unavailable");
+  const sandbox = remoteSandbox({
+    origin,
+    namespaceId: namespace,
+    secret: secrets.QUOREM_CASE_SECRET,
+    ownerPublicKey: secrets.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM,
+    cleanupMs: 30000,
+  });
+  const dir = await mkdtemp(join(tmpdir(), "quorem-case-diagnostics-"));
+  try {
+    const key = join(dir, "public.pem");
+    await writeFile(key, secrets.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
+    const controls = await stageControls({
+      namespace,
+      scope: sandbox.scope,
+      release: data.SERVICES_RELEASE,
+      bindings: data.SERVICES_BINDINGS,
+      secret: secrets.RECOVERY_CONTROL_SECRET,
+      caseOrigin: origin,
+      runnerOrigin,
+      publicKeyFile: key,
+    });
+    return await caseDiagnostics(controls, origin, secrets.QUOREM_CASE_SECRET, sandbox.scope);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 export async function diagnoseStageRole(client, role) {
   if (!/^quorem_stage_runtime_[a-f0-9]{32}$/.test(role)) throw new Error("Invalid runtime role");
@@ -55,6 +241,19 @@ export async function diagnoseStageRole(client, role) {
        AND has_database_privilege(r.oid,current_database(),'CONNECT')) AS other_connect_logins,
       (SELECT count(*)::int FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()) AS other_sessions,
       (SELECT count(*)::int FROM public.schema_migrations) AS product_migrations,
+      (SELECT count(*)::int FROM public.users) AS users,
+      (SELECT count(*)::int FROM public.workspaces) AS workspaces,
+      (SELECT count(*)::int FROM public.submissions) AS submissions,
+      (SELECT count(*)::int FROM public.submissions WHERE state='completed') AS completed_submissions,
+      (SELECT count(*)::int FROM public.submissions WHERE result->>'verdict'='accepted') AS accepted_submissions,
+      (SELECT count(*)::int FROM public.execution_jobs WHERE NOT finished) AS unfinished_jobs,
+      (SELECT COALESCE(sum(attempts),0)::int FROM public.execution_jobs) AS claimed_attempts,
+      (SELECT count(*)::int FROM public.execution_verification_challenges) AS verification_challenges,
+      (SELECT count(*)::int FROM public.execution_verified_cases) AS verified_cases,
+      (SELECT count(*)::int FROM public.execution_completion_staging) AS completion_streams,
+      (SELECT count(*)::int FROM public.execution_completion_staging WHERE eof) AS eof_streams,
+      (SELECT count(*)::int FROM public.execution_completion_receipts) AS completion_receipts,
+      (SELECT COALESCE(sum(case_count+CASE WHEN submit_cases_are_samples THEN 0 ELSE sample_count END),0)::int FROM public.runner_job_inputs) AS expected_cases,
       to_regclass('public.stage_genesis') IS NOT NULL AS genesis_table
     `,
         [role],
@@ -102,6 +301,19 @@ export async function diagnoseStageRole(client, role) {
         "other_sessions",
         "product_migrations",
         "genesis_table",
+        "users",
+        "workspaces",
+        "submissions",
+        "completed_submissions",
+        "accepted_submissions",
+        "unfinished_jobs",
+        "claimed_attempts",
+        "verification_challenges",
+        "verified_cases",
+        "completion_streams",
+        "eof_streams",
+        "completion_receipts",
+        "expected_cases",
       ]),
     };
   } finally {
@@ -182,13 +394,52 @@ export async function inspectStageRole(env) {
         status: response.status,
         errors: (result.errors ?? []).map((item) => item.code),
         applications: Array.isArray(result.result)
-          ? result.result
-              .filter((item) => item.name?.startsWith("quorem-hono-services-stage-"))
-              .map((item) => ({
-                name: item.name,
-                scheduling: item.scheduling_policy,
-                idPresent: typeof item.id === "string",
-              }))
+          ? await Promise.all(
+              result.result
+                .filter((item) => item.name?.startsWith("quorem-hono-services-stage-"))
+                .map(async (item) => {
+                  const detail = await fetch(
+                    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/containers/applications/${item.id}`,
+                    {
+                      headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+                      signal: AbortSignal.timeout(15000),
+                    },
+                  );
+                  const body = await detail.json();
+                  const instancesResponse = await fetch(
+                    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/containers/applications/${item.id}/instances`,
+                    {
+                      headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+                      signal: AbortSignal.timeout(15000),
+                    },
+                  );
+                  const instanceBody = await instancesResponse.json();
+                  const instances = Array.isArray(instanceBody.result)
+                    ? instanceBody.result
+                    : (instanceBody.result?.instances ?? []);
+                  return {
+                    name: item.name,
+                    scheduling: item.scheduling_policy,
+                    status: detail.status,
+                    instancesStatus: instancesResponse.status,
+                    instances: instances.slice(0, 8).map((instance) => ({
+                      state: /^[a-z_]{1,30}$/.test(instance.status?.state ?? "")
+                        ? instance.status.state
+                        : "unknown",
+                      exitCode: Number.isInteger(instance.status?.exit_code)
+                        ? instance.status.exit_code
+                        : null,
+                    })),
+                    errors: (body.result?.errors ?? []).slice(0, 8).map((entry) => ({
+                      name: /^[A-Za-z]{1,40}$/.test(entry.event?.name ?? "")
+                        ? entry.event.name
+                        : "unknown",
+                      reason: new StageRoleFailure("unknown", { message: entry.event?.message })
+                        .reason,
+                    })),
+                  };
+                }),
+            )
           : [],
       };
     }
@@ -315,7 +566,19 @@ export async function inspectStageRole(env) {
         );
         return { ...before, initialization, apiShell: "removed" };
       }
-      return { ...before, initialization, ...(provider ? { provider } : {}) };
+      let cases;
+      try {
+        cases = await inspectCases(env, saved);
+      } catch {
+        cases = { unavailable: true };
+      }
+      return {
+        ...before,
+        initialization,
+        ...(provider ? { provider } : {}),
+        cases,
+        queuePlans: await inspectQueuePlans(env, url, role, password),
+      };
     }
     const rehearsal = await rehearseStageRole(client, role, password);
     return { before, rehearsal, after: await diagnoseStageRole(client, role) };

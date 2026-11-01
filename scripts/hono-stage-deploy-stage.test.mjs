@@ -380,3 +380,57 @@ void test("first activation rejects any other generation before mutation", async
   );
   assert.deepEqual(events, []);
 });
+
+void test("stage service apply tolerates bounded application visibility lag only", async () => {
+  const { terraformStageStack } = await import("./hono-stage-deploy-stage.mjs");
+  const { StageCommandFailure } = await import("./hono-stage-command.mjs");
+  const failure = (status = 404, code = 1609) =>
+    new StageCommandFailure({
+      stderr: `Error: with restapi_object.trusted_rollout["runner"] HTTP ${status} {"code":${code}}`,
+    });
+  const delays = [];
+  let calls = 0;
+  assert.equal(
+    await terraformStageStack({}, "hono-services", "apply", {
+      execute: () => {
+        if (++calls < 3) throw failure();
+        return "applied";
+      },
+      delay: async (ms) => {
+        delays.push(ms);
+      },
+    }),
+    "applied",
+  );
+  assert.deepEqual(delays, [2000, 4000]);
+  for (const [stack, operation, error] of [
+    ["hono-stage", "apply", failure()],
+    ["hono-services", "plan", failure()],
+    ["hono-services", "apply", failure(403)],
+    ["hono-services", "apply", failure(404, 1234)],
+  ]) {
+    calls = 0;
+    await assert.rejects(
+      terraformStageStack({}, stack, operation, {
+        execute: () => {
+          calls++;
+          throw error;
+        },
+        delay: async () => {},
+      }),
+      (value) => value === error,
+    );
+    assert.equal(calls, 1);
+  }
+  calls = 0;
+  await assert.rejects(
+    terraformStageStack({}, "hono-services", "apply", {
+      execute: () => {
+        calls++;
+        throw failure();
+      },
+      delay: async () => {},
+    }),
+  );
+  assert.equal(calls, 4);
+});

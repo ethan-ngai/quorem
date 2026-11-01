@@ -86,14 +86,15 @@ class UploadTest(unittest.TestCase):
 
     def test_image_preparation_retries_transient_provider_errors(self):
         image = f"registry.cloudflare.com/{'a' * 32}/judge@sha256:{'b' * 64}"
-        calls = []
-        def open_request(request, timeout):
-            calls.append(request)
-            if len(calls) == 1:
-                raise module.HTTPError(request.full_url, 502, 'unavailable', {}, None)
-            return Response(b'{"success":true,"result":{"status":"ready"}}')
-        module.prepare_image('a' * 32, 'secret', image, open_request, sleep=lambda _: None)
-        self.assertEqual(len(calls), 2)
+        for status in (429, 500, 502, 503, 504):
+            calls = []
+            def open_request(request, timeout):
+                calls.append(request)
+                if len(calls) == 1:
+                    raise module.HTTPError(request.full_url, status, 'unavailable', {}, None)
+                return Response(b'{"success":true,"result":{"status":"ready"}}')
+            module.prepare_image('a' * 32, 'secret', image, open_request, sleep=lambda _: None)
+            self.assertEqual(len(calls), 2)
         def forbidden(request, timeout):
             raise module.HTTPError(request.full_url, 403, 'forbidden', {}, None)
         with self.assertRaises(module.HTTPError) as raised:

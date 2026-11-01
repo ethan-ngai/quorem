@@ -73,7 +73,7 @@ it("acknowledges native queue messages only after the drain and durable continua
     expect(sentHeaders.get("cf-access-client-id")).toBe("fixture-access-id");
     expect(sentHeaders.get("cf-access-client-secret")).toBe("fixture-access-secret");
     expect(sentHeaders.get("authorization")).toBe(`Bearer ${config.EXECUTION_DRAIN_SECRET}`);
-    expect(seen?.redirect).toBe("error");
+    expect(seen?.redirect).toBe("manual");
     await expect(
       worker.queue(batch("bad", JSON.stringify({ jobId: "bad", phase: "continuation" })), {
         ...protectedConfig,

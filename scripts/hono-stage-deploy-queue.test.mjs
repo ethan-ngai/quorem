@@ -174,6 +174,7 @@ void test("rejects dependency mutation, malformed plans and unreviewed replaceme
   for (const change of [
     { address: "cloudflare_hyperdrive_config.database", change: { actions: ["update"] } },
     { address: "cloudflare_queue.execution", change: { actions: ["update"] } },
+    { address: "cloudflare_worker.api", change: { actions: ["update"] } },
     {
       address: "cloudflare_queue_consumer.execution[0]",
       change: { actions: ["delete", "create"] },
@@ -208,6 +209,50 @@ void test("rejects dependency mutation, malformed plans and unreviewed replaceme
       }),
     );
     assert.equal(applied, false);
+    assert.equal(existsSync(planPath), false);
+  }
+});
+
+void test("no-op detachment accepts omitted changes; observational producer drift is not applied", () => {
+  for (const enabled of [false, true]) {
+    let planPath,
+      applied = false;
+    setQueue(env(), enabled, (_, args) => {
+      if (args[1] === "plan") {
+        planPath = args.find((arg) => arg.startsWith("-out=")).slice(5);
+        writeFileSync(planPath, "fixture");
+        return { status: 0 };
+      }
+      if (args[1] === "show")
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            ...(enabled
+              ? {
+                  resource_changes: [
+                    {
+                      address: "cloudflare_queue_consumer.execution[0]",
+                      change: { actions: ["create"] },
+                    },
+                  ],
+                }
+              : {}),
+            resource_drift: [
+              { address: "cloudflare_queue.execution", change: { actions: ["update"] } },
+            ],
+            planned_values: {
+              root_module: {
+                resources: enabled
+                  ? [{ address: "cloudflare_queue_consumer.execution[0]", mode: "managed" }]
+                  : [],
+              },
+            },
+          }),
+        };
+      applied = true;
+      return { status: 0 };
+    });
+    assert.equal(applied, true);
     assert.equal(existsSync(planPath), false);
   }
 });

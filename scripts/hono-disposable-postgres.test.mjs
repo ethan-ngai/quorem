@@ -21,7 +21,7 @@ void test(
     try {
       await assert.rejects(
         withDisposablePostgres(
-          { prefix, port: 55708, database: "quorem_hono_foreign_test" },
+          { prefix, port: 55708, database: "quorem_hono_foreign_test", automaticPort: false },
           async () => {
             throw new Error("unexpected");
           },
@@ -62,3 +62,41 @@ for (const signal of ["SIGTERM", "SIGINT"])
       }
     },
   );
+
+void test(
+  "automatic fixture binding avoids an occupied requested port",
+  { timeout: 30000 },
+  async () => {
+    const listener = createServer();
+    listener.listen(0, "127.0.0.1");
+    await once(listener, "listening");
+    const port = listener.address().port;
+    const prefix = `quorem-auto-${randomUUID()}`;
+    try {
+      await withDisposablePostgres(
+        { prefix, port, database: "quorem_hono_automatic_test", automaticPort: true },
+        async ({ url }) => {
+          assert.notEqual(Number(new URL(url).port), port);
+          const { createRequire } = await import("node:module");
+          const { Client } = createRequire(
+            new URL("../packages/database/package.json", import.meta.url),
+          )("pg");
+          const client = new Client({ connectionString: url });
+          try {
+            await client.connect();
+            assert.equal(
+              (await client.query("SELECT current_database() AS name")).rows[0].name,
+              "quorem_hono_automatic_test",
+            );
+          } finally {
+            await client.end();
+          }
+        },
+      );
+      assert.equal(listener.listening, true);
+      assert.equal(remaining(prefix), "");
+    } finally {
+      await new Promise((resolve) => listener.close(resolve));
+    }
+  },
+);

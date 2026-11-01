@@ -80,7 +80,7 @@ it("sends verifier bearer and Access pair only to the pinned origin", async () =
   await expect(verifier.verify("fixture")).rejects.toThrow("Verifier unavailable");
   const [url, init] = send.mock.calls[0] as unknown as [URL, RequestInit];
   expect(url.origin).toBe("https://verify.example");
-  expect(init.redirect).toBe("error");
+  expect(init.redirect).toBe("manual");
   expect(new Headers(init.headers).get("cf-access-client-id")).toBe("verify-id");
   expect(new Headers(init.headers).get("cf-access-client-secret")).toBe("verify-secret");
   expect(new Headers(init.headers).get("authorization")).toBe(`Bearer ${"00".repeat(32)}`);

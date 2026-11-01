@@ -1,6 +1,7 @@
 /** @file server.ts @description Private HTTP listener with bounded graceful shutdown. @module runner */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { once } from "node:events";
+import { normalizeHttpTarget } from "@quorem/execution/transport/http-target";
 
 export async function listenPrivate(
   address: { host: string; port: number },
@@ -9,6 +10,12 @@ export async function listenPrivate(
   const active = new Set<Promise<void>>();
   let closing = false;
   const server = createServer((request, response) => {
+    try {
+      request.url = normalizeHttpTarget(request.url);
+    } catch {
+      response.writeHead(400).end();
+      return;
+    }
     if (closing) {
       response.writeHead(503).end();
       return;

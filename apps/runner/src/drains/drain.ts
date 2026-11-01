@@ -5,6 +5,7 @@ import { UnconfirmedTeardown } from "../sandbox/types.ts";
 import { claimNext } from "../queue/claim.ts";
 import {
   runAttempt,
+  LostLease,
   type AttemptEngine,
   type CancellationSource,
 } from "../orchestration/attempt.ts";
@@ -39,6 +40,7 @@ export function drainer(options: {
   resumable: boolean;
   graceMs?: number;
   claimWindowMs?: number;
+  attemptMs?: number;
 }): Drainer {
   const { repository, sandbox, cancellations, engine, queue } = options;
   if (!Number.isInteger(options.slots) || options.slots < 1 || options.slots > 8)
@@ -93,7 +95,19 @@ export function drainer(options: {
                 });
                 if (!job) break;
                 worked = true;
-                await runAttempt({ repository, sandbox, cancellations, engine, job, signal: live });
+                try {
+                  await runAttempt({
+                    repository,
+                    sandbox,
+                    cancellations,
+                    engine,
+                    job,
+                    signal: live,
+                    attemptMs: options.attemptMs,
+                  });
+                } catch (error) {
+                  if (!(error instanceof LostLease)) throw error;
+                }
               }
             } catch (error) {
               if (error instanceof UnconfirmedTeardown) teardownFailure = error;

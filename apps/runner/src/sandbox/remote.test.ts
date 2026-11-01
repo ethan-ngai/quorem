@@ -1,5 +1,5 @@
-import { bytesInput } from "./input.ts";
 /// <reference types="node" />
+import { bytesInput } from "./input.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateKeyPairSync, sign } from "node:crypto";
@@ -14,7 +14,14 @@ function frame(channel: number, value: Uint8Array): Uint8Array {
   return result;
 }
 function setup(
-  mode: "success" | "truncated" | "no-attestation" | "wrong-owner" | "wrong-namespace",
+  mode:
+    | "success"
+    | "truncated"
+    | "no-attestation"
+    | "wrong-owner"
+    | "wrong-namespace"
+    | "slow-teardown"
+    | "slow-truncated",
 ) {
   const key = generateKeyPairSync("ed25519"),
     wrong = generateKeyPairSync("ed25519");
@@ -58,12 +65,17 @@ function setup(
     const chunks = [
       frame(1, new Uint8Array([0, 65])),
       frame(3, new Uint8Array([0, 0, 0, 0])),
-      ...(mode === "truncated" ? [] : [frame(4, new Uint8Array())]),
+      ...(mode === "truncated" || mode === "slow-truncated" ? [] : [frame(4, new Uint8Array())]),
     ];
     return new Response(
       new ReadableStream({
-        start(c) {
-          for (const chunk of chunks) c.enqueue(chunk);
+        async start(c) {
+          for (let i = 0; i < chunks.length; i++) {
+            if (i === 2 && mode === "slow-teardown")
+              await new Promise((resolve) => setTimeout(resolve, 80));
+            c.enqueue(chunks[i]);
+          }
+          if (mode === "slow-truncated") await new Promise((resolve) => setTimeout(resolve, 80));
           c.close();
         },
       }),
@@ -127,6 +139,31 @@ void test("ambiguous 404 is never teardown proof", async () => {
   });
   await assert.rejects(
     sandbox.teardownAttempt({ attemptId: "attempt", sandboxScope: sandbox.scope }),
-    /unconfirmed/,
+    (error: unknown) =>
+      error instanceof Error &&
+      "diagnostic" in error &&
+      JSON.stringify(error.diagnostic) ===
+        JSON.stringify({ httpStatus: 404, signatureValid: false }),
   );
+});
+
+void test("confirmed process exit excludes teardown latency from contestant wall time", async () => {
+  const f = setup("slow-teardown");
+  assert.deepEqual(
+    [
+      ...(
+        await f.sandbox.runCase({ ...f.request, limits: { ...f.request.limits, wallTimeMs: 20 } })
+      ).stdout,
+    ],
+    [0, 65],
+  );
+  assert.equal(f.deletions(), 0);
+  const truncated = setup("slow-truncated");
+  await assert.rejects(
+    truncated.sandbox.runCase({
+      ...truncated.request,
+      limits: { ...truncated.request.limits, wallTimeMs: 20 },
+    }),
+  );
+  assert.equal(truncated.deletions(), 1);
 });

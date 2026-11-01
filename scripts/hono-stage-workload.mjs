@@ -16,7 +16,7 @@ export async function runStageWorkload(env, deps = {}) {
     browser = stagedOrigin(env.HONO_STAGE_BROWSER_ORIGIN);
   if (!env.ALLOWED_ORIGINS?.split(",").includes(browser))
     throw new Error("Invalid stage browser origin");
-  const size = deps.matchCount ?? 20;
+  const size = deps.matchCount ?? Number(env.HONO_STAGE_WORKLOAD_MATCHES ?? "2");
   if (!Number.isInteger(size) || size < 1 || size > 20) throw new Error("Invalid workload profile");
   const send = deps.fetch ?? fetch,
     makeActor = deps.createActor ?? createStagedActor;
@@ -372,7 +372,7 @@ export async function runStageWorkload(env, deps = {}) {
     );
     if (size === 20 && rate < 1.9) throw new Error("Admission pacing target missed");
     receipt = {
-      profile: size === 20 ? "baseline" : "fixture",
+      profile: size === 20 ? "baseline" : "smoke",
       matches: size,
       sessions: actors.length,
       admissions: jobs.length,

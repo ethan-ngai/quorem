@@ -68,7 +68,7 @@ export function cloudflareRest(config: {
           method: "POST",
           headers: { authorization: `Bearer ${config.token}`, "content-type": "application/json" },
           body: JSON.stringify({ body, content_type: "text", delay_seconds: delaySeconds }),
-          redirect: "error",
+          redirect: "manual",
           signal: AbortSignal.timeout(10_000),
         });
         if (!response.ok) throw new Error();
@@ -98,7 +98,7 @@ export function cloudflarePull(config: {
         method: "POST",
         headers: { authorization: `Bearer ${config.token}`, "content-type": "application/json" },
         body: JSON.stringify(body),
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw new Error();

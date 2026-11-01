@@ -17,6 +17,8 @@ const runnerKeys = [
   "QUOREM_CASE_NAMESPACE_ID",
   "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM",
   "QUOREM_RUNNER_SLOTS",
+  "QUOREM_RUNNER_SLICE_MS",
+  "QUOREM_RUNNER_COMMAND_TIMEOUT_MS",
   "QUOREM_SANDBOX_CLEANUP_MS",
 ];
 const verifierKeys = [
@@ -121,6 +123,7 @@ class Service extends DurableObject {
       runner
         ? {
             QUOREM_RUNNER_MODE: "http",
+            QUOREM_RUNNER_BACKGROUND: "true",
             QUOREM_RUNNER_LISTEN: "0.0.0.0:8090",
             QUOREM_SANDBOX_PROVIDER: "remote",
             QUOREM_PRIVATE_SERVICE: "runner",
@@ -132,11 +135,19 @@ class Service extends DurableObject {
       values,
       runner ? 8090 : 8091,
       60000,
-      runner ? 300000 : 120000,
+      runner ? 900000 : 120000,
     );
   }
-  fetch(request) {
-    return this.lifecycle.forward(clean(request), this instanceof RunnerService ? 240000 : 135000);
+  async fetch(request) {
+    try {
+      return await this.lifecycle.forward(
+        clean(request),
+        this instanceof RunnerService ? 240000 : 135000,
+      );
+    } catch (error) {
+      if (!error?.readiness) throw error;
+      return Response.json({ error: "container-readiness", ...error.readiness }, { status: 503 });
+    }
   }
 }
 export class RunnerService extends Service {
@@ -312,7 +323,7 @@ export default {
           request.method === "GET" &&
           attempt !== "ready" &&
           (env.CASE_DIAGNOSTICS !== "true" ||
-            request.headers.get("x-quorem-case-probe") !== "lifecycle" ||
+            !["lifecycle", "diagnostics"].includes(request.headers.get("x-quorem-case-probe")) ||
             !request.headers.get("x-quorem-owner-nonce") ||
             !request.headers.get("x-quorem-owner-scope"))
         )
@@ -326,7 +337,8 @@ export default {
         if (
           request.method === "POST" ||
           request.method === "DELETE" ||
-          (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle")
+          (request.method === "GET" &&
+            ["lifecycle", "diagnostics"].includes(request.headers.get("x-quorem-case-probe")))
         ) {
           if (request.method === "GET" && request.headers.has("x-case-token"))
             return new Response(null, { status: 404 });

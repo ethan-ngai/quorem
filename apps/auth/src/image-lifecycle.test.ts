@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { spawn, execFileSync } from "node:child_process";
 import { createServer } from "node:net";
+import { request } from "node:http";
+import { createImageService } from "./image-service.ts";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -147,4 +149,38 @@ describe("image supervisor loss", () => {
       service.kill("SIGKILL");
     }
   }, 15000);
+});
+
+it("routes authenticated proxy targets through the image service", async () => {
+  const server = createImageService({ token, local: true });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address() as { port: number };
+  const send = (path: string, method = "GET", authorized = true) =>
+    new Promise<number>((resolve, reject) => {
+      const req = request(
+        {
+          hostname: "127.0.0.1",
+          port: address.port,
+          path,
+          method,
+          headers: authorized ? { authorization: `Bearer ${token}` } : {},
+        },
+        (res) => {
+          res.resume();
+          res.once("end", () => resolve(res.statusCode ?? 0));
+        },
+      );
+      req.once("error", reject);
+      req.end();
+    });
+  try {
+    expect(await send("http://container/health")).toBe(200);
+    expect(await send("http://container/", "POST")).toBe(400);
+    expect(await send("http://container/health", "GET", false)).toBe(401);
+    expect(await send("http://user@container/health")).toBe(400);
+    expect(await send("http://container/missing")).toBe(404);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

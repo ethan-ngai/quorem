@@ -91,6 +91,10 @@ resource "cloudflare_worker" "api" {
   name          = var.worker_name
   subdomain     = { enabled = false, previews_enabled = false }
   observability = { enabled = true }
+  # Wrangler owns deployed runtime settings; queue changes must not rewrite them.
+  lifecycle {
+    ignore_changes = [observability, previews_base_config, subdomain]
+  }
 }
 
 resource "cloudflare_queue" "execution" {

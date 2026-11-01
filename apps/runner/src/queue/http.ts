@@ -17,9 +17,15 @@ import {
 /** A failed mutation may have committed; callers must resolve its receipt, not blindly replay. */
 export class RunnerCommandError extends Error {
   readonly outcome: "unknown" | "unavailable";
-  constructor(outcome: "unknown" | "unavailable") {
+  readonly diagnostic?: {
+    operation: string;
+    status: number;
+    failure: "http" | "timeout" | "transport" | "decode";
+  };
+  constructor(outcome: "unknown" | "unavailable", diagnostic?: RunnerCommandError["diagnostic"]) {
     super(outcome === "unknown" ? "Runner command outcome unknown" : "Runner command unavailable");
     this.outcome = outcome;
+    this.diagnostic = diagnostic;
   }
 }
 
@@ -90,11 +96,22 @@ export function privateRunnerCommands(options: {
       });
       if (!result.ok) {
         await result.body?.cancel();
-        throw new RunnerCommandError(outcome);
+        throw new RunnerCommandError(outcome, {
+          operation: op,
+          status: result.status,
+          failure: "http",
+        });
       }
       return result;
-    } catch {
-      throw new RunnerCommandError(outcome);
+    } catch (error) {
+      if (error instanceof RunnerCommandError) throw error;
+      throw new RunnerCommandError(outcome, {
+        operation: op,
+        status: 0,
+        failure: ["TimeoutError", "AbortError"].includes((error as Error)?.name)
+          ? "timeout"
+          : "transport",
+      });
     }
   }
   async function json(
@@ -106,7 +123,11 @@ export function privateRunnerCommands(options: {
       return await (await call(op, data, signal)).json();
     } catch (error) {
       if (error instanceof RunnerCommandError) throw error;
-      throw new RunnerCommandError(op === "claim" || op === "lease" ? "unknown" : "unavailable");
+      throw new RunnerCommandError(op === "claim" || op === "lease" ? "unknown" : "unavailable", {
+        operation: op,
+        status: 200,
+        failure: "decode",
+      });
     }
   }
   async function ack(
@@ -120,9 +141,13 @@ export function privateRunnerCommands(options: {
       await (await call(op, data, signal, raw, extra)).json();
     } catch (error) {
       if (error instanceof RunnerCommandError) throw error;
-      throw new RunnerCommandError("unknown");
+      throw new RunnerCommandError("unknown", { operation: op, status: 200, failure: "decode" });
     }
   }
+  const malformedResponse = (
+    operation: string,
+    outcome: "unknown" | "unavailable" = "unavailable",
+  ) => new RunnerCommandError(outcome, { operation, status: 200, failure: "decode" });
   const j = (job: Job) => {
     if (job.sandboxScope !== options.scope) throw new Error("Runner scope mismatch");
     return encodeJob(job);
@@ -164,7 +189,7 @@ export function privateRunnerCommands(options: {
         !validRef(value.source) ||
         !validRef(value.metadata)
       )
-        throw new RunnerCommandError("unavailable");
+        throw malformedResponse("manifest");
       return value;
     },
     async inputCaseRef(job, ordinal, signal) {
@@ -183,7 +208,7 @@ export function privateRunnerCommands(options: {
         value.size > 1073741823 ||
         !["public", "sample", "private"].includes(value.channel)
       )
-        throw new RunnerCommandError("unavailable");
+        throw malformedResponse("caseref");
       return value;
     },
     async inputPage(job, kind, ordinal, offset, signal) {
@@ -214,7 +239,7 @@ export function privateRunnerCommands(options: {
         !response.body
       ) {
         await response.body?.cancel();
-        throw new RunnerCommandError("unavailable");
+        throw malformedResponse("input");
       }
       const reader = response.body.getReader(),
         bytes = new Uint8Array(Math.min(65536, size - offset));
@@ -230,7 +255,7 @@ export function privateRunnerCommands(options: {
         if (count !== bytes.length) throw new Error("Incomplete input page");
       } catch {
         await reader.cancel();
-        throw new RunnerCommandError("unavailable");
+        throw malformedResponse("input");
       } finally {
         reader.releaseLock();
       }
@@ -245,12 +270,12 @@ export function privateRunnerCommands(options: {
         !Number.isSafeInteger(value.running) ||
         value.running < 0
       )
-        throw new RunnerCommandError("unavailable");
+        throw malformedResponse("state");
       return value;
     },
     async confirmQueueEmpty(signal) {
       const value = await json("empty", {}, signal);
-      if (typeof value !== "boolean") throw new RunnerCommandError("unavailable");
+      if (typeof value !== "boolean") throw malformedResponse("empty");
       return value;
     },
     async nextRunnableDeadline(scope, signal) {
@@ -260,7 +285,7 @@ export function privateRunnerCommands(options: {
         value !== null &&
         (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
       )
-        throw new RunnerCommandError("unavailable");
+        throw malformedResponse("deadline");
       return value;
     },
     async nextExpiredAttempt(resumable, scope, signal) {
@@ -282,16 +307,16 @@ export function privateRunnerCommands(options: {
       if (resumable !== options.resumable) throw new Error("Capability mismatch");
       const data = await json("claim", { attemptId: proof(scope, confirmed) }, signal);
       if (data === null) return null;
-      if (typeof data !== "string") throw new RunnerCommandError("unknown");
+      if (typeof data !== "string") throw malformedResponse("claim", "unknown");
       try {
         return decodeJob(data, scope);
       } catch {
-        throw new RunnerCommandError("unknown");
+        throw malformedResponse("claim", "unknown");
       }
     },
     async lease(job, heartbeat, signal) {
       const value = await json("lease", { job: j(job), heartbeat }, signal);
-      if (typeof value !== "boolean") throw new RunnerCommandError("unknown");
+      if (typeof value !== "boolean") throw malformedResponse("lease", "unknown");
       return value;
     },
     async beginCompletion(job, header: CompletionHeader, signal) {
@@ -337,6 +362,8 @@ export function privateRunnerCommands(options: {
       await ack("yield", { job: j(job), attemptId: proof(options.scope, fence) }, signal);
     },
     async replayCheckpoint(job, count, consume, signal) {
+      if (!Number.isInteger(count) || count < 0 || count > 2147483647)
+        throw new Error("Invalid checkpoint prefix");
       const response = await call("replay", { job: j(job), count }, signal);
       if (!response.body) throw new Error("Missing checkpoint stream");
       const reader = response.body.getReader();
@@ -365,9 +392,9 @@ export function privateRunnerCommands(options: {
       };
       try {
         let ordinal = 0;
-        while (true) {
+        while (ordinal < count) {
           const header = await read(8);
-          if (!header) break;
+          if (!header) throw new Error("Incomplete checkpoint stream");
           const v = new DataView(header.buffer),
             index = v.getUint32(0),
             length = v.getUint32(4);
@@ -378,7 +405,8 @@ export function privateRunnerCommands(options: {
           await consume(index, frame);
           ordinal++;
         }
-        if (ordinal !== count) throw new Error("Incomplete checkpoint stream");
+        // The fenced prefix count is the boundary; an HTTP producer need not close yet.
+        if (offset < pending.length) throw new Error("Unexpected checkpoint stream data");
       } finally {
         await reader.cancel();
         reader.releaseLock();

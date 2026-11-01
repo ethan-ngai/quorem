@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./transport/access": "./src/transport/access.ts"
+    "./transport/access": "./src/transport/access.ts",
+    "./transport/http-target": "./src/transport/http-target.ts"
   },
   "scripts": {
     "test": "vp test run && node test/node-import.mjs",

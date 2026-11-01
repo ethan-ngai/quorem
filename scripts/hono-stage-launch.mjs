@@ -19,6 +19,28 @@ import { stageNamespaceReady } from "./hono-stage-ready.mjs";
 import { requireFreshStageResources } from "./hono-stage-freshness.mjs";
 import { StageInitializationFailure } from "./hono-stage-initialization.mjs";
 import { StageRoleFailure } from "./hono-stage-database-role.mjs";
+import { StageControlFailure } from "./hono-stage-controls.mjs";
+
+const acceptanceFailures = new Set([
+  "Stage token exchange failed",
+  "Stage workspace creation failed",
+  "Stage admission failed",
+  "Stage drain failed",
+  "Stage result unavailable",
+  "Stage submission not accepted",
+  "Authenticated ingress control failed",
+  "Private ingress accepts invalid credentials",
+  "Namespace changed",
+  "Stage profile upload failed",
+  "Stage profile read failed",
+  "Stage profile cleanup failed",
+  "Queue proof failed; consumer detached",
+  "Queue proof failed and detachment is unconfirmed",
+]);
+export function stageAcceptanceReason(error) {
+  for (const candidate of [error, error?.cause])
+    if (acceptanceFailures.has(candidate?.message)) return candidate.message;
+}
 
 export function bootstrapEnvironment(env, secrets) {
   if (
@@ -224,8 +246,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         : error.cause instanceof StageCommandFailure
           ? error.cause
           : undefined;
+    const control = [error, error?.cause].find((item) => item instanceof StageControlFailure);
+    const acceptance = stageAcceptanceReason(error);
     process.stderr.write(
-      `${role ? JSON.stringify({ error: "stage-runtime-role", phase: role.phase, code: role.code, flags: role.flags, reason: role.reason }) : command ? JSON.stringify({ error: "stage-command", category: command.category, resources: command.resources, diagnostics: command.diagnostics, validation: command.validation }) : error instanceof StageInitializationFailure ? JSON.stringify({ error: "stage-initialization", reason: error.reason }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
+      `${control ? JSON.stringify({ error: "stage-control", kind: control.kind, action: control.action, reason: control.reason, status: control.status }) : acceptance ? JSON.stringify({ error: "stage-acceptance", reason: acceptance, diagnostic: error.diagnostic ?? error.cause?.diagnostic, status: Number.isInteger(error.status ?? error.cause?.status) ? (error.status ?? error.cause?.status) : undefined }) : role ? JSON.stringify({ error: "stage-runtime-role", phase: role.phase, code: role.code, flags: role.flags, reason: role.reason }) : command ? JSON.stringify({ error: "stage-command", category: command.category, resources: command.resources, diagnostics: command.diagnostics, validation: command.validation, uploadPhase: command.uploadPhase }) : error instanceof StageInitializationFailure ? JSON.stringify({ error: "stage-initialization", reason: error.reason }) : "Isolated stage launch failed; sensitive output withheld"}\n`,
     );
     process.exitCode = 1;
   }

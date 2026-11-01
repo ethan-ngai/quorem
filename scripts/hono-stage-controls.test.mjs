@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { signedCaseProbe, readVerifiedCaseProbe, verifyCaseProbe } from "../deploy/case-proof.js";
-import { stageControls } from "./hono-stage-controls.mjs";
+import { stageControls, StageControlFailure } from "./hono-stage-controls.mjs";
 async function fixture() {
   const keys = generateKeyPairSync("ed25519"),
     dir = await mkdtemp(join(tmpdir(), "stage-control-test-"));
@@ -563,6 +563,64 @@ void test("stage control rejects an oversized nonending proof without waiting on
       new Promise((_, reject) => setTimeout(() => reject(new Error("stage control hung")), 1000)),
     ]);
     assert.equal(cancelled, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("control reads retry transient transport failures without replaying transitions", async () => {
+  const f = await fixture();
+  let reads = 0;
+  try {
+    const control = await stageControls(f.options, (url, init) => {
+      if (init.method === "GET" && reads++ === 0)
+        throw new DOMException("fixture secret must not escape", "TimeoutError");
+      return f.send(url, init);
+    });
+    await control.activate();
+    assert.ok(reads > 1);
+    assert.equal(f.calls.filter((call) => call === "runner:prepare").length, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+void test("uncertain control mutations report fixed fields and never replay", async () => {
+  const f = await fixture();
+  let writes = 0;
+  try {
+    const control = await stageControls(f.options, (url, init) => {
+      if (init.method === "POST") {
+        writes++;
+        throw new DOMException("fixture secret must not escape", "TimeoutError");
+      }
+      return f.send(url, init);
+    });
+    await assert.rejects(control.activate(), (error) => {
+      assert.ok(error instanceof StageControlFailure);
+      assert.equal(error.kind, "runner");
+      assert.equal(error.action, "prepare");
+      assert.equal(error.reason, "timeout");
+      assert.equal(JSON.stringify(error).includes("fixture secret"), false);
+      return true;
+    });
+    assert.equal(writes, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+void test("control reads reject permanent HTTP errors without retry", async () => {
+  const f = await fixture();
+  let requests = 0;
+  try {
+    const control = await stageControls(f.options, () => {
+      requests++;
+      return new Response("fixture secret", { status: 403 });
+    });
+    await assert.rejects(
+      control.activate(),
+      (error) => error instanceof StageControlFailure && error.status === 403,
+    );
+    assert.equal(requests, 1);
   } finally {
     await f.cleanup();
   }

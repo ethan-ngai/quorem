@@ -66,15 +66,19 @@ export class ContainerLifecycle {
       );
     }
     const deadline = Date.now() + this.timeout;
+    let probes = 0,
+      status = 0,
+      failure = "none";
     while (Date.now() < deadline) {
+      probes++;
       try {
-        const response = await container
-          .getTcpPort(this.port)
-          .fetch("http://container/health", {
-            signal: AbortSignal.timeout(2000),
-            headers: this.readinessHeaders,
-            redirect: "error",
-          });
+        const response = await container.getTcpPort(this.port).fetch("http://container/health", {
+          signal: AbortSignal.timeout(2000),
+          headers: this.readinessHeaders,
+          redirect: "manual",
+        });
+        status = response.status;
+        failure = "http";
         await response.body?.cancel();
         if (response.ok) {
           console.log(
@@ -83,12 +87,31 @@ export class ContainerLifecycle {
           this.ready = true;
           return;
         }
-      } catch {
-        /* Only readiness probes retry; commands never replay. */
+      } catch (error) {
+        const message = String(error?.message ?? "");
+        failure = /refused/i.test(message)
+          ? "refused"
+          : /reset|closed|lost/i.test(message)
+            ? "closed"
+            : /timeout|timed out|abort/i.test(message)
+              ? "timeout"
+              : /not.*running|not.*started/i.test(message)
+                ? "stopped"
+                : /unsupported|not implemented/i.test(message)
+                  ? "unsupported"
+                  : "transport";
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
-    throw new Error("Container readiness timed out");
+    const error = new Error("Container readiness timed out");
+    error.readiness = {
+      port: this.port,
+      probes,
+      status,
+      failure,
+      running: container.running === true,
+    };
+    throw error;
   }
 
   stop() {

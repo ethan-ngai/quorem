@@ -59,20 +59,20 @@ export async function hostedAcceptance(
   const token = env.EXECUTION_DRAIN_SECRET;
   if (!token || token.length < 32 || /\s/.test(token))
     throw new Error("Invalid staged drain credentials");
-  const tokenResponse = await send(`${api}/api/auth/token`, {
-    headers: { cookie: env.HONO_STAGE_SESSION_COOKIE, origin: browser },
-    redirect: "error",
-    signal: AbortSignal.timeout(30000),
-  });
-  if (tokenResponse.status !== 200) throw new Error("Stage token exchange failed");
-  const bearer = (await json(tokenResponse)).token;
-  if (typeof bearer !== "string" || !bearer || bearer.length > 16384 || /\s/.test(bearer))
-    throw new Error("Invalid stage bearer");
-  const headers = {
-    authorization: `Bearer ${bearer}`,
-    origin: browser,
-    "content-type": "application/json",
-  };
+  const headers = { origin: browser, "content-type": "application/json", authorization: "" };
+  async function refreshToken() {
+    const response = await send(`${api}/api/auth/token`, {
+      headers: { cookie: env.HONO_STAGE_SESSION_COOKIE, origin: browser },
+      redirect: "error",
+      signal: AbortSignal.timeout(30000),
+    });
+    if (response.status !== 200) throw new Error("Stage token exchange failed");
+    const bearer = (await json(response)).token;
+    if (typeof bearer !== "string" || !bearer || bearer.length > 16384 || /\s/.test(bearer))
+      throw new Error("Invalid stage bearer");
+    headers.authorization = `Bearer ${bearer}`;
+  }
+  await refreshToken();
   const workspaceResponse = await send(`${api}/v1/workspaces`, {
     method: "POST",
     headers,
@@ -100,23 +100,128 @@ export async function hostedAcceptance(
   if (admission.status !== 202) throw new Error("Stage admission failed");
   const submission = (await json(admission)).id;
   if (!/^[0-9a-f-]{36}$/.test(submission ?? "")) throw new Error("Invalid stage submission");
-  if (env.HONO_STAGE_ACCEPTANCE_MODE === "manual") {
-    const drained = await send(`${drain}/internal/drain`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}` },
-      redirect: "error",
-      signal: AbortSignal.timeout(210000),
-    });
-    if (drained.status !== 200) throw new Error("Stage drain failed");
-  }
-  const deadline = Date.now() + 210000;
+  const deadline = Date.now() + 600000;
   for (;;) {
-    const response = await send(`${api}/v1/submissions/${submission}`, {
+    if (env.HONO_STAGE_ACCEPTANCE_MODE === "manual") {
+      const drained = await send(`${drain}/internal/drain`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+        redirect: "error",
+        signal: AbortSignal.timeout(Math.max(1, Math.min(210000, deadline - Date.now()))),
+      });
+      if (![200, 202].includes(drained.status)) {
+        let diagnostic;
+        try {
+          const value = await json(drained);
+          if (
+            value.error === "container-readiness" &&
+            [8090, 8091, 8083].includes(value.port) &&
+            Number.isInteger(value.probes) &&
+            value.probes > 0 &&
+            value.probes < 1000 &&
+            Number.isInteger(value.status) &&
+            value.status >= 0 &&
+            value.status <= 599 &&
+            [
+              "none",
+              "http",
+              "refused",
+              "closed",
+              "timeout",
+              "stopped",
+              "unsupported",
+              "transport",
+            ].includes(value.failure) &&
+            typeof value.running === "boolean"
+          ) {
+            diagnostic = {
+              port: value.port,
+              probes: value.probes,
+              status: value.status,
+              failure: value.failure,
+              running: value.running,
+            };
+          }
+          if (
+            value.error === "unavailable" &&
+            value.command &&
+            /^[a-z]{1,20}$/.test(value.command.operation ?? "") &&
+            Number.isInteger(value.command.status) &&
+            value.command.status >= 0 &&
+            value.command.status <= 599 &&
+            ["http", "timeout", "transport", "decode"].includes(value.command.failure)
+          ) {
+            diagnostic = {
+              command: {
+                operation: value.command.operation,
+                status: value.command.status,
+                failure: value.command.failure,
+              },
+            };
+          }
+          if (
+            value.error === "unavailable" &&
+            value.failure &&
+            ["command", "teardown", "other"].includes(value.failure.kind) &&
+            /^[a-f0-9]{64}$/.test(value.failure.fingerprint ?? "")
+          ) {
+            diagnostic = {
+              ...diagnostic,
+              failure: {
+                kind: value.failure.kind,
+                fingerprint: value.failure.fingerprint,
+                ...(value.failure.kind === "teardown" && value.failure.teardown
+                  ? {
+                      teardown: {
+                        httpStatus:
+                          Number.isInteger(value.failure.teardown.httpStatus) &&
+                          value.failure.teardown.httpStatus >= 0 &&
+                          value.failure.teardown.httpStatus <= 599
+                            ? value.failure.teardown.httpStatus
+                            : undefined,
+                        signatureValid:
+                          typeof value.failure.teardown.signatureValid === "boolean"
+                            ? value.failure.teardown.signatureValid
+                            : undefined,
+                        transport: ["timeout", "error"].includes(value.failure.teardown.transport)
+                          ? value.failure.teardown.transport
+                          : undefined,
+                      },
+                    }
+                  : {}),
+              },
+            };
+          }
+        } catch {
+          /* Untrusted response content stays private. */
+        }
+
+        const error = new Error("Stage drain failed");
+        error.status = drained.status;
+        error.diagnostic = diagnostic;
+        throw error;
+      }
+      await drained.body?.cancel();
+    }
+    let response = await send(`${api}/v1/submissions/${submission}`, {
       headers,
       redirect: "error",
       signal: AbortSignal.timeout(30000),
     });
-    if (response.status !== 200) throw new Error("Stage result unavailable");
+    if (response.status === 401) {
+      await response.body?.cancel();
+      await refreshToken();
+      response = await send(`${api}/v1/submissions/${submission}`, {
+        headers,
+        redirect: "error",
+        signal: AbortSignal.timeout(30000),
+      });
+    }
+    if (response.status !== 200) {
+      const error = new Error("Stage result unavailable");
+      error.status = response.status;
+      throw error;
+    }
     const result = await json(response);
     if (result.verdict === "accepted") return { submission };
     if (result.verdict || Date.now() >= deadline) throw new Error("Stage submission not accepted");

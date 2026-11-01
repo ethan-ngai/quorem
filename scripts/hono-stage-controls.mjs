@@ -6,6 +6,17 @@ import { stageRoleCredentials } from "./hono-stage-database-role.mjs";
 import { fenceStageRuntime, stageFenceOptions } from "./hono-stage-recovery-fence.mjs";
 import { readVerifiedCaseProbe } from "../deploy/case-proof.js";
 
+/** Fixed control diagnostics; never retain response bodies, URLs or credentials. */
+export class StageControlFailure extends Error {
+  constructor(kind, action, reason, status) {
+    super("Stage control request failed");
+    this.kind = kind;
+    this.action = action;
+    this.reason = reason;
+    this.status = status;
+  }
+}
+
 async function boundedJSON(response) {
   if (!response.body) throw new Error("Missing control receipt");
   const reader = response.body.getReader(),
@@ -63,7 +74,7 @@ export async function stageControls(options, send = fetch) {
     runnerPause: randomUUID(),
   };
   const proofs = [];
-  const request = async (kind, action, payload, after) => {
+  const attemptRequest = async (kind, action, payload, after) => {
     const origin = kind === "case" ? caseOrigin : runnerOrigin,
       nonce = randomUUID();
     const url = new URL(`${origin}/internal/control/${kind}/${action}`);
@@ -71,18 +82,31 @@ export async function stageControls(options, send = fetch) {
       url.searchParams.set("limit", "4");
       if (after) url.searchParams.set("after", after);
     }
-    const response = await send(url.href, {
-      method: payload ? "POST" : "GET",
-      headers: {
-        authorization: `Bearer ${secret}`,
-        "x-quorem-owner-scope": scope,
-        "x-quorem-owner-nonce": nonce,
-        ...(payload ? { "content-type": "application/json" } : {}),
-      },
-      ...(payload ? { body: JSON.stringify(payload) } : {}),
-      redirect: "error",
-      signal: AbortSignal.timeout(10000),
-    });
+    let response;
+    try {
+      response = await send(url.href, {
+        method: payload ? "POST" : "GET",
+        headers: {
+          authorization: `Bearer ${secret}`,
+          "x-quorem-owner-scope": scope,
+          "x-quorem-owner-nonce": nonce,
+          ...(payload ? { "content-type": "application/json" } : {}),
+        },
+        ...(payload ? { body: JSON.stringify(payload) } : {}),
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      });
+    } catch (error) {
+      throw new StageControlFailure(
+        kind,
+        action,
+        ["TimeoutError", "AbortError"].includes(error?.name) ? "timeout" : "transport",
+      );
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new StageControlFailure(kind, action, "http", response.status);
+    }
     if (!payload) {
       const probeKind =
         action === "inventory"
@@ -102,11 +126,23 @@ export async function stageControls(options, send = fetch) {
       proofs.push(envelope);
       return value;
     }
-    if (!response.ok) throw new Error("Control transition rejected");
     if (action === "prepare") {
       return boundedJSON(response);
     }
     await response.body?.cancel();
+  };
+  const request = async (kind, action, payload, after) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await attemptRequest(kind, action, payload, after);
+      } catch (error) {
+        const transient =
+          error instanceof StageControlFailure &&
+          (error.reason !== "http" || [429, 500, 502, 503, 504].includes(error.status));
+        // Reads are repeatable; uncertain transitions require signed state reconciliation.
+        if (payload || !transient || attempt >= 2) throw error;
+      }
+    }
   };
   const inventoryPage = async (after = "") => {
     if (typeof after !== "string" || (after !== "" && !/^[A-Za-z0-9-]{1,128}$/.test(after)))

@@ -20,6 +20,16 @@ void test("builds and pins every pushed image to its matching registry digest", 
     return { status: 0, stdout: "" };
   };
   const images = publishImages({ ...env(), SERVICE_PRIVATE_SECRET: "fixture-private" }, run);
+  const builds = calls.filter(([cmd, args]) => cmd === "docker" && args[0] === "build");
+  assert.equal(builds.length, 1);
+  assert.equal(builds[0][1][builds[0][1].indexOf("--target") + 1], "private-service");
+  for (const role of ["runner", "verifier"]) {
+    const tag = calls.find(
+      ([cmd, args]) =>
+        cmd === "docker" && args[0] === "tag" && args.at(-1).includes(`stage-${role}:`),
+    );
+    assert.equal(tag[1][1], "quorem-hono-private:stage-build");
+  }
   assert.deepEqual(Object.keys(images), [
     "runner",
     "verifier",

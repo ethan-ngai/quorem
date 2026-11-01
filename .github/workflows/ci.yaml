@@ -64,6 +64,8 @@ jobs:
       - run: vp -C apps/api run check:boundaries
       - run: vp -C apps/api run test
       - run: vp -C apps/api run test:workers
+      - name: Portable runner transport and stream lifetimes
+        run: vp -C apps/runner exec node --test src/queue/http.test.ts src/sandbox/remote.test.ts src/engine/stream-lifetime.test.ts src/drains/http.test.ts src/drains/drain.test.ts
       - name: Canonical questions and identity runtime tests
         run: |
           vp -C packages/questions run typecheck
@@ -206,7 +208,7 @@ jobs:
       - run: vp install --frozen-lockfile
       - name: Build private service fixture images
         run: |
-          docker build -f deploy/hono/services/Dockerfile -t quorem-35d-private-fixture:local .
+          docker build -f deploy/hono/Dockerfile.runner --target private-service -t quorem-35d-private-fixture:local .
           docker build -f deploy/hono/services/Dockerfile.image -t quorem-35f-image-fixture:local .
       - name: Staged orchestration and private service contracts
         run: |

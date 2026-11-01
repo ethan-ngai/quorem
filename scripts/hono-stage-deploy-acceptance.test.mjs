@@ -76,3 +76,82 @@ void test("rejects unsafe origin, unauthorized token and oversized responses", a
     /Oversized/,
   );
 });
+
+void test("manual acceptance follows 202 continuations and requires the accepted result", async () => {
+  let drains = 0,
+    polls = 0,
+    delays = 0;
+  const send = async (url) => {
+    if (url.endsWith("/api/auth/token")) return Response.json({ token: "fixture.jwt" });
+    if (url.endsWith("/v1/workspaces")) return Response.json({ id: uuid }, { status: 201 });
+    if (url.endsWith("/v1/submissions")) return Response.json({ id: uuid }, { status: 202 });
+    if (url.endsWith("/internal/drain"))
+      return new Response(null, { status: ++drains === 1 ? 202 : 200 });
+    polls++;
+    return Response.json({ verdict: polls === 1 ? null : "accepted" });
+  };
+  assert.equal(
+    (
+      await hostedAcceptance(env(), send, async () => {
+        delays++;
+      })
+    ).submission,
+    uuid,
+  );
+  assert.equal(drains, 2);
+  assert.equal(polls, 2);
+  assert.equal(delays, 1);
+});
+
+void test("manual drain exposes only bounded readiness diagnostic fields", async () => {
+  const send = async (url) => {
+    if (url.endsWith("/api/auth/token")) return Response.json({ token: "fixture.jwt" });
+    if (url.endsWith("/v1/workspaces")) return Response.json({ id: uuid }, { status: 201 });
+    if (url.endsWith("/v1/submissions")) return Response.json({ id: uuid }, { status: 202 });
+    return Response.json(
+      {
+        error: "container-readiness",
+        port: 8090,
+        probes: 5,
+        status: 0,
+        failure: "refused",
+        running: true,
+        private: "fixture-secret",
+      },
+      { status: 503 },
+    );
+  };
+  await assert.rejects(hostedAcceptance(env(), send), (error) => {
+    assert.equal(error.status, 503);
+    assert.deepEqual(error.diagnostic, {
+      port: 8090,
+      probes: 5,
+      status: 0,
+      failure: "refused",
+      running: true,
+    });
+    assert.equal(JSON.stringify(error).includes("fixture-secret"), false);
+    return true;
+  });
+});
+
+void test("expired bearer refreshes through the fixture session without readmitting work", async () => {
+  let tokens = 0,
+    admissions = 0,
+    polls = 0;
+  const send = async (url, init) => {
+    if (url.endsWith("/api/auth/token")) return Response.json({ token: `fixture.${++tokens}` });
+    if (url.endsWith("/v1/workspaces")) return Response.json({ id: uuid }, { status: 201 });
+    if (url.endsWith("/v1/submissions")) {
+      admissions++;
+      return Response.json({ id: uuid }, { status: 202 });
+    }
+    if (url.endsWith("/internal/drain")) return new Response(null, { status: 202 });
+    if (++polls === 1) return new Response(null, { status: 401 });
+    assert.equal(init.headers.authorization, "Bearer fixture.2");
+    return Response.json({ verdict: "accepted" });
+  };
+  assert.equal((await hostedAcceptance(env(), send)).submission, uuid);
+  assert.equal(tokens, 2);
+  assert.equal(admissions, 1);
+});

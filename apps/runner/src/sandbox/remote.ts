@@ -122,13 +122,26 @@ export function remoteSandbox(config: {
           ...(signal ? [signal] : []),
         ]),
       });
-      const confirmed =
-        response.status === 204 &&
-        attested(response, "DELETE", fence.attemptId, token, nonce, ["", "", "", "", "", ""]);
+      const signatureValid = attested(response, "DELETE", fence.attemptId, token, nonce, [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
+      const confirmed = response.status === 204 && signatureValid;
       await response.body?.cancel();
-      if (!confirmed) throw new UnconfirmedTeardown();
-    } catch {
-      throw new UnconfirmedTeardown();
+      if (!confirmed)
+        throw new UnconfirmedTeardown({ httpStatus: response.status, signatureValid });
+    } catch (error) {
+      if (error instanceof UnconfirmedTeardown) throw error;
+      throw new UnconfirmedTeardown({
+        transport:
+          error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)
+            ? "timeout"
+            : "error",
+      });
     }
   }
   return {
@@ -210,6 +223,7 @@ export function remoteSandbox(config: {
             }
           },
           combined,
+          budget.close,
         );
         if (!budget.ready()) throw new Error("Sandbox did not become ready");
         complete = true;

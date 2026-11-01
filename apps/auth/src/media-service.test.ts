@@ -84,7 +84,7 @@ describe("isolated media executor", () => {
       expect(headers.get("authorization")).toBe(`Bearer ${token}`);
       expect(headers.get("cf-access-client-id")).toBe("fixture-id");
       expect(headers.get("cf-access-client-secret")).toBe("fixture-secret");
-      expect(init?.redirect).toBe("error");
+      expect(init?.redirect).toBe("manual");
       return new Response(new Uint8Array([1]), { headers: { "x-image-execution": "terminated" } });
     };
     const client = accessFetch(

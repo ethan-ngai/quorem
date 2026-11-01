@@ -19,7 +19,7 @@ export function cloudflareEmail(
             },
             body: JSON.stringify({ from: config.from, ...message }),
             signal: AbortSignal.timeout(5000),
-            redirect: "error",
+            redirect: "manual",
           },
         );
         if (!response.ok) {
