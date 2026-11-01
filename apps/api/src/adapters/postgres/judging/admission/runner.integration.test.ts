@@ -500,7 +500,13 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           headers: { authorization: `Bearer ${drainSecret}` },
           signal: AbortSignal.timeout(drainTimeoutMs),
         });
-        expect(drain.status, `${await drain.clone().text()} ${serviceDiagnostics}`).toBe(200);
+        const requireDrained = async (response: Response, scenario: string) => {
+          if (response.status !== 200)
+            throw new Error(
+              `Hosted ${scenario} drain HTTP ${response.status}: ${await response.text()} ${serviceDiagnostics}`,
+            );
+        };
+        await requireDrained(drain, "accepted");
         const result = await app.request(`https://fixture.test/v1/submissions/${id}`);
         expect(result.status).toBe(200);
         expect((await result.json()).verdict).toBe("accepted");
@@ -655,7 +661,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
               })
             ).status,
           ).toBe(200);
-          expect((await pending).status).toBe(200);
+          await requireDrained(await pending, "cancellation");
           expect(
             (await pool.query("SELECT state FROM submissions WHERE id=$1", [slowId])).rows[0].state,
           ).toBe("cancelled");
