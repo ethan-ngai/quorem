@@ -5,6 +5,19 @@ const { Client } = createRequire(new URL("../packages/database/package.json", im
   "pg",
 );
 try {
+  const settingsResponse = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/quorem-hono-production/settings`,
+    {
+      headers: { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  if (settingsResponse.ok) {
+    const settings = await settingsResponse.json();
+    console.log(JSON.stringify({
+      nativeWorkerBindings: (settings.result?.bindings ?? []).map(({ name, type }) => ({ name, type })),
+    }));
+  } else await settingsResponse.body?.cancel();
   const { states, resource, worker, runtime, databaseURL } = productionState(process.env);
   const client = new Client({
     connectionString: databaseURL,
