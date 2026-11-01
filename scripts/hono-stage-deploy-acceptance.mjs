@@ -109,12 +109,49 @@ export async function hostedAcceptance(
         redirect: "error",
         signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
       });
-      await drained.body?.cancel();
       if (![200, 202].includes(drained.status)) {
+        let diagnostic;
+        try {
+          const value = await json(drained);
+          if (
+            value.error === "container-readiness" &&
+            [8090, 8091, 8083].includes(value.port) &&
+            Number.isInteger(value.probes) &&
+            value.probes > 0 &&
+            value.probes < 1000 &&
+            Number.isInteger(value.status) &&
+            value.status >= 0 &&
+            value.status <= 599 &&
+            [
+              "none",
+              "http",
+              "refused",
+              "closed",
+              "timeout",
+              "stopped",
+              "unsupported",
+              "transport",
+            ].includes(value.failure) &&
+            typeof value.running === "boolean"
+          ) {
+            diagnostic = {
+              port: value.port,
+              probes: value.probes,
+              status: value.status,
+              failure: value.failure,
+              running: value.running,
+            };
+          }
+        } catch {
+          /* Untrusted response content stays private. */
+        }
+
         const error = new Error("Stage drain failed");
         error.status = drained.status;
+        error.diagnostic = diagnostic;
         throw error;
       }
+      await drained.body?.cancel();
     }
     const response = await send(`${api}/v1/submissions/${submission}`, {
       headers,

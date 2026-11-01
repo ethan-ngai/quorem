@@ -135,8 +135,16 @@ class Service extends DurableObject {
       runner ? 300000 : 120000,
     );
   }
-  fetch(request) {
-    return this.lifecycle.forward(clean(request), this instanceof RunnerService ? 240000 : 135000);
+  async fetch(request) {
+    try {
+      return await this.lifecycle.forward(
+        clean(request),
+        this instanceof RunnerService ? 240000 : 135000,
+      );
+    } catch (error) {
+      if (!error?.readiness) throw error;
+      return Response.json({ error: "container-readiness", ...error.readiness }, { status: 503 });
+    }
   }
 }
 export class RunnerService extends Service {

@@ -1187,3 +1187,25 @@ void test("case owner signs the actual namespace and confirmed delete response",
   );
   assert.equal(missing.status, 503);
 });
+
+void test("readiness timeout reports bounded probe state without raw transport errors", async () => {
+  const { ctx } = context();
+  ctx.container.running = true;
+  ctx.container.getTcpPort = () => ({
+    fetch() {
+      throw new Error("connect: connection refused; private fixture secret");
+    },
+  });
+  const lifecycle = new ContainerLifecycle(ctx, {}, 8090, 1);
+  await assert.rejects(lifecycle.ensureReady(), (error) => {
+    assert.deepEqual(error.readiness, {
+      port: 8090,
+      probes: 1,
+      status: 0,
+      failure: "refused",
+      running: true,
+    });
+    assert.equal(JSON.stringify(error).includes("private fixture secret"), false);
+    return true;
+  });
+});
