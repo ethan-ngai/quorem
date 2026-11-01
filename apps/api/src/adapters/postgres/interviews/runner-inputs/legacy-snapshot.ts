@@ -121,8 +121,7 @@ export async function normalizeSnapshot(
 ): Promise<void> {
   const opened = await openLegacyFixtureRanges(tx, { session, fixture });
   const { stages, cases, suites } = opened.ranges;
-  // Historical snapshots may omit trailing suites; retain every captured case.
-  if (stages && suites > stages) throw new Error("Invalid legacy stage suites");
+  // Historical metadata and captured suite counts can differ; verify exact case IDs below.
   if (stages > 8) throw new Error("Unsupported legacy stage count");
   const shape = (
     await tx.execute<{ total: number; ids: string[]; examples: number[] }>(
