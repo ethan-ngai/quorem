@@ -2,17 +2,21 @@
 
 Umbrella: [#335](https://github.com/ethan-ngai/quorem/issues/335). Active implementation authorized; production/main promotion remains separately gated.
 
-## Current checkpoint — 2026-10-31
+## Current checkpoint — 2026-11-01
 
-The functional Hono/Drizzle port is integrated on `feat/hono-migration`. [#460](https://github.com/ethan-ngai/quorem/pull/460) retired all 296 compiled Go sources and module files, switched local development/Make/CI to native TypeScript, and removed the obsolete Go release workflow. Production/main traffic is unchanged.
+Implementation and isolated staging validation are complete on `feat/hono-migration`. Deployed runtime: `333e4c79b06f9b074b13ae4891a6df65f32bcc8f`. Hono/TypeScript and Drizzle run through shared application/domain owners with native Node and Cloudflare Workers composition. Go sources and module files are retired. Production/main traffic is unchanged.
 
-- Full native CI [41254328875](https://github.com/ethan-ngai/quorem/actions/runs/41254328875) passed both jobs on deployment source `f51658d7`. Native API image build/import, SQL practice/match, HTTP/WebSocket/runner/verifier workload, Node language gateway and CLI suites passed.
-- Actual isolated `make dev` topology completed seeded login → workspace → Python Run → automatic local queue/runner/Docker/verifier → accepted result. Default development data and the user's `scripts/dev.py` host edit were preserved.
-- Hosted stage [41252212186](https://github.com/ethan-ngai/quorem/actions/runs/41252212186) passed preflight/full validation, bootstrap, image publication and migrations; failed runtime-role commit before API/private-service provisioning.
-- [#462](https://github.com/ethan-ngai/quorem/pull/462) corrected Neon’s documented requirement for plaintext role passwords over TLS with server-side SCRAM. Hosted probe [41254166995](https://github.com/ethan-ngai/quorem/actions/runs/41254166995) confirmed actual role creation and login. Its initial cleanup was unconfirmed; [#463](https://github.com/ethan-ngai/quorem/pull/463) accounts explicitly for Neon’s reserved provider superuser. Hosted cleanup [41254329268](https://github.com/ethan-ngai/quorem/actions/runs/41254329268) confirmed disabled login and zero remaining sessions. Full activation retry [41254374611](https://github.com/ethan-ngai/quorem/actions/runs/41254374611) on `f51658d7` passed all validation, image publication, migrations and role creation/login; Cloudflare then denied Hyperdrive creation (permission code `10000`). API Terraform may contain partially created resources; inspect its state before retrying. Hosted acceptance has not run. The existing deployment token needs account-level Hyperdrive Edit/Write, or an explicitly selected alternative database transport. No new Neon key or Access token is needed.
-- Staging reuses the existing Neon project and an independent schema-only branch/database. Cloudflare Access is omitted; application credentials and signed execution proofs remain.
+- Full CI [41285813149](https://github.com/ethan-ngai/quorem/actions/runs/41285813149) passed both jobs on that runtime SHA: native contracts, PostgreSQL, Node/workerd protocols, SQL practice/matches, socket workload, language service and real runner/verifier containers.
+- Hosted stage [41285899439](https://github.com/ethan-ngai/quorem/actions/runs/41285899439) passed provisioning, signed activation/genesis, sandbox verdict/isolation/cancellation proofs, manual accepted submission, authenticated ingress, profile upload/read/delete, automatic queue acceptance and the two-match smoke workload.
+- Hosted smoke: two matches, four sessions, four accepted runs, zero errors and zero disconnects. Job p95 was 42.5 seconds; HTTP p95 was 1.68 seconds including setup. This is smoke evidence, not the deferred twenty-match capacity baseline or provider telemetry validation.
+- Local end-to-end also passed seeded login → workspace → Python Run → automatic queue → Docker → independent verifier → accepted. SQL practice/matches, interviews/Odyssey, HTTP/WebSocket protocols and the language gateway passed their native validation owners.
+- Hosting reuses the existing Neon project with an isolated database, Hyperdrive pooling and native private services. No Cloudflare Access; Hyperdrive query caching is disabled. Terraform owns provisioned resources; Wrangler owns deployed Worker runtime fields, so queue changes cannot rewrite them.
 
-Remaining completion work: finish isolated Workers/Hyperdrive/Queues/private-service activation and hosted acceptance/workload checks. Resolve functional provider failures as encountered. Further recovery-history/resume hardening, retained production-data cutover and production promotion are deferred; no KV or semantic-search feature is implemented. Earlier sections below record evidence at their implementation checkpoints, not current release state.
+Implemented runner fixes include process-owned bounded attempts across short HTTP polls, shutdown cleanup joins, exact checkpoint-prefix replay, reader closure, contestant timing separated from signed teardown, and fixture bearer refresh. Shared Terraform plan validation checks applied actions separately from observational drift. Fixture reset validates retention cursors and profile-budget ownership while retaining schema, genesis, runtime fencing and synthetic-data guards.
+
+Deferred: twenty-match capacity, retained production-data migration/recovery, referenced profile-media cutover and production/main promotion. The hosted receipt explicitly reports `cutoverReady: false`; no production readiness or traffic cutover is claimed. No KV cache or semantic-search implementation was added.
+
+Detailed provider/runtime evidence: [staging bring-up](staging-bringup.md). Large-input cleanup: [stream reader lifetimes](stream-reader-lifetimes.md).
 
 ## Baseline 00
 
