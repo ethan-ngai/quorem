@@ -1,0 +1,13 @@
+# Realtime protocol and transports
+
+[Plan index](README.md)
+
+- Cloudflare DOs own browser connection lifecycle, hibernation, bounded queues and safe notice fanout. They call shared application services for authorized commands/snapshots. PostgreSQL retains documents, memberships, presence leases, match state and results.
+- Replace/extend `apps/realtime-cloudflare` deliberately: its current relay accepts only server connections and notices. Merely forwarding that class cannot replace authenticated browser command sockets. Give the new browser gateway a separate class/migration identity, then retire the private relay when unused.
+- Shared socket protocol engine accepts neutral connection metadata and commands. Cloudflare DO and Node WebSocket adapters implement transport behavior. Do not expose browser AppSync publication authority; existing provider fanout may remain behind the gateway.
+- On upgrade validate origin, credential precedence, guest namespace, current membership and expiry; bind scope from server state. Reauthorize commands, snapshot reads and notices; heartbeat/repair paths detect revocation. Preserve at most the current bounded successful-verification cache and never cache failures.
+- Persist minimal socket attachment state for hibernation; no raw credentials/source/private snapshots. An opaque socket grant can live server-side with expiry and revocation semantics. Rehydrate through authority reads after wake. Test how grants authorize current session checks; actor ID alone is insufficient.
+- Preserve `pull`, `push`, `presence`, `peers`, `snapshot`, `submission`, `rule-event` request IDs, retry keys, epochs and recovery batches; serialize document mutations per DB rules and keep heartbeat/advisory lanes responsive under slow commands.
+- Subscribe/register before initial snapshot; buffer/coalesce notices during loading, compare versions and resnapshot to close the race. Private snapshots are authorized per socket, never shared broadcast bytes.
+- Preserve match/invite/membership/submission streams, current-match discovery, terminal close, token rotation, stalled-transport recovery and current authoritative repair snapshots. Server-side alarms may drive repairs; do not add recurring browser HTTP polling. Measure the cost of heartbeat/repair wakeups rather than promising idle hibernation savings.
+- Node multi-instance fanout and Cloudflare hibernation run the same protocol conformance suite. Cross-replica window quotas remain expiring PostgreSQL leases, not per-DO counters. [DO WebSocket lifecycle](https://developers.cloudflare.com/durable-objects/best-practices/websockets/).
