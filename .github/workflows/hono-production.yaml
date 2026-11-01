@@ -1,0 +1,50 @@
+name: Hono production cutover
+on:
+  push:
+    branches: [feat/hono-migration]
+    paths: [.github/workflows/hono-production.yaml, scripts/hono-production-inspect.mjs]
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [inspect]
+        default: inspect
+        required: true
+      release_sha:
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: hono-production-cutover
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: (github.event_name == 'push' || inputs.release_sha == github.sha) && (github.ref == 'refs/heads/feat/hono-migration' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+      AUTH_INTERNAL_SECRET: ${{ secrets.AUTH_INTERNAL_SECRET }}
+      QUOREM_INVITE_KEY: ${{ secrets.QUOREM_INVITE_KEY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - run: vp exec node scripts/hono-production-inspect.mjs
