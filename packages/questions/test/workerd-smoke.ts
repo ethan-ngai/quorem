@@ -19,3 +19,9 @@ it("imports and executes lossless question codecs in workerd", () => {
 
 import { assertDifferentialVectors } from "./differential.ts";
 it("matches Go edge vectors in workerd", assertDifferentialVectors);
+import { normalizeQuestionDraft, validateQuestionSchema } from "../src/index.ts";
+it("uses the generated question schema without runtime code generation", () => {
+  const raw = normalizeQuestionDraft('{"problem":{},"hiddenCases":[{"args":[1e309]}]}');
+  expect(raw).toContain("1e309");
+  expect(() => validateQuestionSchema(raw)).not.toThrow();
+});

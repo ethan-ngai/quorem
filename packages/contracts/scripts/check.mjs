@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { generateContracts } from "./generate.mjs";
-import { questionSchema } from "./question-schema.mjs";
+import { questionSchema, questionValidator } from "./question-schema.mjs";
 import { eventSchema as generateEventSchema } from "./event-schema.mjs";
 assert.deepEqual(
   JSON.parse(readFileSync("questions/question-v1.schema.json", "utf8")),
@@ -176,7 +176,8 @@ for (const input of [
 const submissionCommand = ajv.compile({ $ref: `${document.$id}#/$defs/CreateSubmissionRequest` });
 assert(!submissionCommand({ ...fixtures.createSubmission, ownerId: "alice" }));
 assert(!submissionCommand({ ...fixtures.createSubmission, workspaceId: undefined }));
-assert(!submissionCommand({ ...fixtures.createSubmission, customCases: [{ args: [2147483648] }] }));
+// Numeric bounds belong to the question-specific case codec, not the shared wire shape.
+assert(submissionCommand({ ...fixtures.createSubmission, customCases: [{ args: [2147483648] }] }));
 const validateMatchRequest = ajv.compile({ $ref: `${document.$id}#/$defs/CreateMatchRequest` });
 const problemId = fixtures.submission.id;
 for (const request of [
@@ -269,6 +270,16 @@ assert(
 assert.equal(
   readFileSync("src/generated.ts", "utf8"),
   await generateContracts(),
+  "Run vp run contracts:generate",
+);
+assert.equal(
+  readFileSync("../questions/src/question-validator.mjs", "utf8"),
+  questionValidator(),
+  "Run vp run contracts:generate",
+);
+assert.equal(
+  readFileSync("../questions/src/draft-validator.mjs", "utf8"),
+  questionValidator(true),
   "Run vp run contracts:generate",
 );
 console.log("Contract fixtures, redaction, decimal sequences and generation verified.");

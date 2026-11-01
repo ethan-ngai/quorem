@@ -10,6 +10,8 @@ export default defineConfig({
   fmt: {
     ignorePatterns: [
       "**/generated.ts",
+      "packages/questions/src/draft-validator.mjs",
+      "packages/questions/src/question-validator.mjs",
       "pnpm-lock.yaml",
       "docs/plans/**",
       "README.md",

@@ -850,7 +850,10 @@
                       "minimum": 0
                     },
                     "companies": { "type": "array", "items": { "type": "string" } },
-                    "nextCursor": { "type": "string", "description": "Opaque continuation for the same filters and ordering." },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Opaque continuation for the same filters and ordering."
+                    },
                     "topics": {
                       "type": "array",
                       "items": {
@@ -2990,17 +2993,7 @@
           {
             "type": "null"
           },
-          {
-            "type": "integer",
-            "minimum": -2147483648,
-            "maximum": 2147483647
-          },
-          {
-            "type": "number",
-            "not": {
-              "type": "integer"
-            }
-          },
+          { "type": "number" },
           {
             "type": "boolean"
           },
