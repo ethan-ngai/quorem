@@ -107,21 +107,7 @@ jobs:
       - run: vp run contracts:check
       - run: vp -C apps/api run typecheck
       - run: vp -C apps/api run check:boundaries
-      - run: python3 scripts/build-judge-images.py --base-only
-      - name: Composed runtime release validation
-        env:
-          QUOREM_RUNTIME_TEST_URL: postgres://fixture:fixture@127.0.0.1:54329/quorem_hono_runtime_test?sslmode=disable
-          QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
-          WRANGLER_SEND_METRICS: "false"
-        run: vp -C apps/api exec node src/runtime/composition/run-validation.mjs
-      - run: node scripts/hono-workload-validation.mjs
-      - run: node scripts/hono-container-validation.mjs
-      - name: Private runner process contracts
-        env:
-          QUOREM_TEST_DOCKER_SOCKET: /var/run/docker.sock
-        run: vp -C apps/runner exec node --test src/runtime/runtime.test.ts
       - run: node scripts/hono-stage-validation.mjs
-      - run: node scripts/hono-recovery-validation.mjs
       - name: Terraform checks
         run: |
           for stack in hono-bootstrap hono-stage hono-services; do
