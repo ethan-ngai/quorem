@@ -33,11 +33,17 @@ if (process.argv[2] === "--required-node") {
 } else {
   if (process.argv.length !== 2) throw new Error("Invalid validation arguments");
   await withDisposablePostgres(
-    { prefix: "quorem-workload-actor", port: 55709, database: "quorem_hono_stage_fixture_test" },
+    {
+      prefix: "quorem-workload-actor",
+      port: 55709,
+      database: "quorem_hono_stage_fixture_test",
+      automaticPort: Boolean(process.env.CI),
+    },
     async (main) => {
       await withDisposablePostgres(
         {
           prefix: "quorem-workload-empty",
+          automaticPort: Boolean(process.env.CI),
           port: 55710,
           database: "quorem_hono_stage_fixture_test",
         },

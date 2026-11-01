@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 const execute = promisify(execFile);
 export async function withDisposablePostgres(
-  { prefix, port, database, automaticPort = Boolean(process.env.CI) },
+  { prefix, port, database, automaticPort = false },
   action,
 ) {
   if (
