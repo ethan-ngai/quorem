@@ -1,0 +1,6 @@
+{
+  "name": "quorem-private-verifier-build",
+  "main": "../../../apps/runner/src/runtime/worker-verifier.ts",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": ["nodejs_compat"],
+}

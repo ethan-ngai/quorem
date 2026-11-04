@@ -154,30 +154,7 @@
 }
 .example-data {
   display: grid;
-  gap: 8px;
-  font-size: 12px;
-  line-height: 1.6;
-}
-.example-data > div {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 8px;
-}
-.example-data > div > span {
-  color: var(--color-text-secondary);
-}
-.example-data code {
-  display: inline-block;
-  justify-self: start;
-  width: fit-content;
-  max-width: 100%;
-  min-width: 0;
-  padding: 2px 5px;
-  border-radius: 3px;
-  background: var(--color-inline-code);
-  font: 12px/1.6 var(--font-code);
-  overflow-wrap: anywhere;
+  gap: var(--space-3);
 }
 .example-list p strong {
   font-weight: 550;

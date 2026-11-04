@@ -2,16 +2,7 @@
 import type { ProblemVersion } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { exampleInput, ProblemStatement } from "./ProblemStatement";
-
-describe("named public example inputs", () => {
-  it("pairs multiple arguments with declared parameter names in order", () => {
-    const problem = {
-      signature: { parameters: [{ name: "nums" }, { name: "target" }] },
-    } as ProblemVersion;
-    expect(exampleInput(problem, [[2, 7, 11, 15], 9])).toBe("nums = [2,7,11,15], target = 9");
-  });
-});
+import { ProblemStatement } from "./ProblemStatement";
 
 describe("topic disclosure", () => {
   it("starts hidden and connects the eye control to the topic list", () => {
@@ -42,15 +33,24 @@ it("renders structured mathematics and literal prose with named examples", () =>
     difficulty: "easy",
     tags: [],
     statementMarkdown: "Return the first value.",
-    signature: { parameters: [{ name: "values", type: "list<int>" }], returnType: "int" },
-    examples: [{ args: [[3, 4]], expected: 3, explanation: "The first value is 3." }],
+    signature: {
+      parameters: [
+        { name: "values", type: "list<int>" },
+        { name: "index", type: "int" },
+      ],
+      returnType: "int",
+    },
+    examples: [{ args: [[3, 4], 0], expected: 3, explanation: "The first value is 3." }],
     constraints: [
       { kind: "range", target: { parameter: "values", projection: "length" }, min: 1, max: 10000 },
       { kind: "prose", text: "Use the supplied values." },
     ],
   } as unknown as ProblemVersion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
-  expect(markup).toContain("values = [3,4]");
+  expect(markup).toMatch(
+    /class="parameter-name">values<.*?class="machine-value ">\[3,4\]<.*?class="parameter-name">index<.*?class="machine-value ">0</,
+  );
+  expect(markup.match(/aria-label="Input"/g)).toHaveLength(2);
   expect(markup).toContain("<code>len(values)</code>");
   expect(markup).toContain("<msup><mn>10</mn><mn>4</mn></msup>");
   expect(markup).toContain("<mo>≤</mo>");

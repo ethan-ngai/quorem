@@ -239,7 +239,7 @@ export async function lockEmptyStage(
 }
 
 const serviceAllowed =
-  /^(?:cloudflare_worker\.services|terraform_data\.(?:case_namespace_pin\[0\]|case_images)|cloudflare_worker_version\.services|restapi_object\.(?:trusted\["(?:runner|verifier|image)"\]|trusted_rollout\["(?:runner|verifier|image)"\]|case)|cloudflare_workers_custom_domain\.service\["(?:runner|drain|verifier|case|image)"\])$/;
+  /^(?:cloudflare_worker\.(?:services|verifier)|terraform_data\.(?:case_namespace_pin\[0\]|case_images)|cloudflare_worker_version\.(?:services|verifier)|restapi_object\.(?:trusted\["(?:runner|verifier|image)"\]|trusted_rollout\["(?:runner|verifier|image)"\]|case)|cloudflare_workers_custom_domain\.service\["(?:runner|drain|verifier|case|image)"\])$/;
 const stageAllowed =
   /^(?:cloudflare_worker\.api|cloudflare_hyperdrive_config\.database|cloudflare_queue_consumer\.execution\[0\])$/;
 export function validateResetPlan(plan, allowed) {
@@ -285,8 +285,6 @@ export async function resetStage(original, operations = {}) {
     const outputs = JSON.parse(execute("hono-bootstrap", ["output", "-json"], bootstrap));
     const env = assembleStageConfig(outputs, envInput);
     const dummyImage = `registry.cloudflare.com/${original.CLOUDFLARE_ACCOUNT_ID}/reset@sha256:${"0".repeat(64)}`;
-    env.TF_VAR_runner_image = dummyImage;
-    env.TF_VAR_verifier_image = dummyImage;
     env.TF_VAR_image_service_image = dummyImage;
     env.TF_VAR_case_images = JSON.stringify(
       Object.fromEntries(

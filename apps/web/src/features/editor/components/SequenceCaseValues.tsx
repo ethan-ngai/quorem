@@ -1,7 +1,6 @@
 /** @file SequenceCaseValues.tsx @description Stateful calls use the shared test-value presentation. @module editor */
 import type { ProblemVersion, MethodCall } from "@quorem/contracts";
-import { bindArguments } from "../argumentBinding";
-import { CaseValue } from "./CaseOutput";
+import { CaseArguments, CaseValue } from "./CaseOutput";
 
 export function SequenceCaseValues({
   problem,
@@ -27,15 +26,7 @@ export function SequenceCaseValues({
               <span className="case-call-number">{index + 1}</span>
               <code>{call.methodName}</code>
             </header>
-            <div className="case-call-inputs">
-              {(signature
-                ? bindArguments(signature, call.args)
-                : call.args.map((value, index) => ({ name: `Argument ${index + 1}`, value }))
-              ).map(({ name, value }) => (
-                <CaseValue key={name} name={name} value={value} parameter />
-              ))}
-              {!call.args.length && <span className="case-no-inputs">No arguments</span>}
-            </div>
+            <CaseArguments signature={signature} args={call.args} />
             {signature?.returnType !== "void" && call.expected !== undefined && (
               <CaseValue
                 name={outputLabel}

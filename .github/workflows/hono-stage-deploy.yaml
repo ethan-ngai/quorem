@@ -61,6 +61,7 @@ jobs:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
+      - run: node scripts/build-hono-service-workers.mjs
       - name: Reset unused isolated stage
         env:
           HONO_STAGE_RESET_FIXTURES: ${{ inputs.reset_fixtures && 'true' || 'false' }}
@@ -155,6 +156,8 @@ jobs:
       - run: vp -C apps/api run typecheck
       - run: vp -C apps/api run check:boundaries
       - run: node scripts/hono-stage-validation.mjs
+      - run: node scripts/build-hono-service-workers.mjs
+      - run: node --test scripts/hono-service-workers.test.mjs
       - name: Terraform checks
         run: |
           for stack in hono-bootstrap hono-stage hono-services; do
@@ -195,6 +198,7 @@ jobs:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
+      - run: node scripts/build-hono-service-workers.mjs
       - name: Provision and validate isolated Hono stage
         env:
           HONO_STAGE_INITIALIZATION_RESUME: ${{ inputs.resume_initialization && 'true' || 'false' }}

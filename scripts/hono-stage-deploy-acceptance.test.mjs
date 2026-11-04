@@ -103,19 +103,15 @@ void test("manual acceptance follows 202 continuations and requires the accepted
   assert.equal(delays, 1);
 });
 
-void test("manual drain exposes only bounded readiness diagnostic fields", async () => {
+void test("manual drain exposes only bounded Worker diagnostic fields", async () => {
   const send = async (url) => {
     if (url.endsWith("/api/auth/token")) return Response.json({ token: "fixture.jwt" });
     if (url.endsWith("/v1/workspaces")) return Response.json({ id: uuid }, { status: 201 });
     if (url.endsWith("/v1/submissions")) return Response.json({ id: uuid }, { status: 202 });
     return Response.json(
       {
-        error: "container-readiness",
-        port: 8090,
-        probes: 5,
-        status: 0,
-        failure: "refused",
-        running: true,
+        error: "unavailable",
+        command: { operation: "claim", status: 503, failure: "http", private: "fixture-secret" },
         private: "fixture-secret",
       },
       { status: 503 },
@@ -124,11 +120,7 @@ void test("manual drain exposes only bounded readiness diagnostic fields", async
   await assert.rejects(hostedAcceptance(env(), send), (error) => {
     assert.equal(error.status, 503);
     assert.deepEqual(error.diagnostic, {
-      port: 8090,
-      probes: 5,
-      status: 0,
-      failure: "refused",
-      running: true,
+      command: { operation: "claim", status: 503, failure: "http" },
     });
     assert.equal(JSON.stringify(error).includes("fixture-secret"), false);
     return true;

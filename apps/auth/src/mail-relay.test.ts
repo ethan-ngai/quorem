@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import { request as httpRequest } from "node:http";
 import assert from "node:assert/strict";
 import { createServer } from "node:net";

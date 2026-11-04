@@ -47,11 +47,9 @@ export function validateStageRequest(env, { requireImages = true } = {}) {
   if (
     requireImages &&
     (!images ||
-      ![
-        env.TF_VAR_runner_image,
-        env.TF_VAR_verifier_image,
-        ...["python", "java", "typescript", "ocaml", "postgresql"].map((k) => images[k]),
-      ].every(digest))
+      ![...["python", "java", "typescript", "ocaml", "postgresql"].map((k) => images[k])].every(
+        digest,
+      ))
   )
     throw new Error("Immutable staged image digests required");
   const profile = env.TF_VAR_profile_media_enabled ?? "false";

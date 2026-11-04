@@ -23,8 +23,6 @@ const env = () => ({
   }),
   TF_VAR_command_origin: "https://api-stage.example.com",
   TF_VAR_source_origin: "https://api-stage.example.com",
-  TF_VAR_runner_image: `registry.cloudflare.com/${"b".repeat(32)}/runner@sha256:${"c".repeat(64)}`,
-  TF_VAR_verifier_image: `registry.cloudflare.com/${"b".repeat(32)}/verifier@sha256:${"c".repeat(64)}`,
   TF_VAR_case_images: JSON.stringify(
     Object.fromEntries(
       ["python", "java", "typescript", "ocaml", "postgresql"].map((k) => [

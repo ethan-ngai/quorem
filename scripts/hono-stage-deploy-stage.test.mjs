@@ -63,8 +63,6 @@ function env() {
     HONO_SERVICES_WORKER_NAME: "quorem-hono-services-stage",
     TF_VAR_enable_queue_consumer: "false",
     TF_VAR_case_namespace_id: "0".repeat(64),
-    TF_VAR_runner_image: image("runner"),
-    TF_VAR_verifier_image: image("verifier"),
     TF_VAR_case_images: JSON.stringify(
       Object.fromEntries(
         ["python", "java", "typescript", "ocaml", "postgresql"].map((k) => [k, image(k)]),
@@ -103,10 +101,7 @@ function operations(events, fail) {
       step(
         "images",
         Object.fromEntries(
-          ["runner", "verifier", "python", "java", "typescript", "ocaml", "postgresql"].map((k) => [
-            k,
-            image(k),
-          ]),
+          ["python", "java", "typescript", "ocaml", "postgresql"].map((k) => [k, image(k)]),
         ),
       ),
     terraform: (input, stack, op) => {
@@ -386,7 +381,7 @@ void test("stage service apply tolerates bounded application visibility lag only
   const { StageCommandFailure } = await import("./hono-stage-command.mjs");
   const failure = (status = 404, code = 1609) =>
     new StageCommandFailure({
-      stderr: `Error: with restapi_object.trusted_rollout["runner"] HTTP ${status} {"code":${code}}`,
+      stderr: `Error: with restapi_object.trusted_rollout["image"] HTTP ${status} {"code":${code}}`,
     });
   const delays = [];
   let calls = 0;

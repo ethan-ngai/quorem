@@ -116,35 +116,6 @@ export async function hostedAcceptance(
         try {
           const value = await json(drained);
           if (
-            value.error === "container-readiness" &&
-            [8090, 8091, 8083].includes(value.port) &&
-            Number.isInteger(value.probes) &&
-            value.probes > 0 &&
-            value.probes < 1000 &&
-            Number.isInteger(value.status) &&
-            value.status >= 0 &&
-            value.status <= 599 &&
-            [
-              "none",
-              "http",
-              "refused",
-              "closed",
-              "timeout",
-              "stopped",
-              "unsupported",
-              "transport",
-            ].includes(value.failure) &&
-            typeof value.running === "boolean"
-          ) {
-            diagnostic = {
-              port: value.port,
-              probes: value.probes,
-              status: value.status,
-              failure: value.failure,
-              running: value.running,
-            };
-          }
-          if (
             value.error === "unavailable" &&
             value.command &&
             /^[a-z]{1,20}$/.test(value.command.operation ?? "") &&

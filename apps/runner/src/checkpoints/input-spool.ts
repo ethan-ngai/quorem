@@ -97,7 +97,7 @@ export async function spoolInput(options: {
         try {
           await ready.close();
         } finally {
-          await rm(directory, { recursive: true, force: true });
+          await rm(directory, { recursive: true });
         }
       },
     };
@@ -105,7 +105,7 @@ export async function spoolInput(options: {
     try {
       await file?.close();
     } finally {
-      await rm(directory, { recursive: true, force: true });
+      await rm(directory, { recursive: true });
     }
     throw error;
   }

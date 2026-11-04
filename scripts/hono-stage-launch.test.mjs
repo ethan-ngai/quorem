@@ -35,9 +35,10 @@ const output = (secrets) => ({
 });
 const images = (account) =>
   Object.fromEntries(
-    ["runner", "verifier", "image", "python", "java", "typescript", "ocaml", "postgresql"].map(
-      (name) => [name, `registry.cloudflare.com/${account}/${name}@sha256:${"d".repeat(64)}`],
-    ),
+    ["image", "python", "java", "typescript", "ocaml", "postgresql"].map((name) => [
+      name,
+      `registry.cloudflare.com/${account}/${name}@sha256:${"d".repeat(64)}`,
+    ]),
   );
 function terraform(changes, saved, calls, drift = []) {
   return (_program, args) => {
@@ -141,7 +142,6 @@ void test("stage reuses stored secrets and publishes genuine images exactly once
     },
     activate: async (configured, operations) => {
       activations++;
-      assert.equal(configured.TF_VAR_runner_image, published.runner);
       assert.equal(configured.TF_VAR_image_service_image, published.image);
       assert.deepEqual(operations.images(), published);
       return { status: "fixture" };

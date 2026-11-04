@@ -196,8 +196,6 @@ export async function launchStage(
     const published = await Promise.resolve(images(configured));
     const prepared = {
       ...configured,
-      TF_VAR_runner_image: published.runner,
-      TF_VAR_verifier_image: published.verifier,
       TF_VAR_image_service_image: published.image,
       TF_VAR_case_images: JSON.stringify(
         Object.fromEntries(

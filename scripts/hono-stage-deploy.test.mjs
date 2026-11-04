@@ -21,8 +21,6 @@ const env = () => ({
   }),
   TF_VAR_command_origin: "https://api-stage.example.com",
   TF_VAR_source_origin: "https://api-stage.example.com",
-  TF_VAR_runner_image: `registry.cloudflare.com/${"b".repeat(32)}/runner@sha256:${"c".repeat(64)}`,
-  TF_VAR_verifier_image: `registry.cloudflare.com/${"b".repeat(32)}/verifier@sha256:${"c".repeat(64)}`,
   TF_VAR_case_images: JSON.stringify(
     Object.fromEntries(
       ["python", "java", "typescript", "ocaml", "postgresql"].map((k) => [
@@ -57,7 +55,6 @@ void test("rejects branch, revision, database and queue drift before executing",
     { TF_VAR_case_namespace_id: "" },
     { TF_VAR_worker_name: "quorem" },
     { TF_VAR_enable_queue_consumer: "true" },
-    { TF_VAR_runner_image: "registry.cloudflare.com/example:latest" },
   ])
     assert.throws(() => validateStageRequest({ ...env(), ...patch }));
   let executed = false;

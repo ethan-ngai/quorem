@@ -10,11 +10,10 @@ import {
   type CustomCaseDraft,
   type RunSnapshot,
 } from "../customCases";
-import { bindArguments } from "../argumentBinding";
 import { Icon } from "../../../ui/Icon";
 import { TypedCaseInput } from "./TypedCaseInput";
 import "./customCases.css";
-import { CaseOutput, CaseValue } from "./CaseOutput";
+import { CaseArguments, CaseOutput, CaseValue } from "./CaseOutput";
 import { SequenceCaseValues } from "./SequenceCaseValues";
 import { SqlCaseEditor } from "./SqlCaseEditor";
 
@@ -411,14 +410,13 @@ export function TestCases({
         !result && <SequenceCaseValues problem={problem} calls={example.calls} />
       ) : example ? (
         <>
-          <div className="case-call-inputs">
-            {(problem.sql
-              ? [{ name: "Tables", value: example.args[0] }]
-              : bindArguments(problem.signature, example.args)
-            ).map(({ name, value }, index) => (
-              <CaseValue key={index} name={name} value={value} parameter sql={problem.sql} />
-            ))}
-          </div>
+          {problem.sql ? (
+            <div className="case-call-inputs">
+              <CaseValue name="Tables" value={example.args[0]} parameter sql={problem.sql} />
+            </div>
+          ) : (
+            <CaseArguments signature={problem.signature} args={example.args} />
+          )}
           <CaseValue
             name="Expected output"
             purpose="target"

@@ -1,5 +1,5 @@
 /** @file runner.ts @description Composition of private commands, engine and HTTP drains. @module runner */
-import type { IsolatedSandbox } from "../sandbox/types.ts";
+import { UnconfirmedTeardown, type IsolatedSandbox } from "../sandbox/types.ts";
 import { privateRunnerCommands } from "../queue/http.ts";
 import { drainer } from "../drains/drain.ts";
 import { drainHandler } from "../drains/http.ts";
@@ -36,7 +36,7 @@ export function createRunner(options: {
   const engine = options.engine(repository, options.sandbox);
   if (!engine || engine.inputProtocol !== "manifest-v1" || typeof engine.execute !== "function")
     throw new Error("Manifest-capable engine required");
-  const drain = drainer({
+  const inner = drainer({
     repository,
     sandbox: options.sandbox,
     cancellations: controlPolling(),
@@ -46,8 +46,29 @@ export function createRunner(options: {
     resumable: options.resumable,
     attemptMs: options.attemptMs,
   });
+  let teardownFailure: UnconfirmedTeardown | undefined;
+  const drain = {
+    refresh: () => inner.refresh(),
+    async drain(signal: AbortSignal) {
+      if (teardownFailure) throw teardownFailure;
+      try {
+        return await inner.drain(signal);
+      } catch (error) {
+        if (error instanceof UnconfirmedTeardown) teardownFailure = error;
+        console.error(
+          JSON.stringify({
+            event: "runner-drain-failed",
+            kind: error instanceof UnconfirmedTeardown ? "teardown" : "drain",
+            ...(error instanceof UnconfirmedTeardown ? { diagnostic: error.diagnostic } : {}),
+          }),
+        );
+        throw error;
+      }
+    },
+  };
   return {
     drain,
+    teardownFailure: () => teardownFailure,
     queueState: (signal: AbortSignal) => repository.queueState(signal),
     handler: drainHandler({ drainer: drain, secret: options.drainSecret }),
   };
