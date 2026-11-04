@@ -308,57 +308,59 @@ export function QuestionDashboard({
                   />
                 </td>
                 <th scope="row">
-                  <div className="admin-question-heading">
-                    <button
-                      type="button"
-                      className="catalog-question-title"
-                      disabled={disabled}
-                      onClick={() => onOpen(row)}
-                    >
-                      {row.title || "Untitled question"}
-                    </button>
-                    {"revision" in row ? (
-                      <>
-                        {row.editVersionId && (
-                          <span className="admin-question-status">
-                            <FilePenLine size={14} aria-hidden="true" />
-                            Update draft
-                          </span>
-                        )}
-                        {row.ready === false && (
-                          <span className="admin-question-status">Needs fixes</span>
-                        )}
-                      </>
-                    ) : (
-                      !row.current && (
-                        <span className="admin-question-status">
-                          <Icon name="eye-off" width={14} height={14} />
-                          Unpublished
+                  <div className="admin-question-label" data-publication={"isPrivate" in row}>
+                    {"isPrivate" in row &&
+                      (row.isPrivate ? (
+                        <QuestionIndicators privateQuestion odyssey={false} />
+                      ) : (
+                        <span
+                          className="practice-indicators"
+                          role="img"
+                          aria-label="Global question"
+                          title="Global question"
+                        >
+                          <Globe size={16} aria-hidden="true" />
                         </span>
-                      )
-                    )}
-                    {"isPrivate" in row && !row.isPrivate && (
-                      <span
-                        className="practice-indicators"
-                        role="img"
-                        aria-label="Global question"
-                        title="Global question"
-                      >
-                        <Globe size={16} aria-hidden="true" />
-                      </span>
-                    )}
-                    {(("isPrivate" in row && row.isPrivate) || row.isOdyssey) && (
-                      <QuestionIndicators
-                        privateQuestion={"isPrivate" in row && row.isPrivate}
-                        odyssey={row.isOdyssey}
+                      ))}
+                    <div>
+                      <div className="admin-question-heading">
+                        <button
+                          type="button"
+                          className="catalog-question-title"
+                          disabled={disabled}
+                          onClick={() => onOpen(row)}
+                        >
+                          {row.title || "Untitled question"}
+                        </button>
+                        {"revision" in row ? (
+                          <>
+                            {row.editVersionId && (
+                              <span className="admin-question-status">
+                                <FilePenLine size={14} aria-hidden="true" />
+                                Update draft
+                              </span>
+                            )}
+                            {row.ready === false && (
+                              <span className="admin-question-status">Needs fixes</span>
+                            )}
+                          </>
+                        ) : (
+                          !row.current && (
+                            <span className="admin-question-status">
+                              <Icon name="eye-off" width={14} height={14} />
+                              Unpublished
+                            </span>
+                          )
+                        )}
+                        {row.isOdyssey && <QuestionIndicators privateQuestion={false} odyssey />}
+                      </div>
+                      <QuestionTopics
+                        tags={row.tags}
+                        disabled={disabled}
+                        onFilter={(topic) => onSearch({ topic: addFilter(search.topic, topic) })}
                       />
-                    )}
+                    </div>
                   </div>
-                  <QuestionTopics
-                    tags={row.tags}
-                    disabled={disabled}
-                    onFilter={(topic) => onSearch({ topic: addFilter(search.topic, topic) })}
-                  />
                 </th>
                 <td>
                   <QuestionDifficulty

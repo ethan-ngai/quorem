@@ -312,6 +312,15 @@
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
+.admin-question-label[data-publication="true"] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+}
+.admin-question-label > .practice-indicators {
+  margin-block-start: 2px;
+}
 .admin-question-heading {
   display: flex;
   flex-wrap: wrap;
@@ -324,7 +333,7 @@
   background: transparent;
   text-align: start;
 }
-.admin-question-heading .practice-indicators {
+.admin-question-label .practice-indicators {
   color: var(--color-text-secondary);
 }
 .admin-question-heading .admin-question-status {
