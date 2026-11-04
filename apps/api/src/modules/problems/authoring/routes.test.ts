@@ -21,6 +21,7 @@ it("requires identity, validates input and enforces global step-up through share
       called++;
       return raw ?? "{}";
     },
+    importDraft: async (_actor, raw) => raw,
     update: async () => "{}",
     publish: async () => {
       called++;

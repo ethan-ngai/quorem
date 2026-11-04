@@ -3,8 +3,8 @@ import { LoadingScreen } from "../../ui/LoadingScreen";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based immutable question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
-import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
-import { useEffect, useRef, useState } from "react";
+import { userFacingErrorMessage } from "../../ui/errors";
+import { useEffect, useState } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
@@ -20,7 +20,7 @@ import { Tooltip } from "../../ui/Tooltip";
 import "../../ui/question-hints.css";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { PreviewBoundary } from "./PreviewBoundary";
-import { parseQuestionImport, questionImportLimit } from "./importQuestion";
+import { BulkQuestionImport } from "./BulkQuestionImport";
 import questionSchema from "@quorem/contracts/questions/schema?url";
 import "./admin.css";
 
@@ -59,7 +59,7 @@ export function QuestionEditor() {
 /** Keeps unsaved edits local; changing drafts requires an explicit discard. */
 function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const cache = useQueryClient();
-  const importInput = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const drafts = useInfiniteQuery({
     queryKey: ["admin-drafts", admin],
     initialPageParam: undefined as string | undefined,
@@ -147,38 +147,26 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           </button>
         </footer>
       </SessionDialog>
+      <BulkQuestionImport
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onCreated={() => void cache.invalidateQueries({ queryKey: ["admin-drafts"] })}
+        onOpenDraft={(id) => {
+          setImportOpen(false);
+          void perform(() => getDraft(id), "", "Could not open the imported draft.");
+        }}
+      />
       <header className="admin-heading">
         <div>
           <h1>Question editor</h1>
         </div>
         <div className="admin-toolbar">
-          <input
-            ref={importInput}
-            type="file"
-            accept=".json,application/json"
-            aria-label="Import question JSON file"
-            hidden
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
-              if (!file) return;
-              void perform(
-                async () => {
-                  if (file.size > questionImportLimit)
-                    throw new UserFacingError("Choose a JSON file smaller than 2 MiB.");
-                  return createDraft({ content: parseQuestionImport(await file.text()) });
-                },
-                "Question imported. Review the draft before publishing.",
-                "Could not import the question. Try again.",
-              );
-            }}
-          />
           <button
             className="button button-secondary"
             disabled={busy || dirty || invalidFields.size > 0}
-            onClick={() => importInput.current?.click()}
+            onClick={() => setImportOpen(true)}
           >
-            Import JSON
+            Bulk import
           </button>
           <button
             className="button button-secondary"

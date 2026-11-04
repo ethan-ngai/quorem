@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate } from "@quorem/database/migrations";
 import { languageRuntime } from "@quorem/execution";
-import { operatorQuestionAuthoring } from "../adapters/postgres/problems/authoring/repository.ts";
+import {
+  operatorQuestionAuthoring,
+  questionAuthoring,
+} from "../adapters/postgres/problems/authoring/repository.ts";
 import { readPublishedFixture } from "../adapters/postgres/problems/private-content.ts";
 import { resumeQuestionVersion } from "../adapters/postgres/problems/publication.ts";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -518,4 +521,52 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
     }
   },
   15000,
+);
+
+it.skipIf(!url)(
+  "imports lossless drafts idempotently and rechecks identity conflicts",
+  async () => {
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 4,
+      connectionTimeoutMs: 3000,
+      idleTimeoutMs: 1000,
+      onIdleError: () => {},
+    });
+    try {
+      const repo = questionAuthoring(
+        (action) => withNodeConnection(pool, { lifetimeMs: 10000 }, action),
+        languageRuntime,
+      );
+      const actor = { userId: "cli-test-operator", admin: true, globalAllowed: true };
+      const draft = JSON.parse(
+        await readFile(resolve("../../fixtures/problems/mirror-letters.json"), "utf8"),
+      );
+      draft.problem.slug = `import-fixture-${crypto.randomUUID().slice(0, 8)}`;
+      const raw = JSON.stringify(draft);
+      const preview = JSON.parse(await repo.importDraft(actor, raw, true));
+      expect(preview.status).toBe("ready");
+      const results = await Promise.all([
+        repo.importDraft(actor, raw, false),
+        repo.importDraft(actor, raw, false),
+      ]);
+      const items = results.map((value) => JSON.parse(value));
+      expect(items.map((item) => item.status).sort()).toEqual(["created", "existing"]);
+      expect(items[0].draftId).toBe(items[1].draftId);
+      draft.problem.title = "Conflict title";
+      expect(JSON.parse(await repo.importDraft(actor, JSON.stringify(draft), false)).status).toBe(
+        "conflict",
+      );
+      await repo.update(actor, items[0].draftId, "1", JSON.stringify(draft));
+      expect(JSON.parse(await repo.importDraft(actor, raw, false))).toEqual({
+        status: "existing",
+        draftId: items[0].draftId,
+      });
+      await expect(
+        repo.importDraft({ userId: "missing", admin: true }, raw, false),
+      ).rejects.toThrow("Custom question access required");
+    } finally {
+      await pool.end();
+    }
+  },
 );

@@ -343,6 +343,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/question-drafts/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importQuestionDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/question-drafts/{id}": {
         parameters: {
             query?: never;
@@ -2314,6 +2330,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuestionDraft"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importQuestionDraft: {
+        parameters: {
+            query?: {
+                preview?: "1";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionContent"];
+            };
+        };
+        responses: {
+            /** @description Import outcome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "ready" | "created" | "existing" | "conflict";
+                        /** Format: uuid */
+                        draftId?: string;
+                        message?: string;
+                        warning?: string;
+                    };
                 };
             };
             /** @description Safe application error */
