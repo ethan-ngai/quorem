@@ -61,9 +61,23 @@ void test("private rollout permits retiring only runner and verifier container r
           "private-workers",
         ),
       );
-  assert.doesNotThrow(() =>
+  const domain = 'cloudflare_workers_custom_domain.service["verifier"]';
+  const prior = {
+    hostname: "verifier-hono.quorem.app",
+    service: "quorem-hono-services-production",
+    zone_id: "zone",
+    account_id: "account",
+  };
+  const target = { ...prior, service: "quorem-hono-services-production-verifier" };
+  const replacement = plan(domain, ["delete", "create"], target);
+  replacement.resource_changes[0].change.before = prior;
+  assert.doesNotThrow(() => inspectProductionPlan(replacement, "private-workers"));
+  assert.throws(() =>
+    inspectProductionPlan(plan(domain, ["delete"], undefined), "private-workers"),
+  );
+  assert.throws(() =>
     inspectProductionPlan(
-      plan('cloudflare_workers_custom_domain.service["verifier"]', ["update"]),
+      plan(domain, ["update"], { ...target, hostname: "other.quorem.app" }),
       "private-workers",
     ),
   );

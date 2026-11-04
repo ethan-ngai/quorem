@@ -234,6 +234,23 @@ async function rollout(env) {
       result.QUOREM_CASE_NAMESPACE_ID !== namespace.namespace
     )
       throw new Error("Unexpected deployed services");
+    report("verify-verifier-domain");
+    const verifierDeadline = Date.now() + 120000;
+    for (;;) {
+      let ready = false;
+      try {
+        const probe = await fetch(`https://${hosts.verifier}/internal/results/verify`, {
+          method: "POST",
+          redirect: "error",
+          signal: AbortSignal.timeout(5000),
+        });
+        ready = probe.status === 401;
+        await probe.body?.cancel();
+      } catch {}
+      if (ready) break;
+      if (Date.now() >= verifierDeadline) throw new Error("Verifier domain unavailable");
+      await delay(2000);
+    }
     report("activate-private-workers");
     const next = await controls(release, result.SERVICES_BINDINGS);
     const prepared = await next.prepareResume({
@@ -267,6 +284,7 @@ if (import.meta.main) {
       JSON.stringify({
         error: "private-worker-release-failed",
         reason: /^[A-Za-z -]{1,90}$/.test(error?.message ?? "") ? error.message : undefined,
+        planChange: error?.planChange,
         status: Number.isInteger(error?.status) ? error.status : undefined,
         control:
           error?.kind && error?.action
