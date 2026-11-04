@@ -51,3 +51,30 @@ void test("legacy retirement deletes only backend resources; snapshots and data 
     ),
   );
 });
+
+void test("private rollout permits retiring only runner and verifier container resources", () => {
+  for (const role of ["runner", "verifier"])
+    for (const resource of ["trusted", "trusted_rollout"])
+      assert.doesNotThrow(() =>
+        inspectProductionPlan(
+          plan(`restapi_object.${resource}["${role}"]`, ["delete"]),
+          "private-workers",
+        ),
+      );
+  assert.doesNotThrow(() =>
+    inspectProductionPlan(
+      plan('cloudflare_workers_custom_domain.service["verifier"]', ["update"]),
+      "private-workers",
+    ),
+  );
+  for (const address of [
+    'restapi_object.trusted["mail"]',
+    "restapi_object.case",
+    "cloudflare_worker.services",
+    "terraform_data.case_namespace_pin[0]",
+    'cloudflare_workers_custom_domain.service["case"]',
+    "cloudflare_queue_consumer.execution[0]",
+  ])
+    for (const action of ["delete", "update"])
+      assert.throws(() => inspectProductionPlan(plan(address, [action]), "private-workers"));
+});

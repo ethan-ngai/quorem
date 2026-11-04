@@ -19,6 +19,25 @@ export function inspectProductionPlan(plan, mode) {
         item.change.after?.script !== "quorem-hono-production"
       )
         throw new Error("Route plan includes unrelated mutation");
+    } else if (mode === "private-workers") {
+      const action = actions.join();
+      const retired = /^restapi_object\.trusted(?:_rollout)?\["(?:runner|verifier)"\]$/.test(
+        item.address,
+      );
+      const versioned =
+        /^(cloudflare_worker_version\.(?:services|verifier)|terraform_data\.case_images)$/.test(
+          item.address,
+        );
+      const verifier = [
+        "cloudflare_worker.verifier",
+        'cloudflare_workers_custom_domain.service["verifier"]',
+      ].includes(item.address);
+      if (
+        !(retired && action === "delete") &&
+        !(versioned && ["create", "update", "delete,create", "create,delete"].includes(action)) &&
+        !(verifier && ["create", "update"].includes(action))
+      )
+        throw new Error("Private Worker rollout includes unrelated mutation");
     } else if (mode === "legacy-stop") {
       if (
         actions.join() !== "delete" ||
@@ -85,6 +104,7 @@ export async function productionTerraform(env, directory, key, options = {}) {
     );
     const changes = inspectProductionPlan(value, options.mode ?? "provision");
     console.log(JSON.stringify({ phase: options.label ?? directory, changes }));
+    await options.beforeApply?.();
     runStageCommand(
       "terraform",
       [
