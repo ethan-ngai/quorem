@@ -15,7 +15,7 @@ export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
   const retry = useRef<() => void>(() => {});
   const query = useQuery({
     queryKey: ["current-match", identity],
-    // The subscription's first invalidation fences the initial snapshot.
+    // Serialize the initial snapshot, polling and realtime invalidations.
     enabled: false,
     queryFn: async ({ signal }) => {
       const { data, error } = await api(identity).GET("/v1/matches/current", { signal });
@@ -27,11 +27,15 @@ export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
   const refresh = query.refetch;
   useEffect(() => {
     if (!enabled) return;
-    const sync = membershipSynchronizer(() => refresh({ cancelRefetch: false }), setConnection);
+    const sync = membershipSynchronizer(
+      () => refresh({ cancelRefetch: false }),
+      setConnection,
+      15000,
+    );
     let connected = false;
     retry.current = () => {
-      if (connected) sync.event("changed");
-      else retryMembershipEvents(identity);
+      if (!connected) retryMembershipEvents(identity);
+      sync.refresh();
     };
     const stop = subscribeMembershipEvents(identity, (event) => {
       connected = event === "changed";

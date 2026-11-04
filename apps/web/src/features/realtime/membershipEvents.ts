@@ -13,6 +13,7 @@ const subscriptions = new Map<
 export function membershipSynchronizer(
   refresh: () => Promise<{ isError: boolean }>,
   setConnection: (state: "connecting" | "ready" | "offline") => void,
+  pollWhileDisconnectedMs?: number,
 ) {
   let generation = 0;
   let stopped = false;
@@ -20,9 +21,14 @@ export function membershipSynchronizer(
   let pending = false;
   let retryDelay = 1000;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
   function clearRetry() {
     if (retryTimer !== undefined) clearTimeout(retryTimer);
     retryTimer = undefined;
+  }
+  function clearPoll() {
+    clearInterval(pollTimer);
+    pollTimer = undefined;
   }
   async function synchronize() {
     pending = true;
@@ -51,10 +57,23 @@ export function membershipSynchronizer(
     if (pending && !stopped) void synchronize();
   }
   return {
+    refresh() {
+      clearRetry();
+      void synchronize();
+    },
     event(event: MembershipEvent) {
       if (event === "changed") {
+        clearPoll();
         clearRetry();
         void synchronize();
+      } else if (pollWhileDisconnectedMs !== undefined) {
+        // HTTP remains authoritative when the realtime invalidation stream drops.
+        if (pollTimer === undefined) {
+          pollTimer = setInterval(() => {
+            if (!fetching && retryTimer === undefined) void synchronize();
+          }, pollWhileDisconnectedMs);
+          if (!fetching && retryTimer === undefined) void synchronize();
+        }
       } else {
         generation++;
         clearRetry();
@@ -66,6 +85,7 @@ export function membershipSynchronizer(
     stop() {
       stopped = true;
       clearRetry();
+      clearPoll();
       generation++;
     },
   };

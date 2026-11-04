@@ -148,3 +148,26 @@ it("retries failed snapshots with backoff and cancels recovery on disconnect", a
     vi.useRealTimers();
   }
 });
+
+it("loads and polls the current match without a socket, then resumes realtime refresh", async () => {
+  vi.useFakeTimers();
+  try {
+    const refresh = vi.fn().mockResolvedValue({ isError: false });
+    const status = vi.fn();
+    const sync = membershipSynchronizer(refresh, status, 15000);
+    sync.event("connecting");
+    sync.event("offline");
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(status).toHaveBeenLastCalledWith("ready");
+    sync.event("changed");
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(refresh).toHaveBeenCalledTimes(3);
+    sync.event("offline");
+    sync.stop();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(refresh).toHaveBeenCalledTimes(4);
+  } finally {
+    vi.useRealTimers();
+  }
+});

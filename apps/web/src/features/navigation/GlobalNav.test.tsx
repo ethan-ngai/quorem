@@ -61,7 +61,7 @@ describe("global navigation", () => {
     expect(html).not.toContain("Sign in");
   });
   it.each(["waiting", "ready", "active", "finalizing"] as const)(
-    "waits for the membership stream before showing %s membership",
+    "waits for a fresh snapshot before showing cached %s membership",
     async (state) => {
       const html = await renderNavigation("/practice", undefined, state);
       expect(html).not.toContain('aria-label="Create match"');
