@@ -1,4 +1,6 @@
 /** Read persisted phase boundaries for the public Python benchmark. */
+import { createHash } from "node:crypto";
+
 import { createRequire } from "node:module";
 import {
   acceptedSource,
@@ -32,10 +34,10 @@ try {
     JOIN runner_job_inputs i ON i.job_id=j.id
     WHERE s.admitted_at >= $1::timestamptz
       AND s.admitted_at < $1::timestamptz + interval '2 minutes'
-      AND w.problem_version_id=$2::uuid AND s.source=$3 AND s.kind='run' AND s.custom_run
+      AND w.problem_version_id=$2::uuid AND s.source_hash=$3 AND s.kind='run' AND s.custom_run
       AND j.language='python' AND j.finished AND s.state='completed' AND i.case_count=1
     ORDER BY s.admitted_at LIMIT 10`,
-    [start.toISOString(), version, acceptedSource],
+    [start.toISOString(), version, createHash("sha256").update(acceptedSource).digest("hex")],
   );
   console.log(JSON.stringify({ benchmarkTimings: rows }));
 } catch (error) {
