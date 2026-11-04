@@ -1,12 +1,13 @@
 import type { QuestionSearch } from "./questionSearch";
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
-import { FilePenLine, Globe, Search } from "lucide-react";
+import { CodeXml, FileCode2, FilePenLine, Globe, Layers, Search } from "lucide-react";
 import { CatalogFilters } from "../practice/CatalogFilters";
 import { addFilter } from "../practice/catalogSearch";
 import { QuestionIndicators } from "../practice/QuestionIndicators";
 import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
 import { CatalogTable } from "../practice/CatalogLayout";
 import { SelectField } from "../../ui/SelectField";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Icon } from "../../ui/Icon";
 import { useState } from "react";
 import type { QuestionDraftSummary } from "@quorem/contracts";
@@ -187,17 +188,28 @@ export function QuestionDashboard({
         aria-label="Question filters"
         disabled={disabled}
       >
-        <SelectField
-          label="Source"
+        <SegmentedControl
+          iconOnly
+          label="Question source"
           value={source}
-          onChange={(value) =>
-            onSearch({ source: value === "leetcode" || value === "other" ? value : undefined })
-          }
+          onChange={(value) => onSearch({ source: value === "all" ? undefined : value })}
           disabled={disabled}
           options={[
-            { value: "all", label: "All sources" },
-            { value: "leetcode", label: "LeetCode" },
-            { value: "other", label: "No LeetCode ID" },
+            {
+              value: "all",
+              label: "All sources",
+              icon: <Layers size={16} aria-hidden="true" />,
+            },
+            {
+              value: "leetcode",
+              label: "LeetCode",
+              icon: <CodeXml size={16} aria-hidden="true" />,
+            },
+            {
+              value: "other",
+              label: "No LeetCode ID",
+              icon: <FileCode2 size={16} aria-hidden="true" />,
+            },
           ]}
         />
         <CatalogFilters
