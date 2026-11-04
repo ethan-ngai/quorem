@@ -6,11 +6,15 @@ on:
         description: Measure practice SQL using a read-only production connection
         type: boolean
         default: false
+      benchmark_start:
+        description: UTC start time of a completed Python benchmark
+        type: string
+        default: ""
 permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ !inputs.sql }}
+    if: ${{ !inputs.sql && inputs.benchmark_start == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -21,7 +25,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: python3 scripts/container-logs.py --minutes 30 --stdout
   sql:
-    if: ${{ inputs.sql }}
+    if: ${{ inputs.sql || inputs.benchmark_start != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -37,4 +41,5 @@ jobs:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
           NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
+          QUOREM_BENCHMARK_START: ${{ inputs.benchmark_start }}
         run: python3 scripts/profile-production-sql.py

@@ -1,0 +1,46 @@
+/** Read persisted phase boundaries for the public Python benchmark. */
+import { createRequire } from "node:module";
+import {
+  acceptedSource,
+  version,
+} from "../apps/api/src/runtime/composition/fixtures/staged-actor.ts";
+const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
+  "pg",
+);
+
+const start = new Date(process.env.QUOREM_BENCHMARK_START);
+if (Number.isNaN(start.valueOf())) throw new Error("Invalid benchmark timestamp");
+const url = new URL(process.env.DATABASE_URL);
+url.search = "?sslmode=verify-full";
+const client = new Client({
+  connectionString: url.href,
+  connectionTimeoutMillis: 10000,
+  query_timeout: 10000,
+});
+try {
+  await client.connect();
+  await client.query("BEGIN READ ONLY");
+  await client.query("SET LOCAL statement_timeout = '5s'");
+  const { rows } = await client.query(
+    `SELECT s.admitted_at AS admitted, j.attempt_started_at AS claimed,
+      s.updated_at AS finalized, j.attempts,
+      round(1000 * extract(epoch FROM j.attempt_started_at-s.admitted_at))::int AS "claimMs",
+      round(1000 * extract(epoch FROM s.updated_at-j.attempt_started_at))::int AS "executionMs"
+    FROM submissions s
+    JOIN workspaces w ON w.id=s.workspace_id
+    JOIN execution_jobs j ON j.submission_id=s.id
+    JOIN runner_job_inputs i ON i.job_id=j.id
+    WHERE s.admitted_at >= $1::timestamptz
+      AND s.admitted_at < $1::timestamptz + interval '2 minutes'
+      AND w.problem_version_id=$2::uuid AND s.source=$3 AND s.kind='run' AND s.custom_run
+      AND j.language='python' AND j.finished AND s.state='completed' AND i.case_count=1
+    ORDER BY s.admitted_at LIMIT 10`,
+    [start.toISOString(), version, acceptedSource],
+  );
+  console.log(JSON.stringify({ benchmarkTimings: rows }));
+} catch (error) {
+  console.error(JSON.stringify({ error: "Benchmark timing query failed", code: error.code }));
+  process.exitCode = 1;
+} finally {
+  await client.end().catch(() => {});
+}
