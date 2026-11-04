@@ -1,4 +1,5 @@
-/** Controlled stage workload; browser-equivalent sockets and public product commands only. */
+/** Controlled stage workload; browser-equivalent realtime streams and public product commands only. */
+import { readSubmissionEvents } from "../packages/contracts/src/submission-events.ts";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -30,7 +31,7 @@ export async function runStageWorkload(env, deps = {}) {
     sockets = [],
     rooms = [],
     pending = [],
-    polls = [];
+    resultStreams = [];
   const controller = new AbortController();
   const activeSignal = AbortSignal.any([controller.signal, AbortSignal.timeout(600000)]);
   let receipt,
@@ -276,52 +277,48 @@ export async function runStageWorkload(env, deps = {}) {
     if (sockets.length !== size * 2 || sockets.some((s) => !s.open))
       throw new Error("Workload sockets unavailable");
     async function watchJob(job) {
-      let fetching = false,
-        dirty = false,
-        finished = false,
-        socket;
-      let complete, rejectCompletion;
-      const completion = new Promise((resolve, reject) => {
-        complete = resolve;
-        rejectCompletion = reject;
-      });
-      const refresh = async () => {
-        if (fetching) {
-          dirty = true;
-          return;
-        }
-        fetching = true;
+      let finished = false;
+      while (!finished) {
+        const stream = new AbortController();
         try {
-          do {
-            dirty = false;
+          const response = await send(`${api}/v1/submissions/${job.id}/events`, {
+            headers: {
+              origin: browser,
+              accept: "text/event-stream",
+              ...(job.actor.token
+                ? { authorization: `Bearer ${job.actor.token}` }
+                : { cookie: job.actor.cookie }),
+            },
+            signal: AbortSignal.any([activeSignal, stream.signal]),
+          });
+          if (
+            !response.ok ||
+            !response.body ||
+            !response.headers.get("content-type")?.startsWith("text/event-stream")
+          )
+            throw new Error("Workload submission stream unavailable");
+          await readSubmissionEvents(response.body, async () => {
+            if (finished) return;
             const result = await request(job.actor, `/v1/submissions/${job.id}`);
             if (result.verdict === "accepted") {
               finished = true;
               stats.jobs.push(now() - job.started);
-              complete();
-              return;
-            }
-            if (result.verdict || ["failed", "cancelled"].includes(result.state))
+              stream.abort();
+            } else if (result.verdict || ["failed", "cancelled"].includes(result.state)) {
               throw new Error("Workload execution failed");
-          } while (dirty && !finished);
+            }
+          });
         } catch (error) {
-          rejectCompletion(error);
-          throw error;
+          if (!finished) throw error;
         } finally {
-          fetching = false;
+          stream.abort();
         }
-      };
-      void completion.catch(() => {});
-      const abort = () => rejectCompletion(new Error("Workload deadline exceeded"));
-      activeSignal.addEventListener("abort", abort, { once: true });
-      try {
-        socket = await connect(job.actor, `/v1/submissions/${job.id}`, refresh, (payload) => {
-          if (payload?.type === "changed" && !finished) void refresh().catch(() => {});
-        });
-        await completion;
-      } finally {
-        activeSignal.removeEventListener("abort", abort);
-        await socket?.close();
+        if (!finished) {
+          activeSignal.throwIfAborted();
+          stats.disconnects++;
+          stats.reconnects++;
+          await wait(Math.min(250, remaining()));
+        }
       }
     }
 
@@ -348,7 +345,7 @@ export async function runStageWorkload(env, deps = {}) {
           jobIds.add(admitted.id);
           const job = { actor, id: admitted.id, started };
           const watch = watchJob(job);
-          polls.push(watch);
+          resultStreams.push(watch);
           void watch.catch(() => {});
           return job;
         }),
@@ -357,7 +354,7 @@ export async function runStageWorkload(env, deps = {}) {
       pending.at(-1).catch(() => {});
     }
     const jobs = await Promise.all(pending);
-    await Promise.all(polls);
+    await Promise.all(resultStreams);
     const summarize = (values) => ({
       count: values.length,
       p50Ms: percentile(values, 0.5),
@@ -391,7 +388,7 @@ export async function runStageWorkload(env, deps = {}) {
   } finally {
     controller.abort();
     await Promise.allSettled(pending);
-    await Promise.allSettled(polls);
+    await Promise.allSettled(resultStreams);
     if (
       (await Promise.allSettled(sockets.map((socket) => socket.close()))).some(
         (result) => result.status === "rejected",

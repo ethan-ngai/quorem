@@ -421,61 +421,33 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   expect(rejected.status).toBe(503);
   expect(await count()).toBe(before);
 
-  const upgraded = await SELF.fetch(`http://127.0.0.1:8765/v1/submissions/${submission}/events`, {
-    headers: {
-      upgrade: "websocket",
-      origin: "http://127.0.0.1:5173",
-      "sec-websocket-protocol": `quorem,bearer.${bearer}`,
-    },
-  });
-  expect(upgraded.status).toBe(101);
-  const socket = upgraded.webSocket!;
-  const initial = new Promise<void>((resolve) =>
-    socket.addEventListener("message", (event: MessageEvent) => {
-      const message = JSON.parse(String(event.data)) as { receipt?: string };
-      if (message.receipt) socket.send(JSON.stringify({ type: "receipt", id: message.receipt }));
-      resolve();
-    }),
-  );
-  socket.accept();
-  await initial;
-  const namespace = (
-    env as unknown as {
-      SOCKETS: {
-        idFromName(name: string): unknown;
-        get(id: unknown): Parameters<typeof runDurableObjectAlarm>[0];
-      };
-    }
-  ).SOCKETS;
-  const socketStub = namespace.get(namespace.idFromName(`socket:submission:${submission}`));
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  await Promise.race([
-    evictDurableObject(socketStub),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("eviction timeout")), 5000),
-    ),
-  ]);
-  const closed = new Promise<number>((resolve) =>
-    socket.addEventListener("close", (event: CloseEvent) => resolve(event.code), { once: true }),
-  );
+  const eventsUrl = `http://127.0.0.1:8765/v1/submissions/${submission}/events`;
+  expect((await SELF.fetch(eventsUrl)).status).toBe(401);
+  const events = await SELF.fetch(eventsUrl, { headers });
+  expect(events.status).toBe(200);
+  expect(events.headers.get("content-type")).toContain("text/event-stream");
+  const reader = events.body!.getReader();
+  const decoder = new TextDecoder();
+  try {
+    expect(decoder.decode((await reader.read()).value)).toContain("event: changed");
+    const namespace = (env as unknown as Env).SOCKETS;
+    await namespace.get(namespace.idFromName(`socket:submission:${submission}`)).publish({
+      id: crypto.randomUUID(),
+      aggregateId: submission,
+      version: "2",
+      type: "submission.updated",
+      occurredAt: new Date().toISOString(),
+    });
+    expect(decoder.decode((await reader.read()).value)).toContain("event: changed");
+  } finally {
+    await reader.cancel();
+  }
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
       tx.execute(sql`DELETE FROM quorem_auth."session" WHERE id=${session}`),
     ),
   );
-  await new Promise((resolve) => setTimeout(resolve, 2100));
-  expect(
-    await Promise.race([
-      runDurableObjectAlarm(socketStub),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("alarm timeout")), 5000)),
-    ]),
-  ).toBe(true);
-  expect(
-    await Promise.race([
-      closed,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("close timeout")), 5000)),
-    ]),
-  ).toBe(1008);
+  expect((await SELF.fetch(eventsUrl, { headers })).status).toBe(401);
   const revoked = await SELF.fetch("http://127.0.0.1:8765/v1/workspaces", {
     method: "POST",
     headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },

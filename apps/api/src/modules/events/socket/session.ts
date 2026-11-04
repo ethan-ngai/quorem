@@ -50,7 +50,7 @@ export class SocketSession {
     subscription: SocketSubscription;
     commands?: CommandHandler;
     snapshot?: SocketSnapshotSource;
-    mode: "interview" | "match" | "submission";
+    mode: "interview" | "match";
     now?: () => number;
     renew?: (p: Principal) => Promise<boolean>;
   };
@@ -241,7 +241,6 @@ export class SocketSession {
         const { principal: p, stamp } = await this.authorized();
         if (this.deps.mode === "interview")
           await this.send({ type: "changed", ...(kind ? { kind } : {}) });
-        else if (this.deps.mode === "submission") await this.send({ type: "changed" });
         else if (this.deps.snapshot) {
           const snapshot = await this.deadline((signal) => this.deps.snapshot!.read(p, signal));
           if ((await this.authorized()).stamp !== stamp) {

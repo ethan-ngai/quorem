@@ -1,75 +1,59 @@
-/** @file submissionStream.test.ts @description Snapshot isolation and reconnect recovery. @module editor */
+/** @file submissionStream.test.ts @description Authenticated SSE reconnect and cancellation. @module editor */
+import { authenticatedFetch } from "../auth/session";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { submissionStream } from "./submissionStream";
 
-vi.mock("../auth/session", () => ({ token: vi.fn(async () => "token"), tokenExpiresAt: vi.fn() }));
+vi.mock("../auth/session", () => ({ authenticatedFetch: vi.fn() }));
 
-class Socket {
-  static instances: Socket[] = [];
-  onopen?: () => void;
-  onclose?: () => void;
-  onmessage?: (event: MessageEvent) => void;
-  onerror?: () => void;
-  constructor(
-    readonly url: URL,
-    readonly protocols: string[],
-  ) {
-    Socket.instances.push(this);
-  }
-  send = vi.fn();
-  close() {
-    this.onclose?.();
-  }
-}
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal("WebSocket", Socket);
   vi.stubGlobal("window", { location: { origin: "https://quorem.test" } });
-  Socket.instances = [];
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.resetAllMocks();
 });
 
-it("invalidates on open and change, ignoring stale sockets after reconnect", async () => {
+it("reads split frames, ignores heartbeats, and recovers on reconnect", async () => {
+  const controllers: ReadableStreamDefaultController<Uint8Array>[] = [];
+  vi.mocked(authenticatedFetch).mockImplementation(
+    async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controllers.push(controller);
+          },
+        }),
+        { headers: { "content-type": "text/event-stream" } },
+      ),
+  );
   const changed = vi.fn();
-  const stream = submissionStream("alice", "submission", changed);
-  stream.start();
-  await Promise.resolve();
-  const first = Socket.instances[0]!;
-  expect(first.protocols).toEqual(["quorem", "bearer.token"]);
-  first.onopen?.();
-  expect(changed).toHaveBeenCalledTimes(1);
-  first.onmessage?.({
-    data: JSON.stringify({
-      receipt: "12345678-1234-4123-8123-123456789012",
-      payload: { type: "heartbeat" },
-    }),
-  } as MessageEvent);
-  first.onmessage?.({
-    data: JSON.stringify({
-      receipt: "12345678-1234-4123-8123-123456789012",
-      payload: { type: "changed" },
-    }),
-  } as MessageEvent);
-  expect(changed).toHaveBeenCalledTimes(2);
-  first.onclose?.();
-  await vi.advanceTimersByTimeAsync(600);
-  const second = Socket.instances[1]!;
-  second.onopen?.();
-  first.onmessage?.({
-    data: JSON.stringify({
-      receipt: "12345678-1234-4123-8123-123456789012",
-      payload: { type: "changed" },
-    }),
-  } as MessageEvent);
-  second.onmessage?.({
-    data: JSON.stringify({
-      receipt: "12345678-1234-4123-8123-123456789012",
-      payload: { type: "changed" },
-    }),
-  } as MessageEvent);
-  expect(changed).toHaveBeenCalledTimes(4);
-  stream.stop();
+  const disconnected = vi.fn();
+  const stream = submissionStream("result", changed, disconnected);
+  const encoder = new TextEncoder();
+  try {
+    stream.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const [url, options] = vi.mocked(authenticatedFetch).mock.calls[0]!;
+    expect(url).toEqual(new URL("https://quorem.test/v1/submissions/result/events"));
+    expect(options?.headers).toEqual({ Accept: "text/event-stream" });
+    controllers[0]!.enqueue(encoder.encode(": heartbeat\n\nevent: chan"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(changed).not.toHaveBeenCalled();
+    controllers[0]!.enqueue(encoder.encode("ged\ndata: {}\n\n"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(changed).toHaveBeenCalledOnce();
+    controllers[0]!.close();
+    await vi.advanceTimersByTimeAsync(600);
+    expect(disconnected).toHaveBeenCalledOnce();
+    controllers[1]!.enqueue(encoder.encode("event: changed\ndata: {}\n\n"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(changed).toHaveBeenCalledTimes(2);
+    stream.stop();
+    expect(vi.mocked(authenticatedFetch).mock.calls[1]?.[1]?.signal?.aborted).toBe(true);
+  } finally {
+    stream.stop();
+    controllers[1]?.close();
+  }
 });

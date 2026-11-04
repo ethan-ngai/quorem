@@ -19,7 +19,7 @@ Handlers depend on focused application ports. PostgreSQL adapters own queries, l
 
 PostgreSQL is authoritative on every deployment. Admission commits immutable inputs, quota/idempotency state, jobs and durable intents atomically. Wakeups accelerate durable work; they do not authorize claims or determine results. Claims, heartbeats, cancellation, checkpoints and completion use attempt fencing. External publication follows commit and retries independently.
 
-Browsers use one authorized WebSocket protocol across Node and Durable Objects. Notices trigger scoped authoritative snapshots; receipt acknowledgements, versions and reconnect repair transport loss or duplication. Interview documents retain epoch/version checks and server-controlled stage advancement. Hidden tests, private interview data and opponent source stay behind their authorization owners.
+Live matches and interviews use one authorized WebSocket protocol across Node and Durable Objects. Receipts, versions and reconnects repair transport loss or duplication. Pending submissions use an authenticated SSE stream that invalidates the authorized HTTP result snapshot. The initial event repairs missed updates on reconnect. Interview documents retain epoch/version checks and server-controlled stage advancement. Hidden tests, private interview data and opponent source stay behind their authorization owners.
 
 Node uses request/operation-bounded PostgreSQL connections. Workers uses Hyperdrive and native queue/scheduled entrypoints; Durable Objects own socket and alarm coordination. Trusted judging and verification remain outside the public API process behind explicit ports. Cloudflare case containers and local Docker are distinct adapters with independently validated isolation.
 

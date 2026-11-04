@@ -592,7 +592,7 @@ void test("only supported GET event upgrades consume the socket budget", () => {
         headers,
       }),
     ),
-    true,
+    false,
   );
   assert.equal(
     isSocketRequest(

@@ -34,7 +34,6 @@ import { matchSocketLeases } from "../../../adapters/postgres/matches/socket/lea
 import { interviewCommands } from "../../../modules/events/socket/interview.ts";
 import { matchSocketSnapshot } from "../../../modules/events/socket/match.ts";
 import type { Lifecycle } from "../../../modules/matches/lifecycle/model.ts";
-import type { SubmissionSnapshots } from "../../../modules/judging/results/model.ts";
 import type { SocketAuthority, StoredSocket } from "./durable.ts";
 import { socketTarget } from "./target.ts";
 type Run = <T>(f: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -45,10 +44,9 @@ export function postgresSocketAuthority(deps: {
   verifier: TokenVerifier;
   sessions: SessionAuthority;
   matches: Lifecycle;
-  submissions: SubmissionSnapshots;
   afterInterviewCommand?: () => Promise<void>;
 }): SocketAuthority {
-  const { run, verifier, sessions, matches, submissions } = deps;
+  const { run, verifier, sessions, matches } = deps;
   const bindings: IdentityBindings = {
     lookup: (claims) => run((scope) => identityRepository(scope).lookup(claims)),
     resolve: (claims) => run((scope) => identityRepository(scope).resolve(claims)),
@@ -72,14 +70,9 @@ export function postgresSocketAuthority(deps: {
       );
       return `${access.role}:${access.questionEpoch}:${access.state}`;
     }
-    if (record.mode === "match") {
-      const value = (await matches.read(actor, record.resourceId)) as { version?: unknown };
-      if (typeof value?.version !== "string") throw missing();
-      return value.version;
-    }
-    const stream = await submissions.read(actor, record.resourceId);
-    await stream.cancel();
-    return actor.userId;
+    const value = (await matches.read(actor, record.resourceId)) as { version?: unknown };
+    if (typeof value?.version !== "string") throw missing();
+    return value.version;
   }
   return {
     async issue(request) {
@@ -93,26 +86,17 @@ export function postgresSocketAuthority(deps: {
         actor = await authenticate(token, { verify: async () => claims }, sessions, bindings);
         grant = managedGrant(claims, actor.strongUntil);
       } else {
-        const kinds =
-          mode === "match"
-            ? (["match"] as const)
-            : mode === "interview"
-              ? (["interview"] as const)
-              : (["match", "interview"] as const);
-        const candidates = kinds
-          .map((kind) => ({ kind, token: guestCookie(request.headers, kind) }))
-          .filter((v) => v.token !== undefined);
-        if (candidates.length !== 1) throw new IdentityError("unauthorized");
-        const candidate = candidates[0],
-          hash = await guestTokenHash(candidate.token!);
-        const guest = await readers.guest(candidate.kind, hash);
+        const credential = guestCookie(request.headers, mode);
+        if (!credential) throw new IdentityError("unauthorized");
+        const hash = await guestTokenHash(credential);
+        const guest = await readers.guest(mode, hash);
         if (!guest) throw new IdentityError("unauthorized");
         const resourceId =
           guest.scope.kind === "match" ? guest.scope.matchId : guest.scope.interviewId;
         actor = guest;
         grant = {
           kind: "guest",
-          scope: candidate.kind,
+          scope: mode,
           resourceId,
           hash,
           expiresAt: guest.credentialExpiresAt,
@@ -124,13 +108,11 @@ export function postgresSocketAuthority(deps: {
         grant,
       };
       await authorize(record, actor);
-      if (mode === "interview" || mode === "match") {
-        record.lease =
-          mode === "interview"
-            ? await presence.acquire(actor, target.id)
-            : await matchLeases.acquire(actor, target.id);
-        record.leaseOwner = actor.userId;
-      }
+      record.lease =
+        mode === "interview"
+          ? await presence.acquire(actor, target.id)
+          : await matchLeases.acquire(actor, target.id);
+      record.leaseOwner = actor.userId;
       return record;
     },
     async open(record, binding) {

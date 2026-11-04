@@ -16,7 +16,7 @@ void test("rejects untrusted origins and releases a late upgrade lease", async (
       called++;
       await delay(100);
       return {
-        mode: "submission",
+        mode: "interview",
         security: { verify: async () => ({ binding: "opaque" }), authorize: async () => "invite" },
         subscription: { subscribe: async () => () => {} },
         release: async () => {

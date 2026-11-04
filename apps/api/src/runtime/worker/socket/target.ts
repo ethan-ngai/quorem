@@ -1,18 +1,17 @@
 /** @file target.ts @description Canonical browser socket route classifier. @module runtime */
-import type { NoticeStream } from "../../../modules/events/dispatch/ports.ts";
+type SocketStream = "interview" | "match";
 export type SocketTarget =
-  | { stream: NoticeStream; mode: "direct"; id: string }
-  | { stream: NoticeStream; mode: "invalid" };
+  | { stream: SocketStream; mode: "direct"; id: string }
+  | { stream: SocketStream; mode: "invalid" };
 export function socketTarget(path: string): SocketTarget | undefined {
-  const match = /^\/v1\/(interviews|matches|submissions)\/([^/]+)\/events$/.exec(path);
+  const match = /^\/v1\/(interviews|matches)\/([^/]+)\/events$/.exec(path);
   if (!match) return;
   const stream = (
     {
       interviews: "interview",
       matches: "match",
-      submissions: "submission",
     } as const
-  )[match[1] as "interviews" | "matches" | "submissions"];
+  )[match[1] as "interviews" | "matches"];
   let id: string;
   try {
     id = decodeURIComponent(match[2]);

@@ -142,7 +142,7 @@ export function useSubmission({
   const submission = submissionQuery.data;
   const streaming =
     !!activeSubmissionId &&
-    !submissionQuery.isFetching &&
+    !submissionQuery.isPending &&
     !(
       submissionQuery.error instanceof SubmissionReadError && submissionQuery.error.status === 404
     ) &&
@@ -174,7 +174,6 @@ export function useSubmission({
   useEffect(() => {
     if (!streaming || !activeSubmissionId || !workspace) return;
     const stream = submissionStream(
-      identity,
       activeSubmissionId,
       () => {
         setError(undefined);

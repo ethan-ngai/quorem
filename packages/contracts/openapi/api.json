@@ -253,6 +253,37 @@
         }
       }
     },
+    "/v1/submissions/{id}/events": {
+      "get": {
+        "operationId": "watchSubmission",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Owner-scoped SSE invalidations. Read the submission snapshot after each changed event.",
+            "content": {
+              "text/event-stream": {
+                "schema": { "type": "string" }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/submissions/{id}/cancel": {
       "post": {
         "operationId": "cancelSubmission",

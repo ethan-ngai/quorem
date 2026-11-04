@@ -282,7 +282,7 @@ describe("browser socket protocol", () => {
   it("rejects a guessed receipt", async () => {
     const closed: number[] = [];
     const socket = new SocketSession({
-      mode: "submission",
+      mode: "interview",
       transport: { send: async () => {}, ping: async () => {}, close: (code) => closed.push(code) },
       security: {
         verify: async () => ({ binding: "grant", principal: actor }),

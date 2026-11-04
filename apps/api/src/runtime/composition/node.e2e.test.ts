@@ -1,3 +1,4 @@
+import { readSubmissionEvents } from "@quorem/contracts/submission-events";
 import { assertRuntimeTestDatabase } from "./test-database.ts";
 import { createHmac, createHash } from "node:crypto";
 import { createServer, type RequestListener } from "node:http";
@@ -273,15 +274,39 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
         resumable: true,
         timeoutMs: 30000,
       });
-      const job = await claimNext(port, sandbox, { scope: sandbox.scope, resumable: true });
-      expect(job?.submissionId).toBe(submission);
-      await executeAndStage(job!, port, sandbox, AbortSignal.timeout(120000));
-      await finishAfterTeardown(port, sandbox, job!, AbortSignal.timeout(120000));
-      const result = await fetch(`${base}/v1/submissions/${submission}`, {
-        headers: { authorization: `Bearer ${bearer}` },
+      const events = new AbortController();
+      const signal = AbortSignal.any([events.signal, AbortSignal.timeout(15000)]);
+      const response = await fetch(`${base}/v1/submissions/${submission}/events`, {
+        headers: { authorization: `Bearer ${bearer}`, accept: "text/event-stream" },
+        signal,
       });
-      expect(result.status).toBe(200);
-      expect(await result.text()).toContain('"accepted"');
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/event-stream");
+      let accepted = false;
+      const observe = readSubmissionEvents(response.body!, async () => {
+        const result = await fetch(`${base}/v1/submissions/${submission}`, {
+          headers: { authorization: `Bearer ${bearer}` },
+          signal,
+        });
+        expect(result.status).toBe(200);
+        if ((await result.text()).includes('"accepted"')) {
+          accepted = true;
+          events.abort();
+        }
+      }).catch((error) => {
+        if (!accepted) throw error;
+      });
+      void observe.catch(() => {});
+      try {
+        const job = await claimNext(port, sandbox, { scope: sandbox.scope, resumable: true });
+        expect(job?.submissionId).toBe(submission);
+        await executeAndStage(job!, port, sandbox, AbortSignal.timeout(120000));
+        await finishAfterTeardown(port, sandbox, job!, AbortSignal.timeout(120000));
+        await observe;
+        expect(accepted).toBe(true);
+      } finally {
+        events.abort();
+      }
     } finally {
       await closeRuntime();
       await pool.end();

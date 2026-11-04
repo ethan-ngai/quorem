@@ -570,7 +570,7 @@ void test("verified guest grants recheck real revocation without retaining token
   await lifecycle.mutate(host, room.id, "guest-close", "leave", null);
 });
 
-void test("submission socket sends only invalidation and the HTTP result rechecks ownership", async () => {
+void test("submission SSE sends only invalidations and enforces ownership", async () => {
   const host = await run((scope) => developmentIdentity(scope, "socket-host")),
     other = await run((scope) => developmentIdentity(scope, "socket-member"));
   const problem = crypto.randomUUID(),
@@ -594,42 +594,29 @@ void test("submission socket sends only invalidation and the HTTP result recheck
     "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[]')",
     [submission, host.userId, workspace],
   );
-  const snapshots = submissionSnapshots(run),
-    server = createServer((_req, res) => res.writeHead(404).end());
-  servers.push(server);
-  stops.push(
-    installNodeSockets(server, {
-      origins: ["https://example.test"],
-      resolve: async () => ({
-        mode: "submission",
-        security: {
-          verify: async () => ({ principal: host, binding: "submission-grant" }),
-          authorize: async (principal) => {
-            if (!principal) throw new IdentityError("unauthorized");
-            const result = await snapshots.read(principal, submission);
-            await result.cancel();
-            return "owner";
-          },
-        },
-        subscription: {
-          subscribe: (notify, lost, signal) =>
-            a.subscribe(`/submissions/${submission}`, notify, lost, signal),
-        },
-      }),
-    }),
-  );
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const addr = server.address();
-  assert.ok(addr && typeof addr !== "string");
-  const ws = await connect(`ws://127.0.0.1:${addr.port}/submission`, "host-token");
-  assert.deepEqual(await next(ws), { type: "changed" });
+  const snapshots = submissionSnapshots(run);
   const app = (principal: typeof host) =>
     createApp({ allowedOrigins: [], requestId: () => "submission" }).route(
       "/",
-      submissionRoutes({ snapshots, identify: async () => principal }),
+      submissionRoutes({ snapshots, identify: async () => principal, notices: b }),
     );
-  assert.equal((await app(host).request(`/v1/submissions/${submission}`)).status, 200);
-  assert.equal((await app(other).request(`/v1/submissions/${submission}`)).status, 404);
-  ws.close();
+  const path = `/v1/submissions/${submission}/events`;
+  assert.equal((await app(other).request(path)).status, 404);
+  const response = await app(host).request(path);
+  assert.equal(response.status, 200);
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  try {
+    assert.equal(decoder.decode((await reader.read()).value), "event: changed\ndata: {}\n\n");
+    await a.publish(`/submissions/${submission}`, {
+      id: crypto.randomUUID(),
+      aggregateId: submission,
+      version: "1",
+      type: "submission.updated",
+      occurredAt: new Date().toISOString(),
+    });
+    assert.equal(decoder.decode((await reader.read()).value), "event: changed\ndata: {}\n\n");
+  } finally {
+    await reader.cancel();
+  }
 });
