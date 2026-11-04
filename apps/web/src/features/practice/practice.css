@@ -153,13 +153,15 @@
   ) {
   background: var(--color-overlay);
 }
-.practice-table a {
+.practice-table a,
+.practice-table .catalog-question-title {
   display: inline-block;
   color: var(--color-text);
   font-weight: 500;
   text-decoration: none;
 }
-.practice-table a:hover {
+.practice-table a:hover,
+.practice-table .catalog-question-title:not(:disabled):hover {
   color: var(--color-brand-accent);
 }
 .practice-difficulty {

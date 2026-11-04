@@ -76,7 +76,6 @@ export function QuestionDashboard({
   const [progress, setProgress] = useState("");
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
   const rows: Row[] = tab === "drafts" ? drafts : publications;
-  const showVisibility = tab === "publications" && admin;
   const chosen = rows.filter((row) => selected.has(row.id));
   const allVisible = rows.length > 0 && rows.every((row) => selected.has(row.id));
   const disabled = busy || running;
@@ -294,7 +293,6 @@ export function QuestionDashboard({
                 <th scope="col">Question</th>
                 <th scope="col">Difficulty</th>
                 {tab === "drafts" && <th scope="col">Last edited</th>}
-                {showVisibility && <th scope="col">Visibility</th>}
               </tr>
             }
           >
@@ -310,30 +308,52 @@ export function QuestionDashboard({
                   />
                 </td>
                 <th scope="row">
-                  <button className="quiet-button" disabled={disabled} onClick={() => onOpen(row)}>
-                    {row.title || "Untitled question"}
-                  </button>
-                  {"revision" in row ? (
-                    <>
-                      {row.editVersionId && (
+                  <div className="admin-question-heading">
+                    <button
+                      type="button"
+                      className="catalog-question-title"
+                      disabled={disabled}
+                      onClick={() => onOpen(row)}
+                    >
+                      {row.title || "Untitled question"}
+                    </button>
+                    {"revision" in row ? (
+                      <>
+                        {row.editVersionId && (
+                          <span className="admin-question-status">
+                            <FilePenLine size={14} aria-hidden="true" />
+                            Update draft
+                          </span>
+                        )}
+                        {row.ready === false && (
+                          <span className="admin-question-status">Needs fixes</span>
+                        )}
+                      </>
+                    ) : (
+                      !row.current && (
                         <span className="admin-question-status">
-                          <FilePenLine size={14} aria-hidden="true" />
-                          Update draft
+                          <Icon name="eye-off" width={14} height={14} />
+                          Unpublished
                         </span>
-                      )}
-                      {row.ready === false && (
-                        <span className="admin-question-status">Needs fixes</span>
-                      )}
-                    </>
-                  ) : (
-                    !row.current && (
-                      <span className="admin-question-status">
-                        <Icon name="eye-off" width={14} height={14} />
-                        Unpublished
+                      )
+                    )}
+                    {"isPrivate" in row && !row.isPrivate && (
+                      <span
+                        className="practice-indicators"
+                        role="img"
+                        aria-label="Global question"
+                        title="Global question"
+                      >
+                        <Globe size={16} aria-hidden="true" />
                       </span>
-                    )
-                  )}
-                  {row.isOdyssey && <QuestionIndicators privateQuestion={false} odyssey />}
+                    )}
+                    {(("isPrivate" in row && row.isPrivate) || row.isOdyssey) && (
+                      <QuestionIndicators
+                        privateQuestion={"isPrivate" in row && row.isPrivate}
+                        odyssey={row.isOdyssey}
+                      />
+                    )}
+                  </div>
                   <QuestionTopics
                     tags={row.tags}
                     disabled={disabled}
@@ -356,23 +376,11 @@ export function QuestionDashboard({
                     </time>
                   </td>
                 )}
-                {showVisibility && "isPrivate" in row && (
-                  <td>
-                    <span className="admin-question-status">
-                      {row.isPrivate ? (
-                        <Icon name="lock" width={14} height={14} />
-                      ) : (
-                        <Globe size={14} aria-hidden="true" />
-                      )}
-                      {row.isPrivate ? "Private" : "Global"}
-                    </span>
-                  </td>
-                )}
               </tr>
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={tab === "drafts" || showVisibility ? 4 : 3}>No matching questions.</td>
+                <td colSpan={tab === "drafts" ? 4 : 3}>No matching questions.</td>
               </tr>
             )}
           </CatalogTable>
