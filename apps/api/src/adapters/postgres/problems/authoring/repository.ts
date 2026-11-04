@@ -149,14 +149,7 @@ function sourceId(problem: Obj): string | null {
   return value === undefined || value === null ? null : stringifyLosslessJson(value);
 }
 
-async function importItem(
-  tx: Transaction,
-  actor: AuthorActor,
-  admin: boolean,
-  raw: string,
-  preview: boolean,
-  runtime: RuntimeResolver,
-) {
+async function prepareImport(raw: string, admin: boolean) {
   const normalized = normal(raw);
   const p = object(content(normalized).problem);
   const slug = str(p.slug);
@@ -171,8 +164,18 @@ async function importItem(
   } catch {
     throw bad("Invalid question schema");
   }
-  const digest = await contentDigest(normalized);
-  if (!preview) await lockIdentity(tx, slug, leetcode);
+  return { normalized, slug, leetcode, digest: await contentDigest(normalized) };
+}
+
+async function importItem(
+  tx: Transaction,
+  actor: AuthorActor,
+  admin: boolean,
+  item: Awaited<ReturnType<typeof prepareImport>>,
+  preview: boolean,
+  runtime: RuntimeResolver,
+) {
+  const { normalized, slug, leetcode, digest } = item;
   const [receipt] = (
     await tx.execute<{ id: string }>(sql`
       SELECT id::text AS id FROM question_drafts
@@ -392,7 +395,49 @@ function createQuestionAuthoring(
     async importDraft(actor, raw, preview) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, !preview);
-        return importItem(tx, actor, admin, raw, preview, runtime);
+        const item = await prepareImport(raw, admin);
+        if (!preview) await lockIdentity(tx, item.slug, item.leetcode);
+        return importItem(tx, actor, admin, item, preview, runtime);
+      }, preview);
+    },
+    async importDraftBatch(actor, raws, preview) {
+      return transact(async (tx) => {
+        const { admin } = await author(tx, actor, !preview);
+        const items = await Promise.all(
+          raws.map(async (raw) => {
+            try {
+              return await prepareImport(raw, admin);
+            } catch (error) {
+              if (!(error instanceof ApplicationError)) throw error;
+              return { status: "invalid", message: error.message } as const;
+            }
+          }),
+        );
+        if (!preview) {
+          const identities = items.flatMap((item) =>
+            "slug" in item ? [{ slug: item.slug, source: item.leetcode }] : [],
+          );
+          // Match the single-item lock order. Sort within each namespace for overlapping batches.
+          await tx.execute(sql`
+            SELECT pg_advisory_xact_lock(key)
+            FROM (
+              SELECT DISTINCT 0 AS phase, hashtextextended(slug,740071) AS key
+              FROM jsonb_to_recordset(${JSON.stringify(identities)}::jsonb) AS i(slug text, source text)
+              UNION ALL
+              SELECT DISTINCT 1 AS phase, hashtextextended(source,740072) AS key
+              FROM jsonb_to_recordset(${JSON.stringify(identities)}::jsonb) AS i(slug text, source text)
+              WHERE source IS NOT NULL
+            ) locks ORDER BY phase,key
+          `);
+        }
+        const results: string[] = [];
+        for (const item of items)
+          results.push(
+            "status" in item
+              ? JSON.stringify(item)
+              : await importItem(tx, actor, admin, item, preview, runtime),
+          );
+        return `{"items":[${results.join(",")}]}`;
       }, preview);
     },
     async update(actor, id, rev, raw) {

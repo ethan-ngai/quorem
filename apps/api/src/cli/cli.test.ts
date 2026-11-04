@@ -562,6 +562,30 @@ it.skipIf(!url)(
         status: "existing",
         draftId: items[0].draftId,
       });
+      const first = JSON.stringify({
+        ...draft,
+        problem: { ...draft.problem, slug: draft.problem.slug + "-a" },
+      });
+      const second = JSON.stringify({
+        ...draft,
+        problem: { ...draft.problem, slug: draft.problem.slug + "-b" },
+      });
+      const check = JSON.parse(await repo.importDraftBatch(actor, [first, "{", second], true));
+      expect(check.items.map((item: { status: string }) => item.status)).toEqual([
+        "ready",
+        "invalid",
+        "ready",
+      ]);
+      const batches = await Promise.all([
+        repo.importDraftBatch(actor, [first, "{", second], false),
+        repo.importDraftBatch(actor, [second, first], false),
+      ]);
+      const [forward, reverse] = batches.map((value) => JSON.parse(value).items);
+      expect(forward[1].status).toBe("invalid");
+      expect(forward[0].draftId).toBe(reverse[1].draftId);
+      expect(forward[2].draftId).toBe(reverse[0].draftId);
+      expect([forward[0].status, reverse[1].status].sort()).toEqual(["created", "existing"]);
+      expect([forward[2].status, reverse[0].status].sort()).toEqual(["created", "existing"]);
       await expect(
         repo.importDraft({ userId: "missing", admin: true }, raw, false),
       ).rejects.toThrow("Custom question access required");
