@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { Field } from "./AuthoringFields";
@@ -49,30 +50,59 @@ export function AuthoringCodeField({
 export function TopicField({
   tags,
   onChange,
-  label = "Topics, separated by commas",
+  label = "Topics",
+  limit = 32,
 }: {
   tags: string[];
   label?: string;
+  limit?: number;
   onChange: (tags: string[]) => void;
 }) {
-  const [source, setSource] = useState(tags.join(", "));
+  const [source, setSource] = useState("");
+  const id = useId();
+  const next = source.trim();
+  const canAdd =
+    tags.length < limit && !!next && !tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
+  function add() {
+    if (!canAdd) return;
+    onChange([...tags, next]);
+    setSource("");
+  }
   return (
-    <Field label={label}>
-      <input
-        value={source}
-        onChange={(event) => {
-          setSource(event.target.value);
-          onChange([
-            ...new Set(
-              event.target.value
-                .split(",")
-                .map((tag) => tag.trim())
-                .filter(Boolean),
-            ),
-          ]);
-        }}
-      />
-    </Field>
+    <div className="admin-field">
+      <label htmlFor={id}>{label}</label>
+      {!!tags.length && (
+        <ul className="authoring-chips" aria-label={label}>
+          {tags.map((tag, index) => (
+            <li key={index}>
+              {tag}
+              <button
+                type="button"
+                aria-label={`Remove ${tag}`}
+                onClick={() => onChange(tags.filter((_, position) => position !== index))}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="authoring-inline-input">
+        <input
+          id={id}
+          value={source}
+          onChange={(event) => setSource(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            add();
+          }}
+        />
+        <button type="button" className="button button-secondary" disabled={!canAdd} onClick={add}>
+          Add
+        </button>
+      </div>
+    </div>
   );
 }
 

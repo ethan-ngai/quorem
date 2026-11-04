@@ -25,11 +25,12 @@ const problem = {
 } as unknown as ProblemVersion;
 
 describe("SQL custom table drafts", () => {
-  it("preserves large integers, decimals, empty strings and nulls", () => {
+  it("normalizes legacy column metadata while preserving precision, empty strings and nulls", () => {
     const setup = JSON.stringify({
       tables: [
         {
           name: "items",
+          columns: problem.sql!.tables![0]!.columns,
           rows: [
             ["9223372036854775807", "12345678901234567890.1200", "", false],
             [null, null, null, null],
@@ -38,6 +39,7 @@ describe("SQL custom table drafts", () => {
       ],
     });
     const expected = JSON.stringify({
+      columns: ["price", "id"],
       rows: [["12345678901234567890.1200", "9223372036854775807"]],
     });
     expect(normalizeSqlDraft(problem, setup, expected)).toEqual({

@@ -8,6 +8,7 @@ import {
   createCustomDraft,
   formatTypedField,
   parseCustomDraft,
+  parseProblemDraft,
   type CustomCaseDraft,
 } from "../editor/customCases";
 import "../editor/components/customCases.css";
@@ -15,23 +16,32 @@ export function AuthoringCases({
   content,
   onChange,
   onValidityChange,
+  stageIndex,
 }: {
   content: QuestionContent;
   onChange: (content: QuestionContent) => void;
   onValidityChange: (label: string, invalid: boolean) => void;
+  stageIndex?: number;
 }) {
   const [collection, setCollection] = useState<"public" | "hidden">("public");
   const [selected, setSelected] = useState<Record<string, string | undefined>>({});
   const id = useId();
   const p = content.problem;
+  const stage = stageIndex === undefined ? undefined : p.odyssey?.levels[stageIndex];
+  const examples = stage?.examples ?? p.examples;
+  const hiddenCases =
+    stageIndex === undefined
+      ? content.hiddenCases
+      : (content.odysseyHiddenCases?.[stageIndex] ?? []);
+  const caseKey = `cases:${id}`;
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(
     () => () => {
-      validity.current("cases:public", false);
-      validity.current("cases:hidden", false);
+      validity.current(`${caseKey}:public`, false);
+      validity.current(`${caseKey}:hidden`, false);
     },
-    [],
+    [caseKey],
   );
   const defaults = createCustomDraft({ ...p, examples: [] });
   function format(
@@ -49,56 +59,80 @@ export function AuthoringCases({
 
   const draft = (test: QuestionContent["hiddenCases"][number]): CustomCaseDraft => ({
     id: randomUUID(),
-    args: p.signature.parameters.map((parameter, index) =>
-      format(parameter.type, test.args[index]!, defaults.args[index]!, parameter.input),
-    ),
+    args: p.sql
+      ? [JSON.stringify(test.args[0] ?? { tables: [] })]
+      : p.signature.parameters.map((parameter, index) =>
+          format(parameter.type, test.args[index]!, defaults.args[index]!, parameter.input),
+        ),
     expectedEnabled: true,
-    expected: format(p.signature.returnType, test.expected ?? null, defaults.expected),
+    expected: p.sql
+      ? JSON.stringify(test.expected ?? { rows: [] })
+      : format(p.signature.returnType, test.expected ?? null, defaults.expected),
   });
   const [values, setValues] = useState(() => ({
-    public: p.examples.map(draft),
-    hidden: content.hiddenCases.map(draft),
+    public: examples.map(draft),
+    hidden: hiddenCases.map(draft),
   }));
   useEffect(() => {
     for (const tab of ["public", "hidden"] as const) {
       try {
-        values[tab].forEach((test) => parseCustomDraft(test, p.signature, p.constraints));
-        validity.current(`cases:${tab}`, false);
+        values[tab].forEach((test) =>
+          p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, p.signature, p.constraints),
+        );
+        validity.current(`${caseKey}:${tab}`, false);
       } catch {
-        validity.current(`cases:${tab}`, true);
+        validity.current(`${caseKey}:${tab}`, true);
       }
     }
-  }, [values, p.signature, p.constraints]);
+  }, [values, p.sql, p.signature, p.constraints, caseKey]);
+  const selectedExample =
+    values.public.find((example) => example.id === selected.public) ?? values.public[0];
   const [explanations, setExplanations] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      values.public.map((test, index) => [test.id, p.examples[index]?.explanation ?? ""]),
+      values.public.map((test, index) => [test.id, examples[index]?.explanation ?? ""]),
     ),
   );
   function change(next: CustomCaseDraft[], descriptions = explanations) {
     setValues((current) => ({ ...current, [collection]: next }));
     try {
-      const tests = next.map((test) => parseCustomDraft(test, p.signature));
-      if (collection === "public")
+      const tests = next.map((test) =>
+        p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, p.signature),
+      );
+      if (collection === "public") {
+        const examples = tests.map((test, index) => ({
+          ...test,
+          expected: test.expected!,
+          explanation: descriptions[next[index]!.id],
+        }));
         onChange({
           ...content,
-          problem: {
-            ...p,
-            examples: tests.map((test, index) => ({
-              ...test,
-              expected: test.expected!,
-              explanation: descriptions[next[index]!.id],
-            })),
-          },
+          problem:
+            stageIndex === undefined || !p.odyssey
+              ? { ...p, examples }
+              : {
+                  ...p,
+                  odyssey: {
+                    ...p.odyssey,
+                    levels: p.odyssey.levels.map((level, index) =>
+                      index === stageIndex ? { ...level, examples } : level,
+                    ),
+                  },
+                },
         });
-      else
-        onChange({
-          ...content,
-          hiddenCases: tests.map((test) => ({ ...test, expected: test.expected! })),
-        });
-      next.forEach((test) => parseCustomDraft(test, p.signature, p.constraints));
-      onValidityChange(`cases:${collection}`, false);
+      } else {
+        if (stageIndex === undefined) onChange({ ...content, hiddenCases: tests });
+        else
+          onChange({
+            ...content,
+            odysseyHiddenCases: p.odyssey?.levels.map((_, index) =>
+              index === stageIndex ? tests : (content.odysseyHiddenCases?.[index] ?? []),
+            ),
+          });
+      }
+      if (!p.sql) next.forEach((test) => parseCustomDraft(test, p.signature, p.constraints));
+      onValidityChange(`${caseKey}:${collection}`, false);
     } catch {
-      onValidityChange(`cases:${collection}`, true);
+      onValidityChange(`${caseKey}:${collection}`, true);
     }
   }
   return (
@@ -142,7 +176,7 @@ export function AuthoringCases({
       >
         <TestCases
           key={collection}
-          problem={p}
+          problem={p.sql ? { ...p, examples: [] } : p}
           customMode
           drafts={values[collection]}
           onDraftsChange={change}
@@ -156,20 +190,23 @@ export function AuthoringCases({
         />
       </div>
       {collection === "public" &&
-        values.public.map((example, index) => (
-          <label className="admin-field" key={example.id}>
-            <span>Example {index + 1} explanation</span>
-            <textarea
-              rows={2}
-              value={explanations[example.id] ?? ""}
-              onChange={(event) => {
-                const next = { ...explanations, [example.id]: event.target.value };
-                setExplanations(next);
-                change(values.public, next);
-              }}
-            />
-          </label>
-        ))}
+        values.public.map(
+          (example, index) =>
+            selectedExample?.id === example.id && (
+              <label className="admin-field" key={example.id}>
+                <span>Example {index + 1} explanation</span>
+                <textarea
+                  rows={2}
+                  value={explanations[example.id] ?? ""}
+                  onChange={(event) => {
+                    const next = { ...explanations, [example.id]: event.target.value };
+                    setExplanations(next);
+                    change(values.public, next);
+                  }}
+                />
+              </label>
+            ),
+        )}
     </div>
   );
 }

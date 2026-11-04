@@ -14,14 +14,16 @@ import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { SessionDialog } from "../../ui/SessionDialog";
+import { SqlStages } from "./SqlStages";
 import { SqlSchemaFields } from "./SqlSchemaFields";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { AuthoringCases } from "./AuthoringCases";
 import { AuthoringStages } from "./AuthoringStages";
-import { Field, JSONField } from "./AuthoringFields";
-export { JSONField, validJSONShape } from "./AuthoringFields";
+import { Field } from "./AuthoringFields";
+import { ConstraintFields } from "./ConstraintFields";
 import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
+import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
@@ -117,7 +119,7 @@ export function QuestionFields({
               title: "Step 1",
               statementMarkdown: problem.statementMarkdown,
               methods: isSQL ? [] : [problem.signature],
-              examples: [],
+              examples: isSQL && problem.sql ? problem.examples : [],
             },
           ],
         }
@@ -160,13 +162,15 @@ export function QuestionFields({
         problem: {
           ...problem,
           odyssey,
+          examples: staged ? [] : isSQL ? (problem.odyssey?.levels[0]?.examples ?? []) : [],
         },
+        hiddenCases: staged ? [] : isSQL ? (content.odysseyHiddenCases?.[0] ?? []) : [],
         implementations: content.implementations.map((item) =>
           !isSQL && methods && !item.starterSource
             ? { ...item, starterSource: initialOdysseySource(methods, item.language) }
             : item,
         ),
-        odysseyHiddenCases: staged ? [[]] : [],
+        odysseyHiddenCases: staged ? [isSQL ? content.hiddenCases : []] : [],
       });
     }
     setPendingType(undefined);
@@ -287,6 +291,15 @@ export function QuestionFields({
           </div>
           <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
           <details className="authoring-options">
+            <summary>Constraints ({problem.constraints.length})</summary>
+            <ConstraintFields
+              value={problem.constraints}
+              signature={problem.sql ? undefined : problem.signature}
+              disabled={disabled}
+              onChange={(constraints) => setProblem({ constraints })}
+            />
+          </details>
+          <details className="authoring-options">
             <summary>Advanced settings</summary>
             <div className="admin-field-pair">
               <Field label="Slug">
@@ -296,16 +309,17 @@ export function QuestionFields({
                   onChange={(event) => setProblem({ slug: event.target.value })}
                 />
               </Field>
+              <LeetcodeIDField
+                value={problem.leetcodeId ?? null}
+                onChange={(leetcodeId) => setProblem({ leetcodeId })}
+                onValidityChange={(invalid) => onValidityChange("leetcodeId", invalid)}
+              />
             </div>
             <TopicField
-              label="Companies, separated by commas"
+              label="Companies"
+              limit={64}
               tags={problem.companies ?? []}
               onChange={(companies) => setProblem({ companies })}
-            />
-            <LeetcodeIDField
-              value={problem.leetcodeId ?? null}
-              onChange={(leetcodeId) => setProblem({ leetcodeId })}
-              onValidityChange={(invalid) => onValidityChange("leetcodeId", invalid)}
             />
             <Field label="Attribution">
               <input
@@ -313,15 +327,7 @@ export function QuestionFields({
                 onChange={(event) => onChange({ ...content, attribution: event.target.value })}
               />
             </Field>
-            <JSONField
-              label="Structured constraints"
-              value={problem.constraints}
-              onValidityChange={onValidityChange}
-              onChange={(constraints) =>
-                setProblem({ constraints: constraints as ProblemVersion["constraints"] })
-              }
-            />
-            <div className="admin-field-pair">
+            <div className="authoring-limits">
               {Object.entries(problem.limits).map(([name, value]) => (
                 <AuthoringNumberField
                   key={name}
@@ -369,64 +375,8 @@ export function QuestionFields({
           aria-labelledby={`${id}-tests`}
           hidden={section !== "tests"}
         >
-          {problem.sql ? (
-            <>
-              {problem.odyssey ? (
-                <>
-                  <JSONField
-                    label="SQL stages"
-                    value={problem.odyssey.levels}
-                    onValidityChange={onValidityChange}
-                    onChange={(levels) =>
-                      setProblem({
-                        odyssey: {
-                          levels: levels as NonNullable<ProblemVersion["odyssey"]>["levels"],
-                        },
-                      })
-                    }
-                  />
-                  <JSONField
-                    label="SQL stage hidden cases"
-                    value={content.odysseyHiddenCases ?? []}
-                    onValidityChange={onValidityChange}
-                    onChange={(odysseyHiddenCases) =>
-                      onChange({
-                        ...content,
-                        odysseyHiddenCases:
-                          odysseyHiddenCases as QuestionContent["odysseyHiddenCases"],
-                      })
-                    }
-                  />
-                </>
-              ) : (
-                <>
-                  <JSONField
-                    label="SQL examples"
-                    value={problem.examples}
-                    onValidityChange={onValidityChange}
-                    onChange={(examples) =>
-                      setProblem({ examples: examples as ProblemVersion["examples"] })
-                    }
-                  />
-                  <JSONField
-                    label="SQL hidden cases"
-                    value={content.hiddenCases}
-                    onValidityChange={onValidityChange}
-                    onChange={(hiddenCases) =>
-                      onChange({
-                        ...content,
-                        hiddenCases: hiddenCases as QuestionContent["hiddenCases"],
-                      })
-                    }
-                  />
-                </>
-              )}
-              <p>
-                Each case supplies table names and rows in args, and result rows in expected. Column
-                names and types come from the schema. Numeric results use {`{"$numeric":"1.25"}`} to
-                retain precision.
-              </p>
-            </>
+          {problem.sql && problem.odyssey ? (
+            <SqlStages content={content} onChange={onChange} onValidityChange={onValidityChange} />
           ) : problem.odyssey ? (
             <AuthoringStages
               content={content}
@@ -435,10 +385,14 @@ export function QuestionFields({
             />
           ) : (
             <AuthoringCases
-              key={JSON.stringify([
-                problem.signature.parameters.map((p) => p.type),
-                problem.signature.returnType,
-              ])}
+              key={
+                problem.sql
+                  ? "sql"
+                  : JSON.stringify([
+                      problem.signature.parameters.map((p) => p.type),
+                      problem.signature.returnType,
+                    ])
+              }
               content={content}
               onChange={onChange}
               onValidityChange={onValidityChange}
@@ -605,7 +559,25 @@ export function QuestionFields({
 export function PublicPreview({ content }: { content: QuestionContent }) {
   return (
     <div className="admin-preview">
-      <ProblemStatement problem={content.problem} />
+      <ProblemStatement
+        problem={content.problem}
+        beforeExamples={
+          !content.problem.sql && (
+            <section className="problem-section">
+              <h2>{content.problem.odyssey ? "Methods" : "Method signature"}</h2>
+              {(
+                content.problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
+                  content.problem.signature,
+                ]
+              ).map((signature, index) => (
+                <div key={index} className="authoring-signature-line">
+                  <MethodSignature signature={signature} />
+                </div>
+              ))}
+            </section>
+          )
+        }
+      />
       {content.solutions.map((solution) => (
         <section key={solution.language}>
           <h2>{solutionLanguageLabel(solution.language as Language)} solution</h2>

@@ -2,7 +2,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { OdysseyPanel } from "./OdysseyPanel";
-import { validJSONShape } from "../admin/QuestionFields";
 
 describe("Odyssey level presentation", () => {
   it("shows the authorized level and void method contract without inserting source", () => {
@@ -38,23 +37,5 @@ describe("Odyssey level presentation", () => {
     expect(markup).not.toContain("Unlocked levels");
     expect(markup).not.toContain("<script>");
     expect(markup).not.toContain("textarea");
-  });
-  it("accepts typed sequence example authoring without a top-level expected value", () => {
-    expect(
-      validJSONShape("Level 1 public examples", [
-        { args: [], calls: [{ methodName: "put", args: ["key", 1], expected: null }] },
-      ]),
-    ).toBe(true);
-    expect(
-      validJSONShape("Level 1 methods", [
-        {
-          className: "Solution",
-          methodName: "put",
-          returnType: "void",
-          parameters: [{ name: "key", type: "str" }],
-        },
-      ]),
-    ).toBe(true);
-    expect(validJSONShape("Level 1 methods", [{ methodName: "put" }])).toBe(false);
   });
 });
