@@ -44,8 +44,8 @@ export async function matchConformance(run: Run): Promise<void> {
     crypto.randomUUID(),
     normalizeSettings({ difficulty: "easy" }),
   )) as { id: string; inviteUrl: string };
-  let token = created.inviteUrl.slice("/invite/".length),
-    notifier!: (n: Notice) => void;
+  const token = created.inviteUrl.slice("/invite/".length);
+  let notifier!: (n: Notice) => void;
   const sent: Record<string, unknown>[] = [],
     closed: number[] = [];
   const transport = {
@@ -125,9 +125,7 @@ export async function matchConformance(run: Run): Promise<void> {
   await memberSocket.heartbeat();
   expect(memberClosed).toEqual([1008]);
 
-  const rotated = (await invites.rotate(actor, created.id, crypto.randomUUID())) as {
-    inviteUrl: string;
-  };
+  await invites.rotate(actor, created.id, crypto.randomUUID());
   notifier({
     id: crypto.randomUUID(),
     aggregateId: created.id,
@@ -137,63 +135,6 @@ export async function matchConformance(run: Run): Promise<void> {
   });
   await tick();
   expect(sent.at(-1)?.aggregateVersion).not.toBe(initial);
-  let inviteToken = rotated.inviteUrl.slice("/invite/".length);
-  const inviteClosed: number[] = [],
-    inviteFrames: unknown[] = [];
-  const invite = new SocketSession({
-    mode: "invite",
-    transport: {
-      send: async (frame) => {
-        const { receipt, payload } = JSON.parse(frame);
-        inviteFrames.push(payload);
-        queueMicrotask(() => invite.receive(JSON.stringify({ type: "receipt", id: receipt })));
-      },
-      ping: async () => {},
-      close: (code) => {
-        inviteClosed.push(code);
-      },
-    },
-    subscription: { subscribe: async () => () => {} },
-    security: {
-      verify: async () => ({ binding: "opaque-invite-grant" }),
-      authorize: async () => {
-        await invites.preview(inviteToken);
-        return "invite";
-      },
-    },
-  });
-  await invite.start();
-  expect(inviteFrames).toEqual([{ type: "changed" }]);
-  const next = (await invites.rotate(actor, created.id, crypto.randomUUID())) as {
-    inviteUrl: string;
-  };
-  await invite.heartbeat();
-  expect(inviteClosed).toEqual([1008]);
-  token = next.inviteUrl.slice("/invite/".length);
-  inviteToken = token;
-  const expired: number[] = [];
-  const expiry = new SocketSession({
-    mode: "invite",
-    transport: {
-      send: async (frame) => {
-        const { receipt } = JSON.parse(frame);
-        queueMicrotask(() => expiry.receive(JSON.stringify({ type: "receipt", id: receipt })));
-      },
-      ping: async () => {},
-      close: (code) => {
-        expired.push(code);
-      },
-    },
-    subscription: { subscribe: async () => () => {} },
-    security: {
-      verify: async () => ({ binding: "second-opaque-grant" }),
-      authorize: async () => {
-        await invites.preview(token);
-        return "invite";
-      },
-    },
-  });
-  await expiry.start();
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(
@@ -201,13 +142,10 @@ export async function matchConformance(run: Run): Promise<void> {
       );
     }),
   );
-  await expiry.heartbeat();
-  expect(expired).toEqual([1008]);
   await socket.heartbeat();
   await tick();
   expect(sent.at(-1)).toMatchObject({ type: "match.completed", aggregateId: created.id });
   for (let i = 0; i < 50 && !closed.includes(1000); i++) await tick();
   expect(closed).toContain(1000);
   socket.close();
-  expiry.close();
 }

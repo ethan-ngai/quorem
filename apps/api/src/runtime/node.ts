@@ -188,7 +188,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     disposers.push(() => recovery.close());
     const dispatch = async () => {
       await recoverAll([
-        ...(["interview", "match", "submission", "membership"] as const).map(
+        ...(["interview", "match", "submission"] as const).map(
           (name) => () => dispatchBatch(store, notices, wake, name),
         ),
         async () => {
@@ -326,9 +326,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         const prefix = {
           interview: "interviews",
           match: "matches",
-          invite: "match-invites",
           submission: "submissions",
-          membership: "memberships",
         }[record.mode];
         return {
           ...opened,

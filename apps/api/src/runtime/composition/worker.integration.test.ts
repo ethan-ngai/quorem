@@ -1,11 +1,5 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
-import {
-  env,
-  SELF,
-  runDurableObjectAlarm,
-  evictDurableObject,
-  runInDurableObject,
-} from "cloudflare:test";
+import { env, SELF, runDurableObjectAlarm, evictDurableObject } from "cloudflare:test";
 import { expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { withWorkerConnection } from "@quorem/database/core";
@@ -240,7 +234,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
       tx.execute(
-        sql`INSERT INTO membership_outbox(id,participant_id,occurred_at,published_at) VALUES(${expiredNotice}::uuid,${crypto.randomUUID()}::uuid,clock_timestamp()-interval '8 days',clock_timestamp())`,
+        sql`INSERT INTO interview_outbox(id,session_id,event_type,occurred_at,published_at) VALUES(${expiredNotice}::uuid,${room}::uuid,'runtime.retention.fixture',clock_timestamp()-interval '8 days',clock_timestamp())`,
       ),
     ),
   );
@@ -249,8 +243,8 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     scope.transaction(
       { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
       async (tx) =>
-        (await tx.execute(sql`SELECT 1 FROM membership_outbox WHERE id=${expiredNotice}::uuid`))
-          .rows.length,
+        (await tx.execute(sql`SELECT 1 FROM interview_outbox WHERE id=${expiredNotice}::uuid`)).rows
+          .length,
     ),
   );
   expect(retained).toBe(0);
@@ -308,57 +302,6 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       ),
     ),
   );
-  const inviteURL = `http://127.0.0.1:8765/v1/match-invites/${invite}/events`;
-  const forbidden = await SELF.fetch(inviteURL, {
-    headers: {
-      upgrade: "websocket",
-      origin: "https://evil.test",
-      "sec-websocket-protocol": "quorem",
-    },
-  });
-  expect(forbidden.status).toBe(403);
-  const inviteUpgrade = await SELF.fetch(inviteURL, {
-    headers: {
-      upgrade: "websocket",
-      origin: "http://127.0.0.1:5173",
-      "sec-websocket-protocol": "quorem",
-      "x-quorem-socket-scope": crypto.randomUUID(),
-    },
-  });
-  expect(inviteUpgrade.status).toBe(101);
-  const inviteSocket = inviteUpgrade.webSocket!;
-  const firstInvite = new Promise<void>((resolve) =>
-    inviteSocket.addEventListener(
-      "message",
-      (event: MessageEvent) => {
-        const frame = JSON.parse(String(event.data)) as { receipt?: string };
-        if (frame.receipt)
-          inviteSocket.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
-        resolve();
-      },
-      { once: true },
-    ),
-  );
-  inviteSocket.accept();
-  await firstInvite;
-  const inviteNamespace = (
-    env as unknown as {
-      SOCKETS: {
-        idFromName(name: string): unknown;
-        get(id: unknown): Parameters<typeof runInDurableObject>[0];
-      };
-    }
-  ).SOCKETS;
-  const inviteStub = inviteNamespace.get(inviteNamespace.idFromName(`socket:match:${matchId}`));
-  const attachments = await runInDurableObject(inviteStub, (_instance, state) =>
-    state
-      .getWebSockets()
-      .map((socket: { deserializeAttachment(): unknown }) => socket.deserializeAttachment()),
-  );
-  expect(attachments).toHaveLength(1);
-  expect(JSON.stringify(attachments)).not.toContain(invite);
-  inviteSocket.close();
-
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(
@@ -478,7 +421,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   expect(rejected.status).toBe(503);
   expect(await count()).toBe(before);
 
-  const upgraded = await SELF.fetch("http://127.0.0.1:8765/v1/memberships/events", {
+  const upgraded = await SELF.fetch(`http://127.0.0.1:8765/v1/submissions/${submission}/events`, {
     headers: {
       upgrade: "websocket",
       origin: "http://127.0.0.1:5173",
@@ -504,18 +447,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       };
     }
   ).SOCKETS;
-  const participant = await run((scope) =>
-    scope.transaction(
-      { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },
-      async (tx) =>
-        (
-          await tx.execute<{ participant: string }>(
-            sql`SELECT u.participant_id::text AS participant FROM users u JOIN identity_bindings b ON b.user_id=u.id WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=${user}`,
-          )
-        ).rows[0].participant,
-    ),
-  );
-  const socketStub = namespace.get(namespace.idFromName(`socket:membership:${participant}`));
+  const socketStub = namespace.get(namespace.idFromName(`socket:submission:${submission}`));
   await new Promise((resolve) => setTimeout(resolve, 200));
   await Promise.race([
     evictDurableObject(socketStub),

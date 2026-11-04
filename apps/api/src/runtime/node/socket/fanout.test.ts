@@ -8,7 +8,6 @@ import { WebSocketServer } from "ws";
 import { frameText, wireNotice } from "../../../adapters/events/fanout/common.ts";
 import { PostgresFanout } from "../../../adapters/events/fanout/postgres.ts";
 import { AppSyncFanout } from "../../../adapters/events/fanout/appsync.ts";
-import { noticePublisher } from "../../../adapters/events/fanout/publisher.ts";
 import { CloudflareFanout } from "../../../adapters/events/fanout/cloudflare.ts";
 const db = process.env.QUOREM_NODE_SOCKET_TEST_DATABASE_URL;
 if (
@@ -257,20 +256,4 @@ void test("Cloudflare private relay requires credential and maps notices", async
     await new Promise<void>((resolve) => wss.close(() => resolve()));
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
-});
-
-void test("match dispatch publishes both channels and propagates partial failures", async () => {
-  const topics: string[] = [];
-  const publisher = noticePublisher({
-    publish: async (topic, value) => {
-      topics.push(topic);
-      assert.deepEqual(value, notice);
-      if (topic.startsWith("/match-invites/")) throw new Error("offline");
-    },
-  });
-  await assert.rejects(publisher.publish("match", notice));
-  assert.deepEqual(topics, [
-    `/matches/${notice.aggregateId}`,
-    `/match-invites/${notice.aggregateId}`,
-  ]);
 });

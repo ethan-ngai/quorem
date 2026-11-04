@@ -51,11 +51,6 @@ it.skipIf(!url)(
       'INSERT INTO quorem_auth."session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,NOW()+interval \'1 hour\',NOW(),NOW())',
       [session, token, user],
     );
-    const expiredNotice = crypto.randomUUID();
-    await pool.query(
-      "INSERT INTO membership_outbox(id,participant_id,occurred_at,published_at) VALUES($1,$2,clock_timestamp()-interval '8 days',clock_timestamp())",
-      [expiredNotice, crypto.randomUUID()],
-    );
     const runtime = await startNodeRuntime(env);
     const peerRuntime = await startNodeRuntime({
       ...env,
@@ -65,9 +60,6 @@ it.skipIf(!url)(
     try {
       if (!runtime.server.listening) await once(runtime.server, "listening");
       const base = `http://127.0.0.1:${(runtime.server.address() as AddressInfo).port}`;
-      expect(
-        (await pool.query("SELECT 1 FROM membership_outbox WHERE id=$1", [expiredNotice])).rowCount,
-      ).toBe(0);
       const signature = createHmac("sha256", secret).update(token).digest("base64");
       const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`;
       const auth = await fetch(`${base}/api/auth/token`, {
@@ -193,7 +185,7 @@ it.skipIf(!url)(
       const allowed = await createMatch(peerBase.replace("ws:", "http:"));
       expect(allowed.status, await allowed.clone().text()).toBe(201);
       const socket = new WebSocket(
-        `${base.replace("http:", "ws:")}/v1/memberships/events`,
+        `${peerBase}/v1/matches/${((await allowed.json()) as { id: string }).id}/events`,
         ["quorem", `bearer.${bearer}`],
         { headers: { origin: "http://127.0.0.1:5173" } },
       );

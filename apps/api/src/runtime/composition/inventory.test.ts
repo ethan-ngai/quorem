@@ -48,7 +48,7 @@ it("registers the full HTTP inventory in the domain app or native socket classif
       ),
   );
   expect(missing).toEqual([]);
-  expect(inventory.http).toHaveLength(66);
+  expect(inventory.http).toHaveLength(64);
 });
 it("classifies only supported browser socket routes", () => {
   const id = "12345678-1234-1234-1234-123456789abc";
@@ -58,19 +58,13 @@ it("classifies only supported browser socket routes", () => {
     id,
   });
   expect(socketTarget(`/v1/matches/${id}/events`)).toEqual({ stream: "match", mode: "direct", id });
-  expect(socketTarget(`/v1/match-invites/token/events`)).toEqual({
-    stream: "match",
-    mode: "invite",
-  });
+  expect(socketTarget(`/v1/match-invites/token/events`)).toBeUndefined();
   expect(socketTarget(`/v1/submissions/${id}/events`)).toEqual({
     stream: "submission",
     mode: "direct",
     id,
   });
-  expect(socketTarget("/v1/memberships/events")).toEqual({
-    stream: "membership",
-    mode: "membership",
-  });
+  expect(socketTarget("/v1/memberships/events")).toBeUndefined();
   expect(socketTarget("/v1/matches/not-a-uuid/events")?.mode).toBe("invalid");
   expect(socketTarget("/v1/problems/events")).toBeUndefined();
 });

@@ -1,7 +1,7 @@
 /** @file common.ts @description Safe cross-instance notice format. @module events */
 import type { Notice } from "../../../modules/events/dispatch/ports.ts";
 export const validChannel = (v: string) =>
-  /^\/(matches|match-invites|interviews|memberships|submissions)\/[0-9a-fA-F-]{36}$/.test(v);
+  /^\/(matches|interviews|submissions)\/[0-9a-fA-F-]{36}$/.test(v);
 export function safeNotice(channel: string, value: unknown): Notice {
   if (!validChannel(channel) || !value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Invalid event notice");

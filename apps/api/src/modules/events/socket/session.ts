@@ -50,7 +50,7 @@ export class SocketSession {
     subscription: SocketSubscription;
     commands?: CommandHandler;
     snapshot?: SocketSnapshotSource;
-    mode: "interview" | "match" | "submission" | "invite" | "membership";
+    mode: "interview" | "match" | "submission";
     now?: () => number;
     renew?: (p: Principal) => Promise<boolean>;
   };
@@ -90,7 +90,7 @@ export class SocketSession {
       const verified = await this.deadline((signal) => this.deps.security.verify(signal));
       if (!verified.binding || verified.binding.length > 256)
         throw new ApplicationError("unauthenticated", "Invalid socket grant", 401);
-      if (this.deps.mode !== "invite" && !verified.principal)
+      if (!verified.principal)
         throw new ApplicationError("unauthenticated", "Sign in required", 401);
       const current = identity(verified.principal, verified.binding);
       if (this.cached && this.cached.identity !== current)
@@ -241,9 +241,7 @@ export class SocketSession {
         const { principal: p, stamp } = await this.authorized();
         if (this.deps.mode === "interview")
           await this.send({ type: "changed", ...(kind ? { kind } : {}) });
-        else if (this.deps.mode === "invite" || this.deps.mode === "submission")
-          await this.send({ type: "changed" });
-        else if (this.deps.mode === "membership") await this.send({ type: "membership.updated" });
+        else if (this.deps.mode === "submission") await this.send({ type: "changed" });
         else if (this.deps.snapshot) {
           const snapshot = await this.deadline((signal) => this.deps.snapshot!.read(p, signal));
           if ((await this.authorized()).stamp !== stamp) {

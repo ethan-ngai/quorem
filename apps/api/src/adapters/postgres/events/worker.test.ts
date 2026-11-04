@@ -1,3 +1,4 @@
+import { insertTestNotice } from "./test-notice.ts";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { withWorkerConnection } from "@quorem/database/core";
@@ -10,9 +11,15 @@ describe("workerd PostgreSQL dispatch", () => {
     expect(parsed.pathname).toBe("/quorem_hono_dispatch_test");
     await withWorkerConnection(url, { connectionTimeoutMs: 3000, lifetimeMs: 5000 }, (scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
-        await tx.execute(
-          sql`INSERT INTO membership_outbox(id,participant_id) VALUES (${crypto.randomUUID()}::uuid,${crypto.randomUUID()}::uuid)`,
+        const values = [crypto.randomUUID(), crypto.randomUUID(), 0, false];
+        const query = sql.join(
+          insertTestNotice
+            .split(/(\$[1-4])/)
+            .map((part) =>
+              part.startsWith("$") ? sql`${values[Number(part.slice(1)) - 1]}` : sql.raw(part),
+            ),
         );
+        await tx.execute(query);
       }),
     );
     const response = await SELF.fetch("https://worker/");

@@ -28,8 +28,6 @@ import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch } from "../modules/events/dispatch/dispatch.ts";
 import type { Notice, NoticeStream } from "../modules/events/dispatch/ports.ts";
-import { ApplicationError } from "../application/error.ts";
-import { mapIdentityError } from "../modules/identity/routes.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
 import { socketTarget, type SocketTarget } from "./worker/socket/target.ts";
 import { browserSocketObject } from "./worker/socket/durable.ts";
@@ -260,21 +258,7 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
   const rejected = socketHandshake(request, origins(env));
   if (rejected) return new Response(null, { status: rejected });
   if (target.mode === "invalid") return new Response(null, { status: 404 });
-  let id = target.id;
-  if (target.mode !== "direct") {
-    try {
-      id = (await socketAuthority(env).issue(request)).resourceId;
-    } catch (error) {
-      const mapped = mapIdentityError(error);
-      const status =
-        mapped instanceof ApplicationError &&
-        [400, 401, 403, 404, 409, 410, 422, 429].includes(mapped.status)
-          ? mapped.status
-          : 503;
-      return new Response(null, { status, headers: { "cache-control": "no-store" } });
-    }
-  }
-  if (!id) return new Response(null, { status: 404 });
+  const { id } = target;
   const headers = new Headers(request.headers);
   headers.delete("x-quorem-socket-scope");
   headers.set("x-quorem-socket-scope", id);
@@ -311,7 +295,7 @@ export default {
           const store = postgresDispatch(run),
             publisher = notices(env),
             queue = wake(env);
-          for (const name of ["interview", "match", "submission", "membership"] as const) {
+          for (const name of ["interview", "match", "submission"] as const) {
             try {
               await dispatchBatch(store, publisher, queue, name);
             } catch {
@@ -343,7 +327,7 @@ export default {
     const deadlines = cloudflareCoordinator(env.DEADLINES),
       recovery = cloudflareCoordinator(env.EXECUTION_RECOVERY);
     await recoverAll([
-      ...(["interview", "match", "submission", "membership"] as const).map(
+      ...(["interview", "match", "submission"] as const).map(
         (stream) => () => dispatchBatch(store, publisher, wake(env), stream),
       ),
       async () => {

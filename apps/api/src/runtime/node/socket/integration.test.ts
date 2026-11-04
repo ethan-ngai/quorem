@@ -25,10 +25,8 @@ import { submissionRoutes } from "../../../modules/judging/results/routes.ts";
 import { createApp } from "../../../app.ts";
 import { grantSecurity } from "./grant.ts";
 import { guestRepository } from "../../../adapters/postgres/identity/guest.ts";
-import { verifiedInviteReader } from "../../../adapters/postgres/matches/invitations/repository.ts";
 import {
   authenticateGuestRequest,
-  guestTokenHash,
   newGuestToken,
 } from "../../../modules/identity/guest/credentials.ts";
 import { IdentityError } from "../../../modules/identity/model.ts";
@@ -156,7 +154,7 @@ after(async () => {
   await pool.end();
   assert.deepEqual(schedulerErrors, []);
 });
-async function start(bus: PostgresFanout, id: string, inviteToken: string): Promise<string> {
+async function start(bus: PostgresFanout, id: string): Promise<string> {
   const server = createServer((_req, res) => res.writeHead(404).end());
   servers.push(server);
   stops.push(
@@ -165,18 +163,16 @@ async function start(bus: PostgresFanout, id: string, inviteToken: string): Prom
       heartbeatMs: 1000,
       resolve: async (request) => {
         const url = new URL(request.url);
-        const invite = url.pathname === "/invite";
-        if (!invite && url.pathname !== "/match") return undefined;
+        if (url.pathname !== "/match") return undefined;
         const token = (request.headers.get("sec-websocket-protocol") ?? "")
           .split(",")
           .map((x) => x.trim())
           .find((x) => x.startsWith("bearer."))
           ?.slice(7);
         return {
-          mode: invite ? "invite" : "match",
+          mode: "match",
           security: {
             verify: async () => {
-              if (invite) return { binding: "invite-grant" };
               const user = users.get(token ?? "");
               if (!user)
                 throw new (await import("../../../modules/identity/model.ts")).IdentityError(
@@ -191,10 +187,6 @@ async function start(bus: PostgresFanout, id: string, inviteToken: string): Prom
               };
             },
             authorize: async (principal) => {
-              if (invite) {
-                await invitations.preview(inviteToken);
-                return "invite";
-              }
               if (!principal) throw new Error("no principal");
               const match = (await lifecycle.read(principal, id)) as { version: string };
               return match.version;
@@ -202,14 +194,9 @@ async function start(bus: PostgresFanout, id: string, inviteToken: string): Prom
           },
           subscription: {
             subscribe: (notify, lost, signal) =>
-              bus.subscribe(
-                `${invite ? "/match-invites/" : "/matches/"}${id}`,
-                notify,
-                lost,
-                signal,
-              ),
+              bus.subscribe(`/matches/${id}`, notify, lost, signal),
           },
-          ...(invite ? {} : { snapshot: matchSocketSnapshot(id, lifecycle) }),
+          snapshot: matchSocketSnapshot(id, lifecycle),
         };
       },
     }),
@@ -220,7 +207,7 @@ async function start(bus: PostgresFanout, id: string, inviteToken: string): Prom
   assert.ok(address && typeof address !== "string");
   return `ws://127.0.0.1:${address.port}`;
 }
-void test("real sockets reauthorize cross-instance notices, member removal and invite rotation", async () => {
+void test("real sockets reauthorize cross-instance notices, member removal", async () => {
   const host = await run((scope) => developmentIdentity(scope, "socket-host")),
     member = await run((scope) => developmentIdentity(scope, "socket-member"));
   const room = (await lifecycle.create(
@@ -230,15 +217,13 @@ void test("real sockets reauthorize cross-instance notices, member removal and i
   )) as { id: string; inviteUrl: string };
   const token = room.inviteUrl.slice("/invite/".length);
   await invitations.join(member, "join", token);
-  const [baseA, baseB] = await Promise.all([start(a, room.id, token), start(b, room.id, token)]);
-  const [hostWs, memberWs, inviteWs] = await Promise.all([
+  const [baseA, baseB] = await Promise.all([start(a, room.id), start(b, room.id)]);
+  const [hostWs, memberWs] = await Promise.all([
     connect(`${baseA}/match`, "host-token"),
     connect(`${baseB}/match`, "member-token"),
-    connect(`${baseB}/invite`),
   ]);
   assert.equal((await next(hostWs)).type, "match.updated");
   assert.equal((await next(memberWs)).type, "match.updated");
-  assert.equal((await next(inviteWs)).type, "changed");
   const event = (type: string) => ({
     id: crypto.randomUUID(),
     aggregateId: room.id,
@@ -252,10 +237,6 @@ void test("real sockets reauthorize cross-instance notices, member removal and i
   assert.equal((await closed)[0], 1008);
   const hostUpdated = await next(hostWs);
   assert.equal(hostUpdated.type, "match.updated");
-  const inviteClosed = once(inviteWs, "close");
-  await invitations.rotate(host, room.id, "rotate");
-  await a.publish(`/match-invites/${room.id}`, event("match.updated"));
-  assert.equal((await inviteClosed)[0], 1008);
   const hostClosed = once(hostWs, "close");
   await pool.query("UPDATE users SET disabled=true WHERE id='socket-host'");
   await a.publish(`/matches/${room.id}`, event("match.updated"));
@@ -270,7 +251,7 @@ void test("credential expiry, grant rotation and terminal snapshot close sockets
     "expiry-create",
     normalizeSettings({ difficulty: "easy" }),
   )) as { id: string; inviteUrl: string };
-  const base = await start(a, room.id, room.inviteUrl.slice("/invite/".length));
+  const base = await start(a, room.id);
   expirations.set("host-token", Date.now() + 1300);
   const expiring = await connect(`${base}/match`, "host-token");
   await next(expiring);
@@ -435,7 +416,7 @@ void test("lost LISTEN closes sockets and reconnect repairs from the authoritati
     "repair-create",
     normalizeSettings({ difficulty: "easy" }),
   )) as { id: string; inviteUrl: string };
-  const base = await start(b, room.id, room.inviteUrl.slice("/invite/".length));
+  const base = await start(b, room.id);
   const socket = await connect(`${base}/match`, "host-token");
   await next(socket);
   const lost = once(socket, "close");
@@ -480,7 +461,7 @@ void test("a stalled browser that withholds receipts is disconnected", async () 
     "stalled-create",
     normalizeSettings({ difficulty: "easy" }),
   )) as { id: string; inviteUrl: string };
-  const base = await start(a, room.id, room.inviteUrl.slice("/invite/".length));
+  const base = await start(a, room.id);
   const stalled = await connect(`${base}/match`, "host-token", false);
   assert.equal((await next(stalled)).type, "match.updated");
   const closed = once(stalled, "close");
@@ -488,7 +469,7 @@ void test("a stalled browser that withholds receipts is disconnected", async () 
   await lifecycle.mutate(host, room.id, "stalled-close", "leave", null);
 });
 
-void test("verified guest and invite grants recheck real revocation without retaining tokens", async () => {
+void test("verified guest grants recheck real revocation without retaining tokens", async () => {
   const host = await run((scope) => developmentIdentity(scope, "socket-host"));
   await pool.query(
     "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,$2,'matches.host_guests','manual','socket','test','test')",
@@ -514,7 +495,6 @@ void test("verified guest and invite grants recheck real revocation without reta
     managed: async () => null,
     guest: (kind: "match" | "interview", hash: string) =>
       run((scope) => guestRepository(scope).lookup(kind, hash)),
-    invite: verifiedInviteReader(run),
   };
   const server = createServer((_req, res) => res.writeHead(404).end());
   servers.push(server);
@@ -523,29 +503,6 @@ void test("verified guest and invite grants recheck real revocation without reta
       origins: ["https://example.test"],
       heartbeatMs: 1000,
       resolve: async (request) => {
-        const url = new URL(request.url),
-          invite = url.pathname.startsWith("/invite/");
-        if (invite) {
-          const raw = url.pathname.slice("/invite/".length),
-            hash = await guestTokenHash(raw);
-          return {
-            mode: "invite",
-            security: grantSecurity(
-              {
-                kind: "invite",
-                resourceId: room.id,
-                hash,
-                expiresAt: Math.floor(Date.now() / 1000) + 3600,
-              },
-              readers,
-              async () => "invite",
-            ),
-            subscription: {
-              subscribe: (notify, lost, signal) =>
-                b.subscribe(`/match-invites/${room.id}`, notify, lost, signal),
-            },
-          };
-        }
         const principal = await authenticateGuestRequest(
           request.headers,
           "match",
@@ -588,10 +545,8 @@ void test("verified guest and invite grants recheck real revocation without reta
   const addr = server.address();
   assert.ok(addr && typeof addr !== "string");
   const base = `ws://127.0.0.1:${addr.port}`;
-  const guestWs = await connect(`${base}/guest`, undefined, true, `quorem_guest=${guestToken}`),
-    inviteWs = await connect(`${base}/invite/${rawInvite}`);
+  const guestWs = await connect(`${base}/guest`, undefined, true, `quorem_guest=${guestToken}`);
   assert.equal((await next(guestWs)).type, "match.updated");
-  assert.equal((await next(inviteWs)).type, "changed");
   const denied = new WebSocket(`${base}/guest`, ["quorem", "bearer.invalid"], {
     headers: { Origin: "https://example.test", Cookie: `quorem_guest=${guestToken}` },
   });
@@ -602,16 +557,6 @@ void test("verified guest and invite grants recheck real revocation without reta
   });
   await new Promise<void>((resolve) => denied.on("close", () => resolve()));
   assert.equal(opened, false);
-  const inviteClosed = once(inviteWs, "close");
-  await invitations.rotate(host, room.id, "guest-rotate");
-  await a.publish(`/match-invites/${room.id}`, {
-    id: crypto.randomUUID(),
-    aggregateId: room.id,
-    version: "0",
-    type: "match.updated",
-    occurredAt: new Date().toISOString(),
-  });
-  assert.equal((await inviteClosed)[0], 1008);
   const guestClosed = once(guestWs, "close");
   await invitations.removeGuest(host, room.id, guest.userId, "guest-remove");
   await a.publish(`/matches/${room.id}`, {

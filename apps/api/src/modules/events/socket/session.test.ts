@@ -282,9 +282,12 @@ describe("browser socket protocol", () => {
   it("rejects a guessed receipt", async () => {
     const closed: number[] = [];
     const socket = new SocketSession({
-      mode: "invite",
+      mode: "submission",
       transport: { send: async () => {}, ping: async () => {}, close: (code) => closed.push(code) },
-      security: { verify: async () => ({ binding: "grant" }), authorize: async () => "invite" },
+      security: {
+        verify: async () => ({ binding: "grant", principal: actor }),
+        authorize: async () => "owner",
+      },
       subscription: { subscribe: async () => () => {} },
     });
     void socket.start();

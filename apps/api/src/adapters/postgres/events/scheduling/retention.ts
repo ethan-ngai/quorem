@@ -2,12 +2,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-const outboxes = [
-  "interview_outbox",
-  "match_outbox",
-  "submission_outbox",
-  "membership_outbox",
-] as const;
+const outboxes = ["interview_outbox", "match_outbox", "submission_outbox"] as const;
 /** Run only from trusted maintenance composition; no public invocation endpoint. */
 export async function retainBatch(run: Run, limit = 128): Promise<number> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256)

@@ -1,3 +1,4 @@
+import { insertTestNotice } from "../test-notice.ts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { postgresDeadlines } from "./deadlines.ts";
@@ -639,27 +640,20 @@ describe("deadline scheduling with PostgreSQL", () => {
   });
   it("deletes only expired published notices in bounded batches", async () => {
     const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
-    for (const id of ids)
-      await pool.query(
-        "INSERT INTO membership_outbox(id,participant_id,occurred_at,published_at) VALUES ($1,$2,clock_timestamp()-interval '8 days',clock_timestamp())",
-        [id, crypto.randomUUID()],
-      );
+    for (const id of ids) await pool.query(insertTestNotice, [id, crypto.randomUUID(), 8, true]);
     const unpublished = crypto.randomUUID();
-    await pool.query(
-      "INSERT INTO membership_outbox(id,participant_id,occurred_at) VALUES ($1,$2,clock_timestamp()-interval '8 days')",
-      [unpublished, crypto.randomUUID()],
-    );
+    await pool.query(insertTestNotice, [unpublished, crypto.randomUUID(), 8, false]);
     await retainBatch(run, 2);
     expect(
       Number(
-        (await pool.query("SELECT count(*) FROM membership_outbox WHERE id=ANY($1::uuid[])", [ids]))
+        (await pool.query("SELECT count(*) FROM interview_outbox WHERE id=ANY($1::uuid[])", [ids]))
           .rows[0].count,
       ),
     ).toBe(1);
     await retainBatch(run, 2);
     expect(
       Number(
-        (await pool.query("SELECT count(*) FROM membership_outbox WHERE id=$1", [unpublished]))
+        (await pool.query("SELECT count(*) FROM interview_outbox WHERE id=$1", [unpublished]))
           .rows[0].count,
       ),
     ).toBe(1);

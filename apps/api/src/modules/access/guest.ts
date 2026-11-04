@@ -17,7 +17,7 @@ export function matchGuestRouteAllowed(principal: GuestPrincipal, method: string
   if (isPublic) return true;
   if (principal.scope.kind !== 'match') return false;
   if (method === 'POST' && path === '/v1/guest-sessions/end') return true;
-  if (method === 'GET' && (['/v1/session', '/v1/matches/current', '/v1/memberships/events'].includes(path) || path.startsWith('/v1/workspaces/') || path.startsWith('/v1/submissions/'))) return true;
+  if (method === 'GET' && (['/v1/session', '/v1/matches/current'].includes(path) || path.startsWith('/v1/workspaces/') || path.startsWith('/v1/submissions/'))) return true;
   if (method === 'POST' && (path === '/v1/submissions' || (path.startsWith('/v1/submissions/') && path.endsWith('/cancel')))) return true;
   const base = `/v1/matches/${principal.scope.matchId}`;
   return (method === 'GET' && path === base) || ['/events', '/ready', '/leave', '/forfeit', '/rule-events', '/workspace-language'].some((suffix) => path === base + suffix);
