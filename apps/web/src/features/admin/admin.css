@@ -324,6 +324,9 @@
   background: transparent;
   text-align: start;
 }
+.admin-question-heading .practice-indicators {
+  color: var(--color-text-secondary);
+}
 .admin-question-heading .admin-question-status {
   font-weight: normal;
 }
