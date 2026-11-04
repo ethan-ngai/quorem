@@ -924,8 +924,12 @@ export const question_drafts = pgTable(
     published_version_id: uuid(),
     owner_id: text(),
     lossless_content: bytea("lossless_content"),
+    import_digest: text(),
   },
   (table): PgTableExtraConfigValue[] => [
+    uniqueIndex("question_drafts_import_digest")
+      .on(table.created_by, table.import_digest)
+      .where(sql`import_digest IS NOT NULL`),
     index("question_drafts_created_by").using(
       "btree",
       table.created_by.asc().nullsLast().op("text_ops"),

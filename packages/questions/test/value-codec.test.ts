@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  compareCodingCase,
   normalizeQuestionJson,
+  validateCodingCase,
   parseLosslessJson,
   stringifyLosslessJson,
   validSource,
@@ -14,7 +16,7 @@ const vectors = JSON.parse(
   ),
 ) as { name: string; input: { type: string; json: string }; output?: string; error?: string }[];
 describe("Go coding value vectors", () => {
-  for (const v of vectors.filter((v) => v.name === "normalize"))
+  for (const v of vectors.filter((v) => v.name === "normalize" && v.input.type !== "long"))
     it(`${v.input.type} ${v.input.json}`, () => {
       if (v.error) expect(() => normalizeQuestionJson(v.input.type, v.input.json)).toThrow(v.error);
       else expect(normalizeQuestionJson(v.input.type, v.input.json)).toBe(v.output);
@@ -41,4 +43,55 @@ it("bounds large collections and preserves lossless object keys", () => {
     '{"__proto__":{"x":1}}',
   );
   expect(stringifyLosslessJson(parseLosslessJson('"\\ud800"'))).toBe('"�"');
+});
+
+it("preserves exact signed long values in nested coding cases", () => {
+  const json = '["-9223372036854775808",null,"9007199254740993","9223372036854775807"]';
+  expect(normalizeQuestionJson("array<optional<long>>", json)).toBe(json);
+  for (const invalid of [
+    '"9223372036854775808"',
+    '"-9223372036854775809"',
+    '"-0"',
+    '"01"',
+    '"+1"',
+    JSON.stringify("1\n"),
+    "9007199254740993",
+  ])
+    expect(() => normalizeQuestionJson("long", invalid)).toThrow("signed 64-bit");
+  expect(() => normalizeQuestionJson("int", "2147483648")).toThrow("signed 32-bit");
+});
+
+it("judges adjacent wide integers exactly and applies long comparisons", () => {
+  const signature = {
+    className: "Solution" as const,
+    methodName: "solve",
+    parameters: [
+      { name: "a", type: "long" },
+      { name: "b", type: "long" },
+    ],
+    returnType: "long",
+  };
+  const fixture = '{"args":["9007199254740992","9007199254740993"],"expected":"9007199254740993"}';
+  const a = { parameter: "a", projection: "value" as const };
+  const b = { parameter: "b", projection: "value" as const };
+  expect(() =>
+    validateCodingCase(
+      signature,
+      [{ kind: "comparison", left: a, operator: "lt", right: b }],
+      fixture,
+    ),
+  ).not.toThrow();
+  expect(() =>
+    validateCodingCase(
+      signature,
+      [{ kind: "comparison", left: a, operator: "eq", right: b }],
+      fixture,
+    ),
+  ).toThrow("comparison");
+  expect(compareCodingCase(signature, [], fixture, "executed", '"9007199254740993"').status).toBe(
+    "accepted",
+  );
+  expect(compareCodingCase(signature, [], fixture, "executed", '"9007199254740992"').status).toBe(
+    "wrong_answer",
+  );
 });

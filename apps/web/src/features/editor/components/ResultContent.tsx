@@ -28,9 +28,11 @@ function Diagnostics({ items }: { items?: Diagnostic[] }) {
 function RunCaseResults({
   cases,
   sql,
+  returnType,
 }: {
   cases: PublicCaseResult[];
   sql?: ProblemVersion["sql"];
+  returnType?: string;
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const activeIndex = Math.min(selectedIndex, Math.max(0, cases.length - 1));
@@ -58,7 +60,7 @@ function RunCaseResults({
       </div>
       {selected && (
         <div className="case-details">
-          <CaseOutput result={selected} sql={sql} />
+          <CaseOutput result={selected} sql={sql} returnType={returnType} />
         </div>
       )}
     </div>
@@ -76,6 +78,7 @@ export function ResultContent({
   runWasCustom = false,
   showVerdict = true,
   sql,
+  returnType,
 }: {
   submission?: Submission;
   busy: boolean;
@@ -86,6 +89,7 @@ export function ResultContent({
   runWasCustom?: boolean;
   showVerdict?: boolean;
   sql?: ProblemVersion["sql"];
+  returnType?: string;
 }) {
   // Results belong to their admitted collection, regardless of the currently selected tab.
   if (
@@ -160,7 +164,12 @@ export function ResultContent({
         </div>
       )}
       {showCases && submission.publicCases?.length ? (
-        <RunCaseResults key={submission.id} cases={submission.publicCases} sql={sql} />
+        <RunCaseResults
+          key={submission.id}
+          cases={submission.publicCases}
+          sql={sql}
+          returnType={returnType}
+        />
       ) : null}
     </div>
   );

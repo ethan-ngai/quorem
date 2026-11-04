@@ -94,9 +94,11 @@ export function CaseOutput({
   showExpected = true,
   sequence,
   sql,
+  returnType,
 }: {
   result: PublicCaseResult;
   showExpected?: boolean;
+  returnType?: string;
   sql?: ProblemVersion["sql"];
   sequence?: { calls: readonly MethodCall[]; methods: readonly Signature[] };
 }) {
@@ -164,6 +166,7 @@ export function CaseOutput({
               name="Output"
               purpose="output"
               value={result.actual}
+              type={returnType}
               tone={tone}
               sql={sql}
               sqlTypes={result.sqlTypes}
@@ -174,6 +177,7 @@ export function CaseOutput({
               name="Expected output"
               purpose="target"
               value={result.expected}
+              type={returnType}
               tone="verdict-success"
               sql={sql}
             />

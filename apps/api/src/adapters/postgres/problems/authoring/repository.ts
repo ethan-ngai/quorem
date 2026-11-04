@@ -125,21 +125,103 @@ async function create(
   actor: AuthorActor,
   admin: boolean,
   raw: string,
+  digest?: string,
 ): Promise<string> {
   const data = store(normal(raw));
   const rows = (
     await tx.execute<DraftRow>(
-      sql`INSERT INTO question_drafts(content,lossless_content,created_by,updated_by,owner_id) VALUES(${data.safe}::jsonb,${data.lossless},${actor.userId},${actor.userId},${admin ? null : actor.userId}) RETURNING ${draftColumns}`,
+      sql`INSERT INTO question_drafts(content,lossless_content,created_by,updated_by,owner_id,import_digest) VALUES(${data.safe}::jsonb,${data.lossless},${actor.userId},${actor.userId},${admin ? null : actor.userId},${digest ?? null}) RETURNING ${draftColumns}`,
     )
   ).rows;
   return draftJson(rows[0]);
 }
-async function hashPrefix(text: string): Promise<string> {
+async function contentDigest(text: string): Promise<string> {
   const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(h), (x) => x.toString(16).padStart(2, "0"))
-    .join("")
-    .slice(0, 16);
+  return Array.from(new Uint8Array(h), (x) => x.toString(16).padStart(2, "0")).join("");
 }
+async function lockIdentity(tx: Transaction, slug: string, leetcode: string | null) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${slug},740071))`);
+  if (leetcode !== null)
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${leetcode},740072))`);
+}
+function sourceId(problem: Obj): string | null {
+  const value = problem.leetcodeId;
+  return value === undefined || value === null ? null : stringifyLosslessJson(value);
+}
+
+async function importItem(
+  tx: Transaction,
+  actor: AuthorActor,
+  admin: boolean,
+  raw: string,
+  preview: boolean,
+  runtime: RuntimeResolver,
+) {
+  const normalized = normal(raw);
+  const p = object(content(normalized).problem);
+  const slug = str(p.slug);
+  const leetcode = sourceId(p);
+  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 120)
+    throw bad("Choose a valid question slug");
+  if (leetcode !== null && (!/^[1-9]\d{0,9}$/.test(leetcode) || Number(leetcode) > 2147483647))
+    throw bad("Invalid LeetCode ID");
+  if (leetcode !== null && !admin) throw forbidden();
+  try {
+    validateQuestionSchema(normalized);
+  } catch {
+    throw bad("Invalid question schema");
+  }
+  const digest = await contentDigest(normalized);
+  if (!preview) await lockIdentity(tx, slug, leetcode);
+  const [receipt] = (
+    await tx.execute<{ id: string }>(sql`
+      SELECT id::text AS id FROM question_drafts
+      WHERE created_by=${actor.userId} AND import_digest=${digest}
+        AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))
+    `)
+  ).rows;
+  if (receipt) return JSON.stringify({ status: "existing", draftId: receipt.id });
+
+  const [published] = (
+    await tx.execute(sql`
+      SELECT 1 FROM problems WHERE (owner_id IS NULL OR owner_id=${actor.userId})
+        AND (slug=${slug} OR leetcode_id=${leetcode}::integer)
+    `)
+  ).rows;
+  if (published)
+    return JSON.stringify({ status: "conflict", message: "Question already published" });
+
+  const matching = (
+    await tx.execute<DraftRow>(sql`
+      SELECT ${draftColumns} FROM question_drafts
+      WHERE (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))
+        AND published_version_id IS NULL
+        AND (content->'problem'->>'slug'=${slug} OR content->'problem'->>'leetcodeId'=${leetcode})
+      LIMIT 2
+    `)
+  ).rows;
+  if (matching.length) {
+    if (matching.length === 1 && normal(matching[0].content) === normalized)
+      return JSON.stringify({ status: "existing", draftId: matching[0].id });
+    return JSON.stringify({
+      status: "conflict",
+      message: "A draft already uses this slug or source ID",
+    });
+  }
+
+  if (preview) {
+    let warning: string | undefined;
+    try {
+      validateQuestionPublication(normalized, validateQuestionSchema, runtime);
+    } catch {
+      warning = "Draft can be imported but needs edits before publication.";
+    }
+    return JSON.stringify({ status: "ready", warning });
+  }
+  const draft = content(await create(tx, actor, admin, normalized, digest));
+  return JSON.stringify({ status: "created", draftId: draft.id });
+}
+
 async function publish(
   tx: Transaction,
   actor: AuthorActor,
@@ -187,7 +269,7 @@ async function publish(
       403,
     );
   let slug = str(p.slug);
-  const actorPrefix = `private-${await hashPrefix(privateOwner ?? actor.userId)}-`;
+  const actorPrefix = `private-${(await contentDigest(privateOwner ?? actor.userId)).slice(0, 16)}-`;
   if (slug.startsWith(actorPrefix)) slug = slug.slice(actorPrefix.length);
   if (privateOwner) {
     if (new TextEncoder().encode(slug).length > 96)
@@ -197,7 +279,7 @@ async function publish(
   p.slug = slug;
   if (privateOwner && p.leetcodeId !== undefined && p.leetcodeId !== null)
     throw bad("LeetCode IDs are reserved for global questions");
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${slug},740071))`);
+  await lockIdentity(tx, slug, sourceId(p));
   await tx.execute(
     sql`INSERT INTO problems(slug,owner_id) VALUES(${slug},${privateOwner}) ON CONFLICT(slug) DO NOTHING`,
   );
@@ -306,6 +388,12 @@ function createQuestionAuthoring(
               })());
         return create(tx, actor, admin, source);
       });
+    },
+    async importDraft(actor, raw, preview) {
+      return transact(async (tx) => {
+        const { admin } = await author(tx, actor, !preview);
+        return importItem(tx, actor, admin, raw, preview, runtime);
+      }, preview);
     },
     async update(actor, id, rev, raw) {
       return transact(async (tx) => {

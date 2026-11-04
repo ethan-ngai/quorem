@@ -5,6 +5,7 @@ Question signatures, Odyssey methods, test cases and generated stubs share one l
 | Pseudotype                  | Python              | Java                      | TypeScript  | OCaml      |
 | --------------------------- | ------------------- | ------------------------- | ----------- | ---------- |
 | `int`                       | `int`               | `int`                     | `number`    | `int`      |
+| `long`                      | `int`               | `long`                    | `bigint`    | `int64`    |
 | `float`                     | `float`             | `double`                  | `number`    | `float`    |
 | `bool`                      | `bool`              | `boolean`                 | `boolean`   | `bool`     |
 | `str`                       | `str`               | `String`                  | `string`    | `string`   |
@@ -14,6 +15,8 @@ Question signatures, Odyssey methods, test cases and generated stubs share one l
 | `list<T>`                   | `list[T]`           | `java.util.List<T>`       | `T[]`       | `T list`   |
 | `array<T>`                  | `list[T]`           | `T[]`                     | `T[]`       | `T array`  |
 
+`int` is signed 32-bit. `long` is signed 64-bit and uses canonical decimal JSON strings from `"-9223372036854775808"` through `"9223372036854775807"`. The signature distinguishes long values from strings, including in arrays and optional values. Scalar editors accept decimal integers directly. Structured long ranges use exact integer comparisons with safe-integer bounds; the codec enforces the full signed 64-bit domain.
+
 Datetime values are calendar fields formatted as `YYYY-MM-DDTHH:mm:ss`, years 0001–9999, with no timezone or fractional seconds. Python uses naive datetimes; Java uses LocalDateTime. TypeScript uses Date with UTC getters and setters to preserve the fields. OCaml uses Unix.tm; weekday and year-day are computed on input, and only year, month, day, hour, minute and second are compared on output. Daylight saving is false on input. Outputs with timezone or fractional seconds are invalid.
 
 Java generic primitives are boxed (`List<Integer>`, `List<Boolean>`, etc.). Legacy Java questions using arrays for `list<T>` remain executable; the harness adapts inputs to declared parameter types. New generated signatures distinguish lists and arrays. Both collections retain ordering and duplicate values by default.
@@ -22,6 +25,6 @@ Void method return values are ignored; those calls remain in execution order and
 
 A collection-returning signature may set `outputOrder: "unordered"`. The judge canonicalizes only that return value's outer collection for both actual and expected output. Duplicates and nested ordering remain significant. Other methods in the same stateful test keep their own comparison policy. Omitted `outputOrder` means ordered comparison.
 
-Frontend mappings and literal rendering: `apps/web/src/features/editor/questionTypes.ts`. Validation and codecs: `apps/api/internal/problems/{codec,case_codec,input,languages,odyssey}.go`. Language execution codecs: `apps/runner/{python,polyglot}/harness.py`. Cross-language parity tests cover shared wire values. Adding a pseudotype requires updating all these boundaries together.
+Frontend mappings and literal rendering: `apps/web/src/features/editor/questionTypes.ts`. Validation and codecs: `packages/questions/src`. Language execution codecs: `apps/runner/{python,polyglot}/harness.py`. Cross-language parity tests cover shared wire values. Adding a pseudotype requires updating all these boundaries together.
 
 Odyssey starters contain a constructor and first-step methods. Unlocks append missing method stubs inside the existing `Solution` class using the selected language's parser. Existing code and methods are preserved. Collaborative insertions use the shared document's current version so simultaneous unlocks cannot duplicate stubs.

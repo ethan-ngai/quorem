@@ -142,3 +142,17 @@ describe("typed input presets", () => {
     ).toEqual({ args: [6] });
   });
 });
+
+it("round-trips long scalar, optional and list inputs without number coercion", () => {
+  const max = "9223372036854775807";
+  const min = "-9223372036854775808";
+  const scalar = resolveInputPreset("long");
+  expect(scalar.parse(max)).toBe(max);
+  expect(() => scalar.parse("9223372036854775808")).toThrow("signed 64-bit");
+  const optional = resolveInputPreset("optional<long>");
+  expect(optional.parse(optional.format(min))).toBe(min);
+  expect(optional.parse("null")).toBeNull();
+  const list = resolveInputPreset("list<long>");
+  expect(list.parse(`[${max},${min}]`)).toEqual([max, min]);
+  expect(list.parse(list.format([max, min]))).toEqual([max, min]);
+});

@@ -1,4 +1,5 @@
 /** @file value-codec.ts @description Typed coding question JSON values. @module questions */
+import { isLongValue } from "@quorem/contracts/long";
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
 import { validQuestionType } from "./signature.ts";
 
@@ -68,6 +69,9 @@ export function normalizeQuestionValue(type: string, value: JsonValue, limit = 1
           throw new Error("expected signed 32-bit integer");
         return new JsonNumber(value.toString());
       }
+      case "long":
+        if (!isLongValue(current)) throw new Error("expected signed 64-bit decimal string");
+        return current;
       case "float": {
         if (!(current instanceof JsonNumber)) throw new Error("expected finite float");
         const value = Number(current.lexeme);

@@ -1,4 +1,5 @@
 /** @file coding-case.ts @description Coding cases, constraints and sequence results. @module questions */
+import { compareNumericValues } from "@quorem/contracts/long";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
 import { validateConstraints } from "./constraints.ts";
 import {
@@ -43,10 +44,17 @@ function applyConstraints(
   args: JsonValue[],
 ): void {
   validateConstraints(sig, constraints);
-  const project = (target: ConstraintTarget): number[] => {
-    const value = args[sig.parameters.findIndex((p) => p.name === target.parameter)];
+  const project = (target: ConstraintTarget): (number | bigint)[] => {
+    const index = sig.parameters.findIndex((p) => p.name === target.parameter);
+    const type = sig.parameters[index].type.replaceAll("array<", "list<");
+    const value = args[index];
     if (target.projection === "length")
       return [typeof value === "string" ? Array.from(value).length : (value as JsonValue[]).length];
+    if (type === "long") return [BigInt(value as string)];
+    if (type === "list<long>") {
+      const values = (value as string[]).map(BigInt);
+      return target.projection === "sum" ? [values.reduce((a, b) => a + b, 0n)] : values;
+    }
     if (target.projection === "value")
       return typeof value === "string"
         ? Array.from(value).map((c) => c.codePointAt(0)!)
@@ -59,13 +67,15 @@ function applyConstraints(
     if (target.projection === "nodeCount") return [values.length];
     return values;
   };
+  const finite = (value: number | bigint | undefined): value is number | bigint =>
+    typeof value === "bigint" || (typeof value === "number" && Number.isFinite(value));
   for (const c of constraints) {
     switch (c.kind) {
       case "range":
         if (
           project(c.target).some(
             (n) =>
-              !Number.isFinite(n) ||
+              !finite(n) ||
               (c.min !== undefined && n < c.min) ||
               (c.max !== undefined && n > c.max),
           )
@@ -76,8 +86,11 @@ function applyConstraints(
         break;
       case "comparison": {
         const [a, b] = [project(c.left)[0], project(c.right)[0]];
-        const valid = { eq: a === b, le: a <= b, lt: a < b, ge: a >= b, gt: a > b }[c.operator];
-        if (!valid || !Number.isFinite(a) || !Number.isFinite(b))
+        const cmp = finite(a) && finite(b) ? compareNumericValues(a, b) : NaN;
+        const valid = { eq: cmp === 0, le: cmp <= 0, lt: cmp < 0, ge: cmp >= 0, gt: cmp > 0 }[
+          c.operator
+        ];
+        if (!valid)
           throw new Error(
             `arguments ${c.left.parameter} and ${c.right.parameter}: comparison ${c.operator} failed`,
           );
@@ -85,7 +98,7 @@ function applyConstraints(
       }
       case "property": {
         const values = project(c.target);
-        const seen = new Set<number>();
+        const seen = new Set<number | bigint>();
         for (let i = 0; i < values.length; i++) {
           if (
             (c.property === "unique" && seen.has(values[i])) ||

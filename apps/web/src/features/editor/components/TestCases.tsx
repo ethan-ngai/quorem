@@ -421,6 +421,7 @@ export function TestCases({
             name="Expected output"
             purpose="target"
             value={example.expected}
+            type={problem.signature.returnType}
             tone="verdict-success"
             sql={problem.sql}
           />
@@ -463,6 +464,7 @@ export function TestCases({
       {!showingHidden && result && (
         <CaseOutput
           result={result}
+          returnType={problem.signature.returnType}
           sql={problem.sql}
           sequence={
             example?.calls?.length
