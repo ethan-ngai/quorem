@@ -1,6 +1,7 @@
 /** @file browserPythonIntelligence.test.ts @description Browser Worker boot, protocol and teardown boundaries. @module editor */
 import { afterEach, expect, it, vi } from "vitest";
 import { browserPythonIntelligence } from "./browserPythonIntelligence";
+import { PythonLanguageClient } from "./pythonLanguageClient";
 
 class FakeWorker extends EventTarget {
   static instances: FakeWorker[] = [];
@@ -76,13 +77,38 @@ it("terminates a worker cancelled during boot", async () => {
   expect(FakeWorker.instances[0].terminated).toBe(true);
 });
 
-it("removes a failed engine and reports an outage without exposing its error", async () => {
+it.each(["error", "messageerror"])("removes a failed engine on %s", async (event) => {
   vi.stubGlobal("Worker", FakeWorker);
   const controller = new AbortController();
   const unavailable = vi.fn();
   await browserPythonIntelligence(controller.signal, unavailable);
-  FakeWorker.instances[0].dispatchEvent(new Event("error"));
+  FakeWorker.instances[0].dispatchEvent(new Event(event));
   expect(unavailable).toHaveBeenCalledOnce();
   expect(unavailable).toHaveBeenCalledWith();
   expect(FakeWorker.instances[0].terminated).toBe(true);
+});
+
+it("restarts recovery when a live worker repeatedly stops replying", async () => {
+  vi.useFakeTimers();
+  const connect = vi.spyOn(PythonLanguageClient.prototype, "connect");
+  const controller = new AbortController();
+  try {
+    vi.stubGlobal("Worker", FakeWorker);
+    const unavailable = vi.fn();
+    await browserPythonIntelligence(controller.signal, unavailable);
+    const client = connect.mock.contexts[0] as PythonLanguageClient;
+    const first = client.request("textDocument/completion", {});
+    await vi.advanceTimersByTimeAsync(15000);
+    await expect(first).resolves.toBeNull();
+    expect(unavailable).not.toHaveBeenCalled();
+    const second = client.request("textDocument/completion", {});
+    await vi.advanceTimersByTimeAsync(15000);
+    await expect(second).resolves.toBeNull();
+    expect(unavailable).toHaveBeenCalledOnce();
+    expect(FakeWorker.instances[0].terminated).toBe(true);
+  } finally {
+    controller.abort();
+    connect.mockRestore();
+    vi.useRealTimers();
+  }
 });

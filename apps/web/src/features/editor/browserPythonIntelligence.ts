@@ -49,12 +49,14 @@ export async function browserPythonIntelligence(
     }
     pending.clear();
     worker.removeEventListener("error", onError);
+    worker.removeEventListener("messageerror", onError);
     client?.disconnect();
     worker.terminate();
     signal.removeEventListener("abort", dispose);
   };
   signal.addEventListener("abort", dispose, { once: true });
   worker.addEventListener("error", onError);
+  worker.addEventListener("messageerror", onError);
   const ready = new Promise<void>((resolve, reject) => {
     failed = () => reject(new Error("Python browser engine unavailable"));
     const deadline = setTimeout(failed, 30000);
@@ -133,12 +135,15 @@ export async function browserPythonIntelligence(
         listeners.delete(handler);
       },
     };
-    client = new PythonLanguageClient({
-      rootUri,
-      timeout: 15000,
-      sanitizeHTML: (html) => DOMPurify.sanitize(html),
-      extensions: [hoverTooltips(), signatureHelp(), serverDiagnostics()],
-    });
+    client = new PythonLanguageClient(
+      {
+        rootUri,
+        timeout: 15000,
+        sanitizeHTML: (html) => DOMPurify.sanitize(html),
+        extensions: [hoverTooltips(), signatureHelp(), serverDiagnostics()],
+      },
+      onError,
+    );
     client.connect(transport);
     await client.initializing;
     if (signal.aborted) throw new Error("Python session cancelled");
