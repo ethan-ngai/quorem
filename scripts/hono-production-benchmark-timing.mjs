@@ -24,14 +24,18 @@ try {
   await client.query("BEGIN READ ONLY");
   await client.query("SET LOCAL statement_timeout = '5s'");
   const { rows } = await client.query(
-    `SELECT s.admitted_at AS admitted, j.attempt_started_at AS claimed,
+    `SELECT s.admitted_at AS admitted, a.claimed_at AS claimed,
       s.updated_at AS finalized, j.attempts,
-      round(1000 * extract(epoch FROM j.attempt_started_at-s.admitted_at))::int AS "claimMs",
-      round(1000 * extract(epoch FROM s.updated_at-j.attempt_started_at))::int AS "executionMs"
+      round(1000 * extract(epoch FROM a.claimed_at-s.admitted_at))::int AS "claimMs",
+      round(1000 * extract(epoch FROM s.updated_at-a.claimed_at))::int AS "claimToFinalMs"
     FROM submissions s
     JOIN workspaces w ON w.id=s.workspace_id
     JOIN execution_jobs j ON j.submission_id=s.id
     JOIN runner_job_inputs i ON i.job_id=j.id
+    LEFT JOIN LATERAL (
+      SELECT min(claimed_at) AS claimed_at FROM execution_attempt_inventory
+      WHERE job_id=j.id AND claimed_at>=s.admitted_at
+    ) a ON true
     WHERE s.admitted_at >= $1::timestamptz
       AND s.admitted_at < $1::timestamptz + interval '2 minutes'
       AND w.problem_version_id=$2::uuid AND s.source_hash=$3 AND s.kind='run' AND s.custom_run
