@@ -28,16 +28,30 @@ export function inspectProductionPlan(plan, mode) {
         /^(cloudflare_worker_version\.(?:services|verifier)|terraform_data\.case_images)$/.test(
           item.address,
         );
-      const verifier = [
-        "cloudflare_worker.verifier",
-        'cloudflare_workers_custom_domain.service["verifier"]',
-      ].includes(item.address);
+      const { before, after } = item.change;
+      const verifierWorker =
+        item.address === "cloudflare_worker.verifier" && ["create", "update"].includes(action);
+      const verifierDomain =
+        item.address === 'cloudflare_workers_custom_domain.service["verifier"]' &&
+        after?.hostname === "verifier-hono.quorem.app" &&
+        after.service === "quorem-hono-services-production-verifier" &&
+        (["create", "update"].includes(action) ||
+          (action === "delete,create" &&
+            before?.hostname === after.hostname &&
+            before.service === "quorem-hono-services-production" &&
+            before.zone_id === after.zone_id &&
+            before.account_id === after.account_id));
       if (
         !(retired && action === "delete") &&
         !(versioned && ["create", "update", "delete,create", "create,delete"].includes(action)) &&
-        !(verifier && ["create", "update"].includes(action))
-      )
-        throw new Error("Private Worker rollout includes unrelated mutation");
+        !verifierWorker &&
+        !verifierDomain
+      ) {
+        const error = new Error("Private Worker rollout includes unrelated mutation");
+        if (/^[a-z_.\[\]"0-9-]+$/.test(item.address) && /^[a-z,]+$/.test(action))
+          error.planChange = { address: item.address, action };
+        throw error;
+      }
     } else if (mode === "legacy-stop") {
       if (
         actions.join() !== "delete" ||
