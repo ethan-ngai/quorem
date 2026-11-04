@@ -14,6 +14,10 @@ on:
         description: Resume the already fenced native production setup
         type: boolean
         default: false
+      judge_validation_run:
+        description: Successful CI run for changed judge image sources
+        type: string
+        required: false
       release_sha:
         type: string
         required: true
@@ -82,9 +86,10 @@ jobs:
   private-workers:
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'private-workers' && inputs.release_sha == github.sha && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       HONO_RELEASE_SHA: ${{ inputs.release_sha }}
+      HONO_JUDGE_VALIDATION_RUN: ${{ inputs.judge_validation_run }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
       AUTH_BOOTSTRAP_USERNAME: ${{ vars.AUTH_BOOTSTRAP_USERNAME }}
       AUTH_BOOTSTRAP_PASSWORD: ${{ secrets.AUTH_BOOTSTRAP_PASSWORD }}
