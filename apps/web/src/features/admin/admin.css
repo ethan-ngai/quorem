@@ -316,3 +316,10 @@
   margin-inline-start: var(--space-3);
   font-weight: normal;
 }
+
+.admin-catalog-filters {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}

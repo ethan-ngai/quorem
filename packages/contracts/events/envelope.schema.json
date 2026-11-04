@@ -1647,6 +1647,24 @@
           "type": "string",
           "format": "uuid"
         },
+        "difficulty": {
+          "type": "string"
+        },
+        "isOdyssey": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "isSql": {
           "type": "boolean"
         },
@@ -1661,7 +1679,20 @@
           "format": "date-time"
         }
       },
-      "required": ["id", "revision", "title", "slug", "updatedAt", "isSql", "fromLeetCode", "ready"]
+      "required": [
+        "id",
+        "revision",
+        "title",
+        "slug",
+        "updatedAt",
+        "isSql",
+        "fromLeetCode",
+        "ready",
+        "difficulty",
+        "isOdyssey",
+        "tags",
+        "companies"
+      ]
     },
     "QuestionDraftPage": {
       "type": "object",

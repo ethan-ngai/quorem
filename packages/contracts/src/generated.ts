@@ -1430,6 +1430,10 @@ export interface components {
             editVersionId?: string;
             /** Format: uuid */
             publishedVersionId?: string;
+            difficulty: string;
+            isOdyssey: boolean;
+            tags: string[];
+            companies: string[];
             isSql: boolean;
             fromLeetCode: boolean;
             ready: boolean;
@@ -2421,6 +2425,10 @@ export interface operations {
                             slug: string;
                             version: string;
                             isPrivate: boolean;
+                            difficulty: string;
+                            isOdyssey: boolean;
+                            tags: string[];
+                            companies: string[];
                             isSql: boolean;
                             fromLeetCode: boolean;
                             current: boolean;

@@ -1,5 +1,7 @@
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
 import { FilePenLine, Globe, Search } from "lucide-react";
+import { CatalogFilters } from "../practice/CatalogFilters";
+import { filterValues, type CatalogSearch } from "../practice/catalogSearch";
 import { CatalogTable } from "../practice/CatalogLayout";
 import { SelectField } from "../../ui/SelectField";
 import { Icon } from "../../ui/Icon";
@@ -53,7 +55,7 @@ export function QuestionDashboard({
   const [tab, setTab] = useState<"drafts" | "publications">("drafts");
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("all");
-  const [type, setType] = useState("all");
+  const [catalogSearch, setCatalogSearch] = useState<CatalogSearch>({});
   const [readiness, setReadiness] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmation, setConfirmation] = useState<{ action: Action; rows: Row[] }>();
@@ -65,12 +67,19 @@ export function QuestionDashboard({
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
   const rows: Row[] = tab === "drafts" ? drafts : publications;
   const search = query.trim().toLowerCase();
+  const difficulties = filterValues(catalogSearch.difficulty);
+  const topics = filterValues(catalogSearch.topic);
+  const companies = filterValues(catalogSearch.company);
   const visible = rows.filter(
     (row) =>
       ((row.title || "Untitled question").toLowerCase().includes(search) ||
         row.slug.toLowerCase().includes(search)) &&
       (source === "all" || row.fromLeetCode === (source === "leetcode")) &&
-      (type === "all" || row.isSql === (type === "sql")) &&
+      row.isSql === (catalogSearch.sql === "true") &&
+      (catalogSearch.type === undefined || row.isOdyssey === (catalogSearch.type === "odyssey")) &&
+      (!difficulties.length || difficulties.includes(row.difficulty)) &&
+      (!topics.length || topics.some((topic) => row.tags.includes(topic))) &&
+      (!companies.length || companies.some((company) => row.companies.includes(company))) &&
       (!("revision" in row) || readiness === "all" || row.ready === (readiness === "ready")),
   );
   const showVisibility = tab === "publications" && admin;
@@ -181,7 +190,11 @@ export function QuestionDashboard({
           />
         </div>
       </div>
-      <div className="practice-filters" role="group" aria-label="Question filters">
+      <fieldset
+        className="practice-filters admin-catalog-filters"
+        aria-label="Question filters"
+        disabled={disabled}
+      >
         <SelectField
           label="Source"
           value={source}
@@ -193,16 +206,11 @@ export function QuestionDashboard({
             { value: "other", label: "No LeetCode ID" },
           ]}
         />
-        <SelectField
-          label="Type"
-          value={type}
-          onChange={setType}
-          disabled={disabled}
-          options={[
-            { value: "all", label: "All types" },
-            { value: "coding", label: "Coding" },
-            { value: "sql", label: "SQL" },
-          ]}
+        <CatalogFilters
+          search={catalogSearch}
+          update={(change) => setCatalogSearch((current) => ({ ...current, ...change }))}
+          topics={rows.flatMap((row) => row.tags)}
+          companies={rows.flatMap((row) => row.companies)}
         />
         {tab === "drafts" && (
           <SelectField
@@ -217,7 +225,7 @@ export function QuestionDashboard({
             ]}
           />
         )}
-      </div>
+      </fieldset>
       <div className="admin-toolbar admin-bulk-bar">
         <span>{chosen.length} selected</span>
         <div className="admin-toolbar">

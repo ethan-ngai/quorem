@@ -523,13 +523,17 @@ function createQuestionAuthoring(
         const { admin } = await author(tx, actor, false);
         const result = await tx.execute(sql`
           SELECT chosen.id::text,chosen.title,p.slug,chosen.version::text,
+                 chosen.difficulty,
+                 COALESCE(jsonb_typeof(chosen.odyssey)='object',false) AS "isOdyssey",
+                 ARRAY(SELECT tag FROM problem_tags WHERE version_id=chosen.id ORDER BY ordinal) AS tags,
+                 ARRAY(SELECT c.name FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id ORDER BY c.name) AS companies,
                  p.owner_id IS NOT NULL AS "isPrivate",
                  p.leetcode_id IS NOT NULL AS "fromLeetCode",
                  COALESCE(jsonb_typeof(chosen.sql_config)='object',false) AS "isSql",
                  COALESCE(chosen.id=p.current_version_id,false) AS current
           FROM problems p
           CROSS JOIN LATERAL (
-            SELECT v.id,v.title,v.version,v.sql_config FROM problem_versions v WHERE v.problem_id=p.id AND v.sealed
+            SELECT v.id,v.title,v.version,v.sql_config,v.difficulty,v.odyssey FROM problem_versions v WHERE v.problem_id=p.id AND v.sealed
             ORDER BY (v.id IS NOT DISTINCT FROM p.current_version_id) DESC,v.version DESC LIMIT 1
           ) chosen
           WHERE p.owner_id=${actor.userId} OR (p.owner_id IS NULL AND ${admin})
@@ -552,8 +556,16 @@ function createQuestionAuthoring(
             raw: string;
             fromLeetCode: boolean;
             isSql: boolean;
+            isOdyssey: boolean;
+            difficulty: string;
+            tags: string[];
+            companies: string[];
           }>(
             sql`SELECT id::text AS id,revision::text AS revision,
+                COALESCE(content->'problem'->>'difficulty','easy') AS difficulty,
+                COALESCE(jsonb_typeof(content->'problem'->'odyssey')='object',false) AS "isOdyssey",
+                COALESCE(content->'problem'->'tags','[]'::jsonb) AS tags,
+                COALESCE(content->'problem'->'companies','[]'::jsonb) AS companies,
                 COALESCE(convert_from(lossless_content,'UTF8'),content::text) AS raw,
                 COALESCE(jsonb_typeof(content->'problem'->'leetcodeId')='number',false) AS "fromLeetCode",
                 COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt" FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})) AND (${cursor}='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=${cursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})))) ORDER BY updated_at DESC,id DESC LIMIT 51`,

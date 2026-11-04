@@ -1143,7 +1143,11 @@
                           "current",
                           "isPrivate",
                           "isSql",
-                          "fromLeetCode"
+                          "fromLeetCode",
+                          "difficulty",
+                          "isOdyssey",
+                          "tags",
+                          "companies"
                         ],
                         "properties": {
                           "id": {
@@ -1160,6 +1164,10 @@
                             "type": "string"
                           },
                           "isPrivate": { "type": "boolean" },
+                          "difficulty": { "type": "string" },
+                          "isOdyssey": { "type": "boolean" },
+                          "tags": { "type": "array", "items": { "type": "string" } },
+                          "companies": { "type": "array", "items": { "type": "string" } },
                           "isSql": { "type": "boolean" },
                           "fromLeetCode": { "type": "boolean" },
                           "current": {
@@ -5084,6 +5092,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "difficulty": { "type": "string" },
+          "isOdyssey": { "type": "boolean" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "companies": { "type": "array", "items": { "type": "string" } },
           "isSql": { "type": "boolean" },
           "fromLeetCode": { "type": "boolean" },
           "ready": { "type": "boolean" },
@@ -5100,7 +5112,11 @@
           "updatedAt",
           "isSql",
           "fromLeetCode",
-          "ready"
+          "ready",
+          "difficulty",
+          "isOdyssey",
+          "tags",
+          "companies"
         ]
       },
       "QuestionDraftPage": {
