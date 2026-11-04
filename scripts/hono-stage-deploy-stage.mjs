@@ -66,8 +66,6 @@ const stackNames = {
     "profile_media_enabled",
     "image_hostname",
     "image_service_image",
-    "runner_image",
-    "verifier_image",
     "case_images",
     "command_origin",
     "source_origin",
@@ -350,8 +348,6 @@ export async function deployStage(original, operations = defaults) {
     operations.phase?.("provision-api-resources");
     await Promise.resolve(operations.terraform(env, "hono-stage", "apply"));
     const images = await Promise.resolve(operations.images(original));
-    env.TF_VAR_runner_image = images.runner;
-    env.TF_VAR_verifier_image = images.verifier;
     if (profileEnabled) env.TF_VAR_image_service_image = images.image;
     env.TF_VAR_case_images = JSON.stringify(
       Object.fromEntries(
@@ -359,8 +355,6 @@ export async function deployStage(original, operations = defaults) {
       ),
     );
     Object.assign(caseEnv, {
-      TF_VAR_runner_image: env.TF_VAR_runner_image,
-      TF_VAR_verifier_image: env.TF_VAR_verifier_image,
       ...(profileEnabled ? { TF_VAR_image_service_image: env.TF_VAR_image_service_image } : {}),
       TF_VAR_case_images: env.TF_VAR_case_images,
     });

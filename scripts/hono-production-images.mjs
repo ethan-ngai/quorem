@@ -21,7 +21,6 @@ export function productionImages(env) {
       source,
       "--",
       "pnpm-lock.yaml",
-      "apps/runner/src",
       "apps/runner/python",
       "apps/runner/java",
       "apps/runner/typescript",
@@ -30,8 +29,6 @@ export function productionImages(env) {
       "packages/execution",
       "packages/questions",
       "packages/database",
-      "deploy/hono/Dockerfile.runner",
-      "deploy/hono/services/start.mjs",
       "deploy/hono/services/Dockerfile.image",
       "apps/auth/src/image-service-main.ts",
       "apps/auth/src/image-service.ts",
@@ -51,16 +48,7 @@ export function productionImages(env) {
     }
   }
   const images = {};
-  for (const role of [
-    "runner",
-    "verifier",
-    "python",
-    "java",
-    "typescript",
-    "ocaml",
-    "postgresql",
-    "image",
-  ]) {
+  for (const role of ["python", "java", "typescript", "ocaml", "postgresql", "image"]) {
     const value = receipt?.images?.[role];
     if (
       typeof value !== "string" ||

@@ -1,16 +1,18 @@
 /** @file service.ts @description Compose the trusted private result verifier. @module runner */
-import { verificationHandler } from "./http.ts";
+import { verificationHandler, verificationFetch } from "./http.ts";
 import { httpVerificationSource } from "./source-http.ts";
 import { nodeResultVerifier } from "./verifier.ts";
 /** The listener is provisioned privately; all credentials are separate from sandbox execution. */
-export function createVerificationService(options: {
+type VerificationConfig = {
   sourceOrigin: string;
   sourceCredential: Uint8Array;
   serviceCredential: Uint8Array;
   signingKey: CryptoKey;
   timeoutMs: number;
   fetch?: typeof fetch;
-}) {
+};
+
+function verificationOptions(options: VerificationConfig) {
   if (
     options.sourceCredential.length !== 32 ||
     options.serviceCredential.length !== 32 ||
@@ -28,10 +30,10 @@ export function createVerificationService(options: {
     }),
     options.signingKey,
   );
-  return verificationHandler({
+  return {
     credential: options.serviceCredential,
     timeoutMs: options.timeoutMs,
-    async verify(challenge, signal) {
+    async verify(challenge: string, signal: AbortSignal) {
       const source = httpVerificationSource({
         origin: options.sourceOrigin,
         credential: options.sourceCredential,
@@ -41,5 +43,13 @@ export function createVerificationService(options: {
       });
       return nodeResultVerifier(source, options.signingKey)(challenge, signal);
     },
-  });
+  };
+}
+
+export function createVerificationFetch(options: VerificationConfig) {
+  return verificationFetch(verificationOptions(options));
+}
+
+export function createVerificationService(options: VerificationConfig) {
+  return verificationHandler(verificationOptions(options));
 }

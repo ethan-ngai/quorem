@@ -76,5 +76,6 @@ jobs:
           terraform_version: 1.13.5
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
+      - run: node scripts/build-hono-service-workers.mjs
       - name: Snapshot and directly cut over production
         run: vp exec node scripts/hono-production-deploy.mjs

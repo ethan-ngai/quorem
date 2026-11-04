@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { generateKeyPairSync, randomUUID, createHash } from "node:crypto";
 import { signedCaseProbe, verifyCaseProbe } from "../../case-proof.js";
 import { CaseSandbox } from "../../case-sandbox.js";
-import worker, { ImageService, RunnerService, VerifierService } from "./worker.js";
+import worker, { ImageService, RunnerService } from "./worker.js";
 const secret = (value) => value.repeat(64);
 const base = () => {
   const env = {
@@ -297,7 +297,6 @@ void test("private ingress pins capability host, method, bearer and strips Acces
   env.QUOREM_CASE_NAMESPACE_ID = secret("1");
   env.CASES = { idFromName: () => secret("1") };
   env.RUNNERS = target(`runner:${env.SERVICES_RELEASE}:1`, seen);
-  env.VERIFIERS = target("verifier", seen);
   const call = (origin, path, token, method = "POST") =>
     worker.fetch(
       new Request(`${origin}${path}`, {
@@ -322,7 +321,7 @@ void test("private ingress pins capability host, method, bearer and strips Acces
         env.QUOREM_VERIFICATION_SERVICE_KEY,
       )
     ).status,
-    204,
+    404,
   );
   const nonce = randomUUID();
   const namespace = await worker.fetch(
@@ -362,7 +361,7 @@ void test("private ingress pins capability host, method, bearer and strips Acces
     503,
   );
   env.QUOREM_CASE_NAMESPACE_ID = secret("1");
-  assert.equal(seen.length, 3);
+  assert.equal(seen.length, 2);
   for (const request of seen) {
     assert.equal(request.headers.get("cf-access-client-secret"), null);
     assert.equal(request.headers.get("cf-access-client-id"), null);
@@ -401,74 +400,6 @@ void test("private ingress pins capability host, method, bearer and strips Acces
     (await call(env.DRAIN_ORIGIN, "/internal/drain", env.QUOREM_RUNNER_DRAIN_SECRET)).status,
     503,
   );
-});
-void test("trusted container environment is purpose-scoped", () => {
-  const env = base(),
-    ctx = { container: {}, waitUntil() {} };
-  const runner = new RunnerService(ctx, env).lifecycle.runtime,
-    verifier = new VerifierService(ctx, env).lifecycle.runtime;
-  assert.equal(runner.QUOREM_CASE_SECRET, env.QUOREM_CASE_SECRET);
-  assert.equal(runner.QUOREM_VERIFICATION_SIGNING_KEY_PEM, undefined);
-  assert.equal(
-    verifier.QUOREM_VERIFICATION_SIGNING_KEY_PEM,
-    env.QUOREM_VERIFICATION_SIGNING_KEY_PEM,
-  );
-  assert.equal(verifier.QUOREM_CASE_SECRET, undefined);
-  assert.equal(verifier.QUOREM_RUNNER_COMMAND_SECRET, undefined);
-  assert.equal(
-    Object.keys(runner).some((name) => name.includes("ACCESS_CLIENT")),
-    false,
-  );
-  assert.equal(
-    Object.keys(verifier).some((name) => name.includes("ACCESS_CLIENT")),
-    false,
-  );
-});
-void test("service lifecycle starts once and forwards only the intended request", async () => {
-  const env = base(),
-    calls = [],
-    running = { value: false };
-  const container = {
-    get running() {
-      return running.value;
-    },
-    start(options) {
-      calls.push(options);
-      running.value = true;
-    },
-    async setInactivityTimeout() {},
-    monitor() {
-      return new Promise(() => {});
-    },
-    getTcpPort(port) {
-      return {
-        async fetch(request) {
-          if (typeof request === "string") return new Response(null, { status: 200 });
-          assert.equal(port, 8090);
-          assert.equal(request.headers.get("cf-access-client-secret"), null);
-          return new Response("drained");
-        },
-      };
-    },
-  };
-  const service = new RunnerService(
-    { container, storage: { async get() {} }, waitUntil() {} },
-    env,
-  );
-  const request = () =>
-    new Request(`${env.DRAIN_ORIGIN}/internal/drain`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}`,
-        "cf-access-client-secret": "strip",
-      },
-    });
-  assert.equal(await (await service.fetch(request())).text(), "drained");
-  assert.equal(await (await service.fetch(request())).text(), "drained");
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].env.QUOREM_SANDBOX_PROVIDER, "remote");
-  assert.equal(calls[0].env.QUOREM_VERIFICATION_SIGNING_KEY_PEM, undefined);
-  assert.equal(calls[0].env.QUOREM_CASE_SECRET, env.QUOREM_CASE_SECRET);
 });
 void test("signed live case observation follows execution and confirmed attempt teardown", async () => {
   const env = base(),

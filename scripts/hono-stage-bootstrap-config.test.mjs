@@ -90,8 +90,6 @@ void test("real stage preflight accepts assembled inputs before any provider ope
   const env = assembleStageConfig(bootstrap(), actions());
   const digest = (name) =>
     `registry.cloudflare.com/${env.CLOUDFLARE_ACCOUNT_ID}/${name}@sha256:${"d".repeat(64)}`;
-  env.TF_VAR_runner_image = digest("runner");
-  env.TF_VAR_verifier_image = digest("verifier");
   env.TF_VAR_image_service_image = digest("image");
   env.TF_VAR_case_images = JSON.stringify(
     Object.fromEntries(

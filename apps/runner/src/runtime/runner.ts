@@ -5,7 +5,6 @@ import { dockerSandbox } from "../sandbox/docker.ts";
 import { remoteSandbox } from "../sandbox/remote.ts";
 import { checkpointedEngine } from "../orchestration/engine.ts";
 import { drainHandler } from "../drains/http.ts";
-import { UnconfirmedTeardown } from "../sandbox/types.ts";
 import { createRunner } from "../orchestration/runner.ts";
 import { runnerConfig } from "./config.ts";
 import { accessFetch } from "@quorem/execution/transport/access";
@@ -37,36 +36,16 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
       inputProtocol: "manifest-v1",
     }),
   });
-  let teardownFailure: UnconfirmedTeardown | undefined;
-  const supervised = {
-    refresh: () => runner.drain.refresh(),
-    async drain(signal: AbortSignal) {
-      if (teardownFailure) throw teardownFailure;
-      try {
-        return await runner.drain.drain(signal);
-      } catch (error) {
-        if (error instanceof UnconfirmedTeardown) teardownFailure = error;
-        console.error(
-          JSON.stringify({
-            event: "runner-drain-failed",
-            kind: error instanceof UnconfirmedTeardown ? "teardown" : "drain",
-            ...(error instanceof UnconfirmedTeardown ? { diagnostic: error.diagnostic } : {}),
-          }),
-        );
-        throw error;
-      }
-    },
-  };
   const shutdown = new AbortController();
   const handleDrain = drainHandler({
-    drainer: supervised,
+    drainer: runner.drain,
     secret: config.drainSecret,
     ...(config.background
       ? { background: { signal: shutdown.signal, state: runner.queueState } }
       : {}),
   });
   const server = await listenPrivate(config.listen, async (incoming, outgoing) => {
-    if (teardownFailure) {
+    if (runner.teardownFailure()) {
       outgoing.writeHead(503).end();
       return;
     }
@@ -107,10 +86,10 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
       ? (async () => {
           while (!shutdown.signal.aborted) {
             try {
-              supervised.refresh();
-              await supervised.drain(shutdown.signal);
+              runner.drain.refresh();
+              await runner.drain.drain(shutdown.signal);
             } catch {
-              if (shutdown.signal.aborted || teardownFailure) break;
+              if (shutdown.signal.aborted || runner.teardownFailure()) break;
             }
             try {
               await sleep(config.pollMs, undefined, { signal: shutdown.signal });
@@ -125,7 +104,8 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
     async close() {
       shutdown.abort();
       await Promise.all([server.close(), continuous, handleDrain.settled()]);
-      if (teardownFailure) throw teardownFailure;
+      const failure = runner.teardownFailure();
+      if (failure) throw failure;
     },
   };
 }

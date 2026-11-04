@@ -1,17 +1,41 @@
-/** @file http.ts @description Private authenticated Node result verification endpoint. @module runner */
+/** @file http.ts @description Private authenticated result verification transports. @module runner */
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { VerificationReceipt } from "@quorem/execution";
 
 /** The listener is private; its dedicated secret is distinct from runner command credentials. */
-export function verificationHandler(options: {
+type VerificationOptions = {
   credential: Uint8Array;
   verify: (
     challenge: string,
     signal: AbortSignal,
   ) => Promise<{ receipt: VerificationReceipt; signature: Uint8Array }>;
   timeoutMs: number;
-}) {
+};
+
+function challengeFrom(body: string): string {
+  const data: unknown = JSON.parse(body);
+  if (
+    !data ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    Object.keys(data).length !== 1 ||
+    !("challenge" in data) ||
+    typeof data.challenge !== "string" ||
+    !/^[a-zA-Z0-9-]{1,128}$/.test(data.challenge)
+  )
+    throw new Error("Invalid request");
+  return data.challenge;
+}
+
+function verificationJSON(result: Awaited<ReturnType<VerificationOptions["verify"]>>) {
+  return {
+    receipt: result.receipt,
+    signature: Buffer.from(result.signature).toString("base64"),
+  };
+}
+
+export function verificationHandler(options: VerificationOptions) {
   if (
     options.credential.length !== 32 ||
     !Number.isSafeInteger(options.timeoutMs) ||
@@ -48,20 +72,10 @@ export function verificationHandler(options: {
         if (size > 256) throw new Error("Invalid request");
         body += (chunk as Buffer).toString("utf8");
       }
-      const data: unknown = JSON.parse(body);
-      if (
-        !data ||
-        typeof data !== "object" ||
-        Array.isArray(data) ||
-        Object.keys(data).length !== 1 ||
-        !("challenge" in data) ||
-        typeof data.challenge !== "string" ||
-        !/^[a-zA-Z0-9-]{1,128}$/.test(data.challenge)
-      )
-        throw new Error("Invalid request");
+      const challenge = challengeFrom(body);
       abort.signal.throwIfAborted();
       const result = await Promise.race([
-        options.verify(data.challenge, abort.signal),
+        options.verify(challenge, abort.signal),
         new Promise<never>((_, reject) =>
           abort.signal.addEventListener("abort", () => reject(new Error("Verification timeout")), {
             once: true,
@@ -71,17 +85,68 @@ export function verificationHandler(options: {
       abort.signal.throwIfAborted();
       response
         .writeHead(200, { "content-type": "application/json", "cache-control": "no-store" })
-        .end(
-          JSON.stringify({
-            receipt: result.receipt,
-            signature: Buffer.from(result.signature).toString("base64"),
-          }),
-        );
+        .end(JSON.stringify(verificationJSON(result)));
     } catch {
       if (!response.headersSent && !response.destroyed) response.writeHead(503).end();
     } finally {
       clearTimeout(timer);
       abort.signal.removeEventListener("abort", stopReading);
+    }
+  };
+}
+
+export function verificationFetch(options: VerificationOptions) {
+  if (
+    options.credential.length !== 32 ||
+    !Number.isSafeInteger(options.timeoutMs) ||
+    options.timeoutMs < 1
+  )
+    throw new Error("Invalid verification service configuration");
+  const expected = Buffer.from(`Bearer ${Buffer.from(options.credential).toString("hex")}`);
+  return async (request: Request): Promise<Response> => {
+    const presented = Buffer.from(request.headers.get("authorization") ?? "");
+    if (presented.length !== expected.length || !timingSafeEqual(presented, expected))
+      return new Response(null, { status: 401 });
+    const url = new URL(request.url);
+    if (request.method !== "POST" || url.pathname !== "/internal/results/verify" || url.search)
+      return new Response(null, { status: 404 });
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(options.timeoutMs)]);
+    const reader = request.body?.getReader();
+    if (!reader) return new Response(null, { status: 503 });
+    let abort!: () => void;
+    const expired = new Promise<never>((_, reject) => {
+      abort = () => reject(signal.reason);
+    });
+    const cancel = () => void reader.cancel().catch(() => {});
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      const parts: Uint8Array[] = [];
+      let size = 0;
+      for (;;) {
+        signal.throwIfAborted();
+        const part = await reader.read();
+        if (part.done) break;
+        size += part.value.length;
+        if (size > 256) {
+          cancel();
+          throw new Error("Invalid request");
+        }
+        parts.push(part.value);
+      }
+      const challenge = challengeFrom(
+        new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(parts)),
+      );
+      signal.throwIfAborted();
+      signal.addEventListener("abort", abort, { once: true });
+      const result = await Promise.race([options.verify(challenge, signal), expired]);
+      signal.throwIfAborted();
+      return Response.json(verificationJSON(result), { headers: { "cache-control": "no-store" } });
+    } catch {
+      return new Response(null, { status: 503 });
+    } finally {
+      signal.removeEventListener("abort", cancel);
+      signal.removeEventListener("abort", abort);
+      reader.releaseLock();
     }
   };
 }

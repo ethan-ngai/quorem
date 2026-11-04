@@ -34,7 +34,7 @@ export function inspectProductionPlan(plan, mode) {
       actions.includes("delete") &&
       !(
         actions.includes("create") &&
-        /^(cloudflare_worker_version\.services|terraform_data\.case_images|restapi_object\.trusted_rollout\[)/.test(
+        /^(cloudflare_worker_version\.(?:services|verifier)|terraform_data\.case_images|restapi_object\.trusted_rollout\[)/.test(
           item.address,
         )
       )

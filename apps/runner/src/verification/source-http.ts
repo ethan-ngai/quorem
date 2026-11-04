@@ -42,7 +42,7 @@ export function httpVerificationSource(options: {
       : AbortSignal.timeout(options.timeoutMs);
     const response = await send(new URL(`/internal/verification/${path}`, origin), {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
       body: JSON.stringify({ challenge: options.challenge, ...payload }),
       signal: combined,

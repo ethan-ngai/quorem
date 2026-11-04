@@ -1,5 +1,6 @@
 /** Staged, purpose-scoped ingress for trusted services and attested cases. */
 import { DurableObject } from "cloudflare:workers";
+import { workerRunner } from "../../../apps/runner/src/runtime/worker-runner.ts";
 import { ContainerLifecycle } from "../../container.js";
 import { caseRequest } from "../../case-service.js";
 import { signedCaseProbe, validRunnerControlState } from "../../case-proof.js";
@@ -8,31 +9,6 @@ export { CaseControl } from "./case-control.js";
 export { RunnerReleaseControl } from "./runner-control.js";
 export { CaseSandbox } from "../../case-sandbox.js";
 
-const runnerKeys = [
-  "QUOREM_RUNNER_COMMAND_ORIGIN",
-  "QUOREM_RUNNER_COMMAND_SECRET",
-  "QUOREM_RUNNER_DRAIN_SECRET",
-  "QUOREM_CASE_ORIGIN",
-  "QUOREM_CASE_SECRET",
-  "QUOREM_CASE_NAMESPACE_ID",
-  "QUOREM_CASE_OWNER_PUBLIC_KEY_PEM",
-  "QUOREM_RUNNER_SLOTS",
-  "QUOREM_RUNNER_SLICE_MS",
-  "QUOREM_RUNNER_COMMAND_TIMEOUT_MS",
-  "QUOREM_SANDBOX_CLEANUP_MS",
-];
-const verifierKeys = [
-  "QUOREM_VERIFICATION_SOURCE_ORIGIN",
-  "QUOREM_VERIFICATION_SOURCE_KEY",
-  "QUOREM_VERIFICATION_SERVICE_KEY",
-  "QUOREM_VERIFICATION_SIGNING_KEY_PEM",
-  "QUOREM_VERIFICATION_TIMEOUT_MS",
-];
-function selected(env, keys) {
-  return Object.fromEntries(
-    keys.filter((key) => typeof env[key] === "string").map((key) => [key, env[key]]),
-  );
-}
 function config(env) {
   if (
     !/^[a-f0-9]{40}$/.test(env.SERVICES_RELEASE ?? "") ||
@@ -49,8 +25,6 @@ function config(env) {
     env.QUOREM_RUNNER_COMMAND_SECRET,
     env.QUOREM_RUNNER_DRAIN_SECRET,
     env.QUOREM_CASE_SECRET,
-    env.QUOREM_VERIFICATION_SOURCE_KEY,
-    env.QUOREM_VERIFICATION_SERVICE_KEY,
     ...(imageEnabled ? [env.IMAGE_SERVICE_TOKEN] : []),
     ...(env.MAIL_RELAY_ENABLED === "true" ? [env.MAIL_RELAY_TOKEN] : []),
   ];
@@ -59,11 +33,7 @@ function config(env) {
     new Set(secrets).size !== secrets.length
   )
     throw new Error("Invalid private service configuration");
-  if (
-    !env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM ||
-    !env.QUOREM_VERIFICATION_SIGNING_KEY_PEM ||
-    !env.CASE_OWNER_PRIVATE_KEY
-  )
+  if (!env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM || !env.CASE_OWNER_PRIVATE_KEY)
     throw new Error("Invalid private ingress credentials");
   const origins = [
     env.DRAIN_ORIGIN,
@@ -124,64 +94,21 @@ function cleanImage(request) {
   }
   return new Request(request, { headers });
 }
-class Service extends DurableObject {
-  constructor(ctx, env, kind) {
-    super(ctx, env);
-    const runner = kind === "runner";
-    const values = selected(env, runner ? runnerKeys : verifierKeys);
-    Object.assign(
-      values,
-      runner
-        ? {
-            QUOREM_RUNNER_MODE: "http",
-            QUOREM_RUNNER_BACKGROUND: "true",
-            QUOREM_RUNNER_LISTEN: "0.0.0.0:8090",
-            QUOREM_SANDBOX_PROVIDER: "remote",
-            QUOREM_PRIVATE_SERVICE: "runner",
-          }
-        : { QUOREM_VERIFIER_LISTEN: "0.0.0.0:8091", QUOREM_PRIVATE_SERVICE: "verifier" },
-    );
-    this.lifecycle = new ContainerLifecycle(
-      ctx,
-      values,
-      runner ? 8090 : 8091,
-      60000,
-      runner ? 900000 : 120000,
-    );
-  }
-  async fetch(request) {
-    try {
-      return await this.lifecycle.forward(
-        clean(request),
-        this instanceof RunnerService ? 240000 : 135000,
-      );
-    } catch (error) {
-      if (!error?.readiness) throw error;
-      return Response.json({ error: "container-readiness", ...error.readiness }, { status: 503 });
-    }
-  }
-}
-export class RunnerService extends Service {
-  constructor(ctx, env) {
-    super(ctx, env, "runner");
-    this.storage = ctx.storage;
-  }
+export class RunnerService extends DurableObject {
   async fetch(request) {
     const path = new URL(request.url).pathname;
     if (request.method !== "POST") return new Response(null, { status: 404 });
     if (path === "/internal/pause") {
-      await this.storage.put("recovery-paused", true);
+      await this.ctx.storage.put("recovery-paused", true);
       return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
     }
     if (path !== "/internal/drain") return new Response(null, { status: 404 });
-    if (await this.storage.get("recovery-paused"))
+    if (await this.ctx.storage.get("recovery-paused"))
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
-    return super.fetch(request);
-  }
-}
-export class VerifierService extends Service {
-  constructor(ctx, env) {
-    super(ctx, env, "verifier");
+    this.drain ??= workerRunner(this.env, (url, init) =>
+      ingress.fetch(new Request(url, init), this.env),
+    );
+    return this.drain(request);
   }
 }
 export class ImageService extends DurableObject {
@@ -232,10 +159,10 @@ export class MailRelayService extends DurableObject {
     return this.lifecycle.forward(target, 30000);
   }
 }
-export default {
+const ingress = {
   async fetch(request, env) {
     try {
-      const [drain, verifier, cases, image] = config(env),
+      const [drain, , cases, image] = config(env),
         url = new URL(request.url);
       if (
         env.MAIL_RELAY_ENABLED === "true" &&
@@ -361,13 +288,6 @@ export default {
           return new Response(null, { status: 503 });
         return env.RUNNERS.getByName(expectedRunner).fetch(clean(request));
       }
-      if (
-        url.origin === verifier &&
-        url.pathname === "/internal/results/verify" &&
-        request.method === "POST" &&
-        request.headers.get("authorization") === `Bearer ${env.QUOREM_VERIFICATION_SERVICE_KEY}`
-      )
-        return env.VERIFIERS.getByName("verifier").fetch(clean(request));
       const attempt =
         url.origin === cases &&
         url.pathname.match(/^\/internal\/case\/([a-zA-Z0-9-]{1,128})$/)?.[1];
@@ -427,3 +347,5 @@ export default {
     }
   },
 };
+
+export default ingress;

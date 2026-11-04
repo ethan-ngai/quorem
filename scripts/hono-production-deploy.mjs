@@ -275,8 +275,6 @@ export async function deployProduction(env) {
       mail_relay_enabled: "true",
       mail_relay_hostname: hosts.mail,
       mail_relay_image: images.mail,
-      runner_image: images.runner,
-      verifier_image: images.verifier,
       case_images: Object.fromEntries(
         ["python", "java", "typescript", "ocaml", "postgresql"].map((key) => [key, images[key]]),
       ),
