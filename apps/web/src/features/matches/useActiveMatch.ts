@@ -1,22 +1,14 @@
 /** @file useActiveMatch.ts @description Finds current server membership before exposing creation or return actions. @module matches */
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
-import { useEffect, useRef, useState } from "react";
 import { api, requireData } from "../../api/client";
-import {
-  membershipSynchronizer,
-  retryMembershipEvents,
-  subscribeMembershipEvents,
-} from "../realtime/membershipEvents";
 import { activeMatchReturnLabel } from "./matchState";
 
 export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
-  const [connection, setConnection] = useState<"connecting" | "ready" | "offline">("connecting");
-  const retry = useRef<() => void>(() => {});
   const query = useQuery({
     queryKey: ["current-match", identity],
-    // Serialize the initial snapshot, polling and realtime invalidations.
-    enabled: false,
+    enabled,
+    refetchOnWindowFocus: true,
     queryFn: async ({ signal }) => {
       const { data, error } = await api(identity).GET("/v1/matches/current", { signal });
       return requireData(data as MatchSnapshot | null | undefined, error);
@@ -24,36 +16,12 @@ export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
     retry: false,
     staleTime: 0,
   });
-  const refresh = query.refetch;
-  useEffect(() => {
-    if (!enabled) return;
-    const sync = membershipSynchronizer(
-      () => refresh({ cancelRefetch: false }),
-      setConnection,
-      15000,
-    );
-    let connected = false;
-    retry.current = () => {
-      if (!connected) retryMembershipEvents(identity);
-      sync.refresh();
-    };
-    const stop = subscribeMembershipEvents(identity, (event) => {
-      connected = event === "changed";
-      sync.event(event);
-    });
-    return () => {
-      retry.current = () => {};
-      sync.stop();
-      stop();
-    };
-  }, [identity, enabled, refresh]);
   const label = query.data ? activeMatchReturnLabel(query.data, identity) : null;
   return {
-    match: enabled && connection === "ready" && !query.isError && label ? query.data : null,
+    match: enabled && !query.isError && label ? query.data : null,
     label,
-    checking: enabled && connection === "connecting",
-    failed: enabled && (connection === "offline" || query.isError),
-    refresh,
-    retry: () => retry.current(),
+    checking: enabled && query.isPending,
+    failed: enabled && query.isError,
+    refresh: query.refetch,
   };
 }

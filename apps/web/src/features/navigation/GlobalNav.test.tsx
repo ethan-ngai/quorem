@@ -16,7 +16,7 @@ import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
 async function renderNavigation(
   path: string,
   workspaceSettings?: SettingsProps,
-  activeState?: MatchSnapshot["state"],
+  activeState?: MatchSnapshot["state"] | "pending",
 ) {
   const root = createRootRoute();
   const route = createRoute({
@@ -36,11 +36,13 @@ async function renderNavigation(
       user: { id: "alice", displayName: "Alice", emailVerified: true, role: "user" },
       mode: "development",
     });
-    client.setQueryData(["current-match", "alice"], {
-      id: "current",
-      state: activeState,
-      participants: [{ userId: developmentUserIds.alice }],
-    });
+    if (activeState !== "pending") {
+      client.setQueryData(["current-match", "alice"], {
+        id: "current",
+        state: activeState,
+        participants: [{ userId: developmentUserIds.alice }],
+      });
+    }
   }
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
@@ -61,14 +63,18 @@ describe("global navigation", () => {
     expect(html).not.toContain("Sign in");
   });
   it.each(["waiting", "ready", "active", "finalizing"] as const)(
-    "waits for a fresh snapshot before showing cached %s membership",
+    "shows the return link from a cached %s snapshot",
     async (state) => {
       const html = await renderNavigation("/practice", undefined, state);
       expect(html).not.toContain('aria-label="Create match"');
-      expect(html).not.toContain('href="/match/current"');
-      expect(html).toContain('aria-label="Checking active match"');
+      expect(html).toContain('href="/match/current"');
     },
   );
+  it("waits for the first HTTP snapshot before offering match creation", async () => {
+    const html = await renderNavigation("/practice", undefined, "pending");
+    expect(html).toContain('aria-label="Checking active match"');
+    expect(html).not.toContain('aria-label="Create match"');
+  });
   it("offers creation and named navigation/sign-in controls in practice", async () => {
     const html = await renderNavigation("/practice");
     expect(html).toContain('aria-label="Create match"');
