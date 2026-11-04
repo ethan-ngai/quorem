@@ -1,5 +1,7 @@
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
 import { FilePenLine, Globe, Search } from "lucide-react";
+import { CatalogTable } from "../practice/CatalogLayout";
+import { SelectField } from "../../ui/SelectField";
 import { Icon } from "../../ui/Icon";
 import { useState } from "react";
 import type { QuestionDraftSummary } from "@quorem/contracts";
@@ -179,44 +181,41 @@ export function QuestionDashboard({
           />
         </div>
       </div>
-      <div className="admin-question-filters" role="group" aria-label="Question filters">
-        <label>
-          Source
-          <select
-            value={source}
-            onChange={(event) => setSource(event.target.value)}
-            disabled={disabled}
-          >
-            <option value="all">All sources</option>
-            <option value="leetcode">LeetCode</option>
-            <option value="other">No LeetCode ID</option>
-          </select>
-        </label>
-        <label>
-          Type
-          <select
-            value={type}
-            onChange={(event) => setType(event.target.value)}
-            disabled={disabled}
-          >
-            <option value="all">All types</option>
-            <option value="coding">Coding</option>
-            <option value="sql">SQL</option>
-          </select>
-        </label>
+      <div className="practice-filters" role="group" aria-label="Question filters">
+        <SelectField
+          label="Source"
+          value={source}
+          onChange={setSource}
+          disabled={disabled}
+          options={[
+            { value: "all", label: "All sources" },
+            { value: "leetcode", label: "LeetCode" },
+            { value: "other", label: "No LeetCode ID" },
+          ]}
+        />
+        <SelectField
+          label="Type"
+          value={type}
+          onChange={setType}
+          disabled={disabled}
+          options={[
+            { value: "all", label: "All types" },
+            { value: "coding", label: "Coding" },
+            { value: "sql", label: "SQL" },
+          ]}
+        />
         {tab === "drafts" && (
-          <label>
-            Readiness
-            <select
-              value={readiness}
-              onChange={(event) => setReadiness(event.target.value)}
-              disabled={disabled}
-            >
-              <option value="all">All drafts</option>
-              <option value="ready">Ready</option>
-              <option value="needs-fixes">Needs fixes</option>
-            </select>
-          </label>
+          <SelectField
+            label="Readiness"
+            value={readiness}
+            onChange={setReadiness}
+            disabled={disabled}
+            options={[
+              { value: "all", label: "All drafts" },
+              { value: "ready", label: "Ready" },
+              { value: "needs-fixes", label: "Needs fixes" },
+            ]}
+          />
         )}
       </div>
       <div className="admin-toolbar admin-bulk-bar">
@@ -261,8 +260,10 @@ export function QuestionDashboard({
         <p role="alert">Questions could not be loaded. Refresh to try again.</p>
       ) : (
         <div className="admin-table-scroll">
-          <table className="admin-question-table">
-            <thead>
+          <CatalogTable
+            className="admin-question-table"
+            label={tab === "drafts" ? "Draft questions" : "Question publications"}
+            heading={
               <tr>
                 <th scope="col">
                   <input
@@ -287,78 +288,71 @@ export function QuestionDashboard({
                 {tab === "drafts" && <th scope="col">Last edited</th>}
                 {showVisibility && <th scope="col">Visibility</th>}
               </tr>
-            </thead>
-            <tbody>
-              {visible.map((row) => (
-                <tr key={row.id} data-selected={selected.has(row.id)}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${row.title || "untitled question"}`}
-                      checked={selected.has(row.id)}
-                      disabled={disabled}
-                      onChange={(event) => toggle([row.id], event.target.checked)}
-                    />
-                  </td>
-                  <th scope="row">
-                    <button
-                      className="quiet-button"
-                      disabled={disabled}
-                      onClick={() => onOpen(row)}
-                    >
-                      {row.title || "Untitled question"}
-                    </button>
-                    {"revision" in row ? (
-                      <>
-                        {row.editVersionId && (
-                          <span className="admin-question-status">
-                            <FilePenLine size={14} aria-hidden="true" />
-                            Update draft
-                          </span>
-                        )}
-                        {row.ready === false && (
-                          <span className="admin-question-status">Needs fixes</span>
-                        )}
-                      </>
-                    ) : (
-                      !row.current && (
+            }
+          >
+            {visible.map((row) => (
+              <tr key={row.id} data-selected={selected.has(row.id)}>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${row.title || "untitled question"}`}
+                    checked={selected.has(row.id)}
+                    disabled={disabled}
+                    onChange={(event) => toggle([row.id], event.target.checked)}
+                  />
+                </td>
+                <th scope="row">
+                  <button className="quiet-button" disabled={disabled} onClick={() => onOpen(row)}>
+                    {row.title || "Untitled question"}
+                  </button>
+                  {"revision" in row ? (
+                    <>
+                      {row.editVersionId && (
                         <span className="admin-question-status">
-                          <Icon name="eye-off" width={14} height={14} />
-                          Unpublished
+                          <FilePenLine size={14} aria-hidden="true" />
+                          Update draft
                         </span>
-                      )
-                    )}
-                  </th>
-                  {"updatedAt" in row && (
-                    <td>
-                      <time dateTime={row.updatedAt}>
-                        {new Date(row.updatedAt).toLocaleDateString()}
-                      </time>
-                    </td>
-                  )}
-                  {showVisibility && "isPrivate" in row && (
-                    <td>
+                      )}
+                      {row.ready === false && (
+                        <span className="admin-question-status">Needs fixes</span>
+                      )}
+                    </>
+                  ) : (
+                    !row.current && (
                       <span className="admin-question-status">
-                        {row.isPrivate ? (
-                          <Icon name="lock" width={14} height={14} />
-                        ) : (
-                          <Globe size={14} aria-hidden="true" />
-                        )}
-                        {row.isPrivate ? "Private" : "Global"}
+                        <Icon name="eye-off" width={14} height={14} />
+                        Unpublished
                       </span>
-                    </td>
+                    )
                   )}
-                </tr>
-              ))}
-              {!visible.length && (
-                <tr>
-                  <td colSpan={tab === "drafts" || showVisibility ? 3 : 2}>
-                    No matching questions.
+                </th>
+                {"updatedAt" in row && (
+                  <td>
+                    <time dateTime={row.updatedAt}>
+                      {new Date(row.updatedAt).toLocaleDateString()}
+                    </time>
                   </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+                {showVisibility && "isPrivate" in row && (
+                  <td>
+                    <span className="admin-question-status">
+                      {row.isPrivate ? (
+                        <Icon name="lock" width={14} height={14} />
+                      ) : (
+                        <Globe size={14} aria-hidden="true" />
+                      )}
+                      {row.isPrivate ? "Private" : "Global"}
+                    </span>
+                  </td>
+                )}
+              </tr>
+            ))}
+            {!visible.length && (
+              <tr>
+                <td colSpan={tab === "drafts" || showVisibility ? 3 : 2}>No matching questions.</td>
+              </tr>
+            )}
+          </CatalogTable>
         </div>
       )}
       {tab === "drafts" && loadMore && (

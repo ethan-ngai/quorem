@@ -62,7 +62,6 @@
 .admin-field textarea,
 .admin-field select,
 .admin-dashboard input[type="search"],
-.admin-question-filters select,
 .admin-bulk-visibility select {
   width: 100%;
   border: 1px solid var(--color-border);
@@ -275,34 +274,22 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
 }
-.admin-question-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-small);
-  text-align: left;
-}
-.admin-question-table th,
-.admin-question-table td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-.admin-question-table tr > :first-child {
+.practice-table.admin-question-table :is(th, td):first-child {
   width: 1%;
 }
-.admin-question-table tbody tr:last-child > * {
+.practice-table.admin-question-table td:nth-child(2) {
+  width: auto;
+}
+.practice-table.admin-question-table tbody th {
+  background: transparent;
   border-bottom: 0;
+  color: var(--color-text);
 }
-.admin-question-table thead,
-.admin-question-table tbody tr:nth-child(even) {
-  background: var(--color-surface);
+.practice-table.admin-question-table tbody tr {
+  cursor: default;
 }
-.admin-question-table tbody tr:is(:hover, :focus-within, [data-selected="true"]) {
+.practice-table.admin-question-table tbody tr[data-selected="true"] {
   background: var(--color-overlay);
-}
-.admin-question-table .quiet-button {
-  padding-inline: 0;
-  text-align: left;
 }
 .admin-delete-action,
 .admin-bulk-errors {
@@ -328,18 +315,4 @@
 .admin-question-table th[scope="row"] .admin-question-status {
   margin-inline-start: var(--space-3);
   font-weight: normal;
-}
-.admin-question-filters,
-.admin-question-filters label {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-small);
-}
-.admin-question-filters {
-  gap: var(--space-4);
-}
-.admin-question-filters select {
-  width: auto;
 }

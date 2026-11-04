@@ -31,13 +31,15 @@ export function CatalogTable({
   label,
   heading,
   children,
+  className,
 }: {
   label: string;
   heading: ReactNode;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <table className="practice-table">
+    <table className={className ? `practice-table ${className}` : "practice-table"}>
       <caption className="sr-only">{label}</caption>
       <thead>{heading}</thead>
       <tbody>{children}</tbody>
