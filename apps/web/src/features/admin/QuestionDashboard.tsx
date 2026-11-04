@@ -1,11 +1,12 @@
 import type { QuestionSearch } from "./questionSearch";
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
-import { CodeXml, FileCode2, FilePenLine, Globe, Layers, Search } from "lucide-react";
+import { CodeXml, FileCode2, FilePenLine, Globe, Layers } from "lucide-react";
 import { CatalogFilters } from "../practice/CatalogFilters";
 import { addFilter } from "../practice/catalogSearch";
 import { QuestionIndicators } from "../practice/QuestionIndicators";
 import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
 import { CatalogTable } from "../practice/CatalogLayout";
+import { SearchField } from "../../ui/SearchField";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Icon } from "../../ui/Icon";
@@ -170,18 +171,15 @@ export function QuestionDashboard({
             Publications
           </button>
         </div>
-        <div className="admin-question-search">
-          <Search size={16} strokeWidth={1.5} aria-hidden="true" />
-          <input
-            type="search"
-            aria-label="Search questions"
-            placeholder="Search questions"
-            value={query}
-            maxLength={120}
-            onChange={(event) => onSearch({ q: event.target.value || undefined }, true)}
-            disabled={disabled}
-          />
-        </div>
+        <SearchField
+          className="admin-question-search"
+          aria-label="Search questions"
+          placeholder="Search questions"
+          value={query}
+          maxLength={120}
+          onChange={(event) => onSearch({ q: event.target.value || undefined }, true)}
+          disabled={disabled}
+        />
       </div>
       <fieldset
         className="practice-filters admin-catalog-filters"

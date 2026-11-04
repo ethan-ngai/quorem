@@ -10,7 +10,6 @@ import {
   ArrowUp,
   ChevronLeft,
   ChevronRight,
-  Search,
   X,
   Layers,
   Globe,
@@ -22,6 +21,7 @@ import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { SearchField } from "../../ui/SearchField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { CatalogFilter } from "./CatalogFilter";
 import { addFilter, filterValues } from "./catalogSearch";
@@ -120,19 +120,16 @@ export function PracticeBrowser() {
         }
       >
         <div className="practice-toolbar">
-          <label className="practice-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              aria-label="Search questions"
-              placeholder="Search questions or topics"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setEditing(true);
-              }}
-            />
-          </label>
+          <SearchField
+            className="practice-search"
+            aria-label="Search questions"
+            placeholder="Search questions or topics"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setEditing(true);
+            }}
+          />
         </div>
         <div className="practice-filters">
           <CatalogFilters search={search} update={update} topics={topics} companies={companies} />

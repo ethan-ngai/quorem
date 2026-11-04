@@ -1,5 +1,7 @@
-import { shortcutKeySymbols } from "../workspaceShortcuts";
-import { Icon } from "../../../ui/Icon";
+import { Icon } from "./Icon";
+import "./shortcut-keys.css";
+
+const shortcutKeySymbols: Record<string, string> = { Meta: "⌘", Shift: "⇧" };
 
 export function ShortcutKeys({ keys }: { keys: readonly string[] }) {
   return (

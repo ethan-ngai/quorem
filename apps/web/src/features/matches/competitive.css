@@ -564,29 +564,8 @@
   flex-direction: column;
 }
 .problem-picker-search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 4px;
-  padding: 4px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-}
-.problem-picker-search:focus-within {
-  border-color: var(--color-primary);
-}
-.problem-picker-search input {
-  min-height: 0;
-  padding: 0;
-  font-size: 12px;
-  line-height: 20px;
-  min-width: 0;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--color-text);
-  outline: 0;
+  flex: none;
+  margin-bottom: var(--space-1);
 }
 .problem-picker-results {
   overflow-y: auto;
@@ -637,17 +616,6 @@
   color: var(--color-text);
   z-index: 100;
   transform-origin: var(--radix-popover-content-transform-origin);
-}
-
-.problem-picker-search input:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-.problem-picker-search > svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
 }
 
 .guest-name-field {
