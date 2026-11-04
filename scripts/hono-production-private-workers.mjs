@@ -158,7 +158,7 @@ async function rollout(env) {
     );
     if (inputBounds.bounded !== true)
       throw new Error("Retained runner input exceeds validated size");
-    const images = productionImages(env);
+    const images = productionImages(env, { reuseMail: true });
     const secretNames = [
       "RECOVERY_CONTROL_SECRET",
       "QUOREM_RUNNER_COMMAND_SECRET",

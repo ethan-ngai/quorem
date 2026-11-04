@@ -3,7 +3,7 @@ import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 const source = "333e4c79b06f9b074b13ae4891a6df65f32bcc8f";
 const runId = "41285899439";
-export function productionImages(env) {
+export function productionImages(env, { reuseMail = false } = {}) {
   const run = JSON.parse(
     runStageCommand("gh", ["api", `repos/ethan-ngai/quorem/actions/runs/${runId}`], env),
   );
@@ -58,6 +58,7 @@ export function productionImages(env) {
       throw new Error("Validated runtime image missing");
     images[role] = value;
   }
+  if (reuseMail) return { ...images, mail: activeMailImage(env) };
   try {
     runStageCommand(
       "git",
@@ -75,24 +76,7 @@ export function productionImages(env) {
       ],
       env,
     );
-    runStageCommand(
-      "terraform",
-      terraformBackendArgs(env, "hono-services", "hono-production-services"),
-      env,
-    );
-    const state = JSON.parse(
-      runStageCommand("terraform", ["-chdir=infra/terraform/hono-services", "state", "pull"], env),
-    );
-    const mail = state.resources
-      ?.find((item) => item.type === "restapi_object" && item.name === "trusted")
-      ?.instances?.find((item) => item.index_key === "mail");
-    const value = mail && JSON.parse(mail.attributes.data).configuration.image;
-    if (
-      typeof value === "string" &&
-      value.startsWith(`registry.cloudflare.com/${env.CLOUDFLARE_ACCOUNT_ID}/`) &&
-      /@sha256:[a-f0-9]{64}$/.test(value)
-    )
-      return { ...images, mail: value };
+    return { ...images, mail: activeMailImage(env) };
   } catch {
     /* A changed or absent relay needs a new image. */
   }
@@ -112,4 +96,26 @@ export function productionImages(env) {
   );
   if (match.length !== 1) throw new Error("Mail image digest missing");
   return { ...images, mail: match[0] };
+}
+
+function activeMailImage(env) {
+  runStageCommand(
+    "terraform",
+    terraformBackendArgs(env, "hono-services", "hono-production-services"),
+    env,
+  );
+  const state = JSON.parse(
+    runStageCommand("terraform", ["-chdir=infra/terraform/hono-services", "state", "pull"], env),
+  );
+  const mail = state.resources
+    ?.find((item) => item.type === "restapi_object" && item.name === "trusted")
+    ?.instances?.find((item) => item.index_key === "mail");
+  const value = mail && JSON.parse(mail.attributes.data).configuration.image;
+  if (
+    typeof value === "string" &&
+    value.startsWith(`registry.cloudflare.com/${env.CLOUDFLARE_ACCOUNT_ID}/`) &&
+    /@sha256:[a-f0-9]{64}$/.test(value)
+  )
+    return value;
+  throw new Error("Active mail image missing");
 }
