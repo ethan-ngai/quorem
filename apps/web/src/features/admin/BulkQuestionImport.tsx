@@ -146,19 +146,26 @@ export function BulkQuestionImport({
     setNotice("");
     let created = false;
     let processed = 0;
-    try {
-      for (const row of selected) {
-        setProgress(`${preview ? "Checking" : "Importing"} ${processed + 1} of ${selected.length}`);
+    let next = 0;
+    let paused = false;
+    setProgress(`${preview ? "Checking" : "Importing"} 0 of ${selected.length}`);
+    async function worker() {
+      while (!paused && next < selected.length) {
+        const row = selected[next++];
         let update: Partial<Row>;
         try {
-          const response = await importDraft(await fileText(row.file!), row.content!, preview);
+          const raw = await fileText(row.file!);
+          if (paused) return;
+          const response = await importDraft(raw, row.content!, preview);
           if (response.status === 401 || response.status === 403 || response.status === 429) {
+            if (paused) return;
+            paused = true;
             setNotice(
               response.status === 429
                 ? "Import paused. Wait briefly, then retry the remaining files."
                 : "Import paused. Check your session and authoring access, then retry.",
             );
-            break;
+            return;
           }
           if (response.data) {
             update = {
@@ -180,8 +187,12 @@ export function BulkQuestionImport({
           };
         }
         processed++;
+        setProgress(`${preview ? "Checking" : "Importing"} ${processed} of ${selected.length}`);
         setRows((current) => current.map((item) => (item === row ? { ...item, ...update } : item)));
       }
+    }
+    try {
+      await Promise.all(Array.from({ length: Math.min(4, selected.length) }, worker));
     } finally {
       if (created) onCreated();
       setProgress("");
