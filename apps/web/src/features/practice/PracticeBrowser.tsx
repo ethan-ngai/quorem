@@ -1,4 +1,4 @@
-import { formatLabel } from "../../ui/formatLabel";
+import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
 import { CatalogFilters } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
@@ -245,31 +245,18 @@ export function PracticeBrowser() {
                       <Link to="/practice/$slug" params={{ slug: problem.slug }}>
                         {problem.title}
                       </Link>
-                      <div className="practice-topic-list">
-                        {problem.tags
-                          .filter((tag) => tag.toLowerCase() !== "sql")
-                          .map((tag) => (
-                            <button
-                              key={tag}
-                              onClick={() => update({ topic: addFilter(search.topic, tag) })}
-                              aria-label={`Filter by ${formatLabel(tag)}`}
-                            >
-                              {formatLabel(tag)}
-                            </button>
-                          ))}
-                      </div>
+                      <QuestionTopics
+                        tags={problem.tags}
+                        onFilter={(topic) => update({ topic: addFilter(search.topic, topic) })}
+                      />
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className={`practice-difficulty ${problem.difficulty}`}
-                        onClick={() =>
-                          update({ difficulty: addFilter(search.difficulty, problem.difficulty) })
+                      <QuestionDifficulty
+                        difficulty={problem.difficulty}
+                        onFilter={(difficulty) =>
+                          update({ difficulty: addFilter(search.difficulty, difficulty) })
                         }
-                        aria-label={`Filter by ${formatLabel(problem.difficulty)}`}
-                      >
-                        {formatLabel(problem.difficulty)}
-                      </button>
+                      />
                     </td>
                     <td className="practice-format">
                       <QuestionIndicators

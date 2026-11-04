@@ -1,7 +1,9 @@
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
 import { FilePenLine, Globe, Search } from "lucide-react";
 import { CatalogFilters } from "../practice/CatalogFilters";
-import { filterValues, type CatalogSearch } from "../practice/catalogSearch";
+import { addFilter, filterValues, type CatalogSearch } from "../practice/catalogSearch";
+import { QuestionIndicators } from "../practice/QuestionIndicators";
+import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
 import { CatalogTable } from "../practice/CatalogLayout";
 import { SelectField } from "../../ui/SelectField";
 import { Icon } from "../../ui/Icon";
@@ -293,6 +295,7 @@ export function QuestionDashboard({
                   />
                 </th>
                 <th scope="col">Question</th>
+                <th scope="col">Difficulty</th>
                 {tab === "drafts" && <th scope="col">Last edited</th>}
                 {showVisibility && <th scope="col">Visibility</th>}
               </tr>
@@ -333,7 +336,30 @@ export function QuestionDashboard({
                       </span>
                     )
                   )}
+                  {row.isOdyssey && <QuestionIndicators privateQuestion={false} odyssey />}
+                  <QuestionTopics
+                    tags={row.tags}
+                    disabled={disabled}
+                    onFilter={(topic) =>
+                      setCatalogSearch((current) => ({
+                        ...current,
+                        topic: addFilter(current.topic, topic),
+                      }))
+                    }
+                  />
                 </th>
+                <td>
+                  <QuestionDifficulty
+                    difficulty={row.difficulty}
+                    disabled={disabled}
+                    onFilter={(difficulty) =>
+                      setCatalogSearch((current) => ({
+                        ...current,
+                        difficulty: addFilter(current.difficulty, difficulty),
+                      }))
+                    }
+                  />
+                </td>
                 {"updatedAt" in row && (
                   <td>
                     <time dateTime={row.updatedAt}>
@@ -357,7 +383,7 @@ export function QuestionDashboard({
             ))}
             {!visible.length && (
               <tr>
-                <td colSpan={tab === "drafts" || showVisibility ? 3 : 2}>No matching questions.</td>
+                <td colSpan={tab === "drafts" || showVisibility ? 4 : 3}>No matching questions.</td>
               </tr>
             )}
           </CatalogTable>

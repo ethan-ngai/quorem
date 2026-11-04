@@ -312,7 +312,7 @@
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
-.admin-question-table th[scope="row"] .admin-question-status {
+.admin-question-table th[scope="row"] :is(.admin-question-status, .practice-indicators) {
   margin-inline-start: var(--space-3);
   font-weight: normal;
 }

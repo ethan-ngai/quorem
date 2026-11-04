@@ -107,7 +107,7 @@
   background: var(--color-background);
   border-bottom: 1px solid var(--color-border);
 }
-.practice-table th button {
+.practice-table thead th button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -280,7 +280,7 @@
   .practice-table td {
     padding: var(--space-3);
   }
-  .practice-table th button {
+  .practice-table thead th button {
     min-height: var(--narrow-touch-target);
   }
   .practice-topic-list {
