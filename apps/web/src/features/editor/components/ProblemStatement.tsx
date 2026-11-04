@@ -4,15 +4,12 @@ import { formatLabel } from "../../../ui/formatLabel";
 /** @file ProblemStatement.tsx @description Problem prose and coding-site example hierarchy. @module editor */
 import { AuthoringTabs } from "../../../ui/AuthoringTabs";
 import { SqlSchema, SqlTables } from "./SqlTables";
+import { CaseArguments, CaseValue } from "./CaseOutput";
 import { SequenceCaseValues } from "./SequenceCaseValues";
-import { useQuestionLanguage } from "../QuestionLanguage";
-import { questionValue } from "../questionTypes";
-import type { EditorLanguage } from "../editorLanguages";
 import { useId, useState, type ReactNode } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
-import { bindArguments } from "../argumentBinding";
 import { constraintMarkup } from "../constraintMarkup";
 import type { ProblemVersion } from "@quorem/contracts";
 
@@ -30,17 +27,6 @@ export type StatementProblem = Pick<
   | "sql"
 >;
 
-/** @returns Named argument values in the public function's declared order. */
-export function exampleInput(
-  problem: Pick<ProblemVersion, "signature" | "sql">,
-  args: unknown[],
-  language: EditorLanguage = "python",
-) {
-  return bindArguments(problem.signature, args)
-    .map(({ name, value }) => `${name} = ${questionValue(value, language)}`)
-    .join(", ");
-}
-
 /** Shows the problem directly, with optional topics and named public examples. */
 export function ProblemStatement({
   problem,
@@ -55,7 +41,6 @@ export function ProblemStatement({
   beforeExamples?: ReactNode;
   allowTopics?: boolean;
 }) {
-  const language = useQuestionLanguage();
   const [selection, setSelection] = useState({ problemId: problem.id, index: 0 });
   const selectedExample =
     selection.problemId === problem.id
@@ -153,28 +138,13 @@ export function ProblemStatement({
                       </div>
                     ) : (
                       <div className="example-data">
-                        <div>
-                          <Tooltip content="Input">
-                            <span className="value-label" tabIndex={0} aria-label="Input">
-                              <Icon name="input" />
-                            </span>
-                          </Tooltip>
-                          <code>{exampleInput(problem, example.args, language)}</code>
-                        </div>
-                        <div>
-                          <Tooltip content="Output">
-                            <span className="value-label" tabIndex={0} aria-label="Output">
-                              <Icon name="output" />
-                            </span>
-                          </Tooltip>
-                          <code>
-                            {questionValue(
-                              example.expected,
-                              language,
-                              problem.signature.returnType,
-                            )}
-                          </code>
-                        </div>
+                        <CaseArguments signature={problem.signature} args={example.args} />
+                        <CaseValue
+                          name="Output"
+                          purpose="output"
+                          value={example.expected}
+                          type={problem.signature.returnType}
+                        />
                       </div>
                     )}
                     <div className="example-explanation">

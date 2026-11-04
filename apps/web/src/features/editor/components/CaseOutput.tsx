@@ -69,6 +69,26 @@ export function CaseValue({
   );
 }
 
+export function CaseArguments({
+  signature,
+  args,
+}: {
+  signature?: Signature;
+  args: readonly unknown[];
+}) {
+  const inputs = signature
+    ? bindArguments(signature, args)
+    : args.map((value, index) => ({ name: `Argument ${index + 1}`, value, type: undefined }));
+  return (
+    <div className="case-call-inputs">
+      {inputs.map(({ name, value, type }) => (
+        <CaseValue key={name} name={name} value={value} type={type} parameter />
+      ))}
+      {!inputs.length && <span className="case-no-inputs">No arguments</span>}
+    </div>
+  );
+}
+
 export function CaseOutput({
   result,
   showExpected = true,
@@ -111,15 +131,7 @@ export function CaseOutput({
                 <span className="case-call-number">{index + 1}</span>
                 <code>{call.methodName}</code>
               </header>
-              <div className="case-call-inputs">
-                {(signature
-                  ? bindArguments(signature, call.args)
-                  : call.args.map((value, index) => ({ name: `Argument ${index + 1}`, value }))
-                ).map(({ name, value }) => (
-                  <CaseValue key={name} name={name} value={value} parameter />
-                ))}
-                {!call.args.length && <span className="case-no-inputs">No arguments</span>}
-              </div>
+              <CaseArguments signature={signature} args={call.args} />
               {hasOutput && (actual !== undefined || (showExpected && expected !== undefined)) && (
                 <div className="case-output-comparison">
                   {actual !== undefined && (
