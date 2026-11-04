@@ -1,4 +1,7 @@
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
+import { FilePenLine, Globe, Search } from "lucide-react";
+import { Icon } from "../../ui/Icon";
+import { Tooltip } from "../../ui/Tooltip";
 import { useState } from "react";
 import type { QuestionDraftSummary } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -58,7 +61,7 @@ export function QuestionDashboard({
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
   const rows: Row[] = tab === "drafts" ? drafts : publications;
   const visible = rows.filter((row) =>
-    `${row.title} ${row.slug}`.toLowerCase().includes(query.trim().toLowerCase()),
+    (row.title || "Untitled question").toLowerCase().includes(query.trim().toLowerCase()),
   );
   const chosen = rows.filter((row) => selected.has(row.id));
   const allVisible = visible.length > 0 && visible.every((row) => selected.has(row.id));
@@ -138,6 +141,7 @@ export function QuestionDashboard({
               setSelected(new Set());
             }}
           >
+            <Icon name="problem" />
             Drafts
           </button>
           <button
@@ -150,17 +154,21 @@ export function QuestionDashboard({
               setSelected(new Set());
             }}
           >
+            <Globe size={18} strokeWidth={1.5} aria-hidden="true" />
             Publications
           </button>
         </div>
-        <input
-          type="search"
-          aria-label="Filter questions"
-          placeholder="Filter by title or slug"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          disabled={disabled}
-        />
+        <div className="admin-question-search">
+          <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Filter questions by title"
+            placeholder="Filter by title"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            disabled={disabled}
+          />
+        </div>
       </div>
       <div className="admin-toolbar admin-bulk-bar">
         <span>{chosen.length} selected</span>
@@ -174,6 +182,7 @@ export function QuestionDashboard({
                 setConfirmation({ action: "publish", rows: chosen });
               }}
             >
+              <Icon name="submit" />
               Publish selected
             </button>
           )}
@@ -182,6 +191,7 @@ export function QuestionDashboard({
             disabled={disabled || !chosen.length}
             onClick={() => setConfirmation({ action: "delete", rows: chosen })}
           >
+            <Icon name="trash" />
             Delete selected
           </button>
         </div>
@@ -225,9 +235,11 @@ export function QuestionDashboard({
                   />
                 </th>
                 <th scope="col">Question</th>
-                <th scope="col">Slug</th>
                 <th scope="col">Status</th>
-                <th scope="col">{tab === "drafts" ? "Updated" : "Version"}</th>
+                {tab === "drafts" && <th scope="col">Last edited</th>}
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -251,26 +263,50 @@ export function QuestionDashboard({
                       {row.title || "Untitled question"}
                     </button>
                   </th>
-                  <td>{row.slug || "—"}</td>
                   <td>
-                    {"revision" in row
-                      ? row.editVersionId
-                        ? "Update draft"
-                        : "Draft"
-                      : row.current
-                        ? "Published"
-                        : "Unpublished"}
+                    <span className="admin-question-status">
+                      {"revision" in row ? (
+                        <>
+                          {row.editVersionId ? (
+                            <FilePenLine size={14} strokeWidth={1.5} aria-hidden="true" />
+                          ) : (
+                            <Icon name="problem" width={14} height={14} />
+                          )}
+                          {row.editVersionId ? "Update draft" : "Draft"}
+                        </>
+                      ) : (
+                        <>
+                          <Icon name={row.current ? "eye" : "eye-off"} width={14} height={14} />
+                          {row.current ? "Published" : "Unpublished"}
+                        </>
+                      )}
+                    </span>
                   </td>
-                  <td>
-                    {"updatedAt" in row
-                      ? new Date(row.updatedAt).toLocaleDateString()
-                      : row.version}
+                  {"updatedAt" in row && (
+                    <td>
+                      <time dateTime={row.updatedAt}>
+                        {new Date(row.updatedAt).toLocaleDateString()}
+                      </time>
+                    </td>
+                  )}
+                  <td className="admin-question-edit">
+                    <Tooltip content="Edit question">
+                      <button
+                        type="button"
+                        className="icon-button"
+                        disabled={disabled}
+                        aria-label={`Edit ${row.title || "untitled question"}`}
+                        onClick={() => onOpen(row)}
+                      >
+                        <FilePenLine size={16} strokeWidth={1.5} aria-hidden="true" />
+                      </button>
+                    </Tooltip>
                   </td>
                 </tr>
               ))}
               {!visible.length && (
                 <tr>
-                  <td colSpan={5}>No matching questions.</td>
+                  <td colSpan={tab === "drafts" ? 5 : 4}>No matching questions.</td>
                 </tr>
               )}
             </tbody>
