@@ -22,47 +22,8 @@
   color: var(--color-text-secondary);
   margin: var(--space-1) 0 var(--space-5);
 }
-.admin-layout {
-  display: grid;
-  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
-  gap: var(--space-5);
-}
-.admin-rail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.admin-rail label,
-.admin-picker {
-  display: grid;
-  gap: var(--space-2);
-}
-.admin-rail h2,
 .admin-fields h2 {
   font-size: var(--text-h3);
-}
-.admin-draft-row {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  padding: var(--space-3);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-}
-.admin-draft-row:hover,
-.admin-draft-row[aria-current="page"] {
-  background: var(--color-overlay);
-  border-color: var(--color-border);
-}
-.admin-draft-row small {
-  color: var(--color-text-secondary);
-}
-.admin-form-pane {
-  padding: var(--space-5);
-  background: transparent;
-  border-left: 1px solid var(--color-border);
-  min-width: 0;
 }
 .admin-toolbar {
   justify-content: flex-start;
@@ -100,7 +61,8 @@
 .admin-field input,
 .admin-field textarea,
 .admin-field select,
-.admin-rail select {
+.admin-dashboard input[type="search"],
+.admin-bulk-visibility select {
   width: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -148,17 +110,10 @@
   .admin-workspace {
     padding: var(--space-4);
   }
-  .admin-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .admin-form-pane {
-    padding: var(--space-4);
-  }
   .admin-field-pair {
     grid-template-columns: minmax(0, 1fr);
   }
   .admin-toolbar button,
-  .admin-rail button,
   .admin-language summary {
     min-height: var(--narrow-touch-target);
   }
@@ -185,12 +140,6 @@
   height: 300px;
   min-height: 240px;
 }
-@media (max-width: 900px) {
-  .admin-form-pane {
-    border-left: 0;
-    border-top: 1px solid var(--color-border);
-  }
-}
 
 /* Match the interview creator's bounded, tabbed authoring surface. */
 .admin-workspace {
@@ -199,13 +148,6 @@
 }
 .admin-heading {
   margin-bottom: var(--space-5);
-}
-.admin-layout {
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: var(--space-5);
-}
-.admin-form-pane {
-  padding: 0 0 0 var(--space-5);
 }
 .admin-toolbar {
   top: 48px;
@@ -218,9 +160,6 @@
 .admin-toolbar > .select-field {
   width: auto;
   min-width: 148px;
-}
-.admin-draft-row {
-  padding: var(--space-2) var(--space-3);
 }
 .admin-fields .authoring-options {
   margin-top: var(--space-5);
@@ -250,16 +189,6 @@
   margin-bottom: var(--space-4);
 }
 @media (max-width: 900px) {
-  .admin-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .admin-form-pane {
-    padding: var(--space-4) 0 0;
-  }
-  .admin-rail {
-    max-height: 220px;
-    overflow: auto;
-  }
   .admin-toolbar {
     position: static;
   }
@@ -292,4 +221,83 @@
 .question-import-row small {
   display: block;
   color: var(--color-text-secondary);
+}
+
+.admin-dashboard {
+  display: grid;
+  gap: var(--space-3);
+}
+.admin-dashboard .admin-toolbar {
+  position: static;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0;
+}
+.admin-dashboard .admin-toolbar > span {
+  margin-right: 0;
+}
+.admin-dashboard input[type="search"] {
+  width: min(100%, 20rem);
+}
+.admin-dashboard [aria-pressed="true"] {
+  background: var(--color-overlay);
+  box-shadow: inset 0 -2px var(--color-primary);
+}
+.admin-dashboard .admin-bulk-bar {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
+.admin-bulk-visibility {
+  display: grid;
+  gap: var(--space-2);
+}
+.admin-dashboard [role="status"] {
+  margin: 0;
+}
+.admin-dashboard [role="status"]:empty {
+  display: none;
+}
+.admin-table-scroll {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.admin-question-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+  text-align: left;
+}
+.admin-question-table th,
+.admin-question-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.admin-question-table tr > :first-child {
+  width: 1%;
+}
+.admin-question-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.admin-question-table thead,
+.admin-question-table tbody tr:nth-child(even) {
+  background: var(--color-surface);
+}
+.admin-question-table tbody tr:is(:hover, :focus-within, [data-selected="true"]) {
+  background: var(--color-overlay);
+}
+.admin-question-table .quiet-button {
+  padding-inline: 0;
+  text-align: left;
+}
+.admin-delete-action,
+.admin-bulk-errors {
+  color: var(--color-error);
+}
+
+.admin-bulk-selection {
+  max-height: 12rem;
+  overflow: auto;
+  padding-inline-start: var(--space-5);
 }

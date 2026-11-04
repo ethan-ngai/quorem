@@ -30,7 +30,10 @@ export async function saveDraft(draft: QuestionDraft, content: QuestionContent) 
 }
 
 /** @returns The sealed publication ID, committed with its language artifacts and editorial. */
-export async function publishDraft(draft: QuestionDraft, visibility: "private" | "global") {
+export async function publishDraft(
+  draft: Pick<QuestionDraft, "id" | "revision">,
+  visibility: "private" | "global",
+) {
   const { data, error } = await api().POST("/v1/admin/question-drafts/{id}/publish", {
     params: { path: { id: draft.id } },
     body: { revision: draft.revision, visibility },
@@ -77,4 +80,13 @@ export async function deleteQuestionPublication(
 export async function listPublications() {
   const { data, error } = await api().GET("/v1/admin/question-publications");
   return requireData(data, error).items;
+}
+
+/** Deletes an unpublished draft at the revision selected by the author. */
+export async function deleteDraft(draft: Pick<QuestionDraft, "id" | "revision">) {
+  const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}", {
+    params: { path: { id: draft.id } },
+    body: { revision: draft.revision },
+  });
+  return requireData(data, error);
 }

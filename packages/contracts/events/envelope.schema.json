@@ -1639,6 +1639,10 @@
         "slug": {
           "type": "string"
         },
+        "editVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
         "publishedVersionId": {
           "type": "string",
           "format": "uuid"

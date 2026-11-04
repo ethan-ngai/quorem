@@ -312,6 +312,9 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const afterDrain = JSON.parse(
         await repository.update(global, edited.id, edited.revision, JSON.stringify(changed)),
       );
+      await expect(
+        repository.deleteDraft(global, afterDrain.id, afterDrain.revision),
+      ).rejects.toMatchObject({ code: "revision_conflict" });
       await repository.deletePublication(global, afterDrain.id, afterDrain.revision, null);
       expect(
         (await pool.query("SELECT 1 FROM execution_jobs WHERE id=$1", [finishedJob])).rowCount,
@@ -349,6 +352,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       ]);
       expect(edits.filter((r) => r.status === "fulfilled")).toHaveLength(1);
       expect(edits.filter((r) => r.status === "rejected")).toHaveLength(1);
+      await expect(repository.deleteDraft(actor, edit.id, "1")).rejects.toMatchObject({
+        code: "revision_conflict",
+      });
+      await expect(
+        repository.deleteDraft({ userId: other, admin: false }, edit.id, "2"),
+      ).rejects.toMatchObject({ status: 404 });
+      expect(JSON.parse(await repository.deleteDraft(actor, edit.id, "2"))).toEqual({
+        deleted: true,
+      });
       await pool.query(
         "UPDATE entitlement_grants SET revoked_at=clock_timestamp() WHERE user_id=$1",
         [owner],

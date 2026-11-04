@@ -21,6 +21,7 @@ export interface QuestionAuthoring {
     preview: boolean,
   ): Promise<string>;
   update(actor: AuthorActor, id: string, revision: string, content: string): Promise<string>;
+  deleteDraft(actor: AuthorActor, id: string, revision: string): Promise<string>;
   deletionImpact(actor: AuthorActor, id: string): Promise<string>;
   deletePublication(
     actor: AuthorActor,

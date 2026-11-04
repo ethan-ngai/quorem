@@ -153,6 +153,14 @@ export function authoringRoutes(deps: AuthoringDependencies) {
       ),
     );
   });
+  app.delete("/v1/admin/question-drafts/:id", async (c) => {
+    const p = await principal(c.req.raw);
+    const id = c.req.param("id");
+    draftId(id);
+    const req = await body(c.req.raw, 1024);
+    fields(req, ["revision"]);
+    return json(c, await deps.authoring.deleteDraft(p, id, text(req.revision)));
+  });
   app.get("/v1/admin/question-drafts/:id/deletion-impact", async (c) => {
     const p = await principal(c.req.raw);
     const id = c.req.param("id");

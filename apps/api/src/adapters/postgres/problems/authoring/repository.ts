@@ -544,18 +544,16 @@ function createQuestionAuthoring(
             revision: string;
             title: string;
             slug: string;
-            publishedVersionId: string | null;
+            editVersionId: string | null;
             updatedAt: string;
           }>(
-            sql`SELECT id::text AS id,revision::text AS revision,COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,published_version_id::text AS "publishedVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt" FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})) AND (${cursor}='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=${cursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})))) ORDER BY updated_at DESC,id DESC LIMIT 51`,
+            sql`SELECT id::text AS id,revision::text AS revision,COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt" FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})) AND (${cursor}='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=${cursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})))) ORDER BY updated_at DESC,id DESC LIMIT 51`,
           )
         ).rows;
         const more = rows.length > 50,
           items = rows
             .slice(0, 50)
-            .map(({ publishedVersionId, ...row }) =>
-              publishedVersionId ? { ...row, publishedVersionId } : row,
-            );
+            .map(({ editVersionId, ...row }) => (editVersionId ? { ...row, editVersionId } : row));
         return JSON.stringify({ items, ...(more ? { nextCursor: items[49].id } : {}) });
       }, true);
     },
@@ -666,6 +664,16 @@ function createQuestionAuthoring(
           )
         ).rows;
         return draftJson(row);
+      });
+    },
+    async deleteDraft(actor, id, rev) {
+      return transact(async (tx) => {
+        const { admin } = await author(tx, actor, true);
+        revision(rev);
+        const draft = await readDraft(tx, actor, admin, id, true);
+        if (draft.revision !== rev || draft.publishedVersionId) throw conflict();
+        await tx.execute(sql`DELETE FROM question_drafts WHERE id=${id}::uuid`);
+        return '{"deleted":true}';
       });
     },
     async deletionImpact(actor, id) {

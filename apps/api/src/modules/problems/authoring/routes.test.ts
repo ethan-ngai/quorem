@@ -25,6 +25,7 @@ it("requires identity, validates input and enforces global step-up through share
     importDraft: async (_actor, raw) => raw,
     importDraftBatch: async () => '{"items":[]}',
     update: async () => "{}",
+    deleteDraft: async () => '{"deleted":true}',
     deletionImpact: async () => "{}",
     deletePublication: async () => "{}",
     publish: async () => {

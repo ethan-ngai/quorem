@@ -417,7 +417,7 @@ export interface paths {
         get: operations["getQuestionDraft"];
         put: operations["updateQuestionDraft"];
         post?: never;
-        delete?: never;
+        delete: operations["deleteQuestionDraft"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1426,6 +1426,8 @@ export interface components {
             revision: string;
             title: string;
             slug: string;
+            /** Format: uuid */
+            editVersionId?: string;
             /** Format: uuid */
             publishedVersionId?: string;
             /** Format: date-time */
@@ -2636,6 +2638,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuestionDraft"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteQuestionDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Draft deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted: boolean;
+                    };
                 };
             };
             /** @description Safe application error */
