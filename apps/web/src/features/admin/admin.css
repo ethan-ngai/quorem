@@ -62,6 +62,7 @@
 .admin-field textarea,
 .admin-field select,
 .admin-dashboard input[type="search"],
+.admin-question-filters select,
 .admin-bulk-visibility select {
   width: 100%;
   border: 1px solid var(--color-border);
@@ -324,7 +325,21 @@
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
-.admin-question-edit {
-  width: 1%;
-  text-align: right;
+.admin-question-table th[scope="row"] .admin-question-status {
+  margin-inline-start: var(--space-3);
+  font-weight: normal;
+}
+.admin-question-filters,
+.admin-question-filters label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-small);
+}
+.admin-question-filters {
+  gap: var(--space-4);
+}
+.admin-question-filters select {
+  width: auto;
 }

@@ -1,7 +1,6 @@
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
 import { FilePenLine, Globe, Search } from "lucide-react";
 import { Icon } from "../../ui/Icon";
-import { Tooltip } from "../../ui/Tooltip";
 import { useState } from "react";
 import type { QuestionDraftSummary } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -51,6 +50,9 @@ export function QuestionDashboard({
 }) {
   const [tab, setTab] = useState<"drafts" | "publications">("drafts");
   const [query, setQuery] = useState("");
+  const [source, setSource] = useState("all");
+  const [type, setType] = useState("all");
+  const [readiness, setReadiness] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmation, setConfirmation] = useState<{ action: Action; rows: Row[] }>();
   const action = confirmation?.action;
@@ -60,9 +62,16 @@ export function QuestionDashboard({
   const [progress, setProgress] = useState("");
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
   const rows: Row[] = tab === "drafts" ? drafts : publications;
-  const visible = rows.filter((row) =>
-    (row.title || "Untitled question").toLowerCase().includes(query.trim().toLowerCase()),
+  const search = query.trim().toLowerCase();
+  const visible = rows.filter(
+    (row) =>
+      ((row.title || "Untitled question").toLowerCase().includes(search) ||
+        row.slug.toLowerCase().includes(search)) &&
+      (source === "all" || row.fromLeetCode === (source === "leetcode")) &&
+      (type === "all" || row.isSql === (type === "sql")) &&
+      (!("revision" in row) || readiness === "all" || row.ready === (readiness === "ready")),
   );
+  const showVisibility = tab === "publications" && admin;
   const chosen = rows.filter((row) => selected.has(row.id));
   const allVisible = visible.length > 0 && visible.every((row) => selected.has(row.id));
   const disabled = busy || running;
@@ -162,13 +171,53 @@ export function QuestionDashboard({
           <Search size={16} strokeWidth={1.5} aria-hidden="true" />
           <input
             type="search"
-            aria-label="Filter questions by title"
-            placeholder="Filter by title"
+            aria-label="Search questions"
+            placeholder="Search questions"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             disabled={disabled}
           />
         </div>
+      </div>
+      <div className="admin-question-filters" role="group" aria-label="Question filters">
+        <label>
+          Source
+          <select
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+            disabled={disabled}
+          >
+            <option value="all">All sources</option>
+            <option value="leetcode">LeetCode</option>
+            <option value="other">No LeetCode ID</option>
+          </select>
+        </label>
+        <label>
+          Type
+          <select
+            value={type}
+            onChange={(event) => setType(event.target.value)}
+            disabled={disabled}
+          >
+            <option value="all">All types</option>
+            <option value="coding">Coding</option>
+            <option value="sql">SQL</option>
+          </select>
+        </label>
+        {tab === "drafts" && (
+          <label>
+            Readiness
+            <select
+              value={readiness}
+              onChange={(event) => setReadiness(event.target.value)}
+              disabled={disabled}
+            >
+              <option value="all">All drafts</option>
+              <option value="ready">Ready</option>
+              <option value="needs-fixes">Needs fixes</option>
+            </select>
+          </label>
+        )}
       </div>
       <div className="admin-toolbar admin-bulk-bar">
         <span>{chosen.length} selected</span>
@@ -235,11 +284,8 @@ export function QuestionDashboard({
                   />
                 </th>
                 <th scope="col">Question</th>
-                <th scope="col">Status</th>
                 {tab === "drafts" && <th scope="col">Last edited</th>}
-                <th scope="col">
-                  <span className="sr-only">Actions</span>
-                </th>
+                {showVisibility && <th scope="col">Visibility</th>}
               </tr>
             </thead>
             <tbody>
@@ -262,26 +308,27 @@ export function QuestionDashboard({
                     >
                       {row.title || "Untitled question"}
                     </button>
+                    {"revision" in row ? (
+                      <>
+                        {row.editVersionId && (
+                          <span className="admin-question-status">
+                            <FilePenLine size={14} aria-hidden="true" />
+                            Update draft
+                          </span>
+                        )}
+                        {row.ready === false && (
+                          <span className="admin-question-status">Needs fixes</span>
+                        )}
+                      </>
+                    ) : (
+                      !row.current && (
+                        <span className="admin-question-status">
+                          <Icon name="eye-off" width={14} height={14} />
+                          Unpublished
+                        </span>
+                      )
+                    )}
                   </th>
-                  <td>
-                    <span className="admin-question-status">
-                      {"revision" in row ? (
-                        <>
-                          {row.editVersionId ? (
-                            <FilePenLine size={14} strokeWidth={1.5} aria-hidden="true" />
-                          ) : (
-                            <Icon name="problem" width={14} height={14} />
-                          )}
-                          {row.editVersionId ? "Update draft" : "Draft"}
-                        </>
-                      ) : (
-                        <>
-                          <Icon name={row.current ? "eye" : "eye-off"} width={14} height={14} />
-                          {row.current ? "Published" : "Unpublished"}
-                        </>
-                      )}
-                    </span>
-                  </td>
                   {"updatedAt" in row && (
                     <td>
                       <time dateTime={row.updatedAt}>
@@ -289,24 +336,25 @@ export function QuestionDashboard({
                       </time>
                     </td>
                   )}
-                  <td className="admin-question-edit">
-                    <Tooltip content="Edit question">
-                      <button
-                        type="button"
-                        className="icon-button"
-                        disabled={disabled}
-                        aria-label={`Edit ${row.title || "untitled question"}`}
-                        onClick={() => onOpen(row)}
-                      >
-                        <FilePenLine size={16} strokeWidth={1.5} aria-hidden="true" />
-                      </button>
-                    </Tooltip>
-                  </td>
+                  {showVisibility && "isPrivate" in row && (
+                    <td>
+                      <span className="admin-question-status">
+                        {row.isPrivate ? (
+                          <Icon name="lock" width={14} height={14} />
+                        ) : (
+                          <Globe size={14} aria-hidden="true" />
+                        )}
+                        {row.isPrivate ? "Private" : "Global"}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               ))}
               {!visible.length && (
                 <tr>
-                  <td colSpan={tab === "drafts" ? 5 : 4}>No matching questions.</td>
+                  <td colSpan={tab === "drafts" || showVisibility ? 3 : 2}>
+                    No matching questions.
+                  </td>
                 </tr>
               )}
             </tbody>

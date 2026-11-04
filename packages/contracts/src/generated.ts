@@ -1430,6 +1430,9 @@ export interface components {
             editVersionId?: string;
             /** Format: uuid */
             publishedVersionId?: string;
+            isSql: boolean;
+            fromLeetCode: boolean;
+            ready: boolean;
             /** Format: date-time */
             updatedAt: string;
         };
@@ -2417,6 +2420,9 @@ export interface operations {
                             title: string;
                             slug: string;
                             version: string;
+                            isPrivate: boolean;
+                            isSql: boolean;
+                            fromLeetCode: boolean;
                             current: boolean;
                         }[];
                     };

@@ -1647,12 +1647,21 @@
           "type": "string",
           "format": "uuid"
         },
+        "isSql": {
+          "type": "boolean"
+        },
+        "fromLeetCode": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time"
         }
       },
-      "required": ["id", "revision", "title", "slug", "updatedAt"]
+      "required": ["id", "revision", "title", "slug", "updatedAt", "isSql", "fromLeetCode", "ready"]
     },
     "QuestionDraftPage": {
       "type": "object",

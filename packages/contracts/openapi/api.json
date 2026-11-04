@@ -1135,7 +1135,16 @@
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "required": ["id", "title", "slug", "version", "current"],
+                        "required": [
+                          "id",
+                          "title",
+                          "slug",
+                          "version",
+                          "current",
+                          "isPrivate",
+                          "isSql",
+                          "fromLeetCode"
+                        ],
                         "properties": {
                           "id": {
                             "type": "string",
@@ -1150,6 +1159,9 @@
                           "version": {
                             "type": "string"
                           },
+                          "isPrivate": { "type": "boolean" },
+                          "isSql": { "type": "boolean" },
+                          "fromLeetCode": { "type": "boolean" },
                           "current": {
                             "type": "boolean"
                           }
@@ -5072,12 +5084,24 @@
             "type": "string",
             "format": "uuid"
           },
+          "isSql": { "type": "boolean" },
+          "fromLeetCode": { "type": "boolean" },
+          "ready": { "type": "boolean" },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "required": ["id", "revision", "title", "slug", "updatedAt"]
+        "required": [
+          "id",
+          "revision",
+          "title",
+          "slug",
+          "updatedAt",
+          "isSql",
+          "fromLeetCode",
+          "ready"
+        ]
       },
       "QuestionDraftPage": {
         "type": "object",

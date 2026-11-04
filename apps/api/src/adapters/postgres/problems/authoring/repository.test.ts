@@ -94,6 +94,12 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const actor = { userId: owner, admin: false, globalAllowed: false };
       const draft = JSON.parse(await repository.create(actor, raw, undefined));
       expect(draft.revision).toBe("1");
+      expect(JSON.parse(await repository.list(actor, "")).items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: empty.id, ready: false }),
+          expect.objectContaining({ id: draft.id, ready: true, isSql: false, fromLeetCode: false }),
+        ]),
+      );
       await expect(repository.get({ userId: other, admin: false }, draft.id)).rejects.toMatchObject(
         { status: 404 },
       );
@@ -105,6 +111,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const published = JSON.parse(await repository.publish(actor, draft.id, "2", "private"));
       expect(published.revision).toBe("3");
       expect(published.publishedVersionId).toBeTruthy();
+      expect(JSON.parse(await repository.publications(actor)).items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: published.publishedVersionId,
+            isPrivate: true,
+            isSql: false,
+          }),
+        ]),
+      );
       expect(await catalog.byVersion({ userId: owner }, published.publishedVersionId)).toContain(
         "class Solution",
       );

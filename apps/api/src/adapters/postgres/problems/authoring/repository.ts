@@ -523,10 +523,13 @@ function createQuestionAuthoring(
         const { admin } = await author(tx, actor, false);
         const result = await tx.execute(sql`
           SELECT chosen.id::text,chosen.title,p.slug,chosen.version::text,
+                 p.owner_id IS NOT NULL AS "isPrivate",
+                 p.leetcode_id IS NOT NULL AS "fromLeetCode",
+                 COALESCE(jsonb_typeof(chosen.sql_config)='object',false) AS "isSql",
                  COALESCE(chosen.id=p.current_version_id,false) AS current
           FROM problems p
           CROSS JOIN LATERAL (
-            SELECT v.id,v.title,v.version FROM problem_versions v WHERE v.problem_id=p.id AND v.sealed
+            SELECT v.id,v.title,v.version,v.sql_config FROM problem_versions v WHERE v.problem_id=p.id AND v.sealed
             ORDER BY (v.id IS NOT DISTINCT FROM p.current_version_id) DESC,v.version DESC LIMIT 1
           ) chosen
           WHERE p.owner_id=${actor.userId} OR (p.owner_id IS NULL AND ${admin})
@@ -536,9 +539,9 @@ function createQuestionAuthoring(
       }, true);
     },
     async list(actor, cursor) {
-      return transact(async (tx) => {
+      const rows = await transact(async (tx) => {
         const { admin } = await author(tx, actor, false);
-        const rows = (
+        return (
           await tx.execute<{
             id: string;
             revision: string;
@@ -546,16 +549,28 @@ function createQuestionAuthoring(
             slug: string;
             editVersionId: string | null;
             updatedAt: string;
+            raw: string;
+            fromLeetCode: boolean;
+            isSql: boolean;
           }>(
-            sql`SELECT id::text AS id,revision::text AS revision,COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt" FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})) AND (${cursor}='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=${cursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})))) ORDER BY updated_at DESC,id DESC LIMIT 51`,
+            sql`SELECT id::text AS id,revision::text AS revision,
+                COALESCE(convert_from(lossless_content,'UTF8'),content::text) AS raw,
+                COALESCE(jsonb_typeof(content->'problem'->'leetcodeId')='number',false) AS "fromLeetCode",
+                COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt" FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})) AND (${cursor}='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=${cursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})))) ORDER BY updated_at DESC,id DESC LIMIT 51`,
           )
         ).rows;
-        const more = rows.length > 50,
-          items = rows
-            .slice(0, 50)
-            .map(({ editVersionId, ...row }) => (editVersionId ? { ...row, editVersionId } : row));
-        return JSON.stringify({ items, ...(more ? { nextCursor: items[49].id } : {}) });
       }, true);
+      const items = rows.slice(0, 50).map(({ raw, editVersionId, ...row }) => {
+        let ready = true;
+        try {
+          preparePublication(raw, runtime);
+        } catch (error) {
+          if (!(error instanceof ApplicationError)) throw error;
+          ready = false;
+        }
+        return { ...row, ready, ...(editVersionId ? { editVersionId } : {}) };
+      });
+      return JSON.stringify({ items, ...(rows.length > 50 ? { nextCursor: items[49].id } : {}) });
     },
     async get(actor, id) {
       return transact(async (tx) => {
