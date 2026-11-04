@@ -239,7 +239,9 @@ export function QuestionDashboard({
         <div className="admin-toolbar">
           {tab === "drafts" && (
             <button
-              className="button button-primary"
+              className="button button-primary admin-bulk-action"
+              data-visible={chosen.length > 0}
+              aria-hidden={chosen.length === 0}
               disabled={disabled || !chosen.length}
               onClick={() => {
                 setVisibility("private");
@@ -251,7 +253,9 @@ export function QuestionDashboard({
             </button>
           )}
           <button
-            className="button button-secondary admin-delete-action"
+            className="button button-secondary admin-delete-action admin-bulk-action"
+            data-visible={chosen.length > 0}
+            aria-hidden={chosen.length === 0}
             disabled={disabled || !chosen.length}
             onClick={() => setConfirmation({ action: "delete", rows: chosen })}
           >
