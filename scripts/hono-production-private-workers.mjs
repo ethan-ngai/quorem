@@ -8,7 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 import { productionTerraform } from "./hono-production-terraform.mjs";
-import { productionImages } from "./hono-production-images.mjs";
+import { productionImages, validatedJudgeImages } from "./hono-production-images.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { stageControls } from "./hono-stage-controls.mjs";
 import { benchmarkProductionPython } from "./hono-production-benchmark.mjs";
@@ -158,7 +158,9 @@ async function rollout(env) {
     );
     if (inputBounds.bounded !== true)
       throw new Error("Retained runner input exceeds validated size");
-    const images = productionImages(env, { reuseMail: true });
+    const images = env.HONO_JUDGE_VALIDATION_RUN
+      ? validatedJudgeImages(env, env.HONO_JUDGE_VALIDATION_RUN)
+      : productionImages(env, { reuseMail: true });
     const secretNames = [
       "RECOVERY_CONTROL_SECRET",
       "QUOREM_RUNNER_COMMAND_SECRET",
