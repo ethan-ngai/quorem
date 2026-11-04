@@ -61,7 +61,7 @@ export function QuestionDashboard({
   onOpen: (row: Row) => void;
   onChanged: () => Promise<unknown>;
 }) {
-  const tab = search.section ?? "drafts";
+  const tab = search.section;
   const query = search.q ?? "";
   const source = search.source ?? "all";
   const readiness = search.readiness ?? "all";
@@ -151,7 +151,7 @@ export function QuestionDashboard({
             aria-pressed={tab === "drafts"}
             disabled={disabled}
             onClick={() => {
-              onSearch({ section: undefined });
+              onSearch({ section: "drafts" });
             }}
           >
             <Icon name="problem" />

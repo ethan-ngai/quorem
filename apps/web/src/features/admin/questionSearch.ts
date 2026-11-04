@@ -5,7 +5,7 @@ export type QuestionSearch = Pick<
   CatalogSearch,
   "q" | "sql" | "type" | "difficulty" | "topic" | "company"
 > & {
-  section?: "publications";
+  section: "drafts" | "publications";
   source?: "leetcode" | "other";
   readiness?: "ready" | "needs-fixes";
 };
@@ -19,7 +19,7 @@ export function questionSearch(raw: Record<string, unknown>): QuestionSearch {
     difficulty,
     topic,
     company,
-    section: raw.section === "publications" ? raw.section : undefined,
+    section: raw.section === "drafts" ? "drafts" : "publications",
     source: raw.source === "leetcode" || raw.source === "other" ? raw.source : undefined,
     readiness:
       raw.readiness === "ready" || raw.readiness === "needs-fixes" ? raw.readiness : undefined,
