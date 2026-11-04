@@ -4,7 +4,6 @@ import { withWorkerConnection, type ConnectionScope } from "@quorem/database/cor
 import { IdentityError, type Claims } from "../../../modules/identity/model.ts";
 import { matchLifecycle } from "../../../adapters/postgres/matches/lifecycle/repository.ts";
 import { prearmReceipts } from "../../../adapters/postgres/events/scheduling/prearm.ts";
-import { submissionSnapshots } from "../../../adapters/postgres/judging/results/repository.ts";
 import { postgresSocketAuthority } from "./authority.ts";
 import { browserSocketObject } from "./durable.ts";
 interface Env {
@@ -39,7 +38,6 @@ export class BrowserSocketFixture extends browserSocketObject<Env>((env) => {
     authority: postgresSocketAuthority({
       run,
       matches,
-      submissions: submissionSnapshots(run),
       sessions: { check: async () => ({}) },
       verifier: {
         async verify(token): Promise<Claims> {

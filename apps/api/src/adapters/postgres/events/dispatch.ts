@@ -8,14 +8,12 @@ const tables = {
   interview: "interview_outbox",
   match: "match_outbox",
   submission: "submission_outbox",
-  membership: "membership_outbox",
   execution: "execution_dispatch_intents",
 } as const;
 const aggregate = {
   interview: "session_id",
   match: "match_id",
   submission: "submission_id",
-  membership: "participant_id",
 } as const;
 const txn = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 

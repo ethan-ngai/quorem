@@ -1,3 +1,4 @@
+import { insertTestNotice } from "./test-notice.ts";
 import { describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { listenForNotices } from "./listener.ts";
@@ -27,44 +28,35 @@ describe.skipIf(!url)("durable dispatch on disposable PostgreSQL", () => {
         withNodeConnection(pool, { lifetimeMs: 5000 }, fn);
       const store = postgresDispatch(run);
       const id = crypto.randomUUID();
-      await pool.query("INSERT INTO membership_outbox(id,participant_id) VALUES ($1,$2)", [
-        id,
-        crypto.randomUUID(),
-      ]);
-      const first = await store.claim("membership", 1, 1000);
+      await pool.query(insertTestNotice, [id, crypto.randomUUID(), 0, false]);
+      const first = await store.claim("interview", 1, 1000);
       expect(first[0]?.id).toBe(id);
-      expect(await store.pending("membership")).toBe(true);
-      expect(await store.claim("membership", 1, 1000)).toHaveLength(0);
+      expect(await store.pending("interview")).toBe(true);
+      expect(await store.claim("interview", 1, 1000)).toHaveLength(0);
       await pool.query(
-        "UPDATE membership_outbox SET dispatch_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+        "UPDATE interview_outbox SET dispatch_until=clock_timestamp()-interval '1 second' WHERE id=$1",
         [id],
       );
-      const second = await store.claim("membership", 1, 1000);
+      const second = await store.claim("interview", 1, 1000);
       expect(second).toHaveLength(1);
       expect(await store.acknowledge(first[0]!)).toBe(false);
       expect(await store.acknowledge(second[0]!)).toBe(true);
       const locked = crypto.randomUUID();
       const connection = await pool.connect();
       await connection.query("BEGIN");
-      await connection.query("INSERT INTO membership_outbox(id,participant_id) VALUES ($1,$2)", [
-        locked,
-        crypto.randomUUID(),
-      ]);
-      expect(await store.claim("membership", 1, 1000)).toHaveLength(0);
+      await connection.query(insertTestNotice, [locked, crypto.randomUUID(), 0, false]);
+      expect(await store.claim("interview", 1, 1000)).toHaveLength(0);
       await connection.query("COMMIT");
       connection.release();
-      expect((await store.claim("membership", 1, 1000))[0]?.id).toBe(locked);
+      expect((await store.claim("interview", 1, 1000))[0]?.id).toBe(locked);
       await pool.query(
-        "UPDATE membership_outbox SET dispatch_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+        "UPDATE interview_outbox SET dispatch_until=clock_timestamp()-interval '1 second' WHERE id=$1",
         [locked],
       );
-      const recovered = (await store.claim("membership", 1, 1000))[0]!;
+      const recovered = (await store.claim("interview", 1, 1000))[0]!;
       expect(await store.acknowledge(recovered)).toBe(true);
       const next = crypto.randomUUID();
-      await pool.query("INSERT INTO membership_outbox(id,participant_id) VALUES ($1,$2)", [
-        next,
-        crypto.randomUUID(),
-      ]);
+      await pool.query(insertTestNotice, [next, crypto.randomUUID(), 0, false]);
       await expect(
         dispatchBatch(
           store,
@@ -74,13 +66,13 @@ describe.skipIf(!url)("durable dispatch on disposable PostgreSQL", () => {
             },
           },
           { send: async () => {} },
-          "membership",
+          "interview",
           1,
           1000,
         ),
       ).rejects.toThrow("network");
       await pool.query(
-        "UPDATE membership_outbox SET dispatch_until=clock_timestamp()-interval '1 second' WHERE id=$1",
+        "UPDATE interview_outbox SET dispatch_until=clock_timestamp()-interval '1 second' WHERE id=$1",
         [next],
       );
       let count = 0;
@@ -92,35 +84,29 @@ describe.skipIf(!url)("durable dispatch on disposable PostgreSQL", () => {
           },
         },
         { send: async () => {} },
-        "membership",
+        "interview",
         1,
         1000,
       );
       expect(result.pending).toBe(false);
       expect(count).toBe(1);
       const arrival = crypto.randomUUID();
-      await pool.query("INSERT INTO membership_outbox(id,participant_id) VALUES ($1,$2)", [
-        arrival,
-        crypto.randomUUID(),
-      ]);
+      await pool.query(insertTestNotice, [arrival, crypto.randomUUID(), 0, false]);
       const other = crypto.randomUUID();
       const continued = await dispatchBatch(
         store,
         {
           publish: async () => {
-            await pool.query("INSERT INTO membership_outbox(id,participant_id) VALUES ($1,$2)", [
-              other,
-              crypto.randomUUID(),
-            ]);
+            await pool.query(insertTestNotice, [other, crypto.randomUUID(), 0, false]);
           },
         },
         { send: async () => {} },
-        "membership",
+        "interview",
         1,
         1000,
       );
       expect(continued.pending).toBe(true);
-      const after = (await store.claim("membership", 1, 1000))[0]!;
+      const after = (await store.claim("interview", 1, 1000))[0]!;
       expect(after.id).toBe(other);
       expect(await store.acknowledge(after)).toBe(true);
     } finally {
@@ -142,7 +128,7 @@ describe.skipIf(!url)("durable dispatch on disposable PostgreSQL", () => {
       });
       const close = await listenForNotices(url!, resolveWake, () => {});
       try {
-        await pool.query("NOTIFY quorem_membership_outbox");
+        await pool.query("NOTIFY quorem_interview_outbox");
         await Promise.race([
           signaled,
           new Promise<never>((_, reject) =>

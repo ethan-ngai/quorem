@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
-import { importDraft } from "./api";
+import { importDraftBatch } from "./api";
 import { parseQuestionImport, questionImportLimit } from "./importQuestion";
 
 type Row = {
@@ -144,44 +144,95 @@ export function BulkQuestionImport({
     const selected = rows.filter((row) => row.selected && eligible(row));
     setBusy(true);
     setNotice("");
+    const batches: Row[][] = [];
+    let bytes = 0;
+    for (const row of selected) {
+      const size = row.file!.size;
+      const last = batches.at(-1);
+      if (!last || last.length === 16 || bytes + size > questionImportLimit) {
+        batches.push([row]);
+        bytes = size;
+      } else {
+        last.push(row);
+        bytes += size;
+      }
+    }
+
     let created = false;
     let processed = 0;
-    try {
-      for (const row of selected) {
-        setProgress(`${preview ? "Checking" : "Importing"} ${processed + 1} of ${selected.length}`);
-        let update: Partial<Row>;
-        try {
-          const response = await importDraft(await fileText(row.file!), row.content!, preview);
-          if (response.status === 401 || response.status === 403 || response.status === 429) {
-            setNotice(
-              response.status === 429
-                ? "Import paused. Wait briefly, then retry the remaining files."
-                : "Import paused. Check your session and authoring access, then retry.",
-            );
-            break;
-          }
-          if (response.data) {
-            update = {
-              status: response.data.status,
-              draftId: response.data.draftId,
-              message: response.data.message ?? response.data.warning,
-            };
-            created ||= response.data.status === "created";
+    let next = 0;
+    let paused = false;
+    const label = preview ? "Checking" : "Importing";
+    setProgress(`${label} 0 of ${selected.length}`);
+
+    function record(updates: Map<Row, Partial<Row>>) {
+      processed += updates.size;
+      setProgress(`${label} ${processed} of ${selected.length}`);
+      setRows((current) =>
+        current.map((row) => {
+          const update = updates.get(row);
+          return update ? { ...row, ...update } : row;
+        }),
+      );
+    }
+
+    async function worker() {
+      while (!paused && next < batches.length) {
+        const batch = batches[next++];
+        const files = await Promise.allSettled(batch.map((row) => fileText(row.file!)));
+        const readable: Row[] = [];
+        const items: string[] = [];
+        const updates = new Map<Row, Partial<Row>>();
+        files.forEach((result, index) => {
+          const row = batch[index];
+          if (result.status === "fulfilled") {
+            readable.push(row);
+            items.push(result.value);
           } else {
-            update = {
+            updates.set(row, {
               status: "failed",
-              message: "Server rejected this file. Retry or review its contents.",
-            };
+              message: "Could not read this file. Retry safely.",
+            });
           }
+        });
+        if (updates.size) record(updates);
+        if (paused) return;
+        if (!items.length) continue;
+
+        const results = new Map<Row, Partial<Row>>();
+        try {
+          const response = await importDraftBatch(items, preview);
+          if (response.status === 401 || response.status === 403 || response.status === 429) {
+            if (!paused) {
+              paused = true;
+              setNotice(
+                response.status === 429
+                  ? "Import paused. Wait briefly, then retry the remaining files."
+                  : "Import paused. Check your session and authoring access, then retry.",
+              );
+            }
+            return;
+          }
+          const outcomes = response.data?.items;
+          if (outcomes?.length !== readable.length)
+            throw new Error("Batch request failed. Retry safely.");
+          outcomes.forEach((outcome, index) => {
+            results.set(readable[index], {
+              status: outcome.status,
+              draftId: outcome.draftId,
+              message: outcome.message ?? outcome.warning,
+            });
+            created ||= outcome.status === "created";
+          });
         } catch (cause) {
-          update = {
-            status: "failed",
-            message: userFacingErrorMessage(cause, "Request failed. Retry safely."),
-          };
+          const message = userFacingErrorMessage(cause, "Batch request failed. Retry safely.");
+          for (const row of readable) results.set(row, { status: "failed", message });
         }
-        processed++;
-        setRows((current) => current.map((item) => (item === row ? { ...item, ...update } : item)));
+        record(results);
       }
+    }
+    try {
+      await Promise.all(Array.from({ length: Math.min(4, batches.length) }, worker));
     } finally {
       if (created) onCreated();
       setProgress("");

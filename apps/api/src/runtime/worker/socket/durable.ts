@@ -15,7 +15,7 @@ import type { Notice } from "../../../modules/events/dispatch/ports.ts";
 import type { Principal } from "../../../modules/identity/model.ts";
 import type { VerifiedGrant } from "../../../modules/identity/grant.ts";
 
-type Mode = "interview" | "match" | "invite" | "submission" | "membership";
+type Mode = "interview" | "match";
 /** Private server storage; attachment contains only its opaque key. */
 export interface StoredSocket {
   grant: VerifiedGrant;
@@ -180,12 +180,7 @@ export function browserSocketObject<Env>(
         if (
           !Number.isSafeInteger(record.grant.expiresAt) ||
           record.grant.expiresAt * 1000 <= Date.now() ||
-          ((record.grant.kind === "invite" ||
-            (record.grant.kind === "guest" &&
-              (record.mode === "interview" || record.mode === "match"))) &&
-            record.grant.resourceId !== record.resourceId) ||
-          (record.grant.kind === "invite" && record.mode !== "invite") ||
-          (record.grant.kind !== "invite" && record.mode === "invite")
+          (record.grant.kind === "guest" && record.grant.resourceId !== record.resourceId)
         )
           throw new IdentityError("unauthorized");
         if (new TextEncoder().encode(JSON.stringify(record)).length > 24 * 1024)

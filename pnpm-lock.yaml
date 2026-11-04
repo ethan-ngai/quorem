@@ -198,6 +198,9 @@ importers:
       '@quorem/auth':
         specifier: workspace:*
         version: link:../auth
+      '@quorem/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@quorem/database':
         specifier: workspace:*
         version: link:../../packages/database

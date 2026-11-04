@@ -69,13 +69,13 @@ export function GlobalNav({
   }
   const session = useSession();
   const actor = (session.data?.user.id ?? identity) as DevelopmentIdentity;
-  const activeMatch = useActiveMatch(actor, !!session.data);
-  const checkingMatch = session.isPending || activeMatch.checking;
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
   const consumedCreation = useRef(false);
   const inMatch = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
+  const activeMatch = useActiveMatch(actor, !!session.data && !inMatch && !mode);
+  const checkingMatch = session.isPending || activeMatch.checking;
   const [creating, setCreating] = useState(false);
   function signInToCreate() {
     const destination = matchSignInLocation(

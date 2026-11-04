@@ -13,6 +13,7 @@ import { sqsQueue } from "../adapters/delivery/sqs.ts";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { cloudflarePull } from "../adapters/delivery/cloudflare.ts";
 import { PostgresFanout } from "../adapters/events/fanout/postgres.ts";
+import { submissionEventId } from "../adapters/events/submission-events.ts";
 import { noticePublisher, socketSubscription } from "../adapters/events/fanout/publisher.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { socketTarget } from "./worker/socket/target.ts";
@@ -188,7 +189,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     disposers.push(() => recovery.close());
     const dispatch = async () => {
       await recoverAll([
-        ...(["interview", "match", "submission", "membership"] as const).map(
+        ...(["interview", "match", "submission"] as const).map(
           (name) => () => dispatchBatch(store, notices, wake, name),
         ),
         async () => {
@@ -236,7 +237,9 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       guestExecution: flag(env.GUEST_EXECUTION),
       localStrongBypass: identityMode === "local",
     };
-    const budget = requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
+    const limit = boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024);
+    const budget = requestBudget(limit);
+    const streamBudget = requestBudget(limit);
     const build = (signal?: AbortSignal, peer?: string) => {
       const db = runWith(signal),
         identity = composeIdentity(db, verifier, sessions, allowed);
@@ -252,6 +255,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         ...identity,
         identify,
         ...basePorts,
+        submissionNotices: fanout,
         trustedPeer: () => peer,
       });
       composed.app.route("/", auth.app);
@@ -260,9 +264,10 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     const server = serve({
       hostname: host,
       port: env.PORT === "0" ? 0 : boundedInt(env.PORT, 8080, 65535),
-      fetch: async (request, info) =>
-        budget(request, async () => {
-          const path = new URL(request.url).pathname;
+      fetch: async (request, info) => {
+        const path = new URL(request.url).pathname;
+        const admit = request.method === "GET" && submissionEventId(path) ? streamBudget : budget;
+        return admit(request, async () => {
           const peer = validPeer(info.incoming.socket.remoteAddress);
           if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
             const handlers = await composePrivate(runWith(request.signal), privateConfig(env));
@@ -283,7 +288,8 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
             }
           }
           return response;
-        }).catch(() => unavailable()),
+        }).catch(() => unavailable());
+      },
     }) as Server;
     disposers.push(async () => {
       if (!server.listening) return;
@@ -304,7 +310,6 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       verifier,
       sessions,
       matches: setup.matches,
-      submissions: setup.submissions,
       afterInterviewCommand: dispatch,
     });
     const heartbeatMs = boundedInt(env.SOCKET_HEARTBEAT_MS, 15000, 120000);
@@ -326,9 +331,6 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         const prefix = {
           interview: "interviews",
           match: "matches",
-          invite: "match-invites",
-          submission: "submissions",
-          membership: "memberships",
         }[record.mode];
         return {
           ...opened,

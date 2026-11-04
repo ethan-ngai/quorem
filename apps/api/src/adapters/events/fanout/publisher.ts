@@ -7,18 +7,15 @@ import type {
 export interface FanoutPublisher {
   publish(channel: string, notice: Notice): Promise<void>;
 }
-/** Match changes also invalidate anonymous invite previews. */
 export function noticePublisher(bus: FanoutPublisher): NoticePublisher {
   const prefix: Record<NoticeStream, string> = {
     interview: "interviews",
     match: "matches",
     submission: "submissions",
-    membership: "memberships",
   };
   return {
     async publish(stream, notice) {
       await bus.publish(`/${prefix[stream]}/${notice.aggregateId}`, notice);
-      if (stream === "match") await bus.publish(`/match-invites/${notice.aggregateId}`, notice);
     },
   };
 }

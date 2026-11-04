@@ -150,7 +150,7 @@ export function installNodeSockets(
         if (
           !initial.binding ||
           initial.binding.length > 256 ||
-          (resolved.mode !== "invite" && !initial.principal) ||
+          !initial.principal ||
           (initial.expiresAt !== undefined && initial.expiresAt <= Date.now())
         )
           throw new ApplicationError("unauthenticated", "Invalid socket grant", 401);

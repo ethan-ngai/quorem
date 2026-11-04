@@ -13,6 +13,7 @@ import { problemRoutes } from "../../modules/problems/routes.ts";
 import { authoringRoutes } from "../../modules/problems/authoring/routes.ts";
 import { workspaceRoutes } from "../../modules/workspace/routes.ts";
 import { admissionRoutes } from "../../modules/judging/admission/routes.ts";
+import type { FanoutSubscriber } from "../../adapters/events/fanout/publisher.ts";
 import { submissionRoutes } from "../../modules/judging/results/routes.ts";
 import { matchLifecycleRoutes } from "../../modules/matches/lifecycle/routes.ts";
 import { matchInvitationRoutes } from "../../modules/matches/invitations/routes.ts";
@@ -44,6 +45,7 @@ import { publicGuestBudget } from "../../adapters/postgres/identity/guest.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export interface HttpPorts {
   run: Run;
+  submissionNotices?: FanoutSubscriber;
   identify: (request: Request) => Promise<Principal | undefined>;
   origins: readonly string[];
   managed: (token: string) => Promise<ManagedPrincipal | LocalPrincipal>;
@@ -116,7 +118,14 @@ export function composeHttp(ports: HttpPorts) {
     "/",
     admissionRoutes({ ...execution, commit: postgresWorkspaceAdmission(run, options) }),
   );
-  app.route("/", submissionRoutes({ identify, snapshots: submissionSnapshots(run) }));
+  app.route(
+    "/",
+    submissionRoutes({
+      identify,
+      snapshots: submissionSnapshots(run),
+      notices: ports.submissionNotices,
+    }),
+  );
   app.route("/", matchLifecycleRoutes({ identify, lifecycle: matches }));
   app.route(
     "/",
@@ -151,5 +160,5 @@ export function composeHttp(ports: HttpPorts) {
     "/",
     interviewExecutionRoutes({ ...execution, commit: postgresInterviewAdmission(run, options) }),
   );
-  return { app, matches, submissions: submissionSnapshots(run) };
+  return { app, matches };
 }

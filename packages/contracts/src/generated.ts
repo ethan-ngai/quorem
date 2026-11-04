@@ -103,6 +103,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/submissions/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["watchSubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/submissions/{id}/cancel": {
         parameters: {
             query?: never;
@@ -353,6 +369,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["importQuestionDraft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/question-drafts/import-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importQuestionDraftBatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1776,6 +1808,37 @@ export interface operations {
             };
         };
     };
+    watchSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner-scoped SSE invalidations. Read the submission snapshot after each changed event. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     cancelSubmission: {
         parameters: {
             query?: never;
@@ -2371,6 +2434,52 @@ export interface operations {
                         draftId?: string;
                         message?: string;
                         warning?: string;
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    importQuestionDraftBatch: {
+        parameters: {
+            query?: {
+                preview?: "1";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    items: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Import outcome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** @enum {string} */
+                            status: "ready" | "created" | "existing" | "conflict" | "invalid";
+                            /** Format: uuid */
+                            draftId?: string;
+                            message?: string;
+                            warning?: string;
+                        }[];
                     };
                 };
             };

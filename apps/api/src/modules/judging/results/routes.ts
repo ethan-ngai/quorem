@@ -3,10 +3,13 @@ import { Hono } from "hono";
 import { ApplicationError } from "../../../application/error.ts";
 import { identifyRequest } from "../../identity/routes.ts";
 import type { Principal } from "../../identity/model.ts";
+import { submissionEvents } from "../../../adapters/events/submission-events.ts";
+import type { FanoutSubscriber } from "../../../adapters/events/fanout/publisher.ts";
 import type { SubmissionSnapshots } from "./model.ts";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function submissionRoutes(deps: {
   snapshots: SubmissionSnapshots;
+  notices?: FanoutSubscriber;
   identify(request: Request): Promise<Principal | undefined>;
 }): Hono {
   const app = new Hono();
@@ -24,6 +27,26 @@ export function submissionRoutes(deps: {
       "Content-Type": "application/json; charset=utf-8",
     }),
   );
+  const notices = deps.notices;
+  if (notices)
+    app.get("/v1/submissions/:id/events", async (c) => {
+      const request = c.req.raw;
+      const submissionId = id(c.req.param("id")).toLowerCase();
+      const who = await actor(request);
+      await (await deps.snapshots.read(who, submissionId)).cancel();
+      return c.body(
+        await submissionEvents(request, submissionId, notices, async () => {
+          const current = await actor(request);
+          if (current.userId !== who.userId || current.sessionId !== who.sessionId)
+            throw new ApplicationError("unauthenticated", "Session changed", 401);
+        }),
+        200,
+        {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-store, no-transform",
+        },
+      );
+    });
   app.get("/v1/interviews/:interviewId/submissions/:id", async (c) =>
     c.body(
       await deps.snapshots.interview(

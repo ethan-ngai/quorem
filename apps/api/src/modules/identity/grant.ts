@@ -19,13 +19,11 @@ export type GuestGrant = {
   hash: string;
   expiresAt: number;
 };
-export type InviteGrant = { kind: "invite"; resourceId: string; hash: string; expiresAt: number };
-export type VerifiedGrant = ManagedGrant | GuestGrant | InviteGrant;
+export type VerifiedGrant = ManagedGrant | GuestGrant;
 export interface GrantReaders {
   sessions: SessionAuthority;
   managed(grant: ManagedGrant): Promise<ManagedPrincipal | null>;
   guest(kind: GuestGrant["scope"], hash: string): Promise<GuestPrincipal | null>;
-  invite(resourceId: string, hash: string): Promise<boolean>;
 }
 /** Only call after token verification; profile claims and bearer bytes are deliberately discarded. */
 export function managedGrant(claims: Claims, strongUntil: number): ManagedGrant {
@@ -44,7 +42,7 @@ export async function reauthorizeGrant(
   readers: GrantReaders,
   now = Date.now(),
   signal?: AbortSignal,
-): Promise<ManagedPrincipal | GuestPrincipal | undefined> {
+): Promise<ManagedPrincipal | GuestPrincipal> {
   if (!Number.isSafeInteger(grant.expiresAt) || grant.expiresAt * 1000 <= now)
     throw new IdentityError("unauthorized");
   try {
@@ -85,8 +83,6 @@ export async function reauthorizeGrant(
         credentialExpiresAt: Math.min(principal.credentialExpiresAt, grant.expiresAt),
       };
     }
-    if (grant.kind === "invite" && (await readers.invite(grant.resourceId, grant.hash)))
-      return undefined;
     throw new IdentityError("unauthorized");
   } catch (error) {
     if (error instanceof IdentityError) throw error;

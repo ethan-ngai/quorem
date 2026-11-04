@@ -110,6 +110,23 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     const raw = stringifyLosslessJson(await body(c.req.raw, 2 << 20));
     return json(c, await deps.authoring.importDraft(p, raw, preview === "1"));
   });
+  app.post("/v1/admin/question-drafts/import-batch", async (c) => {
+    const p = await principal(c.req.raw),
+      preview = c.req.query("preview");
+    if (preview !== undefined && preview !== "1") invalid("Invalid import preview");
+    const req = await body(c.req.raw, 5 << 20);
+    fields(req, ["items"]);
+    if (!Array.isArray(req.items) || req.items.length < 1 || req.items.length > 16)
+      invalid("Choose 1 to 16 questions per request");
+    const items = req.items.map((item) => {
+      if (typeof item !== "string") invalid("Expected question JSON text");
+      return item;
+    });
+    const encoder = new TextEncoder();
+    if (items.reduce((bytes, item) => bytes + encoder.encode(item).length, 0) > 2 << 20)
+      throw new ApplicationError("payload_too_large", "Question batch exceeds 2 MiB", 413);
+    return json(c, await deps.authoring.importDraftBatch(p, items, preview === "1"));
+  });
   app.put("/v1/admin/question-drafts/:id", async (c) => {
     const p = await principal(c.req.raw),
       id = c.req.param("id");

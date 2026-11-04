@@ -649,41 +649,6 @@ export const submission_outbox = pgTable(
   ],
 );
 
-export const membership_outbox = pgTable(
-  "membership_outbox",
-  {
-    sequence: bigint({ mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity({
-      name: "membership_outbox_sequence_seq",
-      startWith: 1,
-      increment: 1,
-      minValue: 1,
-      maxValue: "9223372036854775807",
-      cache: 1,
-    }),
-    id: uuid().defaultRandom().notNull(),
-    participant_id: uuid().notNull(),
-    occurred_at: timestamp({ withTimezone: true, mode: "string" })
-      .default(sql`clock_timestamp()`)
-      .notNull(),
-    published_at: timestamp({ withTimezone: true, mode: "string" }),
-    dispatch_token: uuid(),
-    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
-  },
-  (table): PgTableExtraConfigValue[] => [
-    index("membership_outbox_retention")
-      .using(
-        "btree",
-        table.occurred_at.asc().nullsLast().op("int8_ops"),
-        table.sequence.asc().nullsLast().op("timestamptz_ops"),
-      )
-      .where(sql`(published_at IS NOT NULL)`),
-    index("unpublished_membership_events")
-      .using("btree", table.sequence.asc().nullsLast().op("int8_ops"))
-      .where(sql`(published_at IS NULL)`),
-    unique("membership_outbox_id_key").on(table.id),
-  ],
-);
-
 export const match_reconciliation_pending = pgTable(
   "match_reconciliation_pending",
   {

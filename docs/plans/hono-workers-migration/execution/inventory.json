@@ -246,12 +246,6 @@
       "registration": "apps/api/internal/httpapi/server.go"
     },
     {
-      "method": "GET",
-      "path": "/v1/match-invites/{token}/events",
-      "packet": "30",
-      "registration": "apps/api/internal/httpapi/server.go"
-    },
-    {
       "method": "POST",
       "path": "/v1/match-invites/{token}/guest",
       "packet": "21",
@@ -349,12 +343,6 @@
       "packet": "21",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/match_languages.go"
-    },
-    {
-      "method": "GET",
-      "path": "/v1/memberships/events",
-      "packet": "30",
-      "registration": "apps/api/internal/httpapi/server.go"
     },
     {
       "method": "GET",

@@ -24,7 +24,6 @@ const readers: GrantReaders = {
   sessions: { check: async () => ({ strongAt: 999 }) },
   managed: async () => principal,
   guest: async () => null,
-  invite: async () => false,
 };
 describe("verified grants", () => {
   it("caps expiry and derives fresh strong authority", async () => {
@@ -45,7 +44,7 @@ describe("verified grants", () => {
       ),
     ).rejects.toMatchObject({ kind: "unauthorized" });
   });
-  it("preserves outage classification and rejects guest/invite mismatch", async () => {
+  it("preserves outage classification and rejects unauthorized guests", async () => {
     await expect(
       reauthorizeGrant(
         grant,
@@ -58,13 +57,6 @@ describe("verified grants", () => {
         1000000,
       ),
     ).rejects.toBeInstanceOf(IdentityError);
-    await expect(
-      reauthorizeGrant(
-        { kind: "invite", resourceId: "one", hash: "hash", expiresAt: 2000 },
-        readers,
-        1000000,
-      ),
-    ).rejects.toMatchObject({ kind: "unauthorized" });
     await expect(
       reauthorizeGrant(
         { kind: "guest", scope: "match", resourceId: "one", hash: "hash", expiresAt: 2000 },

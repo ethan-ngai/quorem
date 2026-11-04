@@ -25,7 +25,6 @@ function fixture({
     admissions = [],
     messages = [],
     closed = 0,
-    lost = false,
     resultReads = 0,
     resultTimes = [];
   class Socket extends EventEmitter {
@@ -38,10 +37,6 @@ function fixture({
       queueMicrotask(() => {
         this.readyState = 1;
         this.emit("open");
-        if (lostNotice && url.includes("/submissions/") && !lost) {
-          lost = true;
-          setImmediate(() => this.close());
-        }
         queueMicrotask(() =>
           this.emit(
             "message",
@@ -108,6 +103,12 @@ function fixture({
               { status: 202 },
             );
       }
+      if (path.endsWith("/events")) {
+        assert.equal(init.headers.accept, "text/event-stream");
+        return new Response("event: changed\ndata: {}\n\n", {
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
       if (path.startsWith("/v1/submissions/")) {
         resultReads++;
         resultTimes.push(clock);
@@ -136,7 +137,7 @@ void test("drives public match, receipt acknowledgements, paced runs and cleanup
   assert.ok(state.admissions.every(({ body }) => body.kind === "run"));
   assert.deepEqual(state.messages[0], { type: "receipt", id: receipt });
   assert.equal(state.disposed, 2);
-  assert.equal(state.closed, 4);
+  assert.equal(state.closed, 2);
 });
 void test("partial admission failure still closes sockets and revokes sessions", async () => {
   const f = fixture({ failAdmission: true });

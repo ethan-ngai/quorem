@@ -25,6 +25,7 @@ export function useIntelligence(
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [status, setStatus] = useState<IntelligenceStatus>("connecting");
   const key = `${identity}:${documentKey}`;
+  const useHosted = language === "python" && hostedIntelligenceEnabled && allowHosted;
   const [attempt, setAttempt] = useState({ key: "", nonce: 0 });
   const retry = useCallback(() => setAttempt((value) => ({ key, nonce: value.nonce + 1 })), [key]);
 
@@ -33,7 +34,7 @@ export function useIntelligence(
       setExtensions([]);
       return;
     }
-    if (language === "typescript" || !hostedIntelligenceEnabled || !allowHosted) {
+    if (!useHosted) {
       const controller = new AbortController();
       let dispose: (() => void) | undefined;
       let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -66,6 +67,7 @@ export function useIntelligence(
               return;
             }
             dispose = session.dispose;
+            failures = 0;
             setExtensions(session.extensions);
             setStatus("ready");
           })
@@ -179,7 +181,7 @@ export function useIntelligence(
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
-  }, [identity, documentKey, key, attempt, enabled, language, allowHosted]);
+  }, [identity, documentKey, key, attempt, enabled, language, useHosted]);
 
   return { extensions, status, retry };
 }

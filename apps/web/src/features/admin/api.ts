@@ -46,12 +46,11 @@ export async function getDraft(id: string) {
   return requireData(data, error);
 }
 
-/** Sends original file text so preflight and import see the same lossless JSON. */
-export async function importDraft(raw: string, content: QuestionContent, preview: boolean) {
-  const { data, error, response } = await api().POST("/v1/admin/question-drafts/import", {
+/** Sends original file text so the API can parse each question losslessly. */
+export async function importDraftBatch(items: string[], preview: boolean) {
+  const { data, response } = await api().POST("/v1/admin/question-drafts/import-batch", {
     params: { query: preview ? { preview: "1" } : {} },
-    body: content,
-    bodySerializer: () => raw,
+    body: { items },
   });
-  return { data, error, status: response.status };
+  return { data, status: response.status };
 }

@@ -3,7 +3,7 @@ import { randomUUID } from "../../randomUUID";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { Link, useNavigate } from "@tanstack/react-router";
 /** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
   InterviewSnapshot,
@@ -25,13 +25,6 @@ import { Trash2, Power, Users, CircleDot, Archive } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { SessionDialog } from "../../ui/SessionDialog";
-import {
-  membershipSynchronizer,
-  retryMembershipEvents,
-  subscribeMembershipEvents,
-} from "../realtime/membershipEvents";
-import type { DevelopmentIdentity } from "@quorem/contracts";
-
 /** Presents existing memberships even when host rollout access has been revoked. */
 export function InterviewHub() {
   const account = useSession();
@@ -45,35 +38,14 @@ export function InterviewHub() {
     action: "end" | "delete";
   }>();
   const [error, setError] = useState<string>();
-  const [connection, setConnection] = useState<"connecting" | "ready" | "offline">("connecting");
-  const retryMembership = useRef<() => void>(() => {});
   useErrorNotification(error);
   const sessions = useQuery({
     queryKey: ["interviews", account.data?.user.id],
     queryFn: ({ signal }) =>
       interviewRequest<InterviewSummary[]>("/v1/interviews", "GET", undefined, undefined, signal),
-    enabled: false,
+    enabled: !!account.data,
+    refetchOnWindowFocus: true,
   });
-  const identity = account.data?.user.id as DevelopmentIdentity | undefined;
-  const refresh = sessions.refetch;
-  useEffect(() => {
-    if (!identity) return;
-    const sync = membershipSynchronizer(() => refresh({ cancelRefetch: false }), setConnection);
-    let connected = false;
-    retryMembership.current = () => {
-      if (connected) sync.event("changed");
-      else retryMembershipEvents(identity);
-    };
-    const stop = subscribeMembershipEvents(identity, (event) => {
-      connected = event === "changed";
-      sync.event(event);
-    });
-    return () => {
-      retryMembership.current = () => {};
-      sync.stop();
-      stop();
-    };
-  }, [identity, refresh]);
   async function create(
     question: InterviewQuestionInput,
     title: string,
@@ -132,7 +104,7 @@ export function InterviewHub() {
           account.data?.capabilities?.interviews && (
             <button
               className="button button-primary"
-              disabled={sessions.isPending || connection !== "ready" || atLimit}
+              disabled={sessions.isPending || sessions.isError || atLimit}
               title={atLimit ? "End your active interview before hosting another" : undefined}
               onClick={() => {
                 setCreated(undefined);
@@ -159,12 +131,12 @@ export function InterviewHub() {
             aria-label="Interviews"
             aria-busy={sessions.isFetching}
           >
-            {sessions.isPending && connection !== "offline" ? (
+            {sessions.isPending ? (
               <LoadingScreen inline label="Loading interviews…" />
-            ) : sessions.isError || connection === "offline" ? (
+            ) : sessions.isError ? (
               <div className="practice-state" role="alert">
                 <p>Could not load interviews.</p>
-                <button className="practice-retry" onClick={() => retryMembership.current()}>
+                <button className="practice-retry" onClick={() => void sessions.refetch()}>
                   Retry
                 </button>
               </div>

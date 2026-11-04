@@ -1,0 +1,10 @@
+DROP TRIGGER match_membership_reservation ON match_reservations;
+DROP TRIGGER match_membership_update ON match_outbox;
+DROP TRIGGER interview_membership_change ON interview_members;
+DROP TRIGGER interview_hub_change ON interviews;
+DROP FUNCTION queue_match_membership_reservation();
+DROP FUNCTION queue_match_membership_update();
+DROP FUNCTION queue_interview_membership_change();
+DROP FUNCTION queue_interview_hub_change();
+DROP TABLE membership_outbox;
+DROP FUNCTION notify_membership_outbox();

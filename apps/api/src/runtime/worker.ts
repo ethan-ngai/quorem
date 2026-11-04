@@ -28,8 +28,6 @@ import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch } from "../modules/events/dispatch/dispatch.ts";
 import type { Notice, NoticeStream } from "../modules/events/dispatch/ports.ts";
-import { ApplicationError } from "../application/error.ts";
-import { mapIdentityError } from "../modules/identity/routes.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
 import { socketTarget, type SocketTarget } from "./worker/socket/target.ts";
 import { browserSocketObject } from "./worker/socket/durable.ts";
@@ -50,6 +48,9 @@ import { privateResponse } from "./composition/private-response.ts";
 import { recoverAll } from "./composition/recovery.ts";
 import { health } from "./composition/health.ts";
 import { consumeWakeBatch, type WakeMessage } from "./composition/wake-consumer.ts";
+import { MemoryFanout } from "../adapters/events/fanout/memory.ts";
+import { submissionEventId } from "../adapters/events/submission-events.ts";
+import type { FanoutSubscriber } from "../adapters/events/fanout/publisher.ts";
 
 interface SocketStub {
   fetch(request: Request): Promise<Response>;
@@ -93,6 +94,23 @@ function notices(env: Env) {
     publish: (stream: NoticeStream, notice: Notice) =>
       socketStub(env, stream, notice.aggregateId).publish(notice),
   };
+}
+const realtimeStreams = ["interview", "match", "submission"] as const;
+async function publishNotices(
+  env: Env,
+  run: ReturnType<typeof runFor>,
+  streams: readonly NoticeStream[],
+) {
+  const store = postgresDispatch(run),
+    publisher = notices(env),
+    queue = wake(env);
+  for (const stream of streams) {
+    try {
+      await dispatchBatch(store, publisher, queue, stream);
+    } catch {
+      // The scheduled dispatcher retries retained notices.
+    }
+  }
 }
 function wake(env: Env) {
   const provider = required(env.EXECUTION_WAKE_PROVIDER);
@@ -144,7 +162,7 @@ function makeSecurity(env: Env, signal?: AbortSignal) {
   };
   return { auth, verifier, sessions };
 }
-function makeHttp(env: Env, request: Request) {
+function makeHttp(env: Env, request: Request, submissionNotices?: FanoutSubscriber) {
   const run = runFor(env, request.signal),
     security = makeSecurity(env, request.signal),
     allowed = origins(env);
@@ -153,6 +171,7 @@ function makeHttp(env: Env, request: Request) {
     run,
     ...identity,
     origins: allowed,
+    submissionNotices,
     trustedPeer: () => cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER),
     deadline: cloudflareCoordinator(env.DEADLINES),
     execution: cloudflareCoordinator(env.EXECUTION_RECOVERY),
@@ -192,13 +211,12 @@ function socketAuthority(env: Env) {
     verifier: security.verifier,
     sessions: security.sessions,
     matches: composed.matches,
-    submissions: composed.submissions,
     afterInterviewCommand: async () => {
       await dispatchBatch(postgresDispatch(run), notices(env), wake(env), "interview");
     },
   });
 }
-export const BrowserSockets = browserSocketObject<Env>((env) => {
+const SocketObject = browserSocketObject<Env>((env) => {
   const base = socketAuthority(env);
   return {
     origins: origins(env),
@@ -216,6 +234,30 @@ export const BrowserSockets = browserSocketObject<Env>((env) => {
     },
   };
 });
+export class BrowserSockets extends SocketObject {
+  private readonly submissionNotices = new MemoryFanout(8);
+
+  private readonly bindings: Env;
+
+  constructor(state: ConstructorParameters<typeof SocketObject>[0], bindings: Env) {
+    super(state, bindings);
+    this.bindings = bindings;
+  }
+
+  override async fetch(request: Request): Promise<Response> {
+    const id = submissionEventId(new URL(request.url).pathname);
+    if (!id) return super.fetch(request);
+    if (request.headers.get("x-quorem-submission-scope") !== id)
+      return new Response(null, { status: 403 });
+    return makeHttp(this.bindings, request, this.submissionNotices).app.fetch(request);
+  }
+
+  override publish(notice: Notice): Promise<void> {
+    if (notice.type === "submission.updated")
+      return this.submissionNotices.publish(`/submissions/${notice.aggregateId}`, notice);
+    return super.publish(notice);
+  }
+}
 export class DeadlineCoordinator extends DurableObject {
   private actor: ShardAlarm;
   constructor(state: { storage: AlarmStorage }, env: Env) {
@@ -260,21 +302,7 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
   const rejected = socketHandshake(request, origins(env));
   if (rejected) return new Response(null, { status: rejected });
   if (target.mode === "invalid") return new Response(null, { status: 404 });
-  let id = target.id;
-  if (target.mode !== "direct") {
-    try {
-      id = (await socketAuthority(env).issue(request)).resourceId;
-    } catch (error) {
-      const mapped = mapIdentityError(error);
-      const status =
-        mapped instanceof ApplicationError &&
-        [400, 401, 403, 404, 409, 410, 422, 429].includes(mapped.status)
-          ? mapped.status
-          : 503;
-      return new Response(null, { status, headers: { "cache-control": "no-store" } });
-    }
-  }
-  if (!id) return new Response(null, { status: 404 });
+  const { id } = target;
   const headers = new Headers(request.headers);
   headers.delete("x-quorem-socket-scope");
   headers.set("x-quorem-socket-scope", id);
@@ -282,6 +310,7 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
 }
 
 let budget: ReturnType<typeof requestBudget> | undefined;
+let streamBudget: ReturnType<typeof requestBudget> | undefined;
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
@@ -289,6 +318,17 @@ export default {
         target = socketTarget(path);
       if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket")
         return await routeSocket(env, request, target);
+      const submissionId = request.method === "GET" && submissionEventId(path);
+      if (submissionId) {
+        streamBudget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
+        return await streamBudget(request, async () => {
+          const headers = new Headers(request.headers);
+          headers.set("x-quorem-submission-scope", submissionId);
+          return socketStub(env, "submission", submissionId).fetch(
+            new Request(request, { headers }),
+          );
+        });
+      }
       budget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
       if (path === "/health")
         return await budget(request, async () => health(request, origins(env)));
@@ -296,29 +336,23 @@ export default {
         const run = runFor(env, request.signal);
         if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
           const handlers = await composePrivate(run, privateConfig(env));
-          return privateResponse(
-            await (path.startsWith("/internal/runner/")
-              ? handlers.runner(request)
-              : handlers.source(request)),
-          );
+          const response = path.startsWith("/internal/runner/")
+            ? await handlers.runner(request)
+            : await handlers.source(request);
+          if (response.ok) {
+            if (path === "/internal/runner/promote") await publishNotices(env, run, realtimeStreams);
+            else if (path === "/internal/runner/claim" || path === "/internal/runner/yield")
+              await publishNotices(env, run, ["submission"]);
+          }
+          return privateResponse(response);
         }
         const composed = makeHttp(env, request);
         const incoming = path.startsWith("/api/auth/")
           ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
           : request;
         const response = await composed.app.fetch(incoming);
-        if (response.status < 400 && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
-          const store = postgresDispatch(run),
-            publisher = notices(env),
-            queue = wake(env);
-          for (const name of ["interview", "match", "submission", "membership"] as const) {
-            try {
-              await dispatchBatch(store, publisher, queue, name);
-            } catch {
-              /* Scheduled recovery retains the intent. */
-            }
-          }
-        }
+        if (response.status < 400 && !["GET", "HEAD", "OPTIONS"].includes(request.method))
+          await publishNotices(env, run, realtimeStreams);
         return response;
       });
     } catch (error) {
@@ -343,7 +377,7 @@ export default {
     const deadlines = cloudflareCoordinator(env.DEADLINES),
       recovery = cloudflareCoordinator(env.EXECUTION_RECOVERY);
     await recoverAll([
-      ...(["interview", "match", "submission", "membership"] as const).map(
+      ...realtimeStreams.map(
         (stream) => () => dispatchBatch(store, publisher, wake(env), stream),
       ),
       async () => {

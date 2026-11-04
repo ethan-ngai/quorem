@@ -1,3 +1,4 @@
+import { insertTestNotice } from "../test-notice.ts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { postgresDeadlines } from "./deadlines.ts";
@@ -179,6 +180,8 @@ describe("deadline scheduling with PostgreSQL", () => {
       { name: "live", kind: "guest", days: 8, state: "running" },
       { name: "account", kind: "account", days: 8, state: "completed" },
       { name: "old-account", kind: "account", days: 31, state: "completed" },
+      { name: "delivery-expired", kind: "account", days: 0, state: "completed" },
+      { name: "quota-expired", kind: "account", days: 2, state: "completed" },
     ] as const;
     const ids = new Map<string, string>();
     for (const item of cases) {
@@ -227,6 +230,10 @@ describe("deadline scheduling with PostgreSQL", () => {
       if (item.state === "completed")
         await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [id]);
     }
+    await pool.query(
+      "UPDATE submissions SET updated_at=clock_timestamp()-interval '11 minutes' WHERE id=ANY($1::uuid[])",
+      [[ids.get("delivery-expired"), ids.get("quota-expired")]],
+    );
     await retainBatch(run);
     const rows = await pool.query(
       `SELECT id,source,result IS NOT NULL AS result, result_payload IS NOT NULL AS payload, lossless_cases IS NOT NULL AS cases FROM submissions WHERE id=ANY($1::uuid[])`,
@@ -241,6 +248,8 @@ describe("deadline scheduling with PostgreSQL", () => {
     });
     expect(byName("sidecar")).toMatchObject({ source: "", cases: false });
     expect(byName("old-account")).toMatchObject({ source: "", result: false, cases: false });
+    expect(byName("delivery-expired")).toMatchObject({ source: "", result: false, cases: false });
+    expect(byName("quota-expired")).toBeUndefined();
     for (const name of ["live", "account"])
       expect(byName(name)).toMatchObject({ source: "secret", result: true, cases: true });
     const remaining = await pool.query(
@@ -639,27 +648,20 @@ describe("deadline scheduling with PostgreSQL", () => {
   });
   it("deletes only expired published notices in bounded batches", async () => {
     const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
-    for (const id of ids)
-      await pool.query(
-        "INSERT INTO membership_outbox(id,participant_id,occurred_at,published_at) VALUES ($1,$2,clock_timestamp()-interval '8 days',clock_timestamp())",
-        [id, crypto.randomUUID()],
-      );
+    for (const id of ids) await pool.query(insertTestNotice, [id, crypto.randomUUID(), 8, true]);
     const unpublished = crypto.randomUUID();
-    await pool.query(
-      "INSERT INTO membership_outbox(id,participant_id,occurred_at) VALUES ($1,$2,clock_timestamp()-interval '8 days')",
-      [unpublished, crypto.randomUUID()],
-    );
+    await pool.query(insertTestNotice, [unpublished, crypto.randomUUID(), 8, false]);
     await retainBatch(run, 2);
     expect(
       Number(
-        (await pool.query("SELECT count(*) FROM membership_outbox WHERE id=ANY($1::uuid[])", [ids]))
+        (await pool.query("SELECT count(*) FROM interview_outbox WHERE id=ANY($1::uuid[])", [ids]))
           .rows[0].count,
       ),
     ).toBe(1);
     await retainBatch(run, 2);
     expect(
       Number(
-        (await pool.query("SELECT count(*) FROM membership_outbox WHERE id=$1", [unpublished]))
+        (await pool.query("SELECT count(*) FROM interview_outbox WHERE id=$1", [unpublished]))
           .rows[0].count,
       ),
     ).toBe(1);

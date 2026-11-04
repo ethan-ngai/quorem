@@ -12,7 +12,7 @@ export default {
         fn,
       );
     const store = postgresDispatch(run);
-    const claims = await store.claim("membership", 1, 1000);
+    const claims = await store.claim("interview", 1, 1000);
     if (!claims.length) return Response.json({ claimed: false });
     return Response.json({ claimed: true, ack: await store.acknowledge(claims[0]!) });
   },

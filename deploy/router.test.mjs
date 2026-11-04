@@ -580,7 +580,7 @@ void test("only supported GET event upgrades consume the socket budget", () => {
   assert.equal(isSocketRequest(new Request(path, { headers })), true);
   assert.equal(
     isSocketRequest(new Request("https://app/v1/memberships/events", { headers })),
-    true,
+    false,
   );
   assert.equal(
     isSocketRequest(new Request("https://app/v1/interviews/current/events", { headers })),
@@ -592,13 +592,13 @@ void test("only supported GET event upgrades consume the socket budget", () => {
         headers,
       }),
     ),
-    true,
+    false,
   );
   assert.equal(
     isSocketRequest(
       new Request(`https://app/v1/match-invites/${"A".repeat(43)}/events`, { headers }),
     ),
-    true,
+    false,
   );
   assert.equal(
     isSocketRequest(new Request("https://app/v1/match-invites/invalid/events", { headers })),
