@@ -4,7 +4,7 @@ import type { InputPresetConfig, Signature } from "./model.ts";
 /** Check the recursive public value type grammar. */
 export function validQuestionType(type: string, depth = 0): boolean {
   if (depth > 100) return false;
-  if (["int", "float", "bool", "str", "datetime", "ListNode", "TreeNode"].includes(type))
+  if (["int", "long", "float", "bool", "str", "datetime", "ListNode", "TreeNode"].includes(type))
     return true;
   return ["optional<", "list<", "array<"].some(
     (prefix) =>
@@ -21,7 +21,7 @@ export function validateInputConfig(type: string, config?: InputPresetConfig): v
     throw new Error(`unknown input codec ${JSON.stringify(normalized)}`);
   if (!config) return;
   while (normalized.startsWith("optional<")) normalized = normalized.slice(9, -1);
-  const primitive = (t: string) => ["int", "float", "str", "bool"].includes(t);
+  const primitive = (t: string) => ["int", "long", "float", "str", "bool"].includes(t);
   const innerList = (t: string) =>
     t.startsWith("list<") && t.endsWith(">") ? t.slice(5, -1) : undefined;
   const element = innerList(normalized);
@@ -29,7 +29,7 @@ export function validateInputConfig(type: string, config?: InputPresetConfig): v
   const compatible: Record<string, boolean> = {
     default: true,
     structured: true,
-    number: ["int", "float"].includes(normalized),
+    number: ["int", "long", "float"].includes(normalized),
     text: normalized === "str",
     boolean: normalized === "bool",
     sequence: element !== undefined && primitive(element),

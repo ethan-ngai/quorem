@@ -1,3 +1,4 @@
+import { isLongValue } from "@quorem/contracts/long";
 import type { CustomCase } from "@quorem/contracts";
 import { MAX_INPUT_ELEMENTS } from "./inputLimits";
 
@@ -12,7 +13,7 @@ export function innerType(type: string, wrapper: "optional" | "list" | "array") 
 
 export function supportedType(type: string, depth = 0): boolean {
   if (depth > 100) return false;
-  if (["int", "float", "str", "bool", "datetime", "ListNode", "TreeNode"].includes(type))
+  if (["int", "long", "float", "str", "bool", "datetime", "ListNode", "TreeNode"].includes(type))
     return true;
   const inner = innerType(type, "optional") ?? innerType(type, "list");
   return inner !== undefined && supportedType(inner, depth + 1);
@@ -71,6 +72,8 @@ export function validateTypedValue(
       value > 2_147_483_647
     )
       throw new Error("Enter a signed 32-bit integer.");
+  } else if (type === "long") {
+    if (!isLongValue(value)) throw new Error("Enter a signed 64-bit integer.");
   } else if (type === "float") {
     if (typeof value !== "number" || !Number.isFinite(value))
       throw new Error("Enter a finite number.");

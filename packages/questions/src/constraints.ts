@@ -9,17 +9,17 @@ function targetType(sig: Signature, target: ConstraintTarget): "scalar" | "seque
   if (!type) throw new Error(`unknown parameter ${JSON.stringify(target.parameter)}`);
   switch (target.projection) {
     case "value":
-      if (type === "int" || type === "float") return "scalar";
+      if (type === "int" || type === "long" || type === "float") return "scalar";
       if (type === "str") return "string";
       break;
     case "length":
       if (type === "str" || type.startsWith("list<")) return "scalar";
       break;
     case "sum":
-      if (["list<int>", "list<float>"].includes(type)) return "scalar";
+      if (["list<int>", "list<long>", "list<float>"].includes(type)) return "scalar";
       break;
     case "elements":
-      if (["list<int>", "list<float>"].includes(type)) return "sequence";
+      if (["list<int>", "list<long>", "list<float>"].includes(type)) return "sequence";
       break;
     case "nodeCount":
       if (["ListNode", "TreeNode"].includes(type)) return "scalar";
@@ -56,6 +56,14 @@ export function validateConstraints(sig: Signature, constraints: readonly Constr
             (c.min === undefined && c.max === undefined)
           )
             throw new Error("invalid range");
+          const type = sig.parameters
+            .find((p) => p.name === c.target.parameter)
+            ?.type.replaceAll("array<", "list<");
+          if (
+            (type === "long" || (type === "list<long>" && c.target.projection !== "length")) &&
+            [c.min, c.max].some((bound) => bound !== undefined && !Number.isSafeInteger(bound))
+          )
+            throw new Error("long range bounds must be safe integers");
           if (
             (c.min !== undefined && !Number.isFinite(c.min)) ||
             (c.max !== undefined && !Number.isFinite(c.max))

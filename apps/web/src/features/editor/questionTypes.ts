@@ -21,6 +21,7 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     python: {
       void: "None",
       int: "int",
+      long: "int",
       float: "float",
       bool: "bool",
       str: "str",
@@ -29,6 +30,7 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     java: {
       void: "void",
       int: "int",
+      long: "long",
       float: "double",
       bool: "boolean",
       str: "String",
@@ -37,6 +39,7 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     typescript: {
       void: "void",
       int: "number",
+      long: "bigint",
       float: "number",
       bool: "boolean",
       str: "string",
@@ -46,6 +49,7 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     ocaml: {
       void: "unit",
       int: "int",
+      long: "int64",
       float: "float",
       bool: "bool",
       str: "string",
@@ -56,8 +60,12 @@ export function questionTypeName(type: string, language: EditorLanguage): string
 }
 function boxJava(type: string) {
   return (
-    ({ int: "Integer", double: "Double", boolean: "Boolean" } as Record<string, string>)[type] ??
-    type
+    (
+      { int: "Integer", long: "Long", double: "Double", boolean: "Boolean" } as Record<
+        string,
+        string
+      >
+    )[type] ?? type
   );
 }
 
@@ -83,6 +91,13 @@ export function questionValue(value: unknown, language: EditorLanguage, type?: s
       .map((item) => questionValue(item, language, inner))
       .join(language === "ocaml" ? "; " : ",");
     return language === "ocaml" && array ? `[|${elements}|]` : `[${elements}]`;
+  }
+  while (type?.startsWith("optional<")) type = type.slice(9, -1);
+  if (type === "long" && typeof value === "string") {
+    const suffix = { java: "L", typescript: "n", ocaml: "L" } as Partial<
+      Record<EditorLanguage, string>
+    >;
+    return value + (suffix[language] ?? "");
   }
   return JSON.stringify(value) ?? "";
 }

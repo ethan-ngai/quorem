@@ -51,9 +51,12 @@ function languageType(
       if (language === "java") {
         if (wrapper !== "array")
           inner =
-            ({ int: "Integer", double: "Double", boolean: "Boolean" } as Record<string, string>)[
-              inner
-            ] ?? inner;
+            (
+              { int: "Integer", long: "Long", double: "Double", boolean: "Boolean" } as Record<
+                string,
+                string
+              >
+            )[inner] ?? inner;
         return wrapper === "optional"
           ? inner
           : wrapper === "array"
@@ -69,6 +72,7 @@ function languageType(
     java: {
       void: "void",
       int: "int",
+      long: "long",
       float: "double",
       bool: "boolean",
       str: "String",
@@ -79,6 +83,7 @@ function languageType(
     typescript: {
       void: "void",
       int: "number",
+      long: "bigint",
       float: "number",
       bool: "boolean",
       str: "string",
@@ -89,6 +94,7 @@ function languageType(
     ocaml: {
       void: "unit",
       int: "int",
+      long: "int64",
       float: "float",
       bool: "bool",
       str: "string",

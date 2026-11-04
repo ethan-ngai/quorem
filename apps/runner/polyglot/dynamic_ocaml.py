@@ -45,6 +45,7 @@ let dec_int = function JNumber s -> let n=int_of_string s in if n< -2147483648 |
 let dec_float = function JNumber s -> float_of_string s | _ -> invalid ()
 let dec_bool = function JBool v -> v | _ -> invalid ()
 let dec_str = function JString s -> s | _ -> invalid ()
+let dec_long v = Int64.of_string (dec_str v)
 let dec_datetime v =
  let s=dec_str v in
  let n start len = int_of_string (String.sub s start len) in
@@ -74,7 +75,7 @@ def decoder(t):
     if t.startswith('optional<'):return '(dec_optional '+decoder(t[9:-1])+')'
     if t.startswith('list<'):return '(dec_list '+decoder(t[5:-1])+')'
     if t.startswith('array<'):return '(dec_array '+decoder(t[6:-1])+')'
-    return {'int':'dec_int','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime','ListNode':'dec_node','TreeNode':'dec_tree'}[t]
+    return {'int':'dec_int','long':'dec_long','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime','ListNode':'dec_node','TreeNode':'dec_tree'}[t]
 
 def source(r,h):
     signatures=dict(r.get('methods') or {})

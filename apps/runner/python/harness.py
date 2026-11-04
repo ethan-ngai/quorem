@@ -37,6 +37,8 @@ def decode(kind, value):
         return None if value is None else decode(kind[9:-1], value)
     if kind.startswith('list<'):
         return [decode(kind[5:-1], v) for v in value]
+    if kind == 'long':
+        return int(value)
     if kind == 'datetime':
         return datetime.datetime.fromisoformat(value)
     if kind == 'ListNode':
@@ -116,6 +118,10 @@ def encode(kind, value, depth=0, count=None, seen=None):
             return value.isoformat(timespec='seconds')
         except (OverflowError, ValueError):
             raise InvalidOutput()
+    if kind == 'long':
+        if type(value) is not int or not -(2**63) <= value < 2**63:
+            raise InvalidOutput()
+        return str(value)
     if kind == 'int':
         if type(value) is not int or not -(2**31) <= value < 2**31:
             raise InvalidOutput()

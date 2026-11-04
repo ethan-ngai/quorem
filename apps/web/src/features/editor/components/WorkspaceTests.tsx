@@ -98,6 +98,7 @@ export function WorkspaceTests({
             error={error}
             showCases={detachedCustomRun}
             sql={problem.sql}
+            returnType={problem.odyssey ? undefined : problem.signature.returnType}
             showVerdict={!odyssey || selected}
             detailsVisible={detailsVisible}
             customMode={selected}

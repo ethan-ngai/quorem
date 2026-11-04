@@ -43,10 +43,13 @@ export abstract class InputPreset {
 export class NumberPreset extends InputPreset {
   readonly kind = "number";
   accepts(source: string) {
-    return acceptsNumericExpression(source);
+    return this.type === "long" ? /^-?\d*$/.test(source) : acceptsNumericExpression(source);
   }
   protected parseValue(source: string) {
-    return parseNumericExpression(source);
+    return this.type === "long" ? source.trim() : parseNumericExpression(source);
+  }
+  override format(value: WireValue) {
+    return this.type === "long" && typeof value === "string" ? value : super.format(value);
   }
 }
 export class TextPreset extends InputPreset {
@@ -91,6 +94,7 @@ function scalarSource(type: string, source: string, depth = 0): WireValue {
       scalarSource(list ?? (type === "TreeNode" ? "optional<int>" : "int"), item, depth + 1),
     );
   }
+  if (type === "long" && source.trim().startsWith('"')) return JSON.parse(source) as WireValue;
   if (type === "str" || type === "datetime") {
     const value: unknown = JSON.parse(source);
     if (typeof value !== "string") throw new Error("Quote each string entry.");
@@ -136,7 +140,7 @@ export class SequencePreset extends InputPreset {
     if (source.length > MAX_CUSTOM_CASE_BYTES) return false;
     let quoted = false,
       escaped = false;
-    const allowStrings = /(?:^|<)str(?:>|$)/.test(this.type);
+    const allowStrings = /(?:^|<)(?:str|long)(?:>|$)/.test(this.type);
     const allowBoolean = /(?:^|<)bool(?:>|$)/.test(this.type);
     const allowNull =
       this.type.includes("optional<") || this.type === "TreeNode" || this.type === "ListNode";
@@ -197,6 +201,11 @@ export class NullablePreset extends InputPreset {
       ? this.inner.parse(JSON.parse(source) as string)
       : this.inner.parse(source);
   }
+  override format(value: WireValue) {
+    return value === null || this.inner.kind === "text"
+      ? super.format(value)
+      : this.inner.format(value);
+  }
   override toEditorSource(source: string) {
     if (source === "null") return source;
     if (this.inner.kind === "text") {
@@ -247,7 +256,7 @@ for (const [id, Preset] of Object.entries({
 export function resolveInputPreset(type: string, config?: InputConfig): InputPreset {
   let id: string;
   if (innerType(type, "optional")) return new NullablePreset(type, config);
-  else if (type === "int" || type === "float") id = "number";
+  else if (type === "int" || type === "long" || type === "float") id = "number";
   else if (type === "str" || type === "datetime") id = "text";
   else if (type === "bool") id = "boolean";
   else if (type === "TreeNode") id = "tree";

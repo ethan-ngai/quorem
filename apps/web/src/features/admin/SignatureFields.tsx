@@ -6,18 +6,22 @@ import { Field } from "./AuthoringFields";
 import { supportedType } from "../editor/typedValues";
 const types = [
   "int",
+  "long",
   "float",
   "str",
   "bool",
   "datetime",
   "array<int>",
+  "array<long>",
   "array<str>",
   "list<int>",
+  "list<long>",
   "list<float>",
   "list<str>",
   "list<bool>",
   "list<list<int>>",
   "optional<int>",
+  "optional<long>",
   "ListNode",
   "TreeNode",
 ].map((value) => ({ value, label: value }));
