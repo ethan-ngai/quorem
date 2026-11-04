@@ -1,11 +1,17 @@
+import type { QuestionSearch } from "./questionSearch";
 /** @file api.ts @description Admin authoring uses the same verified transport as judging. @module admin */
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 
 /** @returns All administrative drafts; backend checks the live server-owned role. */
-export async function listDrafts(cursor?: string) {
+export async function listDrafts(
+  query: Omit<QuestionSearch, "section">,
+  cursor?: string,
+  signal?: AbortSignal,
+) {
   const { data, error } = await api().GET("/v1/admin/question-drafts", {
-    params: { query: { cursor } },
+    params: { query: { ...query, cursor } },
+    signal,
   });
   return requireData(data, error);
 }
@@ -77,9 +83,15 @@ export async function deleteQuestionPublication(
   return requireData(data, error);
 }
 
-export async function listPublications() {
-  const { data, error } = await api().GET("/v1/admin/question-publications");
-  return requireData(data, error).items;
+export async function listPublications(
+  query: Omit<QuestionSearch, "section">,
+  signal?: AbortSignal,
+) {
+  const { data, error } = await api().GET("/v1/admin/question-publications", {
+    params: { query },
+    signal,
+  });
+  return requireData(data, error);
 }
 
 /** Deletes an unpublished draft at the revision selected by the author. */

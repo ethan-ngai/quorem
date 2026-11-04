@@ -1,3 +1,4 @@
+import { questionSearch } from "./features/admin/questionSearch";
 /** @file main.tsx @description Mounts the editor workspace router and query cache. @module web */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
@@ -151,6 +152,7 @@ const loginRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/questions",
+  validateSearch: questionSearch,
   loader: () => loadQuestionEditor().then(() => undefined),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening question editor…" />}>

@@ -103,6 +103,13 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       await expect(repository.get({ userId: other, admin: false }, draft.id)).rejects.toMatchObject(
         { status: 404 },
       );
+      const readyDrafts = await http.request("/v1/admin/question-drafts?readiness=ready");
+      expect(readyDrafts.status).toBe(200);
+      expect((await readyDrafts.json()).items.map((item: { id: string }) => item.id)).toEqual([
+        draft.id,
+      ]);
+      const unmatched = await http.request("/v1/admin/question-drafts?sql=true");
+      expect((await unmatched.json()).items).toEqual([]);
       const updated = JSON.parse(await repository.update(actor, draft.id, "1", raw));
       expect(updated.revision).toBe("2");
       await expect(repository.update(actor, draft.id, "1", raw)).rejects.toMatchObject({

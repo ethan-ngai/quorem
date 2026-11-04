@@ -1,5 +1,5 @@
 /** @file repository.ts @description Atomic question drafts and immutable publication. @module problems */
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import {
   classifyDatabaseError,
   type ConnectionScope,
@@ -20,6 +20,7 @@ import {
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
   AuthorActor,
+  AuthoringFilters,
   QuestionAuthoring,
 } from "../../../../modules/problems/authoring/ports.ts";
 import { object, storageProjection } from "../storage.ts";
@@ -33,6 +34,39 @@ import {
   publicationImpact,
   removePublicationRow,
 } from "./mutation.ts";
+
+/** Match catalog metadata before cursoring through drafts. */
+function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
+  const {
+    query = "",
+    sql: language = "",
+    type = "",
+    difficulty = "",
+    topic = "",
+    company = "",
+    source = "",
+  } = filters ?? {};
+  return sql`
+    (${query}='' OR strpos(lower(title||' '||slug),lower(${query}))>0)
+    AND (${language}='' OR "isSql"=(${language}='true'))
+    AND (${type}='' OR "isOdyssey"=(${type}='odyssey'))
+    AND (${difficulty}='' OR difficulty=ANY(string_to_array(${difficulty},',')))
+    AND (${topic}='' OR tags && string_to_array(${topic},','))
+    AND (${company}='' OR companies && string_to_array(${company},','))
+    AND (${source}='' OR "fromLeetCode"=(${source}='leetcode'))
+  `;
+}
+
+async function authoringFacets(tx: Transaction, catalog: SQL) {
+  const [facets] = (
+    await tx.execute<{ topics: string[]; companies: string[] }>(sql`
+    WITH metadata AS (SELECT tags,companies FROM (${catalog}) catalog)
+    SELECT ARRAY(SELECT DISTINCT unnest(tags) FROM metadata ORDER BY 1) AS topics,
+           ARRAY(SELECT DISTINCT unnest(companies) FROM metadata ORDER BY 1) AS companies
+  `)
+  ).rows;
+  return facets;
+}
 
 type Obj = { [key: string]: JsonValue };
 export type AuthoringScope = <T>(action: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -518,10 +552,10 @@ function createQuestionAuthoring(
   const transact = <T>(action: (tx: Transaction) => Promise<T>, readOnly = false) =>
     run((scope) => scope.transaction({ ...opts, readOnly }, action));
   return {
-    async publications(actor) {
+    async publications(actor, filters) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, false);
-        const result = await tx.execute(sql`
+        const catalog = sql`
           SELECT chosen.id::text,chosen.title,p.slug,chosen.version::text,
                  chosen.difficulty,
                  COALESCE(jsonb_typeof(chosen.odyssey)='object',false) AS "isOdyssey",
@@ -537,52 +571,71 @@ function createQuestionAuthoring(
             ORDER BY (v.id IS NOT DISTINCT FROM p.current_version_id) DESC,v.version DESC LIMIT 1
           ) chosen
           WHERE p.owner_id=${actor.userId} OR (p.owner_id IS NULL AND ${admin})
-          ORDER BY lower(chosen.title),p.slug
-        `);
-        return JSON.stringify({ items: result.rows });
+        `;
+        const result = await tx.execute(sql`SELECT * FROM (${catalog}) catalog
+          WHERE ${matchesAuthoringFilters(filters)} ORDER BY lower(title),slug`);
+        const facets = await authoringFacets(tx, catalog);
+
+        return JSON.stringify({ items: result.rows, facets });
       }, true);
     },
-    async list(actor, cursor) {
-      const rows = await transact(async (tx) => {
-        const { admin } = await author(tx, actor, false);
-        return (
-          await tx.execute<{
-            id: string;
-            revision: string;
-            title: string;
-            slug: string;
-            editVersionId: string | null;
-            updatedAt: string;
-            raw: string;
-            fromLeetCode: boolean;
-            isSql: boolean;
-            isOdyssey: boolean;
-            difficulty: string;
-            tags: string[];
-            companies: string[];
-          }>(
-            sql`SELECT id::text AS id,revision::text AS revision,
+    async list(actor, cursor, filters) {
+      const items = [];
+      let facets;
+      let scanCursor = cursor;
+      do {
+        const rows = await transact(async (tx) => {
+          const { admin } = await author(tx, actor, false);
+          const catalog = sql`SELECT id::text AS id,revision::text AS revision,updated_at,
                 COALESCE(content->'problem'->>'difficulty','easy') AS difficulty,
                 COALESCE(jsonb_typeof(content->'problem'->'odyssey')='object',false) AS "isOdyssey",
-                COALESCE(content->'problem'->'tags','[]'::jsonb) AS tags,
-                COALESCE(content->'problem'->'companies','[]'::jsonb) AS companies,
+                ARRAY(SELECT jsonb_array_elements_text(COALESCE(content->'problem'->'tags','[]'::jsonb))) AS tags,
+                ARRAY(SELECT jsonb_array_elements_text(COALESCE(content->'problem'->'companies','[]'::jsonb))) AS companies,
                 COALESCE(convert_from(lossless_content,'UTF8'),content::text) AS raw,
                 COALESCE(jsonb_typeof(content->'problem'->'leetcodeId')='number',false) AS "fromLeetCode",
-                COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt" FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})) AND (${cursor}='' OR (updated_at,id)<(SELECT updated_at,id FROM question_drafts WHERE id::text=${cursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin})))) ORDER BY updated_at DESC,id DESC LIMIT 51`,
-          )
-        ).rows;
-      }, true);
-      const items = rows.slice(0, 50).map(({ raw, editVersionId, ...row }) => {
-        let ready = true;
-        try {
-          preparePublication(raw, runtime);
-        } catch (error) {
-          if (!(error instanceof ApplicationError)) throw error;
-          ready = false;
+                COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
+                FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))`;
+          if (!scanCursor) facets = await authoringFacets(tx, catalog);
+          return (
+            await tx.execute<{
+              id: string;
+              revision: string;
+              title: string;
+              slug: string;
+              editVersionId: string | null;
+              updatedAt: string;
+              raw: string;
+              fromLeetCode: boolean;
+              isSql: boolean;
+              isOdyssey: boolean;
+              difficulty: string;
+              tags: string[];
+              companies: string[];
+            }>(
+              sql`SELECT id,revision,title,slug,"editVersionId","updatedAt",raw,"fromLeetCode","isSql","isOdyssey",difficulty,tags,companies
+              FROM (${catalog}) catalog WHERE ${matchesAuthoringFilters(filters)}
+              AND (${scanCursor}='' OR (updated_at,id::uuid)<(SELECT updated_at,id FROM question_drafts
+                WHERE id::text=${scanCursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))))
+              ORDER BY updated_at DESC,id DESC LIMIT 50`,
+            )
+          ).rows;
+        }, true);
+        for (const { raw, editVersionId, ...row } of rows) {
+          let ready = true;
+          try {
+            preparePublication(raw, runtime);
+          } catch (error) {
+            if (!(error instanceof ApplicationError)) throw error;
+            ready = false;
+          }
+          if (!filters?.readiness || ready === (filters.readiness === "ready"))
+            items.push({ ...row, ready, ...(editVersionId ? { editVersionId } : {}) });
+          if (items.length > 50)
+            return JSON.stringify({ items: items.slice(0, 50), nextCursor: items[49].id, facets });
         }
-        return { ...row, ready, ...(editVersionId ? { editVersionId } : {}) };
-      });
-      return JSON.stringify({ items, ...(rows.length > 50 ? { nextCursor: items[49].id } : {}) });
+        scanCursor = rows.length === 50 ? rows[49].id : "";
+      } while (scanCursor);
+      return JSON.stringify({ items, facets });
     },
     async get(actor, id) {
       return transact(async (tx) => {

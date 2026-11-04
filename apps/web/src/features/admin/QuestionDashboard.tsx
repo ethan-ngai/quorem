@@ -1,7 +1,8 @@
+import type { QuestionSearch } from "./questionSearch";
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
 import { FilePenLine, Globe, Search } from "lucide-react";
 import { CatalogFilters } from "../practice/CatalogFilters";
-import { addFilter, filterValues, type CatalogSearch } from "../practice/catalogSearch";
+import { addFilter } from "../practice/catalogSearch";
 import { QuestionIndicators } from "../practice/QuestionIndicators";
 import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
 import { CatalogTable } from "../practice/CatalogLayout";
@@ -21,12 +22,15 @@ import {
   publishDraft,
 } from "./api";
 
-type Publication = Awaited<ReturnType<typeof listPublications>>[number];
+type Publication = Awaited<ReturnType<typeof listPublications>>["items"][number];
 type Row = QuestionDraftSummary | Publication;
 type Action = "publish" | "delete";
 
 export function QuestionDashboard({
   admin,
+  search,
+  facets,
+  onSearch,
   drafts,
   publications,
   draftLoading,
@@ -41,6 +45,9 @@ export function QuestionDashboard({
   onChanged,
 }: {
   admin: boolean;
+  search: QuestionSearch;
+  facets?: { topics: string[]; companies: string[] };
+  onSearch: (change: Partial<QuestionSearch>, replace?: boolean) => void;
   drafts: QuestionDraftSummary[];
   publications: Publication[];
   draftLoading: boolean;
@@ -54,12 +61,13 @@ export function QuestionDashboard({
   onOpen: (row: Row) => void;
   onChanged: () => Promise<unknown>;
 }) {
-  const [tab, setTab] = useState<"drafts" | "publications">("drafts");
-  const [query, setQuery] = useState("");
-  const [source, setSource] = useState("all");
-  const [catalogSearch, setCatalogSearch] = useState<CatalogSearch>({});
-  const [readiness, setReadiness] = useState("all");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const tab = search.section ?? "drafts";
+  const query = search.q ?? "";
+  const source = search.source ?? "all";
+  const readiness = search.readiness ?? "all";
+  const selectionScope = JSON.stringify(search);
+  const [selection, setSelection] = useState<{ scope: string; ids: Set<string> }>();
+  const selected = selection?.scope === selectionScope ? selection.ids : new Set<string>();
   const [confirmation, setConfirmation] = useState<{ action: Action; rows: Row[] }>();
   const action = confirmation?.action;
   const confirmed = confirmation?.rows ?? [];
@@ -68,37 +76,21 @@ export function QuestionDashboard({
   const [progress, setProgress] = useState("");
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
   const rows: Row[] = tab === "drafts" ? drafts : publications;
-  const search = query.trim().toLowerCase();
-  const difficulties = filterValues(catalogSearch.difficulty);
-  const topics = filterValues(catalogSearch.topic);
-  const companies = filterValues(catalogSearch.company);
-  const visible = rows.filter(
-    (row) =>
-      ((row.title || "Untitled question").toLowerCase().includes(search) ||
-        row.slug.toLowerCase().includes(search)) &&
-      (source === "all" || row.fromLeetCode === (source === "leetcode")) &&
-      row.isSql === (catalogSearch.sql === "true") &&
-      (catalogSearch.type === undefined || row.isOdyssey === (catalogSearch.type === "odyssey")) &&
-      (!difficulties.length || difficulties.includes(row.difficulty)) &&
-      (!topics.length || topics.some((topic) => row.tags.includes(topic))) &&
-      (!companies.length || companies.some((company) => row.companies.includes(company))) &&
-      (!("revision" in row) || readiness === "all" || row.ready === (readiness === "ready")),
-  );
   const showVisibility = tab === "publications" && admin;
   const chosen = rows.filter((row) => selected.has(row.id));
-  const allVisible = visible.length > 0 && visible.every((row) => selected.has(row.id));
+  const allVisible = rows.length > 0 && rows.every((row) => selected.has(row.id));
   const disabled = busy || running;
   const loading = tab === "drafts" ? draftLoading : publicationLoading;
   const failed = tab === "drafts" ? draftFailed : publicationFailed;
 
   function toggle(ids: string[], checked: boolean) {
-    setSelected((current) => {
-      const next = new Set(current);
+    setSelection((current) => {
+      const next = new Set(current?.scope === selectionScope ? current.ids : undefined);
       for (const id of ids) {
         if (checked) next.add(id);
         else next.delete(id);
       }
-      return next;
+      return { scope: selectionScope, ids: next };
     });
   }
 
@@ -159,8 +151,7 @@ export function QuestionDashboard({
             aria-pressed={tab === "drafts"}
             disabled={disabled}
             onClick={() => {
-              setTab("drafts");
-              setSelected(new Set());
+              onSearch({ section: undefined });
             }}
           >
             <Icon name="problem" />
@@ -172,8 +163,7 @@ export function QuestionDashboard({
             aria-pressed={tab === "publications"}
             disabled={disabled}
             onClick={() => {
-              setTab("publications");
-              setSelected(new Set());
+              onSearch({ section: "publications" });
             }}
           >
             <Globe size={18} strokeWidth={1.5} aria-hidden="true" />
@@ -187,7 +177,8 @@ export function QuestionDashboard({
             aria-label="Search questions"
             placeholder="Search questions"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            maxLength={120}
+            onChange={(event) => onSearch({ q: event.target.value || undefined }, true)}
             disabled={disabled}
           />
         </div>
@@ -200,7 +191,9 @@ export function QuestionDashboard({
         <SelectField
           label="Source"
           value={source}
-          onChange={setSource}
+          onChange={(value) =>
+            onSearch({ source: value === "leetcode" || value === "other" ? value : undefined })
+          }
           disabled={disabled}
           options={[
             { value: "all", label: "All sources" },
@@ -209,16 +202,20 @@ export function QuestionDashboard({
           ]}
         />
         <CatalogFilters
-          search={catalogSearch}
-          update={(change) => setCatalogSearch((current) => ({ ...current, ...change }))}
-          topics={rows.flatMap((row) => row.tags)}
-          companies={rows.flatMap((row) => row.companies)}
+          search={search}
+          update={onSearch}
+          topics={facets?.topics ?? []}
+          companies={facets?.companies ?? []}
         />
         {tab === "drafts" && (
           <SelectField
             label="Readiness"
             value={readiness}
-            onChange={setReadiness}
+            onChange={(value) =>
+              onSearch({
+                readiness: value === "ready" || value === "needs-fixes" ? value : undefined,
+              })
+            }
             disabled={disabled}
             options={[
               { value: "all", label: "All drafts" },
@@ -283,12 +280,12 @@ export function QuestionDashboard({
                     ref={(input) => {
                       if (input)
                         input.indeterminate =
-                          !allVisible && visible.some((row) => selected.has(row.id));
+                          !allVisible && rows.some((row) => selected.has(row.id));
                     }}
-                    disabled={disabled || !visible.length}
+                    disabled={disabled || !rows.length}
                     onChange={(event) =>
                       toggle(
-                        visible.map((row) => row.id),
+                        rows.map((row) => row.id),
                         event.target.checked,
                       )
                     }
@@ -301,7 +298,7 @@ export function QuestionDashboard({
               </tr>
             }
           >
-            {visible.map((row) => (
+            {rows.map((row) => (
               <tr key={row.id} data-selected={selected.has(row.id)}>
                 <td>
                   <input
@@ -340,12 +337,7 @@ export function QuestionDashboard({
                   <QuestionTopics
                     tags={row.tags}
                     disabled={disabled}
-                    onFilter={(topic) =>
-                      setCatalogSearch((current) => ({
-                        ...current,
-                        topic: addFilter(current.topic, topic),
-                      }))
-                    }
+                    onFilter={(topic) => onSearch({ topic: addFilter(search.topic, topic) })}
                   />
                 </th>
                 <td>
@@ -353,10 +345,7 @@ export function QuestionDashboard({
                     difficulty={row.difficulty}
                     disabled={disabled}
                     onFilter={(difficulty) =>
-                      setCatalogSearch((current) => ({
-                        ...current,
-                        difficulty: addFilter(current.difficulty, difficulty),
-                      }))
+                      onSearch({ difficulty: addFilter(search.difficulty, difficulty) })
                     }
                   />
                 </td>
@@ -381,7 +370,7 @@ export function QuestionDashboard({
                 )}
               </tr>
             ))}
-            {!visible.length && (
+            {!rows.length && (
               <tr>
                 <td colSpan={tab === "drafts" || showVisibility ? 4 : 3}>No matching questions.</td>
               </tr>

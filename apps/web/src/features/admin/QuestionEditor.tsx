@@ -1,4 +1,4 @@
-import { useBlocker } from "@tanstack/react-router";
+import { useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -68,16 +68,21 @@ export function QuestionEditor() {
 function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const cache = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
+  const search = useSearch({ from: "/admin/questions" });
+  const navigate = useNavigate({ from: "/admin/questions" });
+  const { section, readiness, ...filters } = search;
   const drafts = useInfiniteQuery({
-    queryKey: ["admin-drafts", admin],
+    queryKey: ["admin-drafts", admin, filters, readiness],
+    enabled: section !== "publications",
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => listDrafts(pageParam),
+    queryFn: ({ pageParam, signal }) => listDrafts({ ...filters, readiness }, pageParam, signal),
     getNextPageParam: (page) => page.nextCursor,
   });
   const draftItems = drafts.data?.pages.flatMap((page) => page.items) ?? [];
   const problems = useQuery({
-    queryKey: ["admin-problems", admin],
-    queryFn: listPublications,
+    queryKey: ["admin-problems", admin, filters],
+    enabled: section === "publications",
+    queryFn: ({ signal }) => listPublications(filters, signal),
   });
   const [draft, setDraft] = useState<QuestionDraft>();
   const [content, setContent] = useState<QuestionContent>();
@@ -314,7 +319,14 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         <QuestionDashboard
           admin={admin}
           drafts={draftItems}
-          publications={problems.data ?? []}
+          publications={problems.data?.items ?? []}
+          search={search}
+          facets={
+            section === "publications" ? problems.data?.facets : drafts.data?.pages[0]?.facets
+          }
+          onSearch={(change, replace) =>
+            void navigate({ search: (previous) => ({ ...previous, ...change }), replace })
+          }
           draftLoading={drafts.isPending}
           publicationLoading={problems.isPending}
           draftFailed={drafts.isError}

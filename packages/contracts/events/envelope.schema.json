@@ -1698,6 +1698,24 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "facets": {
+          "type": "object",
+          "required": ["topics", "companies"],
+          "properties": {
+            "topics": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "companies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "items": {
           "type": "array",
           "maxItems": 50,

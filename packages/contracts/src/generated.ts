@@ -1441,6 +1441,10 @@ export interface components {
             updatedAt: string;
         };
         QuestionDraftPage: {
+            facets?: {
+                topics: string[];
+                companies: string[];
+            };
             items: components["schemas"]["QuestionDraftSummary"][];
             /** Format: uuid */
             nextCursor?: string;
@@ -2404,7 +2408,16 @@ export interface operations {
     };
     listQuestionPublications: {
         parameters: {
-            query?: never;
+            query?: {
+                q?: string;
+                sql?: string;
+                type?: string;
+                difficulty?: string;
+                topic?: string;
+                company?: string;
+                source?: string;
+                readiness?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2418,6 +2431,10 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        facets?: {
+                            topics: string[];
+                            companies: string[];
+                        };
                         items: {
                             /** Format: uuid */
                             id: string;
@@ -2450,6 +2467,14 @@ export interface operations {
     listQuestionDrafts: {
         parameters: {
             query?: {
+                q?: string;
+                sql?: string;
+                type?: string;
+                difficulty?: string;
+                topic?: string;
+                company?: string;
+                source?: string;
+                readiness?: string;
                 cursor?: string;
             };
             header?: never;

@@ -1,3 +1,4 @@
+import { parseCatalogFilter } from "../queries.ts";
 /** @file routes.ts @description Question authoring HTTP transport. @module problems */
 import { Hono, type Context } from "hono";
 import {
@@ -78,15 +79,27 @@ export function authoringRoutes(deps: AuthoringDependencies) {
   };
   const json = (c: Context, value: string, status: 200 | 201 = 200) =>
     c.body(value, status, { "Content-Type": "application/json; charset=utf-8" });
+  function filters(url: string) {
+    const query = new URL(url).searchParams;
+    const source = query.get("source") ?? undefined;
+    const readiness = query.get("readiness") ?? undefined;
+    if (
+      (source !== undefined && !["leetcode", "other"].includes(source)) ||
+      (readiness !== undefined && !["ready", "needs-fixes"].includes(readiness))
+    )
+      invalid("Invalid question filters");
+    const catalog = parseCatalogFilter(query);
+    return { ...catalog, sql: catalog.sql || ("false" as const), source, readiness };
+  }
   app.get("/v1/admin/question-publications", async (c) => {
     const p = await principal(c.req.raw);
-    return json(c, await deps.authoring.publications(p));
+    return json(c, await deps.authoring.publications(p, filters(c.req.url)));
   });
   app.get("/v1/admin/question-drafts", async (c) => {
     const p = await principal(c.req.raw),
       cursor = c.req.query("cursor") ?? "";
     if (cursor && !uuid.test(cursor)) invalid("Invalid cursor");
-    return json(c, await deps.authoring.list(p, cursor));
+    return json(c, await deps.authoring.list(p, cursor, filters(c.req.url)));
   });
   app.get("/v1/admin/question-drafts/:id", async (c) => {
     const p = await principal(c.req.raw),

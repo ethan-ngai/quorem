@@ -1122,6 +1122,16 @@
     "/v1/admin/question-publications": {
       "get": {
         "operationId": "listQuestionPublications",
+        "parameters": [
+          { "name": "q", "in": "query", "schema": { "type": "string" } },
+          { "name": "sql", "in": "query", "schema": { "type": "string" } },
+          { "name": "type", "in": "query", "schema": { "type": "string" } },
+          { "name": "difficulty", "in": "query", "schema": { "type": "string" } },
+          { "name": "topic", "in": "query", "schema": { "type": "string" } },
+          { "name": "company", "in": "query", "schema": { "type": "string" } },
+          { "name": "source", "in": "query", "schema": { "type": "string" } },
+          { "name": "readiness", "in": "query", "schema": { "type": "string" } }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -1131,6 +1141,14 @@
                   "type": "object",
                   "required": ["items"],
                   "properties": {
+                    "facets": {
+                      "type": "object",
+                      "required": ["topics", "companies"],
+                      "properties": {
+                        "topics": { "type": "array", "items": { "type": "string" } },
+                        "companies": { "type": "array", "items": { "type": "string" } }
+                      }
+                    },
                     "items": {
                       "type": "array",
                       "items": {
@@ -1198,6 +1216,14 @@
       "get": {
         "operationId": "listQuestionDrafts",
         "parameters": [
+          { "name": "q", "in": "query", "schema": { "type": "string" } },
+          { "name": "sql", "in": "query", "schema": { "type": "string" } },
+          { "name": "type", "in": "query", "schema": { "type": "string" } },
+          { "name": "difficulty", "in": "query", "schema": { "type": "string" } },
+          { "name": "topic", "in": "query", "schema": { "type": "string" } },
+          { "name": "company", "in": "query", "schema": { "type": "string" } },
+          { "name": "source", "in": "query", "schema": { "type": "string" } },
+          { "name": "readiness", "in": "query", "schema": { "type": "string" } },
           {
             "name": "cursor",
             "in": "query",
@@ -5123,6 +5149,14 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "facets": {
+            "type": "object",
+            "required": ["topics", "companies"],
+            "properties": {
+              "topics": { "type": "array", "items": { "type": "string" } },
+              "companies": { "type": "array", "items": { "type": "string" } }
+            }
+          },
           "items": {
             "type": "array",
             "maxItems": 50,
