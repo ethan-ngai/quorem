@@ -52,7 +52,7 @@ export function useSubmission({
   runExamples?: ProblemVersion["examples"];
 }) {
   const queryClient = useQueryClient();
-  const [active, setActive] = useState<{ scope: string; id: string }>();
+  const [active, setActive] = useState<{ scope: string; id: string; level?: number }>();
   const [admissionPending, setAdmissionPending] = useState(false);
   const [error, setError] = useState<string>();
   useErrorNotification(error);
@@ -193,9 +193,20 @@ export function useSubmission({
     submission?.state === "queued" ||
     submission?.state === "running";
 
+  const replaceableRun =
+    workspace?.kind === "solo" &&
+    active?.scope === scope &&
+    active.level === level &&
+    submission?.kind === "run" &&
+    (submission.state === "queued" || submission.state === "running")
+      ? submission.id
+      : undefined;
+
   const dispatch = useCallback(
     async (kind: "run" | "submit") => {
-      if (!enabled || !workspace || !problem || admissionLock.current || busy) return false;
+      const replacement = kind === "run" ? replaceableRun : undefined;
+      if (!enabled || !workspace || !problem || admissionLock.current || (busy && !replacement))
+        return false;
       let customCases;
       if (kind === "run" && customMode) {
         try {
@@ -221,6 +232,18 @@ export function useSubmission({
       setAdmissionPending(true);
       setError(undefined);
       try {
+        if (replacement) {
+          let previous = await cancelSubmission(identity, replacement);
+          const deadline = Date.now() + 30_000;
+          while (previous.state === "queued" || previous.state === "running") {
+            if (scopeRef.current !== scope) return false;
+            if (Date.now() >= deadline)
+              throw new Error("The previous run is still stopping. Try again.");
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            previous = await fetchSubmission(identity, replacement);
+          }
+          if (scopeRef.current !== scope) return false;
+        }
         const fingerprint = await sha256(
           JSON.stringify({ scope, kind, source, customCases, level }),
         );
@@ -236,7 +259,7 @@ export function useSubmission({
           level,
         );
         if (scopeRef.current === scope) {
-          setActive({ scope, id: admission.id });
+          setActive({ scope, id: admission.id, level });
           setRunSnapshot(
             snapshot ? { scope, submissionId: admission.id, value: snapshot } : undefined,
           );
@@ -271,6 +294,7 @@ export function useSubmission({
       workspace,
       identity,
       busy,
+      replaceableRun,
       customMode,
       drafts,
       problem,
@@ -307,6 +331,7 @@ export function useSubmission({
     isPending: submissionQuery.isPending,
     busy,
     admissionPending,
+    canReplaceRun: !!replaceableRun && !admissionPending,
     error,
     run,
     submit,

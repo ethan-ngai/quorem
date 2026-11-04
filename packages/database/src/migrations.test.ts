@@ -287,10 +287,18 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         for (const fk of specialForeign.rows) {
           const publication = fk.name === "current_publication_identity";
           const deferred = publication || fk.name === "submission_interview_execution_fkey";
+          const replaceablePublication = [
+            "workspace_problem_language_fkey",
+            "matches_problem_version_id_fkey",
+            "matches_selected_problem_version_id_fkey",
+            "question_drafts_published_version_id_fkey",
+            "question_drafts_edit_version_fkey",
+            "runner_job_inputs_version_id_fkey",
+          ].includes(fk.name);
           assert.deepEqual(
             { deferrable: fk.condeferrable, deferred: fk.condeferred, setColumns: fk.set_columns },
             {
-              deferrable: deferred,
+              deferrable: deferred || replaceablePublication,
               deferred,
               setColumns: publication ? ["current_version_id"] : [],
             },

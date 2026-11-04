@@ -19,6 +19,7 @@ async function readPrivateQuestionContent(
   id: string,
   allowGlobal: boolean,
   currentOnly: boolean,
+  lock = true,
 ): Promise<string | undefined> {
   if (!actorUserId) return undefined;
   const rows = (
@@ -36,7 +37,7 @@ async function readPrivateQuestionContent(
  'attribution',v.attribution,
  'implementations',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision,'referenceSource',reference_source) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'::jsonb),
  'solutions',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'source',source,'explanationMarkdown',explanation_markdown,'timeComplexity',time_complexity,'spaceComplexity',space_complexity,'complexityNotes',complexity_notes) ORDER BY language) FROM problem_solutions WHERE version_id=v.id),'[]'::jsonb))::text AS data
- FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND (p.owner_id=${actorUserId} OR (${allowGlobal} AND p.owner_id IS NULL)) AND (NOT ${currentOnly} OR (v.sealed AND p.current_version_id=v.id)) FOR SHARE OF p,v`)
+ FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND (p.owner_id=${actorUserId} OR (${allowGlobal} AND p.owner_id IS NULL)) AND (NOT ${currentOnly} OR (v.sealed AND p.current_version_id=v.id)) ${lock ? sql`FOR SHARE OF p,v` : sql``}`)
   ).rows;
   if (!rows.length) return undefined;
   const c = content(rows[0].data),
@@ -70,8 +71,9 @@ export function readAuthoringQuestion(
   actorUserId: string,
   id: string,
   admin: boolean,
+  lock = true,
 ): Promise<string | undefined> {
-  return readPrivateQuestionContent(tx, actorUserId, id, admin, false);
+  return readPrivateQuestionContent(tx, actorUserId, id, admin, false, lock);
 }
 /** Private fixture for authorized current publication; never expose this result publicly. */
 export async function readPublishedFixture(

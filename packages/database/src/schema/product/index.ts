@@ -559,7 +559,7 @@ export const workspaces = pgTable(
   {
     id: uuid().primaryKey().notNull(),
     owner_id: text().notNull(),
-    problem_version_id: uuid().notNull(),
+    problem_version_id: uuid(),
     language: text().notNull(),
     kind: text().default("solo").notNull(),
     updated_at: timestamp({ withTimezone: true, mode: "string" })
@@ -728,7 +728,11 @@ export const matches = pgTable(
       "matches_access_mode_check",
       sql`access_mode = ANY (ARRAY['accounts_only'::text, 'guests_allowed'::text])`,
     ),
-    check("matches_check", sql`(started_at IS NULL) = (problem_version_id IS NULL)`),
+    check(
+      "matches_check",
+      sql`(started_at IS NULL AND problem_version_id IS NULL)
+      OR (started_at IS NOT NULL AND (problem_version_id IS NOT NULL OR state IN ('completed','cancelled')))`,
+    ),
     check(
       "matches_check1",
       sql`(state = ANY (ARRAY['completed'::text, 'cancelled'::text])) = (outcome IS NOT NULL)`,
@@ -887,6 +891,8 @@ export const question_drafts = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     published_version_id: uuid(),
+    edit_version_id: uuid(),
+    edit_base: text(),
     owner_id: text(),
     lossless_content: bytea("lossless_content"),
     import_digest: text(),
@@ -905,6 +911,14 @@ export const question_drafts = pgTable(
       table.updated_at.desc().nullsFirst().op("text_ops"),
       table.id.desc().nullsFirst().op("text_ops"),
     ),
+    foreignKey({
+      columns: [table.edit_version_id],
+      foreignColumns: [problem_versions.id],
+      name: "question_drafts_edit_version_fkey",
+    }),
+    uniqueIndex("question_drafts_edit_version")
+      .on(table.edit_version_id)
+      .where(sql`edit_version_id IS NOT NULL`),
     index("question_drafts_published_version").using(
       "btree",
       table.published_version_id.asc().nullsLast().op("uuid_ops"),
@@ -1077,6 +1091,9 @@ export const submissions = pgTable(
     uniqueIndex("owner_busy")
       .using("btree", table.owner_id.asc().nullsLast().op("text_ops"))
       .where(sql`(state = ANY (ARRAY['queued'::text, 'running'::text]))`),
+    index("submission_practice_latest")
+      .on(table.workspace_id, table.odyssey_level, table.admitted_at, table.id)
+      .where(sql`match_id IS NULL AND kind='submit' AND state='completed'`),
     index("submission_odyssey_history")
       .using(
         "btree",
@@ -1935,6 +1952,39 @@ export const submission_public_result_cases = pgTable(
     ),
   ],
 );
+export const practice_case_feedback = pgTable(
+  "practice_case_feedback",
+  {
+    workspace_id: uuid().notNull(),
+    case_index: integer().notNull(),
+    admitted_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+    submission_id: uuid().notNull(),
+    status_json: bytea().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspace_id, table.case_index] }),
+    foreignKey({
+      columns: [table.workspace_id],
+      foreignColumns: [workspaces.id],
+      name: "practice_case_feedback_workspace_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const practice_solves = pgTable(
+  "practice_solves",
+  {
+    workspace_id: uuid().primaryKey(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspace_id],
+      foreignColumns: [workspaces.id],
+      name: "practice_solves_workspace_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
+
 export const submission_public_case_statuses = pgTable(
   "submission_public_case_statuses",
   {

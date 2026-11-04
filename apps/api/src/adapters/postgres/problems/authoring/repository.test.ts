@@ -253,7 +253,81 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       duplicate.problem.leetcodeId =
         (parseInt(crypto.randomUUID().slice(0, 8), 16) % 2000000000) + 1;
       const d1 = JSON.parse(await repository.create(global, JSON.stringify(duplicate), undefined));
-      await repository.publish(global, d1.id, "1", "global");
+      const first = JSON.parse(await repository.publish(global, d1.id, "1", "global"));
+      await pool.query("DELETE FROM question_drafts WHERE id=$1", [d1.id]);
+      expect(
+        JSON.parse(await repository.importDraft(global, JSON.stringify(duplicate), true)).status,
+      ).toBe("unchanged");
+      const refreshed = structuredClone(duplicate);
+      refreshed.problem.title = "Refreshed question";
+      const imported = JSON.parse(
+        await repository.importDraft(global, JSON.stringify(refreshed), false),
+      );
+      expect(imported.status).toBe("created");
+      const applied = JSON.parse(await repository.publish(global, imported.draftId, "1", "global"));
+      expect(applied.publishedVersionId).toBe(first.publishedVersionId);
+      expect(applied.content.problem.title).toBe("Refreshed question");
+      const workspace = crypto.randomUUID();
+      await pool.query(
+        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        [workspace, owner, first.publishedVersionId],
+      );
+      const changed = structuredClone(applied.content);
+      changed.problem.title = "Edited in place";
+      const edited = JSON.parse(
+        await repository.update(global, applied.id, applied.revision, JSON.stringify(changed)),
+      );
+      expect(edited.publishedVersionId).toBe(first.publishedVersionId);
+      expect(edited.content.problem.title).toBe("Edited in place");
+      expect(JSON.parse(await repository.deletionImpact(global, edited.id))).toMatchObject({
+        current: true,
+        workspaces: 1,
+      });
+      await expect(
+        repository.deletePublication(global, edited.id, edited.revision, undefined),
+      ).rejects.toMatchObject({ code: "invalid_input" });
+      const active = crypto.randomUUID();
+      await pool.query(
+        "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','x','hash','queued','[]')",
+        [active, owner, workspace],
+      );
+      await expect(
+        repository.deletePublication(global, edited.id, edited.revision, null),
+      ).rejects.toMatchObject({ code: "revision_conflict" });
+      await expect(
+        repository.update(global, edited.id, edited.revision, JSON.stringify(changed)),
+      ).rejects.toMatchObject({ code: "revision_conflict" });
+      await pool.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [active]);
+      const finishedJob = crypto.randomUUID();
+      await pool.query("INSERT INTO execution_jobs(id,submission_id,finished) VALUES($1,$2,true)", [
+        finishedJob,
+        active,
+      ]);
+      await pool.query(
+        `INSERT INTO runner_job_inputs(job_id,version_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples)
+         SELECT $1,version_id,metadata_hash,metadata_hash,'python-3.12-v1','quorem-harness-v2',0,0,false,false
+         FROM runner_version_inputs WHERE version_id=$2`,
+        [finishedJob, first.publishedVersionId],
+      );
+      const afterDrain = JSON.parse(
+        await repository.update(global, edited.id, edited.revision, JSON.stringify(changed)),
+      );
+      await repository.deletePublication(global, afterDrain.id, afterDrain.revision, null);
+      expect(
+        (await pool.query("SELECT 1 FROM execution_jobs WHERE id=$1", [finishedJob])).rowCount,
+      ).toBe(0);
+      expect(await catalog.byVersion({ userId: owner }, first.publishedVersionId)).toBeNull();
+      expect(
+        (await pool.query("SELECT problem_version_id FROM workspaces WHERE id=$1", [workspace]))
+          .rows[0].problem_version_id,
+      ).toBeNull();
+
+      await repository.publish(
+        global,
+        JSON.parse(await repository.create(global, JSON.stringify(duplicate), undefined)).id,
+        "1",
+        "global",
+      );
       duplicate.problem.slug = `rollback-${crypto.randomUUID().slice(0, 8)}`;
       const d2 = JSON.parse(await repository.create(global, JSON.stringify(duplicate), undefined));
       await expect(repository.publish(global, d2.id, "1", "global")).rejects.toMatchObject({

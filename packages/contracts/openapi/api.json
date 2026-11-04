@@ -1119,6 +1119,61 @@
         }
       }
     },
+    "/v1/admin/question-publications": {
+      "get": {
+        "operationId": "listQuestionPublications",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["items"],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["id", "title", "slug", "version", "current"],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/question-drafts": {
       "get": {
         "operationId": "listQuestionDrafts",
@@ -1228,7 +1283,7 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": ["ready", "created", "existing", "conflict"]
+                      "enum": ["ready", "created", "existing", "unchanged", "conflict"]
                     },
                     "draftId": {
                       "type": "string",
@@ -1311,7 +1366,14 @@
                         "properties": {
                           "status": {
                             "type": "string",
-                            "enum": ["ready", "created", "existing", "conflict", "invalid"]
+                            "enum": [
+                              "ready",
+                              "created",
+                              "existing",
+                              "unchanged",
+                              "conflict",
+                              "invalid"
+                            ]
                           },
                           "draftId": {
                             "type": "string",
@@ -1422,6 +1484,146 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateQuestionDraftRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/question-drafts/{id}/deletion-impact": {
+      "get": {
+        "operationId": "getQuestionDeletionImpact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "workspaces": {
+                      "type": "integer"
+                    },
+                    "matches": {
+                      "type": "integer"
+                    },
+                    "submissions": {
+                      "type": "integer"
+                    },
+                    "current": {
+                      "type": "boolean"
+                    },
+                    "replacements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["id", "title", "version"]
+                      }
+                    }
+                  },
+                  "required": ["workspaces", "matches", "submissions", "current", "replacements"]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/question-drafts/{id}/publication": {
+      "delete": {
+        "operationId": "deleteQuestionPublication",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["deleted"]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "revision": {
+                    "type": "string"
+                  },
+                  "replacementVersionId": {
+                    "type": ["string", "null"],
+                    "format": "uuid"
+                  }
+                },
+                "required": ["revision"]
               }
             }
           }
@@ -4773,6 +4975,10 @@
           "content": {
             "$ref": "#/components/schemas/QuestionContent"
           },
+          "editVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "publishedVersionId": {
             "type": "string",
             "format": "uuid"
@@ -4847,6 +5053,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "edit": { "type": "boolean" },
               "problemVersionId": {
                 "type": "string",
                 "format": "uuid"

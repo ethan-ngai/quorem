@@ -15,6 +15,7 @@ const principal: Principal = {
 it("requires identity, validates input and enforces global step-up through shared HTTP errors", async () => {
   let called = 0;
   const service: QuestionAuthoring = {
+    publications: async () => '{"items":[]}',
     list: async () => '{"items":[]}',
     get: async () => '{"id":"draft"}',
     create: async (_actor, raw) => {
@@ -24,6 +25,8 @@ it("requires identity, validates input and enforces global step-up through share
     importDraft: async (_actor, raw) => raw,
     importDraftBatch: async () => '{"items":[]}',
     update: async () => "{}",
+    deletionImpact: async () => "{}",
+    deletePublication: async () => "{}",
     publish: async () => {
       called++;
       return "{}";

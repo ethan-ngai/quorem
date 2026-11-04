@@ -14,7 +14,7 @@ export async function listDrafts(cursor?: string) {
 export async function createDraft(
   body:
     | { content: QuestionContent; problemVersionId?: never }
-    | { problemVersionId: string; content?: never },
+    | { problemVersionId: string; edit?: boolean; content?: never },
 ) {
   const { data, error } = await api().POST("/v1/admin/question-drafts", { body });
   return requireData(data, error);
@@ -53,4 +53,28 @@ export async function importDraftBatch(items: string[], preview: boolean) {
     body: { items },
   });
   return { data, status: response.status };
+}
+
+/** @returns The references affected by deleting a published question. */
+export async function fetchDeletionImpact(id: string) {
+  const { data, error } = await api().GET("/v1/admin/question-drafts/{id}/deletion-impact", {
+    params: { path: { id } },
+  });
+  return requireData(data, error);
+}
+
+export async function deleteQuestionPublication(
+  draft: QuestionDraft,
+  replacementVersionId?: string | null,
+) {
+  const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}/publication", {
+    params: { path: { id: draft.id } },
+    body: { revision: draft.revision, replacementVersionId },
+  });
+  return requireData(data, error);
+}
+
+export async function listPublications() {
+  const { data, error } = await api().GET("/v1/admin/question-publications");
+  return requireData(data, error).items;
 }

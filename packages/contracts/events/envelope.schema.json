@@ -1606,6 +1606,10 @@
         "content": {
           "$ref": "#/$defs/QuestionContent"
         },
+        "editVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
         "publishedVersionId": {
           "type": "string",
           "format": "uuid"
@@ -1680,6 +1684,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "edit": {
+              "type": "boolean"
+            },
             "problemVersionId": {
               "type": "string",
               "format": "uuid"

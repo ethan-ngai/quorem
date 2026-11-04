@@ -2,7 +2,7 @@
 
 Ledger: [#139](https://github.com/ethan-ngai/quorem/issues/139).
 
-Question editor → Import JSON creates one new draft. Current unsaved edits must be saved first. Import never publishes or replaces another draft. Existing authoring permissions and server validation apply; publication validates typed cases, signatures and runtime rules.
+Question editor → Bulk import checks each file and creates a draft for new content. An unchanged publication is skipped. Changed content with a matching LeetCode ID creates an update draft for review. Ambiguous matches require review. Applying an update checks that the target publication is still current and has not changed since import.
 
 Use [question v1 JSON Schema](../../packages/contracts/questions/question-v1.schema.json) and [complete example](../../packages/contracts/questions/example-v1.json). The schema is JSON Schema 2020-12, generated from the reachable OpenAPI `QuestionContent` definitions. `vp -C packages/contracts run generate` refreshes it; contract checks detect drift.
 

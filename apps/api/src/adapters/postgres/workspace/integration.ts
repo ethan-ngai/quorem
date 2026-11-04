@@ -211,6 +211,14 @@ void test("reset fences active jobs and excludes pre-reset feedback on initial r
   const feedback = await new Response(await repo.odyssey(alice, workspaceId)).text();
   assert.equal(JSON.parse(feedback).caseStatuses[0].status, "accepted");
   assert.equal(feedback.includes("private_ignored"), false);
+  await pool.query("update submissions set result=null where workspace_id=$1 and odyssey_level=1", [
+    workspaceId,
+  ]);
+  const compact = await new Response(await repo.odyssey(alice, workspaceId)).text();
+  assert.equal(JSON.parse(compact).caseStatuses[0].status, "accepted");
+  await repo.reset(alice, workspaceId);
+  const cleared = await new Response(await repo.odyssey(alice, workspaceId)).text();
+  assert.equal(JSON.parse(cleared).caseStatuses, undefined);
   const blocker = await pool.connect();
   try {
     await blocker.query("begin");

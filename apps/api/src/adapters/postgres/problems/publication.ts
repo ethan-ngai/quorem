@@ -87,6 +87,7 @@ export async function persistQuestionVersion(
   version: number,
   privateOwner: string | null,
   runtime: RuntimeResolver,
+  updateCatalog = true,
 ): Promise<void> {
   validateQuestionPublication(raw, validateQuestionSchema, runtime);
   const c = content(raw),
@@ -121,6 +122,23 @@ export async function persistQuestionVersion(
   await tx.execute(
     sql`INSERT INTO problem_tags(version_id,tag,ordinal) SELECT ${versionId}::uuid,value,ordinality-1 FROM jsonb_array_elements_text(${publicJSON}::jsonb->'tags') WITH ORDINALITY`,
   );
+  if (updateCatalog) await updateQuestionCatalogMetadata(tx, problemId, p, privateOwner);
+  await registerArtifacts(tx, c, versionId);
+  await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
+  if (updateCatalog)
+    await tx.execute(
+      sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid AND (current_version_id IS NULL OR (SELECT version FROM problem_versions WHERE id=current_version_id)<${version})`,
+    );
+  await tx.execute(sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid`);
+}
+
+/** Syncs metadata shared by every version with the selected publication. */
+export async function updateQuestionCatalogMetadata(
+  tx: Transaction,
+  problemId: string,
+  p: Obj,
+  privateOwner: string | null,
+) {
   if (!privateOwner) {
     const leetcode = p.leetcodeId instanceof JsonNumber ? Number(p.leetcodeId.lexeme) : null;
     await tx.execute(sql`UPDATE problems SET leetcode_id=${leetcode} WHERE id=${problemId}::uuid`);
@@ -135,14 +153,7 @@ export async function persistQuestionVersion(
       sql`INSERT INTO problem_companies(problem_id,company_id) SELECT ${problemId}::uuid,id FROM companies WHERE lower(name)=lower(${name})`,
     );
   }
-  await registerArtifacts(tx, c, versionId);
-  await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
-  await tx.execute(
-    sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid AND (current_version_id IS NULL OR (SELECT version FROM problem_versions WHERE id=current_version_id)<${version})`,
-  );
-  await tx.execute(sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid`);
 }
-
 async function registerArtifacts(tx: Transaction, c: Obj, versionId: string): Promise<void> {
   for (const item of list(c.implementations)) {
     const v = object(item);

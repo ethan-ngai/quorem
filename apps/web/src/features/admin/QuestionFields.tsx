@@ -30,12 +30,14 @@ export function QuestionFields({
   content,
   disabled,
   invalidCases = false,
+  lockSlug = false,
   onChange,
   onValidityChange,
 }: {
   content: QuestionContent;
   disabled: boolean;
   invalidCases?: boolean;
+  lockSlug?: boolean;
   onChange: (content: QuestionContent) => void;
   onValidityChange: (label: string, invalid: boolean) => void;
 }) {
@@ -211,7 +213,7 @@ export function QuestionFields({
                   .slice(0, 56);
               setProblem({
                 title,
-                ...(!problem.slug || problem.slug === slug(problem.title)
+                ...(!lockSlug && (!problem.slug || problem.slug === slug(problem.title))
                   ? { slug: slug(title) }
                   : {}),
               });
@@ -235,6 +237,7 @@ export function QuestionFields({
             <div className="admin-field-pair">
               <Field label="Slug">
                 <input
+                  readOnly={lockSlug}
                   value={problem.slug}
                   onChange={(event) => setProblem({ slug: event.target.value })}
                 />
