@@ -292,7 +292,11 @@ export function QuestionDashboard({
                 </th>
                 <th scope="col">Question</th>
                 <th scope="col">Difficulty</th>
-                {tab === "drafts" && <th scope="col">Last edited</th>}
+                {tab === "drafts" ? (
+                  <th scope="col">Last edited</th>
+                ) : (
+                  <th aria-label="Visibility" />
+                )}
               </tr>
             }
           >
@@ -308,59 +312,42 @@ export function QuestionDashboard({
                   />
                 </td>
                 <th scope="row">
-                  <div className="admin-question-label" data-publication={"isPrivate" in row}>
-                    {"isPrivate" in row &&
-                      (row.isPrivate ? (
-                        <QuestionIndicators privateQuestion odyssey={false} />
-                      ) : (
-                        <span
-                          className="practice-indicators"
-                          role="img"
-                          aria-label="Global question"
-                          title="Global question"
-                        >
-                          <Globe size={16} aria-hidden="true" />
-                        </span>
-                      ))}
-                    <div>
-                      <div className="admin-question-heading">
-                        <button
-                          type="button"
-                          className="catalog-question-title"
-                          disabled={disabled}
-                          onClick={() => onOpen(row)}
-                        >
-                          {row.title || "Untitled question"}
-                        </button>
-                        {"revision" in row ? (
-                          <>
-                            {row.editVersionId && (
-                              <span className="admin-question-status">
-                                <FilePenLine size={14} aria-hidden="true" />
-                                Update draft
-                              </span>
-                            )}
-                            {row.ready === false && (
-                              <span className="admin-question-status">Needs fixes</span>
-                            )}
-                          </>
-                        ) : (
-                          !row.current && (
-                            <span className="admin-question-status">
-                              <Icon name="eye-off" width={14} height={14} />
-                              Unpublished
-                            </span>
-                          )
+                  <div className="admin-question-heading">
+                    <button
+                      type="button"
+                      className="catalog-question-title"
+                      disabled={disabled}
+                      onClick={() => onOpen(row)}
+                    >
+                      {row.title || "Untitled question"}
+                    </button>
+                    {"revision" in row ? (
+                      <>
+                        {row.editVersionId && (
+                          <span className="admin-question-status">
+                            <FilePenLine size={14} aria-hidden="true" />
+                            Update draft
+                          </span>
                         )}
-                        {row.isOdyssey && <QuestionIndicators privateQuestion={false} odyssey />}
-                      </div>
-                      <QuestionTopics
-                        tags={row.tags}
-                        disabled={disabled}
-                        onFilter={(topic) => onSearch({ topic: addFilter(search.topic, topic) })}
-                      />
-                    </div>
+                        {row.ready === false && (
+                          <span className="admin-question-status">Needs fixes</span>
+                        )}
+                      </>
+                    ) : (
+                      !row.current && (
+                        <span className="admin-question-status">
+                          <Icon name="eye-off" width={14} height={14} />
+                          Unpublished
+                        </span>
+                      )
+                    )}
+                    {row.isOdyssey && <QuestionIndicators privateQuestion={false} odyssey />}
                   </div>
+                  <QuestionTopics
+                    tags={row.tags}
+                    disabled={disabled}
+                    onFilter={(topic) => onSearch({ topic: addFilter(search.topic, topic) })}
+                  />
                 </th>
                 <td>
                   <QuestionDifficulty
@@ -371,18 +358,22 @@ export function QuestionDashboard({
                     }
                   />
                 </td>
-                {"updatedAt" in row && (
+                {"updatedAt" in row ? (
                   <td>
                     <time dateTime={row.updatedAt}>
                       {new Date(row.updatedAt).toLocaleDateString()}
                     </time>
+                  </td>
+                ) : (
+                  <td className="practice-format">
+                    {row.isPrivate && <QuestionIndicators privateQuestion odyssey={false} />}
                   </td>
                 )}
               </tr>
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={tab === "drafts" ? 4 : 3}>No matching questions.</td>
+                <td colSpan={4}>No matching questions.</td>
               </tr>
             )}
           </CatalogTable>
