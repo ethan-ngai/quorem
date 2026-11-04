@@ -12,6 +12,9 @@ import {
 } from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
+import { ToggleSwitch } from "../../ui/ToggleSwitch";
+import { SessionDialog } from "../../ui/SessionDialog";
+import { SqlSchemaFields } from "./SqlSchemaFields";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { AuthoringCases } from "./AuthoringCases";
@@ -25,6 +28,18 @@ import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
 import { revisions, type Language } from "./content";
 import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
+
+const questionTypes = [
+  { value: "single", label: "Single question" },
+  { value: "staged", label: "Multi-stage question" },
+  { value: "sql-single", label: "SQL question" },
+  { value: "sql-staged", label: "SQL multi-stage question" },
+] as const;
+type QuestionType = (typeof questionTypes)[number]["value"];
+type AuthoringSection = "question" | "interface" | "tests" | "solutions";
+const languages = Object.keys(revisions).filter((key): key is Language =>
+  Object.hasOwn(revisions, key),
+);
 
 export function QuestionFields({
   content,
@@ -42,9 +57,25 @@ export function QuestionFields({
   onValidityChange: (label: string, invalid: boolean) => void;
 }) {
   const problem = content.problem;
-  const [section, setSection] = useState("question");
+  const [section, setSection] = useState<AuthoringSection>("question");
   const [language, setLanguage] = useState<Language>(content.problem.sql ? "postgresql" : "python");
   const id = useId();
+  const [pendingType, setPendingType] = useState<QuestionType>();
+  const questionType = problem.sql
+    ? problem.odyssey
+      ? "sql-staged"
+      : "sql-single"
+    : problem.odyssey
+      ? "staged"
+      : "single";
+  const tabs = [
+    { value: "question", label: "Overview" },
+    ...(problem.sql || !problem.odyssey
+      ? [{ value: "interface", label: problem.sql ? "Schema" : "Signature" } as const]
+      : []),
+    { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
+    { value: "solutions", label: "Code & editorial" },
+  ] as const;
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
@@ -76,123 +107,109 @@ export function QuestionFields({
       solutions: [...content.solutions.filter((item) => item.language !== language), next],
     });
   }
+  function changeType(value: QuestionType) {
+    const isSQL = value.startsWith("sql-");
+    const staged = value === "staged" || value === "sql-staged";
+    const odyssey = staged
+      ? {
+          levels: [
+            {
+              title: "Step 1",
+              statementMarkdown: problem.statementMarkdown,
+              methods: isSQL ? [] : [problem.signature],
+              examples: [],
+            },
+          ],
+        }
+      : undefined;
+    if (isSQL !== !!problem.sql) {
+      const nextLanguage = isSQL ? "postgresql" : "python";
+      setLanguage(nextLanguage);
+      onChange({
+        ...content,
+        problem: {
+          ...problem,
+          sql: isSQL
+            ? {
+                dialect: "postgresql",
+                outputOrder: "unordered",
+                tables: [],
+                output: [],
+              }
+            : undefined,
+          odyssey,
+          examples: [],
+        },
+        hiddenCases: [],
+        odysseyHiddenCases: staged ? [[]] : [],
+        implementations: [
+          {
+            language: nextLanguage,
+            starterSource: "",
+            runtimeRevision: revisions[nextLanguage][0],
+            harnessRevision: revisions[nextLanguage][1],
+            referenceSource: "",
+          },
+        ],
+        solutions: [],
+      });
+    } else {
+      const methods = odyssey?.levels[0]?.methods;
+      onChange({
+        ...content,
+        problem: {
+          ...problem,
+          odyssey,
+        },
+        implementations: content.implementations.map((item) =>
+          !isSQL && methods && !item.starterSource
+            ? { ...item, starterSource: initialOdysseySource(methods, item.language) }
+            : item,
+        ),
+        odysseyHiddenCases: staged ? [[]] : [],
+      });
+    }
+    setPendingType(undefined);
+  }
   return (
     <QuestionLanguage.Provider value={language}>
       <fieldset disabled={disabled} className="admin-fields question-authoring">
         <legend className="sr-only">Question fields</legend>
-        <div className="admin-field-pair">
-          <Field label="Question type">
-            <SelectField
-              label="Question type"
-              value={
-                problem.sql
-                  ? problem.odyssey
-                    ? "sql-staged"
-                    : "sql-single"
-                  : problem.odyssey
-                    ? "staged"
-                    : "single"
-              }
-              disabled={disabled || invalidCases}
-              options={[
-                { value: "single", label: "Single question" },
-                { value: "staged", label: "Multi-stage question" },
-                { value: "sql-single", label: "SQL question" },
-                { value: "sql-staged", label: "SQL multi-stage question" },
-              ]}
-              onChange={(value) => {
-                const isSQL = value.startsWith("sql-");
-                const staged = value === "staged" || value === "sql-staged";
-                const odyssey = staged
-                  ? {
-                      levels: [
-                        {
-                          title: "Step 1",
-                          statementMarkdown: problem.statementMarkdown,
-                          methods: isSQL ? [] : [problem.signature],
-                          examples: [],
-                        },
-                      ],
-                    }
-                  : undefined;
-                if (isSQL !== !!problem.sql) {
-                  const nextLanguage = isSQL ? "postgresql" : "python";
-                  setLanguage(nextLanguage);
-                  onChange({
-                    ...content,
-                    problem: {
-                      ...problem,
-                      sql: isSQL
-                        ? {
-                            dialect: "postgresql",
-                            outputOrder: "unordered",
-                            tables: [],
-                            output: [],
-                          }
-                        : undefined,
-                      odyssey,
-                      examples: [],
-                    },
-                    hiddenCases: [],
-                    odysseyHiddenCases: staged ? [[]] : [],
-                    implementations: [
-                      {
-                        language: nextLanguage,
-                        starterSource: "",
-                        runtimeRevision: revisions[nextLanguage][0],
-                        harnessRevision: revisions[nextLanguage][1],
-                        referenceSource: "",
-                      },
-                    ],
-                    solutions: [],
-                  });
-                } else {
-                  const methods = odyssey?.levels[0]?.methods;
-                  onChange({
-                    ...content,
-                    problem: {
-                      ...problem,
-                      odyssey,
-                    },
-                    implementations: content.implementations.map((item) =>
-                      !isSQL && methods && !item.starterSource
-                        ? { ...item, starterSource: initialOdysseySource(methods, item.language) }
-                        : item,
-                    ),
-                    odysseyHiddenCases: staged ? [[]] : [],
-                  });
-                }
-              }}
-            />
-          </Field>
-          <Field label={problem.sql ? "Dialect" : "Language"}>
-            <SelectField
-              label={problem.sql ? "SQL dialect" : "Question language"}
-              value={language}
-              disabled={disabled}
-              onChange={(value) => setLanguage(value as Language)}
-              options={Object.entries(languageLabels)
-                .filter(([value]) =>
-                  problem.sql ? value === "postgresql" : value !== "postgresql",
-                )
-                .map(([value, label]) => ({
-                  value,
-                  label,
-                  leading: <LanguageLogo language={value as Language} />,
-                }))}
-            />
-          </Field>
-        </div>
+        <SessionDialog
+          open={!!pendingType}
+          onOpenChange={(open) => {
+            if (!open) setPendingType(undefined);
+          }}
+          title="Change question type?"
+          description="Changing type can remove stage content, test cases, schemas, or code from this edit."
+        >
+          <footer className="competitive-dialog-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => setPendingType(undefined)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => pendingType && changeType(pendingType)}
+            >
+              Change type
+            </button>
+          </footer>
+        </SessionDialog>
         <AuthoringTabs
           id={id}
           label="Question authoring"
           value={section}
-          onChange={setSection}
-          tabs={[
-            { value: "question", label: "Question" },
-            { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
-            { value: "solutions", label: "Solutions" },
-          ]}
+          appearance="underline"
+          onChange={(value) => {
+            const next = tabs.find((tab) => tab.value === value);
+            if (next) setSection(next.value);
+          }}
+          tabs={tabs}
         />
         <div
           role="tabpanel"
@@ -220,20 +237,57 @@ export function QuestionFields({
             }}
             onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
           />
-          {!problem.odyssey && !problem.sql && (
-            <fieldset className="admin-fields" disabled={disabled || invalidCases}>
-              <SignatureFields
-                value={problem.signature}
-                onChange={(signature) => onChange(adaptSignature(content, signature))}
-                onValidityChange={onValidityChange}
+          <div className="admin-overview-settings">
+            <Field label="Question type">
+              <SelectField
+                label="Question type"
+                value={questionType}
+                disabled={disabled || invalidCases}
+                options={questionTypes}
+                onChange={(value) => {
+                  const next = questionTypes.find((option) => option.value === value)?.value;
+                  if (!next || next === questionType) return;
+                  const hasCases =
+                    problem.examples.length ||
+                    content.hiddenCases.length ||
+                    problem.odyssey?.levels.some(
+                      (level) => level.examples.length || level.methods.length > 1,
+                    ) ||
+                    content.odysseyHiddenCases?.some((cases) => cases.length);
+                  const changesDialect = next.startsWith("sql-") !== !!problem.sql;
+                  const hasCode =
+                    content.solutions.length ||
+                    content.implementations.some(
+                      (item) => item.starterSource || item.referenceSource,
+                    );
+                  if (
+                    hasCases ||
+                    problem.odyssey ||
+                    (changesDialect &&
+                      (hasCode || problem.sql?.tables?.length || problem.sql?.output?.length))
+                  ) {
+                    setPendingType(next);
+                  } else {
+                    changeType(next);
+                  }
+                }}
               />
-            </fieldset>
-          )}
-          {invalidCases && (
-            <p className="admin-error">Fix test values before changing the method.</p>
-          )}
+            </Field>
+            <div className="admin-field">
+              <span>Difficulty</span>
+              <DifficultySegments
+                selected={[problem.difficulty]}
+                single
+                disabled={disabled}
+                onChange={([difficulty]) => {
+                  if (difficulty) setProblem({ difficulty });
+                }}
+              />
+            </div>
+          </div>
+          <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
           <details className="authoring-options">
-            <summary>Question details</summary>
+            <summary>Advanced settings</summary>
             <div className="admin-field-pair">
               <Field label="Slug">
                 <input
@@ -242,18 +296,7 @@ export function QuestionFields({
                   onChange={(event) => setProblem({ slug: event.target.value })}
                 />
               </Field>
-              <Field label="Difficulty">
-                <DifficultySegments
-                  selected={[problem.difficulty]}
-                  single
-                  disabled={disabled}
-                  onChange={([difficulty]) => {
-                    if (difficulty) setProblem({ difficulty });
-                  }}
-                />
-              </Field>
             </div>
-            <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
             <TopicField
               label="Companies, separated by commas"
               tags={problem.companies ?? []}
@@ -291,6 +334,35 @@ export function QuestionFields({
             </div>
           </details>
         </div>
+        {(problem.sql || !problem.odyssey) && (
+          <div
+            role="tabpanel"
+            id={`${id}-interface-panel`}
+            aria-labelledby={`${id}-interface`}
+            hidden={section !== "interface"}
+          >
+            {problem.sql ? (
+              <SqlSchemaFields
+                value={problem.sql}
+                disabled={disabled}
+                onChange={(sql) => setProblem({ sql })}
+              />
+            ) : (
+              <>
+                <fieldset className="admin-fields" disabled={disabled || invalidCases}>
+                  <SignatureFields
+                    value={problem.signature}
+                    onChange={(signature) => onChange(adaptSignature(content, signature))}
+                    onValidityChange={onValidityChange}
+                  />
+                </fieldset>
+                {invalidCases && (
+                  <p className="admin-error">Fix test values before changing the method.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
         <div
           role="tabpanel"
           id={`${id}-tests-panel`}
@@ -299,47 +371,6 @@ export function QuestionFields({
         >
           {problem.sql ? (
             <>
-              <JSONField
-                label="SQL input schema"
-                value={problem.sql.tables ?? []}
-                onValidityChange={onValidityChange}
-                onChange={(tables) =>
-                  setProblem({
-                    sql: {
-                      ...problem.sql!,
-                      tables: tables as NonNullable<NonNullable<ProblemVersion["sql"]>["tables"]>,
-                    },
-                  })
-                }
-              />
-              <JSONField
-                label="SQL output schema"
-                value={problem.sql.output ?? []}
-                onValidityChange={onValidityChange}
-                onChange={(output) =>
-                  setProblem({
-                    sql: {
-                      ...problem.sql!,
-                      output: output as NonNullable<NonNullable<ProblemVersion["sql"]>["output"]>,
-                    },
-                  })
-                }
-              />
-              <Field label="Result row order">
-                <SelectField
-                  label="Result row order"
-                  value={problem.sql.outputOrder}
-                  options={[
-                    { value: "unordered", label: "Any order" },
-                    { value: "ordered", label: "Exact order" },
-                  ]}
-                  onChange={(outputOrder) =>
-                    setProblem({
-                      sql: { ...problem.sql!, outputOrder: outputOrder as "ordered" | "unordered" },
-                    })
-                  }
-                />
-              </Field>
               {problem.odyssey ? (
                 <>
                   <JSONField
@@ -420,45 +451,69 @@ export function QuestionFields({
           aria-labelledby={`${id}-solutions`}
           hidden={section !== "solutions"}
         >
+          <div className="admin-authoring-compact">
+            <Field label={problem.sql ? "Dialect" : "Language"}>
+              <SelectField
+                label={problem.sql ? "SQL dialect" : "Question language"}
+                value={language}
+                disabled={disabled}
+                onChange={(value) => {
+                  const next = languages.find((item) => item === value);
+                  if (next) setLanguage(next);
+                }}
+                options={languages
+                  .filter((value) =>
+                    problem.sql ? value === "postgresql" : value !== "postgresql",
+                  )
+                  .map((value) => ({
+                    value,
+                    label: languageLabels[value],
+                    leading: <LanguageLogo language={value} />,
+                  }))}
+              />
+            </Field>
+          </div>
           {[language].map((language) => {
             const index = content.implementations.findIndex((item) => item.language === language);
             const implementation = content.implementations[index];
             const solution = content.solutions.find((item) => item.language === language);
             return (
               <div key={language}>
-                <label className="admin-check">
-                  <input
-                    type="checkbox"
-                    checked={!!implementation}
-                    disabled={language === "python" || language === "postgresql"}
-                    onChange={(event) =>
-                      onChange({
-                        ...content,
-                        implementations: event.target.checked
-                          ? [
-                              ...content.implementations,
-                              {
-                                language,
-                                starterSource: problem.odyssey
-                                  ? initialOdysseySource(
-                                      problem.odyssey.levels[0]!.methods,
-                                      language,
-                                    )
-                                  : "",
-                                runtimeRevision: revisions[language][0],
-                                harnessRevision: revisions[language][1],
-                                referenceSource: "",
-                              },
-                            ]
-                          : content.implementations.filter((item) => item.language !== language),
-                        solutions: event.target.checked
-                          ? content.solutions
-                          : content.solutions.filter((item) => item.language !== language),
-                      })
-                    }
-                  />
-                  Enable language
-                </label>
+                {language !== "python" && language !== "postgresql" && (
+                  <div className="admin-check">
+                    <span>Enable language</span>
+                    <ToggleSwitch
+                      label="Enable language"
+                      checked={!!implementation}
+                      disabled={disabled}
+                      onChange={(checked) =>
+                        onChange({
+                          ...content,
+                          implementations: checked
+                            ? [
+                                ...content.implementations,
+                                {
+                                  language,
+                                  starterSource: problem.odyssey
+                                    ? initialOdysseySource(
+                                        problem.odyssey.levels[0]!.methods,
+                                        language,
+                                      )
+                                    : "",
+                                  runtimeRevision: revisions[language][0],
+                                  harnessRevision: revisions[language][1],
+                                  referenceSource: "",
+                                },
+                              ]
+                            : content.implementations.filter((item) => item.language !== language),
+                          solutions: checked
+                            ? content.solutions
+                            : content.solutions.filter((item) => item.language !== language),
+                        })
+                      }
+                    />
+                  </div>
+                )}
                 {implementation && (
                   <>
                     <AuthoringCodeField
@@ -468,12 +523,14 @@ export function QuestionFields({
                       disabled={disabled}
                       onChange={(source) => setImplementation(index, { referenceSource: source })}
                     />
-                    <label className="admin-check">
-                      <input
-                        type="checkbox"
+                    <div className="admin-check">
+                      <span>Publish editorial solution</span>
+                      <ToggleSwitch
+                        label="Publish editorial solution"
+                        disabled={disabled}
                         checked={!!solution}
-                        onChange={(event) =>
-                          event.target.checked
+                        onChange={(checked) =>
+                          checked
                             ? setSolution(language, {})
                             : onChange({
                                 ...content,
@@ -483,10 +540,10 @@ export function QuestionFields({
                               })
                         }
                       />
-                      Publish editorial solution
-                    </label>
+                    </div>
                     {solution && (
-                      <>
+                      <details className="authoring-options">
+                        <summary>Edit editorial solution</summary>
                         <AuthoringCodeField
                           label={`${solutionLanguageLabel(language)} editorial code`}
                           language={language}
@@ -532,7 +589,7 @@ export function QuestionFields({
                             }
                           />
                         </Field>
-                      </>
+                      </details>
                     )}
                   </>
                 )}

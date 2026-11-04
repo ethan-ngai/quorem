@@ -2,7 +2,7 @@ import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
 import { CatalogFilters } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { CatalogLayout, CatalogTable } from "./CatalogLayout";
+import { CatalogLayout, CatalogRow, CatalogTable } from "./CatalogLayout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import {
@@ -227,12 +227,11 @@ export function PracticeBrowser() {
                 }
               >
                 {catalog.data.items.map((problem) => (
-                  <tr
+                  <CatalogRow
                     key={problem.id}
                     onPointerEnter={warmWorkspacePage}
                     onFocusCapture={warmWorkspacePage}
-                    onClick={(event) => {
-                      if ((event.target as Element).closest("a, button, input")) return;
+                    onOpen={(event) => {
                       const href = `/practice/${problem.slug}`;
                       if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
                       else void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
@@ -261,7 +260,7 @@ export function PracticeBrowser() {
                         odyssey={!!problem.odyssey}
                       />
                     </td>
-                  </tr>
+                  </CatalogRow>
                 ))}
               </CatalogTable>
               {catalog.data.items.length === 0 && (

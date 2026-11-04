@@ -5,7 +5,7 @@ import { CatalogFilters } from "../practice/CatalogFilters";
 import { addFilter } from "../practice/catalogSearch";
 import { QuestionIndicators } from "../practice/QuestionIndicators";
 import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
-import { CatalogTable } from "../practice/CatalogLayout";
+import { CatalogRow, CatalogTable } from "../practice/CatalogLayout";
 import { SearchField } from "../../ui/SearchField";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -315,7 +315,11 @@ export function QuestionDashboard({
             }
           >
             {rows.map((row) => (
-              <tr key={row.id} data-selected={selected.has(row.id)}>
+              <CatalogRow
+                key={row.id}
+                data-selected={selected.has(row.id)}
+                onOpen={disabled ? undefined : () => onOpen(row)}
+              >
                 <td>
                   <input
                     type="checkbox"
@@ -383,7 +387,7 @@ export function QuestionDashboard({
                     {row.isPrivate && <QuestionIndicators privateQuestion odyssey={false} />}
                   </td>
                 )}
-              </tr>
+              </CatalogRow>
             ))}
             {!rows.length && (
               <tr>

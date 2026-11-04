@@ -1,6 +1,7 @@
 import { useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
+import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -191,7 +192,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   }
   const locked = busy;
   return (
-    <main className="admin-workspace">
+    <main className="admin-workspace" data-editing={!!draft}>
       <SessionDialog
         open={navigationBlocker.status === "blocked"}
         onOpenChange={(open) => {
@@ -266,7 +267,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         }}
       />
       <header className="admin-heading">
-        <h1>{draft ? "Question editor" : "Questions"}</h1>
+        <h1>{draft ? draft.content.problem.title || "Untitled question" : "Questions"}</h1>
         <div className="admin-toolbar">
           {draft ? (
             <button
@@ -371,13 +372,9 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
       </SessionDialog>
       {draft && content && (
         <section className="admin-form-pane" aria-label="Question content">
-          <div className="admin-toolbar">
+          <div className="admin-toolbar admin-edit-toolbar">
             <span role="status">
-              {draft.publishedVersionId
-                ? "Published version"
-                : dirty
-                  ? "Unsaved edits"
-                  : "Saved draft"}
+              {dirty ? "Unsaved edits" : draft.publishedVersionId ? "Published" : "Draft"}
             </span>
             <button
               className="quiet-button"
@@ -388,30 +385,6 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
             </button>
             {draft.publishedVersionId ? (
               <>
-                {!!versionHistory.data?.replacements.length && (
-                  <select
-                    aria-label="Published versions"
-                    value={draft.publishedVersionId}
-                    disabled={busy || dirty || invalidFields.size > 0}
-                    onChange={(event) => {
-                      const id = event.target.value;
-                      void perform(
-                        () => createDraft({ problemVersionId: id, edit: true }),
-                        "",
-                        "Could not open the version.",
-                      );
-                    }}
-                  >
-                    <option value={draft.publishedVersionId}>
-                      Version {content.problem.version}
-                    </option>
-                    {versionHistory.data.replacements.map((version) => (
-                      <option key={version.id} value={version.id}>
-                        Version {version.version} · {version.title}
-                      </option>
-                    ))}
-                  </select>
-                )}
                 <button
                   className="button button-primary"
                   disabled={busy || !dirty || invalidFields.size > 0}
@@ -425,26 +398,55 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                 >
                   Save published changes
                 </button>
-                <button
-                  className="button button-secondary"
-                  disabled={busy || dirty || invalidFields.size > 0}
-                  onClick={() =>
-                    void perform(
-                      () => createDraft({ problemVersionId: draft.publishedVersionId! }),
-                      "New version draft created.",
-                      "Could not create a version draft. Try again.",
-                    )
-                  }
-                >
-                  Create next version
-                </button>
-                <button
-                  className="quiet-button"
-                  disabled={busy || dirty}
-                  onClick={() => void requestDeletion()}
-                >
-                  Delete version
-                </button>
+                <details className="admin-publication-actions">
+                  <summary>Publication options</summary>
+                  <div>
+                    {!!versionHistory.data?.replacements.length && (
+                      <SelectField
+                        label="Published versions"
+                        value={draft.publishedVersionId}
+                        disabled={busy || dirty || invalidFields.size > 0}
+                        onChange={(id) =>
+                          void perform(
+                            () => createDraft({ problemVersionId: id, edit: true }),
+                            "",
+                            "Could not open the version.",
+                          )
+                        }
+                        options={[
+                          {
+                            value: draft.publishedVersionId,
+                            label: `Version ${content.problem.version}`,
+                          },
+                          ...versionHistory.data.replacements.map((version) => ({
+                            value: version.id,
+                            label: `Version ${version.version} · ${version.title}`,
+                          })),
+                        ]}
+                      />
+                    )}
+                    <button
+                      className="button button-secondary"
+                      disabled={busy || dirty || invalidFields.size > 0}
+                      onClick={() =>
+                        void perform(
+                          () => createDraft({ problemVersionId: draft.publishedVersionId! }),
+                          "New version draft created.",
+                          "Could not create a version draft. Try again.",
+                        )
+                      }
+                    >
+                      Create next version
+                    </button>
+                    <button
+                      className="quiet-button"
+                      disabled={busy || dirty}
+                      onClick={() => void requestDeletion()}
+                    >
+                      Delete version
+                    </button>
+                  </div>
+                </details>
               </>
             ) : (
               <>
@@ -512,6 +514,11 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
               </>
             )}
           </div>
+          {invalidFields.size > 0 && (
+            <p className="admin-error" role="status">
+              Fix invalid fields before saving or previewing.
+            </p>
+          )}
           {preview ? (
             <PreviewBoundary>
               <PublicPreview content={content} />
