@@ -6,7 +6,7 @@ import {
   ArrowLeftRight,
   Brackets,
   ListChecks,
-  Plus,
+  ListPlus,
   Text,
   Trash2,
   ListOrdered,
@@ -139,7 +139,7 @@ export function ConstraintFields({
       <AnimatedRows
         items={value}
         focusFallback={addConstraint}
-        className="constraint-list"
+        className="authoring-constraint-list"
         label="Input constraints"
         empty={
           <p className="admin-authoring-hint">Add bounds, relationships, or input guarantees.</p>
@@ -458,11 +458,12 @@ export function ConstraintFields({
         <Popover.Trigger asChild>
           <button
             type="button"
-            className="quiet-button"
+            className="button button-ghost constraint-add-trigger"
+            data-align="start"
             ref={addConstraint}
             disabled={disabled || value.length >= 64}
           >
-            <Plus size={14} aria-hidden="true" />
+            <ListPlus size={16} aria-hidden="true" />
             Add constraint
           </button>
         </Popover.Trigger>

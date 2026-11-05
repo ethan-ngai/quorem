@@ -9,12 +9,7 @@ import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
-import {
-  AuthoringCodeField,
-  AuthoringNumberField,
-  LeetcodeIDField,
-  TopicField,
-} from "./AuthoringInputs";
+import { AuthoringCodeField, TopicField } from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
@@ -26,6 +21,7 @@ import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { AuthoringCases } from "./AuthoringCases";
 import { AuthoringStages } from "./AuthoringStages";
 import { Field } from "./AuthoringFields";
+import { AdvancedSettings } from "./AdvancedSettings";
 import { ConstraintFields } from "./ConstraintFields";
 import type { QuestionContent, ProblemVersion, Signature } from "@quorem/contracts";
 import { CodeLiteral } from "../editor/components/CodeLiteral";
@@ -40,8 +36,7 @@ import {
   FileCode2,
   Database,
   LockKeyhole,
-  ListFilter,
-  Settings2,
+  ListChecks,
   ChevronRight,
   Braces,
   FlaskConical,
@@ -422,7 +417,7 @@ export function QuestionFields({
           <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
           <details className="disclosure authoring-options">
             <summary>
-              <ListFilter size={15} aria-hidden="true" /> Constraints{" "}
+              <ListChecks size={15} aria-hidden="true" /> Constraints{" "}
               <span className="admin-count">{problem.constraints.length}</span>
               <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
             </summary>
@@ -437,50 +432,12 @@ export function QuestionFields({
               onChange={(constraints) => setProblem({ constraints })}
             />
           </details>
-          <details className="disclosure authoring-options">
-            <summary>
-              <Settings2 size={15} aria-hidden="true" /> Advanced settings
-              <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
-            </summary>
-            <div className="admin-field-pair">
-              <Field label="Slug">
-                <TextInput
-                  mono
-                  readOnly={lockSlug}
-                  value={problem.slug}
-                  onChange={(event) => setProblem({ slug: event.target.value })}
-                />
-              </Field>
-              <LeetcodeIDField
-                value={problem.leetcodeId ?? null}
-                onChange={(leetcodeId) => setProblem({ leetcodeId })}
-                onValidityChange={(invalid) => onValidityChange("leetcodeId", invalid)}
-              />
-            </div>
-            <TopicField
-              label="Companies"
-              limit={64}
-              tags={problem.companies ?? []}
-              onChange={(companies) => setProblem({ companies })}
-            />
-            <Field label="Attribution">
-              <TextInput
-                value={content.attribution}
-                onChange={(event) => onChange({ ...content, attribution: event.target.value })}
-              />
-            </Field>
-            <div className="authoring-limits">
-              {Object.entries(problem.limits).map(([name, value]) => (
-                <AuthoringNumberField
-                  key={name}
-                  label={name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
-                  value={value}
-                  onValidityChange={(invalid) => onValidityChange(`limit:${name}`, invalid)}
-                  onChange={(next) => setProblem({ limits: { ...problem.limits, [name]: next } })}
-                />
-              ))}
-            </div>
-          </details>
+          <AdvancedSettings
+            content={content}
+            lockSlug={lockSlug}
+            onChange={onChange}
+            onValidityChange={onValidityChange}
+          />
         </div>
         {(problem.sql || !problem.odyssey) && (
           <div

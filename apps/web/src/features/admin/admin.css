@@ -462,8 +462,7 @@
   max-width: none;
 }
 .admin-form-pane .question-authoring > [role="tabpanel"] {
-  padding: var(--space-4) max(var(--authoring-page-inset), calc((100% - 58rem) / 2))
-    var(--space-6);
+  padding: var(--space-4) max(var(--authoring-page-inset), calc((100% - 58rem) / 2)) var(--space-6);
 }
 .admin-form-pane .authoring-tests-panel {
   background: var(--color-field);
@@ -733,8 +732,58 @@
 
 .authoring-limits {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: var(--space-3);
+}
+.authoring-advanced {
+  display: grid;
+  gap: var(--space-4);
+  padding-block: var(--space-2) var(--space-4);
+}
+.authoring-setting-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.authoring-setting-group > legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: 0;
+  font-size: var(--text-small);
+  font-weight: 550;
+}
+.authoring-setting-group .admin-field {
+  margin-bottom: var(--space-3);
+}
+.authoring-identity-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.admin-field-icon {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+}
+.admin-field-icon:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.admin-field-unit {
+  color: var(--color-text-secondary);
+  font-size: inherit;
+  margin-inline-start: auto;
+}
+@media (max-width: 560px) {
+  .authoring-limits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .authoring-identity-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .authoring-type-block {
