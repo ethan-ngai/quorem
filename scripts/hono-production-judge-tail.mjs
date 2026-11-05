@@ -1,5 +1,6 @@
 /** Ephemeral provider tails emit only lifecycle messages and redacted runtime exceptions. */
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 export async function tailProductionJudge(keys) {
   const children = [];
@@ -15,7 +16,7 @@ export async function tailProductionJudge(keys) {
       const child = spawn(
         "vp",
         ["-C", "apps/api", "exec", "wrangler", "tail", worker, "--format", "json"],
-        { stdio: ["ignore", "pipe", "pipe"] },
+        { stdio: ["ignore", "pipe", "pipe"], detached: true },
       );
       children.push(child);
       let buffer = "";
@@ -46,7 +47,18 @@ export async function tailProductionJudge(keys) {
             );
           const exceptions = (event.exceptions ?? []).map((error) => ({
             name: redact(error.name),
-            message: redact(error.message),
+            fingerprint: createHash("sha256").update(String(error.message)).digest("hex"),
+            message: [
+              "Too many subrequests.",
+              "Too many API requests by single worker invocation.",
+              "Too many open connections.",
+              "Network connection lost.",
+            ].includes(error.message)
+              ? error.message
+              : "[omitted]",
+            connectionLimit: /Too many.*(?:connection|request)/i.test(String(error.message)),
+            recursion: /recursive|call.*depth|stack/i.test(String(error.message)),
+            ioContext: /I\/O|different request|context/i.test(String(error.message)),
           }));
           if (lifecycle.length || exceptions.length)
             console.log(
@@ -64,6 +76,15 @@ export async function tailProductionJudge(keys) {
     }),
   );
   return async () => {
-    for (const child of children) child.kill("SIGTERM");
+    for (const child of children) {
+      try {
+        process.kill(-child.pid, "SIGTERM");
+      } catch {
+        child.kill("SIGTERM");
+      }
+      child.stdout.destroy();
+      child.stderr.destroy();
+      child.unref();
+    }
   };
 }
