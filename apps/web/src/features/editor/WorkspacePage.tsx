@@ -857,6 +857,10 @@ export function WorkspacePage({
             disabled={
               submissionBusy || (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
             }
+            runDisabled={
+              (submissionBusy && !execution.canReplaceRun) ||
+              (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
+            }
             onRun={() => void run()}
             onSubmit={() => void submit()}
             onCancel={

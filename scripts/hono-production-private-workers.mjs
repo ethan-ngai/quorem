@@ -56,10 +56,10 @@ async function quiesce(db) {
   throw new Error("Execution attempts did not quiesce");
 }
 
-async function rollout(env) {
+async function rollout(env, benchmarkOnly) {
   const release = env.GITHUB_SHA;
   if (
-    env.GITHUB_REF !== "refs/heads/main" ||
+    env.GITHUB_REF !== (benchmarkOnly ? "refs/heads/dev" : "refs/heads/main") ||
     release !== env.HONO_RELEASE_SHA ||
     !/^[0-9a-f]{40}$/.test(release ?? "")
   )
@@ -129,7 +129,7 @@ async function rollout(env) {
         if (matches.length === 1) benchmarkEnv.AUTH_BOOTSTRAP_USERNAME = matches[0];
       }
     }
-    if (runner.status === "active" && runner.release === release) {
+    if (benchmarkOnly || (runner.status === "active" && runner.release === release)) {
       await current.requireActive(runner.generation);
       return benchmarkEnv;
     }
@@ -278,7 +278,7 @@ async function rollout(env) {
 
 if (import.meta.main) {
   try {
-    const benchmarkEnv = await rollout(process.env);
+    const benchmarkEnv = await rollout(process.env, process.argv.includes("--benchmark-only"));
     report("benchmark-python");
     console.log(JSON.stringify(await benchmarkProductionPython(benchmarkEnv)));
   } catch (error) {

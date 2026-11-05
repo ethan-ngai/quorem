@@ -1,7 +1,9 @@
-import { useBlocker } from "@tanstack/react-router";
+import { useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
+import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
+import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-/** @file QuestionEditor.tsx @description Form-based immutable question authoring. @module admin */
+/** @file QuestionEditor.tsx @description Form-based question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useEffect, useState } from "react";
@@ -10,11 +12,18 @@ import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
-import { api, requireData } from "../../api/client";
-import { createDraft, getDraft, listDrafts, publishDraft, saveDraft } from "./api";
+import {
+  createDraft,
+  deleteQuestionPublication,
+  fetchDeletionImpact,
+  getDraft,
+  listDrafts,
+  listPublications,
+  publishDraft,
+  saveDraft,
+} from "./api";
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
-import { ProblemPicker } from "../practice/ProblemPicker";
 import { Globe, LockKeyhole, FileJson } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import "../../ui/question-hints.css";
@@ -60,21 +69,21 @@ export function QuestionEditor() {
 function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const cache = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
+  const search = useSearch({ from: "/admin/questions" });
+  const navigate = useNavigate({ from: "/admin/questions" });
+  const { section, readiness, ...filters } = search;
   const drafts = useInfiniteQuery({
-    queryKey: ["admin-drafts", admin],
+    queryKey: ["admin-drafts", admin, filters, readiness],
+    enabled: section !== "publications",
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => listDrafts(pageParam),
+    queryFn: ({ pageParam, signal }) => listDrafts({ ...filters, readiness }, pageParam, signal),
     getNextPageParam: (page) => page.nextCursor,
   });
-  const draftItems = drafts.data?.pages.flatMap((page) => page.items);
+  const draftItems = drafts.data?.pages.flatMap((page) => page.items) ?? [];
   const problems = useQuery({
-    queryKey: ["admin-problems", admin],
-    queryFn: async () => {
-      const { data, error } = await api().GET("/v1/problems", {
-        params: { query: { limit: 100, ...(admin ? {} : { library: "private" as const }) } },
-      });
-      return requireData(data, error).items;
-    },
+    queryKey: ["admin-problems", admin, filters],
+    enabled: section === "publications",
+    queryFn: ({ signal }) => listPublications(filters, signal),
   });
   const [draft, setDraft] = useState<QuestionDraft>();
   const [content, setContent] = useState<QuestionContent>();
@@ -90,8 +99,52 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "global">("private");
-  const [cloneId, setCloneId] = useState("");
-  const [discardTarget, setDiscardTarget] = useState<string>();
+  const [discard, setDiscard] = useState(false);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [deletion, setDeletion] = useState<Awaited<ReturnType<typeof fetchDeletionImpact>>>();
+  const [replacement, setReplacement] = useState("");
+  async function requestDeletion() {
+    if (!draft) return;
+    setBusy(true);
+    setError("");
+    try {
+      setDeletion(await fetchDeletionImpact(draft.id));
+      setReplacement("");
+    } catch (cause) {
+      setError(userFacingErrorMessage(cause, "Could not check what this version is used by."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function confirmDeletion() {
+    if (!draft || !deletion || (deletion.current && !replacement)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteQuestionPublication(
+        draft,
+        deletion.current ? (replacement === "unpublish" ? null : replacement) : undefined,
+      );
+      setDeletion(undefined);
+      setDraft(undefined);
+      setContent(undefined);
+      setNotice("Published version deleted.");
+      await Promise.all([
+        cache.invalidateQueries({ queryKey: ["admin-drafts"] }),
+        cache.invalidateQueries({ queryKey: ["admin-problems"] }),
+      ]);
+    } catch (cause) {
+      setDeletion(undefined);
+      setError(userFacingErrorMessage(cause, "Could not delete the published version."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const versionHistory = useQuery({
+    queryKey: ["admin-publication-impact", draft?.id, draft?.revision],
+    enabled: !!draft?.publishedVersionId,
+    queryFn: () => fetchDeletionImpact(draft!.id),
+  });
   const [invalidFields, setInvalidFields] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     if (!dirty) return;
@@ -109,7 +162,16 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
     setPreview(false);
     setError("");
     setNotice("");
-    setDiscardTarget(undefined);
+    setDiscard(false);
+    setInvalidFields(new Set());
+  }
+  function closeEditor() {
+    setDraft(undefined);
+    setContent(undefined);
+    setDirty(false);
+    setDiscard(false);
+    setError("");
+    setNotice("");
     setInvalidFields(new Set());
   }
   async function perform(action: () => Promise<QuestionDraft>, message: string, failure: string) {
@@ -121,15 +183,16 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
       setNotice(message);
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
+      await cache.invalidateQueries({ queryKey: ["admin-publication-impact"] });
     } catch (cause) {
       setError(userFacingErrorMessage(cause, failure));
     } finally {
       setBusy(false);
     }
   }
-  const locked = !!draft?.publishedVersionId || busy;
+  const locked = busy;
   return (
-    <main className="admin-workspace">
+    <main className="admin-workspace" data-editing={!!draft}>
       <SessionDialog
         open={navigationBlocker.status === "blocked"}
         onOpenChange={(open) => {
@@ -147,6 +210,53 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           </button>
         </footer>
       </SessionDialog>
+      <SessionDialog
+        open={!!deletion}
+        onOpenChange={(value) => {
+          if (!value && !busy) setDeletion(undefined);
+        }}
+        title="Delete published version?"
+        description={
+          deletion
+            ? `This removes question content and results from ${deletion.submissions} practice attempts. It detaches ${deletion.workspaces} workspaces and ${deletion.matches} matches.`
+            : ""
+        }
+      >
+        {deletion?.current && (
+          <label>
+            Current question
+            <select
+              value={replacement}
+              onChange={(event) => setReplacement(event.target.value)}
+              disabled={busy}
+            >
+              <option value="">Choose what to publish</option>
+              <option value="unpublish">Unpublish question</option>
+              {deletion.replacements.map((version) => (
+                <option key={version.id} value={version.id}>
+                  Version {version.version} · {version.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <footer className="competitive-dialog-actions">
+          <button
+            className="button button-secondary"
+            disabled={busy}
+            onClick={() => setDeletion(undefined)}
+          >
+            Cancel
+          </button>
+          <button
+            className="button button-primary"
+            disabled={busy || (deletion?.current && !replacement)}
+            onClick={() => void confirmDeletion()}
+          >
+            Delete version
+          </button>
+        </footer>
+      </SessionDialog>
       <BulkQuestionImport
         open={importOpen}
         onOpenChange={setImportOpen}
@@ -157,276 +267,299 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         }}
       />
       <header className="admin-heading">
-        <div>
-          <h1>Question editor</h1>
-        </div>
+        <h1>{draft ? draft.content.problem.title || "Untitled question" : "Questions"}</h1>
         <div className="admin-toolbar">
-          <button
-            className="button button-secondary"
-            disabled={busy || dirty || invalidFields.size > 0}
-            onClick={() => setImportOpen(true)}
-          >
-            Bulk import
-          </button>
-          <button
-            className="button button-secondary"
-            disabled={busy || dirty || invalidFields.size > 0}
-            onClick={() =>
-              void perform(
-                () => createDraft({ content: blankQuestion() }),
-                "Draft created.",
-                "Could not create the draft. Try again.",
-              )
-            }
-          >
-            New question
-          </button>
-        </div>
-      </header>
-      <div className="admin-layout">
-        <aside className="admin-rail" aria-label="Question drafts">
-          <div className="admin-picker">
-            <span>Edit published question</span>
-            <ProblemPicker
-              items={problems.data ?? []}
-              library={admin ? undefined : "private"}
-              value={cloneId}
-              onChange={(id) => setCloneId(id ?? "")}
-              disabled={busy}
-              label="Edit published question"
-            />
-          </div>
-          <button
-            className="button button-secondary"
-            disabled={!cloneId || busy || dirty || invalidFields.size > 0}
-            onClick={() =>
-              void perform(
-                () => createDraft({ problemVersionId: cloneId }),
-                "New version draft created.",
-                "Could not create a version draft. Try again.",
-              )
-            }
-          >
-            Create version draft
-          </button>
-          <h2>Drafts</h2>
-          {drafts.isPending ? (
-            <LoadingScreen inline label="Loading drafts…" />
-          ) : drafts.isError ? (
-            <p role="alert">
-              {userFacingErrorMessage(drafts.error, "Questions unavailable. Please try again.")}
-            </p>
-          ) : !draftItems?.length ? (
-            <p>No drafts yet.</p>
-          ) : (
-            draftItems.map((item) => (
-              <button
-                key={item.id}
-                className="admin-draft-row"
-                aria-current={draft?.id === item.id ? "page" : undefined}
-                disabled={busy}
-                onClick={() =>
-                  dirty || invalidFields.size > 0
-                    ? setDiscardTarget(item.id)
-                    : void perform(
-                        () => getDraft(item.id),
-                        "",
-                        "Could not open the draft. Try again.",
-                      )
-                }
-              >
-                <span>{item.title || "Untitled question"}</span>
-                <small>{item.publishedVersionId ? "Published" : "Draft"}</small>
-              </button>
-            ))
-          )}
-          {drafts.hasNextPage && (
+          {draft ? (
             <button
               className="button button-secondary"
-              disabled={drafts.isFetchingNextPage}
-              onClick={() => void drafts.fetchNextPage()}
+              disabled={busy}
+              onClick={() => {
+                if (dirty || invalidFields.size) setDiscard(true);
+                else closeEditor();
+              }}
             >
-              Load more drafts
+              Back to questions
             </button>
-          )}
-          <div className="admin-rail-tools">
-            <Tooltip content="Download question JSON schema">
-              <a
-                className="icon-button"
-                href={questionSchema}
-                download="quorem-question-v1.schema.json"
-                aria-label="Download question JSON schema"
-              >
-                <FileJson size={16} />
-              </a>
-            </Tooltip>
-          </div>
-        </aside>
-        <section className="admin-form-pane" aria-label="Question content">
-          <SessionDialog
-            open={!!discardTarget}
-            onOpenChange={(open) => {
-              if (!open) setDiscardTarget(undefined);
-            }}
-            title="Discard unsaved edits?"
-            description="Your saved draft will remain unchanged."
-          >
-            <footer className="competitive-dialog-actions">
+          ) : (
+            <>
+              <Tooltip content="Download question JSON schema">
+                <a
+                  className="icon-button"
+                  href={questionSchema}
+                  download="quorem-question-v1.schema.json"
+                  aria-label="Download question JSON schema"
+                >
+                  <FileJson size={16} />
+                </a>
+              </Tooltip>
               <button
                 className="button button-secondary"
-                onClick={() => setDiscardTarget(undefined)}
+                disabled={busy || bulkRunning}
+                onClick={() => setImportOpen(true)}
               >
-                Keep editing
+                Bulk import
               </button>
               <button
                 className="button button-primary"
+                disabled={busy || bulkRunning}
                 onClick={() =>
-                  discardTarget &&
                   void perform(
-                    () => getDraft(discardTarget),
-                    "",
-                    "Could not open the draft. Try again.",
+                    () => createDraft({ content: blankQuestion() }),
+                    "Draft created.",
+                    "Could not create the draft.",
                   )
                 }
               >
-                Discard and open
+                New question
               </button>
-            </footer>
-          </SessionDialog>
-          {!content || !draft ? (
-            <p>Select a draft or create a question.</p>
-          ) : (
-            <>
-              <div className="admin-toolbar">
-                <span role="status">
-                  {draft.publishedVersionId
-                    ? "Published version"
-                    : dirty
-                      ? "Unsaved edits"
-                      : "Saved draft"}
-                </span>
+            </>
+          )}
+        </div>
+      </header>
+      {!draft && (
+        <QuestionDashboard
+          admin={admin}
+          drafts={draftItems}
+          publications={problems.data?.items ?? []}
+          search={search}
+          facets={
+            section === "publications" ? problems.data?.facets : drafts.data?.pages[0]?.facets
+          }
+          onSearch={(change, replace) =>
+            void navigate({ search: (previous) => ({ ...previous, ...change }), replace })
+          }
+          draftLoading={drafts.isPending}
+          publicationLoading={problems.isPending}
+          draftFailed={drafts.isError}
+          publicationFailed={problems.isError}
+          busy={busy}
+          onRunning={setBulkRunning}
+          loadMore={drafts.hasNextPage ? () => void drafts.fetchNextPage() : undefined}
+          loadingMore={drafts.isFetchingNextPage}
+          onOpen={(row) =>
+            void perform(
+              () =>
+                "revision" in row
+                  ? getDraft(row.id)
+                  : createDraft({ problemVersionId: row.id, edit: true }),
+              "",
+              "Could not open the question.",
+            )
+          }
+          onChanged={() =>
+            Promise.all([
+              cache.invalidateQueries({ queryKey: ["admin-drafts"] }),
+              cache.invalidateQueries({ queryKey: ["admin-problems"] }),
+              cache.invalidateQueries({ queryKey: ["admin-publication-impact"] }),
+            ])
+          }
+        />
+      )}
+      <SessionDialog
+        open={discard}
+        onOpenChange={setDiscard}
+        title="Discard unsaved edits?"
+        description="Your saved question will remain unchanged."
+      >
+        <footer className="competitive-dialog-actions">
+          <button className="button button-secondary" onClick={() => setDiscard(false)}>
+            Keep editing
+          </button>
+          <button className="button button-primary" onClick={closeEditor}>
+            Discard and return
+          </button>
+        </footer>
+      </SessionDialog>
+      {draft && content && (
+        <section className="admin-form-pane" aria-label="Question content">
+          <div className="admin-toolbar admin-edit-toolbar">
+            <span role="status">
+              {dirty ? "Unsaved edits" : draft.publishedVersionId ? "Published" : "Draft"}
+            </span>
+            <button
+              className="quiet-button"
+              disabled={invalidFields.size > 0}
+              onClick={() => setPreview(!preview)}
+            >
+              {preview ? "Edit content" : "Preview public content"}
+            </button>
+            {draft.publishedVersionId ? (
+              <>
                 <button
-                  className="quiet-button"
-                  disabled={invalidFields.size > 0}
-                  onClick={() => setPreview(!preview)}
+                  className="button button-primary"
+                  disabled={busy || !dirty || invalidFields.size > 0}
+                  onClick={() =>
+                    void perform(
+                      () => saveDraft(draft, content),
+                      "Published changes saved.",
+                      "Could not save the published changes. Your edits are still here.",
+                    )
+                  }
                 >
-                  {preview ? "Edit content" : "Preview public content"}
+                  Save published changes
                 </button>
-                {draft.publishedVersionId ? (
-                  <button
-                    className="button button-secondary"
-                    disabled={busy}
-                    onClick={() =>
-                      void perform(
-                        () => createDraft({ problemVersionId: draft.publishedVersionId! }),
-                        "New version draft created.",
-                        "Could not create a version draft. Try again.",
-                      )
-                    }
-                  >
-                    Create next version
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      className="button button-secondary"
-                      disabled={busy || !dirty || invalidFields.size > 0}
-                      onClick={() =>
-                        void perform(
-                          () => saveDraft(draft, content),
-                          "Draft saved.",
-                          "Could not save the draft. Your edits are still here.",
-                        )
-                      }
-                    >
-                      Save draft
-                    </button>
-                    {admin && (
-                      <SegmentedControl
-                        label="Publish to"
-                        iconOnly
-                        value={visibility}
-                        disabled={busy}
-                        onChange={(value) => setVisibility(value as "private" | "global")}
+                <details className="admin-publication-actions">
+                  <summary>Publication options</summary>
+                  <div>
+                    {!!versionHistory.data?.replacements.length && (
+                      <SelectField
+                        label="Published versions"
+                        value={draft.publishedVersionId}
+                        disabled={busy || dirty || invalidFields.size > 0}
+                        onChange={(id) =>
+                          void perform(
+                            () => createDraft({ problemVersionId: id, edit: true }),
+                            "",
+                            "Could not open the version.",
+                          )
+                        }
                         options={[
                           {
-                            value: "private",
-                            label: "Private",
-                            icon: <LockKeyhole size={16} aria-hidden="true" />,
+                            value: draft.publishedVersionId,
+                            label: `Version ${content.problem.version}`,
                           },
-                          {
-                            value: "global",
-                            label: "Global",
-                            icon: <Globe size={16} aria-hidden="true" />,
-                          },
+                          ...versionHistory.data.replacements.map((version) => ({
+                            value: version.id,
+                            label: `Version ${version.version} · ${version.title}`,
+                          })),
                         ]}
                       />
                     )}
                     <button
-                      className="button button-primary"
+                      className="button button-secondary"
                       disabled={busy || dirty || invalidFields.size > 0}
                       onClick={() =>
                         void perform(
-                          () => publishDraft(draft, admin ? visibility : "private"),
-                          admin && visibility === "global"
-                            ? "Global question published."
-                            : "Question added to your private library.",
-                          "Could not publish the question. Try again.",
+                          () => createDraft({ problemVersionId: draft.publishedVersionId! }),
+                          "New version draft created.",
+                          "Could not create a version draft. Try again.",
                         )
                       }
                     >
-                      {busy
-                        ? "Working…"
-                        : admin && visibility === "global"
-                          ? "Publish globally"
-                          : "Add to library"}
+                      Create next version
                     </button>
-                  </>
+                    <button
+                      className="quiet-button"
+                      disabled={busy || dirty}
+                      onClick={() => void requestDeletion()}
+                    >
+                      Delete version
+                    </button>
+                  </div>
+                </details>
+              </>
+            ) : (
+              <>
+                <button
+                  className="button button-secondary"
+                  disabled={busy || !dirty || invalidFields.size > 0}
+                  onClick={() =>
+                    void perform(
+                      () => saveDraft(draft, content),
+                      "Draft saved.",
+                      "Could not save the draft. Your edits are still here.",
+                    )
+                  }
+                >
+                  Save draft
+                </button>
+                {admin && !draft.editVersionId && (
+                  <SegmentedControl
+                    label="Publish to"
+                    iconOnly
+                    value={visibility}
+                    disabled={busy}
+                    onChange={(value) => setVisibility(value as "private" | "global")}
+                    options={[
+                      {
+                        value: "private",
+                        label: "Private",
+                        icon: <LockKeyhole size={16} aria-hidden="true" />,
+                      },
+                      {
+                        value: "global",
+                        label: "Global",
+                        icon: <Globe size={16} aria-hidden="true" />,
+                      },
+                    ]}
+                  />
                 )}
-              </div>
-              {preview ? (
-                <PreviewBoundary>
-                  <PublicPreview content={content} />
-                </PreviewBoundary>
-              ) : (
-                <QuestionFields
-                  key={`${draft.id}:${draft.revision}`}
-                  content={content}
-                  disabled={locked}
-                  invalidCases={[...invalidFields].some((key) => key.startsWith("cases:"))}
-                  onValidityChange={(label, invalid) => (
-                    invalid && setDirty(true),
-                    setInvalidFields((previous) => {
-                      const next = new Set(previous);
-                      if (invalid) next.add(label);
-                      else next.delete(label);
-                      return next;
-                    })
-                  )}
-                  onChange={(next) => {
-                    setContent(next);
-                    setDirty(true);
-                    setNotice("");
-                  }}
-                />
-              )}
-              {draft.publishedVersionId && (
-                <p>
-                  <a href={`/practice/${encodeURIComponent(content.problem.slug)}`}>
-                    Open published question
-                  </a>
-                </p>
-              )}
-            </>
+                <button
+                  className="button button-primary"
+                  disabled={busy || dirty || invalidFields.size > 0}
+                  onClick={() =>
+                    void perform(
+                      () =>
+                        publishDraft(
+                          draft,
+                          draft.editVersionId ? "global" : admin ? visibility : "private",
+                        ),
+                      draft.editVersionId
+                        ? "Published changes saved."
+                        : admin && visibility === "global"
+                          ? "Global question published."
+                          : "Question added to your private library.",
+                      "Could not publish the question. Try again.",
+                    )
+                  }
+                >
+                  {busy
+                    ? "Working…"
+                    : draft.editVersionId
+                      ? "Apply update"
+                      : admin && visibility === "global"
+                        ? "Publish globally"
+                        : "Add to library"}
+                </button>
+              </>
+            )}
+          </div>
+          {invalidFields.size > 0 && (
+            <p className="admin-error" role="status">
+              Fix invalid fields before saving or previewing.
+            </p>
           )}
-
-          {notice && (
-            <p className="admin-notice" role="status">
-              {notice}
+          {preview ? (
+            <PreviewBoundary>
+              <PublicPreview content={content} />
+            </PreviewBoundary>
+          ) : (
+            <QuestionFields
+              key={`${draft.id}:${draft.revision}`}
+              content={content}
+              disabled={locked}
+              lockSlug={!!(draft.publishedVersionId || draft.editVersionId)}
+              invalidCases={[...invalidFields].some((key) => key.startsWith("cases:"))}
+              onValidityChange={(label, invalid) => (
+                invalid && setDirty(true),
+                setInvalidFields((previous) => {
+                  const next = new Set(previous);
+                  if (invalid) next.add(label);
+                  else next.delete(label);
+                  return next;
+                })
+              )}
+              onChange={(next) => {
+                setContent(next);
+                setDirty(true);
+                setNotice("");
+              }}
+            />
+          )}
+          {draft.publishedVersionId && (
+            <p>
+              <a href={`/practice/${encodeURIComponent(content.problem.slug)}`}>
+                Open published question
+              </a>
             </p>
           )}
         </section>
-      </div>
+      )}
+      {notice && (
+        <p className="admin-notice" role="status">
+          {notice}
+        </p>
+      )}
     </main>
   );
 }

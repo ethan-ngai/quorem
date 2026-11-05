@@ -1,6 +1,5 @@
 /** @file OdysseyPanel.tsx @description Authorized levels composed into the shared problem statement. @module odyssey */
-import { useQuestionLanguage } from "../editor/QuestionLanguage";
-import { questionTypeName } from "../editor/questionTypes";
+import { MethodSignature } from "../editor/components/MethodSignature";
 import { type ReactNode } from "react";
 import type { OdysseyProgress } from "@quorem/contracts";
 import { ProblemStatement, type StatementProblem } from "../editor/components/ProblemStatement";
@@ -24,7 +23,6 @@ export function OdysseyPanel({
   selectedLevel?: number;
   allowTopics?: boolean;
 }) {
-  const language = useQuestionLanguage();
   const index = Math.min((selectedLevel ?? progress.level) - 1, progress.levels.length - 1);
   const level = progress.levels[index];
   if (!level) return null;
@@ -62,16 +60,7 @@ export function OdysseyPanel({
             <h2>Methods to implement</h2>
             {level.methods.map((method) => (
               <p key={method.methodName}>
-                <code>
-                  {method.className}.{method.methodName}(
-                  {method.parameters
-                    .map(
-                      (parameter) =>
-                        `${parameter.name}: ${questionTypeName(parameter.type, language)}`,
-                    )
-                    .join(", ")}
-                  ) → {questionTypeName(method.returnType, language)}
-                </code>
+                <MethodSignature signature={method} />
               </p>
             ))}
           </section>

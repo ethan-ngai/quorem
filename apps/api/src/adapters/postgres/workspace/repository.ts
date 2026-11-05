@@ -49,7 +49,7 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
   if (!uuid.test(id)) throw missing();
   const row = (
     await tx.execute<Row>(
-      sql`SELECT w.id::text,w.kind,w.problem_version_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId" FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND w.owner_id=${principal.userId} AND ${visibleProblem({ userId: principal.userId }, true)} FOR SHARE OF w,p`,
+      sql`SELECT w.id::text,w.kind,w.problem_version_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId" FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND w.owner_id=${principal.userId} AND ${visibleProblem({ userId: principal.userId }, true)} FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw missing();
@@ -120,7 +120,7 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
         scope.transaction(options, async (tx) => {
           await lockUser(tx, principal);
           const problem = await tx.execute(
-            sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)} FOR SHARE OF p`,
+            sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)} FOR SHARE OF p,v`,
           );
           if (!problem.rows.length)
             throw new ApplicationError("not_found", "Problem not found", 404);
@@ -232,6 +232,9 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
             );
           await tx.execute(
             sql`INSERT INTO odyssey_progress(scope_id,problem_version_id,level,completed,reset_at) VALUES(${w.id}::uuid,${w.problemVersionId}::uuid,1,false,clock_timestamp()) ON CONFLICT(scope_id,problem_version_id) DO UPDATE SET level=1,completed=false,reset_at=clock_timestamp()`,
+          );
+          await tx.execute(
+            sql`DELETE FROM practice_case_feedback WHERE workspace_id=${w.id}::uuid`,
           );
           return progress(tx, principal.userId, w);
         }),

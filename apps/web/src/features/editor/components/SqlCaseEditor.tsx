@@ -157,9 +157,38 @@ export function SqlCaseEditor({
     const setup = parseSqlSetup(input);
     const schema = sqlTables(problem, setup);
     const output = expected === undefined ? undefined : parseSqlResult(expected);
+    const names = new Set(schema.map(({ name }) => name));
+    const needsSync =
+      !!problem.sql?.tables?.length &&
+      (setup.tables.some(({ name }) => !names.has(name)) ||
+        schema.some(({ name }) => !setup.tables.some((table) => table.name === name)));
     return (
       <>
         <div className="sql-editor-label">Input tables</div>
+        {needsSync && (
+          <div className="typed-case-field">
+            <p>
+              Table names changed. Sync to add missing tables and remove data for tables outside the
+              schema.
+            </p>
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() =>
+                onInputChange(
+                  JSON.stringify({
+                    tables: schema.map(
+                      ({ name }) =>
+                        setup.tables.find((table) => table.name === name) ?? { name, rows: [] },
+                    ),
+                  }),
+                )
+              }
+            >
+              Sync input tables
+            </button>
+          </div>
+        )}
         <div className="sql-tables">
           {schema.map((table) => {
             const data = setup.tables.find((item) => item.name === table.name);

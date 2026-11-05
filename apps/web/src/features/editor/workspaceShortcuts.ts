@@ -14,9 +14,3 @@ export const workspaceShortcuts = {
   },
   save: { binding: { key: "S", meta: true }, keys: ["Meta", "S"], label: "Save", icon: "save" },
 } as const;
-
-export const shortcutKeySymbols: Record<string, string> = {
-  Meta: "⌘",
-  Shift: "⇧",
-  Enter: "↵",
-};

@@ -1,7 +1,7 @@
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
 import * as Popover from "../../ui/Popover";
 import { useId, useRef, useState } from "react";
-import { AlertCircle, Dices, Search } from "lucide-react";
+import { AlertCircle, Dices } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
@@ -9,6 +9,7 @@ import { CatalogFilters } from "./CatalogFilters";
 import { QuestionIndicators } from "./QuestionIndicators";
 import type { CatalogSearch } from "./catalogSearch";
 import "./practice.css";
+import { SearchField } from "../../ui/SearchField";
 import { Icon } from "../../ui/Icon";
 import { Tooltip } from "../../ui/Tooltip";
 import "../matches/competitive.css";
@@ -113,6 +114,7 @@ export function ProblemPicker({
     },
   });
   const [chosen, setChosen] = useState<{ id: string; title: string }>();
+  const popover = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const selected =
     items.find((item) => item.id === value) ?? (chosen?.id === value ? chosen : undefined);
@@ -171,6 +173,7 @@ export function ProblemPicker({
         </Tooltip>
         <Popover.Portal>
           <Popover.Content
+            ref={popover}
             className="problem-picker-popover"
             sideOffset={8}
             collisionPadding={12}
@@ -181,20 +184,19 @@ export function ProblemPicker({
               input.current?.focus();
             }}
           >
-            <label className="problem-picker-search">
-              <Search size={16} />
-              <input
-                ref={input}
-                aria-label="Search problems"
-                placeholder="Search problems"
-                value={search}
-                maxLength={120}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
-              />
-            </label>
+            <SearchField
+              className="problem-picker-search"
+              ref={input}
+              shortcutTarget={popover}
+              aria-label="Search problems"
+              placeholder="Search problems"
+              value={search}
+              maxLength={120}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
             <div className="problem-picker-results" role="group" aria-label="Matching problems">
               {allowRandom && (
                 <button

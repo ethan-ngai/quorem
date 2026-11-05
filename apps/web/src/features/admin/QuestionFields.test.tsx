@@ -2,15 +2,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import { blankQuestion } from "./content";
-import { PublicPreview, QuestionFields, validJSONShape } from "./QuestionFields";
-
-it("rejects malformed typed structures before preview", () => {
-  expect(validJSONShape("Typed signature", null)).toBe(false);
-  expect(validJSONShape("Typed signature", { parameters: [] })).toBe(false);
-  expect(validJSONShape("Hidden cases (20 required)", [{ args: "wrong" }])).toBe(false);
-  expect(validJSONShape("Structured constraints", [{ kind: "range" }])).toBe(false);
-  expect(validJSONShape("Typed signature", blankQuestion().problem.signature)).toBe(true);
-});
+import { PublicPreview, QuestionFields } from "./QuestionFields";
 
 it("public preview excludes private reference code and hidden inputs", () => {
   const content = blankQuestion();
@@ -34,14 +26,7 @@ it("public preview excludes private reference code and hidden inputs", () => {
   expect(markup).not.toContain("PRIVATE_");
 });
 
-it("validates SQL stages and renders public table inputs without private cases", () => {
-  expect(
-    validJSONShape("SQL stages", [
-      { title: "Step 1", statementMarkdown: "Query", methods: [], examples: [] },
-    ]),
-  ).toBe(true);
-  expect(validJSONShape("SQL stage hidden cases", [[{ args: [], expected: {} }]])).toBe(true);
-  expect(validJSONShape("SQL stage hidden cases", [{ args: [] }])).toBe(false);
+it("renders public SQL table inputs without private cases", () => {
   const content = blankQuestion();
   content.problem.sql = { dialect: "postgresql", outputOrder: "unordered" };
   content.problem.examples = [

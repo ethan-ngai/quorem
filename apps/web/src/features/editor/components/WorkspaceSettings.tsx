@@ -11,7 +11,7 @@ import {
   type EditorSchemePreferences,
 } from "../editorSchemes";
 import { workspaceShortcuts } from "../workspaceShortcuts";
-import { ShortcutKeys } from "./ShortcutKeys";
+import { ShortcutKeys } from "../../../ui/ShortcutKeys";
 import { Icon } from "../../../ui/Icon";
 import { SegmentedControl } from "../../../ui/SegmentedControl";
 

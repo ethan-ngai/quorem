@@ -1606,6 +1606,10 @@
         "content": {
           "$ref": "#/$defs/QuestionContent"
         },
+        "editVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
         "publishedVersionId": {
           "type": "string",
           "format": "uuid"
@@ -1635,21 +1639,83 @@
         "slug": {
           "type": "string"
         },
+        "editVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
         "publishedVersionId": {
           "type": "string",
           "format": "uuid"
+        },
+        "difficulty": {
+          "type": "string"
+        },
+        "isOdyssey": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "companies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isSql": {
+          "type": "boolean"
+        },
+        "fromLeetCode": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
         },
         "updatedAt": {
           "type": "string",
           "format": "date-time"
         }
       },
-      "required": ["id", "revision", "title", "slug", "updatedAt"]
+      "required": [
+        "id",
+        "revision",
+        "title",
+        "slug",
+        "updatedAt",
+        "isSql",
+        "fromLeetCode",
+        "ready",
+        "difficulty",
+        "isOdyssey",
+        "tags",
+        "companies"
+      ]
     },
     "QuestionDraftPage": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "facets": {
+          "type": "object",
+          "required": ["topics", "companies"],
+          "properties": {
+            "topics": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "companies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "items": {
           "type": "array",
           "maxItems": 50,
@@ -1680,6 +1746,9 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "edit": {
+              "type": "boolean"
+            },
             "problemVersionId": {
               "type": "string",
               "format": "uuid"

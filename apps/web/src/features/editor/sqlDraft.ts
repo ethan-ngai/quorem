@@ -129,7 +129,11 @@ export function normalizeSqlDraft(problem: QuestionProblem, source: string, expe
   const tables = schema.map((table) => {
     const matches = setup.tables.filter((item) => item.name === table.name);
     if (matches.length !== 1) throw new Error(`Missing or duplicate table ${table.name}.`);
-    return { ...matches[0]!, rows: rows(matches[0]!.rows, table.columns, false, table.name) };
+    const source = matches[0]!;
+    const normalizedRows = rows(source.rows, table.columns, false, table.name);
+    return problem.sql?.tables?.length
+      ? { name: table.name, rows: normalizedRows }
+      : { ...source, rows: normalizedRows };
   });
   if (!expected) return { args: [{ tables }] };
   const result = parseSqlResult(expected);
@@ -137,7 +141,10 @@ export function normalizeSqlDraft(problem: QuestionProblem, source: string, expe
   if (!columns.length) throw new Error("Output schema is unavailable.");
   return {
     args: [{ tables }],
-    expected: { ...result, rows: rows(result.rows, columns, true, "Output") },
+    expected: {
+      ...(problem.sql?.output?.length ? {} : result),
+      rows: rows(result.rows, columns, true, "Output"),
+    },
   };
 }
 

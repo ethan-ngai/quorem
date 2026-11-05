@@ -343,6 +343,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/question-publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listQuestionPublications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/question-drafts": {
         parameters: {
             query?: never;
@@ -401,7 +417,39 @@ export interface paths {
         get: operations["getQuestionDraft"];
         put: operations["updateQuestionDraft"];
         post?: never;
+        delete: operations["deleteQuestionDraft"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/question-drafts/{id}/deletion-impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getQuestionDeletionImpact"];
+        put?: never;
+        post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/question-drafts/{id}/publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteQuestionPublication"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1366,6 +1414,8 @@ export interface components {
             revision: string;
             content: components["schemas"]["QuestionContent"];
             /** Format: uuid */
+            editVersionId?: string;
+            /** Format: uuid */
             publishedVersionId?: string;
             /** Format: date-time */
             updatedAt: string;
@@ -1377,11 +1427,24 @@ export interface components {
             title: string;
             slug: string;
             /** Format: uuid */
+            editVersionId?: string;
+            /** Format: uuid */
             publishedVersionId?: string;
+            difficulty: string;
+            isOdyssey: boolean;
+            tags: string[];
+            companies: string[];
+            isSql: boolean;
+            fromLeetCode: boolean;
+            ready: boolean;
             /** Format: date-time */
             updatedAt: string;
         };
         QuestionDraftPage: {
+            facets?: {
+                topics: string[];
+                companies: string[];
+            };
             items: components["schemas"]["QuestionDraftSummary"][];
             /** Format: uuid */
             nextCursor?: string;
@@ -1389,6 +1452,7 @@ export interface components {
         CreateQuestionDraftRequest: {
             content: components["schemas"]["QuestionContent"];
         } | {
+            edit?: boolean;
             /** Format: uuid */
             problemVersionId: string;
         };
@@ -2342,9 +2406,75 @@ export interface operations {
             };
         };
     };
+    listQuestionPublications: {
+        parameters: {
+            query?: {
+                q?: string;
+                sql?: string;
+                type?: string;
+                difficulty?: string;
+                topic?: string;
+                company?: string;
+                source?: string;
+                readiness?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        facets?: {
+                            topics: string[];
+                            companies: string[];
+                        };
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            title: string;
+                            slug: string;
+                            version: string;
+                            isPrivate: boolean;
+                            difficulty: string;
+                            isOdyssey: boolean;
+                            tags: string[];
+                            companies: string[];
+                            isSql: boolean;
+                            fromLeetCode: boolean;
+                            current: boolean;
+                        }[];
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listQuestionDrafts: {
         parameters: {
             query?: {
+                q?: string;
+                sql?: string;
+                type?: string;
+                difficulty?: string;
+                topic?: string;
+                company?: string;
+                source?: string;
+                readiness?: string;
                 cursor?: string;
             };
             header?: never;
@@ -2429,7 +2559,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        status: "ready" | "created" | "existing" | "conflict";
+                        status: "ready" | "created" | "existing" | "unchanged" | "conflict";
                         /** Format: uuid */
                         draftId?: string;
                         message?: string;
@@ -2474,7 +2604,7 @@ export interface operations {
                     "application/json": {
                         items: {
                             /** @enum {string} */
-                            status: "ready" | "created" | "existing" | "conflict" | "invalid";
+                            status: "ready" | "created" | "existing" | "unchanged" | "conflict" | "invalid";
                             /** Format: uuid */
                             draftId?: string;
                             message?: string;
@@ -2547,6 +2677,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuestionDraft"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteQuestionDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Draft deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted: boolean;
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getQuestionDeletionImpact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        workspaces: number;
+                        matches: number;
+                        submissions: number;
+                        current: boolean;
+                        replacements: {
+                            /** Format: uuid */
+                            id: string;
+                            title: string;
+                            version: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteQuestionPublication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: string;
+                    /** Format: uuid */
+                    replacementVersionId?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted: boolean;
+                    };
                 };
             };
             /** @description Safe application error */

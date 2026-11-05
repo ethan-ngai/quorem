@@ -1,3 +1,4 @@
+import { parseCatalogFilter } from "../queries.ts";
 /** @file routes.ts @description Question authoring HTTP transport. @module problems */
 import { Hono, type Context } from "hono";
 import {
@@ -78,11 +79,27 @@ export function authoringRoutes(deps: AuthoringDependencies) {
   };
   const json = (c: Context, value: string, status: 200 | 201 = 200) =>
     c.body(value, status, { "Content-Type": "application/json; charset=utf-8" });
+  function filters(url: string) {
+    const query = new URL(url).searchParams;
+    const source = query.get("source") ?? undefined;
+    const readiness = query.get("readiness") ?? undefined;
+    if (
+      (source !== undefined && !["leetcode", "other"].includes(source)) ||
+      (readiness !== undefined && !["ready", "needs-fixes"].includes(readiness))
+    )
+      invalid("Invalid question filters");
+    const catalog = parseCatalogFilter(query);
+    return { ...catalog, sql: catalog.sql || ("false" as const), source, readiness };
+  }
+  app.get("/v1/admin/question-publications", async (c) => {
+    const p = await principal(c.req.raw);
+    return json(c, await deps.authoring.publications(p, filters(c.req.url)));
+  });
   app.get("/v1/admin/question-drafts", async (c) => {
     const p = await principal(c.req.raw),
       cursor = c.req.query("cursor") ?? "";
     if (cursor && !uuid.test(cursor)) invalid("Invalid cursor");
-    return json(c, await deps.authoring.list(p, cursor));
+    return json(c, await deps.authoring.list(p, cursor, filters(c.req.url)));
   });
   app.get("/v1/admin/question-drafts/:id", async (c) => {
     const p = await principal(c.req.raw),
@@ -93,7 +110,7 @@ export function authoringRoutes(deps: AuthoringDependencies) {
   app.post("/v1/admin/question-drafts", async (c) => {
     const p = await principal(c.req.raw),
       req = await body(c.req.raw, (2 << 20) + 1024);
-    fields(req, ["content", "problemVersionId"]);
+    fields(req, ["content", "problemVersionId", "edit"]);
     const id = text(req.problemVersionId),
       content =
         req.content === undefined || req.content === null
@@ -101,7 +118,12 @@ export function authoringRoutes(deps: AuthoringDependencies) {
           : stringifyLosslessJson(req.content);
     if ((content === undefined) === (id === "")) invalid("Provide content or problemVersionId");
     if (id && !uuid.test(id)) invalid("Invalid problem version");
-    return json(c, await deps.authoring.create(p, content, id || undefined), 201);
+    if (req.edit !== undefined && (typeof req.edit !== "boolean" || !id)) invalid();
+    return json(
+      c,
+      await deps.authoring.create(p, content, id || undefined, req.edit === true),
+      201,
+    );
   });
   app.post("/v1/admin/question-drafts/import", async (c) => {
     const p = await principal(c.req.raw),
@@ -136,7 +158,49 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     if (req.content === undefined || req.content === null) invalid("Content required");
     return json(
       c,
-      await deps.authoring.update(p, id, text(req.revision), stringifyLosslessJson(req.content)),
+      await deps.authoring.update(
+        { ...p, globalAllowed: deps.allowLocalStrongBypass || p.strongUntil > deps.now() },
+        id,
+        text(req.revision),
+        stringifyLosslessJson(req.content),
+      ),
+    );
+  });
+  app.delete("/v1/admin/question-drafts/:id", async (c) => {
+    const p = await principal(c.req.raw);
+    const id = c.req.param("id");
+    draftId(id);
+    const req = await body(c.req.raw, 1024);
+    fields(req, ["revision"]);
+    return json(c, await deps.authoring.deleteDraft(p, id, text(req.revision)));
+  });
+  app.get("/v1/admin/question-drafts/:id/deletion-impact", async (c) => {
+    const p = await principal(c.req.raw);
+    const id = c.req.param("id");
+    draftId(id);
+    return json(c, await deps.authoring.deletionImpact(p, id));
+  });
+  app.delete("/v1/admin/question-drafts/:id/publication", async (c) => {
+    const p = await principal(c.req.raw);
+    const id = c.req.param("id");
+    draftId(id);
+    const req = await body(c.req.raw, 1024);
+    fields(req, ["revision", "replacementVersionId"]);
+    const replacement = req.replacementVersionId;
+    if (
+      replacement !== undefined &&
+      replacement !== null &&
+      (typeof replacement !== "string" || !uuid.test(replacement))
+    )
+      invalid("Invalid replacement version");
+    return json(
+      c,
+      await deps.authoring.deletePublication(
+        { ...p, globalAllowed: deps.allowLocalStrongBypass || p.strongUntil > deps.now() },
+        id,
+        text(req.revision),
+        replacement,
+      ),
     );
   });
   app.post("/v1/admin/question-drafts/:id/publish", async (c) => {

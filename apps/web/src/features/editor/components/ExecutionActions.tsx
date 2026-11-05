@@ -1,16 +1,18 @@
 /** @file ExecutionActions.tsx @description One execution action row for every coding workspace. @module editor */
 import { workspaceShortcuts } from "../workspaceShortcuts";
 import { Icon } from "../../../ui/Icon";
-import { ShortcutHint } from "./ShortcutKeys";
+import { ShortcutHint } from "../../../ui/ShortcutKeys";
 import { Tooltip } from "../../../ui/Tooltip";
 
 export function ExecutionActions({
   disabled,
+  runDisabled = disabled,
   onRun,
   onSubmit,
   onCancel,
 }: {
   disabled: boolean;
+  runDisabled?: boolean;
   onRun: () => void;
   onSubmit: () => void;
   onCancel?: () => void;
@@ -23,7 +25,7 @@ export function ExecutionActions({
         </button>
       )}
       <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.run} />}>
-        <button className="button button-secondary" disabled={disabled} onClick={onRun}>
+        <button className="button button-secondary" disabled={runDisabled} onClick={onRun}>
           <Icon name="play" />
           Run
         </button>

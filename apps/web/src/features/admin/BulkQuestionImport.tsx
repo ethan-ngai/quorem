@@ -10,7 +10,15 @@ type Row = {
   name: string;
   content?: QuestionContent;
   file?: File;
-  status: "pending" | "ready" | "created" | "existing" | "conflict" | "invalid" | "failed";
+  status:
+    | "pending"
+    | "ready"
+    | "created"
+    | "existing"
+    | "unchanged"
+    | "conflict"
+    | "invalid"
+    | "failed";
   selected: boolean;
   message?: string;
   draftId?: string;

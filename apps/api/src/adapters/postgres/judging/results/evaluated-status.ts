@@ -15,6 +15,7 @@ export type EvaluatedStatusRow = {
   readonly ordinal: number;
   readonly version: string;
   readonly size: number;
+  readonly workspace?: string;
 };
 function selection(scope: EvaluatedStatusScope): SQL {
   return scope.kind === "workspace"
@@ -26,6 +27,15 @@ function seed(scope: EvaluatedStatusScope): SQL {
     ? sql`json_build_array('workspace',${scope.workspaceId}::text,${scope.owner}::text,(SELECT o.reset_at::text FROM odyssey_progress o JOIN workspaces w ON w.id=o.scope_id AND w.problem_version_id=o.problem_version_id WHERE w.id=${scope.workspaceId}::uuid))::text`
     : sql`json_build_array('interview',${scope.sessionId}::text,${scope.epoch}::text,(SELECT language FROM interviews WHERE id=${scope.sessionId}::uuid))::text`;
 }
+function compactFeedback(scope: EvaluatedStatusScope): SQL {
+  return scope.kind === "workspace"
+    ? sql`SELECT f.*,f.xmin::text AS row_version FROM practice_case_feedback f
+          JOIN workspaces w ON w.id=f.workspace_id
+          LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id
+          WHERE w.id=${scope.workspaceId}::uuid AND w.owner_id=${scope.owner}
+            AND f.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`
+    : sql`SELECT f.*,f.xmin::text AS row_version FROM practice_case_feedback f WHERE false`;
+}
 /** Constant-size rolling digest detects retention, backfill, history and reset changes. */
 export async function evaluatedStatusPlan(
   tx: Transaction,
@@ -34,9 +44,14 @@ export async function evaluatedStatusPlan(
   const selected = selection(scope);
   const row = (
     await tx.execute<{ count: number; digest: string; missing: boolean }>(sql`
- WITH RECURSIVE selected AS (${selected}), base AS (
+ WITH RECURSIVE selected AS (${selected}), live AS (
   SELECT s.id,s.submission_version,s.kind,h.xmin::text AS header_version,c.channel,c.ordinal,c.xmin::text AS case_version,st.case_index,st.xmin::text AS status_version,st.status_hash AS status_hash
   FROM selected s LEFT JOIN submission_result_headers h ON h.submission_id=s.id LEFT JOIN submission_public_result_cases c ON c.submission_id=s.id LEFT JOIN submission_public_case_statuses st ON st.submission_id=c.submission_id AND st.channel=c.channel AND st.ordinal=c.ordinal
+ ), base AS (
+  SELECT * FROM live
+  UNION ALL
+  SELECT submission_id,NULL,NULL,NULL,'compact',case_index,NULL,case_index,row_version,sha256(status_json)
+  FROM (${compactFeedback(scope)}) compact
  ), numbered AS (
   SELECT *,row_number() OVER(ORDER BY id,channel NULLS FIRST,ordinal NULLS FIRST) AS n FROM base
  ), roll(n,digest) AS (
@@ -44,7 +59,7 @@ export async function evaluatedStatusPlan(
   SELECT r.n+1,sha256(r.digest || sha256(convert_to(json_build_array(b.id::text,b.submission_version,b.kind,b.header_version,b.channel,b.ordinal,b.case_version,b.case_index,b.status_version,encode(b.status_hash,'hex'))::text,'UTF8'))) FROM roll r JOIN numbered b ON b.n=r.n+1
  ) SELECT (SELECT count(DISTINCT case_index)::int FROM base WHERE case_index IS NOT NULL) AS count,
    encode((SELECT digest FROM roll ORDER BY n DESC LIMIT 1),'hex') AS digest,
-   EXISTS(SELECT 1 FROM base WHERE header_version IS NULL OR (ordinal IS NOT NULL AND (status_version IS NULL OR channel<>CASE WHEN kind='run' THEN 'public' ELSE 'sample' END))) AS missing`)
+   EXISTS(SELECT 1 FROM live WHERE header_version IS NULL OR (ordinal IS NOT NULL AND (status_version IS NULL OR channel<>CASE WHEN kind='run' THEN 'public' ELSE 'sample' END))) AS missing`)
   ).rows[0];
   if (row.missing) throw new Error("Public case statuses require backfill");
   return { count: row.count, digest: row.digest };
@@ -61,7 +76,22 @@ export async function nextEvaluatedStatus(
   return (
     (
       await tx.execute<EvaluatedStatusRow>(
-        sql`WITH selected AS (${selected}), latest AS (SELECT DISTINCT ON(st.case_index) st.case_index AS index,st.submission_id::text AS submission,st.channel,st.ordinal,st.xmin::text AS version,octet_length(st.status_json)::int AS size FROM selected s JOIN submission_public_result_cases c ON c.submission_id=s.id AND c.channel=CASE WHEN s.kind='run' THEN 'public' ELSE 'sample' END JOIN submission_public_case_statuses st ON st.submission_id=c.submission_id AND st.channel=c.channel AND st.ordinal=c.ordinal WHERE st.case_index>${after} ORDER BY st.case_index,s.admitted_at DESC,s.id DESC) SELECT * FROM latest ORDER BY index LIMIT 1`,
+        sql`WITH selected AS (${selected}), candidates AS (
+          SELECT st.case_index AS index,st.submission_id::text AS submission,st.channel,
+                 st.ordinal,st.xmin::text AS version,octet_length(st.status_json)::int AS size,
+                 s.admitted_at,NULL::text AS workspace
+          FROM selected s
+          JOIN submission_public_result_cases c ON c.submission_id=s.id
+            AND c.channel=CASE WHEN s.kind='run' THEN 'public' ELSE 'sample' END
+          JOIN submission_public_case_statuses st ON st.submission_id=c.submission_id
+            AND st.channel=c.channel AND st.ordinal=c.ordinal
+          UNION ALL
+          SELECT case_index,submission_id::text,'compact',case_index,row_version,
+                 octet_length(status_json),admitted_at,workspace_id::text
+          FROM (${compactFeedback(scope)}) compact
+        )
+        SELECT * FROM candidates WHERE index>${after}
+        ORDER BY index,admitted_at DESC,submission DESC,ordinal DESC LIMIT 1`,
       )
     ).rows[0] ?? null
   );
@@ -76,7 +106,11 @@ export async function evaluatedStatusPage(
     throw new RangeError("Invalid status page");
   const result = (
     await tx.execute<{ bytes: Uint8Array }>(
-      sql`SELECT substring(status_json FROM ${offset + 1} FOR 65536) AS bytes FROM submission_public_case_statuses WHERE submission_id=${row.submission}::uuid AND channel=${row.channel} AND ordinal=${row.ordinal} AND case_index=${row.index} AND xmin::text=${row.version} AND ${offset}<=octet_length(status_json)`,
+      row.workspace
+        ? sql`SELECT substring(status_json FROM ${offset + 1} FOR 65536) AS bytes
+              FROM practice_case_feedback WHERE workspace_id=${row.workspace}::uuid
+                AND case_index=${row.index} AND xmin::text=${row.version} AND ${offset}<=octet_length(status_json)`
+        : sql`SELECT substring(status_json FROM ${offset + 1} FOR 65536) AS bytes FROM submission_public_case_statuses WHERE submission_id=${row.submission}::uuid AND channel=${row.channel} AND ordinal=${row.ordinal} AND case_index=${row.index} AND xmin::text=${row.version} AND ${offset}<=octet_length(status_json)`,
     )
   ).rows[0];
   if (!result) throw new Error("Public case status changed");

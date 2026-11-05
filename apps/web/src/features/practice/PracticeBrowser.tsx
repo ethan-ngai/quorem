@@ -1,8 +1,8 @@
-import { formatLabel } from "../../ui/formatLabel";
+import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
 import { CatalogFilters } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { CatalogLayout, CatalogTable } from "./CatalogLayout";
+import { CatalogLayout, CatalogRow, CatalogTable } from "./CatalogLayout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import {
@@ -10,7 +10,6 @@ import {
   ArrowUp,
   ChevronLeft,
   ChevronRight,
-  Search,
   X,
   Layers,
   Globe,
@@ -22,6 +21,7 @@ import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { SearchField } from "../../ui/SearchField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { CatalogFilter } from "./CatalogFilter";
 import { addFilter, filterValues } from "./catalogSearch";
@@ -120,19 +120,16 @@ export function PracticeBrowser() {
         }
       >
         <div className="practice-toolbar">
-          <label className="practice-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              aria-label="Search questions"
-              placeholder="Search questions or topics"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setEditing(true);
-              }}
-            />
-          </label>
+          <SearchField
+            className="practice-search"
+            aria-label="Search questions"
+            placeholder="Search questions or topics"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setEditing(true);
+            }}
+          />
         </div>
         <div className="practice-filters">
           <CatalogFilters search={search} update={update} topics={topics} companies={companies} />
@@ -230,12 +227,11 @@ export function PracticeBrowser() {
                 }
               >
                 {catalog.data.items.map((problem) => (
-                  <tr
+                  <CatalogRow
                     key={problem.id}
                     onPointerEnter={warmWorkspacePage}
                     onFocusCapture={warmWorkspacePage}
-                    onClick={(event) => {
-                      if ((event.target as Element).closest("a, button, input")) return;
+                    onOpen={(event) => {
                       const href = `/practice/${problem.slug}`;
                       if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
                       else void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
@@ -245,31 +241,18 @@ export function PracticeBrowser() {
                       <Link to="/practice/$slug" params={{ slug: problem.slug }}>
                         {problem.title}
                       </Link>
-                      <div className="practice-topic-list">
-                        {problem.tags
-                          .filter((tag) => tag.toLowerCase() !== "sql")
-                          .map((tag) => (
-                            <button
-                              key={tag}
-                              onClick={() => update({ topic: addFilter(search.topic, tag) })}
-                              aria-label={`Filter by ${formatLabel(tag)}`}
-                            >
-                              {formatLabel(tag)}
-                            </button>
-                          ))}
-                      </div>
+                      <QuestionTopics
+                        tags={problem.tags}
+                        onFilter={(topic) => update({ topic: addFilter(search.topic, topic) })}
+                      />
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className={`practice-difficulty ${problem.difficulty}`}
-                        onClick={() =>
-                          update({ difficulty: addFilter(search.difficulty, problem.difficulty) })
+                      <QuestionDifficulty
+                        difficulty={problem.difficulty}
+                        onFilter={(difficulty) =>
+                          update({ difficulty: addFilter(search.difficulty, difficulty) })
                         }
-                        aria-label={`Filter by ${formatLabel(problem.difficulty)}`}
-                      >
-                        {formatLabel(problem.difficulty)}
-                      </button>
+                      />
                     </td>
                     <td className="practice-format">
                       <QuestionIndicators
@@ -277,7 +260,7 @@ export function PracticeBrowser() {
                         odyssey={!!problem.odyssey}
                       />
                     </td>
-                  </tr>
+                  </CatalogRow>
                 ))}
               </CatalogTable>
               {catalog.data.items.length === 0 && (

@@ -12,19 +12,26 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     return sql`DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table} WHERE published_at IS NOT NULL AND occurred_at < statement_timestamp()-interval '7 days' ORDER BY occurred_at,sequence FOR UPDATE SKIP LOCKED LIMIT ${limit})`;
   });
   statements.push(
-    // Odyssey reads evaluated case statuses across stages. Keep those until normal expiry.
+    // Preserve compact practice feedback before clearing large result payloads.
     sql`UPDATE submissions SET source='',result=NULL,result_payload=NULL,cases='[]'::jsonb,lossless_cases=NULL
       WHERE id IN (
         SELECT s.id FROM submissions s
-        WHERE s.kind='run' AND s.workspace_id IS NOT NULL AND s.match_id IS NULL
-          AND s.odyssey_level IS NULL AND s.state IN ('completed','failed','cancelled')
+        WHERE s.workspace_id IS NOT NULL AND s.match_id IS NULL
+          AND (s.kind='run' OR s.state IN ('failed','cancelled') OR EXISTS (
+            SELECT 1 FROM submissions newer
+            WHERE newer.workspace_id=s.workspace_id AND newer.match_id IS NULL
+              AND newer.kind='submit' AND newer.state='completed'
+              AND newer.odyssey_level IS NOT DISTINCT FROM s.odyssey_level
+              AND (newer.admitted_at,newer.id)>(s.admitted_at,s.id)
+          ))
+          AND s.state IN ('completed','failed','cancelled')
           AND s.updated_at < statement_timestamp()-interval '10 minutes'
           AND (s.source<>'' OR s.result IS NOT NULL OR s.result_payload IS NOT NULL OR s.cases<>'[]'::jsonb OR s.lossless_cases IS NOT NULL)
           AND NOT EXISTS (SELECT 1 FROM execution_jobs j WHERE j.submission_id=s.id AND (NOT j.finished OR j.lease_until IS NOT NULL))
         ORDER BY s.updated_at,s.id FOR UPDATE OF s SKIP LOCKED LIMIT ${limit}
       )`,
     sql`DELETE FROM execution_jobs WHERE id IN (SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN users u ON u.id=s.owner_id WHERE j.finished AND j.lease_until IS NULL AND s.state IN ('completed','failed','cancelled') AND s.admitted_at < statement_timestamp()-CASE
-      WHEN s.kind='run' AND s.workspace_id IS NOT NULL AND s.match_id IS NULL AND s.odyssey_level IS NULL
+      WHEN s.workspace_id IS NOT NULL AND s.match_id IS NULL AND (s.kind='run' OR (s.source='' AND s.result IS NULL))
         AND s.updated_at < statement_timestamp()-interval '10 minutes' THEN interval '24 hours'
       WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END ORDER BY s.admitted_at,j.id FOR UPDATE OF j SKIP LOCKED LIMIT ${limit})`,
     sql`DELETE FROM execution_checkpoints WHERE ctid IN (SELECT c.ctid FROM execution_checkpoints c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id JOIN users u ON u.id=s.owner_id WHERE s.state NOT IN ('queued','running') AND s.admitted_at < statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END FOR UPDATE OF c SKIP LOCKED LIMIT ${limit})`,
@@ -43,9 +50,10 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
       WHERE s.workspace_id IS NOT NULL AND s.match_id IS NULL
         AND s.state IN ('completed','failed','cancelled')
         AND s.admitted_at < statement_timestamp()-CASE
-          WHEN s.kind='run' AND s.odyssey_level IS NULL THEN interval '24 hours'
+          WHEN s.kind='run' OR (s.source='' AND s.result IS NULL) THEN interval '24 hours'
           WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END
         AND s.updated_at < statement_timestamp()-interval '10 minutes'
+        AND s.result IS NULL
         AND NOT EXISTS (SELECT 1 FROM execution_jobs j WHERE j.submission_id=s.id)
         AND NOT EXISTS (SELECT 1 FROM execution_idempotency i WHERE i.submission_id=s.id)
         AND NOT EXISTS (SELECT 1 FROM cancellation_idempotency i WHERE i.submission_id=s.id)
