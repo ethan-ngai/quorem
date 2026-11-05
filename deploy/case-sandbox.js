@@ -178,6 +178,7 @@ export class CaseSandbox extends DurableObject {
         phase: this.phase ?? "idle",
         failure: this.failure ?? "none",
         source: this.failureSource ?? "none",
+        ...(this.timing ? { timing: this.timing } : {}),
       });
     if (request.method === "DELETE") {
       console.log("case-lifecycle delete-begin");
@@ -264,6 +265,8 @@ export class CaseSandbox extends DurableObject {
   }
 
   async executeCase(request, active, generation, language, memory, processes, writer) {
+    const admitted = performance.now();
+    const timing = (this.timing = {});
     const token = active.token;
     let source;
     let step = "setup";
@@ -293,6 +296,7 @@ export class CaseSandbox extends DurableObject {
       await this.ctx.storage.setAlarm(deadline);
       if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
       const started = performance.now();
+      timing.inputMs = Math.round(started - admitted);
       container.start({
         image: container.images[language],
         instance: { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
@@ -314,6 +318,8 @@ export class CaseSandbox extends DurableObject {
         { user: "0:0", stdin: "pipe", stdout: "pipe", stderr: "pipe" },
       );
       this.phase = "exec-ready";
+      const ready = performance.now();
+      timing.startupMs = Math.round(ready - started);
       console.log(`case-lifecycle exec-ready ${language}`);
       console.log(
         `Case started language=${language} duration_ms=${Math.round(performance.now() - started)}`,
@@ -342,13 +348,16 @@ export class CaseSandbox extends DurableObject {
         observe(process.exitCode, "exit"),
       ]);
       this.phase = "streams-complete";
+      timing.executionMs = Math.round(performance.now() - ready);
       console.log(`case-lifecycle streams-complete ${language}`);
       const exit = new Uint8Array(4);
       new DataView(exit.buffer).setInt32(0, exitCode);
       step = "exit-frame";
       await writer.write(frame(3, exit));
       step = "destroy";
+      const destroy = performance.now();
       await this.stop();
+      timing.teardownMs = Math.round(performance.now() - destroy);
       step = "terminal-frame";
       await writer.write(frame(4, new Uint8Array()));
       step = "close";
@@ -364,6 +373,7 @@ export class CaseSandbox extends DurableObject {
       }
       await writer.abort(error).catch(() => {});
     } finally {
+      timing.totalMs = Math.round(performance.now() - admitted);
       if (this.active === active) this.active = undefined;
     }
   }
