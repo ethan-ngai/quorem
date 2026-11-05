@@ -1,23 +1,26 @@
-/** @file CodeEditorialFields.tsx @description One canonical solution and optional language editorials. @module admin */
+/** @file CodeEditorialFields.tsx @description Approach management and code-only language variants. @module admin */
 import { useRef, useState } from "react";
-import type { QuestionContent } from "@quorem/contracts";
-import { blankSolution } from "@quorem/questions";
-import { Clock3, Plus, Trash2, BookmarkCheck, ArrowUpRight, Code2 } from "lucide-react";
+import type { QuestionContent, SolutionApproach } from "@quorem/contracts";
+import {
+  blankApproach,
+  selectApproach,
+  approachTitle,
+  withCanonicalApproach,
+} from "@quorem/questions";
+import { Plus, Trash2, BookmarkCheck, ArrowUpRight, Code2 } from "lucide-react";
+import { Field } from "./AuthoringFields";
+import { TextInput } from "../../ui/TextControl";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { Tooltip } from "../../ui/Tooltip";
 import { SessionDialog } from "../../ui/SessionDialog";
-import { MarkdownField } from "../../ui/MarkdownField";
-import { TextInput } from "../../ui/TextControl";
-import { Field } from "./AuthoringFields";
 import { AuthoringCodeField } from "./AuthoringInputs";
-import { inlineStatement } from "../editor/components/StatementMarkdown";
-import { complexityMath } from "../editor/complexityMarkup";
+import { ApproachMetadataFields } from "./ApproachMetadataFields";
+import { ApproachPicker } from "../editor/components/ApproachPicker";
 import { revisions, languageImplementation, type Language } from "./content";
 import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
 
 const languages = Object.keys(revisions) as Language[];
-
 export function CodeEditorialFields({
   content,
   language,
@@ -31,47 +34,86 @@ export function CodeEditorialFields({
   disabled: boolean;
   onChange: (content: QuestionContent) => void;
 }) {
-  const [removal, setRemoval] = useState(false);
-  const removalTrigger = useRef<HTMLButtonElement>(null);
-  const addContent = useRef<HTMLButtonElement>(null);
-  const implementation = content.implementations.find((item) => item.language === language);
-  const canonical = language === content.canonicalSolution.language;
-  const solution = canonical
-    ? content.canonicalSolution
-    : content.solutions.find((item) => item.language === language);
-  function setSolution(patch: Partial<QuestionContent["canonicalSolution"]>) {
-    const next = { ...blankSolution(language), ...solution, ...patch };
-    onChange(
-      canonical
-        ? { ...content, canonicalSolution: next }
-        : {
-            ...content,
-            implementations: content.implementations.some((item) => item.language === language)
-              ? content.implementations
-              : [...content.implementations, languageImplementation(language)],
-            solutions: [...content.solutions.filter((item) => item.language !== language), next],
-          },
-    );
+  const [selectedId, setSelectedId] = useState<string>();
+  const [removal, setRemoval] = useState<"approach" | "code">();
+  const removalTrigger = useRef<HTMLButtonElement>(null),
+    addContent = useRef<HTMLButtonElement>(null);
+  const approach = selectApproach(content.approaches, selectedId, content.canonicalApproachId);
+  const canonical = approach?.id === content.canonicalApproachId;
+  const primaryLanguage = content.problem.sql ? "postgresql" : "python";
+  const canMakeCanonical = !!approach?.implementations.some(
+    (item) => item.language === primaryLanguage && item.source.trim(),
+  );
+  const variant = approach?.implementations.find((item) => item.language === language);
+  function updateApproach(patch: Partial<SolutionApproach>) {
+    if (approach)
+      onChange({
+        ...content,
+        approaches: content.approaches.map((item) =>
+          item.id === approach.id ? { ...item, ...patch } : item,
+        ),
+      });
+  }
+  function addApproach() {
+    const next = blankApproach(primaryLanguage, `approach-${crypto.randomUUID()}`);
+    if (content.approaches.length) next.title = `Approach ${content.approaches.length + 1}`;
+    onChange({
+      ...content,
+      canonicalApproachId: content.canonicalApproachId || next.id,
+      approaches: [...content.approaches, next],
+    });
+    setSelectedId(next.id);
+    onLanguageChange(primaryLanguage);
+  }
+  function setCode(source: string) {
+    if (!approach) return;
+    onChange({
+      ...content,
+      implementations: content.implementations.some((item) => item.language === language)
+        ? content.implementations
+        : [...content.implementations, languageImplementation(language)],
+      approaches: content.approaches.map((item) =>
+        item.id === approach.id
+          ? {
+              ...item,
+              implementations: [
+                ...item.implementations.filter((code) => code.language !== language),
+                { language, source },
+              ],
+            }
+          : item,
+      ),
+    });
   }
   return (
     <>
       <SessionDialog
-        open={removal}
+        open={!!removal}
         returnFocus={() =>
           (removalTrigger.current?.isConnected
             ? removalTrigger.current
             : addContent.current
           )?.focus({ preventScroll: true })
         }
-        onOpenChange={setRemoval}
-        title={`Remove ${languageLabels[language]} editorial?`}
-        description="Discards its code, explanation and complexity."
+        onOpenChange={(open) => {
+          if (!open) setRemoval(undefined);
+        }}
+        title={
+          removal === "approach"
+            ? `Remove ${approach ? approachTitle(approach, content.canonicalApproachId) : "approach"}?`
+            : `Remove ${languageLabels[language]} code?`
+        }
+        description={
+          removal === "approach"
+            ? "Discards this approach and all its language variants."
+            : "Discards this language variant. Shared explanation and complexity remain."
+        }
       >
         <footer className="competitive-dialog-actions">
           <button
             type="button"
             className="button button-secondary"
-            onClick={() => setRemoval(false)}
+            onClick={() => setRemoval(undefined)}
           >
             Cancel
           </button>
@@ -80,11 +122,18 @@ export function CodeEditorialFields({
             className="button button-danger"
             disabled={disabled}
             onClick={() => {
-              onChange({
-                ...content,
-                solutions: content.solutions.filter((item) => item.language !== language),
-              });
-              setRemoval(false);
+              if (removal === "approach" && !canonical)
+                onChange({
+                  ...content,
+                  approaches: content.approaches.filter((item) => item.id !== approach?.id),
+                });
+              else if (removal === "code" && approach?.defaultLanguage !== language)
+                updateApproach({
+                  implementations: approach!.implementations.filter(
+                    (item) => item.language !== language,
+                  ),
+                });
+              setRemoval(undefined);
             }}
           >
             Remove
@@ -93,142 +142,188 @@ export function CodeEditorialFields({
       </SessionDialog>
       <div className="admin-code-toolbar">
         <div className="authoring-language-actions">
-          <SelectField
-            label={content.problem.sql ? "SQL dialect" : "Editorial language"}
-            value={language}
-            disabled={disabled}
-            onChange={(value) => {
-              const next = languages.find((item) => item === value);
-              if (next) onLanguageChange(next);
-            }}
-            options={languages
-              .filter((value) =>
-                content.problem.sql ? value === "postgresql" : value !== "postgresql",
-              )
-              .map((value) => ({
-                value,
-                label: languageLabels[value],
-                leading: <LanguageLogo language={value} />,
-              }))}
-          />
-          {canonical && (
-            <Tooltip content="Default solution: used for judging and as the fallback editorial.">
-              <span
-                className="authoring-solution-status"
-                role="img"
-                aria-label="Default solution"
-                tabIndex={0}
-              >
-                <BookmarkCheck size={15} aria-hidden="true" />
-              </span>
-            </Tooltip>
-          )}
-          {!implementation && (
-            <button
-              type="button"
-              className="button button-ghost"
+          {approach && (
+            <ApproachPicker
+              approaches={content.approaches}
+              canonicalId={content.canonicalApproachId}
+              selectedId={approach.id}
+              onChange={setSelectedId}
               disabled={disabled}
-              onClick={() =>
-                onChange({
-                  ...content,
-                  implementations: [...content.implementations, languageImplementation(language)],
-                })
-              }
-            >
-              <Code2 size={14} aria-hidden="true" /> Allow submissions
-            </button>
+            />
           )}
-          {!canonical && solution && (
-            <Tooltip content="Remove editorial">
-              <button
-                ref={removalTrigger}
-                type="button"
-                className="icon-button destructive-icon"
-                aria-label="Remove editorial"
-                disabled={disabled}
-                onClick={() => setRemoval(true)}
-              >
-                <Trash2 size={14} aria-hidden="true" />
-              </button>
-            </Tooltip>
+          <Tooltip content="Add approach">
+            <button
+              ref={addContent}
+              type="button"
+              className="icon-button"
+              aria-label="Add approach"
+              disabled={disabled || content.approaches.length >= 8}
+              onClick={addApproach}
+            >
+              <Plus size={14} aria-hidden="true" />
+            </button>
+          </Tooltip>
+          {approach && (
+            <>
+              {canonical ? (
+                <Tooltip
+                  content={`Default approach: its ${languageLabels[primaryLanguage]} code is the canonical reference.`}
+                >
+                  <span
+                    className="authoring-solution-status"
+                    role="img"
+                    aria-label="Default approach"
+                    tabIndex={0}
+                  >
+                    <BookmarkCheck size={15} aria-hidden="true" />
+                  </span>
+                </Tooltip>
+              ) : (
+                <>
+                  <Tooltip
+                    content={`Requires ${languageLabels[primaryLanguage]} code`}
+                    disabled={canMakeCanonical}
+                  >
+                    <button
+                      type="button"
+                      className="button button-ghost"
+                      disabled={disabled || !canMakeCanonical}
+                      onClick={() => onChange(withCanonicalApproach(content, approach.id))}
+                    >
+                      <BookmarkCheck size={14} aria-hidden="true" /> Make canonical
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Remove approach">
+                    <button
+                      type="button"
+                      className="icon-button destructive-icon"
+                      aria-label="Remove approach"
+                      disabled={disabled}
+                      onClick={(event) => {
+                        removalTrigger.current = event.currentTarget;
+                        setRemoval("approach");
+                      }}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                    </button>
+                  </Tooltip>
+                </>
+              )}
+            </>
           )}
         </div>
       </div>
-      <div key={language}>
-        {!solution ? (
-          <div className="authoring-content-action">
-            <button
-              type="button"
-              className="button button-secondary"
-              ref={addContent}
+      {approach && (
+        <div key={approach.id}>
+          <Field label={canonical ? "Approach name (optional)" : "Approach name"}>
+            <TextInput
+              value={approach.title ?? ""}
+              placeholder={canonical ? "Solution" : "e.g. Hash map"}
+              onChange={(event) => updateApproach({ title: event.target.value })}
+            />
+          </Field>
+          <div className="admin-code-toolbar">
+            <div className="authoring-language-actions">
+              <SelectField
+                label={content.problem.sql ? "SQL dialect" : "Code language"}
+                value={language}
+                disabled={disabled}
+                onChange={(value) => {
+                  const next = languages.find((item) => item === value);
+                  if (next) onLanguageChange(next);
+                }}
+                options={languages
+                  .filter((value) =>
+                    content.problem.sql ? value === "postgresql" : value !== "postgresql",
+                  )
+                  .map((value) => ({
+                    value,
+                    label: languageLabels[value],
+                    leading: <LanguageLogo language={value} />,
+                  }))}
+              />
+              {!content.implementations.some((item) => item.language === language) && (
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  disabled={disabled}
+                  onClick={() =>
+                    onChange({
+                      ...content,
+                      implementations: [
+                        ...content.implementations,
+                        languageImplementation(language),
+                      ],
+                    })
+                  }
+                >
+                  <Code2 size={14} aria-hidden="true" /> Allow submissions
+                </button>
+              )}
+              {variant && language !== approach.defaultLanguage && (
+                <>
+                  {!canonical && (
+                    <button
+                      type="button"
+                      className="button button-ghost"
+                      disabled={disabled}
+                      onClick={() => updateApproach({ defaultLanguage: language })}
+                    >
+                      Use as default language
+                    </button>
+                  )}
+                  <Tooltip content="Remove language code">
+                    <button
+                      type="button"
+                      className="icon-button destructive-icon"
+                      aria-label="Remove language code"
+                      disabled={disabled}
+                      onClick={(event) => {
+                        removalTrigger.current = event.currentTarget;
+                        setRemoval("code");
+                      }}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                    </button>
+                  </Tooltip>
+                </>
+              )}
+            </div>
+          </div>
+          {variant ? (
+            <AuthoringCodeField
+              key={language}
+              label={`${solutionLanguageLabel(language)} approach code`}
+              hideLabel
+              language={language}
+              source={variant.source}
               disabled={disabled}
-              onClick={() => setSolution({})}
-            >
-              <Plus size={14} aria-hidden="true" /> Add {languageLabels[language]} editorial
-            </button>
-            <Tooltip content="View the default solution">
+              onChange={setCode}
+            />
+          ) : (
+            <div className="authoring-content-action">
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={disabled}
+                onClick={() => setCode("")}
+              >
+                <Plus size={14} aria-hidden="true" /> Add {languageLabels[language]} code
+              </button>
               <button
                 type="button"
                 className="button button-ghost"
-                onClick={() => onLanguageChange(content.canonicalSolution.language)}
+                onClick={() => onLanguageChange(approach.defaultLanguage)}
               >
-                <LanguageLogo language={content.canonicalSolution.language} />
-                {languageLabels[content.canonicalSolution.language]} default
+                <LanguageLogo language={approach.defaultLanguage} />
+                {languageLabels[approach.defaultLanguage]} default
                 <ArrowUpRight size={14} aria-hidden="true" />
               </button>
-            </Tooltip>
-          </div>
-        ) : (
-          <div>
-            <AuthoringCodeField
-              label={`${solutionLanguageLabel(language)} ${canonical ? "canonical solution" : "editorial code"}`}
-              hideLabel
-              language={language}
-              source={solution.source}
-              disabled={disabled}
-              onChange={(source) => setSolution({ source })}
-            />
-            <MarkdownField
-              label="Explanation"
-              value={solution.explanationMarkdown}
-              onChange={(explanationMarkdown) => setSolution({ explanationMarkdown })}
-            />
-            <section className="admin-editorial-complexity">
-              <h3 className="admin-editorial-heading">
-                <Clock3 size={15} /> Complexity
-              </h3>
-              <div className="admin-field-pair">
-                {(
-                  [
-                    ["timeComplexity", "Time"],
-                    ["spaceComplexity", "Auxiliary space"],
-                  ] as const
-                ).map(([field, label]) => (
-                  <Field label={label} key={field}>
-                    <TextInput
-                      mono
-                      value={solution[field]}
-                      placeholder="O(n)"
-                      onChange={(event) => setSolution({ [field]: event.target.value })}
-                    />
-                    {solution[field].trim() && (
-                      <span className="admin-complexity-preview">
-                        {inlineStatement(complexityMath(solution[field]))}
-                      </span>
-                    )}
-                  </Field>
-                ))}
-              </div>
-              <MarkdownField
-                label="Complexity notes"
-                compact
-                value={solution.complexityNotes}
-                onChange={(complexityNotes) => setSolution({ complexityNotes })}
-              />
-            </section>
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+          <ApproachMetadataFields approach={approach} onChange={updateApproach} />
+        </div>
+      )}
     </>
   );
 }

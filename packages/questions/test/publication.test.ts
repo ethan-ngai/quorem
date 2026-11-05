@@ -105,12 +105,13 @@ it("validates SQL publication and rejects invalid fixture types", () => {
       starterSource: "select 1",
     },
   ];
-  content.canonicalSolution = {
-    ...content.canonicalSolution,
-    language: "postgresql",
-    source: "select 1",
-  };
-  content.solutions = [];
+  content.approaches = [
+    {
+      ...content.approaches[0],
+      defaultLanguage: "postgresql",
+      implementations: [{ language: "postgresql", source: "select 1" }],
+    },
+  ];
   const resolve = () => ({ revision: "postgresql-17.6-v1", harness: "quorem-postgresql-v2" });
   expect(() =>
     validateQuestionPublication(JSON.stringify(content), checkSchema, resolve),

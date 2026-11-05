@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run draft references through the Quorem Python harness inside a sandbox container."""
+from question_content import canonical_implementation
 import argparse
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
@@ -13,7 +14,7 @@ def validate(path):
     digest = hashlib.sha256(data).hexdigest()
     draft = json.loads(data)
     sig = draft['problem']['signature']
-    source = draft['canonicalSolution']['source']
+    source = canonical_implementation(draft)['source']
     for index, case in enumerate(draft['problem']['examples'] + draft['hiddenCases'], 1):
         request = {'source': source, 'signature': sig, 'args': case['args']}
         try:

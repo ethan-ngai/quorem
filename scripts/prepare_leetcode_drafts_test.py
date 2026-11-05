@@ -1,3 +1,4 @@
+from question_content import canonical_approach, canonical_implementation
 import importlib.util
 import unittest
 from pathlib import Path
@@ -31,10 +32,10 @@ class DraftTest(unittest.TestCase):
         self.assertEqual(result['problem']['leetcodeId'], 1)
         self.assertEqual(result['problem']['limits']['maxCollectionElements'], 100000)
         self.assertEqual(result['hiddenCases'], [{'args': [1], 'expected': 2}])
-        self.assertIn('class Solution: pass', result['canonicalSolution']['source'])
+        self.assertIn('class Solution: pass', canonical_implementation(result)['source'])
         self.assertNotIn('referenceSource', result['implementations'][0])
-        self.assertEqual(result['solutions'], [])
-        self.assertEqual(result['canonicalSolution']['timeComplexity'], '')
+        self.assertEqual(len(result['approaches']), 1)
+        self.assertEqual(canonical_approach(result)['timeComplexity'], '')
 
     def test_prelude_only_keeps_used_bindings_per_source(self):
         lines = ['import collections', 'import math', 'from typing import *', 'from collections import *', 'from math import *', "inf = float('inf')"]

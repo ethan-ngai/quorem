@@ -1,12 +1,13 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
-import { selectEditorial } from "@quorem/questions";
+import { selectApproach, approachCode } from "@quorem/questions";
 import { userFacingErrorMessage } from "../../../ui/errors";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { DevelopmentIdentity, EditorialSolution } from "@quorem/contracts";
+import type { DevelopmentIdentity, ApproachComplexity } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Braces, Clock3 } from "lucide-react";
+import { ApproachPicker } from "./ApproachPicker";
 import { EditorialCode } from "./EditorialCode";
 import { solutionLanguageLabel } from "../editorLanguages";
 import type { EditorTheme } from "../PythonEditor";
@@ -15,15 +16,15 @@ import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 
 type Complexity = Pick<
-  EditorialSolution,
-  "language" | "timeComplexity" | "spaceComplexity" | "complexityNotes"
+  ApproachComplexity,
+  "timeComplexity" | "spaceComplexity" | "complexityNotes"
 >;
 /** Complexity is separate from published solution source. */
 async function loadComplexity(identity: DevelopmentIdentity, id: string) {
   const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/complexity", {
     params: { path: { id } },
   });
-  return requireData(data, error).items;
+  return requireData(data, error);
 }
 
 export function EditorialPanel({
@@ -45,6 +46,7 @@ export function EditorialPanel({
   available?: boolean;
   solutionAvailable?: boolean;
 }) {
+  const [selectedId, setSelectedId] = useState<string>();
   const [active, setActive] = useState<"complexity" | "solution" | null>(null);
   const [displayed, setDisplayed] = useState<"complexity" | "solution" | null>(null);
   function toggle(item: "complexity" | "solution") {
@@ -55,27 +57,38 @@ export function EditorialPanel({
     }
   }
   const complexity = useQuery({
-    queryKey: ["complexity", identity, versionId],
+    queryKey: ["complexity", "approaches", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
     enabled: !inMatch && available,
     staleTime: Infinity,
     retry: false,
   });
   const solutions = useQuery({
-    queryKey: ["solutions", identity, versionId],
+    queryKey: ["solutions", "approaches", identity, versionId],
     queryFn: async () => {
       const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/solutions", {
         params: { path: { id: versionId } },
       });
-      return requireData(data, error).items;
+      return requireData(data, error);
     },
     enabled: !inMatch && solutionAvailable,
     staleTime: Infinity,
     retry: false,
   });
   if (inMatch || (!available && !solutionAvailable)) return null;
-  const selectedComplexity = selectEditorial(complexity.data, language);
-  const selectedSolution = selectEditorial(solutions.data, language);
+  const selectedComplexity = selectApproach(
+    complexity.data?.items,
+    selectedId,
+    complexity.data?.canonicalApproachId ?? "",
+  );
+  const selectedSolution = selectApproach(
+    solutions.data?.items,
+    selectedId,
+    solutions.data?.canonicalApproachId ?? "",
+  );
+  const selectedCode = selectedSolution && approachCode(selectedSolution, language);
+  const choices = displayed === "complexity" ? complexity.data : solutions.data;
+  const selected = displayed === "complexity" ? selectedComplexity : selectedSolution;
   const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
     <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
@@ -112,6 +125,14 @@ export function EditorialPanel({
             if (!visible) setDisplayed(null);
           }}
         >
+          {choices && choices.items.length > 1 && selected && (
+            <ApproachPicker
+              approaches={choices.items}
+              canonicalId={choices.canonicalApproachId}
+              selectedId={selected.id}
+              onChange={setSelectedId}
+            />
+          )}
           {displayed === "complexity" ? (
             complexity.isPending ? (
               <p role="status">Loading complexity…</p>
@@ -125,7 +146,7 @@ export function EditorialPanel({
             ) : selectedComplexity ? (
               <ComplexityDetails value={selectedComplexity} />
             ) : (
-              <p>No published complexity for {language}.</p>
+              <p>No published complexity.</p>
             )
           ) : solutions.isPending ? (
             <p role="status">Loading solution…</p>
@@ -133,21 +154,24 @@ export function EditorialPanel({
             <p role="alert">
               {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}
             </p>
-          ) : selectedSolution ? (
+          ) : selectedSolution && selectedCode ? (
             <>
-              <p>{solutionLanguageLabel(selectedSolution.language)} solution</p>
+              <p>{solutionLanguageLabel(selectedCode.language)} solution</p>
               {selectedSolution.explanationMarkdown && (
                 <StatementMarkdown source={selectedSolution.explanationMarkdown} />
               )}
               <EditorialCode
-                source={selectedSolution.source}
-                language={selectedSolution.language}
+                source={selectedCode.source}
+                language={selectedCode.language}
                 theme={theme}
                 colorScheme={colorScheme}
               />
+              {(selectedSolution.timeComplexity ||
+                selectedSolution.spaceComplexity ||
+                selectedSolution.complexityNotes) && <ComplexityDetails value={selectedSolution} />}
             </>
           ) : (
-            <p>No published solution for {language}.</p>
+            <p>No published solution.</p>
           )}
         </div>
       )}
@@ -161,11 +185,19 @@ export function ComplexityDetails({ value }: { value: Complexity }) {
       <dl>
         <div>
           <dt>Time</dt>
-          <dd>{inlineStatement(complexityMath(value.timeComplexity))}</dd>
+          <dd>
+            {value.timeComplexity
+              ? inlineStatement(complexityMath(value.timeComplexity))
+              : "Not specified"}
+          </dd>
         </div>
         <div>
           <dt>Auxiliary space</dt>
-          <dd>{inlineStatement(complexityMath(value.spaceComplexity))}</dd>
+          <dd>
+            {value.spaceComplexity
+              ? inlineStatement(complexityMath(value.spaceComplexity))
+              : "Not specified"}
+          </dd>
         </div>
       </dl>
       {value.complexityNotes && (

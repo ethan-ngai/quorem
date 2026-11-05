@@ -36,8 +36,8 @@ for (const derived of [
   "runtimeRevision",
   "languages",
   "isPrivate",
-  "solutionLanguages",
-  "complexityLanguages",
+  "hasSolutions",
+  "hasComplexity",
 ])
   assert(!(derived in authorFields), `Derived field in question definition: ${derived}`);
 for (const name of Object.keys(authorFields)) {
@@ -52,8 +52,8 @@ for (const field of [
   "runtimeRevision",
   "languages",
   "isPrivate",
-  "solutionLanguages",
-  "complexityLanguages",
+  "hasSolutions",
+  "hasComplexity",
 ]) {
   assert(
     !validateQuestion({

@@ -10,7 +10,7 @@ describe("question JSON import", () => {
   it("preserves private judging and editorial content", () => {
     const content = blankQuestion();
     content.hiddenCases = [{ args: [42], expected: 42 }];
-    content.canonicalSolution.source = "canonical reference";
+    content.approaches[0]!.implementations[0]!.source = "canonical reference";
     expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);
   });
   it("imports SQL tables, numeric results, and method-free stages", () => {

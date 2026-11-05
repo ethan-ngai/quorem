@@ -129,7 +129,9 @@ before(async () => {
     (item: { language: string }) => item.language === "python",
   );
   fixture.implementations[0].starterSource = "class Solution:\n def f(self,x): pass\n";
-  fixture.canonicalSolution.source = "class Solution:\n def f(self,x): return x+1\n";
+  fixture.approaches[0].implementations.find(
+    (item: { language: string }) => item.language === "python",
+  )!.source = "class Solution:\n def f(self,x): return x+1\n";
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,'lifecycle')`);

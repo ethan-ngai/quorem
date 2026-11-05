@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
-import { blankSolution } from "@quorem/questions";
+import { blankApproach } from "@quorem/questions";
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
@@ -58,8 +58,13 @@ describe.skipIf(!url)("native worker authoring", () => {
           harnessRevision: "quorem-harness-v2",
         },
       ],
-      canonicalSolution: { ...blankSolution(), source: "class Solution: pass" },
-      solutions: [],
+      canonicalApproachId: "default",
+      approaches: [
+        {
+          ...blankApproach(),
+          implementations: [{ language: "python", source: "class Solution: pass" }],
+        },
+      ],
     };
     const create = await SELF.fetch("http://localhost/v1/admin/question-drafts", {
       method: "POST",

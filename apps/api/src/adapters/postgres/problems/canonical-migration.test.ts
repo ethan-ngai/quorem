@@ -2,7 +2,6 @@
 import { mkdtemp, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { createNodePool } from "@quorem/database/core";
@@ -63,7 +62,11 @@ it.skipIf(!url)(
           [safe, Buffer.from(raw)],
         )
       ).rows[0].id;
-      await migrate(pool, "product", fileURLToPath(migrations));
+      await writeFile(
+        join(directory, "073_canonical_solution.sql"),
+        await readFile(new URL("073_canonical_solution.sql", migrations)),
+      );
+      await migrate(pool, "product", directory);
       const solutions = (
         await pool.query(
           "SELECT source FROM problem_solutions WHERE version_id=ANY($1) ORDER BY source",

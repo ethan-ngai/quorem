@@ -166,13 +166,19 @@ async function registerArtifacts(tx: Transaction, c: Obj, versionId: string): Pr
     );
     if (!result.rows.length) throw new Error("Fixture language artifacts are immutable");
   }
-  for (const item of [c.canonicalSolution!, ...list(c.solutions)].filter((item) =>
-    str(object(item).source).trim(),
-  )) {
-    const v = object(item);
-    await tx.execute(
-      sql`INSERT INTO problem_solutions(version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes) VALUES(${versionId}::uuid,${str(v.language)},${str(v.source)},${str(v.explanationMarkdown)},${str(v.timeComplexity)},${str(v.spaceComplexity)},${typeof v.complexityNotes === "string" ? v.complexityNotes : ""}) ON CONFLICT DO NOTHING`,
-    );
+  for (const [ordinal, item] of list(c.approaches).entries()) {
+    const a = object(item);
+    const registered =
+      await tx.execute(sql`INSERT INTO problem_solution_approaches AS existing(version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes)
+      VALUES(${versionId}::uuid,${str(a.id)},${ordinal},${typeof a.title === "string" ? a.title : ""},${a.id === c.canonicalApproachId},${str(a.defaultLanguage)},${str(a.explanationMarkdown)},${str(a.timeComplexity)},${str(a.spaceComplexity)},${str(a.complexityNotes)}) ON CONFLICT(version_id,id) DO UPDATE SET id=EXCLUDED.id WHERE existing IS NOT DISTINCT FROM EXCLUDED RETURNING id`);
+    if (!registered.rows.length) throw new Error("Approach metadata is immutable");
+    for (const variant of list(a.implementations)) {
+      const v = object(variant);
+      const code = await tx.execute(
+        sql`INSERT INTO problem_solutions(version_id,approach_id,language,source) VALUES(${versionId}::uuid,${str(a.id)},${str(v.language)},${str(v.source)}) ON CONFLICT(version_id,approach_id,language) DO UPDATE SET source=EXCLUDED.source WHERE problem_solutions.source=EXCLUDED.source RETURNING language`,
+      );
+      if (!code.rows.length) throw new Error("Approach code is immutable");
+    }
   }
 }
 /** Resume an interrupted fixed fixture installation without changing existing content. */

@@ -35,10 +35,12 @@ it("edits the canonical Python solution directly without a duplicate reference",
       onChange={() => {}}
     />,
   );
-  expect(markup).toContain("Python canonical solution");
-  expect(markup).toContain('aria-label="Default solution"');
+  expect(markup).toContain("Python approach code");
+  expect(markup).toContain('aria-label="Default approach"');
   expect(markup).not.toContain("Canonical solution · default editorial");
   expect(markup).not.toContain("Judge reference");
+  expect(markup).toContain("Approach name (optional)");
+  expect(markup.match(/>Explanation</g)).toHaveLength(1);
   expect(markup).not.toContain('aria-label="Remove Python"');
   expect(markup).not.toContain("Publish editorial");
   expect(markup).not.toContain("Private implementation used to verify test results.");

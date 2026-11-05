@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Stage sourced replacements for three known bad references; never publish them."""
+from question_content import canonical_implementation
 import argparse
 import hashlib
 import io
@@ -121,12 +122,12 @@ def main():
         root = Path(temp)
         for id, (url, expected_hash) in SOURCES.items():
             content = json.loads((args.fixtures / f'{id}.json').read_text())
-            old = content['canonicalSolution']['source']
+            old = canonical_implementation(content)['source']
             if hashlib.sha256(old.encode()).hexdigest() != FAILING_REFERENCES[id]:
                 raise ValueError(f'{id}: original reference changed')
             source = python3_source(fetch(url, expected_hash))
             if id == '1254': source = 'from typing import List\n\n' + source
-            content['canonicalSolution']['source'] = source
+            canonical_implementation(content)['source'] = source
             content['attribution'] += f' Reference solution: {url}.'
             before = len(content['hiddenCases'])
             if not all(valid_case(id, c) for c in content['problem']['examples']): raise ValueError(f'invalid {id} public example')

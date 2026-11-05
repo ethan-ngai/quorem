@@ -83,7 +83,7 @@ def same_fixture(actual, expected, published=False):
     a, b = actual['problem'], expected['problem']
     problem_fields = ('leetcodeId', 'slug', 'companies', 'title', 'difficulty', 'tags',
                       'statementMarkdown', 'examples', 'constraints', 'signature', 'limits')
-    content_fields = ('hiddenCases', 'attribution', 'canonicalSolution', 'solutions')
+    content_fields = ('hiddenCases', 'attribution', 'canonicalApproachId', 'approaches')
     implementations = lambda content: [{k: v for k, v in item.items() if not (published and k == 'starterSource')}
                                        for item in content.get('implementations', [])]
     return (all(a.get(field) == b.get(field) for field in problem_fields)

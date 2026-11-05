@@ -1,41 +1,79 @@
-/** @file editorial.ts @description Canonical solution construction and language fallback. @module questions */
-import type { EditorialSolution } from "@quorem/contracts";
+/** @file editorial.ts @description Approach defaults, canonical references and language selection. @module questions */
+import type { SolutionApproach, SolutionCode } from "@quorem/contracts";
 import type { QuestionContent } from "./model.ts";
 
-/** Empty canonical/editorial fields for incomplete drafts. */
-export function blankSolution(
-  language: EditorialSolution["language"] = "python",
-): EditorialSolution {
+/** One metadata owner per algorithm; language variants contain code only. */
+export function blankApproach(
+  language: SolutionCode["language"] = "python",
+  id = "default",
+): SolutionApproach {
   return {
-    language,
-    source: "",
+    id,
+    title: "",
+    defaultLanguage: language,
     explanationMarkdown: "",
     timeComplexity: "",
     spaceComplexity: "",
     complexityNotes: "",
+    implementations: [{ language, source: "" }],
   };
 }
 
-/** The canonical source is the default editorial, never a second authored copy. */
-export function questionEditorials(content: QuestionContent): EditorialSolution[] {
-  return [content.canonicalSolution, ...content.solutions];
+/** The canonical name is optional; incomplete alternatives still have a readable label. */
+export function approachTitle(
+  approach: { title?: string; id: string },
+  canonicalId: string,
+): string {
+  return approach.title?.trim() || (approach.id === canonicalId ? "Solution" : "Approach");
 }
 
-/** Prefer the requested language; Python and SQL remain readable across workspace languages. */
-export function selectEditorial<T extends { language: string }>(
+/** Selection never depends on array order when the canonical approach is available. */
+export function selectApproach<T extends { id: string }>(
   items: readonly T[] | undefined,
-  language: string,
+  selectedId: string | undefined,
+  canonicalId: string,
 ): T | undefined {
   return (
-    items?.find((item) => item.language === language) ??
-    items?.find((item) => item.language === "python" || item.language === "postgresql")
+    items?.find((item) => item.id === selectedId) ??
+    items?.find((item) => item.id === canonicalId) ??
+    items?.[0]
   );
 }
 
-/** Availability follows the same selection policy as editorial content. */
-export function hasEditorial(languages: readonly string[] | undefined, language: string): boolean {
-  return !!selectEditorial(
-    languages?.map((language) => ({ language })),
-    language,
+/** Fallback belongs to each approach, independent of the workspace submission language. */
+export function approachCode(
+  approach: SolutionApproach,
+  language: string,
+): SolutionCode | undefined {
+  return (
+    approach.implementations.find((item) => item.language === language) ??
+    approach.implementations.find((item) => item.language === approach.defaultLanguage)
   );
+}
+
+/** Canonical executable code is also the default editorial, with no duplicate source. */
+export function canonicalCode(content: QuestionContent): SolutionCode | undefined {
+  const approach = content.approaches.find((item) => item.id === content.canonicalApproachId);
+  return approach?.implementations.find(
+    (item) => item.language === (content.problem.sql ? "postgresql" : "python"),
+  );
+}
+
+/** Promoting a new canonical approach also gives an unnamed predecessor a valid alternative name. */
+export function withCanonicalApproach(content: QuestionContent, id: string): QuestionContent {
+  const language = content.problem.sql ? "postgresql" : "python";
+  const next = content.approaches.find((item) => item.id === id);
+  if (!next?.implementations.some((item) => item.language === language && item.source.trim()))
+    throw new Error(`${language} code required for canonical approach`);
+  return {
+    ...content,
+    canonicalApproachId: id,
+    approaches: content.approaches.map((item) =>
+      item.id === id
+        ? { ...item, defaultLanguage: language }
+        : item.id === content.canonicalApproachId
+          ? { ...item, title: approachTitle(item, content.canonicalApproachId) }
+          : item,
+    ),
+  };
 }

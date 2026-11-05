@@ -101,7 +101,7 @@ before(async () => {
   const { questionAuthoring } = await import("../../problems/authoring/repository.ts");
   const runtime = (language: string) =>
     (
-      ({
+      {
         python: { revision: "python-3.12-v1", harness: "quorem-harness-v2" },
         java: { revision: "java-21.0.9-v1", harness: "quorem-java-v1" },
         typescript: {
@@ -110,7 +110,7 @@ before(async () => {
         },
         ocaml: { revision: "ocaml-4.13.1-v1", harness: "quorem-ocaml-v1" },
         postgresql: { revision: "postgresql-17.6-v1", harness: "quorem-postgresql-v2" },
-      }) as Record<string, { revision: string; harness: string }>
+      } as Record<string, { revision: string; harness: string }>
     )[language];
   const content = JSON.parse(
     readFileSync(resolve("../../fixtures/problems/run-widths.json"), "utf8"),
@@ -317,7 +317,7 @@ void test("public snapshots read only unlocked examples and authorized revealed 
   await pool.query(`GRANT UPDATE(id) ON users TO quorem_interview_public_test`);
   await pool.query(`GRANT UPDATE(session_id) ON interview_members TO quorem_interview_public_test`);
   await pool.query(
-    `GRANT SELECT ON interview_question_public,interview_members,users,interview_public_examples,interview_question_private_cases,interview_case_visibility,interview_execution_public,execution_jobs,submissions,odyssey_progress,problem_solutions TO quorem_interview_public_test`,
+    `GRANT SELECT ON interview_question_public,interview_members,users,interview_public_examples,interview_question_private_cases,interview_case_visibility,interview_execution_public,execution_jobs,submissions,odyssey_progress,problem_solutions,problem_solution_approaches TO quorem_interview_public_test`,
   );
   await assert.rejects(
     run((scope) =>
@@ -402,7 +402,7 @@ void test("published question creation composes canonical authoring, storage and
   const interviewSnapshot = interviewSnapshotStream(run);
   const runtime = (language: string) =>
     (
-      ({
+      {
         python: { revision: "python-3.12-v1", harness: "quorem-harness-v2" },
         java: { revision: "java-21.0.9-v1", harness: "quorem-java-v1" },
         typescript: {
@@ -411,7 +411,7 @@ void test("published question creation composes canonical authoring, storage and
         },
         ocaml: { revision: "ocaml-4.13.1-v1", harness: "quorem-ocaml-v1" },
         postgresql: { revision: "postgresql-17.6-v1", harness: "quorem-postgresql-v2" },
-      }) as Record<string, { revision: string; harness: string }>
+      } as Record<string, { revision: string; harness: string }>
     )[language];
   await pool.query(
     "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,'interview-host','questions.custom','manual','author','test','test')",

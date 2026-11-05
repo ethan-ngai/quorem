@@ -73,7 +73,7 @@ class ImportTest(unittest.TestCase):
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.tmp = tempfile.TemporaryDirectory()
         self.directory = Path(self.tmp.name)
-        self.content = {'problem': {'slug': 'lc-example', 'leetcodeId': 1, 'statementMarkdown': 'x', 'signature': {}}, 'hiddenCases': [], 'implementations': [{'language': 'python', 'starterSource': 'authored'}]}
+        self.content = {'problem': {'slug': 'lc-example', 'leetcodeId': 1, 'statementMarkdown': 'x', 'signature': {}}, 'hiddenCases': [], 'implementations': [{'language': 'python', 'starterSource': 'authored'}], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'implementations': [{'language': 'python', 'source': 'original'}]}]}
         data = json.dumps(self.content).encode()
         (self.directory / '1.json').write_bytes(data)
         (self.directory / 'manifest.json').write_text(json.dumps({'fixture_count': 1, 'fixtures': [{'file': '1.json', 'sha256': hashlib.sha256(data).hexdigest(), 'leetcodeId': 1}]}))
@@ -122,7 +122,7 @@ class ImportTest(unittest.TestCase):
 
     def test_existing_draft_with_different_solutions_is_not_published(self):
         self.assertEqual(self.run_import('--apply').returncode, 0)
-        Handler.draft['content']['solutions'] = [{'language': 'python', 'source': 'different'}]
+        Handler.draft['content']['approaches'][0]['implementations'][0]['source'] = 'different'
         result = self.run_import('--apply', '--publish', 'global')
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(Handler.publishes, 0)

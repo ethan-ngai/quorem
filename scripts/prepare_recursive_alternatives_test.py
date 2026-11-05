@@ -1,3 +1,4 @@
+from question_content import canonical_implementation
 import importlib.util
 from pathlib import Path
 import unittest
@@ -9,24 +10,24 @@ spec.loader.exec_module(iterative)
 
 class CandidateTest(unittest.TestCase):
     def test_reference_replaced_and_python2_compatibility_is_minimal(self):
-        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python'}], 'canonicalSolution': {'language': 'python', 'source': 'original'}, 'solutions': [], 'attribution': 'source'}
+        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python'}], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'title': '', 'defaultLanguage': 'python', 'explanationMarkdown': '', 'timeComplexity': '', 'spaceComplexity': '', 'complexityNotes': '', 'implementations': [{'language': 'python', 'source': 'original'}]}],  'attribution': 'source'}
         source = 'class Solution:\n    def f(self, x):\n        return sum(xrange(x))\n'
         result = iterative.candidate(fixture, source)
-        reference = result['canonicalSolution']['source']
+        reference = canonical_implementation(result)['source']
         self.assertEqual(reference, 'xrange = range\n\n' + source)
-        self.assertEqual(result['canonicalSolution']['source'], reference)
+        self.assertEqual(canonical_implementation(result)['source'], reference)
         self.assertIn(iterative.PIN_FILE + 'example.py', result['attribution'])
 
     def test_preserves_additional_editorials(self):
-        fixture = {'problem': {'slug': 'lc-example'}, 'canonicalSolution': {'language': 'python', 'source': 'old'},
-                   'solutions': [{'language': 'java', 'source': 'independent'}], 'attribution': ''}
+        fixture = {'problem': {'slug': 'lc-example'}, 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'title': '', 'defaultLanguage': 'python', 'explanationMarkdown': '', 'timeComplexity': '', 'spaceComplexity': '', 'complexityNotes': '', 'implementations': [{'language': 'java', 'source': 'independent'}, {'language': 'python', 'source': 'old'}]}],
+                    'attribution': ''}
         result = iterative.candidate(fixture, 'class Solution: pass\n')
-        self.assertEqual(result['solutions'], [{'language': 'java', 'source': 'independent'}])
+        self.assertEqual(next(i for i in result['approaches'][0]['implementations'] if i['language'] == 'java')['source'], 'independent')
 
     def test_only_needed_standard_bindings_are_added(self):
-        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python'}], 'canonicalSolution': {'language': 'python', 'source': 'original'}, 'solutions': [], 'attribution': ''}
+        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python'}], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'title': '', 'defaultLanguage': 'python', 'explanationMarkdown': '', 'timeComplexity': '', 'spaceComplexity': '', 'complexityNotes': '', 'implementations': [{'language': 'python', 'source': 'original'}]}],  'attribution': ''}
         source = 'class Solution:\n    def f(self, values):\n        return Counter(values)\n'
-        reference = iterative.candidate(fixture, source)['canonicalSolution']['source']
+        reference = canonical_implementation(iterative.candidate(fixture, source))['source']
         self.assertEqual(reference, 'from typing import Counter\n\n' + source)
 
     def test_selects_first_upstream_solution_and_converts_only_izip(self):

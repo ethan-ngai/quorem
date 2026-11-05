@@ -6,12 +6,12 @@ import { readPublishedFixture } from "./private-content.ts";
 const url = process.env.QUOREM_AUTHORING_TEST_DATABASE_URL;
 const runtime = (language: string) =>
   (
-    ({
+    {
       python: { revision: "python-3.12-v1", harness: "quorem-harness-v2" },
       java: { revision: "java-21.0.9-v1", harness: "quorem-java-v1" },
       typescript: { revision: "typescript-5.9.3-node-22.21.1-v1", harness: "quorem-typescript-v1" },
       ocaml: { revision: "ocaml-4.13.1-v1", harness: "quorem-ocaml-v1" },
-    }) as Record<string, { revision: string; harness: string }>
+    } as Record<string, { revision: string; harness: string }>
   )[language];
 describe.skipIf(!url)("private publication reader", () => {
   it("limits snapshots to current global or owned versions and requested language", async () => {
@@ -56,7 +56,10 @@ describe.skipIf(!url)("private publication reader", () => {
       fixture.implementations = fixture.implementations.filter(
         (v: { language: string }) => v.language === "python",
       );
-      fixture.solutions = [];
+      for (const approach of fixture.approaches)
+        approach.implementations = approach.implementations.filter(
+          (item: { language: string }) => item.language === "python",
+        );
       const raw = JSON.stringify(fixture);
       const draft = JSON.parse(await author.create(actor, raw, undefined));
       const published = JSON.parse(await author.publish(actor, draft.id, "1", "private"));

@@ -219,7 +219,7 @@ function comparablePublication(raw: string): Obj {
   delete problem.id;
   delete problem.version;
   problem.companies = list(problem.companies).map(str).sort();
-  for (const key of ["implementations", "solutions"] as const) {
+  for (const key of ["implementations"] as const) {
     value[key] = list(value[key])
       .map(object)
       .sort((a, b) => str(a.language).localeCompare(str(b.language)));
@@ -312,8 +312,8 @@ async function importItem(
       ["hidden tests", before.hiddenCases, after.hiddenCases],
       ["stage tests", before.odysseyHiddenCases, after.odysseyHiddenCases],
       ["language implementations", before.implementations, after.implementations],
-      ["canonical solution", before.canonicalSolution, after.canonicalSolution],
-      ["solutions", before.solutions, after.solutions],
+      ["canonical approach", before.canonicalApproachId, after.canonicalApproachId],
+      ["approaches", before.approaches, after.approaches],
       ["attribution", before.attribution, after.attribution],
     ] as const;
     const changed = sections

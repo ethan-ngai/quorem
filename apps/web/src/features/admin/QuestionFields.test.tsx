@@ -10,9 +10,9 @@ it("public preview shows canonical code and excludes hidden inputs", () => {
   content.problem.statementMarkdown = "Public statement";
   content.hiddenCases = [{ args: ["PRIVATE_INPUT"], expected: "PRIVATE_EXPECTATION" }];
 
-  content.canonicalSolution = {
-    language: "python",
-    source: "PUBLIC_CODE",
+  content.approaches[0] = {
+    ...content.approaches[0]!,
+    implementations: [{ language: "python", source: "PUBLIC_CODE" }],
     explanationMarkdown: "Public explanation",
     timeComplexity: "O(n)",
     spaceComplexity: "O(1)",

@@ -1,4 +1,4 @@
-import { blankSolution, questionEditorials } from "@quorem/questions";
+import { blankApproach, approachTitle } from "@quorem/questions";
 import type { ReportAuthoringValidity, AuthoringIssue } from "./authoringValidation";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -207,8 +207,8 @@ export function QuestionFields({
         hiddenCases: [],
         odysseyHiddenCases: staged ? [[]] : [],
         implementations: questionImplementations(isSQL),
-        canonicalSolution: blankSolution(nextLanguage),
-        solutions: [],
+        canonicalApproachId: "default",
+        approaches: [blankApproach(nextLanguage)],
       });
     } else {
       const methods = odyssey?.levels[0]?.methods;
@@ -343,9 +343,9 @@ export function QuestionFields({
                     content.odysseyHiddenCases?.some((cases) => cases.length);
                   const changesDialect = next.startsWith("sql-") !== !!problem.sql;
                   const hasCode =
-                    content.canonicalSolution.source ||
-                    content.solutions.length ||
-                    content.implementations.some((item) => item.starterSource);
+                    content.approaches.some((approach) =>
+                      approach.implementations.some((item) => item.source),
+                    ) || content.implementations.some((item) => item.starterSource);
                   if (
                     invalidCases ||
                     hasCases ||
@@ -496,25 +496,30 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
           )
         }
       />
-      {questionEditorials(content)
-        .filter((item) => item.source.trim())
-        .map((solution) => (
-          <section key={solution.language}>
-            <h2>{solutionLanguageLabel(solution.language as Language)} solution</h2>
-            {solution.explanationMarkdown && (
-              <StatementMarkdown source={solution.explanationMarkdown} />
-            )}
-            <CodeLiteral
-              block
-              source={solution.source}
-              language={solution.language}
-              className="editorial-source statement-code"
-            />
-            {(solution.timeComplexity || solution.spaceComplexity || solution.complexityNotes) && (
-              <ComplexityDetails value={solution} />
-            )}
-          </section>
-        ))}
+      {content.approaches.map((approach) => (
+        <section key={approach.id}>
+          <h2>{approachTitle(approach, content.canonicalApproachId)}</h2>
+          {approach.explanationMarkdown && (
+            <StatementMarkdown source={approach.explanationMarkdown} />
+          )}
+          {approach.implementations
+            .filter((item) => item.source.trim())
+            .map((variant) => (
+              <div key={variant.language}>
+                <h3>{solutionLanguageLabel(variant.language)} code</h3>
+                <CodeLiteral
+                  block
+                  source={variant.source}
+                  language={variant.language}
+                  className="editorial-source statement-code"
+                />
+              </div>
+            ))}
+          {(approach.timeComplexity || approach.spaceComplexity || approach.complexityNotes) && (
+            <ComplexityDetails value={approach} />
+          )}
+        </section>
+      ))}
     </div>
   );
 }

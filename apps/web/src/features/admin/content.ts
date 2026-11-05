@@ -1,6 +1,6 @@
 /** @file content.ts @description Initial draft and pinned language configuration. @module admin */
 import type { QuestionContent } from "@quorem/contracts";
-import { blankSolution } from "@quorem/questions";
+import { blankApproach } from "@quorem/questions";
 export const revisions = {
   python: ["python-3.12-v1", "quorem-harness-v2"],
   java: ["java-21.0.9-v1", "quorem-java-v1"],
@@ -51,7 +51,7 @@ export function blankQuestion(): QuestionContent {
     hiddenCases: [],
     attribution: "Original Quorem question.",
     implementations: questionImplementations(),
-    canonicalSolution: blankSolution(),
-    solutions: [],
+    canonicalApproachId: "default",
+    approaches: [blankApproach()],
   };
 }

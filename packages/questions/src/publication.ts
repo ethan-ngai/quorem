@@ -1,5 +1,5 @@
 /** @file publication.ts @description Definition and publication semantics over raw question JSON. @module questions */
-import { questionEditorials } from "./editorial.ts";
+import { canonicalCode } from "./editorial.ts";
 import type { QuestionContent, Signature } from "./model.ts";
 import { validateQuestionDraft } from "./draft.ts";
 import { validateSignature } from "./signature.ts";
@@ -190,20 +190,35 @@ export function validateQuestionPublication(
         : "Python implementation required for coding problems",
     );
   const canonicalLanguage = c.problem.sql ? "postgresql" : "python";
-  if (
-    c.canonicalSolution.language !== canonicalLanguage ||
-    (options.requireCanonicalSource !== false && !c.canonicalSolution.source.trim())
-  )
+  if (options.requireCanonicalSource !== false && !canonicalCode(c)?.source.trim())
     throw new Error(`${canonicalLanguage} canonical solution required`);
-  const editorials = new Set<string>();
-  for (const solution of questionEditorials(c)) {
+  if (c.approaches.length && !c.approaches.some((item) => item.id === c.canonicalApproachId))
+    throw new Error("canonical approach required");
+  if (!c.approaches.length && c.canonicalApproachId) throw new Error("invalid canonical approach");
+  const ids = new Set<string>();
+  for (const approach of c.approaches) {
+    const canonical = approach.id === c.canonicalApproachId;
     if (
-      !languages.has(solution.language) ||
-      editorials.has(solution.language) ||
-      (!solution.source.trim() &&
-        (solution !== c.canonicalSolution || options.requireCanonicalSource !== false))
+      !/^[a-z][a-z0-9-]*$/.test(approach.id) ||
+      ids.has(approach.id) ||
+      (!canonical && !approach.title?.trim())
     )
-      throw new Error("editorial language and code required");
-    editorials.add(solution.language);
+      throw new Error("unique approach ID and name required");
+    ids.add(approach.id);
+    const variants = new Set<string>();
+    for (const implementation of approach.implementations) {
+      if (
+        !languages.has(implementation.language) ||
+        variants.has(implementation.language) ||
+        !implementation.source.trim()
+      )
+        throw new Error("unique supported approach language and code required");
+      variants.add(implementation.language);
+    }
+    if (
+      !variants.has(approach.defaultLanguage) ||
+      (canonical && approach.defaultLanguage !== canonicalLanguage)
+    )
+      throw new Error("valid approach default language required");
   }
 }

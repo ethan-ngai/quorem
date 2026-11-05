@@ -91,7 +91,7 @@ export function QuestionEditor() {
 }
 
 function questionKey(userId: string, draft?: string, publication?: string) {
-  return ["admin-open-question", userId, draft, publication] as const;
+  return ["admin-open-question", "approaches", userId, draft, publication] as const;
 }
 
 function QuestionSelection({ admin, userId }: { admin: boolean; userId: string }) {

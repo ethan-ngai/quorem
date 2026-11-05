@@ -1,5 +1,4 @@
 /** @file draft.ts @description Bounded authoring draft rules. @module questions */
-import { questionEditorials } from "./editorial.ts";
 import type { QuestionContent } from "./model.ts";
 import { validSource } from "./source.ts";
 
@@ -28,7 +27,7 @@ export function validateQuestionDraft(content: QuestionContent): void {
     p.constraints.length > 64 ||
     content.hiddenCases.length > 100 ||
     content.implementations.length > 4 ||
-    content.solutions.length > 4 ||
+    content.approaches.length > 8 ||
     p.signature.parameters.length > 16
   )
     throw new Error("question collection limit exceeded");
@@ -85,16 +84,25 @@ export function validateQuestionDraft(content: QuestionContent): void {
     if (bytes(v.runtimeRevision) > 128 || bytes(v.harnessRevision) > 128)
       throw new Error("language revision limit exceeded");
   }
-  for (const v of questionEditorials(content)) {
-    if (!validSource(v.source))
-      throw new Error(
-        "editorial source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters",
-      );
+  if (bytes(content.canonicalApproachId) > 64)
+    throw new Error("canonical approach ID limit exceeded");
+  for (const approach of content.approaches) {
     if (
-      bytes(v.explanationMarkdown) > 65536 ||
-      bytes(v.timeComplexity) > 256 ||
-      bytes(v.spaceComplexity) > 256 ||
-      bytes(v.complexityNotes) > 4096
+      bytes(approach.id) > 64 ||
+      bytes(approach.title ?? "") > 160 ||
+      approach.implementations.length > 4
+    )
+      throw new Error("approach limit exceeded");
+    for (const implementation of approach.implementations)
+      if (!validSource(implementation.source))
+        throw new Error(
+          "editorial source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters",
+        );
+    if (
+      bytes(approach.explanationMarkdown) > 65536 ||
+      bytes(approach.timeComplexity) > 256 ||
+      bytes(approach.spaceComplexity) > 256 ||
+      bytes(approach.complexityNotes) > 65536
     )
       throw new Error("editorial text limit exceeded");
   }

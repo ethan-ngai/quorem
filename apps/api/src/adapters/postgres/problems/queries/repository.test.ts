@@ -116,7 +116,11 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [ids[2], `${uid}-company`],
       );
       await pool.query(
-        "INSERT INTO problem_solutions(version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes) VALUES($1,'python','SECRET EDITORIAL','explanation','O(n)','O(1)','note')",
+        "INSERT INTO problem_solution_approaches VALUES($1,'default',0,'',true,'python','explanation','O(n)','O(1)','note')",
+        [versions[1]],
+      );
+      await pool.query(
+        "INSERT INTO problem_solutions(version_id,approach_id,language,source) VALUES($1,'default','python','SECRET EDITORIAL')",
         [versions[1]],
       );
       await pool.query(
@@ -142,8 +146,9 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         problem_languages: "version_id,language,starter_source,runtime_revision,harness_revision",
         problem_examples: "version_id,ordinal,args,expected,explanation,calls",
         problem_tags: "version_id,tag,ordinal",
-        problem_solutions:
-          "version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+        problem_solution_approaches:
+          "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+        problem_solutions: "version_id,approach_id,language,source",
         companies: "id,name",
         problem_companies: "problem_id,company_id",
         matches: "id,problem_version_id,state,rules",

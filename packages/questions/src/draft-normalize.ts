@@ -1,6 +1,6 @@
 /** @file draft-normalize.ts @description Normalize incomplete authoring drafts without losing case values. @module questions */
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
-import { blankSolution } from "./editorial.ts";
+import { blankApproach } from "./editorial.ts";
 import { validateQuestionDraft } from "./draft.ts";
 import type { QuestionContent } from "./model.ts";
 import validateDraft from "./draft-validator.mjs";
@@ -153,16 +153,26 @@ export function normalizeQuestionDraft(rawJson: string): string {
     fields(item, ["language", "starterSource", "runtimeRevision", "harnessRevision"]);
     return item;
   });
-  const normalizeSolution = (value: JsonValue | undefined): Obj => {
+  field(content, "canonicalApproachId", "");
+  content.approaches = array(content.approaches).map((value) => {
     const item = object(value);
-    for (const [key, value] of Object.entries({ ...blankSolution(), language: "" }))
-      field(item, key, value);
+    for (const [key, value] of Object.entries({
+      ...blankApproach(p.sql ? "postgresql" : "python"),
+      id: "",
+    }))
+      if (key !== "implementations") field(item, key, value);
+    item.implementations = array(item.implementations).map((value) => {
+      const implementation = object(value);
+      fields(implementation, ["language", "source"]);
+      return implementation;
+    });
+    (item.implementations as Obj[]).sort((a, b) =>
+      typeof a.language === "string" && typeof b.language === "string"
+        ? a.language.localeCompare(b.language)
+        : 0,
+    );
     return item;
-  };
-  content.canonicalSolution = normalizeSolution(content.canonicalSolution);
-  if (content.canonicalSolution.language === "")
-    content.canonicalSolution.language = p.sql ? "postgresql" : "python";
-  content.solutions = array(content.solutions).map(normalizeSolution);
+  });
   if (content.odysseyHiddenCases !== undefined && content.odysseyHiddenCases !== null)
     content.odysseyHiddenCases = array(content.odysseyHiddenCases).map(cases);
   else delete content.odysseyHiddenCases;

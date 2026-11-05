@@ -1,4 +1,5 @@
 """Conservatively screen sourced question cases; unsupported rules require review."""
+from question_content import canonical_implementation
 import ast
 import hashlib
 import json
@@ -308,7 +309,7 @@ def assess(content):
         else:
             keep.append(case)
         if key not in seen: seen[key] = case.get('expected')
-    reference = content['canonicalSolution']['source']
+    reference = canonical_implementation(content)['source']
     bad = FAILING_REFERENCES.get(str(p.get('leetcodeId'))) == hashlib.sha256(reference.encode()).hexdigest()
     return {'unsupported': unsupported, 'invalid_examples': invalid_examples, 'rejected': rejected, 'cases': keep,
             'known_bad_reference': bad, 'verified_constraint_count': len(rules),

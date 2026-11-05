@@ -50,13 +50,22 @@
       "harnessRevision": "quorem-postgresql-v2"
     }
   ],
-  "solutions": [],
-  "canonicalSolution": {
-    "language": "postgresql",
-    "source": "SELECT id FROM items WHERE id > 0 ORDER BY id;",
+  "canonicalApproachId": "default",
+  "approaches": [
+  {
+    "id": "default",
+    "title": "",
+    "defaultLanguage": "postgresql",
     "explanationMarkdown": "",
     "timeComplexity": "",
     "spaceComplexity": "",
-    "complexityNotes": ""
+    "complexityNotes": "",
+    "implementations": [
+      {
+        "language": "postgresql",
+        "source": "SELECT id FROM items WHERE id > 0 ORDER BY id;"
+      }
+    ]
   }
+]
 }

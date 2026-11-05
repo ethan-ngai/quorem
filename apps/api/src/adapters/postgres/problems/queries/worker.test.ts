@@ -41,8 +41,9 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           problem_languages: "version_id,language,starter_source,runtime_revision,harness_revision",
           problem_examples: "version_id,ordinal,args,expected,explanation,calls",
           problem_tags: "version_id,tag,ordinal",
-          problem_solutions:
-            "version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+          problem_solution_approaches:
+            "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+          problem_solutions: "version_id,approach_id,language,source",
           companies: "id,name",
           problem_companies: "problem_id,company_id",
           matches: "id,problem_version_id,state,rules",

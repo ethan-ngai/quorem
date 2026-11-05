@@ -8,7 +8,6 @@ describe("complexity mathematics", () => {
     const markup = renderToStaticMarkup(
       <ComplexityDetails
         value={{
-          language: "python",
           timeComplexity: "O(n)",
           spaceComplexity: "O(w)",
           complexityNotes: "n is the number of nodes; w is the maximum occupied level width.",

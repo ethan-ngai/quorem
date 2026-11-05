@@ -1,11 +1,13 @@
-/** @file editorial.test.ts @description Canonical selection and runtime-independent publication. @module questions */
+/** @file editorial.test.ts @description Approach-owned metadata, canonical references and language fallback. @module questions */
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import {
-  blankSolution,
-  hasEditorial,
-  questionEditorials,
-  selectEditorial,
+  withCanonicalApproach,
+  blankApproach,
+  approachCode,
+  approachTitle,
+  canonicalCode,
+  selectApproach,
   validateQuestionDraft,
   validateQuestionPublication,
   validateQuestionSchema,
@@ -16,44 +18,66 @@ const example = (): QuestionContent =>
     readFileSync(new URL("../../contracts/questions/example-v1.json", import.meta.url), "utf8"),
   );
 const runtime = () => ({ revision: "python-3.12-v1", harness: "quorem-harness-v2" });
-
-it("publishes multiple submission languages with only one canonical source", () => {
+const publish = (content: QuestionContent) =>
+  validateQuestionPublication(JSON.stringify(content), validateQuestionSchema, runtime);
+it("publishes code-only language variants with one metadata owner", () => {
   const content = example();
   content.implementations.push({ ...content.implementations[0]!, language: "java" });
-  content.solutions = [];
-  expect(() =>
-    validateQuestionPublication(JSON.stringify(content), validateQuestionSchema, runtime),
-  ).not.toThrow();
-  expect(questionEditorials(content)).toEqual([content.canonicalSolution]);
-  expect(hasEditorial(["python"], "java")).toBe(true);
+  content.approaches[0]!.implementations.push({ language: "java", source: "class Solution {}" });
+  expect(() => publish(content)).not.toThrow();
+  expect(canonicalCode(content)?.language).toBe("python");
+  expect(approachCode(content.approaches[0]!, "java")?.language).toBe("java");
+  expect(approachCode(content.approaches[0]!, "ocaml")?.language).toBe("python");
 });
-it("requires Python canonical code and rejects duplicate or unsupported editorials", () => {
+it("allows an unnamed canonical approach; alternatives need names and unique IDs", () => {
   const content = example();
-  const publish = () =>
-    validateQuestionPublication(JSON.stringify(content), validateQuestionSchema, runtime);
-  content.canonicalSolution.language = "java";
-  expect(publish).toThrow("python canonical solution required");
-  content.canonicalSolution = blankSolution();
-  expect(publish).toThrow("canonical solution required");
-  content.canonicalSolution.source = "class Solution: pass";
-  content.solutions = [{ ...content.canonicalSolution }];
-  expect(publish).toThrow("editorial language and code required");
-  content.solutions[0]!.language = "java";
-  expect(publish).toThrow("editorial language and code required");
+  delete content.approaches[0]!.title;
+  expect(() => publish(content)).not.toThrow();
+  expect(approachTitle(content.approaches[0]!, content.canonicalApproachId)).toBe("Solution");
+  const alt = { ...content.approaches[0]!, id: "brute-force", title: "" };
+  content.approaches.push(alt);
+  expect(() => publish(content)).toThrow("name required");
+  alt.title = "Brute force";
+  expect(() => publish(content)).not.toThrow();
+  alt.id = content.canonicalApproachId;
+  expect(() => publish(content)).toThrow("unique approach");
 });
-it("applies source validity to canonical code as well as optional editorials", () => {
+it("requires canonical Python, valid defaults, supported code and no metadata overrides", () => {
   const content = example();
-  content.canonicalSolution.source = "bad\0source";
+  content.approaches[0]!.implementations = [];
+  expect(() => publish(content)).toThrow("python canonical solution required");
+  content.approaches[0] = blankApproach();
+  content.approaches[0].implementations[0]!.source = "pass";
+  content.approaches[0].defaultLanguage = "java";
+  expect(() => publish(content)).toThrow("default language");
+  content.approaches[0].defaultLanguage = "python";
+  content.approaches[0].implementations.push({ language: "java", source: "code" });
+  expect(() => publish(content)).toThrow("supported approach language");
+  content.approaches[0].implementations.pop();
+  Object.assign(content.approaches[0].implementations[0]!, { timeComplexity: "O(n)" });
+  expect(() => publish(content)).toThrow();
+});
+it("bounds source and selects approaches independently from workspace language", () => {
+  const content = example();
+  canonicalCode(content)!.source = "bad\0source";
   expect(() => validateQuestionDraft(content)).toThrow("NUL");
-  content.canonicalSolution.source = "x".repeat(65537);
+  canonicalCode(content)!.source = "x".repeat(65537);
   expect(() => validateQuestionDraft(content)).toThrow("65536");
+  const first = blankApproach(),
+    second = blankApproach("java", "sorting");
+  expect(selectApproach([second, first], undefined, "default")).toBe(first);
+  expect(selectApproach([first, second], "sorting", "default")).toBe(second);
+  expect(approachCode(second, "ocaml")?.language).toBe("java");
 });
-it("prefers an authored language and otherwise falls back only to the canonical language", () => {
-  const python = blankSolution(),
-    java = blankSolution("java");
-  expect(selectEditorial([python, java], "java")).toBe(java);
-  expect(selectEditorial([java, python], "ocaml")).toBe(python);
-  expect(selectEditorial([java], "ocaml")).toBeUndefined();
-  expect(selectEditorial([blankSolution("postgresql")], "postgresql")?.language).toBe("postgresql");
-  expect(hasEditorial(undefined, "python")).toBe(false);
+
+it("switches canonical reference without duplicating source or leaving an unnamed alternative", () => {
+  const content = example();
+  const alternative = { ...content.approaches[0]!, id: "sorting", title: "Sorting" };
+  content.approaches.push(alternative);
+  const changed = withCanonicalApproach(content, "sorting");
+  expect(changed.canonicalApproachId).toBe("sorting");
+  expect(changed.approaches[0]!.title).toBe("Solution");
+  expect(() => publish(changed)).not.toThrow();
+  expect(content.canonicalApproachId).toBe("default");
+  expect(() => withCanonicalApproach(content, "missing")).toThrow("code required");
 });

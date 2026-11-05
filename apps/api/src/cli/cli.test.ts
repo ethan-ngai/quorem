@@ -84,11 +84,11 @@ describe("operator CLI contracts", () => {
   it("pins canonical seed fingerprints, including raw JSON escapes", async () => {
     const raw = await readFile(resolve("../../fixtures/problems/mirror-letters.json"), "utf8");
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "27b270d7f18668344d055d4061fafb7c3ef10fa80451131c3dc1ace59de11972",
+      "ec14fc422587b3917c1a964a8ef20933263e9a079fb348b8987993049c0dac31",
     );
     const escaped = raw.replaceAll('"a-bC!"', '"\\u0061-bC!"');
     expect(seedFingerprint(escaped, "cli-operator").fingerprint).toBe(
-      "84fa80b8776fbd3d60a8a21fc4a17f2a391f838b441caf8aa516f6c6c3845b21",
+      "cadf7d46f184eb79496a386dbbf835d62fa57c0086dd69b9cc75c65bb8b4b5ce",
     );
   });
   it("pins canonical seed identity for lossless SQL numeric input", async () => {
@@ -118,11 +118,16 @@ describe("operator CLI contracts", () => {
         harnessRevision: "quorem-postgresql-v2",
       },
     ];
-    p.canonicalSolution = { ...p.canonicalSolution, language: "postgresql", source: "select 1" };
-    p.solutions = [];
+    p.approaches = [
+      {
+        ...p.approaches[0],
+        defaultLanguage: "postgresql",
+        implementations: [{ language: "postgresql", source: "select 1" }],
+      },
+    ];
     const raw = JSON.stringify(p).replaceAll('"rows":[[1]]', '"rows":[[1e309]]');
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "8a639146a5b62bd82abd8e616bc8f2cde6599ff9449abf1ceb68f7f4c8104e74",
+      "bea1a8be83887930101a24ab9086cacde3c59fab44c11e75feba69058639d282",
     );
   });
   it("validates candidate fixtures with canonical publication rules", async () => {
@@ -259,7 +264,6 @@ describe("operator CLI contracts", () => {
         fixture.problem.id = versionId;
         fixture.problem.slug = slug;
         fixture.problem.version = "1";
-        fixture.solutions = [];
         await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problemId, slug]);
         await pool.query(
           "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9)",
@@ -425,12 +429,13 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
             harnessRevision: "quorem-postgresql-v2",
           },
         ];
-        fixture.canonicalSolution = {
-          ...fixture.canonicalSolution,
-          language: "postgresql",
-          source: "select 1",
-        };
-        fixture.solutions = [];
+        fixture.approaches = [
+          {
+            ...fixture.approaches[0],
+            defaultLanguage: "postgresql",
+            implementations: [{ language: "postgresql", source: "select 1" }],
+          },
+        ];
       }
       const raw = mode.startsWith("sql")
           ? JSON.stringify(fixture).replaceAll(

@@ -3,7 +3,6 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { defaultLimits, languageRuntime } from "@quorem/execution";
 import {
-  blankSolution,
   generateStarter,
   parseLosslessJson,
   stringifyLosslessJson,
@@ -97,8 +96,8 @@ export async function prepareCustomInterviewQuestion(
     odysseyHiddenCases: odyssey ? suites : [],
     attribution: "Private interview",
     implementations,
-    canonicalSolution: { ...blankSolution() },
-    solutions: [],
+    canonicalApproachId: "",
+    approaches: [],
   };
   try {
     validateQuestionDefinition(stringifyLosslessJson(content), validateQuestionSchema, false);

@@ -1,5 +1,4 @@
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
-import { hasEditorial } from "@quorem/questions";
 import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -759,7 +758,7 @@ export function WorkspacePage({
                   <EditorialPanel
                     theme={theme}
                     colorScheme={editorSchemes[theme]}
-                    available={hasEditorial(problem.complexityLanguages, documentLanguage)}
+                    available={problem.hasComplexity ?? false}
                     identity={identity}
                     versionId={problem.id}
                     language={documentLanguage}
@@ -783,10 +782,8 @@ export function WorkspacePage({
                 <EditorialPanel
                   theme={theme}
                   colorScheme={editorSchemes[theme]}
-                  available={hasEditorial(problem.complexityLanguages, documentLanguage)}
-                  solutionAvailable={
-                    !match && hasEditorial(problem.solutionLanguages, documentLanguage)
-                  }
+                  available={problem.hasComplexity ?? false}
+                  solutionAvailable={!match && (problem.hasSolutions ?? false)}
                   key={`${identity}:${problem.id}`}
                   identity={identity}
                   versionId={problem.id}

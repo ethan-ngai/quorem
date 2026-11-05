@@ -221,13 +221,22 @@
       "harnessRevision": "quorem-ocaml-v1"
     }
   ],
-  "solutions": [],
-  "canonicalSolution": {
-    "language": "python",
-    "source": "class Solution:\n    def __init__(self):\n        self.balance = 0\n    def deposit(self, amount):\n        self.balance += amount\n        return self.balance\n    def withdraw(self, amount):\n        if amount > self.balance:\n            return False\n        self.balance -= amount\n        return True\n    def clear(self):\n        self.balance = 0\n",
+  "canonicalApproachId": "default",
+  "approaches": [
+  {
+    "id": "default",
+    "title": "",
+    "defaultLanguage": "python",
     "explanationMarkdown": "",
     "timeComplexity": "",
     "spaceComplexity": "",
-    "complexityNotes": ""
+    "complexityNotes": "",
+    "implementations": [
+      {
+        "language": "python",
+        "source": "class Solution:\n    def __init__(self):\n        self.balance = 0\n    def deposit(self, amount):\n        self.balance += amount\n        return self.balance\n    def withdraw(self, amount):\n        if amount > self.balance:\n            return False\n        self.balance -= amount\n        return True\n    def clear(self):\n        self.balance = 0\n"
+      }
+    ]
   }
+]
 }

@@ -1,4 +1,3 @@
-import { hasEditorial } from "@quorem/questions";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
@@ -506,10 +505,7 @@ function InterviewPad({
                         onChange={(monitoring) => void mutate("monitoring", monitoring)}
                       />
                       <QuestionHintsControls
-                        complexityAvailable={hasEditorial(
-                          question.problem.complexityLanguages,
-                          language,
-                        )}
+                        complexityAvailable={question.problem.hasComplexity ?? false}
                         value={snapshot.hints ?? {}}
                         disabled={busy}
                         onChange={(hints) => void mutate("hints", hints)}
@@ -592,32 +588,30 @@ function InterviewPad({
             selectedLevel={interviewer ? undefined : selectedLevel}
             allowTopics={snapshot.hints?.topics !== false}
           >
-            {snapshot.hints?.complexity === true &&
-              hasEditorial(question.problem.complexityLanguages, language) && (
-                <EditorialPanel
-                  theme={theme.theme}
-                  colorScheme={preferences.editorSchemes[theme.theme]}
-                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
-                  versionId={question.problem.id}
-                  language={language}
-                />
-              )}
+            {snapshot.hints?.complexity === true && (question.problem.hasComplexity ?? false) && (
+              <EditorialPanel
+                theme={theme.theme}
+                colorScheme={preferences.editorSchemes[theme.theme]}
+                identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                versionId={question.problem.id}
+                language={language}
+              />
+            )}
           </OdysseyPanel>
         ) : (
           <ProblemStatement
             problem={question.problem}
             allowTopics={snapshot.hints?.topics !== false}
           >
-            {snapshot.hints?.complexity === true &&
-              hasEditorial(question.problem.complexityLanguages, language) && (
-                <EditorialPanel
-                  theme={theme.theme}
-                  colorScheme={preferences.editorSchemes[theme.theme]}
-                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
-                  versionId={question.problem.id}
-                  language={language}
-                />
-              )}
+            {snapshot.hints?.complexity === true && (question.problem.hasComplexity ?? false) && (
+              <EditorialPanel
+                theme={theme.theme}
+                colorScheme={preferences.editorSchemes[theme.theme]}
+                identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                versionId={question.problem.id}
+                language={language}
+              />
+            )}
           </ProblemStatement>
         )
       }
