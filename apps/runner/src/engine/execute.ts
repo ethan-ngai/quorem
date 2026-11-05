@@ -66,6 +66,7 @@ export async function executeAndStage(
   sandbox: IsolatedSandbox,
   signal?: AbortSignal,
   shouldYield?: () => boolean,
+  onFinalCase?: () => void,
 ): Promise<CompletionHeader> {
   const runtime = runtimeForRevision(job.runtimeRevision, job.harnessRevision);
   if (!runtime || runtime.language !== job.language)
@@ -322,6 +323,8 @@ export async function executeAndStage(
             signal,
           );
         }
+        // The last case has exited. Verification and attempt teardown can now overlap.
+        if (ordinal === total - 1) onFinalCase?.();
         await stage(ordinal, stored);
       }
       return header;

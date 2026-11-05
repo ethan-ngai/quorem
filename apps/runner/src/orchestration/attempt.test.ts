@@ -65,6 +65,56 @@ void test("completion and yield publish only after teardown", async () => {
     );
   }
 });
+void test("final case verification overlaps teardown but publication waits for its proof", async () => {
+  for (const fails of [false, true]) {
+    const f = fixture();
+    let start!: () => void,
+      confirm!: () => void,
+      rejectProof!: (error: Error) => void,
+      verify!: () => void;
+    const started = new Promise<void>((resolve) => {
+      start = resolve;
+    });
+    const proof = new Promise<void>((resolve, reject) => {
+      confirm = resolve;
+      rejectProof = reject;
+    });
+    const verified = new Promise<void>((resolve) => {
+      verify = resolve;
+    });
+    f.sandbox.teardownAttempt = async (fence) => {
+      assert.deepEqual(fence, { attemptId: job.attemptId, sandboxScope: job.sandboxScope });
+      f.events.push("teardown");
+      start();
+      await proof;
+    };
+    const result = runAttempt({
+      ...f,
+      job,
+      engine: {
+        async execute(_job, _signal, onFinalCase) {
+          onFinalCase!();
+          await started;
+          f.events.push("verified");
+          verify();
+          return "complete";
+        },
+      },
+    });
+    await verified;
+    assert.deepEqual(f.events, ["lease", "teardown", "verified"]);
+    if (fails) {
+      rejectProof(new Error("unconfirmed"));
+      await assert.rejects(result, /unconfirmed/);
+      assert.deepEqual(f.events, ["lease", "teardown", "verified"]);
+    } else {
+      confirm();
+      assert.equal(await result, "complete");
+      assert.deepEqual(f.events, ["lease", "teardown", "verified", "eof", "promote"]);
+    }
+  }
+});
+
 void test("revoked lease aborts execution and cannot publish", async () => {
   const f = fixture();
   const running = runAttempt({
