@@ -888,7 +888,24 @@
   gap: var(--space-2);
 }
 .authoring-content-action {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   padding-block: var(--space-2);
+}
+.authoring-solution-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  height: var(--control-height);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+}
+.authoring-solution-status:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .authoring-language-actions > .select-field {
   width: auto;

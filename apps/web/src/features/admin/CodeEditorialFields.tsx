@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { blankSolution } from "@quorem/questions";
-import { Clock3, Plus, Trash2 } from "lucide-react";
+import { Clock3, Plus, Trash2, BookmarkCheck, ArrowUpRight, Code2 } from "lucide-react";
 import { SelectField } from "../../ui/SelectField";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { Tooltip } from "../../ui/Tooltip";
@@ -92,7 +92,6 @@ export function CodeEditorialFields({
         </footer>
       </SessionDialog>
       <div className="admin-code-toolbar">
-        <span>{canonical ? "Canonical solution · default editorial" : "Additional editorial"}</span>
         <div className="authoring-language-actions">
           <SelectField
             label={content.problem.sql ? "SQL dialect" : "Editorial language"}
@@ -112,10 +111,22 @@ export function CodeEditorialFields({
                 leading: <LanguageLogo language={value} />,
               }))}
           />
+          {canonical && (
+            <Tooltip content="Default solution: used for judging and as the fallback editorial.">
+              <span
+                className="authoring-solution-status"
+                role="img"
+                aria-label="Default solution"
+                tabIndex={0}
+              >
+                <BookmarkCheck size={15} aria-hidden="true" />
+              </span>
+            </Tooltip>
+          )}
           {!implementation && (
             <button
               type="button"
-              className="button button-secondary"
+              className="button button-ghost"
               disabled={disabled}
               onClick={() =>
                 onChange({
@@ -124,7 +135,7 @@ export function CodeEditorialFields({
                 })
               }
             >
-              <Plus size={14} aria-hidden="true" /> Enable {languageLabels[language]} submissions
+              <Code2 size={14} aria-hidden="true" /> Allow submissions
             </button>
           )}
           {!canonical && solution && (
@@ -155,10 +166,17 @@ export function CodeEditorialFields({
             >
               <Plus size={14} aria-hidden="true" /> Add {languageLabels[language]} editorial
             </button>
-            <p>
-              The canonical {languageLabels[content.canonicalSolution.language]} solution is shown
-              when this language has no editorial.
-            </p>
+            <Tooltip content="View the default solution">
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={() => onLanguageChange(content.canonicalSolution.language)}
+              >
+                <LanguageLogo language={content.canonicalSolution.language} />
+                {languageLabels[content.canonicalSolution.language]} default
+                <ArrowUpRight size={14} aria-hidden="true" />
+              </button>
+            </Tooltip>
           </div>
         ) : (
           <div>
