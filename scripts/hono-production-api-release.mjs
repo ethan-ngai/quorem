@@ -94,7 +94,7 @@ async function release(env) {
   );
   if (vars.APP_ENV !== "production") throw new Error("Worker is not configured for production");
   // Coordinated topology releases adopt the tested case-lane policy.
-  if (env.HONO_JUDGING_SCOPE_UPDATE === "true")
+  if (env.HONO_JUDGING_SCOPE_UPDATE === "true" && vars.JUDGING_CASE_LANES !== undefined)
     vars.JUDGING_CASE_LANES = String(JUDGING_DEFAULTS.caseLanes);
   const api = outputs(env, "hono-stage", "hono-production-api");
   const services = outputs(env, "hono-services", "hono-production-services");
