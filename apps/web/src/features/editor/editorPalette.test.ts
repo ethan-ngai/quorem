@@ -2,7 +2,8 @@
 import { history, undoDepth } from "@codemirror/commands";
 import { Compartment, EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { editorColorTheme, resolveEditorPalette } from "./editorPalette";
+import { editorColorTheme } from "./editorPalette";
+import { resolveEditorPalette } from "./editorPalettes";
 import { editorSchemes, normalizeEditorSchemeForMode } from "./editorSchemes";
 
 /** Converts an opaque sRGB palette value into relative luminance. */
