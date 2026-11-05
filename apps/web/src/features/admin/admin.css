@@ -440,7 +440,7 @@
 }
 
 .admin-form-pane .question-authoring > .result-tabs {
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-3);
   flex-wrap: wrap;
 }
 

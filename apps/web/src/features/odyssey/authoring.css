@@ -32,7 +32,7 @@
 }
 .question-authoring .authoring-case-browser {
   height: 320px;
-  margin: var(--space-3) 0 0;
+  margin: var(--space-1) 0 0;
   --workspace-control-inset: 18px;
 }
 .question-authoring .case-details {
