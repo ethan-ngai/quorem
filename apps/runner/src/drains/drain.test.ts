@@ -80,6 +80,59 @@ void test("bounded drain returns incomplete when work cannot be claimed", async 
   });
   assert.equal((await d.drain(AbortSignal.timeout(500))).complete, false);
 });
+
+void test(
+  "idle slots do not retry claims on periodic control ticks",
+  { timeout: 2000 },
+  async () => {
+    const f = fixture();
+    f.add();
+    let calls = 0,
+      release!: () => void,
+      entered!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const claim = f.repository.claimAfterTeardown.bind(f.repository);
+    f.repository.claimAfterTeardown = async (...args) => {
+      calls++;
+      return claim(...args);
+    };
+    f.queue.subscribe = async () => ({
+      async next(signal) {
+        await sleep(5, undefined, { signal });
+        return "changed";
+      },
+      async close() {},
+    });
+    const d = drainer({
+      ...f,
+      slots: 8,
+      resumable: true,
+      graceMs: 1,
+      claimWindowMs: 1500,
+      engine: {
+        async execute() {
+          entered();
+          await pending;
+          return "complete";
+        },
+      },
+    });
+    const result = d.drain(AbortSignal.timeout(1800));
+    try {
+      await started;
+      await sleep(450);
+      assert.ok(calls <= 8, `idle claim amplification: ${calls}`);
+    } finally {
+      release();
+    }
+    assert.equal((await result).complete, true);
+  },
+);
 void test("HTTP authenticates and overlaps require continuation", async () => {
   let finish!: () => void,
     refreshed = 0;

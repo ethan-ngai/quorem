@@ -121,11 +121,14 @@ void test("case lifecycle diagnostics require the validation binding", async () 
   });
   const response = await sandbox.fetch(request());
   await response.arrayBuffer();
-  assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), {
+  const { timing, ...state } = await (await sandbox.fetch(request("GET"))).json();
+  assert.deepEqual(state, {
     phase: "stop-complete",
     failure: "none",
     source: "none",
   });
+  for (const name of ["inputMs", "startupMs", "executionMs", "teardownMs", "totalMs"])
+    assert.ok(Number.isSafeInteger(timing[name]) && timing[name] >= 0);
 });
 
 void test("case diagnostics preserve the failed stream source after teardown", async () => {

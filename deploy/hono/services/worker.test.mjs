@@ -608,7 +608,9 @@ void test("signed live case observation follows execution and confirmed attempt 
     );
   const diagnosticResponse = await diagnostic();
   assert.equal(diagnosticResponse.status, 200);
-  assert.deepEqual(await diagnosticResponse.json(), {
+  const { timing, ...diagnosticState } = await diagnosticResponse.json();
+  assert.ok(Number.isSafeInteger(timing.startupMs));
+  assert.deepEqual(diagnosticState, {
     phase: "exec-ready",
     failure: "none",
     source: "none",
