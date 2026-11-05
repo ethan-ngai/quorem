@@ -12,10 +12,9 @@ it("authenticates a native drain and rejects a sandbox outside the peer scope", 
     origin: "https://case.example.test",
     secret: "c".repeat(64),
     namespaceId: "a".repeat(64),
-    ownerPublicKey: generateKeyPairSync("ed25519").publicKey.export({
-      type: "spki",
-      format: "pem",
-    }),
+    ownerPublicKey: generateKeyPairSync("ed25519")
+      .publicKey.export({ type: "spki", format: "pem" })
+      .toString(),
   };
   const peer = {
     secret: "d".repeat(64),

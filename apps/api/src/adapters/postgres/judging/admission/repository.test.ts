@@ -402,6 +402,7 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
         shard: 22,
         commit: async (fence) => {
           attempts++;
+          if (fence.receiptId === null) throw new Error("Expected a prearmed receipt");
           receiptId = fence.receiptId;
           jobId = fence.jobId;
           await admit(principal, key, cmd, fence);
