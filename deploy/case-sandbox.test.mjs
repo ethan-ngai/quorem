@@ -23,6 +23,11 @@ function fixture({ failure = false, streamFailure = false } = {}) {
   let sent = new Uint8Array();
   const context = {
     storage: {
+      transaction(run) {
+        const pending = (context.transaction ?? Promise.resolve()).then(() => run(context.storage));
+        context.transaction = pending.catch(() => {});
+        return pending;
+      },
       async get(key) {
         return values.get(key);
       },
@@ -145,8 +150,9 @@ void test("direct case forwards current input and confirms teardown before its t
   assert.equal(context.options.enableInternet, false);
   assert.equal(context.execOptions.user, "0:0");
   assert.equal(bytes[0], 1);
-  assert.equal(bytes[10], 3);
-  assert.equal(bytes[22], 4);
+  assert.equal(new DataView(bytes.buffer).getUint32(4), 0);
+  assert.equal(bytes[18], 3);
+  assert.equal(bytes[30], 4);
   assert.equal(context.container.running, false);
   assert.equal(values.has("started"), false);
   assert.equal(context.alarm, undefined);
@@ -192,10 +198,15 @@ void test("teardown fences a case whose input is still arriving", async () => {
       },
     }),
   );
+  const admitted = await pending;
+  assert.equal(admitted.status, 200);
+  const content = admitted.arrayBuffer();
+  void content.catch(() => {});
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal((await sandbox.fetch(request("DELETE"))).status, 204);
   controller.enqueue(new Uint8Array([1]));
   controller.close();
-  assert.equal((await pending).status, 503);
+  await assert.rejects(content);
   assert.equal(context.container.running, false);
   assert.equal((await sandbox.fetch(request())).status, 503);
   assert.equal(context.container.running, false);
@@ -252,6 +263,11 @@ void test(
       ),
     );
     const responses = await Promise.all(posts);
+    const readers = responses.map((response) => response.body.getReader());
+    await Promise.all(readers.map((reader) => reader.read()));
+    for (let tick = 0; tick < 100 && f.releases.length < CASE_LANES; tick++)
+      await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.releases.length, CASE_LANES);
     assert.ok(responses.every((response) => response.status === 200));
     assert.equal(
       [...f.contexts.values()].filter((ctx) => ctx.container.running).length,
@@ -266,7 +282,11 @@ void test(
       503,
     );
     f.releases.forEach((release) => release());
-    await Promise.all(responses.map((response) => response.arrayBuffer()));
+    await Promise.all(
+      readers.map(async (reader) => {
+        while (!(await reader.read()).done) {}
+      }),
+    );
   },
 );
 
@@ -277,6 +297,11 @@ void test(
     const f = laneNamespace({ failedLane: "attempt-lane-2" });
     const response = await f.root().fetch(request("POST", { "x-quorem-case-ordinal": "2" }));
     assert.equal(response.status, 200);
+    const reader = response.body.getReader();
+    await reader.read();
+    for (let tick = 0; tick < 100 && f.releases.length < 1; tick++)
+      await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.releases.length, 1);
     f.evict();
     assert.equal((await f.root().fetch(request("DELETE", { "x-case-token": "" }))).status, 503);
     const failed = f.contexts.get("attempt-lane-2");
@@ -285,12 +310,13 @@ void test(
     };
     assert.equal((await f.root().fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
     f.releases.forEach((release) => release());
-    await response.arrayBuffer();
+    while (!(await reader.read()).done) {}
   },
 );
 
 void test("attempt cleanup leaves connection headroom and still visits every lane", async () => {
   const f = fixture();
+  f.values.set("used-lanes", (1 << CASE_LANES) - 1);
   let running = 0,
     peak = 0,
     visited = 0;
@@ -315,6 +341,7 @@ void test("attempt cleanup leaves connection headroom and still visits every lan
 
 void test("attempt cleanup fans out bodyless commands from a streamed DELETE request", async () => {
   const f = fixture();
+  f.values.set("used-lanes", (1 << CASE_LANES) - 1);
   let visited = 0;
   const sandbox = newSandbox(f.context, {
     CASES: {
@@ -335,4 +362,89 @@ void test("attempt cleanup fans out bodyless commands from a streamed DELETE req
   assert.notEqual(incoming.body, null);
   assert.equal((await sandbox.fetch(incoming)).status, 204);
   assert.equal(visited, CASE_LANES - 1);
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+void test(
+  "case admission headers and an empty frame arrive before native startup completes",
+  { timeout: 2000 },
+  async (t) => {
+    const f = fixture(),
+      entered = deferred(),
+      release = deferred();
+    t.after(() => release.resolve());
+    const exec = f.context.container.exec.bind(f.context.container);
+    f.context.container.exec = async (...args) => {
+      entered.resolve();
+      await release.promise;
+      return exec(...args);
+    };
+    const response = await newSandbox(f.context).fetch(request());
+    assert.equal(response.status, 200);
+    const reader = response.body.getReader();
+    const first = await reader.read();
+    assert.equal(first.value.length, 8);
+    assert.equal(new DataView(first.value.buffer).getUint32(4), 0);
+    await entered.promise;
+    assert.equal(f.context.container.running, true);
+    release.resolve();
+    while (!(await reader.read()).done) {}
+    await Promise.all(f.pending);
+  },
+);
+
+void test(
+  "early admission never certifies success before native destruction",
+  { timeout: 2000 },
+  async (t) => {
+    const { decodeCaseFrames } = await import("../packages/execution/src/frames.ts");
+    const f = fixture(),
+      entered = deferred(),
+      release = deferred();
+    t.after(() => release.resolve());
+    const destroy = f.context.container.destroy.bind(f.context.container);
+    f.context.container.destroy = async () => {
+      entered.resolve();
+      await release.promise;
+      await destroy();
+    };
+    const response = await newSandbox(f.context).fetch(request());
+    let completed = false;
+    const decoded = decodeCaseFrames(
+      response.body,
+      { stdoutBytes: 1024, stderrBytes: 1024 },
+      async () => {},
+    ).then((code) => {
+      completed = true;
+      return code;
+    });
+    void decoded.catch(() => {});
+    await entered.promise;
+    assert.equal(completed, false);
+    assert.equal(f.context.container.running, true);
+    release.resolve();
+    assert.equal(await decoded, 0);
+    assert.equal(f.context.container.running, false);
+  },
+);
+
+void test("one-case attempts never create unused sibling lanes during confirmed cleanup", async () => {
+  const f = fixture();
+  const sandbox = newSandbox(f.context, {
+    CASES: {
+      getByName() {
+        throw new Error("unused lane accessed");
+      },
+    },
+  });
+  await (await sandbox.fetch(request())).arrayBuffer();
+  assert.equal(f.values.get("used-lanes"), 1);
+  assert.equal((await sandbox.fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
 });
